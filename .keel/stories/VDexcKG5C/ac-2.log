@@ -1,0 +1,8 @@
+Reviewed `MATERIALIZATION.md`.
+
+The contract keeps processing outside the append acknowledgement path:
+- `Materialization is adjacent to the engine, not fused into the append acknowledgement path`
+- processors consume replayable history rather than participating in append ack
+- checkpoint creation is explicitly described as off the hot write path
+
+This preserves the throughput boundary required by SRS-NFR-01.

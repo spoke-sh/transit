@@ -1,0 +1,8 @@
+Reviewed `MATERIALIZATION.md`.
+
+The contract remains packaging- and durability-neutral:
+- the design center says the same contract must work for embedded and server packaging
+- the same contract must work whether source history is local, restored from object storage, or mixed
+- the invariants section says restore from object storage does not create a second-class replay path
+
+This satisfies the shared embedded/server and local/tiered compatibility requirement.

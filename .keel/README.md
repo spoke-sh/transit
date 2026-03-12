@@ -41,7 +41,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Materialization Contract And Snapshot Model](epics/VDd0u3PFg/voyages/VDexXBU7g/) | planned |
+| [Materialization Contract And Snapshot Model](epics/VDd0u3PFg/voyages/VDexXBU7g/) | in-progress |
 
 ### [Research Agent Runtime And Model Harness Workloads](epics/VDd1EybWm/) (done)
 

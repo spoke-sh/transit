@@ -19,8 +19,8 @@ created_at: 2026-03-12T06:30:50
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/3 stories done
+**Progress:** 0/1 voyages complete, 1/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Materialization Contract And Snapshot Model](voyages/VDexXBU7g/) | planned | 0/3 |
+| [Materialization Contract And Snapshot Model](voyages/VDexXBU7g/) | in-progress | 1/3 |
 <!-- END GENERATED -->

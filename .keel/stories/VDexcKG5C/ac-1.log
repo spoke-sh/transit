@@ -1,0 +1,8 @@
+Reviewed `MATERIALIZATION.md`.
+
+The document now defines the minimum engine-to-materializer contract:
+- replay source facts: `stream_id`, `offset`, `manifest_generation`, `durability`, and lineage position
+- a checkpoint envelope with replay cursor, lineage, manifest, and opaque state references
+- explicit resume semantics for same-head, descendant, restore, merge, and mismatch cases
+
+This satisfies the canonical contract requirement for replay cursors, lineage boundaries, checkpoint envelopes, and resume semantics.
