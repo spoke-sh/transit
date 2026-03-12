@@ -35,7 +35,7 @@
 | Voyage | Status |
 |--------|--------|
 | [Local Engine Core And Recovery](epics/VDeYUdLSW/voyages/VDeaFjrZW/) | done |
-| [Cold History Publication And Restore](epics/VDeYUdLSW/voyages/VDeb794qi/) | planned |
+| [Cold History Publication And Restore](epics/VDeYUdLSW/voyages/VDeb794qi/) | in-progress |
 
 ### [Research Agent Runtime And Model Harness Workloads](epics/VDd1EybWm/) (done)
 

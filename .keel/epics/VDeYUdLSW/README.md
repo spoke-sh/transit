@@ -24,5 +24,5 @@ index: 2
 | Voyage | Status | Stories |
 |--------|--------|---------|
 | [Local Engine Core And Recovery](voyages/VDeaFjrZW/) | done | 4/4 |
-| [Cold History Publication And Restore](voyages/VDeb794qi/) | planned | 0/3 |
+| [Cold History Publication And Restore](voyages/VDeb794qi/) | in-progress | 0/3 |
 <!-- END GENERATED -->

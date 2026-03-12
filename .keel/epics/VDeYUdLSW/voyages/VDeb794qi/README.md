@@ -1,11 +1,12 @@
 ---
 id: VDeb794qi
 title: Cold History Publication And Restore
-status: planned
+status: in-progress
 epic: VDeYUdLSW
 created_at: 2026-03-12T05:02:08
 index: 2
 updated_at: 2026-03-12T05:03:22
+started_at: 2026-03-12T06:01:42
 ---
 
 # Cold History Publication And Restore
@@ -30,5 +31,5 @@ updated_at: 2026-03-12T05:03:22
 |-------|------|--------|
 | [Implement Cold Restore From Remote Manifests](../../../../stories/VDeb9ncrT/README.md) | feat | backlog |
 | [Prove Tiered Durability And Shared Engine Boundaries](../../../../stories/VDeb9o4rS/README.md) | feat | backlog |
-| [Implement Object-Store Publication For Rolled Segments](../../../../stories/VDeb9oJrQ/README.md) | feat | backlog |
+| [Implement Object-Store Publication For Rolled Segments](../../../../stories/VDeb9oJrQ/README.md) | feat | in-progress |
 <!-- END GENERATED -->
