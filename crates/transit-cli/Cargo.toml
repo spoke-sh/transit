@@ -18,3 +18,6 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 transit-core = { path = "../transit-core" }
+
+[dev-dependencies]
+tempfile.workspace = true

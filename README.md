@@ -107,7 +107,8 @@ Today it contains:
 - a Nix flake and Rust toolchain bootstrap
 - a `Justfile` with a human-facing `just mission` verification path for local-engine proof, tiered publication/restore proof, and object-store probing
 - a local durable engine that can append, replay, branch, merge, recover from trailing uncommitted active-head bytes, publish rolled immutable segments to object storage, and cold-restore published history from remote manifests
-- an initial shared-engine server bootstrap that can open the same local engine, bind a daemon listener, shut down deterministically, and serve provisional remote append/read/tail/branch/merge/lineage-inspection operations through a framed request/response envelope with correlation IDs, explicit acknowledgement and error semantics, and logical tail sessions with credit-based delivery, without introducing a second storage path
+- an initial shared-engine server bootstrap that can open the same local engine, bind a daemon listener, shut down deterministically, and serve provisional remote root creation, append/read/tail, branch/merge, and lineage-inspection operations through a framed request/response envelope with correlation IDs, explicit acknowledgement and error semantics, and logical tail sessions with credit-based delivery, without introducing a second storage path
+- a first CLI client surface for remote root creation, append, read, branch, merge, lineage inspection, and logical tail-session workflows
 - an initial `object_store` integration with a filesystem probe command
 
 The implementation work now has a real scaffold to grow from instead of needing to reverse-engineer direction later.
@@ -123,7 +124,7 @@ The first verifiable-lineage contract now lives in [INTEGRITY.md](INTEGRITY.md).
 The intended surface area is:
 
 - an embedded library for in-process append, read, tail, and branch operations
-- a server daemon exposing the same semantics over a network API, starting from the shared-engine bootstrap and provisional remote append/read/tail/branch/merge/lineage-inspection support with explicit request correlation, acknowledgement envelopes, and logical tail-session control
+- a server daemon exposing the same semantics over a network API, starting from the shared-engine bootstrap and provisional remote root creation, append/read/tail, branch/merge, and lineage-inspection support with explicit request correlation, acknowledgement envelopes, and logical tail-session control
 - a client library and CLI for operators, application runtimes, and benchmarks
 
 ## First Principles

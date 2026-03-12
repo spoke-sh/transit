@@ -308,6 +308,24 @@ impl RemoteClient {
         }
     }
 
+    pub fn create_root(
+        &self,
+        stream_id: &StreamId,
+        metadata: LineageMetadata,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteStreamStatus>> {
+        match self.send_request(OperationRequest::CreateRoot {
+            stream_id: stream_id.clone(),
+            metadata,
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::StreamStatusOk(status),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, status)),
+            other => Err(unexpected_operation_response("create_root", &other.outcome)),
+        }
+    }
+
     pub fn read(
         &self,
         stream_id: &StreamId,
@@ -735,6 +753,10 @@ enum OperationRequest {
         stream_id: StreamId,
         payload: Vec<u8>,
     },
+    CreateRoot {
+        stream_id: StreamId,
+        metadata: LineageMetadata,
+    },
     OpenTailSession {
         stream_id: StreamId,
         from_offset: Offset,
@@ -816,6 +838,14 @@ struct SuccessfulResponse {
 pub struct TailSessionId(String);
 
 impl TailSessionId {
+    pub fn new(value: impl Into<String>) -> Result<Self> {
+        let value = value.into();
+        if value.trim().is_empty() {
+            anyhow::bail!("tail session ids must not be empty");
+        }
+        Ok(Self(value))
+    }
+
     fn from_sequence(sequence: u64) -> Self {
         Self(format!("tail-{sequence}"))
     }
@@ -1080,6 +1110,16 @@ fn handle_request(
             ),
             Err(error) => engine_error_response(request_id, error),
         },
+        OperationRequest::CreateRoot { stream_id, metadata } => {
+            match engine.create_stream(StreamDescriptor::root(stream_id, metadata)) {
+                Ok(status) => ack_response(
+                    request_id,
+                    engine.durability(),
+                    OperationResponse::StreamStatusOk(map_stream_status(status)),
+                ),
+                Err(error) => engine_error_response(request_id, error),
+            }
+        }
         OperationRequest::OpenTailSession {
             stream_id,
             from_offset,

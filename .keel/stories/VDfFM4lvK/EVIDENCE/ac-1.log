@@ -1,0 +1,174 @@
+---
+recorded_at: 2026-03-12T10:58:54.736781670-07:00
+mode: manual
+files: [".keel/stories/VDfFM4lvK/ac-1.log"]
+---
+
+--- File: ac-1.log ---
+target/debug/transit server create-root --server-addr 127.0.0.1:7182 --stream-id task.root --actor cli --reason bootstrap --label kind=root --json
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "stream_id": "task.root",
+  "next_offset": 0,
+  "active_record_count": 0,
+  "active_segment_start_offset": 0,
+  "manifest_generation": 0,
+  "rolled_segment_count": 0
+}
+
+target/debug/transit server append --server-addr 127.0.0.1:7182 --stream-id task.root --payload-text hello --json
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "stream_id": "task.root",
+  "position": "task.root@0",
+  "manifest_generation": 0,
+  "rolled_segment_id": null
+}
+
+target/debug/transit server read --server-addr 127.0.0.1:7182 --stream-id task.root --json
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "stream_id": "task.root",
+  "record_count": 1,
+  "head_offset": 0,
+  "records": [
+    {
+      "position": "task.root@0",
+      "payload_text": "hello"
+    }
+  ]
+}
+
+target/debug/transit server branch --server-addr 127.0.0.1:7182 --stream-id task.branch --parent-stream-id task.root --parent-offset 0 --actor classifier --reason split --label thread=1 --json
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "stream_id": "task.branch",
+  "next_offset": 1,
+  "active_record_count": 0,
+  "active_segment_start_offset": 1,
+  "manifest_generation": 0,
+  "rolled_segment_count": 0
+}
+
+target/debug/transit server branch --server-addr 127.0.0.1:7182 --stream-id task.branch-two --parent-stream-id task.root --parent-offset 0 --actor classifier --reason split-two --json
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "stream_id": "task.branch-two",
+  "next_offset": 1,
+  "active_record_count": 0,
+  "active_segment_start_offset": 1,
+  "manifest_generation": 0,
+  "rolled_segment_count": 0
+}
+
+target/debug/transit server merge --server-addr 127.0.0.1:7182 --stream-id task.merge --parent task.branch@0 --parent task.branch-two@0 --merge-base task.root@0 --policy recursive --policy-metadata resolver=judge-v1 --actor judge --reason merge --label decision=accepted --json
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "stream_id": "task.merge",
+  "next_offset": 1,
+  "active_record_count": 0,
+  "active_segment_start_offset": 1,
+  "manifest_generation": 0,
+  "rolled_segment_count": 0
+}
+
+target/debug/transit server lineage --server-addr 127.0.0.1:7182 --stream-id task.merge --json
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "stream_id": "task.merge",
+  "lineage_kind": "merge",
+  "parents": [
+    "task.branch",
+    "task.branch-two"
+  ],
+  "next_offset": 1,
+  "manifest_generation": 0,
+  "rolled_segment_count": 0
+}
+
+target/debug/transit server tail-open --server-addr 127.0.0.1:7182 --stream-id task.root --from-offset 0 --credit 1 --json
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "session_id": "tail-1",
+  "stream_id": "task.root",
+  "requested_credit": 1,
+  "delivered_credit": 1,
+  "next_offset": 1,
+  "state": "active",
+  "max_credit": 256,
+  "records": [
+    {
+      "position": "task.root@0",
+      "payload_text": "hello"
+    }
+  ]
+}
+
+target/debug/transit server append --server-addr 127.0.0.1:7182 --stream-id task.root --payload-text second --json
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "stream_id": "task.root",
+  "position": "task.root@1",
+  "manifest_generation": 0,
+  "rolled_segment_id": null
+}
+
+target/debug/transit server tail-poll --server-addr 127.0.0.1:7182 --session-id tail-1 --credit 1 --json
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "session_id": "tail-1",
+  "stream_id": "task.root",
+  "requested_credit": 1,
+  "delivered_credit": 1,
+  "next_offset": 2,
+  "state": "active",
+  "records": [
+    {
+      "position": "task.root@1",
+      "payload_text": "second"
+    }
+  ]
+}
+
+target/debug/transit server tail-cancel --server-addr 127.0.0.1:7182 --session-id tail-1 --json
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "session_id": "tail-1",
+  "stream_id": "task.root",
+  "next_offset": 2,
+  "state": "cancelled"
+}
+

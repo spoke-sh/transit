@@ -14,7 +14,9 @@ use transit_core::kernel::{
     StreamLineage, StreamPosition,
 };
 use transit_core::object_store_support::{ObjectStoreProbeResult, probe_local_filesystem_store};
-use transit_core::server::{ServerConfig, ServerHandle, ServerShutdownOutcome};
+use transit_core::server::{
+    RemoteClient, ServerConfig, ServerHandle, ServerShutdownOutcome, TailSessionId,
+};
 
 #[derive(Debug, Parser)]
 #[command(name = "transit")]
@@ -86,6 +88,24 @@ struct ServerArgs {
 enum ServerCommands {
     /// Boot a single-node daemon around the shared local engine.
     Run(ServerRunArgs),
+    /// Create a root stream through the remote server API.
+    CreateRoot(ServerCreateRootArgs),
+    /// Append a record through the remote server API.
+    Append(ServerAppendArgs),
+    /// Read the full replay for a stream through the remote server API.
+    Read(ServerReadArgs),
+    /// Open a logical remote tail session with explicit credit.
+    TailOpen(ServerTailOpenArgs),
+    /// Poll an existing logical remote tail session.
+    TailPoll(ServerTailPollArgs),
+    /// Cancel an existing logical remote tail session.
+    TailCancel(ServerTailCancelArgs),
+    /// Create a branch through the remote server API.
+    Branch(ServerBranchArgs),
+    /// Create a merge through the remote server API.
+    Merge(ServerMergeArgs),
+    /// Inspect lineage through the remote server API.
+    Lineage(ServerLineageArgs),
 }
 
 #[derive(Debug, Args)]
@@ -100,6 +120,134 @@ struct ServerRunArgs {
     #[arg(long = "serve-for-ms")]
     serve_for_ms: Option<u64>,
     /// Render server lifecycle output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ServerAppendArgs {
+    #[arg(long = "server-addr", default_value = "127.0.0.1:7171")]
+    server_addr: SocketAddr,
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    #[arg(long = "payload-text")]
+    payload_text: String,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ServerCreateRootArgs {
+    #[arg(long = "server-addr", default_value = "127.0.0.1:7171")]
+    server_addr: SocketAddr,
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    #[arg(long)]
+    actor: Option<String>,
+    #[arg(long)]
+    reason: Option<String>,
+    #[arg(long = "label")]
+    labels: Vec<String>,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ServerReadArgs {
+    #[arg(long = "server-addr", default_value = "127.0.0.1:7171")]
+    server_addr: SocketAddr,
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ServerTailOpenArgs {
+    #[arg(long = "server-addr", default_value = "127.0.0.1:7171")]
+    server_addr: SocketAddr,
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    #[arg(long = "from-offset", default_value_t = 0)]
+    from_offset: u64,
+    #[arg(long = "credit", default_value_t = 1)]
+    credit: u64,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ServerTailPollArgs {
+    #[arg(long = "server-addr", default_value = "127.0.0.1:7171")]
+    server_addr: SocketAddr,
+    #[arg(long = "session-id")]
+    session_id: String,
+    #[arg(long = "credit", default_value_t = 1)]
+    credit: u64,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ServerTailCancelArgs {
+    #[arg(long = "server-addr", default_value = "127.0.0.1:7171")]
+    server_addr: SocketAddr,
+    #[arg(long = "session-id")]
+    session_id: String,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ServerBranchArgs {
+    #[arg(long = "server-addr", default_value = "127.0.0.1:7171")]
+    server_addr: SocketAddr,
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    #[arg(long = "parent-stream-id")]
+    parent_stream_id: String,
+    #[arg(long = "parent-offset")]
+    parent_offset: u64,
+    #[arg(long)]
+    actor: Option<String>,
+    #[arg(long)]
+    reason: Option<String>,
+    #[arg(long = "label")]
+    labels: Vec<String>,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ServerMergeArgs {
+    #[arg(long = "server-addr", default_value = "127.0.0.1:7171")]
+    server_addr: SocketAddr,
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    #[arg(long = "parent")]
+    parents: Vec<String>,
+    #[arg(long = "merge-base")]
+    merge_base: Option<String>,
+    #[arg(long = "policy", default_value = "recursive")]
+    policy: String,
+    #[arg(long = "policy-metadata")]
+    policy_metadata: Vec<String>,
+    #[arg(long)]
+    actor: Option<String>,
+    #[arg(long)]
+    reason: Option<String>,
+    #[arg(long = "label")]
+    labels: Vec<String>,
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ServerLineageArgs {
+    #[arg(long = "server-addr", default_value = "127.0.0.1:7171")]
+    server_addr: SocketAddr,
+    #[arg(long = "stream-id")]
+    stream_id: String,
     #[arg(long)]
     json: bool,
 }
@@ -146,6 +294,42 @@ async fn main() -> Result<()> {
             ServerCommands::Run(args) => {
                 let json = args.json;
                 render_server_run(run_server(args).await?, json)?
+            }
+            ServerCommands::CreateRoot(args) => {
+                let json = args.json;
+                render_remote_stream_status(run_remote_create_root(args)?, json)?
+            }
+            ServerCommands::Append(args) => {
+                let json = args.json;
+                render_remote_append(run_remote_append(args)?, json)?
+            }
+            ServerCommands::Read(args) => {
+                let json = args.json;
+                render_remote_read(run_remote_read(args)?, json)?
+            }
+            ServerCommands::TailOpen(args) => {
+                let json = args.json;
+                render_remote_tail_open(run_remote_tail_open(args)?, json)?
+            }
+            ServerCommands::TailPoll(args) => {
+                let json = args.json;
+                render_remote_tail_poll(run_remote_tail_poll(args)?, json)?
+            }
+            ServerCommands::TailCancel(args) => {
+                let json = args.json;
+                render_remote_tail_cancel(run_remote_tail_cancel(args)?, json)?
+            }
+            ServerCommands::Branch(args) => {
+                let json = args.json;
+                render_remote_stream_status(run_remote_branch(args)?, json)?
+            }
+            ServerCommands::Merge(args) => {
+                let json = args.json;
+                render_remote_stream_status(run_remote_merge(args)?, json)?
+            }
+            ServerCommands::Lineage(args) => {
+                let json = args.json;
+                render_remote_lineage(run_remote_lineage(args)?, json)?
             }
         },
     }
@@ -253,6 +437,107 @@ struct ServerRunResult {
     accepted_connections: u64,
     graceful_shutdown: bool,
     server_api: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteAppendResult {
+    server_addr: String,
+    request_id: String,
+    durability: String,
+    topology: String,
+    stream_id: String,
+    position: String,
+    manifest_generation: u64,
+    rolled_segment_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteReadResult {
+    server_addr: String,
+    request_id: String,
+    durability: String,
+    topology: String,
+    stream_id: String,
+    record_count: usize,
+    head_offset: Option<u64>,
+    records: Vec<RemoteRecordView>,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteRecordView {
+    position: String,
+    payload_text: String,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteStreamStatusResult {
+    server_addr: String,
+    request_id: String,
+    durability: String,
+    topology: String,
+    stream_id: String,
+    next_offset: u64,
+    active_record_count: u64,
+    active_segment_start_offset: u64,
+    manifest_generation: u64,
+    rolled_segment_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteLineageResult {
+    server_addr: String,
+    request_id: String,
+    durability: String,
+    topology: String,
+    stream_id: String,
+    lineage_kind: String,
+    parents: Vec<String>,
+    next_offset: u64,
+    manifest_generation: u64,
+    rolled_segment_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteTailOpenResult {
+    server_addr: String,
+    request_id: String,
+    durability: String,
+    topology: String,
+    session_id: String,
+    stream_id: String,
+    requested_credit: u64,
+    delivered_credit: u64,
+    next_offset: u64,
+    state: String,
+    max_credit: u64,
+    records: Vec<RemoteRecordView>,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteTailPollResult {
+    server_addr: String,
+    request_id: String,
+    durability: String,
+    topology: String,
+    session_id: String,
+    stream_id: String,
+    requested_credit: u64,
+    delivered_credit: u64,
+    next_offset: u64,
+    state: String,
+    records: Vec<RemoteRecordView>,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteTailCancelResult {
+    server_addr: String,
+    request_id: String,
+    durability: String,
+    topology: String,
+    session_id: String,
+    stream_id: String,
+    next_offset: u64,
+    state: String,
 }
 
 fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
@@ -363,6 +648,233 @@ async fn run_server(args: ServerRunArgs) -> Result<ServerRunResult> {
     )
 }
 
+fn run_remote_create_root(args: ServerCreateRootArgs) -> Result<RemoteStreamStatusResult> {
+    let client = RemoteClient::new(args.server_addr);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let created = client
+        .create_root(
+            &stream_id,
+            parse_lineage_metadata(args.actor, args.reason, args.labels)?,
+        )
+        .with_context(|| format!("create remote root {}", stream_id.as_str()))?;
+
+    Ok(summarize_remote_stream_status(
+        args.server_addr,
+        created.request_id().as_str(),
+        created.ack().durability(),
+        created.ack().topology(),
+        created.body().stream_id().as_str(),
+        created.body().next_offset().value(),
+        created.body().active_record_count(),
+        created.body().active_segment_start_offset().value(),
+        created.body().manifest_generation(),
+        created.body().rolled_segment_count(),
+    ))
+}
+
+fn run_remote_append(args: ServerAppendArgs) -> Result<RemoteAppendResult> {
+    let client = RemoteClient::new(args.server_addr);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let append = client
+        .append(&stream_id, args.payload_text.as_bytes())
+        .with_context(|| format!("append remotely to {}", stream_id.as_str()))?;
+
+    Ok(RemoteAppendResult {
+        server_addr: args.server_addr.to_string(),
+        request_id: append.request_id().as_str().to_owned(),
+        durability: append.ack().durability().to_owned(),
+        topology: render_topology(append.ack().topology()),
+        stream_id: stream_id.as_str().to_owned(),
+        position: render_position(append.body().position().clone()),
+        manifest_generation: append.body().manifest_generation(),
+        rolled_segment_id: append.body().rolled_segment_id().map(str::to_owned),
+    })
+}
+
+fn run_remote_read(args: ServerReadArgs) -> Result<RemoteReadResult> {
+    let client = RemoteClient::new(args.server_addr);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let read = client
+        .read(&stream_id)
+        .with_context(|| format!("read remotely from {}", stream_id.as_str()))?;
+    let records = summarize_remote_records(read.body().records());
+
+    Ok(RemoteReadResult {
+        server_addr: args.server_addr.to_string(),
+        request_id: read.request_id().as_str().to_owned(),
+        durability: read.ack().durability().to_owned(),
+        topology: render_topology(read.ack().topology()),
+        stream_id: stream_id.as_str().to_owned(),
+        record_count: records.len(),
+        head_offset: read
+            .body()
+            .records()
+            .last()
+            .map(|record| record.position().offset.value()),
+        records,
+    })
+}
+
+fn run_remote_tail_open(args: ServerTailOpenArgs) -> Result<RemoteTailOpenResult> {
+    let client = RemoteClient::new(args.server_addr);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let opened = client
+        .open_tail_session(&stream_id, Offset::new(args.from_offset), args.credit)
+        .with_context(|| format!("open remote tail session for {}", stream_id.as_str()))?;
+
+    Ok(RemoteTailOpenResult {
+        server_addr: args.server_addr.to_string(),
+        request_id: opened.request_id().as_str().to_owned(),
+        durability: opened.ack().durability().to_owned(),
+        topology: render_topology(opened.ack().topology()),
+        session_id: opened.body().session_id().as_str().to_owned(),
+        stream_id: opened.body().stream_id().as_str().to_owned(),
+        requested_credit: opened.body().requested_credit(),
+        delivered_credit: opened.body().delivered_credit(),
+        next_offset: opened.body().next_offset().value(),
+        state: render_tail_state(opened.body().state()),
+        max_credit: opened.body().max_credit(),
+        records: summarize_remote_records(opened.body().records()),
+    })
+}
+
+fn run_remote_tail_poll(args: ServerTailPollArgs) -> Result<RemoteTailPollResult> {
+    let client = RemoteClient::new(args.server_addr);
+    let session_id = parse_tail_session_id_arg(&args.session_id)?;
+    let batch = client
+        .poll_tail_session(&session_id, args.credit)
+        .with_context(|| format!("poll remote tail session {}", session_id.as_str()))?;
+
+    Ok(RemoteTailPollResult {
+        server_addr: args.server_addr.to_string(),
+        request_id: batch.request_id().as_str().to_owned(),
+        durability: batch.ack().durability().to_owned(),
+        topology: render_topology(batch.ack().topology()),
+        session_id: batch.body().session_id().as_str().to_owned(),
+        stream_id: batch.body().stream_id().as_str().to_owned(),
+        requested_credit: batch.body().requested_credit(),
+        delivered_credit: batch.body().delivered_credit(),
+        next_offset: batch.body().next_offset().value(),
+        state: render_tail_state(batch.body().state()),
+        records: summarize_remote_records(batch.body().records()),
+    })
+}
+
+fn run_remote_tail_cancel(args: ServerTailCancelArgs) -> Result<RemoteTailCancelResult> {
+    let client = RemoteClient::new(args.server_addr);
+    let session_id = parse_tail_session_id_arg(&args.session_id)?;
+    let cancelled = client
+        .cancel_tail_session(&session_id)
+        .with_context(|| format!("cancel remote tail session {}", session_id.as_str()))?;
+
+    Ok(RemoteTailCancelResult {
+        server_addr: args.server_addr.to_string(),
+        request_id: cancelled.request_id().as_str().to_owned(),
+        durability: cancelled.ack().durability().to_owned(),
+        topology: render_topology(cancelled.ack().topology()),
+        session_id: cancelled.body().session_id().as_str().to_owned(),
+        stream_id: cancelled.body().stream_id().as_str().to_owned(),
+        next_offset: cancelled.body().next_offset().value(),
+        state: render_tail_state(cancelled.body().state()),
+    })
+}
+
+fn run_remote_branch(args: ServerBranchArgs) -> Result<RemoteStreamStatusResult> {
+    let client = RemoteClient::new(args.server_addr);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let parent = StreamPosition::new(
+        parse_stream_id_arg(&args.parent_stream_id)?,
+        Offset::new(args.parent_offset),
+    );
+    let branch = client
+        .create_branch(
+            &stream_id,
+            parent,
+            parse_lineage_metadata(args.actor, args.reason, args.labels)?,
+        )
+        .with_context(|| format!("create remote branch {}", stream_id.as_str()))?;
+
+    Ok(summarize_remote_stream_status(
+        args.server_addr,
+        branch.request_id().as_str(),
+        branch.ack().durability(),
+        branch.ack().topology(),
+        branch.body().stream_id().as_str(),
+        branch.body().next_offset().value(),
+        branch.body().active_record_count(),
+        branch.body().active_segment_start_offset().value(),
+        branch.body().manifest_generation(),
+        branch.body().rolled_segment_count(),
+    ))
+}
+
+fn run_remote_merge(args: ServerMergeArgs) -> Result<RemoteStreamStatusResult> {
+    let client = RemoteClient::new(args.server_addr);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let parents = args
+        .parents
+        .iter()
+        .map(|value| parse_position_arg(value))
+        .collect::<Result<Vec<_>>>()?;
+    let merge_base = args
+        .merge_base
+        .as_deref()
+        .map(parse_position_arg)
+        .transpose()?;
+    let merge = MergeSpec::new(
+        parents,
+        merge_base,
+        parse_merge_policy(&args.policy, &args.policy_metadata)?,
+        parse_lineage_metadata(args.actor, args.reason, args.labels)?,
+    )?;
+    let merged = client
+        .create_merge(&stream_id, merge)
+        .with_context(|| format!("create remote merge {}", stream_id.as_str()))?;
+
+    Ok(summarize_remote_stream_status(
+        args.server_addr,
+        merged.request_id().as_str(),
+        merged.ack().durability(),
+        merged.ack().topology(),
+        merged.body().stream_id().as_str(),
+        merged.body().next_offset().value(),
+        merged.body().active_record_count(),
+        merged.body().active_segment_start_offset().value(),
+        merged.body().manifest_generation(),
+        merged.body().rolled_segment_count(),
+    ))
+}
+
+fn run_remote_lineage(args: ServerLineageArgs) -> Result<RemoteLineageResult> {
+    let client = RemoteClient::new(args.server_addr);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let lineage = client
+        .inspect_lineage(&stream_id)
+        .with_context(|| format!("inspect remote lineage for {}", stream_id.as_str()))?;
+    let descriptor = lineage.body().descriptor();
+
+    Ok(RemoteLineageResult {
+        server_addr: args.server_addr.to_string(),
+        request_id: lineage.request_id().as_str().to_owned(),
+        durability: lineage.ack().durability().to_owned(),
+        topology: render_topology(lineage.ack().topology()),
+        stream_id: descriptor.stream_id.as_str().to_owned(),
+        lineage_kind: match &descriptor.lineage {
+            StreamLineage::Root { .. } => "root".to_owned(),
+            StreamLineage::Branch { .. } => "branch".to_owned(),
+            StreamLineage::Merge { .. } => "merge".to_owned(),
+        },
+        parents: descriptor
+            .parent_stream_ids()
+            .into_iter()
+            .map(|parent| parent.as_str().to_owned())
+            .collect(),
+        next_offset: lineage.body().status().next_offset().value(),
+        manifest_generation: lineage.body().status().manifest_generation(),
+        rolled_segment_count: lineage.body().status().rolled_segment_count(),
+    })
+}
+
 async fn run_tiered_engine_proof(root: PathBuf) -> Result<TieredEngineProofResult> {
     reset_directory(&root)?;
 
@@ -458,6 +970,107 @@ fn summarize_recovery(stream_id: &StreamId, outcome: LocalRecoveryOutcome) -> Re
     }
 }
 
+fn summarize_remote_stream_status(
+    server_addr: SocketAddr,
+    request_id: &str,
+    durability: &str,
+    topology: transit_core::server::RemoteTopology,
+    stream_id: &str,
+    next_offset: u64,
+    active_record_count: u64,
+    active_segment_start_offset: u64,
+    manifest_generation: u64,
+    rolled_segment_count: usize,
+) -> RemoteStreamStatusResult {
+    RemoteStreamStatusResult {
+        server_addr: server_addr.to_string(),
+        request_id: request_id.to_owned(),
+        durability: durability.to_owned(),
+        topology: render_topology(topology),
+        stream_id: stream_id.to_owned(),
+        next_offset,
+        active_record_count,
+        active_segment_start_offset,
+        manifest_generation,
+        rolled_segment_count,
+    }
+}
+
+fn summarize_remote_records(
+    records: &[transit_core::server::RemoteRecord],
+) -> Vec<RemoteRecordView> {
+    records
+        .iter()
+        .map(|record| RemoteRecordView {
+            position: render_position(record.position().clone()),
+            payload_text: String::from_utf8_lossy(record.payload()).into_owned(),
+        })
+        .collect()
+}
+
+fn parse_stream_id_arg(value: &str) -> Result<StreamId> {
+    StreamId::new(value).with_context(|| format!("parse stream id '{value}'"))
+}
+
+fn parse_tail_session_id_arg(value: &str) -> Result<TailSessionId> {
+    TailSessionId::new(value).with_context(|| format!("parse tail session id '{value}'"))
+}
+
+fn parse_lineage_metadata(
+    actor: Option<String>,
+    reason: Option<String>,
+    labels: Vec<String>,
+) -> Result<LineageMetadata> {
+    let mut metadata = LineageMetadata::new(actor, reason);
+    for entry in labels {
+        let (key, value) = parse_key_value_arg(&entry)?;
+        metadata = metadata.with_label(key, value);
+    }
+    Ok(metadata)
+}
+
+fn parse_merge_policy(policy: &str, entries: &[String]) -> Result<MergePolicy> {
+    let kind = match policy {
+        "fast_forward" => MergePolicyKind::FastForward,
+        "recursive" => MergePolicyKind::Recursive,
+        other => match other.strip_prefix("custom:") {
+            Some(name) => MergePolicyKind::Custom(name.to_owned()),
+            None => {
+                anyhow::bail!(
+                    "unsupported merge policy '{other}', use fast_forward, recursive, or custom:<name>"
+                )
+            }
+        },
+    };
+
+    let mut policy = MergePolicy::new(kind);
+    for entry in entries {
+        let (key, value) = parse_key_value_arg(entry)?;
+        policy = policy.with_metadata(key, value);
+    }
+    Ok(policy)
+}
+
+fn parse_position_arg(value: &str) -> Result<StreamPosition> {
+    let (stream_id, offset) = value
+        .rsplit_once('@')
+        .with_context(|| format!("parse position '{value}' as <stream-id>@<offset>"))?;
+    let offset = offset
+        .parse::<u64>()
+        .with_context(|| format!("parse offset in position '{value}'"))?;
+    Ok(StreamPosition::new(
+        parse_stream_id_arg(stream_id)?,
+        Offset::new(offset),
+    ))
+}
+
+fn parse_key_value_arg(value: &str) -> Result<(String, String)> {
+    let (key, value) = value
+        .split_once('=')
+        .with_context(|| format!("parse key=value pair '{value}'"))?;
+    Ok((key.to_owned(), value.to_owned()))
+}
+
 fn reset_directory(root: &Path) -> Result<()> {
     if root.exists() {
         fs::remove_dir_all(root)
@@ -473,6 +1086,22 @@ fn render_position(position: StreamPosition) -> String {
         position.stream_id.as_str(),
         position.offset.value()
     )
+}
+
+fn render_topology(topology: transit_core::server::RemoteTopology) -> String {
+    match topology {
+        transit_core::server::RemoteTopology::SingleNode => "single_node".to_owned(),
+    }
+}
+
+fn render_tail_state(state: transit_core::server::RemoteTailSessionState) -> String {
+    match state {
+        transit_core::server::RemoteTailSessionState::Active => "active".to_owned(),
+        transit_core::server::RemoteTailSessionState::AwaitingRecords => {
+            "awaiting_records".to_owned()
+        }
+        transit_core::server::RemoteTailSessionState::Cancelled => "cancelled".to_owned(),
+    }
 }
 
 fn inject_trailing_uncommitted_bytes(root: &Path, stream_id: &str) -> Result<()> {
@@ -634,6 +1263,163 @@ fn render_server_run(result: ServerRunResult, json: bool) -> Result<()> {
     Ok(())
 }
 
+fn render_remote_append(result: RemoteAppendResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit server append");
+    println!("server: {}", result.server_addr);
+    println!("request: {}", result.request_id);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!("stream: {}", result.stream_id);
+    println!("position: {}", result.position);
+    println!("manifest generation: {}", result.manifest_generation);
+    if let Some(segment_id) = result.rolled_segment_id {
+        println!("rolled segment: {segment_id}");
+    }
+    Ok(())
+}
+
+fn render_remote_read(result: RemoteReadResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit server read");
+    println!("server: {}", result.server_addr);
+    println!("request: {}", result.request_id);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!("stream: {}", result.stream_id);
+    println!("records: {}", result.record_count);
+    if let Some(head_offset) = result.head_offset {
+        println!("head offset: {head_offset}");
+    }
+    for record in result.records {
+        println!("{} {}", record.position, record.payload_text);
+    }
+    Ok(())
+}
+
+fn render_remote_stream_status(result: RemoteStreamStatusResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit server stream status");
+    println!("server: {}", result.server_addr);
+    println!("request: {}", result.request_id);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!("stream: {}", result.stream_id);
+    println!("next offset: {}", result.next_offset);
+    println!("active records: {}", result.active_record_count);
+    println!(
+        "active segment start offset: {}",
+        result.active_segment_start_offset
+    );
+    println!("manifest generation: {}", result.manifest_generation);
+    println!("rolled segments: {}", result.rolled_segment_count);
+    Ok(())
+}
+
+fn render_remote_lineage(result: RemoteLineageResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit server lineage");
+    println!("server: {}", result.server_addr);
+    println!("request: {}", result.request_id);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!("stream: {}", result.stream_id);
+    println!("lineage kind: {}", result.lineage_kind);
+    if result.parents.is_empty() {
+        println!("parents: none");
+    } else {
+        println!("parents:");
+        for parent in result.parents {
+            println!("  - {parent}");
+        }
+    }
+    println!("next offset: {}", result.next_offset);
+    println!("manifest generation: {}", result.manifest_generation);
+    println!("rolled segments: {}", result.rolled_segment_count);
+    Ok(())
+}
+
+fn render_remote_tail_open(result: RemoteTailOpenResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit server tail open");
+    println!("server: {}", result.server_addr);
+    println!("request: {}", result.request_id);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!("session: {}", result.session_id);
+    println!("stream: {}", result.stream_id);
+    println!("requested credit: {}", result.requested_credit);
+    println!("delivered credit: {}", result.delivered_credit);
+    println!("next offset: {}", result.next_offset);
+    println!("state: {}", result.state);
+    println!("max credit: {}", result.max_credit);
+    for record in result.records {
+        println!("{} {}", record.position, record.payload_text);
+    }
+    Ok(())
+}
+
+fn render_remote_tail_poll(result: RemoteTailPollResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit server tail poll");
+    println!("server: {}", result.server_addr);
+    println!("request: {}", result.request_id);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!("session: {}", result.session_id);
+    println!("stream: {}", result.stream_id);
+    println!("requested credit: {}", result.requested_credit);
+    println!("delivered credit: {}", result.delivered_credit);
+    println!("next offset: {}", result.next_offset);
+    println!("state: {}", result.state);
+    for record in result.records {
+        println!("{} {}", record.position, record.payload_text);
+    }
+    Ok(())
+}
+
+fn render_remote_tail_cancel(result: RemoteTailCancelResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit server tail cancel");
+    println!("server: {}", result.server_addr);
+    println!("request: {}", result.request_id);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!("session: {}", result.session_id);
+    println!("stream: {}", result.stream_id);
+    println!("next offset: {}", result.next_offset);
+    println!("state: {}", result.state);
+    Ok(())
+}
+
 fn render_object_store_probe(result: ObjectStoreProbeResult, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
@@ -655,4 +1441,233 @@ fn render_object_store_probe(result: ObjectStoreProbeResult, json: bool) -> Resu
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn start_server() -> (tempfile::TempDir, ServerHandle, SocketAddr) {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path()),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let server_addr = server.local_addr();
+        (temp_dir, server, server_addr)
+    }
+
+    #[test]
+    fn remote_cli_helpers_cover_core_server_workflows() {
+        let (_temp_dir, server, server_addr) = start_server();
+        let engine = server.engine();
+        let root = run_remote_create_root(ServerCreateRootArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            actor: Some("test".into()),
+            reason: Some("cli".into()),
+            labels: vec!["kind=root".into()],
+            json: true,
+        })
+        .expect("create root stream");
+        let root_stream = StreamId::new("task.root").expect("stream id");
+
+        let append = run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            payload_text: "first".into(),
+            json: true,
+        })
+        .expect("append");
+        let read = run_remote_read(ServerReadArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            json: true,
+        })
+        .expect("read");
+        let branch = run_remote_branch(ServerBranchArgs {
+            server_addr,
+            stream_id: "task.branch".into(),
+            parent_stream_id: "task.root".into(),
+            parent_offset: 0,
+            actor: Some("classifier".into()),
+            reason: Some("split".into()),
+            labels: vec!["thread=1".into()],
+            json: true,
+        })
+        .expect("branch");
+        let second_branch = run_remote_branch(ServerBranchArgs {
+            server_addr,
+            stream_id: "task.branch-two".into(),
+            parent_stream_id: "task.root".into(),
+            parent_offset: 0,
+            actor: Some("classifier".into()),
+            reason: Some("split-two".into()),
+            labels: vec![],
+            json: true,
+        })
+        .expect("second branch");
+        let merge = run_remote_merge(ServerMergeArgs {
+            server_addr,
+            stream_id: "task.merge".into(),
+            parents: vec!["task.branch@0".into(), "task.branch-two@0".into()],
+            merge_base: Some("task.root@0".into()),
+            policy: "recursive".into(),
+            policy_metadata: vec!["resolver=judge-v1".into()],
+            actor: Some("judge".into()),
+            reason: Some("merge".into()),
+            labels: vec!["decision=accepted".into()],
+            json: true,
+        })
+        .expect("merge");
+        let lineage = run_remote_lineage(ServerLineageArgs {
+            server_addr,
+            stream_id: "task.merge".into(),
+            json: true,
+        })
+        .expect("lineage");
+        let tail_open = run_remote_tail_open(ServerTailOpenArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            from_offset: 0,
+            credit: 1,
+            json: true,
+        })
+        .expect("tail open");
+        engine.append(&root_stream, b"second").expect("append second");
+        let tail_poll = run_remote_tail_poll(ServerTailPollArgs {
+            server_addr,
+            session_id: tail_open.session_id.clone(),
+            credit: 1,
+            json: true,
+        })
+        .expect("tail poll");
+        let tail_cancel = run_remote_tail_cancel(ServerTailCancelArgs {
+            server_addr,
+            session_id: tail_open.session_id.clone(),
+            json: true,
+        })
+        .expect("tail cancel");
+
+        assert_eq!(root.stream_id, "task.root");
+        assert_eq!(append.position, "task.root@0");
+        assert_eq!(read.record_count, 1);
+        assert_eq!(branch.stream_id, "task.branch");
+        assert_eq!(second_branch.stream_id, "task.branch-two");
+        assert_eq!(merge.stream_id, "task.merge");
+        assert_eq!(lineage.lineage_kind, "merge");
+        assert_eq!(tail_open.delivered_credit, 1);
+        assert_eq!(tail_poll.delivered_credit, 1);
+        assert_eq!(tail_cancel.state, "cancelled");
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_cli_helpers_surface_ack_position_and_lineage_details() {
+        let (_temp_dir, server, server_addr) = start_server();
+        let root = run_remote_create_root(ServerCreateRootArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            actor: Some("classifier".into()),
+            reason: Some("bootstrap".into()),
+            labels: vec!["kind=root".into()],
+            json: true,
+        })
+        .expect("create root stream");
+        let append = run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            payload_text: "hello".into(),
+            json: true,
+        })
+        .expect("append");
+        let branch = run_remote_branch(ServerBranchArgs {
+            server_addr,
+            stream_id: "task.thread".into(),
+            parent_stream_id: "task.root".into(),
+            parent_offset: 0,
+            actor: Some("classifier".into()),
+            reason: Some("split".into()),
+            labels: vec!["anchor=msg-42".into()],
+            json: true,
+        })
+        .expect("branch");
+        let lineage = run_remote_lineage(ServerLineageArgs {
+            server_addr,
+            stream_id: "task.thread".into(),
+            json: true,
+        })
+        .expect("lineage");
+
+        assert!(!append.request_id.is_empty());
+        assert_eq!(append.durability, "local");
+        assert_eq!(append.topology, "single_node");
+        assert_eq!(append.position, "task.root@0");
+        assert!(!root.request_id.is_empty());
+        assert_eq!(root.durability, "local");
+        assert!(!branch.request_id.is_empty());
+        assert_eq!(branch.durability, "local");
+        assert_eq!(lineage.stream_id, "task.thread");
+        assert_eq!(lineage.lineage_kind, "branch");
+        assert_eq!(lineage.parents, vec!["task.root".to_owned()]);
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_cli_results_serialize_cleanly_for_mission_proof_scripts() {
+        let (_temp_dir, server, server_addr) = start_server();
+        let root = run_remote_create_root(ServerCreateRootArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            actor: Some("proof".into()),
+            reason: Some("bootstrap".into()),
+            labels: vec![],
+            json: true,
+        })
+        .expect("create root stream");
+
+        let append = run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            payload_text: "proof".into(),
+            json: true,
+        })
+        .expect("append");
+        let lineage = run_remote_lineage(ServerLineageArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            json: true,
+        })
+        .expect("lineage");
+
+        let root_json = serde_json::to_value(&root).expect("serialize root");
+        let append_json = serde_json::to_value(&append).expect("serialize append");
+        let lineage_json = serde_json::to_value(&lineage).expect("serialize lineage");
+
+        assert_eq!(
+            root_json.get("stream_id").and_then(serde_json::Value::as_str),
+            Some("task.root")
+        );
+        assert_eq!(
+            append_json.get("durability").and_then(serde_json::Value::as_str),
+            Some("local")
+        );
+        assert_eq!(
+            append_json.get("position").and_then(serde_json::Value::as_str),
+            Some("task.root@0")
+        );
+        assert_eq!(
+            lineage_json
+                .get("lineage_kind")
+                .and_then(serde_json::Value::as_str),
+            Some("root")
+        );
+        assert!(lineage_json.get("request_id").is_some());
+
+        server.shutdown().expect("shutdown server");
+    }
 }

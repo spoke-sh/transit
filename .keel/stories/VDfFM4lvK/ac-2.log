@@ -1,0 +1,37 @@
+cargo test -p transit-cli tests::remote_cli_helpers_surface_ack_position_and_lineage_details
+
+running 1 test
+test tests::remote_cli_helpers_surface_ack_position_and_lineage_details ... ok
+
+Verified explicit remote operation fields:
+- `create-root` returns `request_id`, `durability`, `topology`, `stream_id`, `next_offset`, and manifest counters.
+- `append` returns `request_id`, `durability`, `topology`, and `position = task.root@0`.
+- `lineage` returns `lineage_kind = branch`, `parents = [\"task.root\"]`, `next_offset`, and manifest counters.
+
+Representative live output:
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "stream_id": "task.root",
+  "position": "task.root@0",
+  "manifest_generation": 0,
+  "rolled_segment_id": null
+}
+
+{
+  "server_addr": "127.0.0.1:7182",
+  "request_id": "req-1",
+  "durability": "local",
+  "topology": "single_node",
+  "stream_id": "task.merge",
+  "lineage_kind": "merge",
+  "parents": [
+    "task.branch",
+    "task.branch-two"
+  ],
+  "next_offset": 1,
+  "manifest_generation": 0,
+  "rolled_segment_count": 0
+}
