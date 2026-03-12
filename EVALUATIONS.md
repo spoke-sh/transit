@@ -101,6 +101,41 @@ Run mixed traces that include:
 - interleaved readers, writers, and cold replays
 - large referenced artifacts stored outside the core record body
 
+#### Canonical AI Trace Fixture
+
+The default AI benchmark fixture should reuse the canonical workload model defined in [AI_TRACES.md](AI_TRACES.md), [AI_ARTIFACTS.md](AI_ARTIFACTS.md), and the AI guidance in [GUIDE.md](GUIDE.md).
+
+Minimum fixture shape:
+
+- one `task root` stream
+- one or more `retry branches`
+- zero or more `critique branches`
+- immutable `tool-call` request/result events
+- one or more `evaluator decisions`
+- optional `merge artifacts` when paths reconcile
+- one `completion checkpoint`
+
+Repository mapping:
+
+| Canonical entity | Repository contract | Evaluation expectation |
+|------------------|---------------------|------------------------|
+| Task root | `AI_TRACES.md` task root | baseline append, replay, and tail behavior |
+| Retry branch | `AI_TRACES.md` retry branch | branch-creation cost and replay correctness |
+| Critique branch | `AI_TRACES.md` critique branch | branch fan-out and lineage traversal cost |
+| Tool-call event | `AI_TRACES.md` tool-call event | medium event latency and event ordering |
+| Evaluator decision | `AI_TRACES.md` evaluator decision | metadata-heavy append and replay |
+| Merge artifact | `AI_TRACES.md` merge artifact | explicit reconciliation and lineage inspection |
+| Completion checkpoint | `AI_TRACES.md` completion checkpoint | end-state replay and durable resume semantics |
+| Large payload reference | `AI_ARTIFACTS.md` artifact envelope | large-object reference overhead without giant inline records |
+
+Audit and benchmark expectations:
+
+- every fixture record should carry stable task and actor identifiers
+- branch reason and fork offsets must remain explicit
+- artifact references must stay verifiable through size and digest metadata
+- the fixture should be replayable without hidden side tables
+- throughput reports should state how many retries, critiques, merges, and artifact references were present
+
 ### 7. Auto-Threading Workload
 
 This is the signature application-level benchmark.

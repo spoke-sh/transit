@@ -1,0 +1,11 @@
+Documented the minimum metadata required for the canonical AI trace contract in `AI_TRACES.md`.
+
+Covered metadata groups:
+- root and branch entities
+- branches
+- tool events
+- evaluator decisions
+- merge artifacts
+- completion checkpoints
+
+The contract keeps metadata small and lineage-oriented rather than application-framework-specific.

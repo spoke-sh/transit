@@ -34,5 +34,5 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Canonical AI Trace Contract](epics/VDd1EybWm/voyages/VDd551Q7R/) | planned |
+| [Canonical AI Trace Contract](epics/VDd1EybWm/voyages/VDd551Q7R/) | in-progress |
 

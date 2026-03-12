@@ -19,8 +19,8 @@ created_at: 2026-03-11T22:47:32
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/3 stories done
+**Progress:** 0/1 voyages complete, 2/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Canonical AI Trace Contract](voyages/VDd551Q7R/) | planned | 0/3 |
+| [Canonical AI Trace Contract](voyages/VDd551Q7R/) | in-progress | 2/3 |
 <!-- END GENERATED -->

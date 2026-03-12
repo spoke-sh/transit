@@ -1,0 +1,16 @@
+Created `AI_TRACES.md` with a canonical AI trace event taxonomy for `transit`.
+
+Covered entities:
+- task root
+- retry branch
+- critique branch
+- tool-call event
+- evaluator decision
+- merge artifact
+- completion checkpoint
+
+Each entity records its canonical lineage action in `transit` terms.
+
+Supporting pointers:
+- README.md links to `AI_TRACES.md`
+- GUIDE.md points readers to the canonical contract

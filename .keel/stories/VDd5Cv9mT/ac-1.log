@@ -1,0 +1,9 @@
+Created `AI_ARTIFACTS.md` with the canonical artifact-envelope contract for AI workloads on `transit`.
+
+Covered:
+- when to externalize content
+- envelope fields
+- object-store relationship
+- replay and audit expectations
+
+This satisfies the artifact-envelope definition required by SRS-03.

@@ -89,12 +89,18 @@ Recommended patterns:
 
 This makes comparison and audit much easier than trying to reconstruct branching behavior from ad hoc logs.
 
+The canonical reference contract for this workload now lives in [AI_TRACES.md](AI_TRACES.md). Use it when defining task roots, retry branches, critique branches, merge artifacts, and completion checkpoints.
+
+When you need benchmark or fixture guidance for the same workload, use [EVALUATIONS.md](EVALUATIONS.md) together with [AI_ARTIFACTS.md](AI_ARTIFACTS.md) instead of inventing a separate trace shape.
+
 ## Record Design Tips
 
 - Keep payloads immutable and self-describing.
 - Put routing, typing, and lineage hints in headers or metadata.
 - Store large blobs in object storage and reference them from records instead of forcing giant append payloads.
 - Use branch creation for semantic divergence, not for every consumer-specific view.
+
+For the first canonical split between inline metadata and large external payloads, use [AI_ARTIFACTS.md](AI_ARTIFACTS.md).
 
 ## Storage Design Tips
 

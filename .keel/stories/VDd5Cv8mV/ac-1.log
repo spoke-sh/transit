@@ -1,0 +1,12 @@
+Updated `EVALUATIONS.md` to map the canonical AI trace contract onto a reusable benchmark fixture.
+
+Covered mapping:
+- task root
+- retry branch
+- critique branch
+- tool-call events
+- evaluator decisions
+- merge artifacts
+- completion checkpoints
+
+The evaluation guide now points at `AI_TRACES.md`, `AI_ARTIFACTS.md`, and `GUIDE.md` as the canonical repository sources for the workload shape.

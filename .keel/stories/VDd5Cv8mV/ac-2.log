@@ -1,0 +1,8 @@
+Documented the canonical AI trace fixture as an auditable and benchmarkable surface in `EVALUATIONS.md`.
+
+The updated guide now requires:
+- stable trace and artifact identifiers
+- explicit lineage metadata
+- object-store-backed artifact references
+- reproducible workload profiles
+- replay and audit without hidden state

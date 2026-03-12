@@ -1,0 +1,15 @@
+Documented which data should remain inline versus external in `AI_ARTIFACTS.md`.
+
+Inline:
+- lineage metadata
+- actor/provenance
+- object reference
+- digest, size, and content type
+- optional summary/preview
+
+External:
+- large prompts
+- large model outputs
+- binary attachments
+- raw tool outputs
+- detailed traces and reports
