@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+Implemented shared engine-facing publication in `crates/transit-core/src/engine.rs`:
+- `LocalEngine::publish_rolled_segments` publishes only rolled immutable segments
+- publication reads local segment bytes, validates their checksum, and writes them through the `object_store` crate
+- published segment descriptors retain the local path while adding an object-store location
+
+The `engine::tests::publishes_rolled_segments_to_object_store_via_shared_engine_code` test verifies that a rolled segment is uploaded and addressable from the object store.

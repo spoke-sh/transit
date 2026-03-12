@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+The publication path keeps guarantees explicit instead of blurring local durability with remote publication:
+- `LocalPublicationOutcome` reports `DurabilityMode::Local`
+- the active head remains local and unpublished
+- manifest generation and published segment ids are surfaced explicitly
+
+The `engine::tests::publication_keeps_durability_and_publication_boundaries_explicit` test verifies that publication leaves the active head local while adding remote references for rolled segments.

@@ -2,9 +2,13 @@ use crate::kernel::{
     LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage, StreamPosition,
 };
 use crate::storage::{
-    ManifestId, SegmentChecksum, SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
+    ManifestId, ObjectStoreKey, ObjectStoreLocation, SegmentChecksum, SegmentDescriptor, SegmentId,
+    SegmentManifest, StorageLocation,
 };
 use anyhow::{Context, Result, ensure};
+use bytes::Bytes;
+use object_store::path::Path as ObjectPath;
+use object_store::{ObjectStore, ObjectStoreExt};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
@@ -149,6 +153,37 @@ impl LocalRecoveryOutcome {
 
     pub fn manifest_generation(&self) -> u64 {
         self.manifest_generation
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalPublicationOutcome {
+    stream_id: StreamId,
+    durability: DurabilityMode,
+    published_segment_ids: Vec<SegmentId>,
+    manifest_generation: u64,
+    manifest_object_key: Option<ObjectStoreKey>,
+}
+
+impl LocalPublicationOutcome {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn durability(&self) -> DurabilityMode {
+        self.durability
+    }
+
+    pub fn published_segment_ids(&self) -> &[SegmentId] {
+        &self.published_segment_ids
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+
+    pub fn manifest_object_key(&self) -> Option<&ObjectStoreKey> {
+        self.manifest_object_key.as_ref()
     }
 }
 
@@ -299,6 +334,105 @@ impl LocalEngine {
 
     pub fn stream_descriptor(&self, stream_id: &StreamId) -> Result<StreamDescriptor> {
         Ok(self.load_state(stream_id)?.descriptor)
+    }
+
+    pub async fn publish_rolled_segments(
+        &self,
+        stream_id: &StreamId,
+        store: &dyn ObjectStore,
+        key_prefix: &str,
+    ) -> Result<LocalPublicationOutcome> {
+        let manifest = self.load_manifest(stream_id)?;
+        if manifest.segments().is_empty() {
+            return Ok(LocalPublicationOutcome {
+                stream_id: stream_id.clone(),
+                durability: self.config.durability(),
+                published_segment_ids: Vec::new(),
+                manifest_generation: manifest.generation(),
+                manifest_object_key: manifest
+                    .storage()
+                    .object_store()
+                    .map(|location| location.key().clone()),
+            });
+        }
+
+        let mut published_segment_ids = Vec::new();
+        let mut published_segments = Vec::with_capacity(manifest.segments().len());
+
+        for descriptor in manifest.segments() {
+            if descriptor.storage().object_store().is_some() {
+                published_segments.push(descriptor.clone());
+                continue;
+            }
+
+            let local_path = descriptor
+                .storage()
+                .local_path()
+                .cloned()
+                .context("segment publication requires a local segment path")?;
+            let bytes = tokio::fs::read(&local_path)
+                .await
+                .with_context(|| format!("read local segment {}", local_path.display()))?;
+            validate_segment_checksum(&bytes, descriptor.checksum())?;
+
+            let object_key = remote_segment_key(key_prefix, stream_id, descriptor.segment_id())?;
+            let put_result = store
+                .put(
+                    &ObjectPath::from(object_key.as_str()),
+                    Bytes::from(bytes).into(),
+                )
+                .await
+                .with_context(|| format!("publish segment object {}", object_key.as_str()))?;
+            let remote_storage = descriptor
+                .storage()
+                .with_object_store(Some(ObjectStoreLocation::new(object_key, put_result.e_tag)))?;
+
+            published_segment_ids.push(descriptor.segment_id().clone());
+            published_segments.push(descriptor.with_storage(remote_storage));
+        }
+
+        let manifest_object_key = match manifest.storage().object_store() {
+            Some(location) if published_segment_ids.is_empty() => Some(location.key().clone()),
+            _ => {
+                let next_generation = manifest.generation() + 1;
+                let object_key = remote_manifest_key(key_prefix, stream_id, next_generation)?;
+                let remote_storage = manifest
+                    .storage()
+                    .with_object_store(Some(ObjectStoreLocation::new(object_key.clone(), None)))?;
+                let published_manifest = manifest.with_publication(
+                    manifest_id(next_generation)?,
+                    next_generation,
+                    published_segments,
+                    remote_storage,
+                );
+                let mut encoded =
+                    serde_json::to_vec_pretty(&published_manifest).context("serialize manifest")?;
+                encoded.push(b'\n');
+                store
+                    .put(
+                        &ObjectPath::from(object_key.as_str()),
+                        Bytes::from(encoded).into(),
+                    )
+                    .await
+                    .with_context(|| format!("publish manifest object {}", object_key.as_str()))?;
+                write_json_durable(&self.manifest_path(stream_id), &published_manifest)?;
+                return Ok(LocalPublicationOutcome {
+                    stream_id: stream_id.clone(),
+                    durability: self.config.durability(),
+                    published_segment_ids,
+                    manifest_generation: next_generation,
+                    manifest_object_key: Some(object_key),
+                });
+            }
+        };
+
+        Ok(LocalPublicationOutcome {
+            stream_id: stream_id.clone(),
+            durability: self.config.durability(),
+            published_segment_ids,
+            manifest_generation: manifest.generation(),
+            manifest_object_key,
+        })
     }
 
     pub fn recover_stream(&self, stream_id: &StreamId) -> Result<LocalRecoveryOutcome> {
@@ -663,6 +797,55 @@ fn local_storage(path: impl Into<PathBuf>) -> Result<StorageLocation> {
     StorageLocation::new(Some(path.into()), None)
 }
 
+fn remote_segment_key(
+    key_prefix: &str,
+    stream_id: &StreamId,
+    segment_id: &SegmentId,
+) -> Result<ObjectStoreKey> {
+    let prefix = normalize_key_prefix(key_prefix);
+    let key = if prefix.is_empty() {
+        format!(
+            "streams/{}/segments/{}.segment",
+            stream_id.as_str(),
+            segment_id.as_str()
+        )
+    } else {
+        format!(
+            "{prefix}/streams/{}/segments/{}.segment",
+            stream_id.as_str(),
+            segment_id.as_str()
+        )
+    };
+    ObjectStoreKey::new(key)
+}
+
+fn remote_manifest_key(
+    key_prefix: &str,
+    stream_id: &StreamId,
+    generation: u64,
+) -> Result<ObjectStoreKey> {
+    let prefix = normalize_key_prefix(key_prefix);
+    let manifest_id = manifest_id(generation)?;
+    let key = if prefix.is_empty() {
+        format!(
+            "streams/{}/manifests/{}.json",
+            stream_id.as_str(),
+            manifest_id.as_str()
+        )
+    } else {
+        format!(
+            "{prefix}/streams/{}/manifests/{}.json",
+            stream_id.as_str(),
+            manifest_id.as_str()
+        )
+    };
+    ObjectStoreKey::new(key)
+}
+
+fn normalize_key_prefix(key_prefix: &str) -> String {
+    key_prefix.trim_matches('/').to_owned()
+}
+
 fn segment_id(sequence: u64) -> Result<SegmentId> {
     SegmentId::new(format!("segment-{sequence:020}"))
 }
@@ -792,6 +975,18 @@ fn validate_record_offsets(
     Ok(())
 }
 
+fn validate_segment_checksum(bytes: &[u8], checksum: &SegmentChecksum) -> Result<()> {
+    match checksum.algorithm() {
+        "fnv1a64" => ensure!(
+            fnv1a64_hex(bytes) == checksum.digest(),
+            "segment checksum mismatch for algorithm {}",
+            checksum.algorithm()
+        ),
+        other => anyhow::bail!("unsupported checksum algorithm {other}"),
+    }
+    Ok(())
+}
+
 fn write_json_durable<T>(path: &Path, value: &T) -> Result<()>
 where
     T: Serialize,
@@ -900,6 +1095,10 @@ mod tests {
         LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor,
         StreamId, StreamLineage, StreamPosition,
     };
+    use crate::storage::SegmentManifest;
+    use object_store::ObjectStoreExt;
+    use object_store::local::LocalFileSystem;
+    use object_store::path::Path as ObjectPath;
     use std::fs::{self, OpenOptions};
     use std::io::Write;
     use tempfile::tempdir;
@@ -1438,5 +1637,139 @@ mod tests {
 
         assert_eq!(offsets, vec![0, 1]);
         assert_eq!(payloads, vec![b"first".as_slice(), b"second".as_slice()]);
+    }
+
+    #[tokio::test]
+    async fn publishes_rolled_segments_to_object_store_via_shared_engine_code() {
+        let temp_dir = tempdir().expect("temp dir");
+        let remote_root = tempdir().expect("remote root");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        engine.append(&stream_id, b"first").expect("append");
+        engine.append(&stream_id, b"second").expect("append");
+        engine.append(&stream_id, b"third").expect("append");
+
+        let outcome = engine
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish");
+        assert_eq!(outcome.stream_id().as_str(), "task.root");
+        assert_eq!(outcome.durability(), DurabilityMode::Local);
+        assert_eq!(outcome.published_segment_ids().len(), 1);
+
+        let manifest = engine.load_manifest(&stream_id).expect("manifest");
+        let segment = &manifest.segments()[0];
+        let remote_location = segment.storage().object_store().expect("remote location");
+        let bytes = store
+            .get(&ObjectPath::from(remote_location.key().as_str()))
+            .await
+            .expect("fetch object")
+            .bytes()
+            .await
+            .expect("object bytes");
+
+        assert_eq!(bytes.len() as u64, segment.byte_length());
+        assert_eq!(
+            remote_location.key().as_str(),
+            "tiered/streams/task.root/segments/segment-00000000000000000000.segment"
+        );
+    }
+
+    #[tokio::test]
+    async fn publication_updates_manifest_with_remote_locations_for_restore() {
+        let temp_dir = tempdir().expect("temp dir");
+        let remote_root = tempdir().expect("remote root");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        engine.append(&stream_id, b"first").expect("append");
+        engine.append(&stream_id, b"second").expect("append");
+
+        let outcome = engine
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish");
+        let manifest = engine.load_manifest(&stream_id).expect("manifest");
+        let manifest_key = outcome.manifest_object_key().expect("manifest key");
+        let remote_manifest_bytes = store
+            .get(&ObjectPath::from(manifest_key.as_str()))
+            .await
+            .expect("fetch manifest")
+            .bytes()
+            .await
+            .expect("manifest bytes");
+        let remote_manifest: SegmentManifest =
+            serde_json::from_slice(&remote_manifest_bytes).expect("parse manifest");
+
+        assert_eq!(manifest.generation(), 2);
+        assert_eq!(remote_manifest.generation(), manifest.generation());
+        assert_eq!(
+            manifest
+                .storage()
+                .object_store()
+                .expect("remote manifest")
+                .key()
+                .as_str(),
+            manifest_key.as_str()
+        );
+        assert!(remote_manifest.storage().object_store().is_some());
+        assert!(
+            remote_manifest.segments()[0]
+                .storage()
+                .object_store()
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn publication_keeps_durability_and_publication_boundaries_explicit() {
+        let temp_dir = tempdir().expect("temp dir");
+        let remote_root = tempdir().expect("remote root");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        engine.append(&stream_id, b"first").expect("append");
+        engine.append(&stream_id, b"second").expect("append");
+        engine.append(&stream_id, b"third").expect("append");
+
+        let outcome = engine
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish");
+        let status = engine.stream_status(&stream_id).expect("status");
+        let manifest = engine.load_manifest(&stream_id).expect("manifest");
+
+        assert_eq!(outcome.durability(), DurabilityMode::Local);
+        assert_eq!(outcome.manifest_generation(), manifest.generation());
+        assert_eq!(status.active_record_count(), 1);
+        assert_eq!(status.active_segment_start_offset(), Offset::new(2));
+        assert_eq!(manifest.segments().len(), 1);
+        assert!(manifest.segments()[0].storage().object_store().is_some());
+        assert_eq!(manifest.generation(), 2);
     }
 }

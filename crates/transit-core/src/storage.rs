@@ -136,6 +136,10 @@ impl StorageLocation {
     pub fn object_store(&self) -> Option<&ObjectStoreLocation> {
         self.object_store.as_ref()
     }
+
+    pub fn with_object_store(&self, object_store: Option<ObjectStoreLocation>) -> Result<Self> {
+        Self::new(self.local_path.clone(), object_store)
+    }
 }
 
 /// Immutable segment descriptor shared by embedded and server-facing code.
@@ -214,6 +218,19 @@ impl SegmentDescriptor {
 
     pub fn storage(&self) -> &StorageLocation {
         &self.storage
+    }
+
+    pub fn with_storage(&self, storage: StorageLocation) -> Self {
+        Self {
+            segment_id: self.segment_id.clone(),
+            stream_id: self.stream_id.clone(),
+            start_offset: self.start_offset,
+            last_offset: self.last_offset,
+            record_count: self.record_count,
+            byte_length: self.byte_length,
+            checksum: self.checksum.clone(),
+            storage,
+        }
     }
 }
 
@@ -303,6 +320,23 @@ impl SegmentManifest {
 
     pub fn materialization_boundary(&self) -> Option<&MaterializationBoundary> {
         self.materialization_boundary.as_ref()
+    }
+
+    pub fn with_publication(
+        &self,
+        manifest_id: ManifestId,
+        generation: u64,
+        segments: Vec<SegmentDescriptor>,
+        storage: StorageLocation,
+    ) -> Self {
+        Self {
+            manifest_id,
+            stream_id: self.stream_id.clone(),
+            generation,
+            segments,
+            storage,
+            materialization_boundary: self.materialization_boundary.clone(),
+        }
     }
 }
 

@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+Publication now emits manifest state that remains resolvable for later restore:
+- published segment descriptors carry remote object keys
+- the manifest gains an object-store location of its own
+- manifest generation advances when publication adds remote references
+
+The `engine::tests::publication_updates_manifest_with_remote_locations_for_restore` test verifies that both the local manifest and the remotely published manifest contain object-store references for later restore.
