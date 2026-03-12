@@ -1,0 +1,8 @@
+Executed:
+- `cargo test --workspace`
+- `cargo run -p transit-cli --bin transit -- object-store probe --root target/transit-mission/object-store`
+
+Verified explicit local/object-store persistence boundaries:
+- `StorageLocation` requires a local path, object-store location, or both
+- `SegmentDescriptor` and `SegmentManifest` preserve object-store references explicitly
+- the CLI object-store probe still round-trips through the filesystem backend successfully

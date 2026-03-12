@@ -1,0 +1,10 @@
+Executed `cargo test --workspace`.
+
+Verified future materialization boundary support through `MaterializationBoundary` on `SegmentManifest`.
+
+The scaffold now preserves:
+- a checkpoint stream position
+- an optional snapshot hint
+- an optional object-store-backed snapshot reference
+
+This leaves a clear checkpoint and snapshot hand-off for a future `transit-materialize` layer without changing the storage model.

@@ -6,3 +6,4 @@
 pub mod bootstrap;
 pub mod kernel;
 pub mod object_store_support;
+pub mod storage;

@@ -1,0 +1,14 @@
+Executed `cargo test --workspace`.
+
+Implemented immutable storage scaffold types in `crates/transit-core/src/storage.rs`:
+- `SegmentId`
+- `ManifestId`
+- `ObjectStoreKey`
+- `SegmentChecksum`
+- `ObjectStoreLocation`
+- `StorageLocation`
+- `SegmentDescriptor`
+- `MaterializationBoundary`
+- `SegmentManifest`
+
+The scaffold is exported from `transit-core` for shared embedded/server use.
