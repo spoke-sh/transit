@@ -1,0 +1,6 @@
+Executed `nix develop path:/home/alex/workspace/spoke-sh/transit --command just mission`.
+
+The operator proof path remains one obvious entrypoint:
+- `just mission` still runs the full storage-kernel verification flow
+- kernel progress is surfaced through the same `transit mission status` command
+- no extra ad hoc verification commands were added to the operator workflow

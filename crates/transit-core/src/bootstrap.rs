@@ -21,6 +21,11 @@ const REQUIRED_WORKSPACE_FILES: &[&str] = &[
     "crates/transit-cli/Cargo.toml",
 ];
 
+const REQUIRED_KERNEL_FILES: &[&str] = &[
+    "crates/transit-core/src/kernel.rs",
+    "crates/transit-core/src/storage.rs",
+];
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ArtifactStatus {
     pub path: String,
@@ -35,6 +40,7 @@ pub struct MissionStatus {
     pub object_store_backend: &'static str,
     pub docs: Vec<ArtifactStatus>,
     pub workspace_files: Vec<ArtifactStatus>,
+    pub kernel_files: Vec<ArtifactStatus>,
     pub ready: bool,
 }
 
@@ -50,11 +56,18 @@ impl MissionStatus {
             .count()
     }
 
+    pub fn kernel_files_present(&self) -> usize {
+        self.kernel_files
+            .iter()
+            .filter(|artifact| artifact.present)
+            .count()
+    }
+
     pub fn summary(&self) -> &'static str {
         if self.ready {
-            "bootstrap verified"
+            "storage kernel verified"
         } else {
-            "bootstrap incomplete"
+            "storage kernel incomplete"
         }
     }
 
@@ -62,6 +75,7 @@ impl MissionStatus {
         self.docs
             .iter()
             .chain(self.workspace_files.iter())
+            .chain(self.kernel_files.iter())
             .filter(|artifact| !artifact.present)
             .map(|artifact| artifact.path.as_str())
             .collect()
@@ -72,8 +86,10 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
     let repo_root = repo_root.as_ref();
     let docs = collect_artifacts(repo_root, REQUIRED_DOCS);
     let workspace_files = collect_artifacts(repo_root, REQUIRED_WORKSPACE_FILES);
+    let kernel_files = collect_artifacts(repo_root, REQUIRED_KERNEL_FILES);
     let ready = docs.iter().all(|artifact| artifact.present)
-        && workspace_files.iter().all(|artifact| artifact.present);
+        && workspace_files.iter().all(|artifact| artifact.present)
+        && kernel_files.iter().all(|artifact| artifact.present);
 
     MissionStatus {
         project: "transit",
@@ -82,6 +98,7 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
         object_store_backend: "object_store + filesystem backend",
         docs,
         workspace_files,
+        kernel_files,
         ready,
     }
 }
@@ -121,6 +138,8 @@ mod tests {
             "rust-toolchain.toml",
             "crates/transit-core/Cargo.toml",
             "crates/transit-cli/Cargo.toml",
+            "crates/transit-core/src/kernel.rs",
+            "crates/transit-core/src/storage.rs",
         ] {
             let path = repo_root.path().join(file);
             if let Some(parent) = path.parent() {
@@ -133,6 +152,7 @@ mod tests {
         assert!(status.ready);
         assert_eq!(status.docs_present(), 8);
         assert_eq!(status.workspace_files_present(), 6);
+        assert_eq!(status.kernel_files_present(), 2);
         assert!(status.missing_paths().is_empty());
     }
 
@@ -146,5 +166,10 @@ mod tests {
         assert!(!status.ready);
         assert!(status.missing_paths().contains(&"ARCHITECTURE.md"));
         assert!(status.missing_paths().contains(&"Cargo.toml"));
+        assert!(
+            status
+                .missing_paths()
+                .contains(&"crates/transit-core/src/kernel.rs")
+        );
     }
 }

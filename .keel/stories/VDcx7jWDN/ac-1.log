@@ -1,0 +1,10 @@
+Executed `nix develop path:/home/alex/workspace/spoke-sh/transit --command just mission`.
+
+The proof path now exercises the storage-kernel slice through:
+- workspace build
+- workspace tests
+- doctests
+- filesystem object-store probe
+- CLI mission status output
+
+This upgrades `just mission` from bootstrap-only proof to storage-kernel proof.

@@ -1,0 +1,8 @@
+Executed `cargo run -p transit-cli --bin transit -- mission status --repo-root .`.
+
+Human-readable mission status now reports:
+- storage-kernel summary
+- kernel file presence
+- kernel slice status (`lineage kernel + storage scaffold`)
+
+This surfaces kernel-oriented progress directly in the CLI proof surface.

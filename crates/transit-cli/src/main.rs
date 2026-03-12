@@ -104,6 +104,16 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
         status.workspace_files_present(),
         status.workspace_files.len()
     );
+    println!(
+        "kernel files: {}/{} present",
+        status.kernel_files_present(),
+        status.kernel_files.len()
+    );
+    if status.kernel_files.iter().all(|artifact| artifact.present) {
+        println!("kernel slice: lineage kernel + storage scaffold");
+    } else {
+        println!("kernel slice: incomplete");
+    }
     println!("object store: {}", status.object_store_backend);
     println!("verification path: {}", status.verification_recipe);
 
