@@ -125,7 +125,7 @@ Server mode exposes the same storage engine behind a network API:
 
 The server should not invent a second storage format or branch model.
 
-The first implementation step is a thin daemon bootstrap that opens the shared engine and binds a listener. The current server slice now layers provisional remote append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations on top of that bootstrap, wrapped in a framed request/response envelope with correlation IDs plus explicit acknowledgement and error semantics. Richer streaming sessions and broader client surfaces remain downstream. It remains explicitly single-node and should not imply replication, quorum, or leader semantics.
+The first implementation step is a thin daemon bootstrap that opens the shared engine and binds a listener. The current server slice now layers provisional remote append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations on top of that bootstrap, wrapped in a framed request/response envelope with correlation IDs plus explicit acknowledgement and error semantics. Tail streaming now uses logical session IDs with `open/poll/cancel` operations and credit-based delivery so the semantics do not collapse into one socket or underlay assumption. Broader client surfaces remain downstream. It remains explicitly single-node and should not imply replication, quorum, or leader semantics.
 
 ## Storage Architecture
 

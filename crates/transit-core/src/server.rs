@@ -5,8 +5,9 @@ use crate::engine::{
 use crate::kernel::{
     LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamPosition,
 };
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
@@ -18,6 +19,7 @@ use std::time::Duration;
 
 const DEFAULT_ACCEPT_POLL_INTERVAL_MS: u64 = 10;
 const DEFAULT_CONNECTION_IO_TIMEOUT_MS: u64 = 1_000;
+const MAX_TAIL_SESSION_CREDIT: u64 = 256;
 
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
@@ -83,11 +85,13 @@ impl ServerHandle {
         let shutdown_requested = Arc::new(AtomicBool::new(false));
         let accepted_connections = Arc::new(AtomicU64::new(0));
         let fatal_error = Arc::new(Mutex::new(None));
+        let tail_sessions = Arc::new(Mutex::new(TailSessionRegistry::default()));
 
         let thread_engine = engine.clone();
         let thread_shutdown = Arc::clone(&shutdown_requested);
         let thread_connections = Arc::clone(&accepted_connections);
         let thread_error = Arc::clone(&fatal_error);
+        let thread_tail_sessions = Arc::clone(&tail_sessions);
         let accept_poll_interval = config.accept_poll_interval();
         let connection_io_timeout = config.connection_io_timeout();
         let listener_thread = thread::Builder::new()
@@ -99,6 +103,7 @@ impl ServerHandle {
                     thread_shutdown,
                     thread_connections,
                     thread_error,
+                    thread_tail_sessions,
                     accept_poll_interval,
                     connection_io_timeout,
                 )
@@ -334,6 +339,69 @@ impl RemoteClient {
                 outcome: OperationResponse::RecordsOk(outcome),
             } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
             other => Err(unexpected_operation_response("tail", &other.outcome)),
+        }
+    }
+
+    pub fn open_tail_session(
+        &self,
+        stream_id: &StreamId,
+        from_offset: Offset,
+        initial_credit: u64,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteTailSessionOpened>> {
+        match self.send_request(OperationRequest::OpenTailSession {
+            stream_id: stream_id.clone(),
+            from_offset,
+            initial_credit,
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::TailSessionOpened(opened),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, opened)),
+            other => Err(unexpected_operation_response(
+                "open_tail_session",
+                &other.outcome,
+            )),
+        }
+    }
+
+    pub fn poll_tail_session(
+        &self,
+        session_id: &TailSessionId,
+        credit: u64,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteTailBatch>> {
+        match self.send_request(OperationRequest::PollTailSession {
+            session_id: session_id.clone(),
+            credit,
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::TailBatchOk(batch),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, batch)),
+            other => Err(unexpected_operation_response(
+                "poll_tail_session",
+                &other.outcome,
+            )),
+        }
+    }
+
+    pub fn cancel_tail_session(
+        &self,
+        session_id: &TailSessionId,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteTailSessionCancelled>> {
+        match self.send_request(OperationRequest::CancelTailSession {
+            session_id: session_id.clone(),
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::TailSessionCancelled(cancelled),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, cancelled)),
+            other => Err(unexpected_operation_response(
+                "cancel_tail_session",
+                &other.outcome,
+            )),
         }
     }
 
@@ -667,6 +735,18 @@ enum OperationRequest {
         stream_id: StreamId,
         payload: Vec<u8>,
     },
+    OpenTailSession {
+        stream_id: StreamId,
+        from_offset: Offset,
+        initial_credit: u64,
+    },
+    PollTailSession {
+        session_id: TailSessionId,
+        credit: u64,
+    },
+    CancelTailSession {
+        session_id: TailSessionId,
+    },
     CreateBranch {
         stream_id: StreamId,
         parent: StreamPosition,
@@ -711,6 +791,9 @@ enum ResponseEnvelope {
 enum OperationResponse {
     AppendOk(RemoteAppendOutcome),
     RecordsOk(RemoteReadOutcome),
+    TailSessionOpened(RemoteTailSessionOpened),
+    TailBatchOk(RemoteTailBatch),
+    TailSessionCancelled(RemoteTailSessionCancelled),
     StreamStatusOk(RemoteStreamStatus),
     LineageOk(RemoteLineageOutcome),
 }
@@ -729,12 +812,159 @@ struct SuccessfulResponse {
     outcome: OperationResponse,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct TailSessionId(String);
+
+impl TailSessionId {
+    fn from_sequence(sequence: u64) -> Self {
+        Self(format!("tail-{sequence}"))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteTailSessionOpened {
+    session_id: TailSessionId,
+    stream_id: StreamId,
+    next_offset: Offset,
+    requested_credit: u64,
+    delivered_credit: u64,
+    records: Vec<RemoteRecord>,
+    state: RemoteTailSessionState,
+    max_credit: u64,
+}
+
+impl RemoteTailSessionOpened {
+    pub fn session_id(&self) -> &TailSessionId {
+        &self.session_id
+    }
+
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn next_offset(&self) -> Offset {
+        self.next_offset
+    }
+
+    pub fn requested_credit(&self) -> u64 {
+        self.requested_credit
+    }
+
+    pub fn delivered_credit(&self) -> u64 {
+        self.delivered_credit
+    }
+
+    pub fn records(&self) -> &[RemoteRecord] {
+        &self.records
+    }
+
+    pub fn state(&self) -> RemoteTailSessionState {
+        self.state
+    }
+
+    pub fn max_credit(&self) -> u64 {
+        self.max_credit
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteTailBatch {
+    session_id: TailSessionId,
+    stream_id: StreamId,
+    next_offset: Offset,
+    requested_credit: u64,
+    delivered_credit: u64,
+    records: Vec<RemoteRecord>,
+    state: RemoteTailSessionState,
+}
+
+impl RemoteTailBatch {
+    pub fn session_id(&self) -> &TailSessionId {
+        &self.session_id
+    }
+
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn next_offset(&self) -> Offset {
+        self.next_offset
+    }
+
+    pub fn requested_credit(&self) -> u64 {
+        self.requested_credit
+    }
+
+    pub fn delivered_credit(&self) -> u64 {
+        self.delivered_credit
+    }
+
+    pub fn records(&self) -> &[RemoteRecord] {
+        &self.records
+    }
+
+    pub fn state(&self) -> RemoteTailSessionState {
+        self.state
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteTailSessionCancelled {
+    session_id: TailSessionId,
+    stream_id: StreamId,
+    next_offset: Offset,
+    state: RemoteTailSessionState,
+}
+
+impl RemoteTailSessionCancelled {
+    pub fn session_id(&self) -> &TailSessionId {
+        &self.session_id
+    }
+
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn next_offset(&self) -> Offset {
+        self.next_offset
+    }
+
+    pub fn state(&self) -> RemoteTailSessionState {
+        self.state
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RemoteTailSessionState {
+    Active,
+    AwaitingRecords,
+    Cancelled,
+}
+
+#[derive(Debug, Clone)]
+struct TailSessionState {
+    stream_id: StreamId,
+    next_offset: Offset,
+}
+
+#[derive(Debug, Default)]
+struct TailSessionRegistry {
+    next_session_sequence: u64,
+    sessions: BTreeMap<TailSessionId, TailSessionState>,
+}
+
 fn run_accept_loop(
     listener: TcpListener,
     engine: LocalEngine,
     shutdown_requested: Arc<AtomicBool>,
     accepted_connections: Arc<AtomicU64>,
     fatal_error: Arc<Mutex<Option<String>>>,
+    tail_sessions: Arc<Mutex<TailSessionRegistry>>,
     accept_poll_interval: Duration,
     connection_io_timeout: Duration,
 ) {
@@ -751,7 +981,7 @@ fn run_accept_loop(
                 }
 
                 accepted_connections.fetch_add(1, Ordering::AcqRel);
-                serve_connection(stream, &engine, connection_io_timeout);
+                serve_connection(stream, &engine, &tail_sessions, connection_io_timeout);
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                 thread::sleep(accept_poll_interval);
@@ -767,10 +997,15 @@ fn run_accept_loop(
     }
 }
 
-fn serve_connection(mut stream: TcpStream, engine: &LocalEngine, io_timeout: Duration) {
+fn serve_connection(
+    mut stream: TcpStream,
+    engine: &LocalEngine,
+    tail_sessions: &Arc<Mutex<TailSessionRegistry>>,
+    io_timeout: Duration,
+) {
     let response = match configure_connection_stream(&stream, io_timeout) {
         Ok(()) => match read_request(&mut stream) {
-            Ok(request) => handle_request(engine, request),
+            Ok(request) => handle_request(engine, tail_sessions, request),
             Err(error) => invalid_request_response(RequestId::server_generated("decode"), error),
         },
         Err(error) => internal_error_response(
@@ -829,7 +1064,11 @@ fn write_response(stream: &mut TcpStream, response: &ProtocolResponse) -> std::i
     Ok(())
 }
 
-fn handle_request(engine: &LocalEngine, request: ProtocolRequest) -> ProtocolResponse {
+fn handle_request(
+    engine: &LocalEngine,
+    tail_sessions: &Arc<Mutex<TailSessionRegistry>>,
+    request: ProtocolRequest,
+) -> ProtocolResponse {
     let request_id = request.request_id;
     match request.operation {
         OperationRequest::Append { stream_id, payload } => match engine.append(&stream_id, payload)
@@ -841,6 +1080,44 @@ fn handle_request(engine: &LocalEngine, request: ProtocolRequest) -> ProtocolRes
             ),
             Err(error) => engine_error_response(request_id, error),
         },
+        OperationRequest::OpenTailSession {
+            stream_id,
+            from_offset,
+            initial_credit,
+        } => match open_tail_session(
+            engine,
+            tail_sessions,
+            &stream_id,
+            from_offset,
+            initial_credit,
+        ) {
+            Ok(opened) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::TailSessionOpened(opened),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
+        OperationRequest::PollTailSession { session_id, credit } => {
+            match poll_tail_session(engine, tail_sessions, &session_id, credit) {
+                Ok(batch) => ack_response(
+                    request_id,
+                    engine.durability(),
+                    OperationResponse::TailBatchOk(batch),
+                ),
+                Err(error) => engine_error_response(request_id, error),
+            }
+        }
+        OperationRequest::CancelTailSession { session_id } => {
+            match cancel_tail_session(tail_sessions, &session_id) {
+                Ok(cancelled) => ack_response(
+                    request_id,
+                    engine.durability(),
+                    OperationResponse::TailSessionCancelled(cancelled),
+                ),
+                Err(error) => engine_error_response(request_id, error),
+            }
+        }
         OperationRequest::CreateBranch {
             stream_id,
             parent,
@@ -931,6 +1208,152 @@ fn inspect_lineage(engine: &LocalEngine, stream_id: &StreamId) -> Result<RemoteL
     })
 }
 
+fn open_tail_session(
+    engine: &LocalEngine,
+    tail_sessions: &Arc<Mutex<TailSessionRegistry>>,
+    stream_id: &StreamId,
+    from_offset: Offset,
+    initial_credit: u64,
+) -> Result<RemoteTailSessionOpened> {
+    validate_tail_credit(initial_credit)?;
+    let status = engine.stream_status(stream_id)?;
+    ensure!(
+        from_offset.value() <= status.next_offset().value(),
+        "tail session start {}:{} is beyond committed head {}",
+        stream_id.as_str(),
+        from_offset.value(),
+        status.next_offset().value()
+    );
+
+    let session_id = {
+        let mut registry = tail_sessions
+            .lock()
+            .expect("tail session registry mutex poisoned");
+        registry.next_session_sequence += 1;
+        let session_id = TailSessionId::from_sequence(registry.next_session_sequence);
+        registry.sessions.insert(
+            session_id.clone(),
+            TailSessionState {
+                stream_id: stream_id.clone(),
+                next_offset: from_offset,
+            },
+        );
+        session_id
+    };
+
+    let batch = deliver_tail_batch(engine, tail_sessions, &session_id, initial_credit)?;
+    Ok(RemoteTailSessionOpened {
+        session_id: batch.session_id,
+        stream_id: batch.stream_id,
+        next_offset: batch.next_offset,
+        requested_credit: batch.requested_credit,
+        delivered_credit: batch.delivered_credit,
+        records: batch.records,
+        state: batch.state,
+        max_credit: MAX_TAIL_SESSION_CREDIT,
+    })
+}
+
+fn poll_tail_session(
+    engine: &LocalEngine,
+    tail_sessions: &Arc<Mutex<TailSessionRegistry>>,
+    session_id: &TailSessionId,
+    credit: u64,
+) -> Result<RemoteTailBatch> {
+    validate_tail_credit(credit)?;
+    deliver_tail_batch(engine, tail_sessions, session_id, credit)
+}
+
+fn cancel_tail_session(
+    tail_sessions: &Arc<Mutex<TailSessionRegistry>>,
+    session_id: &TailSessionId,
+) -> Result<RemoteTailSessionCancelled> {
+    let state = tail_sessions
+        .lock()
+        .expect("tail session registry mutex poisoned")
+        .sessions
+        .remove(session_id)
+        .ok_or_else(|| tail_session_not_found(session_id))?;
+
+    Ok(RemoteTailSessionCancelled {
+        session_id: session_id.clone(),
+        stream_id: state.stream_id,
+        next_offset: state.next_offset,
+        state: RemoteTailSessionState::Cancelled,
+    })
+}
+
+fn deliver_tail_batch(
+    engine: &LocalEngine,
+    tail_sessions: &Arc<Mutex<TailSessionRegistry>>,
+    session_id: &TailSessionId,
+    credit: u64,
+) -> Result<RemoteTailBatch> {
+    let (stream_id, next_offset) = {
+        let registry = tail_sessions
+            .lock()
+            .expect("tail session registry mutex poisoned");
+        let state = registry
+            .sessions
+            .get(session_id)
+            .ok_or_else(|| tail_session_not_found(session_id))?;
+        (state.stream_id.clone(), state.next_offset)
+    };
+
+    let records = engine.tail_from(&stream_id, next_offset)?;
+    let delivered_count = records.len().min(credit as usize);
+    let delivered_records: Vec<LocalRecord> = records.into_iter().take(delivered_count).collect();
+    let next_offset_value = delivered_records
+        .last()
+        .map(|record| record.position().offset.value() + 1)
+        .unwrap_or(next_offset.value());
+    let state = if delivered_count == 0 {
+        RemoteTailSessionState::AwaitingRecords
+    } else {
+        RemoteTailSessionState::Active
+    };
+
+    {
+        let mut registry = tail_sessions
+            .lock()
+            .expect("tail session registry mutex poisoned");
+        let session = registry
+            .sessions
+            .get_mut(session_id)
+            .ok_or_else(|| tail_session_not_found(session_id))?;
+        session.next_offset = Offset::new(next_offset_value);
+    }
+
+    Ok(RemoteTailBatch {
+        session_id: session_id.clone(),
+        stream_id,
+        next_offset: Offset::new(next_offset_value),
+        requested_credit: credit,
+        delivered_credit: delivered_count as u64,
+        records: delivered_records.into_iter().map(map_record).collect(),
+        state,
+    })
+}
+
+fn validate_tail_credit(credit: u64) -> Result<()> {
+    ensure!(credit > 0, "tail session credit must be greater than zero");
+    ensure!(
+        credit <= MAX_TAIL_SESSION_CREDIT,
+        "tail session credit {} exceeds max {}",
+        credit,
+        MAX_TAIL_SESSION_CREDIT
+    );
+    Ok(())
+}
+
+fn tail_session_not_found(session_id: &TailSessionId) -> anyhow::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        format!("tail session '{}' not found", session_id.as_str()),
+    )
+    .into()
+}
+
 fn map_record(record: LocalRecord) -> RemoteRecord {
     RemoteRecord {
         position: record.position().clone(),
@@ -1016,6 +1439,8 @@ fn is_invalid_request_message(message: &str) -> bool {
         "merge specs require",
         "lineage positions must reference an existing distinct stream",
         "lineage position ",
+        "tail session start",
+        "tail session credit",
         "already exists",
     ]
     .into_iter()
@@ -1035,8 +1460,8 @@ fn unexpected_operation_response(
 mod tests {
     use super::{
         OperationRequest, OperationResponse, ProtocolRequest, ProtocolResponse, RemoteClient,
-        RemoteClientError, RemoteErrorCode, RemoteTopology, RequestId, ResponseEnvelope,
-        ServerConfig, ServerHandle, configure_connection_stream,
+        RemoteClientError, RemoteErrorCode, RemoteTailSessionState, RemoteTopology, RequestId,
+        ResponseEnvelope, ServerConfig, ServerHandle, configure_connection_stream,
     };
     use crate::engine::{DurabilityMode, LocalEngine, LocalEngineConfig};
     use crate::kernel::{
@@ -1402,6 +1827,170 @@ mod tests {
         assert_eq!(follow_up_payloads, vec![b"fourth".as_slice()]);
         assert_eq!(initial_tail.ack().durability(), "local");
         assert_eq!(follow_up_tail.ack().durability(), "local");
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_tail_sessions_have_explicit_lifecycle_and_cancellation() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path()),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let root_stream = stream_id("task.root");
+
+        server
+            .engine()
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+        client.append(&root_stream, b"first").expect("append first");
+
+        let opened = client
+            .open_tail_session(&root_stream, Offset::new(0), 1)
+            .expect("open tail session");
+        assert_eq!(opened.ack().durability(), "local");
+        assert_eq!(opened.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(opened.body().records().len(), 1);
+        assert_eq!(opened.body().state(), RemoteTailSessionState::Active);
+
+        client
+            .append(&root_stream, b"second")
+            .expect("append second after open");
+        let next_batch = client
+            .poll_tail_session(opened.body().session_id(), 1)
+            .expect("poll tail session");
+        assert_eq!(next_batch.body().records().len(), 1);
+        assert_eq!(
+            next_batch.body().records()[0].payload(),
+            b"second".as_slice()
+        );
+        assert_eq!(next_batch.body().state(), RemoteTailSessionState::Active);
+
+        let cancelled = client
+            .cancel_tail_session(opened.body().session_id())
+            .expect("cancel tail session");
+        assert_eq!(cancelled.body().session_id(), opened.body().session_id());
+        assert_eq!(cancelled.body().state(), RemoteTailSessionState::Cancelled);
+
+        let missing_poll = client
+            .poll_tail_session(opened.body().session_id(), 1)
+            .expect_err("poll after cancel should fail");
+        match missing_poll {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::NotFound);
+                assert!(error.message().contains("tail session"));
+            }
+            other => panic!("expected tail session not_found, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_tail_sessions_apply_explicit_credit_backpressure() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path()),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let root_stream = stream_id("task.root");
+
+        server
+            .engine()
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+        client.append(&root_stream, b"first").expect("append first");
+        client
+            .append(&root_stream, b"second")
+            .expect("append second");
+        client.append(&root_stream, b"third").expect("append third");
+
+        let opened = client
+            .open_tail_session(&root_stream, Offset::new(0), 1)
+            .expect("open tail session");
+        let first_payloads: Vec<&[u8]> = opened
+            .body()
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+
+        assert_eq!(opened.body().requested_credit(), 1);
+        assert_eq!(opened.body().delivered_credit(), 1);
+        assert_eq!(first_payloads, vec![b"first".as_slice()]);
+
+        let second_batch = client
+            .poll_tail_session(opened.body().session_id(), 1)
+            .expect("poll second batch");
+        let third_batch = client
+            .poll_tail_session(opened.body().session_id(), 1)
+            .expect("poll third batch");
+        let waiting_batch = client
+            .poll_tail_session(opened.body().session_id(), 1)
+            .expect("poll awaiting batch");
+
+        assert_eq!(second_batch.body().delivered_credit(), 1);
+        assert_eq!(third_batch.body().delivered_credit(), 1);
+        assert_eq!(waiting_batch.body().delivered_credit(), 0);
+        assert_eq!(
+            waiting_batch.body().state(),
+            RemoteTailSessionState::AwaitingRecords
+        );
+
+        let excessive_credit = client
+            .poll_tail_session(opened.body().session_id(), 300)
+            .expect_err("credit above max should fail");
+        match excessive_credit {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::InvalidRequest);
+                assert!(error.message().contains("exceeds max"));
+            }
+            other => panic!("expected invalid_request for excessive credit, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_tail_sessions_are_logical_and_transport_agnostic_across_requests() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path()),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let root_stream = stream_id("task.root");
+
+        server
+            .engine()
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+
+        let opened = client
+            .open_tail_session(&root_stream, Offset::new(0), 1)
+            .expect("open session");
+        client
+            .append(&root_stream, b"first")
+            .expect("append after open session");
+        let batch = client
+            .poll_tail_session(opened.body().session_id(), 1)
+            .expect("poll over a later request");
+
+        assert_eq!(batch.body().records().len(), 1);
+        assert_eq!(batch.body().records()[0].payload(), b"first".as_slice());
+
+        let encoded = serde_json::to_value(batch.body()).expect("encode batch");
+        assert!(encoded.get("session_id").is_some());
+        assert!(encoded.get("connection_id").is_none());
+        assert!(encoded.get("socket").is_none());
+        assert!(encoded.get("transport").is_none());
+        assert!(encoded.get("wireguard_peer").is_none());
 
         server.shutdown().expect("shutdown server");
     }
