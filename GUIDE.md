@@ -93,6 +93,20 @@ The canonical reference contract for this workload now lives in [AI_TRACES.md](A
 
 When you need benchmark or fixture guidance for the same workload, use [EVALUATIONS.md](EVALUATIONS.md) together with [AI_ARTIFACTS.md](AI_ARTIFACTS.md) instead of inventing a separate trace shape.
 
+## Modeling Materialized Views
+
+Treat materializers as replay consumers, not alternate writers.
+
+Recommended rules:
+
+- consume ordered history from the shared engine instead of acknowledging appends inline
+- persist checkpoints that bind derived state to source lineage, offset, and manifest generation
+- emit snapshots as explicit artifacts instead of relying on hidden mutable indexes
+- use prolly trees as the default snapshot design center when branch-local reuse matters
+- keep derived-state merge policy view-specific, with explicit merge artifacts when reconciliation needs auditability
+
+For the current canonical contract, use [MATERIALIZATION.md](MATERIALIZATION.md).
+
 ## Record Design Tips
 
 - Keep payloads immutable and self-describing.
@@ -119,8 +133,9 @@ For now this repository is document-first. The expected order of operations is:
 1. read [README.md](README.md)
 2. read [ARCHITECTURE.md](ARCHITECTURE.md)
 3. read [CONSTITUTION.md](CONSTITUTION.md)
-4. read [INTEGRITY.md](INTEGRITY.md) when the change touches checksums, digests, manifests, checkpoints, or restore behavior
-5. use [CONFIGURATION.md](CONFIGURATION.md), [EVALUATIONS.md](EVALUATIONS.md), and [RELEASE.md](RELEASE.md) as implementation constraints
+4. read [MATERIALIZATION.md](MATERIALIZATION.md) when the change touches processing, checkpoints, snapshots, or derived-state merge semantics
+5. read [INTEGRITY.md](INTEGRITY.md) when the change touches checksums, digests, manifests, checkpoints, or restore behavior
+6. use [CONFIGURATION.md](CONFIGURATION.md), [EVALUATIONS.md](EVALUATIONS.md), and [RELEASE.md](RELEASE.md) as implementation constraints
 
 The current bootstrap developer loop is:
 

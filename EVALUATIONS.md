@@ -31,6 +31,12 @@ Every published benchmark or comparison should include:
 - operating system and kernel
 - result summary with p50, p95, p99, throughput, and error count
 
+When materialization is in scope, also include:
+
+- checkpoint cadence or policy
+- snapshot policy: prolly-tree, full rebuild, or other explicit structure
+- derived merge policy: replay-through, branch-reuse-plus-recompute, explicit-derived-merge, or full-rebuild
+
 ## Core Evaluation Categories
 
 ### 1. Append Hot Path
@@ -168,6 +174,26 @@ Measure:
 
 The benchmark should state whether it is measuring fast corruption detection, cryptographic object verification, or both.
 
+### 9. Materialization And Snapshot Verification
+
+Use [MATERIALIZATION.md](MATERIALIZATION.md) as the canonical contract for this category.
+
+Measure:
+
+- checkpoint creation cost outside the append hot path
+- incremental resume latency from a persisted checkpoint
+- snapshot build and refresh time
+- snapshot bytes written and reused
+- branch-local reuse ratio across sibling branches
+- derived merge cost under each declared merge policy
+- advisory summary-filter false-positive rate
+
+The benchmark should state:
+
+- whether the workload is embedded or server-packaged on the same engine contract
+- whether the view used replay-through, branch reuse, explicit derived merge artifacts, or full rebuild
+- whether CRDT logic, if any, lived only inside the materializer
+
 ## Correctness Requirements
 
 The evaluation suite should fail fast when any of these break:
@@ -177,6 +203,8 @@ The evaluation suite should fail fast when any of these break:
 - child appends leak into parents
 - acknowledged records disappear after crash or cold restore
 - manifest roots or segment digests fail to match restored objects
+- materialized snapshots claim source lineage they were not derived from
+- derived merge artifacts hide the source merge ref or declared merge policy
 - cache eviction changes logical results
 - server and embedded mode disagree on stream semantics
 
@@ -191,6 +219,7 @@ Required evidence depends on scope, but should usually include:
 - explicit hardware and storage context
 - notes about durability mode and object-store backend
 - notes about checksum, digest, and checkpoint verification mode
+- notes about checkpoint, snapshot, and derived-merge policy when materialization is in scope
 - migration notes if manifests, segments, or protocol surfaces changed
 
 ## Reference Environments

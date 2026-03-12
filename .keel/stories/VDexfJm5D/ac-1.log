@@ -1,0 +1,8 @@
+Reviewed `ARCHITECTURE.md`, `GUIDE.md`, and `EVALUATIONS.md`.
+
+The docs now point at `MATERIALIZATION.md` as the canonical contract and align around the same boundaries:
+- architecture links the canonical contract and describes checkpoint envelopes, explicit snapshots, and view-specific merge policy
+- guide adds a `Modeling Materialized Views` section and points operators to `MATERIALIZATION.md`
+- evaluations adds a dedicated materialization and snapshot verification category
+
+This satisfies SRS-04.

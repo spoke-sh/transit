@@ -1,0 +1,9 @@
+Reviewed `ARCHITECTURE.md`, `GUIDE.md`, and `EVALUATIONS.md`.
+
+The aligned guidance preserves the one-engine thesis:
+- architecture says the core engine owns ordered history, lineage, manifests, and recovery
+- processors and materializers remain first-party-adjacent instead of becoming a separate semantic path
+- the same contract is described as shared across embedded and server packaging
+- CRDTs are described as optional overlays inside materializers rather than base stream semantics
+
+This satisfies SRS-NFR-02.

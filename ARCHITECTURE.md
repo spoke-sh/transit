@@ -229,26 +229,32 @@ Any move toward replicated or multi-writer semantics must preserve those invaria
 
 `transit` should be usable as a storage substrate for stream processing and materialization.
 
+The canonical contract for this boundary now lives in [MATERIALIZATION.md](MATERIALIZATION.md).
+
 The likely boundary is:
 
 - the core engine owns ordered history, branch and merge lineage, manifests, and recovery
 - processors and materializers may start as a first-party adjacent layer instead of inflating the hot append path immediately
-- both layers should share checkpoints, lineage metadata, and deterministic replay semantics
+- both layers should share checkpoints, lineage metadata, deterministic replay semantics, and the same embedded/server contract
 
 Materialization should support:
 
 - incremental recompute from persisted checkpoints
 - branch-local derived state
-- explicit merge of derived states when source streams reconcile
+- checkpoint envelopes that bind derived state to `stream_id`, offset, manifest generation, and lineage position
 - durable, inspectable snapshots of derived state
+- explicit merge of derived states when source streams reconcile
+- view-specific merge policies instead of one universal reconciliation rule
 
-Persistent structures such as prolly trees are especially promising here because they make branch-local reuse, diffing, and content-addressed snapshots much cheaper than rebuilding mutable indexes from scratch.
+Persistent structures such as prolly trees are the current design center because they make branch-local reuse, diffing, and content-addressed snapshots much cheaper than rebuilding mutable indexes from scratch. Snapshot manifests and segment-local summary filters should remain explicit supporting artifacts rather than hidden mutable indexes.
 
 Integrity and materialization should meet at checkpoints:
 
 - a materialized snapshot should be able to cite the lineage checkpoint it was derived from
 - verified manifests and segment digests become the stable base for durable derived state
 - more compact proof structures such as Merkle manifests or Merkle Mountain Ranges can layer later if partial proofs become important
+
+CRDTs may be useful for selected collaborative views, but they should remain optional overlays inside materializers rather than changing base stream semantics.
 
 ## Suggested Package Layout
 
