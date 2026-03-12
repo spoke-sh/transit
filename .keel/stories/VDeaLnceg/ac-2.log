@@ -1,0 +1,9 @@
+Executed `cargo test --workspace`.
+
+Implemented local segment roll and manifest persistence in `crates/transit-core/src/engine.rs`:
+- rolled immutable segments are renamed from `active.segment` into `segments/<segment-id>.segment`
+- rolled segments receive explicit storage metadata and a checksum
+- manifest generation advances when a segment is rolled
+- `state.json` and `manifest.json` are durably rewritten after committed engine transitions
+
+The `engine::tests::append_rolls_segments_and_persists_manifest_state` test verifies rolled segment metadata, manifest generation, and persisted stream status.

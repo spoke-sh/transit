@@ -131,11 +131,17 @@ impl MergeSpec {
         policy: MergePolicy,
         metadata: LineageMetadata,
     ) -> Result<Self> {
-        ensure!(parents.len() >= 2, "merge specs require at least two parent heads");
+        ensure!(
+            parents.len() >= 2,
+            "merge specs require at least two parent heads"
+        );
 
         let mut seen_streams = BTreeMap::new();
         for parent in &parents {
-            if seen_streams.insert(parent.stream_id.as_str().to_owned(), ()).is_some() {
+            if seen_streams
+                .insert(parent.stream_id.as_str().to_owned(), ())
+                .is_some()
+            {
                 bail!("merge specs require parent heads from distinct streams");
             }
         }
@@ -193,7 +199,10 @@ impl StreamDescriptor {
 
     pub fn merge(stream_id: StreamId, merge: MergeSpec) -> Result<Self> {
         ensure!(
-            merge.parents.iter().all(|parent| parent.stream_id != stream_id),
+            merge
+                .parents
+                .iter()
+                .all(|parent| parent.stream_id != stream_id),
             "merge results must create a new stream head"
         );
 
@@ -207,9 +216,11 @@ impl StreamDescriptor {
         match &self.lineage {
             StreamLineage::Root { .. } => Vec::new(),
             StreamLineage::Branch { branch_point } => vec![&branch_point.parent.stream_id],
-            StreamLineage::Merge { merge } => {
-                merge.parents.iter().map(|parent| &parent.stream_id).collect()
-            }
+            StreamLineage::Merge { merge } => merge
+                .parents
+                .iter()
+                .map(|parent| &parent.stream_id)
+                .collect(),
         }
     }
 }
@@ -218,7 +229,7 @@ impl StreamDescriptor {
 mod tests {
     use super::{
         LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor,
-        StreamId, StreamPosition, StreamLineage,
+        StreamId, StreamLineage, StreamPosition,
     };
 
     fn stream_id(value: &str) -> StreamId {
@@ -226,7 +237,10 @@ mod tests {
     }
 
     fn position(stream_id: &str, offset: u64) -> StreamPosition {
-        StreamPosition::new(super::StreamId::new(stream_id).expect("stream id"), Offset::new(offset))
+        StreamPosition::new(
+            super::StreamId::new(stream_id).expect("stream id"),
+            Offset::new(offset),
+        )
     }
 
     #[test]
@@ -234,8 +248,11 @@ mod tests {
         let descriptor = StreamDescriptor::branch(
             stream_id("task.retry.1"),
             position("task.root", 7),
-            LineageMetadata::new(Some("agent.planner".into()), Some("retry-after-timeout".into()))
-                .with_label("branch_kind", "retry"),
+            LineageMetadata::new(
+                Some("agent.planner".into()),
+                Some("retry-after-timeout".into()),
+            )
+            .with_label("branch_kind", "retry"),
         )
         .expect("valid branch");
 
@@ -253,7 +270,11 @@ mod tests {
                     Some("retry-after-timeout")
                 );
                 assert_eq!(
-                    branch_point.metadata.labels.get("branch_kind").map(String::as_str),
+                    branch_point
+                        .metadata
+                        .labels
+                        .get("branch_kind")
+                        .map(String::as_str),
                     Some("retry")
                 );
             }
@@ -268,7 +289,10 @@ mod tests {
             Some(position("task.root", 7)),
             MergePolicy::new(MergePolicyKind::Recursive)
                 .with_metadata("policy_reason", "synthesize-best-answer"),
-            LineageMetadata::new(Some("agent.judge".into()), Some("merge-winning-paths".into())),
+            LineageMetadata::new(
+                Some("agent.judge".into()),
+                Some("merge-winning-paths".into()),
+            ),
         )
         .expect("valid merge");
 
@@ -283,7 +307,10 @@ mod tests {
                 assert_eq!(merge.parents[0].stream_id.as_str(), "task.retry.1");
                 assert_eq!(merge.parents[1].stream_id.as_str(), "task.critique.1");
                 assert_eq!(merge.merge_base.expect("merge base").offset.value(), 7);
-                assert_eq!(merge.policy.metadata["policy_reason"], "synthesize-best-answer");
+                assert_eq!(
+                    merge.policy.metadata["policy_reason"],
+                    "synthesize-best-answer"
+                );
             }
             other => panic!("expected merge lineage, got {other:?}"),
         }

@@ -43,7 +43,10 @@ pub struct ObjectStoreKey(String);
 impl ObjectStoreKey {
     pub fn new(value: impl Into<String>) -> Result<Self> {
         let value = value.into();
-        ensure!(!value.trim().is_empty(), "object-store keys must not be empty");
+        ensure!(
+            !value.trim().is_empty(),
+            "object-store keys must not be empty"
+        );
         Ok(Self(value))
     }
 
@@ -66,7 +69,10 @@ impl SegmentChecksum {
             !algorithm.trim().is_empty(),
             "checksum algorithm must not be empty"
         );
-        ensure!(!digest.trim().is_empty(), "checksum digest must not be empty");
+        ensure!(
+            !digest.trim().is_empty(),
+            "checksum digest must not be empty"
+        );
 
         Ok(Self { algorithm, digest })
     }
@@ -161,7 +167,10 @@ impl SegmentDescriptor {
             last_offset.value() >= start_offset.value(),
             "segment offsets must be monotonic"
         );
-        ensure!(record_count > 0, "segments must contain at least one record");
+        ensure!(
+            record_count > 0,
+            "segments must contain at least one record"
+        );
 
         Ok(Self {
             segment_id,
@@ -329,7 +338,9 @@ mod tests {
             SegmentChecksum::new("sha256", "deadbeef").expect("checksum"),
             StorageLocation::new(
                 Some(PathBuf::from("segments/task.root/0001.segment")),
-                Some(object_store_location("streams/task.root/segments/0001.segment")),
+                Some(object_store_location(
+                    "streams/task.root/segments/0001.segment",
+                )),
             )
             .expect("storage location"),
         )
@@ -370,7 +381,9 @@ mod tests {
             SegmentChecksum::new("sha256", "feedface").expect("checksum"),
             StorageLocation::new(
                 Some(PathBuf::from("segments/task.root/0001.segment")),
-                Some(object_store_location("streams/task.root/segments/0001.segment")),
+                Some(object_store_location(
+                    "streams/task.root/segments/0001.segment",
+                )),
             )
             .expect("storage location"),
         )
@@ -389,7 +402,9 @@ mod tests {
             vec![segment],
             StorageLocation::new(
                 Some(PathBuf::from("manifests/task.root/0001.json")),
-                Some(object_store_location("streams/task.root/manifests/0001.json")),
+                Some(object_store_location(
+                    "streams/task.root/manifests/0001.json",
+                )),
             )
             .expect("manifest location"),
             Some(boundary),
@@ -426,11 +441,8 @@ mod tests {
             1,
             512,
             SegmentChecksum::new("sha256", "beadfeed").expect("checksum"),
-            StorageLocation::new(
-                Some(PathBuf::from("segments/task.root/0002.segment")),
-                None,
-            )
-            .expect("storage location"),
+            StorageLocation::new(Some(PathBuf::from("segments/task.root/0002.segment")), None)
+                .expect("storage location"),
         )
         .expect_err("inverted offsets");
         assert!(

@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+Implemented the first durable local append path in `crates/transit-core/src/engine.rs`:
+- `LocalEngine::create_stream` creates explicit local stream state, manifest state, and an active segment.
+- `LocalEngine::append` appends committed records into `active.segment`, syncs the file, and returns `LocalAppendOutcome`.
+- `LocalAppendOutcome` carries explicit `StreamPosition` and `DurabilityMode`.
+
+The `engine::tests::append_returns_explicit_stream_positions_for_local_commits` test verifies that committed appends return monotonic local offsets for the target stream.

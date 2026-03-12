@@ -981,6 +981,7 @@ dependencies = [
  "bytes",
  "object_store",
  "serde",
+ "serde_json",
  "tempfile",
  "tokio",
 ]

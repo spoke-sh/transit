@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+The story keeps durability boundaries explicit instead of implying generic success:
+- `LocalEngineConfig` currently exposes `DurabilityMode::Local`
+- `LocalAppendOutcome` returns the committed durability mode with each append
+- committed local state is persisted through explicit `state.json`, `manifest.json`, and segment files
+
+The `engine::tests::committed_state_is_persisted_under_explicit_local_durability_boundaries` test verifies that a committed append leaves inspectable local durability artifacts on disk.
