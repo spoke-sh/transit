@@ -1,10 +1,11 @@
 ---
 id: VDeXa6bFd
 title: Ship The First Durable Local Transit Engine
-status: active
+status: achieved
 created_at: 2026-03-12T04:48:06
-updated_at: 2026-03-12T05:01:47
+updated_at: 2026-03-12T06:26:50
 activated_at: 2026-03-12T05:01:47
+achieved_at: 2026-03-12T06:26:50
 ---
 
 # Ship The First Durable Local Transit Engine
