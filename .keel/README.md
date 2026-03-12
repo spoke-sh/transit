@@ -49,11 +49,11 @@
 |--------|--------|
 | [Canonical AI Trace Contract](epics/VDd1EybWm/voyages/VDd551Q7R/) | done |
 
-### [Research Auto-Threaded Communication And Collaboration](epics/VDd1F0OXH/) (active)
+### [Research Auto-Threaded Communication And Collaboration](epics/VDd1F0OXH/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Communication Contract And Auto-Threading Model](epics/VDd1F0OXH/voyages/VDf29q6Cf/) | in-progress |
+| [Communication Contract And Auto-Threading Model](epics/VDd1F0OXH/voyages/VDf29q6Cf/) | done |
 
 ### [Research Verifiable Lineage And Cryptographic Integrity](epics/VDd1F1tUe/) (done)
 

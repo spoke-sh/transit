@@ -19,8 +19,8 @@ created_at: 2026-03-12T06:49:26
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 1/3 stories done
+**Progress:** 1/1 voyages complete, 3/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Communication Contract And Auto-Threading Model](voyages/VDf29q6Cf/) | in-progress | 1/3 |
+| [Communication Contract And Auto-Threading Model](voyages/VDf29q6Cf/) | done | 3/3 |
 <!-- END GENERATED -->
