@@ -1,0 +1,26 @@
+nix develop . --command just mission
+
+Added `mission networked-server-proof` to the default proof path and verified it runs end to end inside `just mission`.
+
+Relevant proof excerpt:
+transit networked-server proof
+root: /home/alex/workspace/spoke-sh/transit/target/transit-mission/networked-server
+server: 127.0.0.1:34005
+durability: local
+topology: single_node
+root create: mission.root next 0
+initial append: mission.root@0
+root replay: 1 records, head Some(0)
+branch streams: mission.branch, mission.branch-two
+merge stream: mission.merge (merge)
+merge parents:
+  - mission.branch
+  - mission.branch-two
+tail open: tail-1 delivered 1 state active
+tail append: mission.root@1
+tail poll: delivered 1 next 2 state active
+tail cancel: cancelled
+accepted connections: 11
+graceful shutdown: yes
+
+The proof now runs after the local-engine and tiered-engine proofs from the same `just mission` entrypoint.

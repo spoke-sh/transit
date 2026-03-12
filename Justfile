@@ -16,13 +16,14 @@ mission:
         cd "$repo_root"
 
         rm -rf "$mission_root"
-        mkdir -p "$mission_root/object-store" "$mission_root/local-engine" "$mission_root/tiered-engine"
+        mkdir -p "$mission_root/object-store" "$mission_root/local-engine" "$mission_root/tiered-engine" "$mission_root/networked-server"
 
         just build
         just test
         just doctest
         just run mission local-engine-proof --root "$mission_root/local-engine"
         just run mission tiered-engine-proof --root "$mission_root/tiered-engine"
+        just run mission networked-server-proof --root "$mission_root/networked-server"
         just run object-store probe --root "$mission_root/object-store"
         just mission-status
     )

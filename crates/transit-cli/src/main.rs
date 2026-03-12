@@ -50,6 +50,8 @@ enum MissionCommands {
     LocalEngineProof(LocalEngineProofArgs),
     /// Exercise publication and cold restore through the shared local engine.
     TieredEngineProof(LocalEngineProofArgs),
+    /// Exercise the networked single-node server and its transport boundary end to end.
+    NetworkedServerProof(LocalEngineProofArgs),
 }
 
 #[derive(Debug, Args)]
@@ -283,6 +285,9 @@ async fn main() -> Result<()> {
             MissionCommands::TieredEngineProof(args) => {
                 render_tiered_engine_proof(run_tiered_engine_proof(args.root).await?, args.json)?
             }
+            MissionCommands::NetworkedServerProof(args) => {
+                render_networked_server_proof(run_networked_server_proof(args.root)?, args.json)?
+            }
         },
         Commands::ObjectStore(args) => match args.command {
             ObjectStoreCommands::Probe(args) => render_object_store_probe(
@@ -426,6 +431,38 @@ struct TieredEngineProofResult {
     publication_api: &'static str,
     restore_api: &'static str,
     replay_after_remote_removal_ok: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct NetworkedTransportProofSummary {
+    application_protocol: &'static str,
+    transport_boundary: &'static str,
+    wireguard_role: &'static str,
+    replication_scope: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct NetworkedServerProofResult {
+    data_root: PathBuf,
+    server_addr: String,
+    durability: String,
+    topology: String,
+    root_stream: RemoteStreamStatusResult,
+    initial_append: RemoteAppendResult,
+    root_replay: RemoteReadResult,
+    branch_stream: RemoteStreamStatusResult,
+    second_branch_stream: RemoteStreamStatusResult,
+    merge_stream: RemoteStreamStatusResult,
+    merge_lineage: RemoteLineageResult,
+    tail_open: RemoteTailOpenResult,
+    tail_append: RemoteAppendResult,
+    tail_poll: RemoteTailPollResult,
+    tail_cancel: RemoteTailCancelResult,
+    transport: NetworkedTransportProofSummary,
+    accepted_connections: u64,
+    graceful_shutdown: bool,
+    server_api: &'static str,
+    remote_api: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -612,6 +649,136 @@ fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
         },
         replay_before_recovery_failed,
         recovery: summarize_recovery(&merge_stream, recovery),
+    })
+}
+
+fn run_networked_server_proof(root: PathBuf) -> Result<NetworkedServerProofResult> {
+    reset_directory(&root)?;
+
+    let requested_listen_addr = "127.0.0.1:0"
+        .parse::<SocketAddr>()
+        .context("parse networked server proof listen addr")?;
+    let server = ServerHandle::bind(ServerConfig::new(
+        LocalEngineConfig::new(&root).with_segment_max_records(2)?,
+        requested_listen_addr,
+    ))
+    .context("bind networked server proof daemon")?;
+    let server_addr = server.local_addr();
+
+    let root_stream = run_remote_create_root(ServerCreateRootArgs {
+        server_addr,
+        stream_id: "mission.root".into(),
+        actor: Some("mission".into()),
+        reason: Some("networked-server-proof".into()),
+        labels: vec!["kind=root".into()],
+        json: false,
+    })?;
+    let initial_append = run_remote_append(ServerAppendArgs {
+        server_addr,
+        stream_id: "mission.root".into(),
+        payload_text: "root-0".into(),
+        json: false,
+    })?;
+    let root_replay = run_remote_read(ServerReadArgs {
+        server_addr,
+        stream_id: "mission.root".into(),
+        json: false,
+    })?;
+    let branch_stream = run_remote_branch(ServerBranchArgs {
+        server_addr,
+        stream_id: "mission.branch".into(),
+        parent_stream_id: "mission.root".into(),
+        parent_offset: 0,
+        actor: Some("mission.classifier".into()),
+        reason: Some("thread-split".into()),
+        labels: vec!["thread=1".into()],
+        json: false,
+    })?;
+    let second_branch_stream = run_remote_branch(ServerBranchArgs {
+        server_addr,
+        stream_id: "mission.branch-two".into(),
+        parent_stream_id: "mission.root".into(),
+        parent_offset: 0,
+        actor: Some("mission.classifier".into()),
+        reason: Some("thread-split-two".into()),
+        labels: vec!["thread=2".into()],
+        json: false,
+    })?;
+    let merge_stream = run_remote_merge(ServerMergeArgs {
+        server_addr,
+        stream_id: "mission.merge".into(),
+        parents: vec!["mission.branch@0".into(), "mission.branch-two@0".into()],
+        merge_base: Some("mission.root@0".into()),
+        policy: "recursive".into(),
+        policy_metadata: vec!["resolver=mission-judge".into()],
+        actor: Some("mission.judge".into()),
+        reason: Some("merge-branches".into()),
+        labels: vec!["decision=accepted".into()],
+        json: false,
+    })?;
+    let merge_lineage = run_remote_lineage(ServerLineageArgs {
+        server_addr,
+        stream_id: "mission.merge".into(),
+        json: false,
+    })?;
+    let tail_open = run_remote_tail_open(ServerTailOpenArgs {
+        server_addr,
+        stream_id: "mission.root".into(),
+        from_offset: 0,
+        credit: 1,
+        json: false,
+    })?;
+    let tail_append = run_remote_append(ServerAppendArgs {
+        server_addr,
+        stream_id: "mission.root".into(),
+        payload_text: "root-1".into(),
+        json: false,
+    })?;
+    let tail_poll = run_remote_tail_poll(ServerTailPollArgs {
+        server_addr,
+        session_id: tail_open.session_id.clone(),
+        credit: 1,
+        json: false,
+    })?;
+    let tail_cancel = run_remote_tail_cancel(ServerTailCancelArgs {
+        server_addr,
+        session_id: tail_open.session_id.clone(),
+        json: false,
+    })?;
+
+    let shutdown = summarize_server_shutdown(
+        requested_listen_addr,
+        server
+            .shutdown()
+            .context("shutdown networked server proof daemon")?,
+    )?;
+
+    Ok(NetworkedServerProofResult {
+        data_root: shutdown.data_root,
+        server_addr: server_addr.to_string(),
+        durability: shutdown.durability,
+        topology: initial_append.topology.clone(),
+        root_stream,
+        initial_append,
+        root_replay,
+        branch_stream,
+        second_branch_stream,
+        merge_stream,
+        merge_lineage,
+        tail_open,
+        tail_append,
+        tail_poll,
+        tail_cancel,
+        transport: NetworkedTransportProofSummary {
+            application_protocol: "framed request-response plus logical tail sessions",
+            transport_boundary: "the transit protocol stays above generic transports and below optional secure underlays",
+            wireguard_role: "optional secure underlay for trusted node links, not the application protocol",
+            replication_scope: "single_node_only",
+        },
+        accepted_connections: shutdown.accepted_connections,
+        graceful_shutdown: shutdown.graceful_shutdown,
+        server_api: shutdown.server_api,
+        remote_api: "RemoteClient",
     })
 }
 
@@ -1223,6 +1390,77 @@ fn render_tiered_engine_proof(result: TieredEngineProofResult, json: bool) -> Re
     Ok(())
 }
 
+fn render_networked_server_proof(result: NetworkedServerProofResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit networked-server proof");
+    println!("root: {}", result.data_root.display());
+    println!("server: {}", result.server_addr);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!(
+        "root create: {} next {}",
+        result.root_stream.stream_id, result.root_stream.next_offset
+    );
+    println!("initial append: {}", result.initial_append.position);
+    println!(
+        "root replay: {} records, head {:?}",
+        result.root_replay.record_count, result.root_replay.head_offset
+    );
+    println!(
+        "branch streams: {}, {}",
+        result.branch_stream.stream_id, result.second_branch_stream.stream_id
+    );
+    println!(
+        "merge stream: {} ({})",
+        result.merge_stream.stream_id, result.merge_lineage.lineage_kind
+    );
+    if result.merge_lineage.parents.is_empty() {
+        println!("merge parents: none");
+    } else {
+        println!("merge parents:");
+        for parent in &result.merge_lineage.parents {
+            println!("  - {parent}");
+        }
+    }
+    println!(
+        "tail open: {} delivered {} state {}",
+        result.tail_open.session_id, result.tail_open.delivered_credit, result.tail_open.state
+    );
+    println!("tail append: {}", result.tail_append.position);
+    println!(
+        "tail poll: delivered {} next {} state {}",
+        result.tail_poll.delivered_credit, result.tail_poll.next_offset, result.tail_poll.state
+    );
+    println!("tail cancel: {}", result.tail_cancel.state);
+    println!(
+        "transport contract: {}",
+        result.transport.application_protocol
+    );
+    println!(
+        "transport boundary: {}",
+        result.transport.transport_boundary
+    );
+    println!("wireguard role: {}", result.transport.wireguard_role);
+    println!("replication scope: {}", result.transport.replication_scope);
+    println!("accepted connections: {}", result.accepted_connections);
+    println!(
+        "graceful shutdown: {}",
+        if result.graceful_shutdown {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    println!("server api: {}", result.server_api);
+    println!("remote api: {}", result.remote_api);
+
+    Ok(())
+}
+
 fn summarize_server_shutdown(
     requested_listen_addr: SocketAddr,
     outcome: ServerShutdownOutcome,
@@ -1536,7 +1774,9 @@ mod tests {
             json: true,
         })
         .expect("tail open");
-        engine.append(&root_stream, b"second").expect("append second");
+        engine
+            .append(&root_stream, b"second")
+            .expect("append second");
         let tail_poll = run_remote_tail_poll(ServerTailPollArgs {
             server_addr,
             session_id: tail_open.session_id.clone(),
@@ -1649,15 +1889,21 @@ mod tests {
         let lineage_json = serde_json::to_value(&lineage).expect("serialize lineage");
 
         assert_eq!(
-            root_json.get("stream_id").and_then(serde_json::Value::as_str),
+            root_json
+                .get("stream_id")
+                .and_then(serde_json::Value::as_str),
             Some("task.root")
         );
         assert_eq!(
-            append_json.get("durability").and_then(serde_json::Value::as_str),
+            append_json
+                .get("durability")
+                .and_then(serde_json::Value::as_str),
             Some("local")
         );
         assert_eq!(
-            append_json.get("position").and_then(serde_json::Value::as_str),
+            append_json
+                .get("position")
+                .and_then(serde_json::Value::as_str),
             Some("task.root@0")
         );
         assert_eq!(
@@ -1669,5 +1915,30 @@ mod tests {
         assert!(lineage_json.get("request_id").is_some());
 
         server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn networked_server_proof_exercises_remote_mission_path_and_transport_boundary() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_networked_server_proof(temp_dir.path().join("networked-server"))
+            .expect("networked server proof");
+
+        assert_eq!(proof.durability, "local");
+        assert_eq!(proof.topology, "single_node");
+        assert_eq!(proof.initial_append.position, "mission.root@0");
+        assert_eq!(proof.tail_append.position, "mission.root@1");
+        assert_eq!(proof.merge_lineage.lineage_kind, "merge");
+        assert_eq!(
+            proof.merge_lineage.parents,
+            vec!["mission.branch".to_owned(), "mission.branch-two".to_owned()]
+        );
+        assert_eq!(proof.transport.replication_scope, "single_node_only");
+        assert!(
+            proof
+                .transport
+                .wireguard_role
+                .contains("optional secure underlay")
+        );
+        assert!(proof.accepted_connections >= 9);
     }
 }

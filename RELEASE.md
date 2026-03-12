@@ -16,6 +16,7 @@ What exists today:
 - initial `object_store` filesystem probe wiring
 - initial shared-engine server daemon bootstrap with provisional remote root creation, append/read/tail, branch/merge, and lineage-inspection operations, framed request correlation, explicit acknowledgement/error envelopes, and logical tail sessions with credit-based delivery, but no stable wire protocol yet
 - initial CLI client commands for the same remote workflows
+- initial networked mission proof path that validates the live single-node server while keeping transport underlays such as WireGuard explicitly out of the application protocol contract
 
 What does not exist yet:
 

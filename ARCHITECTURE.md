@@ -127,6 +127,8 @@ The server should not invent a second storage format or branch model.
 
 The first implementation step is a thin daemon bootstrap that opens the shared engine and binds a listener. The current server slice now layers provisional remote root creation, append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations on top of that bootstrap, wrapped in a framed request/response envelope with correlation IDs plus explicit acknowledgement and error semantics. Tail streaming now uses logical session IDs with `open/poll/cancel` operations and credit-based delivery so the semantics do not collapse into one socket or underlay assumption. The first CLI client surface now mirrors those remote workflows directly, while richer client surfaces remain downstream. It remains explicitly single-node and should not imply replication, quorum, or leader semantics.
 
+The transport boundary is also explicit: `transit` defines an application protocol above the transport layer. TCP, QUIC, or other ordinary transports can carry that protocol, and secure meshes such as WireGuard remain optional deployment underlays rather than protocol replacements.
+
 ## Storage Architecture
 
 `transit` is tiered by default.

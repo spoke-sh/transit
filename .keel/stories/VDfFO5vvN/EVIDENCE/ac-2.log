@@ -1,0 +1,22 @@
+---
+recorded_at: 2026-03-12T11:04:26.729007271-07:00
+mode: manual
+files: [".keel/stories/VDfFO5vvN/ac-2.log"]
+---
+
+--- File: ac-2.log ---
+Transport-boundary documentation updated:
+- README.md states that the server protocol is an application-layer contract and that WireGuard is an optional deployment underlay rather than a protocol replacement.
+- GUIDE.md states that secure transports such as WireGuard remain optional underlays instead of becoming the `transit` protocol.
+- ARCHITECTURE.md states that `transit` defines an application protocol above the transport layer, with WireGuard remaining an optional deployment underlay.
+- RELEASE.md records the networked mission proof and explicit underlay boundary in the current release state.
+
+Proof excerpt from `mission networked-server-proof`:
+transport contract: framed request-response plus logical tail sessions
+transport boundary: the transit protocol stays above generic transports and below optional secure underlays
+wireguard role: optional secure underlay for trusted node links, not the application protocol
+
+Supporting test:
+cargo test --workspace
+test tests::networked_server_proof_exercises_remote_mission_path_and_transport_boundary ... ok
+

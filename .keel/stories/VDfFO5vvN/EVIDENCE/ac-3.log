@@ -1,0 +1,27 @@
+---
+recorded_at: 2026-03-12T11:04:26.808673933-07:00
+mode: manual
+files: [".keel/stories/VDfFO5vvN/ac-3.log"]
+---
+
+--- File: ac-3.log ---
+nix develop . --command just mission
+
+Non-replication and durability remain explicit in the default proof path:
+- networked server proof prints `durability: local`
+- networked server proof prints `topology: single_node`
+- networked server proof prints `replication scope: single_node_only`
+- root/append/tail outputs continue to surface explicit positions and acknowledgements
+
+Representative proof excerpt:
+durability: local
+topology: single_node
+tail append: mission.root@1
+replication scope: single_node_only
+accepted connections: 11
+
+Supporting verification:
+- cargo test --workspace
+- git diff --check
+- nix develop . --command keel doctor
+

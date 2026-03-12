@@ -42,7 +42,7 @@ Examples:
 - a shared agent coordination bus
 - a central event backbone for multiple workers and services
 
-At the current bootstrap stage, the shared-engine server exposes provisional remote root creation, append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations through `transit-core::server::RemoteClient`. The first wire shape now includes request correlation plus explicit acknowledgement and error envelopes, and the first tail-session model now uses logical `open/poll/cancel` operations with credit-based delivery rather than assuming one long-lived socket. The `transit server` CLI namespace now mirrors those workflows directly with `create-root`, `append`, `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel`. The surface is still explicitly single-node; replication-aware behavior is downstream work.
+At the current bootstrap stage, the shared-engine server exposes provisional remote root creation, append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations through `transit-core::server::RemoteClient`. The first wire shape now includes request correlation plus explicit acknowledgement and error envelopes, and the first tail-session model now uses logical `open/poll/cancel` operations with credit-based delivery rather than assuming one long-lived socket. The `transit server` CLI namespace now mirrors those workflows directly with `create-root`, `append`, `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel`. The surface is still explicitly single-node; replication-aware behavior is downstream work, and secure transports such as WireGuard remain optional underlays instead of becoming the `transit` protocol.
 
 ## Modeling Conversations
 
@@ -148,8 +148,9 @@ The current bootstrap developer loop is:
 2. run `just mission`
 3. use `just run mission local-engine-proof --root target/transit-mission/local-engine` when you want the explicit durable-engine proof without the rest of the mission flow
 4. use `just run mission tiered-engine-proof --root target/transit-mission/tiered-engine` when you want the explicit publication and restore proof
-5. use `just run server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap
-6. use `just run server create-root --server-addr 127.0.0.1:7171 --stream-id task.root --actor cli --reason bootstrap --json`, then `just run server append --server-addr 127.0.0.1:7171 --stream-id task.root --payload-text hello --json`, plus the sibling `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel` commands when you want to exercise the remote CLI surface directly
-7. use `just help` or `just run -- --help` for the CLI surface
+5. use `just run mission networked-server-proof --root target/transit-mission/networked-server` when you want the explicit live server proof, including the transport-boundary note
+6. use `just run server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap
+7. use `just run server create-root --server-addr 127.0.0.1:7171 --stream-id task.root --actor cli --reason bootstrap --json`, then `just run server append --server-addr 127.0.0.1:7171 --stream-id task.root --payload-text hello --json`, plus the sibling `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel` commands when you want to exercise the remote CLI surface directly
+8. use `just help` or `just run -- --help` for the CLI surface
 
 If a proposed change conflicts with those documents, update the docs intentionally before or with the code change.

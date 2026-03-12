@@ -2,12 +2,15 @@
 id: VDfFO5vvN
 title: Prove Networked Mission Verification And Transport Boundaries
 type: feat
-status: backlog
+status: done
 created_at: 2026-03-12T07:42:07
-updated_at: 2026-03-12T07:48:36
+updated_at: 2026-03-12T11:04:43
 operator-signal: 
 scope: VDfEx13Wu/VDfF8q3Sz
 index: 4
+started_at: 2026-03-12T11:00:59
+submitted_at: 2026-03-12T11:04:37
+completed_at: 2026-03-12T11:04:43
 ---
 
 # Prove Networked Mission Verification And Transport Boundaries
@@ -18,6 +21,6 @@ Upgrade the human proof path so `just mission` validates the first networked sin
 
 ## Acceptance Criteria
 
-- [ ] [SRS-03/AC-01] The story upgrades `just mission` or equivalent proof surfaces so humans can validate the networked single-node server end to end. <!-- [SRS-03/AC-01] verify: manual, SRS-03:start, SRS-03:end, proof: ac-1.log-->
-- [ ] [SRS-04/AC-01] The story documents and proves that the server protocol remains transport-level distinct from optional underlays such as WireGuard. <!-- [SRS-04/AC-01] verify: manual, SRS-04:start, SRS-04:end, proof: ac-2.log-->
-- [ ] [SRS-NFR-03/AC-01] Mission verification keeps durability and non-replication scope explicit for the first server release. <!-- [SRS-NFR-03/AC-01] verify: manual, SRS-NFR-03:start, SRS-NFR-03:end, proof: ac-3.log-->
+- [x] [SRS-03/AC-01] The story upgrades `just mission` or equivalent proof surfaces so humans can validate the networked single-node server end to end. <!-- [SRS-03/AC-01] verify: manual, SRS-03:start, SRS-03:end, proof: ac-1.log-->
+- [x] [SRS-04/AC-01] The story documents and proves that the server protocol remains transport-level distinct from optional underlays such as WireGuard. <!-- [SRS-04/AC-01] verify: manual, SRS-04:start, SRS-04:end, proof: ac-2.log-->
+- [x] [SRS-NFR-03/AC-01] Mission verification keeps durability and non-replication scope explicit for the first server release. <!-- [SRS-NFR-03/AC-01] verify: manual, SRS-NFR-03:start, SRS-NFR-03:end, proof: ac-3.log-->
