@@ -1,0 +1,9 @@
+Executed `nix develop path:/home/alex/workspace/spoke-sh/transit --command just mission`.
+
+The durable-engine proof path remains explicit about guarantees:
+- `transit mission local-engine-proof` prints `durability: local`
+- it reports `replay before recovery: failed as expected`
+- it reports `recovery truncated bytes: 51`
+- it reports the committed next offset and manifest generation after recovery
+
+`transit mission status` now reports `durable local engine verified` and includes `crates/transit-core/src/engine.rs` in the kernel artifact set.

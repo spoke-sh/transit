@@ -24,6 +24,7 @@ const REQUIRED_WORKSPACE_FILES: &[&str] = &[
 const REQUIRED_KERNEL_FILES: &[&str] = &[
     "crates/transit-core/src/kernel.rs",
     "crates/transit-core/src/storage.rs",
+    "crates/transit-core/src/engine.rs",
 ];
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -65,9 +66,9 @@ impl MissionStatus {
 
     pub fn summary(&self) -> &'static str {
         if self.ready {
-            "storage kernel verified"
+            "durable local engine verified"
         } else {
-            "storage kernel incomplete"
+            "durable local engine incomplete"
         }
     }
 
@@ -140,6 +141,7 @@ mod tests {
             "crates/transit-cli/Cargo.toml",
             "crates/transit-core/src/kernel.rs",
             "crates/transit-core/src/storage.rs",
+            "crates/transit-core/src/engine.rs",
         ] {
             let path = repo_root.path().join(file);
             if let Some(parent) = path.parent() {
@@ -152,7 +154,7 @@ mod tests {
         assert!(status.ready);
         assert_eq!(status.docs_present(), 8);
         assert_eq!(status.workspace_files_present(), 6);
-        assert_eq!(status.kernel_files_present(), 2);
+        assert_eq!(status.kernel_files_present(), 3);
         assert!(status.missing_paths().is_empty());
     }
 

@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+Implemented crash recovery in `crates/transit-core/src/engine.rs`:
+- `LocalEngine::recover_stream` rewrites `active.segment` back to the committed boundary recorded in `state.json`
+- recovery keeps committed active-head records and truncates trailing bytes beyond the committed prefix
+- replay succeeds again after recovery without admitting the uncommitted tail
+
+The `engine::tests::recovery_excludes_trailing_uncommitted_bytes_from_active_head` test verifies that replay fails before recovery, recovery truncates the uncommitted tail, and replay returns only committed records afterward.

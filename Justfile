@@ -16,11 +16,12 @@ mission:
         cd "$repo_root"
 
         rm -rf "$mission_root"
-        mkdir -p "$mission_root/object-store"
+        mkdir -p "$mission_root/object-store" "$mission_root/local-engine"
 
         just build
         just test
         just doctest
+        just run mission local-engine-proof --root "$mission_root/local-engine"
         just run object-store probe --root "$mission_root/object-store"
         just mission-status
     )

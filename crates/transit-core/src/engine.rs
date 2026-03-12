@@ -117,6 +117,42 @@ impl LocalRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalRecoveryOutcome {
+    stream_id: StreamId,
+    durability: DurabilityMode,
+    committed_next_offset: Offset,
+    retained_active_records: u64,
+    truncated_bytes: u64,
+    manifest_generation: u64,
+}
+
+impl LocalRecoveryOutcome {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn durability(&self) -> DurabilityMode {
+        self.durability
+    }
+
+    pub fn committed_next_offset(&self) -> Offset {
+        self.committed_next_offset
+    }
+
+    pub fn retained_active_records(&self) -> u64 {
+        self.retained_active_records
+    }
+
+    pub fn truncated_bytes(&self) -> u64 {
+        self.truncated_bytes
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalStreamStatus {
     stream_id: StreamId,
     next_offset: Offset,
@@ -263,6 +299,30 @@ impl LocalEngine {
 
     pub fn stream_descriptor(&self, stream_id: &StreamId) -> Result<StreamDescriptor> {
         Ok(self.load_state(stream_id)?.descriptor)
+    }
+
+    pub fn recover_stream(&self, stream_id: &StreamId) -> Result<LocalRecoveryOutcome> {
+        let state = self.load_state(stream_id)?;
+        let active_path = self.active_segment_path(stream_id);
+        let active_bytes =
+            fs::read(&active_path).with_context(|| format!("read {}", active_path.display()))?;
+        let retained_length = committed_prefix_length(&active_bytes, &state, stream_id)?;
+        let truncated_bytes = active_bytes.len().saturating_sub(retained_length) as u64;
+
+        if truncated_bytes > 0 {
+            write_bytes_durable(&active_path, &active_bytes[..retained_length])?;
+        }
+
+        self.read_replay_records(stream_id)?;
+
+        Ok(LocalRecoveryOutcome {
+            stream_id: stream_id.clone(),
+            durability: self.config.durability(),
+            committed_next_offset: Offset::new(state.next_offset),
+            retained_active_records: state.active_record_count,
+            truncated_bytes,
+            manifest_generation: state.manifest_generation,
+        })
     }
 
     pub fn replay(&self, stream_id: &StreamId) -> Result<Vec<LocalRecord>> {
@@ -630,6 +690,52 @@ where
     serde_json::from_slice(&bytes).with_context(|| format!("parse {}", path.display()))
 }
 
+fn committed_prefix_length(
+    active_bytes: &[u8],
+    state: &LocalStreamState,
+    stream_id: &StreamId,
+) -> Result<usize> {
+    if state.active_record_count == 0 {
+        return Ok(0);
+    }
+
+    let mut cursor = 0_usize;
+    let mut expected_offset = state.active_segment_start_offset;
+
+    for index in 0..state.active_record_count {
+        let Some(relative_end) = active_bytes[cursor..]
+            .iter()
+            .position(|byte| *byte == b'\n')
+        else {
+            anyhow::bail!(
+                "active head for '{}' is missing newline-terminated committed record {}",
+                stream_id.as_str(),
+                index
+            );
+        };
+        let line_end = cursor + relative_end;
+        let record = serde_json::from_slice::<PersistedRecord>(&active_bytes[cursor..line_end])
+            .with_context(|| {
+                format!(
+                    "parse committed record {} from active head for '{}'",
+                    index,
+                    stream_id.as_str()
+                )
+            })?;
+        ensure!(
+            record.offset == expected_offset,
+            "active head for '{}' expected committed offset {} but found {}",
+            stream_id.as_str(),
+            expected_offset,
+            record.offset
+        );
+        expected_offset += 1;
+        cursor = line_end + 1;
+    }
+
+    Ok(cursor)
+}
+
 fn read_records(path: &Path) -> Result<Vec<PersistedRecord>> {
     let file = File::open(path).with_context(|| format!("open {}", path.display()))?;
     let reader = BufReader::new(file);
@@ -723,6 +829,34 @@ where
     Ok(())
 }
 
+fn write_bytes_durable(path: &Path, bytes: &[u8]) -> Result<()> {
+    let parent = path
+        .parent()
+        .with_context(|| format!("{} has no parent directory", path.display()))?;
+    fs::create_dir_all(parent)
+        .with_context(|| format!("create parent directory {}", parent.display()))?;
+
+    let temp_path = path.with_extension("tmp");
+    {
+        let mut file = File::create(&temp_path)
+            .with_context(|| format!("create temporary file {}", temp_path.display()))?;
+        file.write_all(bytes)
+            .with_context(|| format!("write {}", temp_path.display()))?;
+        file.sync_all()
+            .with_context(|| format!("sync {}", temp_path.display()))?;
+    }
+
+    fs::rename(&temp_path, path).with_context(|| {
+        format!(
+            "rename temporary file from {} to {}",
+            temp_path.display(),
+            path.display()
+        )
+    })?;
+    sync_dir(parent)?;
+    Ok(())
+}
+
 fn create_empty_file(path: &Path) -> Result<()> {
     let parent = path
         .parent()
@@ -766,7 +900,8 @@ mod tests {
         LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor,
         StreamId, StreamLineage, StreamPosition,
     };
-    use std::fs;
+    use std::fs::{self, OpenOptions};
+    use std::io::Write;
     use tempfile::tempdir;
 
     fn stream_id(value: &str) -> StreamId {
@@ -1254,5 +1389,54 @@ mod tests {
         assert_eq!(root_offsets, vec![0, 1]);
         assert_eq!(branch_offsets, vec![0, 1, 2]);
         assert_eq!(merge_offsets, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn recovery_excludes_trailing_uncommitted_bytes_from_active_head() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(8)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        engine.append(&stream_id, b"first").expect("append");
+        engine.append(&stream_id, b"second").expect("append");
+
+        let active_path = temp_dir
+            .path()
+            .join("streams")
+            .join("task.root")
+            .join("active.segment");
+        let mut file = OpenOptions::new()
+            .append(true)
+            .open(&active_path)
+            .expect("open active segment");
+        file.write_all(b"{\"offset\":2,\"payload\":[116,114,97,105,108]}\npartial")
+            .expect("write trailing bytes");
+        file.sync_all().expect("sync active segment");
+
+        assert!(engine.replay(&stream_id).is_err());
+
+        let recovery = engine.recover_stream(&stream_id).expect("recover");
+        assert_eq!(recovery.stream_id().as_str(), "task.root");
+        assert_eq!(recovery.durability(), DurabilityMode::Local);
+        assert_eq!(recovery.committed_next_offset().value(), 2);
+        assert_eq!(recovery.retained_active_records(), 2);
+        assert!(recovery.truncated_bytes() > 0);
+
+        let replayed = engine.replay(&stream_id).expect("replay");
+        let offsets: Vec<u64> = replayed
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let payloads: Vec<&[u8]> = replayed.iter().map(|record| record.payload()).collect();
+
+        assert_eq!(offsets, vec![0, 1]);
+        assert_eq!(payloads, vec![b"first".as_slice(), b"second".as_slice()]);
     }
 }

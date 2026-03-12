@@ -1,0 +1,10 @@
+Executed `nix develop path:/home/alex/workspace/spoke-sh/transit --command just mission`.
+
+The human-facing proof path now exercises the durable local engine end to end:
+- workspace build
+- workspace tests and doctests
+- `transit mission local-engine-proof --root target/transit-mission/local-engine`
+- object-store probe
+- mission status summary
+
+The local-engine proof output shows append/replay results for root, branch, and merge streams plus recovery after injected trailing bytes.
