@@ -64,9 +64,9 @@ That auto-threading path is a core design motivator. A classifier should be able
 
 ## Current State
 
-This repository is at the foundation stage.
+This repository is at the bootstrap stage.
 
-Today it contains the project thesis and operating documents:
+Today it contains:
 
 - [README.md](README.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
@@ -76,8 +76,12 @@ Today it contains the project thesis and operating documents:
 - [EVALUATIONS.md](EVALUATIONS.md)
 - [RELEASE.md](RELEASE.md)
 - [AGENTS.md](AGENTS.md)
+- a Rust workspace with `transit-core` and `transit-cli`
+- a Nix flake and Rust toolchain bootstrap
+- a `Justfile` with a human-facing `just mission` verification path
+- an initial `object_store` integration with a filesystem probe command
 
-The implementation work is expected to follow these documents instead of reverse-engineering direction later.
+The implementation work now has a real scaffold to grow from instead of needing to reverse-engineer direction later.
 
 ## Planned Surfaces
 

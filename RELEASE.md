@@ -4,17 +4,20 @@
 
 ## Current State
 
-This repository is still in the foundation phase.
+This repository is in the bootstrap stage.
 
 What exists today:
 
 - project thesis
 - architecture and operating rules
 - configuration, guide, evaluation, and agent documents
+- bootstrapped Rust workspace with `transit-core` and `transit-cli`
+- Nix flake, Rust toolchain file, `cargo nextest`, and `just mission`
+- initial `object_store` filesystem probe wiring
 
 What does not exist yet:
 
-- production implementation
+- production stream engine
 - stable on-disk format
 - stable wire protocol
 - finalized packaging workflow

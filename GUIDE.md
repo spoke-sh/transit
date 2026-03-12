@@ -112,4 +112,10 @@ For now this repository is document-first. The expected order of operations is:
 3. read [CONSTITUTION.md](CONSTITUTION.md)
 4. use [CONFIGURATION.md](CONFIGURATION.md), [EVALUATIONS.md](EVALUATIONS.md), and [RELEASE.md](RELEASE.md) as implementation constraints
 
+The current bootstrap developer loop is:
+
+1. enter `nix develop`
+2. run `just mission`
+3. use `just help` or `just run -- --help` for the CLI surface
+
 If a proposed change conflicts with those documents, update the docs intentionally before or with the code change.
