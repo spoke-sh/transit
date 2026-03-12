@@ -53,7 +53,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Communication Contract And Auto-Threading Model](epics/VDd1F0OXH/voyages/VDf29q6Cf/) | planned |
+| [Communication Contract And Auto-Threading Model](epics/VDd1F0OXH/voyages/VDf29q6Cf/) | in-progress |
 
 ### [Research Verifiable Lineage And Cryptographic Integrity](epics/VDd1F1tUe/) (done)
 

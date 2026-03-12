@@ -1,0 +1,9 @@
+Reviewed `COMMUNICATION.md`.
+
+The contract preserves native stream and branch semantics:
+- `a channel is a root stream`
+- `a thread is a child branch anchored to a channel message offset`
+- the invariants section says replay should explain divergence `without consulting hidden side tables`
+- the document explicitly says communication should remain a workload on top of `transit`, not a separate storage mode
+
+This satisfies SRS-NFR-01.

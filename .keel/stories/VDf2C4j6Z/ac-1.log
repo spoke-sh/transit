@@ -1,0 +1,13 @@
+Reviewed `COMMUNICATION.md`.
+
+The document now defines the canonical communication model:
+- `channel root`
+- `channel message`
+- `thread branch`
+- `thread reply`
+- `thread backlink`
+- `thread summary`
+
+It also defines minimum metadata for channels, messages, branches, replies, backlinks, and summaries, with example shapes for a root message and thread backlink.
+
+This satisfies SRS-01.
