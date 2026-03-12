@@ -1,0 +1,5 @@
+Manual verification for `SRS-02/AC-01`.
+
+- Reviewed [INTEGRITY.md](../../../../INTEGRITY.md).
+- Confirmed the `Lineage Checkpoint` section defines the checkpoint fields and role.
+- Confirmed the `Minimum Proof Surface` section states that remote restore and lineage inspection require the manifest root, referenced segment digests, and a lineage checkpoint binding the current head to that manifest root.

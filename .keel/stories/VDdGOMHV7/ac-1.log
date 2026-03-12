@@ -1,0 +1,5 @@
+Manual verification for `SRS-01/AC-01`.
+
+- Reviewed [INTEGRITY.md](../../../../INTEGRITY.md).
+- Confirmed the `Minimum Integrity Artifacts` section defines fast segment checksums, cryptographic segment content digests, and manifest roots.
+- Confirmed the contract distinguishes corruption detection from cryptographic proof instead of collapsing them into one checksum concept.
