@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+Implemented live branch creation in `crates/transit-core/src/engine.rs`:
+- `LocalEngine::create_branch` creates a child stream from an explicit parent `StreamPosition`
+- branch state starts at the inherited offset boundary instead of copying ancestor segments into the child manifest
+- replay composes the parent prefix virtually through lineage state before serving child-local records
+
+The `engine::tests::branch_creation_reuses_parent_history_without_copying_segments` test verifies inherited replay and confirms the branch manifest stays empty until the child appends new records.

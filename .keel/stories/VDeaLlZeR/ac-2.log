@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+Implemented explicit merge recording on local engine state in `crates/transit-core/src/engine.rs`:
+- `LocalEngine::create_merge` persists a merge stream descriptor with explicit parent heads
+- merge descriptors keep merge policy and lineage metadata in persisted engine state
+- merge replay can inherit an optional merge-base prefix without rewriting parent histories
+
+The `engine::tests::merge_creation_records_parent_heads_and_metadata` test verifies parent-head preservation, merge policy metadata, and merge-base replay behavior.

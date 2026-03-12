@@ -1,4 +1,6 @@
-use crate::kernel::{Offset, StreamDescriptor, StreamId, StreamPosition};
+use crate::kernel::{
+    LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage, StreamPosition,
+};
 use crate::storage::{
     ManifestId, SegmentChecksum, SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
 };
@@ -168,11 +170,12 @@ impl LocalEngine {
     }
 
     pub fn create_stream(&self, descriptor: StreamDescriptor) -> Result<LocalStreamStatus> {
-        let stream_dir = self.stream_dir(&descriptor.stream_id);
+        let state = self.initialize_stream_state(descriptor)?;
+        let stream_dir = self.stream_dir(state.stream_id());
         ensure!(
             !stream_dir.exists(),
             "stream '{}' already exists",
-            descriptor.stream_id.as_str()
+            state.stream_id().as_str()
         );
 
         fs::create_dir_all(stream_dir.join(SEGMENTS_DIR))
@@ -180,19 +183,31 @@ impl LocalEngine {
 
         let manifest = SegmentManifest::new(
             manifest_id(0)?,
-            descriptor.stream_id.clone(),
+            state.stream_id().clone(),
             0,
             Vec::new(),
-            local_storage(self.manifest_path(&descriptor.stream_id))?,
+            local_storage(self.manifest_path(state.stream_id()))?,
             None,
         );
-        write_json_durable(&self.manifest_path(&descriptor.stream_id), &manifest)?;
-        create_empty_file(&self.active_segment_path(&descriptor.stream_id))?;
+        write_json_durable(&self.manifest_path(state.stream_id()), &manifest)?;
+        create_empty_file(&self.active_segment_path(state.stream_id()))?;
 
-        let state = LocalStreamState::new(descriptor);
         write_json_durable(&self.state_path(state.stream_id()), &state)?;
 
         self.stream_status(state.stream_id())
+    }
+
+    pub fn create_branch(
+        &self,
+        stream_id: StreamId,
+        parent: StreamPosition,
+        metadata: LineageMetadata,
+    ) -> Result<LocalStreamStatus> {
+        self.create_stream(StreamDescriptor::branch(stream_id, parent, metadata)?)
+    }
+
+    pub fn create_merge(&self, stream_id: StreamId, merge: MergeSpec) -> Result<LocalStreamStatus> {
+        self.create_stream(StreamDescriptor::merge(stream_id, merge)?)
     }
 
     pub fn append(
@@ -246,39 +261,20 @@ impl LocalEngine {
         read_json(&self.manifest_path(stream_id))
     }
 
+    pub fn stream_descriptor(&self, stream_id: &StreamId) -> Result<StreamDescriptor> {
+        Ok(self.load_state(stream_id)?.descriptor)
+    }
+
     pub fn replay(&self, stream_id: &StreamId) -> Result<Vec<LocalRecord>> {
-        self.tail_from(stream_id, Offset::new(0))
+        self.read_replay_records(stream_id)
     }
 
     pub fn tail_from(&self, stream_id: &StreamId, from: Offset) -> Result<Vec<LocalRecord>> {
-        let state = self.load_state(stream_id)?;
-        if from.value() >= state.next_offset {
-            return Ok(Vec::new());
-        }
-
-        let manifest = self.load_manifest(stream_id)?;
-        let mut records = Vec::new();
-        let mut expected_next_offset = 0_u64;
-
-        for descriptor in manifest.segments() {
-            let segment_records =
-                self.read_committed_segment(stream_id, descriptor, expected_next_offset)?;
-            expected_next_offset = descriptor.last_offset().value() + 1;
-            records.extend(
-                segment_records
-                    .into_iter()
-                    .filter(|record| record.position.offset.value() >= from.value()),
-            );
-        }
-
-        let active_records = self.read_active_head(stream_id, &state, expected_next_offset)?;
-        records.extend(
-            active_records
-                .into_iter()
-                .filter(|record| record.position.offset.value() >= from.value()),
-        );
-
-        Ok(records)
+        Ok(self
+            .read_replay_records(stream_id)?
+            .into_iter()
+            .filter(|record| record.position.offset.value() >= from.value())
+            .collect())
     }
 
     pub fn stream_status(&self, stream_id: &StreamId) -> Result<LocalStreamStatus> {
@@ -356,6 +352,96 @@ impl LocalEngine {
 
     fn load_state(&self, stream_id: &StreamId) -> Result<LocalStreamState> {
         read_json(&self.state_path(stream_id))
+    }
+
+    fn initialize_stream_state(&self, descriptor: StreamDescriptor) -> Result<LocalStreamState> {
+        let initial_next_offset = match &descriptor.lineage {
+            StreamLineage::Root { .. } => 0,
+            StreamLineage::Branch { branch_point } => {
+                self.validate_lineage_position(&descriptor.stream_id, &branch_point.parent)?;
+                branch_point.parent.offset.value() + 1
+            }
+            StreamLineage::Merge { merge } => {
+                for parent in &merge.parents {
+                    self.validate_lineage_position(&descriptor.stream_id, parent)?;
+                }
+
+                if let Some(merge_base) = &merge.merge_base {
+                    self.validate_lineage_position(&descriptor.stream_id, merge_base)?;
+                    merge_base.offset.value() + 1
+                } else {
+                    0
+                }
+            }
+        };
+
+        Ok(LocalStreamState::new(descriptor, initial_next_offset))
+    }
+
+    fn validate_lineage_position(
+        &self,
+        stream_id: &StreamId,
+        position: &StreamPosition,
+    ) -> Result<()> {
+        ensure!(
+            stream_id != &position.stream_id,
+            "lineage positions must reference an existing distinct stream"
+        );
+
+        let parent_status = self.stream_status(&position.stream_id)?;
+        ensure!(
+            position.offset.value() < parent_status.next_offset().value(),
+            "lineage position {}:{} is beyond committed head {}",
+            position.stream_id.as_str(),
+            position.offset.value(),
+            parent_status.next_offset().value()
+        );
+        Ok(())
+    }
+
+    fn read_replay_records(&self, stream_id: &StreamId) -> Result<Vec<LocalRecord>> {
+        let state = self.load_state(stream_id)?;
+        let mut records = self.read_inherited_records(&state.descriptor)?;
+        let mut expected_next_offset = records
+            .last()
+            .map(|record| record.position.offset.value() + 1)
+            .unwrap_or(0);
+
+        let manifest = self.load_manifest(stream_id)?;
+        for descriptor in manifest.segments() {
+            let segment_records =
+                self.read_committed_segment(stream_id, descriptor, expected_next_offset)?;
+            expected_next_offset = descriptor.last_offset().value() + 1;
+            records.extend(segment_records);
+        }
+
+        let active_records = self.read_active_head(stream_id, &state, expected_next_offset)?;
+        records.extend(active_records);
+        Ok(records)
+    }
+
+    fn read_inherited_records(&self, descriptor: &StreamDescriptor) -> Result<Vec<LocalRecord>> {
+        match &descriptor.lineage {
+            StreamLineage::Root { .. } => Ok(Vec::new()),
+            StreamLineage::Branch { branch_point } => self.read_prefix(&branch_point.parent),
+            StreamLineage::Merge { merge } => match &merge.merge_base {
+                Some(merge_base) => self.read_prefix(merge_base),
+                None => Ok(Vec::new()),
+            },
+        }
+    }
+
+    fn read_prefix(&self, position: &StreamPosition) -> Result<Vec<LocalRecord>> {
+        let mut records = self.read_replay_records(&position.stream_id)?;
+        ensure!(
+            position.offset.value() < records.len() as u64,
+            "lineage position {}:{} is beyond replayable history {}",
+            position.stream_id.as_str(),
+            position.offset.value(),
+            records.len()
+        );
+        records.truncate(position.offset.value() as usize + 1);
+        Ok(records)
     }
 
     fn read_committed_segment(
@@ -490,12 +576,12 @@ struct LocalStreamState {
 }
 
 impl LocalStreamState {
-    fn new(descriptor: StreamDescriptor) -> Self {
+    fn new(descriptor: StreamDescriptor, next_offset: u64) -> Self {
         Self {
             descriptor,
-            next_offset: 0,
+            next_offset,
             active_segment_sequence: 0,
-            active_segment_start_offset: 0,
+            active_segment_start_offset: next_offset,
             active_record_count: 0,
             active_byte_length: 0,
             manifest_generation: 0,
@@ -676,7 +762,10 @@ fn fnv1a64_hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::{DurabilityMode, LocalEngine, LocalEngineConfig};
-    use crate::kernel::{LineageMetadata, Offset, StreamDescriptor, StreamId};
+    use crate::kernel::{
+        LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor,
+        StreamId, StreamLineage, StreamPosition,
+    };
     use std::fs;
     use tempfile::tempdir;
 
@@ -935,5 +1024,235 @@ mod tests {
         assert_eq!(replayed.len(), 2);
         assert_eq!(replayed[0].position().offset.value(), 0);
         assert_eq!(replayed[1].position().offset.value(), 1);
+    }
+
+    #[test]
+    fn branch_creation_reuses_parent_history_without_copying_segments() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let root_stream = stream_id("task.root");
+        let branch_stream = stream_id("task.root.retry");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+
+        for payload in ["first", "second", "third"] {
+            engine
+                .append(&root_stream, payload.as_bytes())
+                .expect("append");
+        }
+
+        let branch_status = engine
+            .create_branch(
+                branch_stream.clone(),
+                StreamPosition::new(root_stream.clone(), Offset::new(1)),
+                LineageMetadata::new(
+                    Some("agent.retry".into()),
+                    Some("branch-from-second-record".into()),
+                ),
+            )
+            .expect("create branch");
+        assert_eq!(branch_status.next_offset().value(), 2);
+        assert_eq!(branch_status.rolled_segment_count(), 0);
+        assert_eq!(
+            engine
+                .load_manifest(&branch_stream)
+                .expect("manifest")
+                .segments()
+                .len(),
+            0
+        );
+
+        engine
+            .append(&branch_stream, b"branch-only")
+            .expect("append branch");
+        let replayed = engine.replay(&branch_stream).expect("replay branch");
+        let offsets: Vec<u64> = replayed
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let payloads: Vec<&[u8]> = replayed.iter().map(|record| record.payload()).collect();
+
+        assert_eq!(offsets, vec![0, 1, 2]);
+        assert_eq!(
+            payloads,
+            vec![
+                b"first".as_slice(),
+                b"second".as_slice(),
+                b"branch-only".as_slice()
+            ]
+        );
+    }
+
+    #[test]
+    fn merge_creation_records_parent_heads_and_metadata() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let root_stream = stream_id("task.root");
+        let branch_a = stream_id("task.retry");
+        let branch_b = stream_id("task.critique");
+        let merge_stream = stream_id("task.merge");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+        engine.append(&root_stream, b"seed").expect("append seed");
+        engine
+            .append(&root_stream, b"context")
+            .expect("append context");
+
+        engine
+            .create_branch(
+                branch_a.clone(),
+                StreamPosition::new(root_stream.clone(), Offset::new(0)),
+                LineageMetadata::new(Some("agent.retry".into()), Some("explore".into())),
+            )
+            .expect("create branch a");
+        engine
+            .append(&branch_a, b"candidate-a")
+            .expect("append branch a");
+
+        engine
+            .create_branch(
+                branch_b.clone(),
+                StreamPosition::new(root_stream.clone(), Offset::new(0)),
+                LineageMetadata::new(Some("agent.critique".into()), Some("explore".into())),
+            )
+            .expect("create branch b");
+        engine
+            .append(&branch_b, b"candidate-b")
+            .expect("append branch b");
+
+        let merge_spec = MergeSpec::new(
+            vec![
+                StreamPosition::new(branch_a.clone(), Offset::new(1)),
+                StreamPosition::new(branch_b.clone(), Offset::new(1)),
+            ],
+            Some(StreamPosition::new(root_stream.clone(), Offset::new(0))),
+            MergePolicy::new(MergePolicyKind::Recursive)
+                .with_metadata("policy_reason", "pick-best-candidate"),
+            LineageMetadata::new(Some("agent.judge".into()), Some("merge-candidates".into())),
+        )
+        .expect("merge spec");
+
+        let merge_status = engine
+            .create_merge(merge_stream.clone(), merge_spec.clone())
+            .expect("create merge");
+        assert_eq!(merge_status.next_offset().value(), 1);
+
+        let descriptor = engine.stream_descriptor(&merge_stream).expect("descriptor");
+        match descriptor.lineage {
+            StreamLineage::Merge { merge } => {
+                assert_eq!(merge.parents, merge_spec.parents);
+                assert_eq!(merge.parents[0].stream_id.as_str(), "task.retry");
+                assert_eq!(merge.parents[1].stream_id.as_str(), "task.critique");
+                assert_eq!(
+                    merge
+                        .policy
+                        .metadata
+                        .get("policy_reason")
+                        .map(String::as_str),
+                    Some("pick-best-candidate")
+                );
+                assert_eq!(merge.metadata.reason.as_deref(), Some("merge-candidates"));
+            }
+            other => panic!("expected merge lineage, got {other:?}"),
+        }
+
+        engine
+            .append(&merge_stream, b"merged-answer")
+            .expect("append merge");
+        let replayed = engine.replay(&merge_stream).expect("replay merge");
+        let offsets: Vec<u64> = replayed
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let payloads: Vec<&[u8]> = replayed.iter().map(|record| record.payload()).collect();
+
+        assert_eq!(offsets, vec![0, 1]);
+        assert_eq!(
+            payloads,
+            vec![b"seed".as_slice(), b"merged-answer".as_slice()]
+        );
+    }
+
+    #[test]
+    fn branch_and_merge_preserve_append_only_lineage_and_monotonic_offsets() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(4)
+                .expect("config"),
+        )
+        .expect("engine");
+        let root_stream = stream_id("task.root");
+        let branch_stream = stream_id("task.retry");
+        let merge_stream = stream_id("task.merge");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+
+        engine.append(&root_stream, b"root-0").expect("append root");
+        engine.append(&root_stream, b"root-1").expect("append root");
+
+        engine
+            .create_branch(
+                branch_stream.clone(),
+                StreamPosition::new(root_stream.clone(), Offset::new(1)),
+                LineageMetadata::new(Some("agent.retry".into()), Some("branch".into())),
+            )
+            .expect("create branch");
+        engine
+            .append(&branch_stream, b"branch-2")
+            .expect("append branch");
+
+        let merge = MergeSpec::new(
+            vec![
+                StreamPosition::new(root_stream.clone(), Offset::new(1)),
+                StreamPosition::new(branch_stream.clone(), Offset::new(2)),
+            ],
+            Some(StreamPosition::new(root_stream.clone(), Offset::new(1))),
+            MergePolicy::new(MergePolicyKind::FastForward),
+            LineageMetadata::new(Some("agent.judge".into()), Some("merge".into())),
+        )
+        .expect("merge spec");
+        engine
+            .create_merge(merge_stream.clone(), merge)
+            .expect("create merge");
+        engine
+            .append(&merge_stream, b"merge-2")
+            .expect("append merge");
+
+        let root_offsets: Vec<u64> = engine
+            .replay(&root_stream)
+            .expect("replay root")
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let branch_offsets: Vec<u64> = engine
+            .replay(&branch_stream)
+            .expect("replay branch")
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let merge_offsets: Vec<u64> = engine
+            .replay(&merge_stream)
+            .expect("replay merge")
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+
+        assert_eq!(root_offsets, vec![0, 1]);
+        assert_eq!(branch_offsets, vec![0, 1, 2]);
+        assert_eq!(merge_offsets, vec![0, 1, 2]);
     }
 }

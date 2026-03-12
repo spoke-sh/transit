@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+Branch and merge execution remain append-only and monotonic:
+- parent and child histories are preserved as distinct stream heads
+- new branch and merge records advance only their own local offsets
+- lineage replay is composed from existing committed history instead of mutating acknowledged bytes
+
+The `engine::tests::branch_and_merge_preserve_append_only_lineage_and_monotonic_offsets` test verifies root, branch, and merge streams keep stable ordered offsets after lineage operations.
