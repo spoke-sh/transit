@@ -20,10 +20,12 @@ Tiered storage is not optional architecture.
 
 ## 3. Lineage Is A Primitive
 
-Forking is first-class.
+Branching and merging are first-class.
 
 - A branch is a real stream with ancestry, not a client-side convention.
+- A merge is a real lineage event with declared parents and merge policy, not a hidden side effect.
 - Branch creation must preserve immutable ancestor history.
+- Merge must preserve immutable source history.
 - Lineage metadata must be queryable and auditable.
 
 ## 4. Acknowledged History Is Immutable
@@ -32,7 +34,7 @@ Once a record is acknowledged, it is part of durable history.
 
 - No silent in-place mutation of acknowledged records.
 - No background rewrite that changes logical history while pretending nothing happened.
-- Derived views, projections, and future merges must be explicit artifacts.
+- Derived views, projections, and merges must be explicit artifacts.
 
 ## 5. Durability And Consistency Must Be Explicit
 

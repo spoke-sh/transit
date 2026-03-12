@@ -11,7 +11,7 @@ This document defines the reference architecture for `transit`. It is intentiona
 
 Those are packaging choices, not two different databases.
 
-The engine is built around immutable segments, explicit branch lineage, a hot local write/read path, and object storage as the normal home for colder history.
+The engine is built around immutable segments, explicit branch-and-merge lineage, a hot local write/read path, and object storage as the normal home for colder history.
 
 ## System Model
 
@@ -53,16 +53,27 @@ Offset identity should stay explicit:
 - offset identity is therefore `(stream_id, offset)`, not a bare offset alone
 - parent and child may share the same offset numbers for shared ancestry while remaining different streams
 
+### Merge
+
+A `merge` is an explicit reconciliation of two or more stream heads.
+
+Merge should preserve the same append-only discipline as every other operation:
+
+- the merge result is a new lineage state, not a rewrite of source history
+- fast-forward merge is allowed when ancestry permits it
+- non-fast-forward merge should record all parent heads, merge base if any, and the merge policy used
+- merge metadata should record actor, reason, classifier or processor identity, and conflict notes when relevant
+
 ### Lineage
 
-Lineage is the DAG of branch relationships.
+Lineage is the DAG of branch and merge relationships.
 
 Each lineage node should preserve:
 
-- parent stream id
-- fork offset
+- parent stream ids
+- fork or merge base metadata
 - creation timestamp
-- branch metadata such as actor, reason, or classifier evidence
+- lineage metadata such as actor, reason, merge policy, or classifier evidence
 
 ### Segment
 
@@ -159,9 +170,9 @@ The intended read path is:
 
 Clients should not need to care whether bytes came from the local head, local cache, or remote tier.
 
-## Branching And Lineage Semantics
+## Branching, Merging, And Lineage Semantics
 
-Branching is a first-class storage operation, not an overlay.
+Branching and merging are first-class storage operations, not overlays.
 
 Required semantics:
 
@@ -170,8 +181,11 @@ Required semantics:
 - child appends must never appear on the parent
 - offsets must remain monotonic within one stream identity
 - lineage traversal must be explicit and inspectable
+- merge must be explicit and inspectable, never implicit background reconciliation
+- merge result must preserve references to all input heads
+- merge policy must be declared, not hidden inside application code
 
-Potential future work such as merges or projections must remain explicit derived operations. They must not silently rewrite ancestor history.
+Materializations and other derived views must remain explicit artifacts. They must not silently rewrite ancestor history.
 
 ## Consistency Model
 
@@ -184,6 +198,25 @@ The initial reference model should be simple:
 
 Any move toward replicated or multi-writer semantics must preserve those invariants and define conflict rules directly.
 
+## Processing And Materialization
+
+`transit` should be usable as a storage substrate for stream processing and materialization.
+
+The likely boundary is:
+
+- the core engine owns ordered history, branch and merge lineage, manifests, and recovery
+- processors and materializers may start as a first-party adjacent layer instead of inflating the hot append path immediately
+- both layers should share checkpoints, lineage metadata, and deterministic replay semantics
+
+Materialization should support:
+
+- incremental recompute from persisted checkpoints
+- branch-local derived state
+- explicit merge of derived states when source streams reconcile
+- durable, inspectable snapshots of derived state
+
+Persistent structures such as prolly trees are especially promising here because they make branch-local reuse, diffing, and content-addressed snapshots much cheaper than rebuilding mutable indexes from scratch.
+
 ## Suggested Package Layout
 
 The likely package split is:
@@ -194,6 +227,7 @@ The likely package split is:
 - `transit-server`: network-facing daemon
 - `transit-client`: client bindings
 - `transit-cli`: operator and benchmark tools
+- `transit-materialize`: first-party processing and materialization layer
 
 This is guidance, not a locked module tree.
 
@@ -215,7 +249,6 @@ That means lineage metadata should be cheap to create and easy to query.
 These areas are important but should stay explicit future work until designed:
 
 - distributed consensus and cross-node replication
-- merge semantics for branches
 - compaction or projection layers above immutable history
 - authn/authz and multi-tenant isolation
 - query surfaces beyond ordered log replay and tailing
