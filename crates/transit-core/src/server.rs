@@ -1,19 +1,27 @@
-use crate::engine::{DurabilityMode, LocalEngine, LocalEngineConfig};
+use crate::engine::{
+    DurabilityMode, LocalAppendOutcome, LocalEngine, LocalEngineConfig, LocalRecord,
+};
+use crate::kernel::{Offset, StreamId, StreamPosition};
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 const DEFAULT_ACCEPT_POLL_INTERVAL_MS: u64 = 10;
+const DEFAULT_CONNECTION_IO_TIMEOUT_MS: u64 = 1_000;
 
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
     engine: LocalEngineConfig,
     listen_addr: SocketAddr,
     accept_poll_interval: Duration,
+    connection_io_timeout: Duration,
 }
 
 impl ServerConfig {
@@ -22,6 +30,7 @@ impl ServerConfig {
             engine,
             listen_addr,
             accept_poll_interval: Duration::from_millis(DEFAULT_ACCEPT_POLL_INTERVAL_MS),
+            connection_io_timeout: Duration::from_millis(DEFAULT_CONNECTION_IO_TIMEOUT_MS),
         }
     }
 
@@ -35,6 +44,10 @@ impl ServerConfig {
 
     pub fn accept_poll_interval(&self) -> Duration {
         self.accept_poll_interval
+    }
+
+    pub fn connection_io_timeout(&self) -> Duration {
+        self.connection_io_timeout
     }
 }
 
@@ -68,19 +81,23 @@ impl ServerHandle {
         let accepted_connections = Arc::new(AtomicU64::new(0));
         let fatal_error = Arc::new(Mutex::new(None));
 
+        let thread_engine = engine.clone();
         let thread_shutdown = Arc::clone(&shutdown_requested);
         let thread_connections = Arc::clone(&accepted_connections);
         let thread_error = Arc::clone(&fatal_error);
         let accept_poll_interval = config.accept_poll_interval();
+        let connection_io_timeout = config.connection_io_timeout();
         let listener_thread = thread::Builder::new()
             .name("transit-server-listener".into())
             .spawn(move || {
                 run_accept_loop(
                     listener,
+                    thread_engine,
                     thread_shutdown,
                     thread_connections,
                     thread_error,
                     accept_poll_interval,
+                    connection_io_timeout,
                 )
             })
             .context("spawn server listener thread")?;
@@ -145,7 +162,7 @@ impl ServerHandle {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerShutdownOutcome {
-    data_dir: std::path::PathBuf,
+    data_dir: PathBuf,
     local_addr: SocketAddr,
     durability: DurabilityMode,
     accepted_connections: u64,
@@ -169,12 +186,259 @@ impl ServerShutdownOutcome {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct RemoteClient {
+    server_addr: SocketAddr,
+    io_timeout: Duration,
+}
+
+impl RemoteClient {
+    pub fn new(server_addr: SocketAddr) -> Self {
+        Self {
+            server_addr,
+            io_timeout: Duration::from_millis(DEFAULT_CONNECTION_IO_TIMEOUT_MS),
+        }
+    }
+
+    pub fn append(
+        &self,
+        stream_id: &StreamId,
+        payload: impl AsRef<[u8]>,
+    ) -> RemoteClientResult<RemoteAppendOutcome> {
+        match self.send_request(ConnectionRequest::Append {
+            stream_id: stream_id.clone(),
+            payload: payload.as_ref().to_vec(),
+        })? {
+            ConnectionResponse::AppendOk(outcome) => Ok(outcome),
+            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
+            other => Err(RemoteClientError::Protocol(format!(
+                "append expected append_ok response, got {other:?}"
+            ))),
+        }
+    }
+
+    pub fn read(&self, stream_id: &StreamId) -> RemoteClientResult<RemoteReadOutcome> {
+        match self.send_request(ConnectionRequest::Read {
+            stream_id: stream_id.clone(),
+        })? {
+            ConnectionResponse::RecordsOk(outcome) => Ok(outcome),
+            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
+            other => Err(RemoteClientError::Protocol(format!(
+                "read expected records_ok response, got {other:?}"
+            ))),
+        }
+    }
+
+    pub fn tail(
+        &self,
+        stream_id: &StreamId,
+        from_offset: Offset,
+    ) -> RemoteClientResult<RemoteReadOutcome> {
+        match self.send_request(ConnectionRequest::Tail {
+            stream_id: stream_id.clone(),
+            from_offset,
+        })? {
+            ConnectionResponse::RecordsOk(outcome) => Ok(outcome),
+            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
+            other => Err(RemoteClientError::Protocol(format!(
+                "tail expected records_ok response, got {other:?}"
+            ))),
+        }
+    }
+
+    fn send_request(&self, request: ConnectionRequest) -> RemoteClientResult<ConnectionResponse> {
+        let mut stream =
+            TcpStream::connect_timeout(&self.server_addr, self.io_timeout).map_err(|error| {
+                RemoteClientError::Transport(format!("connect to {}: {error}", self.server_addr))
+            })?;
+        configure_connection_stream(&stream, self.io_timeout).map_err(|error| {
+            RemoteClientError::Transport(format!(
+                "configure connection to {}: {error}",
+                self.server_addr
+            ))
+        })?;
+
+        let mut encoded = serde_json::to_vec(&request)
+            .map_err(|error| RemoteClientError::Protocol(format!("encode request: {error}")))?;
+        encoded.push(b'\n');
+        stream
+            .write_all(&encoded)
+            .map_err(|error| RemoteClientError::Transport(format!("send request: {error}")))?;
+        stream
+            .flush()
+            .map_err(|error| RemoteClientError::Transport(format!("flush request: {error}")))?;
+        let _ = stream.shutdown(Shutdown::Write);
+
+        let mut response_line = String::new();
+        let mut reader = BufReader::new(stream);
+        reader
+            .read_line(&mut response_line)
+            .map_err(|error| RemoteClientError::Transport(format!("read response: {error}")))?;
+        if response_line.trim().is_empty() {
+            return Err(RemoteClientError::Protocol(
+                "server returned an empty response".into(),
+            ));
+        }
+
+        serde_json::from_str(response_line.trim_end())
+            .map_err(|error| RemoteClientError::Decode(format!("decode response: {error}")))
+    }
+}
+
+pub type RemoteClientResult<T> = std::result::Result<T, RemoteClientError>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RemoteClientError {
+    Transport(String),
+    Decode(String),
+    Protocol(String),
+    Remote(RemoteErrorResponse),
+}
+
+impl fmt::Display for RemoteClientError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Transport(message) => write!(f, "transport error: {message}"),
+            Self::Decode(message) => write!(f, "decode error: {message}"),
+            Self::Protocol(message) => write!(f, "protocol error: {message}"),
+            Self::Remote(error) => {
+                write!(f, "remote error [{}]: {}", error.code(), error.message())
+            }
+        }
+    }
+}
+
+impl std::error::Error for RemoteClientError {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteAppendOutcome {
+    position: StreamPosition,
+    durability: String,
+    manifest_generation: u64,
+    rolled_segment_id: Option<String>,
+}
+
+impl RemoteAppendOutcome {
+    pub fn position(&self) -> &StreamPosition {
+        &self.position
+    }
+
+    pub fn durability(&self) -> &str {
+        &self.durability
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+
+    pub fn rolled_segment_id(&self) -> Option<&str> {
+        self.rolled_segment_id.as_deref()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteReadOutcome {
+    stream_id: StreamId,
+    durability: String,
+    records: Vec<RemoteRecord>,
+}
+
+impl RemoteReadOutcome {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn durability(&self) -> &str {
+        &self.durability
+    }
+
+    pub fn records(&self) -> &[RemoteRecord] {
+        &self.records
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteRecord {
+    position: StreamPosition,
+    payload: Vec<u8>,
+}
+
+impl RemoteRecord {
+    pub fn position(&self) -> &StreamPosition {
+        &self.position
+    }
+
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteErrorResponse {
+    code: RemoteErrorCode,
+    message: String,
+}
+
+impl RemoteErrorResponse {
+    pub fn code(&self) -> RemoteErrorCode {
+        self.code
+    }
+
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RemoteErrorCode {
+    InvalidRequest,
+    NotFound,
+    Internal,
+}
+
+impl fmt::Display for RemoteErrorCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidRequest => write!(f, "invalid_request"),
+            Self::NotFound => write!(f, "not_found"),
+            Self::Internal => write!(f, "internal"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ConnectionRequest {
+    Append {
+        stream_id: StreamId,
+        payload: Vec<u8>,
+    },
+    Read {
+        stream_id: StreamId,
+    },
+    Tail {
+        stream_id: StreamId,
+        from_offset: Offset,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ConnectionResponse {
+    AppendOk(RemoteAppendOutcome),
+    RecordsOk(RemoteReadOutcome),
+    Error(RemoteErrorResponse),
+}
+
 fn run_accept_loop(
     listener: TcpListener,
+    engine: LocalEngine,
     shutdown_requested: Arc<AtomicBool>,
     accepted_connections: Arc<AtomicU64>,
     fatal_error: Arc<Mutex<Option<String>>>,
     accept_poll_interval: Duration,
+    connection_io_timeout: Duration,
 ) {
     loop {
         if shutdown_requested.load(Ordering::Acquire) {
@@ -189,7 +453,7 @@ fn run_accept_loop(
                 }
 
                 accepted_connections.fetch_add(1, Ordering::AcqRel);
-                let _ = stream.shutdown(Shutdown::Both);
+                serve_connection(stream, &engine, connection_io_timeout);
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                 thread::sleep(accept_poll_interval);
@@ -205,11 +469,153 @@ fn run_accept_loop(
     }
 }
 
+fn serve_connection(mut stream: TcpStream, engine: &LocalEngine, io_timeout: Duration) {
+    let response = match configure_connection_stream(&stream, io_timeout) {
+        Ok(()) => match read_request(&mut stream) {
+            Ok(request) => handle_request(engine, request),
+            Err(error) => invalid_request_response(error),
+        },
+        Err(error) => internal_error_response(format!("configure connection: {error}")),
+    };
+
+    let _ = write_response(&mut stream, &response);
+}
+
+fn configure_connection_stream(stream: &TcpStream, io_timeout: Duration) -> std::io::Result<()> {
+    stream.set_nodelay(true)?;
+    stream.set_read_timeout(Some(io_timeout))?;
+    stream.set_write_timeout(Some(io_timeout))?;
+    Ok(())
+}
+
+fn read_request(stream: &mut TcpStream) -> Result<ConnectionRequest> {
+    let mut request_line = String::new();
+    {
+        let mut reader = BufReader::new(stream);
+        reader
+            .read_line(&mut request_line)
+            .context("read request line from client")?;
+    }
+
+    ensure_request_line(&request_line)?;
+    serde_json::from_str(request_line.trim_end()).context("decode client request")
+}
+
+fn ensure_request_line(request_line: &str) -> Result<()> {
+    if request_line.trim().is_empty() {
+        anyhow::bail!("client request line must not be empty");
+    }
+    Ok(())
+}
+
+fn write_response(stream: &mut TcpStream, response: &ConnectionResponse) -> std::io::Result<()> {
+    let mut encoded = serde_json::to_vec(response).map_err(std::io::Error::other)?;
+    encoded.push(b'\n');
+
+    let mut writer = BufWriter::new(stream);
+    writer.write_all(&encoded)?;
+    writer.flush()?;
+    Ok(())
+}
+
+fn handle_request(engine: &LocalEngine, request: ConnectionRequest) -> ConnectionResponse {
+    match request {
+        ConnectionRequest::Append { stream_id, payload } => {
+            match engine.append(&stream_id, payload) {
+                Ok(outcome) => ConnectionResponse::AppendOk(map_append_outcome(outcome)),
+                Err(error) => engine_error_response(error),
+            }
+        }
+        ConnectionRequest::Read { stream_id } => match engine.replay(&stream_id) {
+            Ok(records) => ConnectionResponse::RecordsOk(map_read_outcome(
+                stream_id,
+                engine.durability(),
+                records,
+            )),
+            Err(error) => engine_error_response(error),
+        },
+        ConnectionRequest::Tail {
+            stream_id,
+            from_offset,
+        } => match engine.tail_from(&stream_id, from_offset) {
+            Ok(records) => ConnectionResponse::RecordsOk(map_read_outcome(
+                stream_id,
+                engine.durability(),
+                records,
+            )),
+            Err(error) => engine_error_response(error),
+        },
+    }
+}
+
+fn map_append_outcome(outcome: LocalAppendOutcome) -> RemoteAppendOutcome {
+    RemoteAppendOutcome {
+        position: outcome.position().clone(),
+        durability: outcome.durability().as_str().to_owned(),
+        manifest_generation: outcome.manifest_generation(),
+        rolled_segment_id: outcome
+            .rolled_segment()
+            .map(|segment| segment.segment_id().as_str().to_owned()),
+    }
+}
+
+fn map_read_outcome(
+    stream_id: StreamId,
+    durability: DurabilityMode,
+    records: Vec<LocalRecord>,
+) -> RemoteReadOutcome {
+    RemoteReadOutcome {
+        stream_id,
+        durability: durability.as_str().to_owned(),
+        records: records.into_iter().map(map_record).collect(),
+    }
+}
+
+fn map_record(record: LocalRecord) -> RemoteRecord {
+    RemoteRecord {
+        position: record.position().clone(),
+        payload: record.payload().to_vec(),
+    }
+}
+
+fn invalid_request_response(error: anyhow::Error) -> ConnectionResponse {
+    ConnectionResponse::Error(RemoteErrorResponse {
+        code: RemoteErrorCode::InvalidRequest,
+        message: error.to_string(),
+    })
+}
+
+fn internal_error_response(message: String) -> ConnectionResponse {
+    ConnectionResponse::Error(RemoteErrorResponse {
+        code: RemoteErrorCode::Internal,
+        message,
+    })
+}
+
+fn engine_error_response(error: anyhow::Error) -> ConnectionResponse {
+    ConnectionResponse::Error(RemoteErrorResponse {
+        code: classify_engine_error(&error),
+        message: error.to_string(),
+    })
+}
+
+fn classify_engine_error(error: &anyhow::Error) -> RemoteErrorCode {
+    if error.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|io_error| io_error.kind() == std::io::ErrorKind::NotFound)
+    }) {
+        return RemoteErrorCode::NotFound;
+    }
+
+    RemoteErrorCode::Internal
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ServerConfig, ServerHandle};
+    use super::{RemoteClient, RemoteClientError, RemoteErrorCode, ServerConfig, ServerHandle};
     use crate::engine::{DurabilityMode, LocalEngine, LocalEngineConfig};
-    use crate::kernel::{LineageMetadata, StreamDescriptor, StreamId};
+    use crate::kernel::{LineageMetadata, Offset, StreamDescriptor, StreamId, StreamPosition};
     use std::net::TcpStream;
     use std::time::Duration;
     use tempfile::tempdir;
@@ -300,5 +706,192 @@ mod tests {
 
         assert_eq!(replayed.len(), 1);
         assert_eq!(replayed[0].payload(), b"server-append");
+    }
+
+    #[test]
+    fn remote_append_read_and_tail_preserve_positions_and_branch_aware_replay_behavior() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(8)
+                .expect("config"),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let engine = server.engine();
+        let root_stream = stream_id("task.root");
+        let branch_stream = stream_id("task.root.branch");
+
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root stream");
+
+        let first = client.append(&root_stream, b"first").expect("append first");
+        let second = client
+            .append(&root_stream, b"second")
+            .expect("append second");
+        engine
+            .create_branch(
+                branch_stream.clone(),
+                StreamPosition::new(root_stream.clone(), Offset::new(1)),
+                LineageMetadata::new(
+                    Some("test.classifier".into()),
+                    Some("branch-after-second".into()),
+                ),
+            )
+            .expect("create branch");
+        let branch_append = client
+            .append(&branch_stream, b"branch-only")
+            .expect("append branch");
+
+        assert_eq!(first.position().offset.value(), 0);
+        assert_eq!(second.position().offset.value(), 1);
+        assert_eq!(branch_append.position().offset.value(), 2);
+
+        let root_read = client.read(&root_stream).expect("read root");
+        let branch_read = client.read(&branch_stream).expect("read branch");
+        let root_tail = client
+            .tail(&root_stream, Offset::new(1))
+            .expect("tail root");
+
+        let root_offsets: Vec<u64> = root_read
+            .records()
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let branch_offsets: Vec<u64> = branch_read
+            .records()
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let branch_payloads: Vec<&[u8]> = branch_read
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+        let tail_payloads: Vec<&[u8]> = root_tail
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+
+        assert_eq!(root_offsets, vec![0, 1]);
+        assert_eq!(branch_offsets, vec![0, 1, 2]);
+        assert_eq!(
+            branch_payloads,
+            vec![
+                b"first".as_slice(),
+                b"second".as_slice(),
+                b"branch-only".as_slice()
+            ]
+        );
+        assert_eq!(tail_payloads, vec![b"second".as_slice()]);
+        assert_eq!(root_read.durability(), "local");
+        assert_eq!(branch_read.durability(), "local");
+        assert_eq!(root_tail.durability(), "local");
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_append_and_read_surface_explicit_durability_and_error_information() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path()),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let root_stream = stream_id("task.root");
+        let missing_stream = stream_id("task.missing");
+
+        let missing_read = client
+            .read(&missing_stream)
+            .expect_err("missing read should fail");
+        match missing_read {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::NotFound);
+                assert!(error.message().contains("task.missing"));
+            }
+            other => panic!("expected remote error, got {other:?}"),
+        }
+
+        server
+            .engine()
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+
+        let append = client.append(&root_stream, b"first").expect("append");
+        let read = client.read(&root_stream).expect("read");
+        let missing_append = client
+            .append(&missing_stream, b"payload")
+            .expect_err("missing append should fail");
+
+        assert_eq!(append.durability(), "local");
+        assert_eq!(append.manifest_generation(), 0);
+        assert_eq!(read.durability(), "local");
+        assert_eq!(read.records().len(), 1);
+
+        match missing_append {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::NotFound);
+                assert!(error.message().contains("task.missing"));
+            }
+            other => panic!("expected remote error, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_tail_is_snapshot_based_with_explicit_lifecycle_and_durability_boundaries() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path()),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let root_stream = stream_id("task.root");
+
+        server
+            .engine()
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+        client.append(&root_stream, b"first").expect("append first");
+        client
+            .append(&root_stream, b"second")
+            .expect("append second");
+        client.append(&root_stream, b"third").expect("append third");
+
+        let initial_tail = client.tail(&root_stream, Offset::new(1)).expect("tail");
+        client
+            .append(&root_stream, b"fourth")
+            .expect("append fourth after tail");
+        let follow_up_tail = client
+            .tail(&root_stream, Offset::new(3))
+            .expect("tail again");
+
+        let initial_payloads: Vec<&[u8]> = initial_tail
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+        let follow_up_payloads: Vec<&[u8]> = follow_up_tail
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+
+        assert_eq!(
+            initial_payloads,
+            vec![b"second".as_slice(), b"third".as_slice()]
+        );
+        assert_eq!(follow_up_payloads, vec![b"fourth".as_slice()]);
+        assert_eq!(initial_tail.durability(), "local");
+        assert_eq!(follow_up_tail.durability(), "local");
+
+        server.shutdown().expect("shutdown server");
     }
 }

@@ -1,0 +1,14 @@
+---
+recorded_at: 2026-03-12T08:15:59.479774836-07:00
+mode: manual
+files: [".keel/stories/VDfFDn1UH/ac-2.log"]
+---
+
+--- File: ac-2.log ---
+
+running 1 test
+test server::tests::remote_append_and_read_surface_explicit_durability_and_error_information ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 0.04s
+
+

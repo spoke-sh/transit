@@ -42,6 +42,8 @@ Examples:
 - a shared agent coordination bus
 - a central event backbone for multiple workers and services
 
+At the current bootstrap stage, the shared-engine server exposes provisional remote append, read, and snapshot-tail operations through `transit-core::server::RemoteClient`. Richer CLI client flows and streaming tail sessions are still downstream work.
+
 ## Modeling Conversations
 
 The communication use case should stay simple:

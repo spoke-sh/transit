@@ -14,7 +14,7 @@ What exists today:
 - bootstrapped Rust workspace with `transit-core` and `transit-cli`
 - Nix flake, Rust toolchain file, `cargo nextest`, and `just mission`
 - initial `object_store` filesystem probe wiring
-- initial shared-engine server daemon bootstrap with listener lifecycle but no stable wire protocol yet
+- initial shared-engine server daemon bootstrap with provisional remote append/read/tail operations but no stable wire protocol yet
 
 What does not exist yet:
 
