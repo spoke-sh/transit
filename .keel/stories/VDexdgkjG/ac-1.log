@@ -1,0 +1,8 @@
+Reviewed `MATERIALIZATION.md`.
+
+The story now defines the branch-aware snapshot model explicitly:
+- `Prolly trees are the leading default structure for materialized snapshots`
+- snapshots are layered as checkpoint envelope, snapshot manifest, and content-addressed snapshot data
+- supporting structures include content-addressed snapshot manifests and `segment-local summary filters`
+
+This satisfies the snapshot-structure requirement for SRS-02.

@@ -25,11 +25,11 @@ started_at: 2026-03-12T06:36:06
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Define Transit Materialization Contract](../../../../stories/VDexcKG5C/README.md) | feat | done |
-| [Define Branch-Aware Snapshot And Merge Semantics](../../../../stories/VDexdgkjG/README.md) | feat | backlog |
+| [Define Branch-Aware Snapshot And Merge Semantics](../../../../stories/VDexdgkjG/README.md) | feat | done |
 | [Align Materialization Guidance Across Repo Docs](../../../../stories/VDexfJm5D/README.md) | feat | backlog |
 <!-- END GENERATED -->

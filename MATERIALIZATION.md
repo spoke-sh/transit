@@ -107,13 +107,160 @@ This contract must preserve the repo's current invariants:
 - restore from object storage does not create a second-class replay path
 - derived state may cite lineage checkpoints, but stronger proof generation is still staged outside normal append latency
 
+## Branch-Aware Snapshot Model
+
+Snapshots should be explicit, durable artifacts rather than hidden mutable indexes.
+
+The default design center is:
+
+- checkpoint envelope: binds a materializer to source lineage
+- snapshot manifest: describes one reusable derived-state snapshot
+- content-addressed snapshot data: stores the actual derived-state structure
+
+### Default Snapshot Structure
+
+Prolly trees are the leading default structure for materialized snapshots.
+
+They fit `transit` well because they provide:
+
+- efficient branch-local reuse when two views share most history
+- cheap diffs between branch snapshots
+- content-addressed nodes that work well with object storage
+- deterministic rebuild and inspection semantics
+
+A snapshot should therefore prefer:
+
+- a prolly-tree root as the primary derived-state structure
+- content-addressed nodes or shards beneath that root
+- immutable snapshot manifests that bind the snapshot to source lineage
+
+### Snapshot Manifest
+
+A reusable snapshot should have a small manifest with fields such as:
+
+- `materialization_id`
+- `snapshot_id`
+- `snapshot_kind`
+- `source_stream_id`
+- `source_lineage_ref`
+- `source_manifest_generation`
+- `source_checkpoint_ref`
+- `parent_snapshot_refs`
+- `snapshot_root_ref`
+- `snapshot_stats_ref`
+- `created_at`
+- `materializer_version`
+
+The manifest is the stable inspection surface. It should let operators answer:
+
+- which source lineage this snapshot reflects
+- whether it descends from another snapshot on the same branch
+- which checkpoint or manifest generation it trusts
+- where the actual snapshot data lives
+
+### Supporting Structures
+
+Prolly trees are the design center, but supporting structures are useful:
+
+- content-addressed snapshot manifests for stable references and dedupe
+- segment-local summary filters for pruning and negative lookups during replay or rebuild
+- optional Merkle roots for stronger snapshot verification later
+
+The role of segment-local summary filters is narrow and practical:
+
+- avoid touching obviously irrelevant source segments during snapshot refresh
+- speed branch-local recompute for selective projections
+- remain advisory rather than semantic, so false positives cost work but not correctness
+
+## Derived Merge Semantics
+
+Source-stream merges are first-class lineage events. Materialized views must react to those explicit source events instead of hiding reconciliation in mutable state.
+
+The default rule is:
+
+- source merges are canonical
+- derived-state merge policy is view-specific
+- when a view makes a merge decision that matters operationally, it should emit an explicit derived merge artifact
+
+### Recommended Merge Policy Categories
+
+A materializer may choose one of these policy shapes:
+
+- `replay-through`: replay the merged source history and let the reducer converge naturally
+- `branch-reuse-plus-recompute`: reuse branch-local snapshots and recompute only the affected frontier
+- `explicit-derived-merge`: produce a new derived-state artifact that records how parent snapshots were reconciled
+- `full-rebuild`: discard branch-local reuse and rebuild from a known source checkpoint when correctness is simpler than reconciliation
+
+No single policy should be forced across all views.
+
+### Derived Merge Artifact
+
+When a view needs explicit reconciliation, the merge result should be inspectable.
+
+Recommended fields:
+
+- `materialization_id`
+- `merge_artifact_id`
+- `source_merge_ref`
+- `parent_snapshot_refs`
+- `merge_base_snapshot_ref`
+- `merge_policy`
+- `merge_reason`
+- `output_snapshot_ref`
+- `conflict_notes_ref`
+- `produced_at`
+- `materializer_version`
+
+This keeps reconciliation auditable without pretending every projection follows the same reducer.
+
+## Auditability And Benchmarkability
+
+The snapshot and merge model must remain measurable and inspectable.
+
+That means:
+
+- snapshots are explicit artifacts with stable ids and source lineage references
+- derived merges are explicit artifacts when they are semantically meaningful
+- summary filters and snapshot stats are advisory data, not hidden correctness dependencies
+- replay, reuse, rebuild, and merge costs can be measured independently
+
+Useful benchmark dimensions include:
+
+- snapshot build time
+- snapshot bytes written
+- branch-local reuse ratio
+- incremental recompute range
+- merge rebuild rate
+- summary filter false-positive rate
+
+The contract should not rely on in-memory mutable indexes that disappear from operator view.
+
+## CRDT Overlays
+
+CRDTs are useful for some materialized views, but they should remain overlays rather than base stream semantics.
+
+Good fits include:
+
+- presence or liveness views
+- collaborative cursors or lightweight shared state
+- counters, sets, or document fragments that benefit from commutative merge behavior
+
+The recommended stance is:
+
+- keep source records and lineage semantics unchanged
+- implement op-based or delta-style CRDT behavior inside specific materializers
+- persist CRDT state through the same checkpoint and snapshot envelope
+- emit explicit derived merge artifacts when CRDT reconciliation needs auditability
+
+This preserves throughput in the base engine while still allowing high-concurrency collaborative views where they are actually useful.
+
 ## What This Contract Deliberately Leaves To Later Slices
 
 This document does not yet standardize:
 
-- the default snapshot structure
-- one universal derived-state merge policy
-- CRDT-specific metadata or reducers
 - a production runtime graph for processors
+- concrete on-disk formats for snapshot manifests or prolly-tree node encoding
+- one universal schema for every derived-state artifact
+- which views should default to replay-through, explicit-derived-merge, or CRDT overlay behavior
 
-Those questions belong in the next materialization slices. The current contract only defines how materializers bind themselves to source history safely and explicitly.
+Those questions belong in later implementation slices. The current contract now defines the snapshot and merge design center without freezing every runtime detail prematurely.

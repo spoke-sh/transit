@@ -1,0 +1,9 @@
+Reviewed `MATERIALIZATION.md`.
+
+The story now defines how source merges relate to derived-state merge policy:
+- `source merges are canonical`
+- `derived-state merge policy is view-specific`
+- explicit policy categories are documented: `replay-through`, `branch-reuse-plus-recompute`, `explicit-derived-merge`, and `full-rebuild`
+- an explicit derived merge artifact shape is documented with parent snapshots, merge base, policy, reason, and output snapshot references
+
+This satisfies SRS-03 for view-specific reconciliation and optional derived merge artifacts.

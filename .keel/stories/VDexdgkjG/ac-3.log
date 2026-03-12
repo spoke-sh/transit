@@ -1,0 +1,9 @@
+Reviewed `MATERIALIZATION.md`.
+
+The snapshot and merge model stays auditable and benchmarkable:
+- snapshots and derived merges are explicit artifacts with stable ids and source lineage references
+- summary filters are advisory rather than hidden correctness dependencies
+- benchmark dimensions are named explicitly, including snapshot build time, bytes written, branch-local reuse ratio, merge rebuild rate, and summary-filter false-positive rate
+- the contract rejects hidden in-memory mutable indexes as the semantic source of truth
+
+This satisfies SRS-NFR-03.
