@@ -1,0 +1,5 @@
+Manual verification for `SRS-03/AC-01`.
+
+- Reviewed [INTEGRITY.md](../../../../INTEGRITY.md).
+- Confirmed the `Verification Lifecycle` section defines verification boundaries for append, segment roll, object-store publication, restore and replay, and lineage inspection and checkpoint exchange.
+- Confirmed the lifecycle explicitly assigns heavier proof work to immutable boundaries instead of the hot append path.

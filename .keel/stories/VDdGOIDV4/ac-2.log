@@ -1,0 +1,5 @@
+Manual verification for `SRS-NFR-01/AC-01`.
+
+- Reviewed [INTEGRITY.md](../../../../INTEGRITY.md).
+- Confirmed the `Append` subsection explicitly excludes manifest hashing, Merkle proof generation, and signatures from normal acknowledgement.
+- Confirmed the `Throughput Discipline` section keeps cryptographic digest and proof costs at segment roll, publication, restore, and audit boundaries.
