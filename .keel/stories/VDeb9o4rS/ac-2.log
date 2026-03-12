@@ -1,0 +1,10 @@
+Executed `nix develop path:/home/alex/workspace/spoke-sh/transit --command just mission`.
+
+The proof path demonstrates shared engine boundaries instead of a server-only path:
+- `transit mission tiered-engine-proof` uses `LocalEngine::publish_rolled_segments`
+- it restores with `LocalEngine::restore_stream_from_remote_manifest`
+- the proof output prints both API names directly:
+  - `publication api: LocalEngine::publish_rolled_segments`
+  - `restore api: LocalEngine::restore_stream_from_remote_manifest`
+
+Publication and restore remain properties of `transit-core`, with the CLI only orchestrating and reporting them.

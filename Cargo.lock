@@ -968,6 +968,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "object_store",
  "serde",
  "serde_json",
  "tokio",

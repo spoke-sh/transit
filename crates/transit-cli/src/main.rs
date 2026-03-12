@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
+use object_store::local::LocalFileSystem;
 use serde::Serialize;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -40,6 +41,8 @@ enum MissionCommands {
     Status(MissionStatusArgs),
     /// Exercise append, replay, lineage, and crash recovery in one local proof.
     LocalEngineProof(LocalEngineProofArgs),
+    /// Exercise publication and cold restore through the shared local engine.
+    TieredEngineProof(LocalEngineProofArgs),
 }
 
 #[derive(Debug, Args)]
@@ -96,6 +99,9 @@ async fn main() -> Result<()> {
             MissionCommands::LocalEngineProof(args) => {
                 render_local_engine_proof(run_local_engine_proof(args.root)?, args.json)?
             }
+            MissionCommands::TieredEngineProof(args) => {
+                render_tiered_engine_proof(run_tiered_engine_proof(args.root).await?, args.json)?
+            }
         },
         Commands::ObjectStore(args) => match args.command {
             ObjectStoreCommands::Probe(args) => render_object_store_probe(
@@ -133,7 +139,7 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
         status.kernel_files.len()
     );
     if status.kernel_files.iter().all(|artifact| artifact.present) {
-        println!("kernel slice: durable local engine + lineage replay");
+        println!("kernel slice: durable local engine + tiered publish/restore");
     } else {
         println!("kernel slice: incomplete");
     }
@@ -183,12 +189,24 @@ struct RecoveryProofSummary {
     manifest_generation: u64,
 }
 
+#[derive(Debug, Serialize)]
+struct TieredEngineProofResult {
+    data_root: PathBuf,
+    durability: String,
+    publish_stream: StreamProofSummary,
+    restored_stream: StreamProofSummary,
+    published_segments: Vec<String>,
+    manifest_object_key: String,
+    publication_manifest_generation: u64,
+    restored_manifest_generation: u64,
+    unpublished_local_records: usize,
+    publication_api: &'static str,
+    restore_api: &'static str,
+    replay_after_remote_removal_ok: bool,
+}
+
 fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
-    if root.exists() {
-        fs::remove_dir_all(&root)
-            .with_context(|| format!("remove existing proof root {}", root.display()))?;
-    }
-    fs::create_dir_all(&root).with_context(|| format!("create proof root {}", root.display()))?;
+    reset_directory(&root)?;
 
     let engine = LocalEngine::open(LocalEngineConfig::new(&root).with_segment_max_records(2)?)
         .context("open local engine proof root")?;
@@ -262,6 +280,81 @@ fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
     })
 }
 
+async fn run_tiered_engine_proof(root: PathBuf) -> Result<TieredEngineProofResult> {
+    reset_directory(&root)?;
+
+    let publish_root = root.join("publish");
+    let restore_root = root.join("restore");
+    let object_store_root = root.join("object-store");
+    fs::create_dir_all(&publish_root)
+        .with_context(|| format!("create publish root {}", publish_root.display()))?;
+    fs::create_dir_all(&restore_root)
+        .with_context(|| format!("create restore root {}", restore_root.display()))?;
+    fs::create_dir_all(&object_store_root)
+        .with_context(|| format!("create object store root {}", object_store_root.display()))?;
+
+    let publish_engine = LocalEngine::open(
+        LocalEngineConfig::new(&publish_root)
+            .with_segment_max_records(2)
+            .context("tiered proof config")?,
+    )
+    .context("open publish engine")?;
+    let restore_engine =
+        LocalEngine::open(LocalEngineConfig::new(&restore_root)).context("open restore engine")?;
+    let store = LocalFileSystem::new_with_prefix(&object_store_root)
+        .with_context(|| format!("open local object store at {}", object_store_root.display()))?;
+
+    let stream_id = StreamId::new("tiered.root")?;
+    publish_engine.create_stream(StreamDescriptor::root(
+        stream_id.clone(),
+        LineageMetadata::new(Some("mission".into()), Some("tiered-engine-proof".into())),
+    ))?;
+    for payload in ["first", "second", "third", "fourth", "fifth"] {
+        publish_engine.append(&stream_id, payload.as_bytes())?;
+    }
+
+    let publication = publish_engine
+        .publish_rolled_segments(&stream_id, &store, "tiered-proof")
+        .await?;
+    let manifest_key = publication
+        .manifest_object_key()
+        .context("tiered proof publish should emit a remote manifest")?
+        .clone();
+    let restore = restore_engine
+        .restore_stream_from_remote_manifest(&store, &manifest_key)
+        .await?;
+
+    let published_records = publish_engine.replay(&stream_id)?;
+    let restored_records = restore_engine.replay(&stream_id)?;
+    let unpublished_local_records = published_records
+        .len()
+        .saturating_sub(restored_records.len());
+
+    drop(store);
+    fs::remove_dir_all(&object_store_root)
+        .with_context(|| format!("remove object store root {}", object_store_root.display()))?;
+    let replay_after_remote_removal_ok = restore_engine.replay(&stream_id).is_ok();
+
+    Ok(TieredEngineProofResult {
+        data_root: root,
+        durability: publication.durability().as_str().to_owned(),
+        publish_stream: summarize_stream(&stream_id, &published_records),
+        restored_stream: summarize_stream(&stream_id, &restored_records),
+        published_segments: publication
+            .published_segment_ids()
+            .iter()
+            .map(|segment_id| segment_id.as_str().to_owned())
+            .collect(),
+        manifest_object_key: manifest_key.as_str().to_owned(),
+        publication_manifest_generation: publication.manifest_generation(),
+        restored_manifest_generation: restore.manifest_generation(),
+        unpublished_local_records,
+        publication_api: "LocalEngine::publish_rolled_segments",
+        restore_api: "LocalEngine::restore_stream_from_remote_manifest",
+        replay_after_remote_removal_ok,
+    })
+}
+
 fn summarize_stream(stream_id: &StreamId, records: &[LocalRecord]) -> StreamProofSummary {
     StreamProofSummary {
         stream_id: stream_id.as_str().to_owned(),
@@ -280,6 +373,15 @@ fn summarize_recovery(stream_id: &StreamId, outcome: LocalRecoveryOutcome) -> Re
         committed_next_offset: outcome.committed_next_offset().value(),
         manifest_generation: outcome.manifest_generation(),
     }
+}
+
+fn reset_directory(root: &Path) -> Result<()> {
+    if root.exists() {
+        fs::remove_dir_all(root)
+            .with_context(|| format!("remove existing proof root {}", root.display()))?;
+    }
+    fs::create_dir_all(root).with_context(|| format!("create proof root {}", root.display()))?;
+    Ok(())
 }
 
 fn render_position(position: StreamPosition) -> String {
@@ -356,6 +458,54 @@ fn render_local_engine_proof(result: LocalEngineProofResult, json: bool) -> Resu
     println!(
         "recovery manifest generation: {}",
         result.recovery.manifest_generation
+    );
+
+    Ok(())
+}
+
+fn render_tiered_engine_proof(result: TieredEngineProofResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit tiered-engine proof");
+    println!("root: {}", result.data_root.display());
+    println!("durability: {}", result.durability);
+    println!(
+        "published stream replay: {} records, head {:?}",
+        result.publish_stream.record_count, result.publish_stream.head_offset
+    );
+    println!(
+        "restored stream replay: {} records, head {:?}",
+        result.restored_stream.record_count, result.restored_stream.head_offset
+    );
+    println!("published segments:");
+    for segment_id in &result.published_segments {
+        println!("  - {segment_id}");
+    }
+    println!("manifest object: {}", result.manifest_object_key);
+    println!(
+        "publication manifest generation: {}",
+        result.publication_manifest_generation
+    );
+    println!(
+        "restored manifest generation: {}",
+        result.restored_manifest_generation
+    );
+    println!(
+        "unpublished local records omitted from restore: {}",
+        result.unpublished_local_records
+    );
+    println!("publication api: {}", result.publication_api);
+    println!("restore api: {}", result.restore_api);
+    println!(
+        "replay after remote removal: {}",
+        if result.replay_after_remote_removal_ok {
+            "ok"
+        } else {
+            "failed"
+        }
     );
 
     Ok(())

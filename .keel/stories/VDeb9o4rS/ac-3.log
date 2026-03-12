@@ -1,0 +1,11 @@
+Executed `nix develop path:/home/alex/workspace/spoke-sh/transit --command just mission`.
+
+The proof path remains explicit about guarantees:
+- `durability: local`
+- `published stream replay: 5 records, head Some(4)`
+- `restored stream replay: 4 records, head Some(3)`
+- `manifest object: tiered-proof/streams/tiered.root/manifests/manifest-00000000000000000003.json`
+- `unpublished local records omitted from restore: 1`
+- `replay after remote removal: ok`
+
+This keeps publication and restore boundaries inspectable instead of hiding them behind a generic success message.

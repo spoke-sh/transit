@@ -1,0 +1,13 @@
+Executed `nix develop path:/home/alex/workspace/spoke-sh/transit --command just mission`.
+
+The human-facing proof path now includes tiered durability verification:
+- `transit mission local-engine-proof`
+- `transit mission tiered-engine-proof`
+- `transit object-store probe`
+- `transit mission status`
+
+The tiered proof output shows publication of rolled segments, restore from the remote manifest, and the restored replay count after cold hydration.
+Observed lines:
+- `published stream replay: 5 records, head Some(4)`
+- `restored stream replay: 4 records, head Some(3)`
+- `manifest object: tiered-proof/streams/tiered.root/manifests/manifest-00000000000000000003.json`
