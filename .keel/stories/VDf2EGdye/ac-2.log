@@ -1,0 +1,8 @@
+Reviewed `COMMUNICATION.md`.
+
+The thread lifecycle and reconciliation model is explicit:
+- backlinks are for durable root-to-thread references
+- summaries are for reflecting thread outcomes back to the channel without merging histories
+- explicit merge artifacts are reserved for reconciliation workflows such as moderation, synthesis, or archival convergence
+
+This satisfies SRS-03.

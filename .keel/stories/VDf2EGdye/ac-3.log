@@ -1,0 +1,8 @@
+Reviewed `COMMUNICATION.md`.
+
+The hot-path rule is explicit:
+- `ordinary channel messages and thread replies should not carry bulky classifier evidence by default`
+- classifier evidence attaches to branch creation metadata or dedicated artifacts
+- overrides are explicit artifacts instead of extra payload on ordinary messages
+
+This satisfies SRS-NFR-02.

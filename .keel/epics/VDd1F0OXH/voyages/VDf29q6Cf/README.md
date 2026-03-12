@@ -25,11 +25,11 @@ started_at: 2026-03-12T06:52:32
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Define Transit Communication Contract](../../../../stories/VDf2C4j6Z/README.md) | feat | done |
-| [Define Classifier Evidence And Thread Lifecycle Semantics](../../../../stories/VDf2EGdye/README.md) | feat | backlog |
+| [Define Classifier Evidence And Thread Lifecycle Semantics](../../../../stories/VDf2EGdye/README.md) | feat | done |
 | [Align Communication Guidance Across Repo Docs](../../../../stories/VDf2H9y6i/README.md) | feat | backlog |
 <!-- END GENERATED -->

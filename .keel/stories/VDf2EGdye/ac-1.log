@@ -1,0 +1,17 @@
+Reviewed `COMMUNICATION.md`.
+
+The contract now defines explicit metadata for classifier-created thread splits:
+- `decision_id`
+- `classifier_id`
+- `classifier_version`
+- `anchor_message_id`
+- `anchor_offset`
+- `decision`
+- `score`
+- `threshold`
+- `evidence_ref`
+- `decided_at`
+
+It also defines human override artifacts with explicit ids, kinds, affected thread ids, superseded refs, and reasons, while stating that prior history remains unchanged.
+
+This satisfies SRS-02.

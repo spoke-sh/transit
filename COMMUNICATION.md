@@ -186,6 +186,121 @@ Example thread backlink:
 }
 ```
 
+## Classifier Evidence
+
+Auto-threading should remain explicit and replayable.
+
+The default rule is:
+
+- a classifier observes the root channel stream
+- a classifier decision identifies a candidate thread boundary
+- thread creation records that decision in branch metadata or a dedicated artifact
+- the original channel message history remains unchanged
+
+Classifier evidence belongs on thread-creation metadata or explicit artifacts, not on every ordinary message append.
+
+### Required For Classifier-Created Thread Splits
+
+- `decision_id`: stable classifier decision identifier
+- `classifier_id`: model or ruleset identity
+- `classifier_version`: version or model reference
+- `anchor_message_id`: message that triggered the split
+- `anchor_offset`: root offset where the branch begins
+- `decision`: open-thread, suppress-thread, or other explicit outcome
+- `score`: numeric decision score when applicable
+- `threshold`: threshold active at decision time
+- `evidence_ref`: optional referenced explanation, embedding, or rationale payload
+- `decided_at`: classifier decision timestamp
+
+Example branch metadata:
+
+```json
+{
+  "branch_reason": "classifier-thread-split",
+  "thread_kind": "classifier",
+  "anchor_message_id": "msg-1042",
+  "fork_offset": 91,
+  "decision_id": "thd-0091",
+  "classifier_id": "thread-boundary-v1",
+  "classifier_version": "2026-03-12",
+  "decision": "open-thread",
+  "score": 0.93,
+  "threshold": 0.81,
+  "decided_at": "2026-03-12T07:00:01Z"
+}
+```
+
+## Human Override Artifacts
+
+Human correction should also stay explicit.
+
+Overrides should be published as artifacts rather than mutating prior classifier decisions or message history.
+
+Recommended override actions:
+
+- `confirm-thread`
+- `suppress-thread`
+- `reanchor-thread`
+- `reopen-thread`
+- `resolve-thread`
+
+### Required For Thread Override Artifacts
+
+- `override_id`: stable override identifier
+- `override_kind`: one of the explicit override actions
+- `thread_stream_id`: affected branch
+- `anchor_message_id`: current or replacement anchor message
+- `actor_id`: human moderator or user identity
+- `reason`: short explanation
+- `supersedes_ref`: optional reference to a classifier decision or earlier override
+- `created_at`: override timestamp
+
+Overrides remain application-level conventions on top of lineage primitives, but they should still be appended explicitly so replay explains why thread structure changed.
+
+## Thread Lifecycle And Reconciliation
+
+Normal threaded communication does not need a merge for every thread.
+
+The default lifecycle is:
+
+1. a channel root receives messages
+2. a message becomes a thread anchor
+3. a child branch carries thread replies
+4. optional backlinks or summaries make the thread visible from the root
+5. optional override or reconciliation artifacts explain later changes
+
+### Recommended Artifact Boundaries
+
+Use a backlink when:
+
+- the root channel should reference the existence or status of a thread
+- readers need a durable pointer into branch-local conversation
+- no semantic reconciliation of histories is needed
+
+Use a summary when:
+
+- the thread outcome should be reflected back into the channel timeline
+- operators or users need a compact representation of branch-local discussion
+- the result is informational rather than a lineage merge
+
+Use an explicit merge artifact only when:
+
+- the system is reconciling a thread outcome back into a canonical mainline
+- moderation or archival workflows need lineage-level reconciliation
+- another system must inspect the exact parent heads and merge policy used
+
+That keeps merges meaningful instead of turning them into decorative UI events.
+
+### Audit And Hot-Path Rules
+
+The communication workload should preserve these rules:
+
+- ordinary channel messages and thread replies should not carry bulky classifier evidence by default
+- classifier evidence should attach to branch creation metadata or a dedicated artifact
+- overrides should be explicit artifacts with stable ids and references
+- summaries and backlinks should explain visibility without pretending the root and thread histories were merged
+- replay should make classifier decisions and overrides inspectable after the fact
+
 ## One-Engine Invariants
 
 This contract must preserve the repo's current invariants:
@@ -200,11 +315,10 @@ This contract must preserve the repo's current invariants:
 
 This document does not yet standardize:
 
-- classifier evidence fields for auto-threading decisions
-- human override and moderation workflow details
-- when communication workflows should emit summaries, backlinks, or explicit merge artifacts
 - UI presentation policy or notification behavior
+- concrete moderation product behavior beyond explicit override artifacts
+- one universal schema for every communication-level artifact body
 
-Those questions belong in the next communication slice. The current contract
-only defines the base communication model and keeps it grounded in `transit`
-lineage primitives.
+Those questions belong in later implementation slices. The current contract now
+defines the communication design center without freezing every product detail
+prematurely.
