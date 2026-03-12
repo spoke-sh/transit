@@ -90,6 +90,19 @@ Segments are the unit of:
 
 A `manifest` maps a stream head and its lineage to concrete segment objects. It is the authoritative metadata surface for replay beyond the live head.
 
+## Verifiable Lineage
+
+Integrity should follow immutable storage artifacts instead of slowing every append.
+
+The intended first contract has four layers:
+
+- fast segment checksums for accidental corruption detection
+- cryptographic segment digests for sealed immutable objects
+- manifest roots that bind ordered segment descriptors and lineage metadata
+- lineage checkpoints that bind a stream head or derived state to a verified manifest root
+
+This keeps the hot path lean while still making remote restore and lineage inspection explicit.
+
 ## Runtime Modes
 
 ### Embedded Mode
@@ -136,6 +149,7 @@ Object storage is not just backup:
 - cold replay depends on it
 - branch ancestry may reference remote-only segments
 - restore and catch-up must work from remote state alone
+- remote state should eventually be verifiable through manifest roots and segment digests
 
 ### Cache
 
@@ -150,6 +164,13 @@ The intended write path is:
 3. update the local index and durability metadata
 4. acknowledge according to the configured durability mode
 5. roll and publish immutable segments plus manifests into object storage
+
+Integrity boundaries should line up with that path:
+
+- append updates stream state and, at most, incremental checksum state
+- segment roll finalizes checksums and cryptographic digests
+- publish computes or updates the manifest root
+- stronger checkpoint signing remains a later layer, not a default append precondition
 
 The first release should make durability policy explicit instead of implicit.
 
@@ -167,6 +188,12 @@ The intended read path is:
 2. resolve segment ownership through stream and lineage manifests
 3. hydrate missing segments from object storage when needed
 4. return records in logical stream order
+
+Restore-time verification belongs here:
+
+- verify manifest-root integrity before trusting remote history
+- verify segment digests before or during replay
+- surface checkpoint proofs when inspecting lineage or resuming materialized state
 
 Clients should not need to care whether bytes came from the local head, local cache, or remote tier.
 
@@ -216,6 +243,12 @@ Materialization should support:
 - durable, inspectable snapshots of derived state
 
 Persistent structures such as prolly trees are especially promising here because they make branch-local reuse, diffing, and content-addressed snapshots much cheaper than rebuilding mutable indexes from scratch.
+
+Integrity and materialization should meet at checkpoints:
+
+- a materialized snapshot should be able to cite the lineage checkpoint it was derived from
+- verified manifests and segment digests become the stable base for durable derived state
+- more compact proof structures such as Merkle manifests or Merkle Mountain Ranges can layer later if partial proofs become important
 
 ## Suggested Package Layout
 

@@ -24,6 +24,7 @@ Every published benchmark or comparison should include:
 - runtime mode: `embedded` or `server`
 - storage provider and backend details
 - durability mode: `memory`, `local`, or `tiered`
+- integrity mode: checksum-only, digest+manifest, or checkpoint-bearing
 - record size distribution
 - stream and branch counts
 - hardware profile: CPU, memory, disk, network, object-store region
@@ -155,6 +156,18 @@ Measure:
 - replay correctness for threaded branches
 - storage growth and metadata growth over time
 
+### 8. Integrity And Restore Verification
+
+Measure:
+
+- checksum finalize cost at segment roll
+- cryptographic digest cost per sealed segment
+- manifest-root verification latency
+- restore-time verification throughput from remote storage
+- checkpoint verification overhead for lineage inspection or resume
+
+The benchmark should state whether it is measuring fast corruption detection, cryptographic object verification, or both.
+
 ## Correctness Requirements
 
 The evaluation suite should fail fast when any of these break:
@@ -163,6 +176,7 @@ The evaluation suite should fail fast when any of these break:
 - child streams do not exactly reproduce ancestor history through the fork point
 - child appends leak into parents
 - acknowledged records disappear after crash or cold restore
+- manifest roots or segment digests fail to match restored objects
 - cache eviction changes logical results
 - server and embedded mode disagree on stream semantics
 
@@ -176,6 +190,7 @@ Required evidence depends on scope, but should usually include:
 - before/after benchmark results on the relevant workload
 - explicit hardware and storage context
 - notes about durability mode and object-store backend
+- notes about checksum, digest, and checkpoint verification mode
 - migration notes if manifests, segments, or protocol surfaces changed
 
 ## Reference Environments

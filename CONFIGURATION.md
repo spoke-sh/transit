@@ -118,6 +118,8 @@ Storage configuration defines how local and remote persistence interact.
 - `local`: record is durable on local storage before ack
 - `tiered`: record is not acknowledged until the required remote tier state is durable
 
+`checksum` should stay scoped to fast corruption detection for sealed segments. Future cryptographic digests, manifest roots, and checkpoint signing should be configured separately instead of overloading one field with unrelated guarantees.
+
 ### `[streams]`
 
 Stream-level defaults and safety limits.
@@ -173,5 +175,6 @@ When new behavior is added:
 - document the configuration key before or with the code change
 - describe whether it affects durability, lineage, storage layout, or benchmark scope
 - avoid mode-specific settings that create separate semantics for embedded and server use
+- keep fast checksums distinct from cryptographic integrity settings so performance and proof claims remain comparable
 
 Configuration should make guarantees clearer, not hide them.

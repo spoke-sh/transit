@@ -108,6 +108,9 @@ For the first canonical split between inline metadata and large external payload
 - Design segments and manifests so cold replay from object storage is routine.
 - Prefer explicit derived views over hidden rewrites of acknowledged history.
 - Keep branch creation cheap by referencing ancestor segments until divergence actually occurs.
+- Keep fast checksums and cryptographic proofs distinct so verification grows at immutable boundaries instead of on every append.
+
+For the current integrity model and proof boundaries, use [INTEGRITY.md](INTEGRITY.md).
 
 ## Working In This Repository
 
@@ -116,7 +119,8 @@ For now this repository is document-first. The expected order of operations is:
 1. read [README.md](README.md)
 2. read [ARCHITECTURE.md](ARCHITECTURE.md)
 3. read [CONSTITUTION.md](CONSTITUTION.md)
-4. use [CONFIGURATION.md](CONFIGURATION.md), [EVALUATIONS.md](EVALUATIONS.md), and [RELEASE.md](RELEASE.md) as implementation constraints
+4. read [INTEGRITY.md](INTEGRITY.md) when the change touches checksums, digests, manifests, checkpoints, or restore behavior
+5. use [CONFIGURATION.md](CONFIGURATION.md), [EVALUATIONS.md](EVALUATIONS.md), and [RELEASE.md](RELEASE.md) as implementation constraints
 
 The current bootstrap developer loop is:
 

@@ -46,7 +46,7 @@ The intended release artifacts are:
 - Rust crates for the embedded/core surfaces
 - a `transitd` server binary
 - a container image for server deployments
-- checksums and release notes
+- checksums, integrity metadata, and release notes
 
 Additional language bindings can be added later, but the Rust release remains the reference surface.
 
@@ -66,6 +66,7 @@ At minimum, a code release should include evidence for:
 - branch creation and ancestry replay correctness
 - crash recovery behavior
 - tiered-storage round-trip or cold-restore behavior
+- segment, manifest, and checkpoint integrity behavior for the changed scope
 - benchmark results for the changed scope
 
 ### 3. Review Compatibility Surface
@@ -75,6 +76,7 @@ For each release, call out whether these changed:
 - record format
 - segment format
 - manifest format
+- integrity proof format or digest algorithm
 - network API
 - configuration keys
 
@@ -96,6 +98,7 @@ Once packaging exists, publish:
 - crate releases
 - container image
 - checksums
+- any manifest-root or checkpoint-format notes needed for verification tooling
 - release notes
 
 ## Minimum Evidence For A Public Code Release
@@ -106,6 +109,7 @@ Do not publish a public code release without:
 - storage-backend context
 - benchmark metadata
 - correctness tests for branch and recovery behavior
+- notes about checksum, digest, and checkpoint compatibility when relevant
 - notes about any unstable or experimental surfaces
 
 ## Platform Expectations
@@ -125,6 +129,7 @@ These decisions are intentionally still open:
 - final release automation tooling
 - artifact signing requirements
 - container base image policy
+- whether signed checkpoints ship before or after the first public server preview
 - whether the first public packaging surface is library-first, server-first, or both
 
 When those are decided, this document should be updated before the release process is treated as stable.

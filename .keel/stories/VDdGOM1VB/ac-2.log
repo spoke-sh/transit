@@ -1,0 +1,5 @@
+Manual verification for `SRS-NFR-03/AC-01`.
+
+- Reviewed [EVALUATIONS.md](../../../../EVALUATIONS.md) and [RELEASE.md](../../../../RELEASE.md).
+- Confirmed benchmark metadata now includes integrity mode and that a dedicated integrity and restore verification category exists.
+- Confirmed release guidance now requires calling out checksum, digest, and checkpoint compatibility when integrity-sensitive changes ship.

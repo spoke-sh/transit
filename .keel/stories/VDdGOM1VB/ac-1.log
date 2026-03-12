@@ -1,0 +1,5 @@
+Manual verification for `SRS-04/AC-01`.
+
+- Reviewed [ARCHITECTURE.md](../../../../ARCHITECTURE.md), [EVALUATIONS.md](../../../../EVALUATIONS.md), [CONFIGURATION.md](../../../../CONFIGURATION.md), and [RELEASE.md](../../../../RELEASE.md).
+- Confirmed all four documents now reference the same staged integrity model: fast checksums, cryptographic digests, manifest roots, and checkpoint-aware verification boundaries.
+- Confirmed [README.md](../../../../README.md) and [GUIDE.md](../../../../GUIDE.md) now route readers to [INTEGRITY.md](../../../../INTEGRITY.md) as the canonical contract.

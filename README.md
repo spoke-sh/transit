@@ -1,6 +1,6 @@
 # transit
 
-[Architecture](ARCHITECTURE.md) | [AI Traces](AI_TRACES.md) | [AI Artifacts](AI_ARTIFACTS.md) | [Constitution](CONSTITUTION.md) | [Configuration](CONFIGURATION.md) | [Guide](GUIDE.md) | [Evaluations](EVALUATIONS.md) | [Release](RELEASE.md)
+[Architecture](ARCHITECTURE.md) | [Integrity](INTEGRITY.md) | [AI Traces](AI_TRACES.md) | [AI Artifacts](AI_ARTIFACTS.md) | [Constitution](CONSTITUTION.md) | [Configuration](CONFIGURATION.md) | [Guide](GUIDE.md) | [Evaluations](EVALUATIONS.md) | [Release](RELEASE.md)
 
 `transit` is a fresh take on message streaming: a Rust-first, object-storage-native append-only log with native tiered storage, stream lineage, and explicit branch-and-merge semantics.
 
@@ -10,6 +10,7 @@ The project thesis is simple:
 - object storage should be a first-class persistence layer, not an archival afterthought
 - branching and merging streams should be primitives, not application hacks
 - append-only history should stay immutable while new branches diverge cheaply
+- verifiable lineage should attach to segments, manifests, and checkpoints without bloating every append
 - AI agents, model harnesses, and human communication systems should be first-class workloads
 
 ## Why Transit
@@ -37,6 +38,7 @@ Most streaming systems make a strong trade:
 - `lineage`: the DAG formed by branch and merge relationships
 - `segment`: an immutable block of ordered records
 - `manifest`: metadata that maps streams and branches to their segments across local and remote storage
+- `checkpoint`: a proof-bearing envelope that binds a stream head or derived state to immutable history
 
 In `transit`, a branch is not a filtered consumer view. It is its own stream head with explicit ancestry.
 
@@ -52,6 +54,7 @@ The initial target use cases are direct:
 - systems that need to merge branch results back into a mainline without losing provenance
 - stream processing and incremental materialization over branching and merging event histories
 - classifier-driven auto-threading, where a model can fork a new branch when a conversation diverges
+- remote restore and audit flows that can verify immutable history instead of trusting remote storage implicitly
 
 That auto-threading path is a core design motivator. A classifier should be able to observe a root stream, identify a new thread boundary, and create a child branch anchored to the triggering record without rewriting history.
 
@@ -68,6 +71,7 @@ That suggests a product direction beyond a flat append-only log:
 - the core engine should own append, branch, merge, lineage, and tiered storage
 - materializers and processors may start as an adjacent first-party layer, but they should use the same manifests, checkpoints, and lineage model
 - branch and merge semantics should make incremental recompute and branch-local derived state practical instead of expensive
+- integrity should bind immutable segments and manifests, then grow into checkpoints and proofs without contaminating the hottest append path
 
 ## Design Goals
 
@@ -76,6 +80,7 @@ That suggests a product direction beyond a flat append-only log:
 - O(1)-style branch creation relative to ancestor history size
 - explicit, inspectable merge operations with deterministic merge policies
 - Immutable acknowledged history with no silent rewrites
+- staged verifiable lineage from checksums to manifest roots to checkpoints
 - incremental materialization over ordered, branching, and merging histories
 - Clear durability modes so latency claims and safety claims are comparable
 - Benchmarkable behavior for append, replay, cold restore, tailing, and branch-heavy workloads
@@ -106,6 +111,8 @@ Today it contains:
 The implementation work now has a real scaffold to grow from instead of needing to reverse-engineer direction later.
 
 The first canonical AI workload contract now lives in [AI_TRACES.md](AI_TRACES.md).
+
+The first verifiable-lineage contract now lives in [INTEGRITY.md](INTEGRITY.md).
 
 ## Planned Surfaces
 
