@@ -31,6 +31,6 @@ started_at: 2026-03-12T05:17:39
 |-------|------|--------|
 | [Implement Replay And Tail Reads From Local Manifests](../../../../stories/VDeaLlFeQ/README.md) | feat | done |
 | [Implement Branch And Merge Execution On The Local Engine](../../../../stories/VDeaLlZeR/README.md) | feat | done |
-| [Prove Crash Recovery And Durable Mission Verification](../../../../stories/VDeaLlyeK/README.md) | feat | backlog |
+| [Prove Crash Recovery And Durable Mission Verification](../../../../stories/VDeaLlyeK/README.md) | feat | in-progress |
 | [Implement Durable Local Append And Segment Roll](../../../../stories/VDeaLnceg/README.md) | feat | done |
 <!-- END GENERATED -->

@@ -20,9 +20,9 @@ index: 2
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/2 voyages complete, 2/7 stories done
+**Progress:** 0/2 voyages complete, 3/7 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Local Engine Core And Recovery](voyages/VDeaFjrZW/) | in-progress | 2/4 |
+| [Local Engine Core And Recovery](voyages/VDeaFjrZW/) | in-progress | 3/4 |
 | [Cold History Publication And Restore](voyages/VDeb794qi/) | planned | 0/3 |
 <!-- END GENERATED -->

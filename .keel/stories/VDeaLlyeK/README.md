@@ -2,12 +2,13 @@
 id: VDeaLlyeK
 title: Prove Crash Recovery And Durable Mission Verification
 type: feat
-status: backlog
+status: in-progress
 created_at: 2026-03-12T04:59:06
-updated_at: 2026-03-12T05:01:14
+updated_at: 2026-03-12T05:33:30
 operator-signal: 
 scope: VDeYUdLSW/VDeaFjrZW
 index: 3
+started_at: 2026-03-12T05:33:30
 ---
 
 # Prove Crash Recovery And Durable Mission Verification
