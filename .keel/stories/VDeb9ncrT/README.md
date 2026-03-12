@@ -2,12 +2,13 @@
 id: VDeb9ncrT
 title: Implement Cold Restore From Remote Manifests
 type: feat
-status: backlog
+status: in-progress
 created_at: 2026-03-12T05:02:19
-updated_at: 2026-03-12T05:03:22
+updated_at: 2026-03-12T06:14:17
 operator-signal: 
 scope: VDeYUdLSW/VDeb794qi
 index: 1
+started_at: 2026-03-12T06:14:17
 ---
 
 # Implement Cold Restore From Remote Manifests
