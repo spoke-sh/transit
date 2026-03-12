@@ -30,6 +30,8 @@
 |--------|--------|
 | [Kernel Types And Storage Skeleton](epics/VDcx2lQGz/voyages/VDcx4sb6D/) | done |
 
+### [Durable Local Append And Recovery Engine](epics/VDeYUdLSW/) (draft)
+
 ### [Research Agent Runtime And Model Harness Workloads](epics/VDd1EybWm/) (done)
 
 | Voyage | Status |
