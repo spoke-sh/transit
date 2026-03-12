@@ -106,7 +106,7 @@ Today it contains:
 - a Rust workspace with `transit-core` and `transit-cli`
 - a Nix flake and Rust toolchain bootstrap
 - a `Justfile` with a human-facing `just mission` verification path
-- a local durable engine that can append, replay, branch, merge, recover from trailing uncommitted active-head bytes, and publish rolled immutable segments to object storage
+- a local durable engine that can append, replay, branch, merge, recover from trailing uncommitted active-head bytes, publish rolled immutable segments to object storage, and cold-restore published history from remote manifests
 - an initial `object_store` integration with a filesystem probe command
 
 The implementation work now has a real scaffold to grow from instead of needing to reverse-engineer direction later.

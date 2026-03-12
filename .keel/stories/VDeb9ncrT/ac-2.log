@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+The restored engine uses the same replay semantics as normal local execution:
+- restored segment descriptors keep both local paths and remote object-store locations
+- the manifest now carries stream lineage metadata, matching the architecture contract
+- replay over restored history uses the same manifest ordering and offset validation path as normal local replay
+
+The `engine::tests::restored_state_replays_published_history_with_same_manifest_semantics` test verifies ordered replay over restored published history.

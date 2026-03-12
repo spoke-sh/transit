@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+Implemented cold restore in `crates/transit-core/src/engine.rs`:
+- `LocalEngine::restore_stream_from_remote_manifest` loads a remote manifest from object storage
+- restore downloads each referenced segment object, validates its checksum, and writes it into the local engine layout
+- restore reconstructs `manifest.json`, `state.json`, and an empty `active.segment` for resumed local execution
+
+The `engine::tests::restore_reconstructs_local_state_from_remote_manifest_and_segments` test verifies that local engine state is rebuilt from the remote manifest and segment objects.

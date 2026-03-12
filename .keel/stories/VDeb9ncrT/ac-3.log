@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+The restore path remains single-node and local-first:
+- object storage is used only as the source for hydration
+- restored segments are written into the local engine directory before replay
+- replay continues to work after the remote object-store root is removed
+
+The `engine::tests::restore_remains_local_first_after_remote_hydration` test verifies replay succeeds from local restored files after remote objects are deleted.

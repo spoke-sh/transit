@@ -1,4 +1,4 @@
-use crate::kernel::{Offset, StreamId, StreamPosition};
+use crate::kernel::{Offset, StreamDescriptor, StreamId, StreamPosition};
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -272,7 +272,7 @@ impl MaterializationBoundary {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SegmentManifest {
     manifest_id: ManifestId,
-    stream_id: StreamId,
+    stream_descriptor: StreamDescriptor,
     generation: u64,
     segments: Vec<SegmentDescriptor>,
     storage: StorageLocation,
@@ -282,7 +282,7 @@ pub struct SegmentManifest {
 impl SegmentManifest {
     pub fn new(
         manifest_id: ManifestId,
-        stream_id: StreamId,
+        stream_descriptor: StreamDescriptor,
         generation: u64,
         segments: Vec<SegmentDescriptor>,
         storage: StorageLocation,
@@ -290,7 +290,7 @@ impl SegmentManifest {
     ) -> Self {
         Self {
             manifest_id,
-            stream_id,
+            stream_descriptor,
             generation,
             segments,
             storage,
@@ -303,7 +303,11 @@ impl SegmentManifest {
     }
 
     pub fn stream_id(&self) -> &StreamId {
-        &self.stream_id
+        &self.stream_descriptor.stream_id
+    }
+
+    pub fn stream_descriptor(&self) -> &StreamDescriptor {
+        &self.stream_descriptor
     }
 
     pub fn generation(&self) -> u64 {
@@ -331,7 +335,7 @@ impl SegmentManifest {
     ) -> Self {
         Self {
             manifest_id,
-            stream_id: self.stream_id.clone(),
+            stream_descriptor: self.stream_descriptor.clone(),
             generation,
             segments,
             storage,
@@ -431,7 +435,7 @@ mod tests {
 
         let manifest = SegmentManifest::new(
             ManifestId::new("manifest-0001").expect("manifest id"),
-            root.stream_id,
+            root.clone(),
             1,
             vec![segment],
             StorageLocation::new(
@@ -445,6 +449,7 @@ mod tests {
         );
 
         assert_eq!(manifest.manifest_id().as_str(), "manifest-0001");
+        assert_eq!(manifest.stream_descriptor(), &root);
         assert_eq!(manifest.generation(), 1);
         assert_eq!(manifest.segments().len(), 1);
         assert_eq!(
