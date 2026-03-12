@@ -30,12 +30,12 @@
 |--------|--------|
 | [Kernel Types And Storage Skeleton](epics/VDcx2lQGz/voyages/VDcx4sb6D/) | done |
 
-### [Durable Local Append And Recovery Engine](epics/VDeYUdLSW/) (active)
+### [Durable Local Append And Recovery Engine](epics/VDeYUdLSW/) (done)
 
 | Voyage | Status |
 |--------|--------|
 | [Local Engine Core And Recovery](epics/VDeYUdLSW/voyages/VDeaFjrZW/) | done |
-| [Cold History Publication And Restore](epics/VDeYUdLSW/voyages/VDeb794qi/) | in-progress |
+| [Cold History Publication And Restore](epics/VDeYUdLSW/voyages/VDeb794qi/) | done |
 
 ### [Research Agent Runtime And Model Harness Workloads](epics/VDd1EybWm/) (done)
 
