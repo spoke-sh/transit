@@ -12,6 +12,7 @@
 | [Research Auto-Threaded Communication And Collaboration](bearings/VDd1F0OXH/) | laid | ✓ | ✓ | decision-ready | 4.40 | ✓ |
 | [Research Verifiable Lineage And Cryptographic Integrity](bearings/VDd1F1tUe/) | laid | ✓ | ✓ | decision-ready | 3.73 | ✓ |
 | [Research Multi-Node Replication And Server Semantics](bearings/VDd1J2IDM/) | evaluating | ✓ | ✓ | decision-ready | 2.69 | - |
+| [Research WireGuard Underlay And Server Transport Strategy](bearings/VDf8F20kc/) | evaluating | ✓ | ✓ | resolve conflict | 4.69 | - |
 
 <details>
 <summary>Archived Bearings</summary>

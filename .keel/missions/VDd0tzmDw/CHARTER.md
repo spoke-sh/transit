@@ -10,6 +10,7 @@
 | MG-04 | Assess auto-threaded communication and collaboration so the branch-as-thread thesis is translated into a real workload model instead of staying a slogan. | board: VDd1F0OXH |
 | MG-05 | Assess high-throughput CRDT and collaborative state overlays so `transit` can decide whether CRDT support belongs in core semantics, materialization, or application-level overlays. | board: VDd1IzACq |
 | MG-06 | Assess multi-node replication and server semantics so future networked and replicated work preserves the one-engine thesis and stages delivery sanely. | board: VDd1J2IDM |
+| MG-07 | Assess secure server transport strategy so future node-to-node communication can distinguish application protocol design from encrypted network underlay choices such as WireGuard. | board: VDf8F20kc |
 
 ## Constraints
 
