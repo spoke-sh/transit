@@ -1,0 +1,11 @@
+Executed `cargo test --workspace`.
+
+Verified explicit multi-parent merge lineage through `merge_descriptor_preserves_multi_parent_lineage`.
+
+The merge kernel stores:
+- multiple parent heads
+- an optional merge base
+- explicit merge-policy metadata
+- lineage metadata on the merge itself
+
+This keeps merge as an explicit typed lineage event instead of an opaque application-level append.

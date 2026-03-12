@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+Verified append-only semantics through constructor validation:
+- branch creation rejects reusing the parent stream id
+- merge creation rejects emitting results onto an existing parent stream id
+- merge specs require at least two distinct parent heads
+
+This keeps branch and merge creation explicit and prevents hidden in-place reconciliation.

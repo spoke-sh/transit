@@ -4,4 +4,5 @@
 //! mission, and object-store concerns in the core crate.
 
 pub mod bootstrap;
+pub mod kernel;
 pub mod object_store_support;

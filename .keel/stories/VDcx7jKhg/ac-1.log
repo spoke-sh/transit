@@ -1,0 +1,13 @@
+Executed `cargo test --workspace`.
+
+Implemented typed lineage kernel entities in `crates/transit-core/src/kernel.rs`:
+- `StreamId`
+- `Offset`
+- `StreamPosition`
+- `BranchPoint`
+- `MergePolicy` and `MergePolicyKind`
+- `MergeSpec`
+- `StreamLineage`
+- `StreamDescriptor`
+
+These types define the first shared stream, branch, merge, and merge-policy model in `transit-core`.
