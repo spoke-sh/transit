@@ -7,7 +7,7 @@
 
 | Bearing | Status | Evidence | Assessment | Readiness | EV | Laid |
 |---------|--------|----------|------------|-----------|----|------|
-| [Research Branch-Aware Materialization And Processing](bearings/VDd0u3PFg/) | evaluating | ✓ | ✓ | decision-ready | 3.32 | - |
+| [Research Branch-Aware Materialization And Processing](bearings/VDd0u3PFg/) | laid | ✓ | ✓ | decision-ready | 3.32 | ✓ |
 | [Research Agent Runtime And Model Harness Workloads](bearings/VDd1EybWm/) | laid | ✓ | ✓ | decision-ready | 6.11 | ✓ |
 | [Research Auto-Threaded Communication And Collaboration](bearings/VDd1F0OXH/) | evaluating | ✓ | ✓ | decision-ready | 4.40 | - |
 | [Research Verifiable Lineage And Cryptographic Integrity](bearings/VDd1F1tUe/) | laid | ✓ | ✓ | decision-ready | 3.73 | ✓ |
@@ -36,6 +36,12 @@
 |--------|--------|
 | [Local Engine Core And Recovery](epics/VDeYUdLSW/voyages/VDeaFjrZW/) | done |
 | [Cold History Publication And Restore](epics/VDeYUdLSW/voyages/VDeb794qi/) | done |
+
+### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Materialization Contract And Snapshot Model](epics/VDd0u3PFg/voyages/VDexXBU7g/) | planned |
 
 ### [Research Agent Runtime And Model Harness Workloads](epics/VDd1EybWm/) (done)
 

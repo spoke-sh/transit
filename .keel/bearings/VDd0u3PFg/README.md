@@ -2,9 +2,11 @@
 id: VDd0u3PFg
 title: Research Branch-Aware Materialization And Processing
 mission: VDd0tzmDw
-status: evaluating
+status: laid
 created_at: 2026-03-11T22:32:02
 index: 1
+laid_at: 2026-03-12T06:30:50
+epic: VDd0u3PFg
 ---
 
 # Research Branch-Aware Materialization And Processing
