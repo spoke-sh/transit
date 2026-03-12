@@ -1,7 +1,10 @@
 use crate::engine::{
     DurabilityMode, LocalAppendOutcome, LocalEngine, LocalEngineConfig, LocalRecord,
+    LocalStreamStatus,
 };
-use crate::kernel::{Offset, StreamId, StreamPosition};
+use crate::kernel::{
+    LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamPosition,
+};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -246,6 +249,57 @@ impl RemoteClient {
         }
     }
 
+    pub fn create_branch(
+        &self,
+        stream_id: &StreamId,
+        parent: StreamPosition,
+        metadata: LineageMetadata,
+    ) -> RemoteClientResult<RemoteStreamStatus> {
+        match self.send_request(ConnectionRequest::CreateBranch {
+            stream_id: stream_id.clone(),
+            parent,
+            metadata,
+        })? {
+            ConnectionResponse::StreamStatusOk(status) => Ok(status),
+            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
+            other => Err(RemoteClientError::Protocol(format!(
+                "create_branch expected stream_status_ok response, got {other:?}"
+            ))),
+        }
+    }
+
+    pub fn create_merge(
+        &self,
+        stream_id: &StreamId,
+        merge: MergeSpec,
+    ) -> RemoteClientResult<RemoteStreamStatus> {
+        match self.send_request(ConnectionRequest::CreateMerge {
+            stream_id: stream_id.clone(),
+            merge,
+        })? {
+            ConnectionResponse::StreamStatusOk(status) => Ok(status),
+            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
+            other => Err(RemoteClientError::Protocol(format!(
+                "create_merge expected stream_status_ok response, got {other:?}"
+            ))),
+        }
+    }
+
+    pub fn inspect_lineage(
+        &self,
+        stream_id: &StreamId,
+    ) -> RemoteClientResult<RemoteLineageOutcome> {
+        match self.send_request(ConnectionRequest::InspectLineage {
+            stream_id: stream_id.clone(),
+        })? {
+            ConnectionResponse::LineageOk(lineage) => Ok(lineage),
+            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
+            other => Err(RemoteClientError::Protocol(format!(
+                "inspect_lineage expected lineage_ok response, got {other:?}"
+            ))),
+        }
+    }
+
     fn send_request(&self, request: ConnectionRequest) -> RemoteClientResult<ConnectionResponse> {
         let mut stream =
             TcpStream::connect_timeout(&self.server_addr, self.io_timeout).map_err(|error| {
@@ -374,6 +428,74 @@ impl RemoteRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteStreamStatus {
+    stream_id: StreamId,
+    durability: String,
+    next_offset: Offset,
+    active_record_count: u64,
+    active_segment_start_offset: Offset,
+    manifest_generation: u64,
+    rolled_segment_count: usize,
+}
+
+impl RemoteStreamStatus {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn durability(&self) -> &str {
+        &self.durability
+    }
+
+    pub fn next_offset(&self) -> Offset {
+        self.next_offset
+    }
+
+    pub fn active_record_count(&self) -> u64 {
+        self.active_record_count
+    }
+
+    pub fn active_segment_start_offset(&self) -> Offset {
+        self.active_segment_start_offset
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+
+    pub fn rolled_segment_count(&self) -> usize {
+        self.rolled_segment_count
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteLineageOutcome {
+    descriptor: StreamDescriptor,
+    status: RemoteStreamStatus,
+    topology: RemoteTopology,
+}
+
+impl RemoteLineageOutcome {
+    pub fn descriptor(&self) -> &StreamDescriptor {
+        &self.descriptor
+    }
+
+    pub fn status(&self) -> &RemoteStreamStatus {
+        &self.status
+    }
+
+    pub fn topology(&self) -> RemoteTopology {
+        self.topology
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RemoteTopology {
+    SingleNode,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteErrorResponse {
     code: RemoteErrorCode,
     message: String,
@@ -414,6 +536,18 @@ enum ConnectionRequest {
         stream_id: StreamId,
         payload: Vec<u8>,
     },
+    CreateBranch {
+        stream_id: StreamId,
+        parent: StreamPosition,
+        metadata: LineageMetadata,
+    },
+    CreateMerge {
+        stream_id: StreamId,
+        merge: MergeSpec,
+    },
+    InspectLineage {
+        stream_id: StreamId,
+    },
     Read {
         stream_id: StreamId,
     },
@@ -428,6 +562,8 @@ enum ConnectionRequest {
 enum ConnectionResponse {
     AppendOk(RemoteAppendOutcome),
     RecordsOk(RemoteReadOutcome),
+    StreamStatusOk(RemoteStreamStatus),
+    LineageOk(RemoteLineageOutcome),
     Error(RemoteErrorResponse),
 }
 
@@ -526,6 +662,31 @@ fn handle_request(engine: &LocalEngine, request: ConnectionRequest) -> Connectio
                 Err(error) => engine_error_response(error),
             }
         }
+        ConnectionRequest::CreateBranch {
+            stream_id,
+            parent,
+            metadata,
+        } => match engine.create_branch(stream_id, parent, metadata) {
+            Ok(status) => {
+                ConnectionResponse::StreamStatusOk(map_stream_status(engine.durability(), status))
+            }
+            Err(error) => engine_error_response(error),
+        },
+        ConnectionRequest::CreateMerge { stream_id, merge } => {
+            match engine.create_merge(stream_id, merge) {
+                Ok(status) => ConnectionResponse::StreamStatusOk(map_stream_status(
+                    engine.durability(),
+                    status,
+                )),
+                Err(error) => engine_error_response(error),
+            }
+        }
+        ConnectionRequest::InspectLineage { stream_id } => {
+            match inspect_lineage(engine, &stream_id) {
+                Ok(lineage) => ConnectionResponse::LineageOk(lineage),
+                Err(error) => engine_error_response(error),
+            }
+        }
         ConnectionRequest::Read { stream_id } => match engine.replay(&stream_id) {
             Ok(records) => ConnectionResponse::RecordsOk(map_read_outcome(
                 stream_id,
@@ -571,6 +732,28 @@ fn map_read_outcome(
     }
 }
 
+fn map_stream_status(durability: DurabilityMode, status: LocalStreamStatus) -> RemoteStreamStatus {
+    RemoteStreamStatus {
+        stream_id: status.stream_id().clone(),
+        durability: durability.as_str().to_owned(),
+        next_offset: status.next_offset(),
+        active_record_count: status.active_record_count(),
+        active_segment_start_offset: status.active_segment_start_offset(),
+        manifest_generation: status.manifest_generation(),
+        rolled_segment_count: status.rolled_segment_count(),
+    }
+}
+
+fn inspect_lineage(engine: &LocalEngine, stream_id: &StreamId) -> Result<RemoteLineageOutcome> {
+    let descriptor = engine.stream_descriptor(stream_id)?;
+    let status = engine.stream_status(stream_id)?;
+    Ok(RemoteLineageOutcome {
+        descriptor,
+        status: map_stream_status(engine.durability(), status),
+        topology: RemoteTopology::SingleNode,
+    })
+}
+
 fn map_record(record: LocalRecord) -> RemoteRecord {
     RemoteRecord {
         position: record.position().clone(),
@@ -608,14 +791,43 @@ fn classify_engine_error(error: &anyhow::Error) -> RemoteErrorCode {
         return RemoteErrorCode::NotFound;
     }
 
+    if error
+        .chain()
+        .any(|cause| is_invalid_request_message(&cause.to_string()))
+        || is_invalid_request_message(&error.to_string())
+    {
+        return RemoteErrorCode::InvalidRequest;
+    }
+
     RemoteErrorCode::Internal
+}
+
+fn is_invalid_request_message(message: &str) -> bool {
+    [
+        "stream ids must not be empty",
+        "branch creation must create a new stream head",
+        "merge results must create a new stream head",
+        "merge specs require",
+        "lineage positions must reference an existing distinct stream",
+        "lineage position ",
+        "already exists",
+    ]
+    .into_iter()
+    .any(|pattern| message.contains(pattern))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{RemoteClient, RemoteClientError, RemoteErrorCode, ServerConfig, ServerHandle};
+    use super::{
+        RemoteClient, RemoteClientError, RemoteErrorCode, RemoteTopology, ServerConfig,
+        ServerHandle,
+    };
     use crate::engine::{DurabilityMode, LocalEngine, LocalEngineConfig};
-    use crate::kernel::{LineageMetadata, Offset, StreamDescriptor, StreamId, StreamPosition};
+    use crate::kernel::{
+        LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor,
+        StreamId, StreamLineage, StreamPosition,
+    };
+    use serde_json::Value;
     use std::net::TcpStream;
     use std::time::Duration;
     use tempfile::tempdir;
@@ -891,6 +1103,235 @@ mod tests {
         assert_eq!(follow_up_payloads, vec![b"fourth".as_slice()]);
         assert_eq!(initial_tail.durability(), "local");
         assert_eq!(follow_up_tail.durability(), "local");
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_branch_creation_uses_explicit_parent_positions_and_preserves_lineage() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(8)
+                .expect("config"),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let engine = server.engine();
+        let root_stream = stream_id("task.root");
+        let branch_stream = stream_id("task.root.thread");
+
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root stream");
+        client.append(&root_stream, b"first").expect("append first");
+        client
+            .append(&root_stream, b"second")
+            .expect("append second");
+
+        let branch_status = client
+            .create_branch(
+                &branch_stream,
+                StreamPosition::new(root_stream.clone(), Offset::new(1)),
+                LineageMetadata::new(
+                    Some("classifier.thread-boundary".into()),
+                    Some("remote-thread-split".into()),
+                )
+                .with_label("anchor_message_id", "msg-42"),
+            )
+            .expect("create remote branch");
+        let branch_append = client
+            .append(&branch_stream, b"branch-only")
+            .expect("append branch");
+        let lineage = client
+            .inspect_lineage(&branch_stream)
+            .expect("inspect branch lineage");
+        let branch_read = client.read(&branch_stream).expect("read branch");
+
+        assert_eq!(branch_status.stream_id(), &branch_stream);
+        assert_eq!(branch_status.durability(), "local");
+        assert_eq!(branch_status.next_offset().value(), 2);
+        assert_eq!(branch_append.position().offset.value(), 2);
+        assert_eq!(lineage.topology(), RemoteTopology::SingleNode);
+        assert_eq!(lineage.status().stream_id(), &branch_stream);
+        assert_eq!(lineage.status().next_offset().value(), 3);
+
+        match &lineage.descriptor().lineage {
+            StreamLineage::Branch { branch_point } => {
+                assert_eq!(branch_point.parent.stream_id, root_stream);
+                assert_eq!(branch_point.parent.offset.value(), 1);
+                assert_eq!(
+                    branch_point.metadata.labels.get("anchor_message_id"),
+                    Some(&"msg-42".to_owned())
+                );
+            }
+            other => panic!("expected branch lineage, got {other:?}"),
+        }
+
+        let payloads: Vec<&[u8]> = branch_read
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+        assert_eq!(
+            payloads,
+            vec![
+                b"first".as_slice(),
+                b"second".as_slice(),
+                b"branch-only".as_slice()
+            ]
+        );
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_merge_and_lineage_inspection_remain_explicitly_single_node() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(8)
+                .expect("config"),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let engine = server.engine();
+        let root_stream = stream_id("task.root");
+        let branch_a = stream_id("task.root.retry");
+        let branch_b = stream_id("task.root.critique");
+        let merge_stream = stream_id("task.root.merge");
+
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root stream");
+        client.append(&root_stream, b"seed").expect("append root");
+        client
+            .create_branch(
+                &branch_a,
+                StreamPosition::new(root_stream.clone(), Offset::new(0)),
+                LineageMetadata::new(Some("agent.retry".into()), Some("explore".into())),
+            )
+            .expect("create branch a");
+        client
+            .create_branch(
+                &branch_b,
+                StreamPosition::new(root_stream.clone(), Offset::new(0)),
+                LineageMetadata::new(Some("agent.critique".into()), Some("explore".into())),
+            )
+            .expect("create branch b");
+        client.append(&branch_a, b"retry").expect("append branch a");
+        client
+            .append(&branch_b, b"critique")
+            .expect("append branch b");
+
+        let merge_spec = MergeSpec::new(
+            vec![
+                StreamPosition::new(branch_a.clone(), Offset::new(1)),
+                StreamPosition::new(branch_b.clone(), Offset::new(1)),
+            ],
+            Some(StreamPosition::new(root_stream.clone(), Offset::new(0))),
+            MergePolicy::new(MergePolicyKind::Recursive).with_metadata("resolver", "judge-v1"),
+            LineageMetadata::new(Some("agent.judge".into()), Some("merge".into())),
+        )
+        .expect("merge spec");
+
+        let merge_status = client
+            .create_merge(&merge_stream, merge_spec.clone())
+            .expect("create merge");
+        let lineage = client
+            .inspect_lineage(&merge_stream)
+            .expect("inspect merge lineage");
+
+        assert_eq!(merge_status.stream_id(), &merge_stream);
+        assert_eq!(merge_status.durability(), "local");
+        assert_eq!(merge_status.next_offset().value(), 1);
+        assert_eq!(lineage.topology(), RemoteTopology::SingleNode);
+
+        match &lineage.descriptor().lineage {
+            StreamLineage::Merge { merge } => assert_eq!(merge, &merge_spec),
+            other => panic!("expected merge lineage, got {other:?}"),
+        }
+
+        let encoded = serde_json::to_value(&lineage).expect("encode lineage");
+        assert_eq!(
+            encoded.get("topology").and_then(Value::as_str),
+            Some("single_node")
+        );
+        assert!(encoded.get("replication").is_none());
+        assert!(encoded.get("leader").is_none());
+        assert!(encoded.get("quorum").is_none());
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_lineage_validation_errors_surface_as_invalid_requests() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path()),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let root_stream = stream_id("task.root");
+        let invalid_branch = stream_id("task.root.invalid");
+
+        server
+            .engine()
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+        client.append(&root_stream, b"first").expect("append root");
+
+        let error = client
+            .create_branch(
+                &invalid_branch,
+                StreamPosition::new(root_stream.clone(), Offset::new(4)),
+                LineageMetadata::new(Some("classifier".into()), Some("invalid-branch".into())),
+            )
+            .expect_err("invalid branch should fail");
+
+        match error {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::InvalidRequest);
+                assert!(error.message().contains("lineage position"));
+            }
+            other => panic!("expected remote invalid_request, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_lineage_inspection_declares_single_node_topology_without_replication_fields() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path()),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let root_stream = stream_id("task.root");
+
+        server
+            .engine()
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+
+        let lineage = client
+            .inspect_lineage(&root_stream)
+            .expect("inspect root lineage");
+        let encoded = serde_json::to_value(&lineage).expect("encode lineage");
+
+        assert_eq!(lineage.topology(), RemoteTopology::SingleNode);
+        assert_eq!(
+            encoded.get("topology").and_then(Value::as_str),
+            Some("single_node")
+        );
+        assert!(encoded.get("replication").is_none());
+        assert!(encoded.get("leader").is_none());
+        assert!(encoded.get("quorum").is_none());
 
         server.shutdown().expect("shutdown server");
     }
