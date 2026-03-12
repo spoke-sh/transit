@@ -125,6 +125,8 @@ Server mode exposes the same storage engine behind a network API:
 
 The server should not invent a second storage format or branch model.
 
+The first implementation step is a thin daemon bootstrap that opens the shared engine and binds a listener before any richer RPC surface is added.
+
 ## Storage Architecture
 
 `transit` is tiered by default.

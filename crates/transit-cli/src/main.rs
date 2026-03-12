@@ -4,7 +4,9 @@ use object_store::local::LocalFileSystem;
 use serde::Serialize;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use transit_core::bootstrap::{MissionStatus, collect_mission_status};
 use transit_core::engine::{LocalEngine, LocalEngineConfig, LocalRecord, LocalRecoveryOutcome};
 use transit_core::kernel::{
@@ -12,6 +14,7 @@ use transit_core::kernel::{
     StreamLineage, StreamPosition,
 };
 use transit_core::object_store_support::{ObjectStoreProbeResult, probe_local_filesystem_store};
+use transit_core::server::{ServerConfig, ServerHandle, ServerShutdownOutcome};
 
 #[derive(Debug, Parser)]
 #[command(name = "transit")]
@@ -27,6 +30,8 @@ enum Commands {
     Mission(MissionArgs),
     /// Probe configured object-store support.
     ObjectStore(ObjectStoreArgs),
+    /// Run the shared-engine server daemon.
+    Server(ServerArgs),
 }
 
 #[derive(Debug, Args)]
@@ -71,6 +76,34 @@ struct ObjectStoreArgs {
     command: ObjectStoreCommands,
 }
 
+#[derive(Debug, Args)]
+struct ServerArgs {
+    #[command(subcommand)]
+    command: ServerCommands,
+}
+
+#[derive(Debug, Subcommand)]
+enum ServerCommands {
+    /// Boot a single-node daemon around the shared local engine.
+    Run(ServerRunArgs),
+}
+
+#[derive(Debug, Args)]
+struct ServerRunArgs {
+    /// Filesystem root used for the shared local engine.
+    #[arg(long)]
+    root: PathBuf,
+    /// Listen address for the first server daemon.
+    #[arg(long = "listen-addr", default_value = "127.0.0.1:7171")]
+    listen_addr: SocketAddr,
+    /// Run for a bounded time before graceful shutdown. Useful for tests and proofs.
+    #[arg(long = "serve-for-ms")]
+    serve_for_ms: Option<u64>,
+    /// Render server lifecycle output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
 #[derive(Debug, Subcommand)]
 enum ObjectStoreCommands {
     /// Write, read, and delete a probe object using the filesystem backend.
@@ -108,6 +141,12 @@ async fn main() -> Result<()> {
                 probe_local_filesystem_store(args.root).await?,
                 args.json,
             )?,
+        },
+        Commands::Server(args) => match args.command {
+            ServerCommands::Run(args) => {
+                let json = args.json;
+                render_server_run(run_server(args).await?, json)?
+            }
         },
     }
 
@@ -205,6 +244,17 @@ struct TieredEngineProofResult {
     replay_after_remote_removal_ok: bool,
 }
 
+#[derive(Debug, Serialize)]
+struct ServerRunResult {
+    data_root: PathBuf,
+    requested_listen_addr: String,
+    bound_listen_addr: String,
+    durability: String,
+    accepted_connections: u64,
+    graceful_shutdown: bool,
+    server_api: &'static str,
+}
+
 fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
     reset_directory(&root)?;
 
@@ -278,6 +328,39 @@ fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
         replay_before_recovery_failed,
         recovery: summarize_recovery(&merge_stream, recovery),
     })
+}
+
+async fn run_server(args: ServerRunArgs) -> Result<ServerRunResult> {
+    let requested_listen_addr = args.listen_addr;
+    let server = ServerHandle::bind(ServerConfig::new(
+        LocalEngineConfig::new(&args.root),
+        args.listen_addr,
+    ))
+    .context("bind shared-engine server")?;
+
+    if !args.json {
+        println!("transit server bootstrap");
+        println!("root: {}", server.data_dir().display());
+        println!("listen requested: {}", requested_listen_addr);
+        println!("listen bound: {}", server.local_addr());
+        println!("durability: {}", server.durability().as_str());
+        if args.serve_for_ms.is_none() {
+            println!("shutdown: waiting for Ctrl-C");
+        }
+    }
+
+    if let Some(serve_for_ms) = args.serve_for_ms {
+        std::thread::sleep(Duration::from_millis(serve_for_ms));
+    } else {
+        tokio::signal::ctrl_c()
+            .await
+            .context("wait for Ctrl-C before shutting down server")?;
+    }
+
+    summarize_server_shutdown(
+        requested_listen_addr,
+        server.shutdown().context("shutdown shared-engine server")?,
+    )
 }
 
 async fn run_tiered_engine_proof(root: PathBuf) -> Result<TieredEngineProofResult> {
@@ -507,6 +590,46 @@ fn render_tiered_engine_proof(result: TieredEngineProofResult, json: bool) -> Re
             "failed"
         }
     );
+
+    Ok(())
+}
+
+fn summarize_server_shutdown(
+    requested_listen_addr: SocketAddr,
+    outcome: ServerShutdownOutcome,
+) -> Result<ServerRunResult> {
+    Ok(ServerRunResult {
+        data_root: outcome.data_dir().to_path_buf(),
+        requested_listen_addr: requested_listen_addr.to_string(),
+        bound_listen_addr: outcome.local_addr().to_string(),
+        durability: outcome.durability().as_str().to_owned(),
+        accepted_connections: outcome.accepted_connections(),
+        graceful_shutdown: true,
+        server_api: "ServerHandle::bind",
+    })
+}
+
+fn render_server_run(result: ServerRunResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit server shutdown");
+    println!("root: {}", result.data_root.display());
+    println!("listen requested: {}", result.requested_listen_addr);
+    println!("listen bound: {}", result.bound_listen_addr);
+    println!("durability: {}", result.durability);
+    println!("accepted connections: {}", result.accepted_connections);
+    println!(
+        "graceful shutdown: {}",
+        if result.graceful_shutdown {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    println!("server api: {}", result.server_api);
 
     Ok(())
 }

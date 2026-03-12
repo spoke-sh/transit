@@ -42,7 +42,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Server Daemon And Core Lineage RPCs](epics/VDfEx13Wu/voyages/VDfF629DK/) | planned |
+| [Server Daemon And Core Lineage RPCs](epics/VDfEx13Wu/voyages/VDfF629DK/) | in-progress |
 | [Wire Protocol Hardening And Mission Proof](epics/VDfEx13Wu/voyages/VDfF8q3Sz/) | planned |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)

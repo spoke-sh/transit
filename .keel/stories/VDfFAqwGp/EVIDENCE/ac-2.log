@@ -1,0 +1,17 @@
+---
+recorded_at: 2026-03-12T08:01:28.213845341-07:00
+mode: manual
+files: [".keel/stories/VDfFAqwGp/ac-2.log"]
+---
+
+--- File: ac-2.log ---
+{
+  "data_root": "target/transit-story-VDfFAqwGp",
+  "requested_listen_addr": "127.0.0.1:0",
+  "bound_listen_addr": "127.0.0.1:41829",
+  "durability": "local",
+  "accepted_connections": 0,
+  "graceful_shutdown": true,
+  "server_api": "ServerHandle::bind"
+}
+

@@ -1,11 +1,12 @@
 ---
 id: VDfF629DK
 title: Server Daemon And Core Lineage RPCs
-status: planned
+status: in-progress
 epic: VDfEx13Wu
 created_at: 2026-03-12T07:40:57
 index: 1
 updated_at: 2026-03-12T07:48:16
+started_at: 2026-03-12T07:53:07
 ---
 
 # Server Daemon And Core Lineage RPCs
@@ -28,7 +29,7 @@ updated_at: 2026-03-12T07:48:16
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Implement Shared-Engine Server Daemon Bootstrap](../../../../stories/VDfFAqwGp/README.md) | feat | backlog |
+| [Implement Shared-Engine Server Daemon Bootstrap](../../../../stories/VDfFAqwGp/README.md) | feat | needs-human-verification |
 | [Implement Remote Append Read And Tail Operations](../../../../stories/VDfFDn1UH/README.md) | feat | backlog |
 | [Implement Remote Branch Merge And Lineage Inspection](../../../../stories/VDfFG05Qq/README.md) | feat | backlog |
 <!-- END GENERATED -->

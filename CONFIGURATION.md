@@ -144,6 +144,8 @@ Network-facing settings for daemon mode.
 | `request_body_limit_bytes` | Integer | `8388608` | Maximum request size accepted by the server. |
 | `auth_mode` | String | `"none"` | Planned auth mode: `none`, `token`, `mtls`. |
 
+The current bootstrap implementation wires `data_dir` through `transit server run --root ...` and `listen_addr` through `transit server run --listen-addr ...`. The remaining server keys are still planned contract, not yet enforced runtime behavior.
+
 ### `[replication]`
 
 Replication is deferred scope, but the config surface should be explicit once introduced.

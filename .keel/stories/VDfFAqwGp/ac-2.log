@@ -1,0 +1,9 @@
+{
+  "data_root": "target/transit-story-VDfFAqwGp",
+  "requested_listen_addr": "127.0.0.1:0",
+  "bound_listen_addr": "127.0.0.1:41829",
+  "durability": "local",
+  "accepted_connections": 0,
+  "graceful_shutdown": true,
+  "server_api": "ServerHandle::bind"
+}

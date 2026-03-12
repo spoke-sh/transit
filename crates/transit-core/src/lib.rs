@@ -7,4 +7,5 @@ pub mod bootstrap;
 pub mod engine;
 pub mod kernel;
 pub mod object_store_support;
+pub mod server;
 pub mod storage;

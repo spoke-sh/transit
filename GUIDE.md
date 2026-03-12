@@ -146,6 +146,7 @@ The current bootstrap developer loop is:
 2. run `just mission`
 3. use `just run mission local-engine-proof --root target/transit-mission/local-engine` when you want the explicit durable-engine proof without the rest of the mission flow
 4. use `just run mission tiered-engine-proof --root target/transit-mission/tiered-engine` when you want the explicit publication and restore proof
-5. use `just help` or `just run -- --help` for the CLI surface
+5. use `just run server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap
+6. use `just help` or `just run -- --help` for the CLI surface
 
 If a proposed change conflicts with those documents, update the docs intentionally before or with the code change.

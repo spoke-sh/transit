@@ -276,6 +276,14 @@ impl LocalEngine {
         Ok(Self { config })
     }
 
+    pub fn data_dir(&self) -> &Path {
+        self.config.data_dir()
+    }
+
+    pub fn durability(&self) -> DurabilityMode {
+        self.config.durability()
+    }
+
     pub fn create_stream(&self, descriptor: StreamDescriptor) -> Result<LocalStreamStatus> {
         let state = self.initialize_stream_state(descriptor)?;
         let stream_dir = self.stream_dir(state.stream_id());

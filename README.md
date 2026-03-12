@@ -107,6 +107,7 @@ Today it contains:
 - a Nix flake and Rust toolchain bootstrap
 - a `Justfile` with a human-facing `just mission` verification path for local-engine proof, tiered publication/restore proof, and object-store probing
 - a local durable engine that can append, replay, branch, merge, recover from trailing uncommitted active-head bytes, publish rolled immutable segments to object storage, and cold-restore published history from remote manifests
+- an initial shared-engine server bootstrap that can open the same local engine, bind a daemon listener, and shut down deterministically without introducing a second storage path
 - an initial `object_store` integration with a filesystem probe command
 
 The implementation work now has a real scaffold to grow from instead of needing to reverse-engineer direction later.
@@ -122,7 +123,7 @@ The first verifiable-lineage contract now lives in [INTEGRITY.md](INTEGRITY.md).
 The intended surface area is:
 
 - an embedded library for in-process append, read, tail, and branch operations
-- a server daemon exposing the same semantics over a network API
+- a server daemon exposing the same semantics over a network API, starting from the new shared-engine bootstrap
 - a client library and CLI for operators, application runtimes, and benchmarks
 
 ## First Principles
