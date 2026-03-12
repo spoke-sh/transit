@@ -20,9 +20,9 @@ index: 3
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/2 voyages complete, 1/7 stories done
+**Progress:** 0/2 voyages complete, 2/7 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Server Daemon And Core Lineage RPCs](voyages/VDfF629DK/) | in-progress | 1/3 |
+| [Server Daemon And Core Lineage RPCs](voyages/VDfF629DK/) | in-progress | 2/3 |
 | [Wire Protocol Hardening And Mission Proof](voyages/VDfF8q3Sz/) | planned | 0/4 |
 <!-- END GENERATED -->
