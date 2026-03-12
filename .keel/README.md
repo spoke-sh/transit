@@ -10,7 +10,7 @@
 | [Research Branch-Aware Materialization And Processing](bearings/VDd0u3PFg/) | evaluating | ✓ | ✓ | decision-ready | 3.32 | - |
 | [Research Agent Runtime And Model Harness Workloads](bearings/VDd1EybWm/) | laid | ✓ | ✓ | decision-ready | 6.11 | ✓ |
 | [Research Auto-Threaded Communication And Collaboration](bearings/VDd1F0OXH/) | evaluating | ✓ | ✓ | decision-ready | 4.40 | - |
-| [Research Verifiable Lineage And Cryptographic Integrity](bearings/VDd1F1tUe/) | evaluating | ✓ | ✓ | decision-ready | 3.73 | - |
+| [Research Verifiable Lineage And Cryptographic Integrity](bearings/VDd1F1tUe/) | laid | ✓ | ✓ | decision-ready | 3.73 | ✓ |
 | [Research Multi-Node Replication And Server Semantics](bearings/VDd1J2IDM/) | evaluating | ✓ | ✓ | decision-ready | 2.69 | - |
 
 <details>
@@ -24,15 +24,21 @@
 
 ## Epics
 
-### [Single-Node Branch And Merge Engine](epics/VDcx2lQGz/) (active)
+### [Single-Node Branch And Merge Engine](epics/VDcx2lQGz/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Kernel Types And Storage Skeleton](epics/VDcx2lQGz/voyages/VDcx4sb6D/) | in-progress |
+| [Kernel Types And Storage Skeleton](epics/VDcx2lQGz/voyages/VDcx4sb6D/) | done |
 
-### [Research Agent Runtime And Model Harness Workloads](epics/VDd1EybWm/) (active)
+### [Research Agent Runtime And Model Harness Workloads](epics/VDd1EybWm/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Canonical AI Trace Contract](epics/VDd1EybWm/voyages/VDd551Q7R/) | in-progress |
+| [Canonical AI Trace Contract](epics/VDd1EybWm/voyages/VDd551Q7R/) | done |
+
+### [Research Verifiable Lineage And Cryptographic Integrity](epics/VDd1F1tUe/) (done)
+
+| Voyage | Status |
+|--------|--------|
+| [Verifiable Lineage Contract](epics/VDd1F1tUe/voyages/VDdGLscWy/) | done |
 

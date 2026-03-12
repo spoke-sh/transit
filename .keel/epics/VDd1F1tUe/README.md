@@ -19,8 +19,8 @@ created_at: 2026-03-11T23:32:51
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/3 stories done
+**Progress:** 1/1 voyages complete, 3/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Verifiable Lineage Contract](voyages/VDdGLscWy/) | planned | 0/3 |
+| [Verifiable Lineage Contract](voyages/VDdGLscWy/) | done | 3/3 |
 <!-- END GENERATED -->

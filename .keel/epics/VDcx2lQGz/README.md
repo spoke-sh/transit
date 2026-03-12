@@ -20,8 +20,8 @@ index: 1
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/3 stories done
+**Progress:** 1/1 voyages complete, 3/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Kernel Types And Storage Skeleton](voyages/VDcx4sb6D/) | in-progress | 0/3 |
+| [Kernel Types And Storage Skeleton](voyages/VDcx4sb6D/) | done | 3/3 |
 <!-- END GENERATED -->

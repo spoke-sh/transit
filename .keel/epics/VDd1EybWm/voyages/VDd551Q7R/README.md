@@ -21,16 +21,18 @@ completed_at: 2026-03-11T23:00:35
 |----------|-------------|
 | [SRS.md](SRS.md) | Requirements and verification criteria |
 | [SDD.md](SDD.md) | Architecture and implementation details |
+| [VOYAGE_REPORT.md](VOYAGE_REPORT.md) | Narrative summary of implementation and evidence |
+| [COMPLIANCE_REPORT.md](COMPLIANCE_REPORT.md) | Traceability matrix and verification proof |
 <!-- END DOCUMENTS -->
 
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 2/3 stories complete
+**Progress:** 3/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Define Canonical AI Trace Event Model](../../../../stories/VDd5BYdDu/README.md) | feat | done |
-| [Align Evaluation Workloads With Canonical AI Traces](../../../../stories/VDd5Cv8mV/README.md) | feat | needs-human-verification |
+| [Align Evaluation Workloads With Canonical AI Traces](../../../../stories/VDd5Cv8mV/README.md) | feat | done |
 | [Specify Artifact And Metadata Envelope Conventions](../../../../stories/VDd5Cv9mT/README.md) | feat | done |
 <!-- END GENERATED -->

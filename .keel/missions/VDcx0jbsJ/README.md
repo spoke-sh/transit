@@ -1,10 +1,12 @@
 ---
 id: VDcx0jbsJ
 title: Ship The First Single-Node Transit Lineage Engine
-status: active
+status: verified
 created_at: 2026-03-11T22:16:34
-updated_at: 2026-03-11T22:21:54
+updated_at: 2026-03-11T23:32:51
 activated_at: 2026-03-11T22:21:54
+achieved_at: 2026-03-11T23:32:10
+verified_at: 2026-03-11T23:32:51
 ---
 
 # Ship The First Single-Node Transit Lineage Engine
