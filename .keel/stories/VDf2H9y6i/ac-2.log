@@ -1,0 +1,9 @@
+Reviewed `README.md`, `ARCHITECTURE.md`, and `GUIDE.md`.
+
+The aligned guidance preserves the shared engine model:
+- channels are still described as root streams
+- threads are still described as child branches
+- communication remains a workload on the same engine rather than a separate storage mode
+- guide and architecture preserve the same semantics for embedded and server packaging
+
+This satisfies SRS-NFR-01.

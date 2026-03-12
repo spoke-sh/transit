@@ -1,0 +1,8 @@
+Reviewed `EVALUATIONS.md`.
+
+The workload remains benchmarkable:
+- the auto-threading section now has a canonical fixture shape
+- it measures classifier-to-branch latency, replay correctness, storage growth, and override traceability
+- it requires explicit notes about classifier decision rate, override rate, and root-visibility policy
+
+This satisfies SRS-NFR-03.

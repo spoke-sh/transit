@@ -76,6 +76,8 @@ Example branch metadata created by an auto-threading classifier:
 
 That gives you a durable thread origin without mutating the original channel history.
 
+For the current canonical communication contract, use [COMMUNICATION.md](COMMUNICATION.md).
+
 ## Modeling Agent And AI Workloads
 
 `transit` should be a natural fit for branch-heavy AI systems.
@@ -133,9 +135,10 @@ For now this repository is document-first. The expected order of operations is:
 1. read [README.md](README.md)
 2. read [ARCHITECTURE.md](ARCHITECTURE.md)
 3. read [CONSTITUTION.md](CONSTITUTION.md)
-4. read [MATERIALIZATION.md](MATERIALIZATION.md) when the change touches processing, checkpoints, snapshots, or derived-state merge semantics
-5. read [INTEGRITY.md](INTEGRITY.md) when the change touches checksums, digests, manifests, checkpoints, or restore behavior
-6. use [CONFIGURATION.md](CONFIGURATION.md), [EVALUATIONS.md](EVALUATIONS.md), and [RELEASE.md](RELEASE.md) as implementation constraints
+4. read [COMMUNICATION.md](COMMUNICATION.md) when the change touches channels, threads, classifier evidence, or communication reconciliation
+5. read [MATERIALIZATION.md](MATERIALIZATION.md) when the change touches processing, checkpoints, snapshots, or derived-state merge semantics
+6. read [INTEGRITY.md](INTEGRITY.md) when the change touches checksums, digests, manifests, checkpoints, or restore behavior
+7. use [CONFIGURATION.md](CONFIGURATION.md), [EVALUATIONS.md](EVALUATIONS.md), and [RELEASE.md](RELEASE.md) as implementation constraints
 
 The current bootstrap developer loop is:
 

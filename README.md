@@ -1,6 +1,6 @@
 # transit
 
-[Architecture](ARCHITECTURE.md) | [Integrity](INTEGRITY.md) | [AI Traces](AI_TRACES.md) | [AI Artifacts](AI_ARTIFACTS.md) | [Constitution](CONSTITUTION.md) | [Configuration](CONFIGURATION.md) | [Guide](GUIDE.md) | [Evaluations](EVALUATIONS.md) | [Release](RELEASE.md)
+[Architecture](ARCHITECTURE.md) | [Communication](COMMUNICATION.md) | [Integrity](INTEGRITY.md) | [AI Traces](AI_TRACES.md) | [AI Artifacts](AI_ARTIFACTS.md) | [Constitution](CONSTITUTION.md) | [Configuration](CONFIGURATION.md) | [Guide](GUIDE.md) | [Evaluations](EVALUATIONS.md) | [Release](RELEASE.md)
 
 `transit` is a fresh take on message streaming: a Rust-first, object-storage-native append-only log with native tiered storage, stream lineage, and explicit branch-and-merge semantics.
 
@@ -112,6 +112,8 @@ Today it contains:
 The implementation work now has a real scaffold to grow from instead of needing to reverse-engineer direction later.
 
 The first canonical AI workload contract now lives in [AI_TRACES.md](AI_TRACES.md).
+
+The first canonical communication workload contract now lives in [COMMUNICATION.md](COMMUNICATION.md).
 
 The first verifiable-lineage contract now lives in [INTEGRITY.md](INTEGRITY.md).
 

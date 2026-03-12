@@ -274,12 +274,16 @@ This is guidance, not a locked module tree.
 
 `transit` should treat AI and communication systems as reference workloads.
 
+The canonical communication contract now lives in [COMMUNICATION.md](COMMUNICATION.md).
+
 Examples:
 
 - a conversation channel is a root stream
 - a thread is a child branch anchored to a message offset
 - an agent plan can fork into multiple branches for retries or alternative tool paths
 - classifier metadata can be recorded on branch creation for auto-threading and auditability
+
+For ordinary communication workflows, root visibility should usually use backlinks or summaries. Explicit merges should stay reserved for real reconciliation workflows such as resolution, synthesis, moderation, or archival convergence.
 
 That means lineage metadata should be cheap to create and easy to query.
 

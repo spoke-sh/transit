@@ -147,6 +147,8 @@ Audit and benchmark expectations:
 
 This is the signature application-level benchmark.
 
+Use [COMMUNICATION.md](COMMUNICATION.md) as the canonical contract for this workload.
+
 The workload should model:
 
 - one channel-like root stream
@@ -155,12 +157,31 @@ The workload should model:
 - branch creation anchored to message offsets
 - readers following both the root stream and active branches
 
+Minimum fixture shape:
+
+- one `channel root` stream
+- many immutable `channel messages`
+- one or more `thread branches`
+- `thread replies` on those branches
+- classifier split evidence on branch creation or explicit artifacts
+- optional `thread backlinks`
+- optional `thread summaries`
+- optional human override artifacts
+- explicit merge artifacts only when the workload is testing reconciliation rather than normal visibility
+
 Measure:
 
 - classifier-to-branch latency
 - branch creation overhead at sustained message rate
 - replay correctness for threaded branches
 - storage growth and metadata growth over time
+- override traceability and replay visibility
+
+The benchmark should state:
+
+- whether the split was classifier-created, human-created, or mixed
+- whether root visibility used backlinks, summaries, explicit merges, or a mix
+- whether override artifacts were present and how often
 
 ### 8. Integrity And Restore Verification
 
@@ -220,6 +241,7 @@ Required evidence depends on scope, but should usually include:
 - notes about durability mode and object-store backend
 - notes about checksum, digest, and checkpoint verification mode
 - notes about checkpoint, snapshot, and derived-merge policy when materialization is in scope
+- notes about classifier decision rate, override rate, and root-visibility policy when communication workload is in scope
 - migration notes if manifests, segments, or protocol surfaces changed
 
 ## Reference Environments

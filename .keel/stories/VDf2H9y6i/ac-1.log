@@ -1,0 +1,9 @@
+Reviewed `README.md`, `ARCHITECTURE.md`, `GUIDE.md`, and `EVALUATIONS.md`.
+
+The docs now point at `COMMUNICATION.md` as the canonical contract:
+- README adds `Communication` to the top-level doc list and calls out the canonical communication workload contract
+- architecture points to `COMMUNICATION.md` in the AI and communication section
+- guide points contributors to `COMMUNICATION.md`
+- evaluations uses `COMMUNICATION.md` as the canonical contract for the auto-threading workload
+
+This satisfies SRS-04.
