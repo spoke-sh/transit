@@ -77,3 +77,15 @@ The expected evidence bar is:
 - documentation updates when public behavior changes
 
 If the change touches manifests, segments, or protocol surfaces, also check `RELEASE.md`.
+
+## Commit Discipline
+
+Commit granularity is literal in this repository.
+
+- Make one git commit per completed story.
+- Do not batch multiple accepted stories into one commit.
+- If a voyage or mission transition produces board-only changes beyond a story commit, record that in a separate management commit.
+- If planning work creates an epic, voyage, or backlog stories before implementation starts, record that planning slice in its own commit.
+- Before starting the next story, stop and commit the previous story with its code, docs, evidence logs, and generated board artifacts.
+
+The goal is simple: Keel story history and git history should line up without interpretation.
