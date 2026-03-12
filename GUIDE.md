@@ -42,7 +42,7 @@ Examples:
 - a shared agent coordination bus
 - a central event backbone for multiple workers and services
 
-At the current bootstrap stage, the shared-engine server exposes provisional remote append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations through `transit-core::server::RemoteClient`. The surface is still explicitly single-node; richer CLI client flows, streaming tail sessions, and replication-aware behavior are downstream work.
+At the current bootstrap stage, the shared-engine server exposes provisional remote append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations through `transit-core::server::RemoteClient`. The first wire shape now includes request correlation plus explicit acknowledgement and error envelopes. The surface is still explicitly single-node; richer CLI client flows, streaming tail sessions, and replication-aware behavior are downstream work.
 
 ## Modeling Conversations
 

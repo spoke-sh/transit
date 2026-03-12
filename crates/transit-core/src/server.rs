@@ -189,10 +189,91 @@ impl ServerShutdownOutcome {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestId(String);
+
+impl RequestId {
+    pub fn new(value: impl Into<String>) -> Result<Self> {
+        let value = value.into();
+        if value.trim().is_empty() {
+            anyhow::bail!("request ids must not be empty");
+        }
+        Ok(Self(value))
+    }
+
+    fn from_sequence(sequence: u64) -> Self {
+        Self(format!("req-{sequence}"))
+    }
+
+    fn server_generated(suffix: &str) -> Self {
+        Self(format!("server-{suffix}"))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RemoteTopology {
+    SingleNode,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteAcknowledgement {
+    durability: String,
+    topology: RemoteTopology,
+}
+
+impl RemoteAcknowledgement {
+    pub fn durability(&self) -> &str {
+        &self.durability
+    }
+
+    pub fn topology(&self) -> RemoteTopology {
+        self.topology
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteAcknowledged<T> {
+    request_id: RequestId,
+    ack: RemoteAcknowledgement,
+    body: T,
+}
+
+impl<T> RemoteAcknowledged<T> {
+    fn new(request_id: RequestId, ack: RemoteAcknowledgement, body: T) -> Self {
+        Self {
+            request_id,
+            ack,
+            body,
+        }
+    }
+
+    pub fn request_id(&self) -> &RequestId {
+        &self.request_id
+    }
+
+    pub fn ack(&self) -> &RemoteAcknowledgement {
+        &self.ack
+    }
+
+    pub fn body(&self) -> &T {
+        &self.body
+    }
+
+    pub fn into_body(self) -> T {
+        self.body
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RemoteClient {
     server_addr: SocketAddr,
     io_timeout: Duration,
+    request_sequence: Arc<AtomicU64>,
 }
 
 impl RemoteClient {
@@ -200,6 +281,7 @@ impl RemoteClient {
         Self {
             server_addr,
             io_timeout: Duration::from_millis(DEFAULT_CONNECTION_IO_TIMEOUT_MS),
+            request_sequence: Arc::new(AtomicU64::new(1)),
         }
     }
 
@@ -207,28 +289,33 @@ impl RemoteClient {
         &self,
         stream_id: &StreamId,
         payload: impl AsRef<[u8]>,
-    ) -> RemoteClientResult<RemoteAppendOutcome> {
-        match self.send_request(ConnectionRequest::Append {
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteAppendOutcome>> {
+        match self.send_request(OperationRequest::Append {
             stream_id: stream_id.clone(),
             payload: payload.as_ref().to_vec(),
         })? {
-            ConnectionResponse::AppendOk(outcome) => Ok(outcome),
-            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
-            other => Err(RemoteClientError::Protocol(format!(
-                "append expected append_ok response, got {other:?}"
-            ))),
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::AppendOk(outcome),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
+            other => Err(unexpected_operation_response("append", &other.outcome)),
         }
     }
 
-    pub fn read(&self, stream_id: &StreamId) -> RemoteClientResult<RemoteReadOutcome> {
-        match self.send_request(ConnectionRequest::Read {
+    pub fn read(
+        &self,
+        stream_id: &StreamId,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteReadOutcome>> {
+        match self.send_request(OperationRequest::Read {
             stream_id: stream_id.clone(),
         })? {
-            ConnectionResponse::RecordsOk(outcome) => Ok(outcome),
-            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
-            other => Err(RemoteClientError::Protocol(format!(
-                "read expected records_ok response, got {other:?}"
-            ))),
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::RecordsOk(outcome),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
+            other => Err(unexpected_operation_response("read", &other.outcome)),
         }
     }
 
@@ -236,16 +323,17 @@ impl RemoteClient {
         &self,
         stream_id: &StreamId,
         from_offset: Offset,
-    ) -> RemoteClientResult<RemoteReadOutcome> {
-        match self.send_request(ConnectionRequest::Tail {
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteReadOutcome>> {
+        match self.send_request(OperationRequest::Tail {
             stream_id: stream_id.clone(),
             from_offset,
         })? {
-            ConnectionResponse::RecordsOk(outcome) => Ok(outcome),
-            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
-            other => Err(RemoteClientError::Protocol(format!(
-                "tail expected records_ok response, got {other:?}"
-            ))),
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::RecordsOk(outcome),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
+            other => Err(unexpected_operation_response("tail", &other.outcome)),
         }
     }
 
@@ -254,17 +342,21 @@ impl RemoteClient {
         stream_id: &StreamId,
         parent: StreamPosition,
         metadata: LineageMetadata,
-    ) -> RemoteClientResult<RemoteStreamStatus> {
-        match self.send_request(ConnectionRequest::CreateBranch {
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteStreamStatus>> {
+        match self.send_request(OperationRequest::CreateBranch {
             stream_id: stream_id.clone(),
             parent,
             metadata,
         })? {
-            ConnectionResponse::StreamStatusOk(status) => Ok(status),
-            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
-            other => Err(RemoteClientError::Protocol(format!(
-                "create_branch expected stream_status_ok response, got {other:?}"
-            ))),
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::StreamStatusOk(status),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, status)),
+            other => Err(unexpected_operation_response(
+                "create_branch",
+                &other.outcome,
+            )),
         }
     }
 
@@ -272,35 +364,48 @@ impl RemoteClient {
         &self,
         stream_id: &StreamId,
         merge: MergeSpec,
-    ) -> RemoteClientResult<RemoteStreamStatus> {
-        match self.send_request(ConnectionRequest::CreateMerge {
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteStreamStatus>> {
+        match self.send_request(OperationRequest::CreateMerge {
             stream_id: stream_id.clone(),
             merge,
         })? {
-            ConnectionResponse::StreamStatusOk(status) => Ok(status),
-            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
-            other => Err(RemoteClientError::Protocol(format!(
-                "create_merge expected stream_status_ok response, got {other:?}"
-            ))),
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::StreamStatusOk(status),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, status)),
+            other => Err(unexpected_operation_response(
+                "create_merge",
+                &other.outcome,
+            )),
         }
     }
 
     pub fn inspect_lineage(
         &self,
         stream_id: &StreamId,
-    ) -> RemoteClientResult<RemoteLineageOutcome> {
-        match self.send_request(ConnectionRequest::InspectLineage {
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteLineageOutcome>> {
+        match self.send_request(OperationRequest::InspectLineage {
             stream_id: stream_id.clone(),
         })? {
-            ConnectionResponse::LineageOk(lineage) => Ok(lineage),
-            ConnectionResponse::Error(error) => Err(RemoteClientError::Remote(error)),
-            other => Err(RemoteClientError::Protocol(format!(
-                "inspect_lineage expected lineage_ok response, got {other:?}"
-            ))),
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::LineageOk(lineage),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, lineage)),
+            other => Err(unexpected_operation_response(
+                "inspect_lineage",
+                &other.outcome,
+            )),
         }
     }
 
-    fn send_request(&self, request: ConnectionRequest) -> RemoteClientResult<ConnectionResponse> {
+    fn send_request(&self, operation: OperationRequest) -> RemoteClientResult<SuccessfulResponse> {
+        let request_id = self.next_request_id();
+        let request = ProtocolRequest {
+            request_id: request_id.clone(),
+            operation,
+        };
         let mut stream =
             TcpStream::connect_timeout(&self.server_addr, self.io_timeout).map_err(|error| {
                 RemoteClientError::Transport(format!("connect to {}: {error}", self.server_addr))
@@ -312,8 +417,9 @@ impl RemoteClient {
             ))
         })?;
 
-        let mut encoded = serde_json::to_vec(&request)
-            .map_err(|error| RemoteClientError::Protocol(format!("encode request: {error}")))?;
+        let mut encoded = serde_json::to_vec(&request).map_err(|error| {
+            RemoteClientError::Protocol(format!("encode request {}: {error}", request_id.as_str()))
+        })?;
         encoded.push(b'\n');
         stream
             .write_all(&encoded)
@@ -334,8 +440,30 @@ impl RemoteClient {
             ));
         }
 
-        serde_json::from_str(response_line.trim_end())
-            .map_err(|error| RemoteClientError::Decode(format!("decode response: {error}")))
+        let response: ProtocolResponse = serde_json::from_str(response_line.trim_end())
+            .map_err(|error| RemoteClientError::Decode(format!("decode response: {error}")))?;
+        if response.request_id != request_id {
+            return Err(RemoteClientError::Protocol(format!(
+                "response request_id '{}' did not match request '{}'",
+                response.request_id.as_str(),
+                request_id.as_str()
+            )));
+        }
+
+        match response.envelope {
+            ResponseEnvelope::Ack { ack, outcome } => Ok(SuccessfulResponse {
+                request_id,
+                ack,
+                outcome,
+            }),
+            ResponseEnvelope::Error { error } => Err(RemoteClientError::Remote(
+                RemoteErrorResponse::new(request_id, error),
+            )),
+        }
+    }
+
+    fn next_request_id(&self) -> RequestId {
+        RequestId::from_sequence(self.request_sequence.fetch_add(1, Ordering::AcqRel))
     }
 }
 
@@ -355,9 +483,13 @@ impl fmt::Display for RemoteClientError {
             Self::Transport(message) => write!(f, "transport error: {message}"),
             Self::Decode(message) => write!(f, "decode error: {message}"),
             Self::Protocol(message) => write!(f, "protocol error: {message}"),
-            Self::Remote(error) => {
-                write!(f, "remote error [{}]: {}", error.code(), error.message())
-            }
+            Self::Remote(error) => write!(
+                f,
+                "remote error [{} {}]: {}",
+                error.request_id().as_str(),
+                error.code(),
+                error.message()
+            ),
         }
     }
 }
@@ -367,7 +499,6 @@ impl std::error::Error for RemoteClientError {}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteAppendOutcome {
     position: StreamPosition,
-    durability: String,
     manifest_generation: u64,
     rolled_segment_id: Option<String>,
 }
@@ -375,10 +506,6 @@ pub struct RemoteAppendOutcome {
 impl RemoteAppendOutcome {
     pub fn position(&self) -> &StreamPosition {
         &self.position
-    }
-
-    pub fn durability(&self) -> &str {
-        &self.durability
     }
 
     pub fn manifest_generation(&self) -> u64 {
@@ -393,17 +520,12 @@ impl RemoteAppendOutcome {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteReadOutcome {
     stream_id: StreamId,
-    durability: String,
     records: Vec<RemoteRecord>,
 }
 
 impl RemoteReadOutcome {
     pub fn stream_id(&self) -> &StreamId {
         &self.stream_id
-    }
-
-    pub fn durability(&self) -> &str {
-        &self.durability
     }
 
     pub fn records(&self) -> &[RemoteRecord] {
@@ -430,7 +552,6 @@ impl RemoteRecord {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteStreamStatus {
     stream_id: StreamId,
-    durability: String,
     next_offset: Offset,
     active_record_count: u64,
     active_segment_start_offset: Offset,
@@ -441,10 +562,6 @@ pub struct RemoteStreamStatus {
 impl RemoteStreamStatus {
     pub fn stream_id(&self) -> &StreamId {
         &self.stream_id
-    }
-
-    pub fn durability(&self) -> &str {
-        &self.durability
     }
 
     pub fn next_offset(&self) -> Offset {
@@ -472,7 +589,6 @@ impl RemoteStreamStatus {
 pub struct RemoteLineageOutcome {
     descriptor: StreamDescriptor,
     status: RemoteStreamStatus,
-    topology: RemoteTopology,
 }
 
 impl RemoteLineageOutcome {
@@ -483,25 +599,34 @@ impl RemoteLineageOutcome {
     pub fn status(&self) -> &RemoteStreamStatus {
         &self.status
     }
-
-    pub fn topology(&self) -> RemoteTopology {
-        self.topology
-    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RemoteTopology {
-    SingleNode,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoteErrorResponse {
+    request_id: RequestId,
+    topology: RemoteTopology,
     code: RemoteErrorCode,
     message: String,
 }
 
 impl RemoteErrorResponse {
+    fn new(request_id: RequestId, error: ProtocolErrorResponse) -> Self {
+        Self {
+            request_id,
+            topology: error.topology,
+            code: error.code,
+            message: error.message,
+        }
+    }
+
+    pub fn request_id(&self) -> &RequestId {
+        &self.request_id
+    }
+
+    pub fn topology(&self) -> RemoteTopology {
+        self.topology
+    }
+
     pub fn code(&self) -> RemoteErrorCode {
         self.code
     }
@@ -530,8 +655,14 @@ impl fmt::Display for RemoteErrorCode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ProtocolRequest {
+    request_id: RequestId,
+    operation: OperationRequest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-enum ConnectionRequest {
+enum OperationRequest {
     Append {
         stream_id: StreamId,
         payload: Vec<u8>,
@@ -558,13 +689,44 @@ enum ConnectionRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ProtocolResponse {
+    request_id: RequestId,
+    envelope: ResponseEnvelope,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum ResponseEnvelope {
+    Ack {
+        ack: RemoteAcknowledgement,
+        outcome: OperationResponse,
+    },
+    Error {
+        error: ProtocolErrorResponse,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-enum ConnectionResponse {
+enum OperationResponse {
     AppendOk(RemoteAppendOutcome),
     RecordsOk(RemoteReadOutcome),
     StreamStatusOk(RemoteStreamStatus),
     LineageOk(RemoteLineageOutcome),
-    Error(RemoteErrorResponse),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ProtocolErrorResponse {
+    topology: RemoteTopology,
+    code: RemoteErrorCode,
+    message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SuccessfulResponse {
+    request_id: RequestId,
+    ack: RemoteAcknowledgement,
+    outcome: OperationResponse,
 }
 
 fn run_accept_loop(
@@ -609,9 +771,12 @@ fn serve_connection(mut stream: TcpStream, engine: &LocalEngine, io_timeout: Dur
     let response = match configure_connection_stream(&stream, io_timeout) {
         Ok(()) => match read_request(&mut stream) {
             Ok(request) => handle_request(engine, request),
-            Err(error) => invalid_request_response(error),
+            Err(error) => invalid_request_response(RequestId::server_generated("decode"), error),
         },
-        Err(error) => internal_error_response(format!("configure connection: {error}")),
+        Err(error) => internal_error_response(
+            RequestId::server_generated("configure"),
+            format!("configure connection: {error}"),
+        ),
     };
 
     let _ = write_response(&mut stream, &response);
@@ -624,7 +789,7 @@ fn configure_connection_stream(stream: &TcpStream, io_timeout: Duration) -> std:
     Ok(())
 }
 
-fn read_request(stream: &mut TcpStream) -> Result<ConnectionRequest> {
+fn read_request(stream: &mut TcpStream) -> Result<ProtocolRequest> {
     let mut request_line = String::new();
     {
         let mut reader = BufReader::new(stream);
@@ -634,7 +799,10 @@ fn read_request(stream: &mut TcpStream) -> Result<ConnectionRequest> {
     }
 
     ensure_request_line(&request_line)?;
-    serde_json::from_str(request_line.trim_end()).context("decode client request")
+    let request: ProtocolRequest =
+        serde_json::from_str(request_line.trim_end()).context("decode client request")?;
+    ensure_request_id(&request.request_id)?;
+    Ok(request)
 }
 
 fn ensure_request_line(request_line: &str) -> Result<()> {
@@ -644,7 +812,14 @@ fn ensure_request_line(request_line: &str) -> Result<()> {
     Ok(())
 }
 
-fn write_response(stream: &mut TcpStream, response: &ConnectionResponse) -> std::io::Result<()> {
+fn ensure_request_id(request_id: &RequestId) -> Result<()> {
+    if request_id.as_str().trim().is_empty() {
+        anyhow::bail!("request ids must not be empty");
+    }
+    Ok(())
+}
+
+fn write_response(stream: &mut TcpStream, response: &ProtocolResponse) -> std::io::Result<()> {
     let mut encoded = serde_json::to_vec(response).map_err(std::io::Error::other)?;
     encoded.push(b'\n');
 
@@ -654,57 +829,67 @@ fn write_response(stream: &mut TcpStream, response: &ConnectionResponse) -> std:
     Ok(())
 }
 
-fn handle_request(engine: &LocalEngine, request: ConnectionRequest) -> ConnectionResponse {
-    match request {
-        ConnectionRequest::Append { stream_id, payload } => {
-            match engine.append(&stream_id, payload) {
-                Ok(outcome) => ConnectionResponse::AppendOk(map_append_outcome(outcome)),
-                Err(error) => engine_error_response(error),
-            }
-        }
-        ConnectionRequest::CreateBranch {
+fn handle_request(engine: &LocalEngine, request: ProtocolRequest) -> ProtocolResponse {
+    let request_id = request.request_id;
+    match request.operation {
+        OperationRequest::Append { stream_id, payload } => match engine.append(&stream_id, payload)
+        {
+            Ok(outcome) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::AppendOk(map_append_outcome(outcome)),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
+        OperationRequest::CreateBranch {
             stream_id,
             parent,
             metadata,
         } => match engine.create_branch(stream_id, parent, metadata) {
-            Ok(status) => {
-                ConnectionResponse::StreamStatusOk(map_stream_status(engine.durability(), status))
-            }
-            Err(error) => engine_error_response(error),
-        },
-        ConnectionRequest::CreateMerge { stream_id, merge } => {
-            match engine.create_merge(stream_id, merge) {
-                Ok(status) => ConnectionResponse::StreamStatusOk(map_stream_status(
-                    engine.durability(),
-                    status,
-                )),
-                Err(error) => engine_error_response(error),
-            }
-        }
-        ConnectionRequest::InspectLineage { stream_id } => {
-            match inspect_lineage(engine, &stream_id) {
-                Ok(lineage) => ConnectionResponse::LineageOk(lineage),
-                Err(error) => engine_error_response(error),
-            }
-        }
-        ConnectionRequest::Read { stream_id } => match engine.replay(&stream_id) {
-            Ok(records) => ConnectionResponse::RecordsOk(map_read_outcome(
-                stream_id,
+            Ok(status) => ack_response(
+                request_id,
                 engine.durability(),
-                records,
-            )),
-            Err(error) => engine_error_response(error),
+                OperationResponse::StreamStatusOk(map_stream_status(status)),
+            ),
+            Err(error) => engine_error_response(request_id, error),
         },
-        ConnectionRequest::Tail {
+        OperationRequest::CreateMerge { stream_id, merge } => {
+            match engine.create_merge(stream_id, merge) {
+                Ok(status) => ack_response(
+                    request_id,
+                    engine.durability(),
+                    OperationResponse::StreamStatusOk(map_stream_status(status)),
+                ),
+                Err(error) => engine_error_response(request_id, error),
+            }
+        }
+        OperationRequest::InspectLineage { stream_id } => match inspect_lineage(engine, &stream_id)
+        {
+            Ok(lineage) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::LineageOk(lineage),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
+        OperationRequest::Read { stream_id } => match engine.replay(&stream_id) {
+            Ok(records) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::RecordsOk(map_read_outcome(stream_id, records)),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
+        OperationRequest::Tail {
             stream_id,
             from_offset,
         } => match engine.tail_from(&stream_id, from_offset) {
-            Ok(records) => ConnectionResponse::RecordsOk(map_read_outcome(
-                stream_id,
+            Ok(records) => ack_response(
+                request_id,
                 engine.durability(),
-                records,
-            )),
-            Err(error) => engine_error_response(error),
+                OperationResponse::RecordsOk(map_read_outcome(stream_id, records)),
+            ),
+            Err(error) => engine_error_response(request_id, error),
         },
     }
 }
@@ -712,7 +897,6 @@ fn handle_request(engine: &LocalEngine, request: ConnectionRequest) -> Connectio
 fn map_append_outcome(outcome: LocalAppendOutcome) -> RemoteAppendOutcome {
     RemoteAppendOutcome {
         position: outcome.position().clone(),
-        durability: outcome.durability().as_str().to_owned(),
         manifest_generation: outcome.manifest_generation(),
         rolled_segment_id: outcome
             .rolled_segment()
@@ -720,22 +904,16 @@ fn map_append_outcome(outcome: LocalAppendOutcome) -> RemoteAppendOutcome {
     }
 }
 
-fn map_read_outcome(
-    stream_id: StreamId,
-    durability: DurabilityMode,
-    records: Vec<LocalRecord>,
-) -> RemoteReadOutcome {
+fn map_read_outcome(stream_id: StreamId, records: Vec<LocalRecord>) -> RemoteReadOutcome {
     RemoteReadOutcome {
         stream_id,
-        durability: durability.as_str().to_owned(),
         records: records.into_iter().map(map_record).collect(),
     }
 }
 
-fn map_stream_status(durability: DurabilityMode, status: LocalStreamStatus) -> RemoteStreamStatus {
+fn map_stream_status(status: LocalStreamStatus) -> RemoteStreamStatus {
     RemoteStreamStatus {
         stream_id: status.stream_id().clone(),
-        durability: durability.as_str().to_owned(),
         next_offset: status.next_offset(),
         active_record_count: status.active_record_count(),
         active_segment_start_offset: status.active_segment_start_offset(),
@@ -749,8 +927,7 @@ fn inspect_lineage(engine: &LocalEngine, stream_id: &StreamId) -> Result<RemoteL
     let status = engine.stream_status(stream_id)?;
     Ok(RemoteLineageOutcome {
         descriptor,
-        status: map_stream_status(engine.durability(), status),
-        topology: RemoteTopology::SingleNode,
+        status: map_stream_status(status),
     })
 }
 
@@ -761,25 +938,54 @@ fn map_record(record: LocalRecord) -> RemoteRecord {
     }
 }
 
-fn invalid_request_response(error: anyhow::Error) -> ConnectionResponse {
-    ConnectionResponse::Error(RemoteErrorResponse {
-        code: RemoteErrorCode::InvalidRequest,
-        message: error.to_string(),
-    })
+fn ack_response(
+    request_id: RequestId,
+    durability: DurabilityMode,
+    outcome: OperationResponse,
+) -> ProtocolResponse {
+    ProtocolResponse {
+        request_id,
+        envelope: ResponseEnvelope::Ack {
+            ack: RemoteAcknowledgement {
+                durability: durability.as_str().to_owned(),
+                topology: RemoteTopology::SingleNode,
+            },
+            outcome,
+        },
+    }
 }
 
-fn internal_error_response(message: String) -> ConnectionResponse {
-    ConnectionResponse::Error(RemoteErrorResponse {
-        code: RemoteErrorCode::Internal,
-        message,
-    })
+fn invalid_request_response(request_id: RequestId, error: anyhow::Error) -> ProtocolResponse {
+    error_response(
+        request_id,
+        RemoteErrorCode::InvalidRequest,
+        error.to_string(),
+    )
 }
 
-fn engine_error_response(error: anyhow::Error) -> ConnectionResponse {
-    ConnectionResponse::Error(RemoteErrorResponse {
-        code: classify_engine_error(&error),
-        message: error.to_string(),
-    })
+fn internal_error_response(request_id: RequestId, message: String) -> ProtocolResponse {
+    error_response(request_id, RemoteErrorCode::Internal, message)
+}
+
+fn engine_error_response(request_id: RequestId, error: anyhow::Error) -> ProtocolResponse {
+    error_response(request_id, classify_engine_error(&error), error.to_string())
+}
+
+fn error_response(
+    request_id: RequestId,
+    code: RemoteErrorCode,
+    message: String,
+) -> ProtocolResponse {
+    ProtocolResponse {
+        request_id,
+        envelope: ResponseEnvelope::Error {
+            error: ProtocolErrorResponse {
+                topology: RemoteTopology::SingleNode,
+                code,
+                message,
+            },
+        },
+    }
 }
 
 fn classify_engine_error(error: &anyhow::Error) -> RemoteErrorCode {
@@ -816,11 +1022,21 @@ fn is_invalid_request_message(message: &str) -> bool {
     .any(|pattern| message.contains(pattern))
 }
 
+fn unexpected_operation_response(
+    operation: &str,
+    outcome: &OperationResponse,
+) -> RemoteClientError {
+    RemoteClientError::Protocol(format!(
+        "{operation} expected a different response envelope, got {outcome:?}"
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        RemoteClient, RemoteClientError, RemoteErrorCode, RemoteTopology, ServerConfig,
-        ServerHandle,
+        OperationRequest, OperationResponse, ProtocolRequest, ProtocolResponse, RemoteClient,
+        RemoteClientError, RemoteErrorCode, RemoteTopology, RequestId, ResponseEnvelope,
+        ServerConfig, ServerHandle, configure_connection_stream,
     };
     use crate::engine::{DurabilityMode, LocalEngine, LocalEngineConfig};
     use crate::kernel::{
@@ -828,7 +1044,8 @@ mod tests {
         StreamId, StreamLineage, StreamPosition,
     };
     use serde_json::Value;
-    use std::net::TcpStream;
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::{SocketAddr, TcpStream};
     use std::time::Duration;
     use tempfile::tempdir;
 
@@ -841,6 +1058,28 @@ mod tests {
             stream_id(value),
             LineageMetadata::new(Some("test".into()), Some("server-bootstrap".into())),
         )
+    }
+
+    fn send_protocol_request(
+        server_addr: SocketAddr,
+        request: ProtocolRequest,
+    ) -> ProtocolResponse {
+        let mut stream =
+            TcpStream::connect_timeout(&server_addr, Duration::from_secs(1)).expect("connect");
+        configure_connection_stream(&stream, Duration::from_secs(1)).expect("configure stream");
+
+        let mut encoded = serde_json::to_vec(&request).expect("encode protocol request");
+        encoded.push(b'\n');
+        stream.write_all(&encoded).expect("write protocol request");
+        stream.flush().expect("flush protocol request");
+
+        let mut response_line = String::new();
+        let mut reader = BufReader::new(stream);
+        reader
+            .read_line(&mut response_line)
+            .expect("read protocol response");
+
+        serde_json::from_str(response_line.trim_end()).expect("decode protocol response")
     }
 
     #[test]
@@ -921,6 +1160,53 @@ mod tests {
     }
 
     #[test]
+    fn remote_protocol_envelope_carries_request_correlation_and_operation_selection() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path()),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let root_stream = stream_id("task.root");
+
+        server
+            .engine()
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+        server
+            .engine()
+            .append(&root_stream, b"seed")
+            .expect("append root");
+
+        let request = ProtocolRequest {
+            request_id: RequestId::new("req-42").expect("request id"),
+            operation: OperationRequest::Read {
+                stream_id: root_stream.clone(),
+            },
+        };
+        let response = send_protocol_request(server.local_addr(), request.clone());
+
+        assert_eq!(response.request_id, request.request_id);
+
+        match response.envelope {
+            ResponseEnvelope::Ack { ack, outcome } => {
+                assert_eq!(ack.durability(), "local");
+                assert_eq!(ack.topology(), RemoteTopology::SingleNode);
+                match outcome {
+                    OperationResponse::RecordsOk(read) => {
+                        assert_eq!(read.stream_id(), &root_stream);
+                        assert_eq!(read.records().len(), 1);
+                    }
+                    other => panic!("expected records outcome, got {other:?}"),
+                }
+            }
+            other => panic!("expected ack envelope, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
     fn remote_append_read_and_tail_preserve_positions_and_branch_aware_replay_behavior() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
@@ -957,9 +1243,9 @@ mod tests {
             .append(&branch_stream, b"branch-only")
             .expect("append branch");
 
-        assert_eq!(first.position().offset.value(), 0);
-        assert_eq!(second.position().offset.value(), 1);
-        assert_eq!(branch_append.position().offset.value(), 2);
+        assert_eq!(first.body().position().offset.value(), 0);
+        assert_eq!(second.body().position().offset.value(), 1);
+        assert_eq!(branch_append.body().position().offset.value(), 2);
 
         let root_read = client.read(&root_stream).expect("read root");
         let branch_read = client.read(&branch_stream).expect("read branch");
@@ -968,21 +1254,25 @@ mod tests {
             .expect("tail root");
 
         let root_offsets: Vec<u64> = root_read
+            .body()
             .records()
             .iter()
             .map(|record| record.position().offset.value())
             .collect();
         let branch_offsets: Vec<u64> = branch_read
+            .body()
             .records()
             .iter()
             .map(|record| record.position().offset.value())
             .collect();
         let branch_payloads: Vec<&[u8]> = branch_read
+            .body()
             .records()
             .iter()
             .map(|record| record.payload())
             .collect();
         let tail_payloads: Vec<&[u8]> = root_tail
+            .body()
             .records()
             .iter()
             .map(|record| record.payload())
@@ -999,15 +1289,15 @@ mod tests {
             ]
         );
         assert_eq!(tail_payloads, vec![b"second".as_slice()]);
-        assert_eq!(root_read.durability(), "local");
-        assert_eq!(branch_read.durability(), "local");
-        assert_eq!(root_tail.durability(), "local");
+        assert_eq!(root_read.ack().durability(), "local");
+        assert_eq!(branch_read.ack().durability(), "local");
+        assert_eq!(root_tail.ack().durability(), "local");
 
         server.shutdown().expect("shutdown server");
     }
 
     #[test]
-    fn remote_append_and_read_surface_explicit_durability_and_error_information() {
+    fn remote_client_surfaces_explicit_acknowledgement_and_error_envelopes() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
             LocalEngineConfig::new(temp_dir.path()),
@@ -1023,7 +1313,9 @@ mod tests {
             .expect_err("missing read should fail");
         match missing_read {
             RemoteClientError::Remote(error) => {
+                assert!(!error.request_id().as_str().is_empty());
                 assert_eq!(error.code(), RemoteErrorCode::NotFound);
+                assert_eq!(error.topology(), RemoteTopology::SingleNode);
                 assert!(error.message().contains("task.missing"));
             }
             other => panic!("expected remote error, got {other:?}"),
@@ -1040,14 +1332,19 @@ mod tests {
             .append(&missing_stream, b"payload")
             .expect_err("missing append should fail");
 
-        assert_eq!(append.durability(), "local");
-        assert_eq!(append.manifest_generation(), 0);
-        assert_eq!(read.durability(), "local");
-        assert_eq!(read.records().len(), 1);
+        assert!(!append.request_id().as_str().is_empty());
+        assert_eq!(append.ack().durability(), "local");
+        assert_eq!(append.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(append.body().manifest_generation(), 0);
+        assert_eq!(read.ack().durability(), "local");
+        assert_eq!(read.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(read.body().records().len(), 1);
 
         match missing_append {
             RemoteClientError::Remote(error) => {
+                assert!(!error.request_id().as_str().is_empty());
                 assert_eq!(error.code(), RemoteErrorCode::NotFound);
+                assert_eq!(error.topology(), RemoteTopology::SingleNode);
                 assert!(error.message().contains("task.missing"));
             }
             other => panic!("expected remote error, got {other:?}"),
@@ -1086,11 +1383,13 @@ mod tests {
             .expect("tail again");
 
         let initial_payloads: Vec<&[u8]> = initial_tail
+            .body()
             .records()
             .iter()
             .map(|record| record.payload())
             .collect();
         let follow_up_payloads: Vec<&[u8]> = follow_up_tail
+            .body()
             .records()
             .iter()
             .map(|record| record.payload())
@@ -1101,8 +1400,8 @@ mod tests {
             vec![b"second".as_slice(), b"third".as_slice()]
         );
         assert_eq!(follow_up_payloads, vec![b"fourth".as_slice()]);
-        assert_eq!(initial_tail.durability(), "local");
-        assert_eq!(follow_up_tail.durability(), "local");
+        assert_eq!(initial_tail.ack().durability(), "local");
+        assert_eq!(follow_up_tail.ack().durability(), "local");
 
         server.shutdown().expect("shutdown server");
     }
@@ -1149,15 +1448,15 @@ mod tests {
             .expect("inspect branch lineage");
         let branch_read = client.read(&branch_stream).expect("read branch");
 
-        assert_eq!(branch_status.stream_id(), &branch_stream);
-        assert_eq!(branch_status.durability(), "local");
-        assert_eq!(branch_status.next_offset().value(), 2);
-        assert_eq!(branch_append.position().offset.value(), 2);
-        assert_eq!(lineage.topology(), RemoteTopology::SingleNode);
-        assert_eq!(lineage.status().stream_id(), &branch_stream);
-        assert_eq!(lineage.status().next_offset().value(), 3);
+        assert_eq!(branch_status.body().stream_id(), &branch_stream);
+        assert_eq!(branch_status.ack().durability(), "local");
+        assert_eq!(branch_status.body().next_offset().value(), 2);
+        assert_eq!(branch_append.body().position().offset.value(), 2);
+        assert_eq!(lineage.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(lineage.body().status().stream_id(), &branch_stream);
+        assert_eq!(lineage.body().status().next_offset().value(), 3);
 
-        match &lineage.descriptor().lineage {
+        match &lineage.body().descriptor().lineage {
             StreamLineage::Branch { branch_point } => {
                 assert_eq!(branch_point.parent.stream_id, root_stream);
                 assert_eq!(branch_point.parent.offset.value(), 1);
@@ -1170,6 +1469,7 @@ mod tests {
         }
 
         let payloads: Vec<&[u8]> = branch_read
+            .body()
             .records()
             .iter()
             .map(|record| record.payload())
@@ -1244,24 +1544,15 @@ mod tests {
             .inspect_lineage(&merge_stream)
             .expect("inspect merge lineage");
 
-        assert_eq!(merge_status.stream_id(), &merge_stream);
-        assert_eq!(merge_status.durability(), "local");
-        assert_eq!(merge_status.next_offset().value(), 1);
-        assert_eq!(lineage.topology(), RemoteTopology::SingleNode);
+        assert_eq!(merge_status.body().stream_id(), &merge_stream);
+        assert_eq!(merge_status.ack().durability(), "local");
+        assert_eq!(merge_status.body().next_offset().value(), 1);
+        assert_eq!(lineage.ack().topology(), RemoteTopology::SingleNode);
 
-        match &lineage.descriptor().lineage {
+        match &lineage.body().descriptor().lineage {
             StreamLineage::Merge { merge } => assert_eq!(merge, &merge_spec),
             other => panic!("expected merge lineage, got {other:?}"),
         }
-
-        let encoded = serde_json::to_value(&lineage).expect("encode lineage");
-        assert_eq!(
-            encoded.get("topology").and_then(Value::as_str),
-            Some("single_node")
-        );
-        assert!(encoded.get("replication").is_none());
-        assert!(encoded.get("leader").is_none());
-        assert!(encoded.get("quorum").is_none());
 
         server.shutdown().expect("shutdown server");
     }
@@ -1294,7 +1585,9 @@ mod tests {
 
         match error {
             RemoteClientError::Remote(error) => {
+                assert!(!error.request_id().as_str().is_empty());
                 assert_eq!(error.code(), RemoteErrorCode::InvalidRequest);
+                assert_eq!(error.topology(), RemoteTopology::SingleNode);
                 assert!(error.message().contains("lineage position"));
             }
             other => panic!("expected remote invalid_request, got {other:?}"),
@@ -1304,7 +1597,8 @@ mod tests {
     }
 
     #[test]
-    fn remote_lineage_inspection_declares_single_node_topology_without_replication_fields() {
+    fn remote_acknowledgement_semantics_remain_explicit_about_durability_and_non_replication_scope()
+    {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
             LocalEngineConfig::new(temp_dir.path()),
@@ -1319,15 +1613,18 @@ mod tests {
             .create_stream(root_descriptor("task.root"))
             .expect("create root");
 
-        let lineage = client
-            .inspect_lineage(&root_stream)
-            .expect("inspect root lineage");
-        let encoded = serde_json::to_value(&lineage).expect("encode lineage");
+        let read = client.read(&root_stream).expect("read root");
+        let encoded = serde_json::to_value(read.ack()).expect("encode ack");
 
-        assert_eq!(lineage.topology(), RemoteTopology::SingleNode);
+        assert_eq!(read.ack().durability(), "local");
+        assert_eq!(read.ack().topology(), RemoteTopology::SingleNode);
         assert_eq!(
             encoded.get("topology").and_then(Value::as_str),
             Some("single_node")
+        );
+        assert_eq!(
+            encoded.get("durability").and_then(Value::as_str),
+            Some("local")
         );
         assert!(encoded.get("replication").is_none());
         assert!(encoded.get("leader").is_none());
