@@ -2,12 +2,13 @@
 id: VDeaLlZeR
 title: Implement Branch And Merge Execution On The Local Engine
 type: feat
-status: backlog
+status: in-progress
 created_at: 2026-03-12T04:59:06
-updated_at: 2026-03-12T05:01:14
+updated_at: 2026-03-12T05:28:41
 operator-signal: 
 scope: VDeYUdLSW/VDeaFjrZW
 index: 2
+started_at: 2026-03-12T05:28:41
 ---
 
 # Implement Branch And Merge Execution On The Local Engine
