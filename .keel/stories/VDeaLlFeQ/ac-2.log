@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+Implemented local tail reads in `crates/transit-core/src/engine.rs`:
+- `LocalEngine::tail_from` filters replay from an explicit offset boundary
+- tail reads span rolled immutable segments and the active local head using the same offset-validation path as replay
+- the read path preserves stream-local monotonic order across the roll boundary
+
+The `engine::tests::tail_from_reads_across_rolled_segments_and_active_head` test verifies tail results that cross from a rolled segment into the active head.

@@ -5,7 +5,7 @@ use crate::storage::{
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 const STREAMS_DIR: &str = "streams";
@@ -88,6 +88,29 @@ impl LocalAppendOutcome {
 
     pub fn rolled_segment(&self) -> Option<&SegmentDescriptor> {
         self.rolled_segment.as_ref()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalRecord {
+    position: StreamPosition,
+    payload: Vec<u8>,
+}
+
+impl LocalRecord {
+    fn from_persisted(stream_id: StreamId, record: PersistedRecord) -> Self {
+        Self {
+            position: StreamPosition::new(stream_id, Offset::new(record.offset)),
+            payload: record.payload,
+        }
+    }
+
+    pub fn position(&self) -> &StreamPosition {
+        &self.position
+    }
+
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
     }
 }
 
@@ -223,6 +246,41 @@ impl LocalEngine {
         read_json(&self.manifest_path(stream_id))
     }
 
+    pub fn replay(&self, stream_id: &StreamId) -> Result<Vec<LocalRecord>> {
+        self.tail_from(stream_id, Offset::new(0))
+    }
+
+    pub fn tail_from(&self, stream_id: &StreamId, from: Offset) -> Result<Vec<LocalRecord>> {
+        let state = self.load_state(stream_id)?;
+        if from.value() >= state.next_offset {
+            return Ok(Vec::new());
+        }
+
+        let manifest = self.load_manifest(stream_id)?;
+        let mut records = Vec::new();
+        let mut expected_next_offset = 0_u64;
+
+        for descriptor in manifest.segments() {
+            let segment_records =
+                self.read_committed_segment(stream_id, descriptor, expected_next_offset)?;
+            expected_next_offset = descriptor.last_offset().value() + 1;
+            records.extend(
+                segment_records
+                    .into_iter()
+                    .filter(|record| record.position.offset.value() >= from.value()),
+            );
+        }
+
+        let active_records = self.read_active_head(stream_id, &state, expected_next_offset)?;
+        records.extend(
+            active_records
+                .into_iter()
+                .filter(|record| record.position.offset.value() >= from.value()),
+        );
+
+        Ok(records)
+    }
+
     pub fn stream_status(&self, stream_id: &StreamId) -> Result<LocalStreamStatus> {
         let state = self.load_state(stream_id)?;
         let manifest = self.load_manifest(stream_id)?;
@@ -298,6 +356,100 @@ impl LocalEngine {
 
     fn load_state(&self, stream_id: &StreamId) -> Result<LocalStreamState> {
         read_json(&self.state_path(stream_id))
+    }
+
+    fn read_committed_segment(
+        &self,
+        stream_id: &StreamId,
+        descriptor: &SegmentDescriptor,
+        expected_start_offset: u64,
+    ) -> Result<Vec<LocalRecord>> {
+        ensure!(
+            descriptor.stream_id() == stream_id,
+            "segment '{}' belongs to '{}' not '{}'",
+            descriptor.segment_id().as_str(),
+            descriptor.stream_id().as_str(),
+            stream_id.as_str()
+        );
+        ensure!(
+            descriptor.start_offset().value() == expected_start_offset,
+            "segment '{}' starts at {} but replay expected {}",
+            descriptor.segment_id().as_str(),
+            descriptor.start_offset().value(),
+            expected_start_offset
+        );
+
+        let segment_path = descriptor
+            .storage()
+            .local_path()
+            .cloned()
+            .context("local replay requires a local segment path")?;
+        let persisted = read_records(&segment_path)?;
+        ensure!(
+            persisted.len() as u64 == descriptor.record_count(),
+            "segment '{}' expected {} records but found {}",
+            descriptor.segment_id().as_str(),
+            descriptor.record_count(),
+            persisted.len()
+        );
+        ensure!(
+            fs::metadata(&segment_path)
+                .with_context(|| format!("read metadata for {}", segment_path.display()))?
+                .len()
+                == descriptor.byte_length(),
+            "segment '{}' expected {} bytes on disk",
+            descriptor.segment_id().as_str(),
+            descriptor.byte_length()
+        );
+
+        validate_record_offsets(
+            &persisted,
+            descriptor.start_offset().value(),
+            descriptor.last_offset().value() + 1,
+            &format!("segment '{}'", descriptor.segment_id().as_str()),
+        )?;
+
+        Ok(persisted
+            .into_iter()
+            .map(|record| LocalRecord::from_persisted(stream_id.clone(), record))
+            .collect())
+    }
+
+    fn read_active_head(
+        &self,
+        stream_id: &StreamId,
+        state: &LocalStreamState,
+        expected_start_offset: u64,
+    ) -> Result<Vec<LocalRecord>> {
+        ensure!(
+            state.active_segment_start_offset == expected_start_offset,
+            "active head for '{}' starts at {} but replay expected {}",
+            stream_id.as_str(),
+            state.active_segment_start_offset,
+            expected_start_offset
+        );
+
+        let active_path = self.active_segment_path(stream_id);
+        let persisted = read_records(&active_path)?;
+        ensure!(
+            persisted.len() as u64 == state.active_record_count,
+            "active head for '{}' expected {} records but found {}",
+            stream_id.as_str(),
+            state.active_record_count,
+            persisted.len()
+        );
+
+        validate_record_offsets(
+            &persisted,
+            state.active_segment_start_offset,
+            state.next_offset,
+            &format!("active head for '{}'", stream_id.as_str()),
+        )?;
+
+        Ok(persisted
+            .into_iter()
+            .map(|record| LocalRecord::from_persisted(stream_id.clone(), record))
+            .collect())
     }
 
     fn stream_dir(&self, stream_id: &StreamId) -> PathBuf {
@@ -390,6 +542,62 @@ where
 {
     let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
     serde_json::from_slice(&bytes).with_context(|| format!("parse {}", path.display()))
+}
+
+fn read_records(path: &Path) -> Result<Vec<PersistedRecord>> {
+    let file = File::open(path).with_context(|| format!("open {}", path.display()))?;
+    let reader = BufReader::new(file);
+    let mut records = Vec::new();
+
+    for (line_number, line) in reader.lines().enumerate() {
+        let line =
+            line.with_context(|| format!("read line {} from {}", line_number + 1, path.display()))?;
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let record = serde_json::from_str::<PersistedRecord>(&line)
+            .with_context(|| format!("parse line {} from {}", line_number + 1, path.display()))?;
+        records.push(record);
+    }
+
+    Ok(records)
+}
+
+fn validate_record_offsets(
+    records: &[PersistedRecord],
+    expected_start_offset: u64,
+    expected_next_offset: u64,
+    scope: &str,
+) -> Result<()> {
+    if records.is_empty() {
+        ensure!(
+            expected_start_offset == expected_next_offset,
+            "{scope} is empty but expected offsets {}..{}",
+            expected_start_offset,
+            expected_next_offset
+        );
+        return Ok(());
+    }
+
+    let mut next_offset = expected_start_offset;
+    for record in records {
+        ensure!(
+            record.offset == next_offset,
+            "{scope} expected offset {} but found {}",
+            next_offset,
+            record.offset
+        );
+        next_offset += 1;
+    }
+
+    ensure!(
+        next_offset == expected_next_offset,
+        "{scope} ended at {} but expected {}",
+        next_offset,
+        expected_next_offset
+    );
+    Ok(())
 }
 
 fn write_json_durable<T>(path: &Path, value: &T) -> Result<()>
@@ -619,5 +827,113 @@ mod tests {
             .len(),
             outcome.rolled_segment().expect("rolled").byte_length()
         );
+    }
+
+    #[test]
+    fn replay_reads_committed_records_in_manifest_order() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+
+        for payload in ["first", "second", "third", "fourth", "fifth"] {
+            engine
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        let replayed = engine.replay(&stream_id).expect("replay");
+        let offsets: Vec<u64> = replayed
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let payloads: Vec<&[u8]> = replayed.iter().map(|record| record.payload()).collect();
+
+        assert_eq!(offsets, vec![0, 1, 2, 3, 4]);
+        assert_eq!(
+            payloads,
+            vec![
+                b"first".as_slice(),
+                b"second".as_slice(),
+                b"third".as_slice(),
+                b"fourth".as_slice(),
+                b"fifth".as_slice()
+            ]
+        );
+    }
+
+    #[test]
+    fn tail_from_reads_across_rolled_segments_and_active_head() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+
+        for payload in ["first", "second", "third", "fourth", "fifth"] {
+            engine
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        let tailed = engine.tail_from(&stream_id, Offset::new(3)).expect("tail");
+        let offsets: Vec<u64> = tailed
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let payloads: Vec<&[u8]> = tailed.iter().map(|record| record.payload()).collect();
+
+        assert_eq!(offsets, vec![3, 4]);
+        assert_eq!(payloads, vec![b"fourth".as_slice(), b"fifth".as_slice()]);
+        assert!(
+            engine
+                .tail_from(&stream_id, Offset::new(5))
+                .expect("empty")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn replay_stays_local_first_without_remote_hydration() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(1)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+
+        engine.append(&stream_id, b"first").expect("append");
+        engine.append(&stream_id, b"second").expect("append");
+
+        let manifest = engine.load_manifest(&stream_id).expect("manifest");
+        assert!(
+            manifest
+                .segments()
+                .iter()
+                .all(|segment| segment.storage().object_store().is_none())
+        );
+
+        let replayed = engine.replay(&stream_id).expect("replay");
+        assert_eq!(replayed.len(), 2);
+        assert_eq!(replayed[0].position().offset.value(), 0);
+        assert_eq!(replayed[1].position().offset.value(), 1);
     }
 }

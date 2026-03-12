@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+The local read path remains single-node and local-first:
+- replay requires local segment paths from manifest metadata
+- active-head reads come directly from local `active.segment`
+- no remote hydration or server-mode path is required for correctness
+
+The `engine::tests::replay_stays_local_first_without_remote_hydration` test verifies replay succeeds with local-only manifest state and no object-store metadata.

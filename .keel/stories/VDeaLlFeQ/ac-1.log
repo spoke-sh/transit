@@ -1,0 +1,8 @@
+Executed `cargo test --workspace`.
+
+Implemented manifest-backed local replay in `crates/transit-core/src/engine.rs`:
+- `LocalEngine::replay` serves ordered records from immutable rolled segments plus the active head
+- replay iterates manifest segment descriptors instead of relying on directory listing order
+- replay validates segment-local offsets, record counts, and on-disk byte lengths against manifest metadata
+
+The `engine::tests::replay_reads_committed_records_in_manifest_order` test verifies logical stream-order replay across multiple rolled segments and the active head.
