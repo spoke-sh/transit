@@ -37,11 +37,11 @@
 | [Local Engine Core And Recovery](epics/VDeYUdLSW/voyages/VDeaFjrZW/) | done |
 | [Cold History Publication And Restore](epics/VDeYUdLSW/voyages/VDeb794qi/) | done |
 
-### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (active)
+### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Materialization Contract And Snapshot Model](epics/VDd0u3PFg/voyages/VDexXBU7g/) | in-progress |
+| [Materialization Contract And Snapshot Model](epics/VDd0u3PFg/voyages/VDexXBU7g/) | done |
 
 ### [Research Agent Runtime And Model Harness Workloads](epics/VDd1EybWm/) (done)
 

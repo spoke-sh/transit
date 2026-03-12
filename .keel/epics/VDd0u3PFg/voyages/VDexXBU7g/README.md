@@ -1,12 +1,13 @@
 ---
 id: VDexXBU7g
 title: Materialization Contract And Snapshot Model
-status: in-progress
+status: done
 epic: VDd0u3PFg
 created_at: 2026-03-12T06:31:12
 index: 1
 updated_at: 2026-03-12T06:34:47
 started_at: 2026-03-12T06:36:06
+completed_at: 2026-03-12T06:46:25
 ---
 
 # Materialization Contract And Snapshot Model
@@ -20,16 +21,18 @@ started_at: 2026-03-12T06:36:06
 |----------|-------------|
 | [SRS.md](SRS.md) | Requirements and verification criteria |
 | [SDD.md](SDD.md) | Architecture and implementation details |
+| [VOYAGE_REPORT.md](VOYAGE_REPORT.md) | Narrative summary of implementation and evidence |
+| [COMPLIANCE_REPORT.md](COMPLIANCE_REPORT.md) | Traceability matrix and verification proof |
 <!-- END DOCUMENTS -->
 
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 2/3 stories complete
+**Progress:** 3/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Define Transit Materialization Contract](../../../../stories/VDexcKG5C/README.md) | feat | done |
 | [Define Branch-Aware Snapshot And Merge Semantics](../../../../stories/VDexdgkjG/README.md) | feat | done |
-| [Align Materialization Guidance Across Repo Docs](../../../../stories/VDexfJm5D/README.md) | feat | backlog |
+| [Align Materialization Guidance Across Repo Docs](../../../../stories/VDexfJm5D/README.md) | feat | done |
 <!-- END GENERATED -->
