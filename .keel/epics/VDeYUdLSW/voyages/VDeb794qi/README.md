@@ -30,6 +30,6 @@ started_at: 2026-03-12T06:01:42
 | Title | Type | Status |
 |-------|------|--------|
 | [Implement Cold Restore From Remote Manifests](../../../../stories/VDeb9ncrT/README.md) | feat | done |
-| [Prove Tiered Durability And Shared Engine Boundaries](../../../../stories/VDeb9o4rS/README.md) | feat | backlog |
+| [Prove Tiered Durability And Shared Engine Boundaries](../../../../stories/VDeb9o4rS/README.md) | feat | in-progress |
 | [Implement Object-Store Publication For Rolled Segments](../../../../stories/VDeb9oJrQ/README.md) | feat | done |
 <!-- END GENERATED -->
