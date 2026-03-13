@@ -308,6 +308,31 @@ impl MaterializationBoundary {
     }
 }
 
+/// Integrity envelope for a stable stream head.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LineageCheckpoint {
+    pub stream_id: StreamId,
+    pub head_offset: Offset,
+    pub manifest_root: ContentDigest,
+    pub kind: String, // e.g., "resume", "snapshot", "handoff"
+}
+
+impl LineageCheckpoint {
+    pub fn new(
+        stream_id: StreamId,
+        head_offset: Offset,
+        manifest_root: ContentDigest,
+        kind: impl Into<String>,
+    ) -> Self {
+        Self {
+            stream_id,
+            head_offset,
+            manifest_root,
+            kind: kind.into(),
+        }
+    }
+}
+
 /// Authoritative mapping from stream lineage to immutable segments.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SegmentManifest {

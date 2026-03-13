@@ -36,6 +36,15 @@ impl Offset {
     pub const fn value(self) -> u64 {
         self.0
     }
+
+    pub fn increment(self) -> Self {
+        Self(self.0 + 1)
+    }
+
+    pub fn decrement(self) -> Result<Self> {
+        ensure!(self.0 > 0, "cannot decrement offset 0");
+        Ok(Self(self.0 - 1))
+    }
 }
 
 /// Explicit stream-local record identity.

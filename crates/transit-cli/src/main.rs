@@ -54,6 +54,10 @@ enum MissionCommands {
     NetworkedServerProof(LocalEngineProofArgs),
     /// Explicitly verify the cryptographic integrity of local history.
     VerifyLineage(VerifyLineageArgs),
+    /// Create a verifiable checkpoint for a stream head.
+    Checkpoint(CheckpointArgs),
+    /// Verify an existing lineage checkpoint.
+    VerifyCheckpoint(VerifyCheckpointArgs),
 }
 
 #[derive(Debug, Args)]
@@ -85,6 +89,35 @@ struct VerifyLineageArgs {
     #[arg(long = "stream-id")]
     stream_id: String,
     /// Render verification output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct CheckpointArgs {
+    /// Filesystem root used for the shared local engine.
+    #[arg(long)]
+    root: PathBuf,
+    /// Stream identifier to checkpoint.
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    /// Checkpoint kind (e.g., "handoff", "snapshot").
+    #[arg(long, default_value = "handoff")]
+    kind: String,
+    /// Render checkpoint as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct VerifyCheckpointArgs {
+    /// Filesystem root used for the shared local engine.
+    #[arg(long)]
+    root: PathBuf,
+    /// Path to the JSON checkpoint file to verify.
+    #[arg(long)]
+    checkpoint_path: PathBuf,
+    /// Render verification result as JSON.
     #[arg(long)]
     json: bool,
 }
@@ -306,6 +339,12 @@ async fn main() -> Result<()> {
             MissionCommands::VerifyLineage(args) => {
                 render_verify_lineage(run_verify_lineage(&args)?, args.json)?
             }
+            MissionCommands::Checkpoint(args) => {
+                render_checkpoint(run_checkpoint(&args)?, args.json)?
+            }
+            MissionCommands::VerifyCheckpoint(args) => {
+                render_verify_checkpoint(run_verify_checkpoint(&args)?, args.json)?
+            }
         },
         Commands::ObjectStore(args) => match args.command {
             ObjectStoreCommands::Probe(args) => render_object_store_probe(
@@ -460,6 +499,89 @@ fn render_verify_lineage(outcome: VerifyLineageOutcome, json: bool) -> Result<()
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct CheckpointOutcome {
+    stream_id: transit_core::kernel::StreamId,
+    head_offset: transit_core::kernel::Offset,
+    manifest_root: transit_core::storage::ContentDigest,
+    kind: String,
+}
+
+fn run_checkpoint(args: &CheckpointArgs) -> Result<CheckpointOutcome> {
+    use transit_core::engine::{LocalEngine, LocalEngineConfig};
+    use transit_core::kernel::StreamId;
+
+    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root))?;
+    let stream_id = StreamId::new(&args.stream_id)?;
+    let checkpoint = engine.checkpoint(&stream_id, &args.kind)?;
+
+    Ok(CheckpointOutcome {
+        stream_id: checkpoint.stream_id,
+        head_offset: checkpoint.head_offset,
+        manifest_root: checkpoint.manifest_root,
+        kind: checkpoint.kind,
+    })
+}
+
+fn render_checkpoint(outcome: CheckpointOutcome, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&outcome)?);
+        return Ok(());
+    }
+
+    println!("transit integrity: lineage checkpoint created");
+    println!("  stream: {}", outcome.stream_id.as_str());
+    println!("  head:   {}", outcome.head_offset.value());
+    println!("  root:   {}", outcome.manifest_root.digest());
+    println!("  kind:   {}", outcome.kind);
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct VerifyCheckpointOutcome {
+    verified: bool,
+    error: Option<String>,
+}
+
+fn run_verify_checkpoint(args: &VerifyCheckpointArgs) -> Result<VerifyCheckpointOutcome> {
+    use transit_core::engine::{LocalEngine, LocalEngineConfig};
+    use transit_core::storage::LineageCheckpoint;
+
+    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root))?;
+    let bytes = fs::read(&args.checkpoint_path).context("read checkpoint file")?;
+    let checkpoint: LineageCheckpoint = serde_json::from_slice(&bytes).context("parse checkpoint")?;
+
+    match engine.verify_checkpoint(&checkpoint) {
+        Ok(_) => Ok(VerifyCheckpointOutcome {
+            verified: true,
+            error: None,
+        }),
+        Err(e) => Ok(VerifyCheckpointOutcome {
+            verified: false,
+            error: Some(format!("{e:#}")),
+        }),
+    }
+}
+
+fn render_verify_checkpoint(outcome: VerifyCheckpointOutcome, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&outcome)?);
+        return Ok(());
+    }
+
+    if outcome.verified {
+        println!("transit integrity: checkpoint VERIFIED");
+    } else {
+        println!("transit integrity: checkpoint FAILED");
+        if let Some(error) = outcome.error {
+            println!("error: {error}");
+        }
+    }
+
+    Ok(())
+}
+
 fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&status)?);
@@ -473,20 +595,21 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
     println!("version: {}", status.version);
 
     // Visual completion profile
-    // X-axis: 0:Core, 1:Server, 2:Research, 3:Next
+    // X-axis: 0:Core, 1:Server, 2:Integrity, 3:Next
     // Y-axis: % Completion
+    let integrity_score = if status.integrity_ready { 100.0 } else { 0.0 };
     let points = vec![
         (0.0, 100.0), // Core
         (1.0, 100.0), // Server
-        (2.0, 100.0), // Research
-        (3.0, 0.0),   // Next (Integrity/Multi-node)
+        (2.0, integrity_score), // Integrity
+        (3.0, 0.0),   // Next (Materialization/Multi-node)
     ];
 
     println!("\nCompletion Profile:");
     Chart::new(60, 40, 0.0, 3.0)
         .lineplot(&Shape::Lines(&points))
         .display();
-    println!("  0:Core  1:Server  2:Research  3:Next\n");
+    println!("  0:Core  1:Server  2:Integrity  3:Next\n");
 
     println!(
         "docs: {}/{} present",
@@ -523,8 +646,8 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
     }
 
     println!("\nNext Missions:");
-    println!("  - Verifiable Lineage (Hardening)");
     println!("  - Materialization (Processing)");
+    println!("  - Multi-Node Consensus (Durability)");
     println!("  - Multi-Node Replication (Distribution)");
     println!("  - Client Libraries (Expansion)");
 

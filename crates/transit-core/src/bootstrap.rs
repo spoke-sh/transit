@@ -43,6 +43,7 @@ pub struct MissionStatus {
     pub workspace_files: Vec<ArtifactStatus>,
     pub kernel_files: Vec<ArtifactStatus>,
     pub ready: bool,
+    pub integrity_ready: bool,
 }
 
 impl MissionStatus {
@@ -92,6 +93,8 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
         && workspace_files.iter().all(|artifact| artifact.present)
         && kernel_files.iter().all(|artifact| artifact.present);
 
+    let integrity_ready = docs.iter().any(|a| a.path == "INTEGRITY.md" && a.present);
+
     MissionStatus {
         project: "transit",
         version: env!("CARGO_PKG_VERSION"),
@@ -101,6 +104,7 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
         workspace_files,
         kernel_files,
         ready,
+        integrity_ready,
     }
 }
 

@@ -2,8 +2,8 @@ use crate::kernel::{
     LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage, StreamPosition,
 };
 use crate::storage::{
-    ContentDigest, ManifestId, ObjectStoreKey, ObjectStoreLocation, SegmentChecksum,
-    SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
+    ContentDigest, LineageCheckpoint, ManifestId, ObjectStoreKey, ObjectStoreLocation,
+    SegmentChecksum, SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
 };
 use anyhow::{Context, Result, ensure};
 use bytes::Bytes;
@@ -312,12 +312,20 @@ impl LocalEngine {
         fs::create_dir_all(stream_dir.join(SEGMENTS_DIR))
             .with_context(|| format!("create stream directory at {}", stream_dir.display()))?;
 
+        let manifest_root = compute_manifest_root(
+            manifest_id(0)?,
+            &state.descriptor,
+            0,
+            &[],
+            None,
+        )?;
+
         let manifest = SegmentManifest::new(
             manifest_id(0)?,
             state.descriptor.clone(),
             0,
             Vec::new(),
-            ContentDigest::new("sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")?, // empty SHA256
+            manifest_root,
             local_storage(self.manifest_path(state.stream_id()))?,
             None,
         );
@@ -691,6 +699,37 @@ impl LocalEngine {
             .into_iter()
             .filter(|record| record.position.offset.value() >= from.value())
             .collect())
+    }
+
+    /// Create a verifiable checkpoint for the current stream head.
+    pub fn checkpoint(&self, stream_id: &StreamId, kind: impl Into<String>) -> Result<LineageCheckpoint> {
+        let status = self.stream_status(stream_id)?;
+        let manifest = self.load_manifest(stream_id)?;
+
+        Ok(LineageCheckpoint::new(
+            stream_id.clone(),
+            status.next_offset().decrement()?, // Bind to last record
+            manifest.manifest_root().clone(),
+            kind,
+        ))
+    }
+
+    /// Verify that a checkpoint correctly binds to the current stream state.
+    pub fn verify_checkpoint(&self, checkpoint: &LineageCheckpoint) -> Result<()> {
+        let manifest = self.load_manifest(&checkpoint.stream_id)?;
+        
+        ensure!(
+            checkpoint.manifest_root == *manifest.manifest_root(),
+            "checkpoint manifest root mismatch for '{}': expected {}, found {}",
+            checkpoint.stream_id.as_str(),
+            checkpoint.manifest_root.digest(),
+            manifest.manifest_root().digest()
+        );
+
+        // Also verify the lineage to be safe
+        self.verify_local_lineage(&checkpoint.stream_id)?;
+
+        Ok(())
     }
 
     pub fn stream_status(&self, stream_id: &StreamId) -> Result<LocalStreamStatus> {
@@ -2327,5 +2366,35 @@ mod tests {
 
         let err = engine.verify_local_lineage(&target_stream_id_2).expect_err("should detect tampered manifest");
         assert!(err.to_string().contains("local manifest root mismatch"));
+    }
+
+    #[test]
+    fn checkpoints_bind_to_manifest_roots_and_detect_tampering() {
+        use crate::storage::ContentDigest;
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(1)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        engine.create_stream(root_descriptor("task.root")).expect("create stream");
+        engine.append(&stream_id, b"first").expect("append");
+
+        let checkpoint = engine.checkpoint(&stream_id, "test").expect("checkpoint");
+        assert_eq!(checkpoint.head_offset.value(), 0);
+        engine.verify_checkpoint(&checkpoint).expect("initial verification");
+
+        // 1. Tamper with checkpoint
+        let mut tampered_checkpoint = checkpoint.clone();
+        tampered_checkpoint.manifest_root = ContentDigest::new("sha256", "deadbeef").expect("digest");
+        let err = engine.verify_checkpoint(&tampered_checkpoint).expect_err("should detect tampered checkpoint");
+        assert!(err.to_string().contains("checkpoint manifest root mismatch"));
+
+        // 2. Append more data (manifest root changes)
+        engine.append(&stream_id, b"second").expect("append 2");
+        let err = engine.verify_checkpoint(&checkpoint).expect_err("should detect stale checkpoint");
+        assert!(err.to_string().contains("checkpoint manifest root mismatch"));
     }
 }
