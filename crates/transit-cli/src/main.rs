@@ -52,6 +52,8 @@ enum MissionCommands {
     TieredEngineProof(LocalEngineProofArgs),
     /// Exercise the networked single-node server and its transport boundary end to end.
     NetworkedServerProof(LocalEngineProofArgs),
+    /// Explicitly verify the cryptographic integrity of local history.
+    VerifyLineage(VerifyLineageArgs),
 }
 
 #[derive(Debug, Args)]
@@ -70,6 +72,19 @@ struct LocalEngineProofArgs {
     #[arg(long)]
     root: PathBuf,
     /// Render proof output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct VerifyLineageArgs {
+    /// Filesystem root used for the shared local engine.
+    #[arg(long)]
+    root: PathBuf,
+    /// Stream identifier to verify.
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    /// Render verification output as JSON.
     #[arg(long)]
     json: bool,
 }
@@ -288,6 +303,9 @@ async fn main() -> Result<()> {
             MissionCommands::NetworkedServerProof(args) => {
                 render_networked_server_proof(run_networked_server_proof(args.root)?, args.json)?
             }
+            MissionCommands::VerifyLineage(args) => {
+                render_verify_lineage(run_verify_lineage(&args)?, args.json)?
+            }
         },
         Commands::ObjectStore(args) => match args.command {
             ObjectStoreCommands::Probe(args) => render_object_store_probe(
@@ -337,6 +355,106 @@ async fn main() -> Result<()> {
                 render_remote_lineage(run_remote_lineage(args)?, json)?
             }
         },
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct VerifiedSegmentOutcome {
+    segment_id: String,
+    start_offset: u64,
+    last_offset: u64,
+    verified: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct VerifyLineageOutcome {
+    stream_id: String,
+    manifest_id: String,
+    manifest_root: String,
+    verified: bool,
+    segments: Vec<VerifiedSegmentOutcome>,
+    error: Option<String>,
+}
+
+fn run_verify_lineage(args: &VerifyLineageArgs) -> Result<VerifyLineageOutcome> {
+    use transit_core::engine::{LocalEngine, LocalEngineConfig};
+    use transit_core::kernel::StreamId;
+
+    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root))?;
+    let stream_id = StreamId::new(&args.stream_id)?;
+
+    match engine.verify_local_lineage(&stream_id) {
+        Ok(lineage) => Ok(VerifyLineageOutcome {
+            stream_id: args.stream_id.clone(),
+            manifest_id: lineage.manifest_id.as_str().to_string(),
+            manifest_root: lineage.manifest_root.digest().to_string(),
+            verified: true,
+            segments: lineage
+                .segments
+                .into_iter()
+                .map(|s| VerifiedSegmentOutcome {
+                    segment_id: s.segment_id.as_str().to_string(),
+                    start_offset: s.start_offset.value(),
+                    last_offset: s.last_offset.value(),
+                    verified: s.verified,
+                })
+                .collect(),
+            error: None,
+        }),
+        Err(e) => Ok(VerifyLineageOutcome {
+            stream_id: args.stream_id.clone(),
+            manifest_id: "unknown".to_string(),
+            manifest_root: "unknown".to_string(),
+            verified: false,
+            segments: Vec::new(),
+            error: Some(format!("{e:#}")),
+        }),
+    }
+}
+
+fn render_verify_lineage(outcome: VerifyLineageOutcome, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&outcome)?);
+        return Ok(());
+    }
+
+    use textplots::{Chart, Plot, Shape};
+
+    println!("transit integrity: verification profile for '{}'", outcome.stream_id);
+    println!("trust anchor: manifest_root={}", outcome.manifest_root);
+    println!("manifest_id: {}", outcome.manifest_id);
+
+    if outcome.verified {
+        println!("\nTrust Chain:");
+        println!("  [ROOT] -> {}", outcome.manifest_root);
+        for segment in &outcome.segments {
+            println!("    |-- [SEGMENT] {} (offsets {}..{}) [PASS]", segment.segment_id, segment.start_offset, segment.last_offset);
+        }
+
+        if !outcome.segments.is_empty() {
+            println!("\nVerification Map (Offset vs Integrity):");
+            let mut points = Vec::new();
+            for segment in &outcome.segments {
+                points.push((segment.start_offset as f32, 100.0));
+                points.push((segment.last_offset as f32, 100.0));
+            }
+            let max_offset = outcome.segments.last().map(|s| s.last_offset as f32).unwrap_or(1.0);
+            Chart::new(60, 40, 0.0, max_offset)
+                .lineplot(&Shape::Lines(&points))
+                .display();
+            println!("  0.0                                          {max_offset}");
+        }
+
+        println!("\nstatus: VERIFIED");
+    } else {
+        println!("\n[!] BROKEN TRUST CHAIN");
+        println!("    [ROOT] --X--> (TAMPERED OR INVALID)");
+        println!("\nstatus: FAILED");
+        if let Some(error) = outcome.error {
+            println!("error: {error}");
+        }
     }
 
     Ok(())

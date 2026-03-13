@@ -264,6 +264,22 @@ pub struct LocalEngine {
     config: LocalEngineConfig,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct VerifiedSegment {
+    pub segment_id: SegmentId,
+    pub start_offset: Offset,
+    pub last_offset: Offset,
+    pub verified: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct VerifiedLineage {
+    pub stream_id: StreamId,
+    pub manifest_id: ManifestId,
+    pub manifest_root: ContentDigest,
+    pub segments: Vec<VerifiedSegment>,
+}
+
 impl LocalEngine {
     pub fn open(config: LocalEngineConfig) -> Result<Self> {
         fs::create_dir_all(config.data_dir().join(STREAMS_DIR)).with_context(|| {
@@ -419,6 +435,7 @@ impl LocalEngine {
                 .await
                 .with_context(|| format!("read local segment {}", local_path.display()))?;
             validate_segment_checksum(&bytes, descriptor.checksum())?;
+            validate_segment_digest(&bytes, descriptor.content_digest())?;
 
             let object_key = remote_segment_key(key_prefix, stream_id, descriptor.segment_id())?;
             let put_result = store
@@ -504,6 +521,22 @@ impl LocalEngine {
             .with_context(|| format!("read remote manifest {}", manifest_object_key.as_str()))?;
         let remote_manifest: SegmentManifest =
             serde_json::from_slice(&manifest_bytes).context("parse remote manifest")?;
+
+        // Verify manifest root before proceeding
+        let computed_root = compute_manifest_root(
+            remote_manifest.manifest_id().clone(),
+            remote_manifest.stream_descriptor(),
+            remote_manifest.generation(),
+            remote_manifest.segments(),
+            remote_manifest.materialization_boundary().cloned(),
+        )?;
+        ensure!(
+            computed_root.digest() == remote_manifest.manifest_root().digest(),
+            "remote manifest root mismatch: expected {}, computed {}",
+            remote_manifest.manifest_root().digest(),
+            computed_root.digest()
+        );
+
         let stream_id = remote_manifest.stream_id().clone();
         let stream_dir = self.stream_dir(&stream_id);
         ensure!(
@@ -547,6 +580,7 @@ impl LocalEngine {
                     format!("read remote segment {}", remote_location.key().as_str())
                 })?;
             validate_segment_checksum(&bytes, descriptor.checksum())?;
+            validate_segment_digest(&bytes, descriptor.content_digest())?;
             ensure!(
                 bytes.len() as u64 == descriptor.byte_length(),
                 "remote segment '{}' expected {} bytes but found {}",
@@ -670,6 +704,60 @@ impl LocalEngine {
             active_segment_start_offset: Offset::new(state.active_segment_start_offset),
             manifest_generation: state.manifest_generation,
             rolled_segment_count: manifest.segments().len(),
+        })
+    }
+
+    /// Explicitly verify the cryptographic integrity of local history.
+    pub fn verify_local_lineage(&self, stream_id: &StreamId) -> Result<VerifiedLineage> {
+        let manifest = self.load_manifest(stream_id)?;
+
+        // 1. Verify manifest root
+        let computed_root = compute_manifest_root(
+            manifest.manifest_id().clone(),
+            manifest.stream_descriptor(),
+            manifest.generation(),
+            manifest.segments(),
+            manifest.materialization_boundary().cloned(),
+        )?;
+        ensure!(
+            computed_root.digest() == manifest.manifest_root().digest(),
+            "local manifest root mismatch: expected {}, computed {}",
+            manifest.manifest_root().digest(),
+            computed_root.digest()
+        );
+
+        // 2. Verify all local segments
+        let mut verified_segments = Vec::with_capacity(manifest.segments().len());
+        for descriptor in manifest.segments() {
+            let local_path = descriptor
+                .storage()
+                .local_path()
+                .with_context(|| {
+                    format!(
+                        "segment '{}' is missing local path",
+                        descriptor.segment_id().as_str()
+                    )
+                })?;
+            
+            let bytes = fs::read(local_path)
+                .with_context(|| format!("read segment {}", local_path.display()))?;
+            
+            validate_segment_checksum(&bytes, descriptor.checksum())?;
+            validate_segment_digest(&bytes, descriptor.content_digest())?;
+            
+            verified_segments.push(VerifiedSegment {
+                segment_id: descriptor.segment_id().clone(),
+                start_offset: descriptor.start_offset(),
+                last_offset: descriptor.last_offset(),
+                verified: true,
+            });
+        }
+
+        Ok(VerifiedLineage {
+            stream_id: stream_id.clone(),
+            manifest_id: manifest.manifest_id().clone(),
+            manifest_root: manifest.manifest_root().clone(),
+            segments: verified_segments,
         })
     }
 
@@ -1190,6 +1278,18 @@ fn validate_segment_checksum(bytes: &[u8], checksum: &SegmentChecksum) -> Result
             checksum.algorithm()
         ),
         other => anyhow::bail!("unsupported checksum algorithm {other}"),
+    }
+    Ok(())
+}
+
+fn validate_segment_digest(bytes: &[u8], digest: &ContentDigest) -> Result<()> {
+    match digest.algorithm() {
+        "sha256" => ensure!(
+            sha256_hex(bytes) == digest.digest(),
+            "segment content digest mismatch for algorithm {}",
+            digest.algorithm()
+        ),
+        other => anyhow::bail!("unsupported digest algorithm {other}"),
     }
     Ok(())
 }
@@ -2180,5 +2280,52 @@ mod tests {
         assert_eq!(replayed.len(), 4);
         assert_eq!(replayed[0].payload(), b"first");
         assert_eq!(replayed[3].payload(), b"fourth");
+    }
+
+    #[test]
+    fn verify_local_lineage_detects_tampering() {
+        use std::fs::File;
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(1)
+                .expect("config"),
+        )
+        .expect("engine");
+        let target_stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        engine.append(&target_stream_id, b"first").expect("append");
+
+        // Verification should pass initially
+        let verified = engine.verify_local_lineage(&target_stream_id).expect("initial verification");
+        assert_eq!(verified.segments.len(), 1);
+        assert!(verified.segments[0].verified);
+
+        // 1. Tamper with a segment
+        let manifest = engine.load_manifest(&target_stream_id).expect("manifest");
+        let segment_path = manifest.segments()[0].storage().local_path().expect("local path").to_owned();
+        fs::write(&segment_path, b"tampered").expect("tamper segment");
+
+        let err = engine.verify_local_lineage(&target_stream_id).expect_err("should detect tampered segment");
+        let err_msg = err.to_string();
+        assert!(err_msg.contains("segment checksum mismatch") || err_msg.contains("segment content digest mismatch"));
+
+        // 2. Tamper with the manifest root
+        let target_stream_id_2 = stream_id("task.root.2");
+        engine.create_stream(root_descriptor("task.root.2")).expect("create stream 2");
+        engine.append(&target_stream_id_2, b"second").expect("append 2");
+        engine.verify_local_lineage(&target_stream_id_2).expect("initial verification 2");
+
+        let manifest_path = engine.manifest_path(&target_stream_id_2);
+        let mut manifest_json: serde_json::Value = serde_json::from_reader(File::open(&manifest_path).expect("open")).expect("parse");
+        manifest_json["manifest_root"]["digest"] = serde_json::Value::String("deadbeef".to_string());
+        
+        let file = File::create(&manifest_path).expect("re-create");
+        serde_json::to_writer_pretty(file, &manifest_json).expect("serialize");
+
+        let err = engine.verify_local_lineage(&target_stream_id_2).expect_err("should detect tampered manifest");
+        assert!(err.to_string().contains("local manifest root mismatch"));
     }
 }
