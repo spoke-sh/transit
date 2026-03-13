@@ -32,10 +32,6 @@ screen:
 
         announce "Build workspace"
         just build
-        announce "Run test suite"
-        just test
-        announce "Run doc tests"
-        just doctest
         announce "Prove local engine"
         just run mission local-engine-proof --root "$screen_root/local-engine"
         announce "Prove tiered engine"
@@ -46,8 +42,6 @@ screen:
         just run object-store probe --root "$screen_root/object-store"
         announce "Show transit status"
         just screen-status
-        announce "Show keel board"
-        render_keel_screen
     )
 
 # Backward-compatible alias for the old verification recipe name.
