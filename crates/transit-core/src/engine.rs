@@ -2,8 +2,8 @@ use crate::kernel::{
     LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage, StreamPosition,
 };
 use crate::storage::{
-    ManifestId, ObjectStoreKey, ObjectStoreLocation, SegmentChecksum, SegmentDescriptor, SegmentId,
-    SegmentManifest, StorageLocation,
+    ContentDigest, ManifestId, ObjectStoreKey, ObjectStoreLocation, SegmentChecksum,
+    SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
 };
 use anyhow::{Context, Result, ensure};
 use bytes::Bytes;
@@ -301,6 +301,7 @@ impl LocalEngine {
             state.descriptor.clone(),
             0,
             Vec::new(),
+            ContentDigest::new("sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")?, // empty SHA256
             local_storage(self.manifest_path(state.stream_id()))?,
             None,
         );
@@ -443,10 +444,20 @@ impl LocalEngine {
                 let remote_storage = manifest
                     .storage()
                     .with_object_store(Some(ObjectStoreLocation::new(object_key.clone(), None)))?;
+
+                let manifest_root = compute_manifest_root(
+                    manifest_id(next_generation)?,
+                    manifest.stream_descriptor(),
+                    next_generation,
+                    &published_segments,
+                    manifest.materialization_boundary().cloned(),
+                )?;
+
                 let published_manifest = manifest.with_publication(
                     manifest_id(next_generation)?,
                     next_generation,
                     published_segments,
+                    manifest_root,
                     remote_storage,
                 );
                 let mut encoded =
@@ -568,6 +579,7 @@ impl LocalEngine {
             remote_manifest.stream_descriptor().clone(),
             remote_manifest.generation(),
             restored_segments,
+            remote_manifest.manifest_root().clone(),
             StorageLocation::new(
                 Some(manifest_path.clone()),
                 Some(
@@ -683,6 +695,7 @@ impl LocalEngine {
         let bytes = fs::read(&target)
             .with_context(|| format!("read rolled segment {}", target.display()))?;
         let checksum = SegmentChecksum::new("fnv1a64", fnv1a64_hex(&bytes))?;
+        let content_digest = ContentDigest::new("sha256", sha256_hex(&bytes))?;
         let descriptor = SegmentDescriptor::new(
             segment_id,
             state.stream_id().clone(),
@@ -691,6 +704,7 @@ impl LocalEngine {
             state.active_record_count,
             state.active_byte_length,
             checksum,
+            content_digest,
             local_storage(target.clone())?,
         )?;
 
@@ -698,11 +712,19 @@ impl LocalEngine {
         let mut segments = manifest.segments().to_vec();
         segments.push(descriptor.clone());
         let next_generation = manifest.generation() + 1;
+        let manifest_root = compute_manifest_root(
+            manifest_id(next_generation)?,
+            &state.descriptor,
+            next_generation,
+            &segments,
+            manifest.materialization_boundary().cloned(),
+        )?;
         let persisted_manifest = SegmentManifest::new(
             manifest_id(next_generation)?,
             state.descriptor.clone(),
             next_generation,
             segments,
+            manifest_root,
             local_storage(self.manifest_path(state.stream_id()))?,
             None,
         );
@@ -1271,6 +1293,46 @@ fn fnv1a64_hex(bytes: &[u8]) -> String {
         hash = hash.wrapping_mul(0x100000001b3);
     }
     format!("{hash:016x}")
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+fn compute_manifest_root(
+    manifest_id: ManifestId,
+    stream_descriptor: &StreamDescriptor,
+    generation: u64,
+    segments: &[SegmentDescriptor],
+    materialization_boundary: Option<crate::storage::MaterializationBoundary>,
+) -> Result<ContentDigest> {
+    // To compute a stable manifest root, we serialize the core content of the manifest
+    // into a canonical JSON representation. For the first implementation, we use
+    // serde_json's default serialization of a temporary struct that carries all
+    // fields except the manifest_root and storage location.
+
+    #[derive(Serialize)]
+    struct RootSource<'a> {
+        manifest_id: &'a ManifestId,
+        stream_descriptor: &'a StreamDescriptor,
+        generation: u64,
+        segments: &'a [SegmentDescriptor],
+        materialization_boundary: &'a Option<crate::storage::MaterializationBoundary>,
+    }
+
+    let source = RootSource {
+        manifest_id: &manifest_id,
+        stream_descriptor,
+        generation,
+        segments,
+        materialization_boundary: &materialization_boundary,
+    };
+
+    let encoded = serde_json::to_vec(&source).context("serialize manifest root source")?;
+    ContentDigest::new("sha256", sha256_hex(&encoded))
 }
 
 #[cfg(test)]

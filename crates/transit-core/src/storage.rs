@@ -86,6 +86,38 @@ impl SegmentChecksum {
     }
 }
 
+/// Cryptographic digest of an immutable segment or manifest.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContentDigest {
+    algorithm: String,
+    digest: String,
+}
+
+impl ContentDigest {
+    pub fn new(algorithm: impl Into<String>, digest: impl Into<String>) -> Result<Self> {
+        let algorithm = algorithm.into();
+        let digest = digest.into();
+        ensure!(
+            !algorithm.trim().is_empty(),
+            "digest algorithm must not be empty"
+        );
+        ensure!(
+            !digest.trim().is_empty(),
+            "digest content must not be empty"
+        );
+
+        Ok(Self { algorithm, digest })
+    }
+
+    pub fn algorithm(&self) -> &str {
+        &self.algorithm
+    }
+
+    pub fn digest(&self) -> &str {
+        &self.digest
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObjectStoreLocation {
     key: ObjectStoreKey,
@@ -152,6 +184,7 @@ pub struct SegmentDescriptor {
     record_count: u64,
     byte_length: u64,
     checksum: SegmentChecksum,
+    content_digest: ContentDigest,
     storage: StorageLocation,
 }
 
@@ -165,6 +198,7 @@ impl SegmentDescriptor {
         record_count: u64,
         byte_length: u64,
         checksum: SegmentChecksum,
+        content_digest: ContentDigest,
         storage: StorageLocation,
     ) -> Result<Self> {
         ensure!(
@@ -184,6 +218,7 @@ impl SegmentDescriptor {
             record_count,
             byte_length,
             checksum,
+            content_digest,
             storage,
         })
     }
@@ -216,6 +251,10 @@ impl SegmentDescriptor {
         &self.checksum
     }
 
+    pub fn content_digest(&self) -> &ContentDigest {
+        &self.content_digest
+    }
+
     pub fn storage(&self) -> &StorageLocation {
         &self.storage
     }
@@ -229,6 +268,7 @@ impl SegmentDescriptor {
             record_count: self.record_count,
             byte_length: self.byte_length,
             checksum: self.checksum.clone(),
+            content_digest: self.content_digest.clone(),
             storage,
         }
     }
@@ -275,6 +315,7 @@ pub struct SegmentManifest {
     stream_descriptor: StreamDescriptor,
     generation: u64,
     segments: Vec<SegmentDescriptor>,
+    manifest_root: ContentDigest,
     storage: StorageLocation,
     materialization_boundary: Option<MaterializationBoundary>,
 }
@@ -285,6 +326,7 @@ impl SegmentManifest {
         stream_descriptor: StreamDescriptor,
         generation: u64,
         segments: Vec<SegmentDescriptor>,
+        manifest_root: ContentDigest,
         storage: StorageLocation,
         materialization_boundary: Option<MaterializationBoundary>,
     ) -> Self {
@@ -293,6 +335,7 @@ impl SegmentManifest {
             stream_descriptor,
             generation,
             segments,
+            manifest_root,
             storage,
             materialization_boundary,
         }
@@ -318,6 +361,10 @@ impl SegmentManifest {
         &self.segments
     }
 
+    pub fn manifest_root(&self) -> &ContentDigest {
+        &self.manifest_root
+    }
+
     pub fn storage(&self) -> &StorageLocation {
         &self.storage
     }
@@ -331,6 +378,7 @@ impl SegmentManifest {
         manifest_id: ManifestId,
         generation: u64,
         segments: Vec<SegmentDescriptor>,
+        manifest_root: ContentDigest,
         storage: StorageLocation,
     ) -> Self {
         Self {
@@ -338,6 +386,7 @@ impl SegmentManifest {
             stream_descriptor: self.stream_descriptor.clone(),
             generation,
             segments,
+            manifest_root,
             storage,
             materialization_boundary: self.materialization_boundary.clone(),
         }
@@ -347,8 +396,8 @@ impl SegmentManifest {
 #[cfg(test)]
 mod tests {
     use super::{
-        ManifestId, MaterializationBoundary, ObjectStoreKey, ObjectStoreLocation, SegmentChecksum,
-        SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
+        ContentDigest, ManifestId, MaterializationBoundary, ObjectStoreKey, ObjectStoreLocation,
+        SegmentChecksum, SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
     };
     use crate::kernel::{LineageMetadata, Offset, StreamDescriptor, StreamId, StreamPosition};
     use std::path::PathBuf;
@@ -364,6 +413,10 @@ mod tests {
         )
     }
 
+    fn content_digest(value: &str) -> ContentDigest {
+        ContentDigest::new("sha256", value).expect("content digest")
+    }
+
     #[test]
     fn segment_descriptor_keeps_local_and_object_store_locations_explicit() {
         let segment = SegmentDescriptor::new(
@@ -374,6 +427,7 @@ mod tests {
             10,
             4_096,
             SegmentChecksum::new("sha256", "deadbeef").expect("checksum"),
+            content_digest("digest-1"),
             StorageLocation::new(
                 Some(PathBuf::from("segments/task.root/0001.segment")),
                 Some(object_store_location(
@@ -388,6 +442,7 @@ mod tests {
         assert_eq!(segment.stream_id().as_str(), "task.root");
         assert_eq!(segment.start_offset().value(), 0);
         assert_eq!(segment.last_offset().value(), 9);
+        assert_eq!(segment.content_digest().digest(), "digest-1");
         assert_eq!(
             segment
                 .storage()
@@ -417,6 +472,7 @@ mod tests {
             5,
             2_048,
             SegmentChecksum::new("sha256", "feedface").expect("checksum"),
+            content_digest("segment-digest"),
             StorageLocation::new(
                 Some(PathBuf::from("segments/task.root/0001.segment")),
                 Some(object_store_location(
@@ -438,6 +494,7 @@ mod tests {
             root.clone(),
             1,
             vec![segment],
+            content_digest("manifest-root"),
             StorageLocation::new(
                 Some(PathBuf::from("manifests/task.root/0001.json")),
                 Some(object_store_location(
@@ -452,6 +509,7 @@ mod tests {
         assert_eq!(manifest.stream_descriptor(), &root);
         assert_eq!(manifest.generation(), 1);
         assert_eq!(manifest.segments().len(), 1);
+        assert_eq!(manifest.manifest_root().digest(), "manifest-root");
         assert_eq!(
             manifest
                 .materialization_boundary()
@@ -480,6 +538,7 @@ mod tests {
             1,
             512,
             SegmentChecksum::new("sha256", "beadfeed").expect("checksum"),
+            content_digest("digest-2"),
             StorageLocation::new(Some(PathBuf::from("segments/task.root/0002.segment")), None)
                 .expect("storage location"),
         )
