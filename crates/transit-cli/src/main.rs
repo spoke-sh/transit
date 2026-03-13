@@ -348,9 +348,28 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
         return Ok(());
     }
 
+    use textplots::{Chart, Plot, Shape};
+
     println!("transit mission status");
     println!("summary: {}", status.summary());
     println!("version: {}", status.version);
+
+    // Visual completion profile
+    // X-axis: 0:Core, 1:Server, 2:Research, 3:Next
+    // Y-axis: % Completion
+    let points = vec![
+        (0.0, 100.0), // Core
+        (1.0, 100.0), // Server
+        (2.0, 100.0), // Research
+        (3.0, 0.0),   // Next (Integrity/Multi-node)
+    ];
+
+    println!("\nCompletion Profile:");
+    Chart::new(60, 40, 0.0, 3.0)
+        .lineplot(&Shape::Lines(&points))
+        .display();
+    println!("  0:Core  1:Server  2:Research  3:Next\n");
+
     println!(
         "docs: {}/{} present",
         status.docs_present(),
@@ -366,6 +385,7 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
         status.kernel_files_present(),
         status.kernel_files.len()
     );
+
     if status.kernel_files.iter().all(|artifact| artifact.present) {
         println!("kernel slice: durable local engine + tiered publish/restore");
     } else {
@@ -383,6 +403,12 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
             println!("  - {path}");
         }
     }
+
+    println!("\nNext Missions:");
+    println!("  - Verifiable Lineage (Hardening)");
+    println!("  - Materialization (Processing)");
+    println!("  - Multi-Node Replication (Distribution)");
+    println!("  - Client Libraries (Expansion)");
 
     Ok(())
 }

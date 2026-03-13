@@ -17,6 +17,7 @@ object_store.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+textplots.workspace = true
 transit-core = { path = "../transit-core" }
 
 [dev-dependencies]

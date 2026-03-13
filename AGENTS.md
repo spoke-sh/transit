@@ -32,6 +32,19 @@ Do not invent behavior that conflicts with those documents silently.
 
 Keep `just screen` as the default human proof path. If verification gets richer, improve that path instead of making the operator memorize an expanding command list.
 
+## Current Status (2026-03-13)
+
+- **Kernel Done:** Single-node local engine with branch, merge, and tiered storage verified.
+- **Server Done:** Networked daemon with framed protocol, remote CLI, and tail sessions verified.
+- **Proof Ready:** `just screen` covers local, tiered, and networked end-to-end flows.
+
+## Next Missions
+
+- **Verifiable Lineage:** Hardening segments and manifests with cryptographic content hashes.
+- **Materialization:** Implementing the first-party derived-state layer for branch-aware processing.
+- **Multi-Node:** Moving beyond single-node toward replication and distributed durability.
+- **Client Libs:** Promoting external usage via dedicated Python/JS/Go client libraries.
+
 ## Terminology Discipline
 
 Use the same words consistently:
