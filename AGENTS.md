@@ -30,7 +30,7 @@ Do not invent behavior that conflicts with those documents silently.
 5. Make durability explicit.
    Any append guarantee must state whether it is `memory`, `local`, or `tiered`.
 
-Keep `just mission` as the default human proof path. If verification gets richer, improve that path instead of making the operator memorize an expanding command list.
+Keep `just screen` as the default human proof path. If verification gets richer, improve that path instead of making the operator memorize an expanding command list.
 
 ## Terminology Discipline
 

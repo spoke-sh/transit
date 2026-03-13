@@ -95,7 +95,7 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
     MissionStatus {
         project: "transit",
         version: env!("CARGO_PKG_VERSION"),
-        verification_recipe: "just mission",
+        verification_recipe: "just screen",
         object_store_backend: "object_store + filesystem backend",
         docs,
         workspace_files,

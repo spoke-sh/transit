@@ -4,33 +4,63 @@ set positional-arguments
 default:
     @just --list
 
-# Run the default human-facing verification flow.
-mission:
+# Run the default human-facing verification flow and board screen.
+screen:
     #!/usr/bin/env bash
     set -euo pipefail
 
     repo_root="{{justfile_directory()}}"
-    mission_root="$repo_root/target/transit-mission"
+    screen_root="$repo_root/target/transit-screen"
+
+    announce() {
+        printf '\n==> %s\n' "$1"
+    }
+
+    render_keel_screen() {
+        if keel screen --help >/dev/null 2>&1; then
+            keel screen
+        else
+            keel flow
+        fi
+    }
 
     (
         cd "$repo_root"
 
-        rm -rf "$mission_root"
-        mkdir -p "$mission_root/object-store" "$mission_root/local-engine" "$mission_root/tiered-engine" "$mission_root/networked-server"
+        rm -rf "$screen_root"
+        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/tiered-engine" "$screen_root/networked-server"
 
+        announce "Build workspace"
         just build
+        announce "Run test suite"
         just test
+        announce "Run doc tests"
         just doctest
-        just run mission local-engine-proof --root "$mission_root/local-engine"
-        just run mission tiered-engine-proof --root "$mission_root/tiered-engine"
-        just run mission networked-server-proof --root "$mission_root/networked-server"
-        just run object-store probe --root "$mission_root/object-store"
-        just mission-status
+        announce "Prove local engine"
+        just run mission local-engine-proof --root "$screen_root/local-engine"
+        announce "Prove tiered engine"
+        just run mission tiered-engine-proof --root "$screen_root/tiered-engine"
+        announce "Prove networked server"
+        just run mission networked-server-proof --root "$screen_root/networked-server"
+        announce "Probe object store"
+        just run object-store probe --root "$screen_root/object-store"
+        announce "Show transit status"
+        just screen-status
+        announce "Show keel board"
+        render_keel_screen
     )
 
-# Show the current mission-status summary.
-mission-status:
+# Backward-compatible alias for the old verification recipe name.
+mission:
+    @just screen
+
+# Show the current transit status summary.
+screen-status:
     cargo run -p transit-cli --bin transit -- mission status --repo-root {{justfile_directory()}}
+
+# Backward-compatible alias for the old status recipe name.
+mission-status:
+    @just screen-status
 
 # Build the workspace.
 build:

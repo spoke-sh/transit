@@ -12,7 +12,7 @@ What exists today:
 - architecture and operating rules
 - configuration, guide, evaluation, and agent documents
 - bootstrapped Rust workspace with `transit-core` and `transit-cli`
-- Nix flake, Rust toolchain file, `cargo nextest`, and `just mission`
+- Nix flake, Rust toolchain file, `cargo nextest`, and `just screen`
 - initial `object_store` filesystem probe wiring
 - initial shared-engine server daemon bootstrap with provisional remote root creation, append/read/tail, branch/merge, and lineage-inspection operations, framed request correlation, explicit acknowledgement/error envelopes, and logical tail sessions with credit-based delivery, but no stable wire protocol yet
 - initial CLI client commands for the same remote workflows

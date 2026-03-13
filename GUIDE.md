@@ -145,7 +145,7 @@ For now this repository is document-first. The expected order of operations is:
 The current bootstrap developer loop is:
 
 1. enter `nix develop`
-2. run `just mission`
+2. run `just screen`
 3. use `just run mission local-engine-proof --root target/transit-mission/local-engine` when you want the explicit durable-engine proof without the rest of the mission flow
 4. use `just run mission tiered-engine-proof --root target/transit-mission/tiered-engine` when you want the explicit publication and restore proof
 5. use `just run mission networked-server-proof --root target/transit-mission/networked-server` when you want the explicit live server proof, including the transport-boundary note
