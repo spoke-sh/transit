@@ -78,6 +78,19 @@ The expected evidence bar is:
 
 If the change touches manifests, segments, or protocol surfaces, also check `RELEASE.md`.
 
+## Keel Maintenance
+
+When updating `keel`, follow this sequence literally:
+
+1. Update the Nix flake input and lockfile.
+2. Build the new `keel` version through Nix and confirm it runs.
+3. Run `keel doctor` and fix every failing check before doing anything else.
+4. Run `keel mission next` and report the recommendation to the user.
+5. Ask the user whether they want to execute the recommended mission work before starting it.
+6. When the upgrade works, `keel doctor` is clean, and the board is clean, make a git commit for the maintenance change before moving on.
+
+Do not treat a `keel` upgrade as complete until the flake, build, doctor checks, and mission recommendation flow are all clean.
+
 ## Commit Discipline
 
 Commit granularity is literal in this repository.
