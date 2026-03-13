@@ -1,13 +1,18 @@
 # Research WireGuard Underlay And Server Transport Strategy — Brief
 
-## Context
+## Hypothesis
 
 The current server and replication research still leaves the transport question open. This bearing exists to decide whether `transit` should treat WireGuard as a serious transport candidate, and if so, whether it belongs as the primary application transport or as a secure underlay beneath a separate `transit` protocol.
 
-## Objectives
+## Problem Space
 
 - Decide whether WireGuard should be treated as an optional node-to-node underlay, a primary transport candidate, or a non-goal for `transit`.
 - Separate encrypted network underlay concerns from application-level replication and server protocol concerns.
+
+## Success Criteria
+
+- [ ] Make an explicit recommendation on whether WireGuard is an optional underlay, a primary transport candidate, or a non-goal.
+- [ ] Make the boundary explicit between secure network underlay concerns and the `transit` application protocol.
 
 ## Scope
 

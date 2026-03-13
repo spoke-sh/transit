@@ -1,13 +1,18 @@
 # Research Auto-Threaded Communication And Collaboration — Brief
 
-## Context
+## Hypothesis
 
 The Slack-like communication product and classifier-driven auto-threading idea are already central to the `transit` narrative. This bearing exists to make that narrative precise by mapping channels, thread branches, classifier evidence, summaries, and explicit merge behavior onto a concrete workload model.
 
-## Objectives
+## Problem Space
 
 - Define a minimal event model for channels, thread branches, classifier evidence, and optional summaries or backlinks.
 - Decide which collaboration behaviors belong in `transit` lineage primitives versus application-level conventions.
+
+## Success Criteria
+
+- [ ] Define a minimal communication workload contract for channels, branches-as-threads, classifier evidence, and optional summaries or backlinks.
+- [ ] Make the boundary explicit between storage-level lineage primitives and application-level collaboration policy.
 
 ## Scope
 

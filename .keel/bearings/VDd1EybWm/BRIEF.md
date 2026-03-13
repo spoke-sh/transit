@@ -1,13 +1,18 @@
 # Research Agent Runtime And Model Harness Workloads — Brief
 
-## Context
+## Hypothesis
 
 The repo repeatedly describes AI model harnesses and agent runtimes as primary target workloads, but it does not yet define one canonical reference trace. This bearing exists to turn that thesis into a concrete workload model for task traces, retries, critiques, evaluations, and artifact references.
 
-## Objectives
+## Problem Space
 
 - Describe a canonical event model for task roots, retries, critique branches, tool calls, and evaluation artifacts.
 - Identify which engine capabilities must exist before `transit` can credibly claim AI-harness fit.
+
+## Success Criteria
+
+- [ ] Define one canonical AI workload contract that is concrete enough to shape engine APIs, examples, and evaluations.
+- [ ] Identify the minimum engine capabilities required for `transit` to credibly support agent-runtime and model-harness workloads.
 
 ## Scope
 

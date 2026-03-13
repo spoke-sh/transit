@@ -31,17 +31,18 @@
         ]
       },
       "locked": {
-        "lastModified": 1773285604,
-        "narHash": "sha256-R/DtmiZR9ENb7ZFT9Wzw546WwIIFKm3dVueLScakTIE=",
-        "owner": "spoke-sh",
-        "repo": "keel",
-        "rev": "860b740324a402c5df3a597bb39057a805814cd5",
-        "type": "github"
+        "lastModified": 1773368515,
+        "narHash": "sha256-h6QzwBzG1myqHJOAWCsoV9Kq7beT9uuAIig8GvGI6hU=",
+        "ref": "refs/heads/main",
+        "rev": "c24ed172aa029961920f0a91590d8df1ece6473e",
+        "revCount": 317,
+        "type": "git",
+        "url": "ssh://git@github.com/spoke-sh/keel.git"
       },
       "original": {
-        "owner": "spoke-sh",
-        "repo": "keel",
-        "type": "github"
+        "rev": "c24ed172aa029961920f0a91590d8df1ece6473e",
+        "type": "git",
+        "url": "ssh://git@github.com/spoke-sh/keel.git"
       }
     },
     "keel_2": {
@@ -156,6 +157,7 @@
       },
       "original": {
         "owner": "rupurt",
+        "ref": "main",
         "repo": "sift",
         "type": "github"
       }

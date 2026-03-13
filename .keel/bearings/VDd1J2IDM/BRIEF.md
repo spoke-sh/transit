@@ -1,13 +1,18 @@
 # Research Multi-Node Replication And Server Semantics — Brief
 
-## Context
+## Hypothesis
 
 The repo says embedded and server are packaging choices on one engine, but it also explicitly defers distributed consensus and cross-node replication. This bearing exists to turn that into an explicit staging plan so server mode can move forward without premature distributed design.
 
-## Objectives
+## Problem Space
 
 - Separate the next server-mode epic from later multi-node replication work without violating the one-engine thesis.
 - Name the invariants a future replicated design must preserve around ordering, durability, lineage, and object storage.
+
+## Success Criteria
+
+- [ ] Separate the completed single-node server work from the next replicated-system mission without weakening the one-engine thesis.
+- [ ] Name the ordering, durability, lineage, and storage invariants that a future replicated design must preserve.
 
 ## Scope
 

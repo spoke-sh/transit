@@ -1,13 +1,18 @@
 # Research Verifiable Lineage And Cryptographic Integrity — Brief
 
-## Context
+## Hypothesis
 
 `transit` already relies on immutable segments, manifests, explicit branch and merge lineage, and object-store-backed recovery. That architecture creates a natural opening for verifiable lineage primitives such as hash-chained segments, Merkle-style manifests, and eventually signed checkpoints or attestations.
 
-## Objectives
+## Problem Space
 
 - Define the minimum viable integrity model for segments, manifests, and lineage events.
 - Separate core integrity metadata from later signing, attestation, or remote-proof features.
+
+## Success Criteria
+
+- [ ] Define the minimum viable integrity model for segments, manifests, and lineage artifacts without distorting the hot append path.
+- [ ] Separate near-term integrity work from later signing, attestation, and trust-distribution features.
 
 ## Scope
 

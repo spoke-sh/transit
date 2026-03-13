@@ -1,13 +1,18 @@
 # Research High-Throughput CRDT And Collaborative State Overlays — Brief
 
-## Context
+## Hypothesis
 
 `transit` targets communication and collaborative workflows, so CRDTs are an obvious question. The current architecture, however, is optimized for explicit append, branch, merge, lineage, and materialized artifacts rather than for carrying convergence metadata in every event.
 
-## Objectives
+## Problem Space
 
 - Decide whether CRDT support belongs in the core engine, a materialization layer, or external application logic.
 - Identify at least one high-value workload where CRDT overlays beat explicit merge artifacts enough to justify the complexity.
+
+## Success Criteria
+
+- [ ] Make an explicit recommendation on whether CRDT support belongs in core semantics, a materialization layer, or application-level overlays.
+- [ ] Identify at least one concrete workload where CRDT overlays are materially better than explicit merge artifacts, or conclude that the bearing should stay parked.
 
 ## Scope
 

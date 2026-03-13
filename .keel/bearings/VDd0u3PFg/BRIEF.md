@@ -1,13 +1,18 @@
 # Research Branch-Aware Materialization And Processing — Brief
 
-## Context
+## Hypothesis
 
 `transit` already claims branch-aware materialization and durable derived state as part of its product direction, but the docs intentionally place that work adjacent to the core append path. This bearing exists to define the contract between the lineage engine and a future `transit-materialize` layer, with prolly trees currently the leading candidate for branch-local snapshots and diffs.
 
-## Objectives
+## Problem Space
 
 - Define the minimal core API needed for deterministic replay, lineage inspection, and checkpoint exchange.
 - Decide whether prolly trees should be the default snapshot structure or one implementation behind a materialization abstraction.
+
+## Success Criteria
+
+- [ ] Define the minimal replay, lineage, and checkpoint contract between the engine and a future materialization layer.
+- [ ] Make an explicit recommendation on whether prolly trees are the default snapshot design center or just one interchangeable implementation.
 
 ## Scope
 
