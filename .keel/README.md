@@ -11,8 +11,7 @@
 | [Research Agent Runtime And Model Harness Workloads](bearings/VDd1EybWm/) | laid | ✓ | ✓ | decision-ready | 6.11 | ✓ |
 | [Research Auto-Threaded Communication And Collaboration](bearings/VDd1F0OXH/) | laid | ✓ | ✓ | decision-ready | 4.40 | ✓ |
 | [Research Verifiable Lineage And Cryptographic Integrity](bearings/VDd1F1tUe/) | laid | ✓ | ✓ | decision-ready | 3.73 | ✓ |
-| [Research Multi-Node Replication And Server Semantics](bearings/VDd1J2IDM/) | evaluating | ✓ | ✓ | decision-ready | 2.69 | - |
-| [Research WireGuard Underlay And Server Transport Strategy](bearings/VDf8F20kc/) | evaluating | ✓ | ✓ | resolve conflict | 4.69 | - |
+| [Research Multi-Node Replication And Server Semantics](bearings/VDd1J2IDM/) | laid | ✓ | ✓ | decision-ready | 2.69 | ✓ |
 
 <details>
 <summary>Archived Bearings</summary>
@@ -20,6 +19,7 @@
 | Bearing | Status |
 |---------|--------|
 | [Research High-Throughput CRDT And Collaborative State Overlays](bearings/VDd1IzACq/) | parked |
+| [Research WireGuard Underlay And Server Transport Strategy](bearings/VDf8F20kc/) | parked |
 
 </details>
 
@@ -68,4 +68,6 @@
 | Voyage | Status |
 |--------|--------|
 | [Verifiable Lineage Contract](epics/VDd1F1tUe/voyages/VDdGLscWy/) | done |
+
+### [Research Multi-Node Replication And Server Semantics](epics/VDd1J2IDM/) (draft)
 

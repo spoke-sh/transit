@@ -8,9 +8,9 @@
 | MG-02 | Assess verifiable lineage and cryptographic integrity so segment, manifest, and checkpoint hardening can be sequenced without contaminating the hot append path prematurely. | board: VDd1F1tUe |
 | MG-03 | Assess agent runtime and model harness workloads so the reference AI workload remains concrete enough to shape the core API and evaluation suite. | board: VDd1EybWm |
 | MG-04 | Assess auto-threaded communication and collaboration so the branch-as-thread thesis is translated into a real workload model instead of staying a slogan. | board: VDd1F0OXH |
-| MG-05 | Assess high-throughput CRDT and collaborative state overlays so `transit` can decide whether CRDT support belongs in core semantics, materialization, or application-level overlays. | board: VDd1IzACq |
-| MG-06 | Assess multi-node replication and server semantics so future networked and replicated work preserves the one-engine thesis and stages delivery sanely. | board: VDd1J2IDM |
-| MG-07 | Assess secure server transport strategy so future node-to-node communication can distinguish application protocol design from encrypted network underlay choices such as WireGuard. | board: VDf8F20kc |
+| MG-05 | Assess high-throughput CRDT and collaborative state overlays so `transit` can decide whether CRDT support belongs in core semantics, materialization, or application-level overlays. | manual: parked in .keel/bearings/VDd1IzACq/ASSESSMENT.md |
+| MG-06 | Assess multi-node replication and server semantics so future networked and replicated work preserves the one-engine thesis and stages delivery sanely. | manual: assessed in .keel/bearings/VDd1J2IDM/ASSESSMENT.md and laid into epic VDd1J2IDM |
+| MG-07 | Assess secure server transport strategy so future node-to-node communication can distinguish application protocol design from encrypted network underlay choices such as WireGuard. | manual: parked in .keel/bearings/VDf8F20kc/ASSESSMENT.md |
 
 ## Constraints
 

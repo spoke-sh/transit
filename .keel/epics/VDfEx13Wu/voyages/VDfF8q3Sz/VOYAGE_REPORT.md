@@ -24,8 +24,8 @@ Implement the first application-level protocol envelope so clients and servers e
 
 #### Verified Evidence
 - [ac-1.log](../../../../stories/VDfFI1HGm/EVIDENCE/ac-1.log)
-- [ac-3.log](../../../../stories/VDfFI1HGm/EVIDENCE/ac-3.log)
 - [ac-2.log](../../../../stories/VDfFI1HGm/EVIDENCE/ac-2.log)
+- [ac-3.log](../../../../stories/VDfFI1HGm/EVIDENCE/ac-3.log)
 
 ### Implement Streaming Tail Sessions And Backpressure
 - **ID:** VDfFK1d6U
@@ -41,8 +41,8 @@ Implement the first long-lived remote tail behavior so the server can stream new
 
 #### Verified Evidence
 - [ac-1.log](../../../../stories/VDfFK1d6U/EVIDENCE/ac-1.log)
-- [ac-3.log](../../../../stories/VDfFK1d6U/EVIDENCE/ac-3.log)
 - [ac-2.log](../../../../stories/VDfFK1d6U/EVIDENCE/ac-2.log)
+- [ac-3.log](../../../../stories/VDfFK1d6U/EVIDENCE/ac-3.log)
 
 ### Implement CLI Client Commands For Remote Server Workflows
 - **ID:** VDfFM4lvK
@@ -58,8 +58,8 @@ Implement the first CLI client surface so operators and developers can exercise 
 
 #### Verified Evidence
 - [ac-1.log](../../../../stories/VDfFM4lvK/EVIDENCE/ac-1.log)
-- [ac-3.log](../../../../stories/VDfFM4lvK/EVIDENCE/ac-3.log)
 - [ac-2.log](../../../../stories/VDfFM4lvK/EVIDENCE/ac-2.log)
+- [ac-3.log](../../../../stories/VDfFM4lvK/EVIDENCE/ac-3.log)
 
 ### Prove Networked Mission Verification And Transport Boundaries
 - **ID:** VDfFO5vvN
@@ -75,7 +75,7 @@ Upgrade the human proof path so `just mission` validates the first networked sin
 
 #### Verified Evidence
 - [ac-1.log](../../../../stories/VDfFO5vvN/EVIDENCE/ac-1.log)
-- [ac-3.log](../../../../stories/VDfFO5vvN/EVIDENCE/ac-3.log)
 - [ac-2.log](../../../../stories/VDfFO5vvN/EVIDENCE/ac-2.log)
+- [ac-3.log](../../../../stories/VDfFO5vvN/EVIDENCE/ac-3.log)
 
 

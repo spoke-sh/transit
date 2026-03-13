@@ -24,8 +24,8 @@ Implement the first server runtime so `transit` can boot a single-node daemon ar
 
 #### Verified Evidence
 - [ac-1.log](../../../../stories/VDfFAqwGp/EVIDENCE/ac-1.log)
-- [ac-3.log](../../../../stories/VDfFAqwGp/EVIDENCE/ac-3.log)
 - [ac-2.log](../../../../stories/VDfFAqwGp/EVIDENCE/ac-2.log)
+- [ac-3.log](../../../../stories/VDfFAqwGp/EVIDENCE/ac-3.log)
 
 ### Implement Remote Append Read And Tail Operations
 - **ID:** VDfFDn1UH
@@ -41,8 +41,8 @@ Implement the first remote read and write workflows so clients can append, read,
 
 #### Verified Evidence
 - [ac-1.log](../../../../stories/VDfFDn1UH/EVIDENCE/ac-1.log)
-- [ac-3.log](../../../../stories/VDfFDn1UH/EVIDENCE/ac-3.log)
 - [ac-2.log](../../../../stories/VDfFDn1UH/EVIDENCE/ac-2.log)
+- [ac-3.log](../../../../stories/VDfFDn1UH/EVIDENCE/ac-3.log)
 
 ### Implement Remote Branch Merge And Lineage Inspection
 - **ID:** VDfFG05Qq
@@ -58,7 +58,7 @@ Implement the lineage-heavy remote operations so branch creation, merge recordin
 
 #### Verified Evidence
 - [ac-1.log](../../../../stories/VDfFG05Qq/EVIDENCE/ac-1.log)
-- [ac-3.log](../../../../stories/VDfFG05Qq/EVIDENCE/ac-3.log)
 - [ac-2.log](../../../../stories/VDfFG05Qq/EVIDENCE/ac-2.log)
+- [ac-3.log](../../../../stories/VDfFG05Qq/EVIDENCE/ac-3.log)
 
 

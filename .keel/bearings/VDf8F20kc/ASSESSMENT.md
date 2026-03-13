@@ -26,6 +26,7 @@ id: VDf8F20kc
 
 - The strongest conclusion is architectural separation: use WireGuard, if at all, as an optional secure underlay for trusted node interconnect, not as the `transit` replication protocol itself [SRC-01] [SRC-02] [SRC-05].
 - The official embedding and limitations guidance reinforces that WireGuard deployment mode matters. Kernel deployment, userspace embedding, and heterogeneous client environments are not the same problem [SRC-03] [SRC-04].
+- That makes this bearing more like a design guardrail than a standalone execution stream: it should constrain future replication and transport work, not become a separate epic by itself [SRC-05] [SRC-06].
 
 ### Opportunity Cost
 
@@ -40,9 +41,10 @@ If this question is ignored, later server work may conflate network security, tr
 
 - Treat WireGuard as the primary application transport, but that would confuse secure underlay with application protocol and leave core server semantics under-specified [SRC-01] [SRC-02] [SRC-05].
 - Ignore WireGuard entirely and choose only an application transport, but that would miss a pragmatic secure-cluster deployment option for server-to-server traffic [SRC-01] [SRC-03].
+- Convert the bearing into its own execution epic now, but that would overstate the amount of standalone product work here relative to its actual role as a constraint on future replication work [SRC-05] [SRC-06].
 
 ## Recommendation
 
-[x] Proceed → convert to epic [SRC-01] [SRC-02]
-[ ] Park → revisit later [SRC-01]
+[ ] Proceed → convert to epic [SRC-01] [SRC-02]
+[x] Park → revisit later [SRC-01] [SRC-05]
 [ ] Decline → document learnings [SRC-01]

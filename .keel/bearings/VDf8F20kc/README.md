@@ -2,7 +2,7 @@
 id: VDf8F20kc
 title: Research WireGuard Underlay And Server Transport Strategy
 mission: VDd0tzmDw
-status: evaluating
+status: parked
 created_at: 2026-03-12T07:13:44
 index: 7
 ---

@@ -2,9 +2,11 @@
 id: VDd1J2IDM
 title: Research Multi-Node Replication And Server Semantics
 mission: VDd0tzmDw
-status: evaluating
+status: laid
 created_at: 2026-03-11T22:33:38
 index: 6
+laid_at: 2026-03-12T19:33:49
+epic: VDd1J2IDM
 ---
 
 # Research Multi-Node Replication And Server Semantics
