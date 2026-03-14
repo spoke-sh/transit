@@ -2,6 +2,7 @@
 members = [
     "crates/transit-cli",
     "crates/transit-core",
+    "crates/transit-materialize",
 ]
 resolver = "2"
 
@@ -13,6 +14,7 @@ version = "0.1.0"
 
 [workspace.dependencies]
 anyhow = "1"
+async-trait = "0.1"
 bytes = "1"
 clap = { version = "4", features = ["derive"] }
 object_store = "0.13"

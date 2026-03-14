@@ -9,18 +9,22 @@ Goal: Deliver the first processing crate and prolly-tree snapshot implementation
 
 ### In Scope
 
-- (list in-scope items)
+- [SCOPE-01] `transit-materialize` crate integrated into the workspace.
+- [SCOPE-02] Core Prolly Tree implementation for content-addressed snapshots.
+- [SCOPE-03] Materialization checkpoint persistence and resume logic.
 
 ### Out of Scope
 
-- (list out-of-scope items)
+- [SCOPE-04] Distributed execution or complex scheduler.
 
 ## Functional Requirements
 
 <!-- BEGIN FUNCTIONAL_REQUIREMENTS -->
 | ID | Requirement | Scope | Source | Verification |
 |----|-------------|-------|--------|--------------|
-| SRS-01 | Sample requirement | SCOPE-01 | FR-01 | manual |
+| SRS-01 | Create the `transit-materialize` crate and define Reducer and Materializer traits. | SCOPE-01 | FR-01 | automated |
+| SRS-02 | Implement the core Prolly Tree structure for snapshots. | SCOPE-02 | FR-02 | automated |
+| SRS-03 | Implement checkpoint-based resume logic. | SCOPE-03 | FR-03 | automated |
 <!-- END FUNCTIONAL_REQUIREMENTS -->
 
 ## Non-Functional Requirements
@@ -28,5 +32,5 @@ Goal: Deliver the first processing crate and prolly-tree snapshot implementation
 <!-- BEGIN NON_FUNCTIONAL_REQUIREMENTS -->
 | ID | Requirement | Scope | Source | Verification |
 |----|-------------|-------|--------|--------------|
-| SRS-NFR-01 | Sample NFR | SCOPE-01 | NFR-01 | manual |
+| SRS-NFR-01 | Maintain compatibility with object storage for snapshots. | SCOPE-02 | NFR-01 | automated |
 <!-- END NON_FUNCTIONAL_REQUIREMENTS -->

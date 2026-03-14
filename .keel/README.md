@@ -51,11 +51,11 @@
 |--------|--------|
 | [Implement Verifiable Lineage Primitives](epics/VDoZVggut/voyages/VDoZgweFQ/) | in-progress |
 
-### [Implement Branch-Aware Materialization And Processing](epics/VDoZWCfw3/) (draft)
+### [Implement Branch-Aware Materialization And Processing](epics/VDoZWCfw3/) (active)
 
 | Voyage | Status |
 |--------|--------|
-| [Implement Materialization Kernel](epics/VDoZWCfw3/voyages/VDoaYfn6o/) | draft |
+| [Implement Materialization Kernel](epics/VDoZWCfw3/voyages/VDoaYfn6o/) | in-progress |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

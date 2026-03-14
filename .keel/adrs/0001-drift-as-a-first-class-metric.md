@@ -1,8 +1,11 @@
-# ADR 0001: Drift as a First-Class Operational Metric
+---
+id: 0001
+title: Drift as a First-Class Operational Metric
+status: proposed
+date: 2026-03-13
+---
 
-*   **Status:** proposed
-*   **Date:** 2026-03-13
-*   **Author:** Gemini CLI (Agent)
+# ADR 0001: Drift as a First-Class Operational Metric
 
 ## Context
 

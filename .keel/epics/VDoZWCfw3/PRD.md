@@ -53,6 +53,12 @@
 | NFR-01 | Ensure snapshots work natively with the object-storage tier. | GOAL-02 | must | Alignment with tiered storage thesis. |
 <!-- END NON_FUNCTIONAL_REQUIREMENTS -->
 
+## Verification Strategy
+
+- Automated unit tests for reduction logic and Prolly Tree nodes.
+- End-to-end integration tests using `LocalEngine` and `Materializer`.
+- Benchmarks for Prolly Tree operations and snapshot persistence.
+
 ## Assumptions
 
 | Assumption | Impact if Wrong | Validation |
