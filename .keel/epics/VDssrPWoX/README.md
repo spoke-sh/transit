@@ -19,8 +19,8 @@ index: 6
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/3 stories done
+**Progress:** 0/1 voyages complete, 1/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Implement Consensus Kernel](voyages/VDsswMQlJ/) | in-progress | 0/3 |
+| [Implement Consensus Kernel](voyages/VDsswMQlJ/) | in-progress | 1/3 |
 <!-- END GENERATED -->
