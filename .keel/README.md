@@ -57,6 +57,12 @@
 |--------|--------|
 | [Implement Materialization Kernel](epics/VDoZWCfw3/voyages/VDoaYfn6o/) | in-progress |
 
+### [Implement Multi-Node Consensus And Leader Election](epics/VDssrPWoX/) (draft)
+
+| Voyage | Status |
+|--------|--------|
+| [Implement Consensus Kernel](epics/VDssrPWoX/voyages/VDsswMQlJ/) | draft |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
