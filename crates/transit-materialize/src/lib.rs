@@ -3,6 +3,8 @@ use async_trait::async_trait;
 use transit_core::kernel::{Offset, StreamId};
 use transit_core::storage::LineageCheckpoint;
 
+pub mod prolly;
+
 /// Pure logic for reducing stream records into a derived state.
 pub trait Reducer: Send + Sync {
     /// The type of state being produced.

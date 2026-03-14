@@ -1140,6 +1140,7 @@ dependencies = [
  "async-trait",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
  "transit-core",

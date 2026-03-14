@@ -595,21 +595,21 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
     println!("version: {}", status.version);
 
     // Visual completion profile
-    // X-axis: 0:Core, 1:Server, 2:Integrity, 3:Next
+    // X-axis: 0:Core, 1:Server, 2:Integrity, 3:Materialize
     // Y-axis: % Completion
     let integrity_score = if status.integrity_ready { 100.0 } else { 0.0 };
     let points = vec![
         (0.0, 100.0), // Core
         (1.0, 100.0), // Server
         (2.0, integrity_score), // Integrity
-        (3.0, 0.0),   // Next (Materialization/Multi-node)
+        (3.0, 10.0),  // Materialize (Scaffolded)
     ];
 
     println!("\nCompletion Profile:");
     Chart::new(60, 40, 0.0, 3.0)
         .lineplot(&Shape::Lines(&points))
         .display();
-    println!("  0:Core  1:Server  2:Integrity  3:Next\n");
+    println!("  0:Core  1:Server  2:Integrity  3:Materialize\n");
 
     println!(
         "docs: {}/{} present",

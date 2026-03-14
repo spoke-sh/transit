@@ -25,11 +25,11 @@ started_at: 2026-03-14T00:07:03
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/3 stories complete
+**Progress:** 1/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Scaffold Materialization Crate And Define Reducer Trait](../../../../stories/VDp5cKOmX/README.md) | feat | in-progress |
-| [Implement Core Prolly Tree Structure](../../../../stories/VDp5lTVJU/README.md) | feat | backlog |
+| [Scaffold Materialization Crate And Define Reducer Trait](../../../../stories/VDp5cKOmX/README.md) | feat | done |
+| [Implement Core Prolly Tree Structure](../../../../stories/VDp5lTVJU/README.md) | feat | in-progress |
 | [Implement Materialization Checkpoint Persistence](../../../../stories/VDp5lzmJS/README.md) | feat | backlog |
 <!-- END GENERATED -->
