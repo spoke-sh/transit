@@ -45,6 +45,18 @@
 | [Server Daemon And Core Lineage RPCs](epics/VDfEx13Wu/voyages/VDfF629DK/) | done |
 | [Wire Protocol Hardening And Mission Proof](epics/VDfEx13Wu/voyages/VDfF8q3Sz/) | done |
 
+### [Implement Verifiable Lineage And Cryptographic Integrity](epics/VDoZVggut/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Implement Verifiable Lineage Primitives](epics/VDoZVggut/voyages/VDoZgweFQ/) | in-progress |
+
+### [Implement Branch-Aware Materialization And Processing](epics/VDoZWCfw3/) (draft)
+
+| Voyage | Status |
+|--------|--------|
+| [Implement Materialization Kernel](epics/VDoZWCfw3/voyages/VDoaYfn6o/) | draft |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
