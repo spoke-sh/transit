@@ -250,7 +250,35 @@ Materialization should support:
 - explicit merge of derived states when source streams reconcile
 - view-specific merge policies instead of one universal reconciliation rule
 
-Persistent structures such as prolly trees are the current design center because they make branch-local reuse, diffing, and content-addressed snapshots much cheaper than rebuilding mutable indexes from scratch. Snapshot manifests and segment-local summary filters should remain explicit supporting artifacts rather than hidden mutable indexes.
+Persistent structures such as **Prolly Trees** (Probabilistic B-Trees) are the current design center because they make branch-local reuse, diffing, and content-addressed snapshots much cheaper than rebuilding mutable indexes from scratch.
+
+### Prolly Trees in Materialization
+
+Prolly Trees use **Content-Defined Chunking** to split state into immutable, content-addressed nodes. This provides several critical properties for `transit`:
+
+1.  **Structural Sharing:** If two branches share most of their history, their materialized Prolly Trees will share most of the same underlying nodes in object storage.
+2.  **Partial Hydration:** Nodes are identified by their `ContentDigest`. A materializer can fetch only the specific nodes needed for a query or update, rather than downloading a monolithic snapshot.
+3.  **Efficient Diffing:** Two snapshots can be compared by comparing their root digests and recursively traversing only the diverging nodes.
+
+#### Prolly Tree Structure and Branching
+
+```text
+[Stream Root] ─────────────────► [Snapshot A (Root Digest: 0x123)]
+      │                               │
+      │                               ├─► [Node 1 (Shared)]
+      │                               ├─► [Node 2 (Shared)]
+      │                               └─► [Node 3 (A-Local)]
+      │
+[Branch Root (Fork @ 10)] ─────► [Snapshot B (Root Digest: 0x456)]
+                                      │
+                                      ├─► [Node 1 (Shared)]
+                                      ├─► [Node 2 (Shared)]
+                                      └─► [Node 4 (B-Local)]
+```
+
+In the diagram above, Snapshot A and B share Node 1 and Node 2 because the underlying data at those offsets is identical. Only Node 3 and Node 4 differ, representing the divergence after the fork point.
+
+Snapshot manifests and segment-local summary filters should remain explicit supporting artifacts rather than hidden mutable indexes.
 
 Integrity and materialization should meet at checkpoints:
 
