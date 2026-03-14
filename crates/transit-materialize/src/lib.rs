@@ -18,7 +18,7 @@ pub struct MaterializationCheckpoint {
 /// Pure logic for reducing stream records into a derived state.
 pub trait Reducer: Send + Sync {
     /// The type of state being produced.
-    type State: serde::Serialize + serde::de::DeserializeOwned + Send + Sync;
+    type State: serde::Serialize + serde::de::DeserializeOwned + Clone + Send + Sync;
 
     /// Apply a single record to the current state.
     fn reduce(&self, state: &mut Self::State, offset: Offset, payload: &[u8]) -> Result<()>;
