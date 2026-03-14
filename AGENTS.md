@@ -57,6 +57,7 @@ Use the same words consistently:
 - `manifest`
 - `local head`
 - `remote tier`
+- `drift`: The divergence between Execution and Intent. See [DRIFT.md](DRIFT.md) and [ADR 0001](.keel/adrs/0001-drift-as-a-first-class-metric.md).
 
 If a change needs new vocabulary, define it in the relevant docs instead of letting terms drift in code reviews or commit messages.
 
