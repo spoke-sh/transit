@@ -1,10 +1,12 @@
 ---
 id: VDsswMQlJ
 title: Implement Consensus Kernel
-status: draft
+status: in-progress
 epic: VDssrPWoX
 created_at: 2026-03-14T15:40:46
 index: 1
+updated_at: 2026-03-14T15:41:52
+started_at: 2026-03-14T15:41:54
 ---
 
 # Implement Consensus Kernel
@@ -27,7 +29,7 @@ index: 1
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Define Consensus And Provider Traits](../../../../stories/VDst5yAoK/README.md) | feat | icebox |
-| [Implement Object Store Lease Provider](../../../../stories/VDst61n2U/README.md) | feat | icebox |
-| [Enforce Consensus Leadership In Local Engine](../../../../stories/VDst65L66/README.md) | feat | icebox |
+| [Define Consensus And Provider Traits](../../../../stories/VDst5yAoK/README.md) | feat | in-progress |
+| [Implement Object Store Lease Provider](../../../../stories/VDst61n2U/README.md) | feat | backlog |
+| [Enforce Consensus Leadership In Local Engine](../../../../stories/VDst65L66/README.md) | feat | backlog |
 <!-- END GENERATED -->

@@ -22,5 +22,5 @@ index: 6
 **Progress:** 0/1 voyages complete, 0/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Implement Consensus Kernel](voyages/VDsswMQlJ/) | draft | 0/3 |
+| [Implement Consensus Kernel](voyages/VDsswMQlJ/) | in-progress | 0/3 |
 <!-- END GENERATED -->

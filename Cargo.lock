@@ -1125,6 +1125,7 @@ name = "transit-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bytes",
  "object_store",
  "serde",

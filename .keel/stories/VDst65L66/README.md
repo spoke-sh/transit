@@ -2,9 +2,9 @@
 id: VDst65L66
 title: Enforce Consensus Leadership In Local Engine
 type: feat
-status: icebox
+status: backlog
 created_at: 2026-03-14T15:41:23
-updated_at: 2026-03-14T15:41:23
+updated_at: 2026-03-14T15:41:52
 operator-signal: 
 scope: VDssrPWoX/VDsswMQlJ
 index: 3

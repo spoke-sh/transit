@@ -2,9 +2,9 @@
 id: VDst61n2U
 title: Implement Object Store Lease Provider
 type: feat
-status: icebox
+status: backlog
 created_at: 2026-03-14T15:41:23
-updated_at: 2026-03-14T15:41:23
+updated_at: 2026-03-14T15:41:52
 operator-signal: 
 scope: VDssrPWoX/VDsswMQlJ
 index: 2
