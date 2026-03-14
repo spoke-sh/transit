@@ -43,6 +43,7 @@
 | FR-01 | Implement the core materializer reduction loop and checkpointing. | GOAL-01 | must | Core processing capability. |
 | FR-02 | Implement prolly-tree-backed snapshots for derived state. | GOAL-02 | must | Efficient branch-local reuse. |
 | FR-03 | Support branch-aware resume from checkpoints. | GOAL-01 | must | Correctness across stream forks. |
+| FR-04 | Provide a reference materializer proving the end-to-end loop. | GOAL-03 | must | Proof of system utility. |
 <!-- END FUNCTIONAL_REQUIREMENTS -->
 
 ### Non-Functional Requirements
