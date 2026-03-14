@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use object_store::ObjectStoreExt;
 use serde::{Deserialize, Serialize};
 use transit_core::kernel::StreamId;
 use transit_core::storage::{ContentDigest, LineageCheckpoint};
@@ -35,6 +36,41 @@ impl ProllyStore for MemoryProllyStore {
 
     async fn get(&self, digest: &ContentDigest) -> Result<ProllyNode> {
         self.nodes.lock().unwrap().get(digest.digest()).cloned().context("not found")
+    }
+}
+
+pub struct ObjectStoreProllyStore {
+    store: std::sync::Arc<dyn object_store::ObjectStore>,
+    prefix: object_store::path::Path,
+}
+
+impl ObjectStoreProllyStore {
+    pub fn new(store: std::sync::Arc<dyn object_store::ObjectStore>, prefix: impl Into<String>) -> Self {
+        Self {
+            store,
+            prefix: object_store::path::Path::from(prefix.into()),
+        }
+    }
+
+    fn node_path(&self, digest: &ContentDigest) -> object_store::path::Path {
+        self.prefix.child(digest.digest())
+    }
+}
+
+#[async_trait::async_trait]
+impl ProllyStore for ObjectStoreProllyStore {
+    async fn put(&self, node: ProllyNode) -> Result<ContentDigest> {
+        let digest = node.digest()?;
+        let path = self.node_path(&digest);
+        let bytes = serde_json::to_vec(&node).context("serialize node")?;
+        self.store.put(&path, bytes.into()).await.context("put node")?;
+        Ok(digest)
+    }
+
+    async fn get(&self, digest: &ContentDigest) -> Result<ProllyNode> {
+        let path = self.node_path(digest);
+        let bytes = self.store.get(&path).await.context("get node")?.bytes().await.context("read node bytes")?;
+        serde_json::from_slice(&bytes).context("deserialize node")
     }
 }
 
@@ -262,6 +298,35 @@ mod tests {
                 assert!(internal.entries.len() < 100);
             },
             _ => panic!("expected internal root for forced chunking"),
+        }
+    }
+
+    #[tokio::test]
+    async fn object_store_prolly_store_persists_to_filesystem() {
+        use tempfile::tempdir;
+        use object_store::local::LocalFileSystem;
+        use std::sync::Arc;
+
+        let temp = tempdir().expect("temp");
+        let local = Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
+        let store = ObjectStoreProllyStore::new(local, "snapshots");
+
+        let leaf = ProllyNode::Leaf(LeafNode {
+            entries: vec![LeafEntry {
+                key: b"test-key".to_vec(),
+                value: b"test-value".to_vec(),
+            }],
+        });
+
+        let digest = store.put(leaf.clone()).await.expect("put");
+        let retrieved = store.get(&digest).await.expect("get");
+
+        match (leaf, retrieved) {
+            (ProllyNode::Leaf(orig), ProllyNode::Leaf(got)) => {
+                assert_eq!(orig.entries.len(), got.entries.len());
+                assert_eq!(orig.entries[0].key, got.entries[0].key);
+            },
+            _ => panic!("node mismatch"),
         }
     }
 }

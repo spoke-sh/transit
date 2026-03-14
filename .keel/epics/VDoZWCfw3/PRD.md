@@ -74,7 +74,7 @@
 ## Success Criteria
 
 <!-- BEGIN SUCCESS_CRITERIA -->
-- [ ] `transit-materialize` is integrated into the workspace.
-- [ ] Prolly trees are used for durable snapshots.
-- [ ] Materialized views resume correctly after branching.
+- [x] `transit-materialize` is integrated into the workspace.
+- [x] Prolly trees are used for durable snapshots.
+- [x] Materialized views resume correctly after branching.
 <!-- END SUCCESS_CRITERIA -->

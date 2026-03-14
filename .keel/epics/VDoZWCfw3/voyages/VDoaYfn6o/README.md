@@ -25,7 +25,7 @@ started_at: 2026-03-14T00:07:03
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 4/5 stories complete
+**Progress:** 5/6 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
@@ -33,5 +33,6 @@ started_at: 2026-03-14T00:07:03
 | [Implement Core Prolly Tree Structure](../../../../stories/VDp5lTVJU/README.md) | feat | done |
 | [Implement Materialization Checkpoint Persistence](../../../../stories/VDp5lzmJS/README.md) | feat | done |
 | [Implement Prolly Tree Chunking And Construction](../../../../stories/VDqidQ9E2/README.md) | feat | done |
-| [Implement Reference Materializer For Count Projection](../../../../stories/VDqidwBDM/README.md) | feat | in-progress |
+| [Implement Reference Materializer For Count Projection](../../../../stories/VDqidwBDM/README.md) | feat | done |
+| [Implement Object Store Backend For Prolly Trees](../../../../stories/VDssLlslt/README.md) | feat | in-progress |
 <!-- END GENERATED -->

@@ -1141,6 +1141,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "object_store",
  "serde",
  "serde_json",
  "sha2",
