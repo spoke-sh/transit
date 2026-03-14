@@ -1,12 +1,13 @@
 ---
 id: VDoaYfn6o
 title: Implement Materialization Kernel
-status: in-progress
+status: done
 epic: VDoZWCfw3
 created_at: 2026-03-13T22:02:39
 index: 1
 updated_at: 2026-03-14T00:07:01
 started_at: 2026-03-14T00:07:03
+completed_at: 2026-03-14T16:40:01
 ---
 
 # Implement Materialization Kernel
@@ -20,6 +21,8 @@ started_at: 2026-03-14T00:07:03
 |----------|-------------|
 | [SRS.md](SRS.md) | Requirements and verification criteria |
 | [SDD.md](SDD.md) | Architecture and implementation details |
+| [VOYAGE_REPORT.md](VOYAGE_REPORT.md) | Narrative summary of implementation and evidence |
+| [COMPLIANCE_REPORT.md](COMPLIANCE_REPORT.md) | Traceability matrix and verification proof |
 <!-- END DOCUMENTS -->
 
 ## Stories

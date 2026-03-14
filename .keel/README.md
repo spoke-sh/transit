@@ -45,23 +45,23 @@
 | [Server Daemon And Core Lineage RPCs](epics/VDfEx13Wu/voyages/VDfF629DK/) | done |
 | [Wire Protocol Hardening And Mission Proof](epics/VDfEx13Wu/voyages/VDfF8q3Sz/) | done |
 
-### [Implement Verifiable Lineage And Cryptographic Integrity](epics/VDoZVggut/) (active)
+### [Implement Verifiable Lineage And Cryptographic Integrity](epics/VDoZVggut/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Implement Verifiable Lineage Primitives](epics/VDoZVggut/voyages/VDoZgweFQ/) | in-progress |
+| [Implement Verifiable Lineage Primitives](epics/VDoZVggut/voyages/VDoZgweFQ/) | done |
 
-### [Implement Branch-Aware Materialization And Processing](epics/VDoZWCfw3/) (active)
-
-| Voyage | Status |
-|--------|--------|
-| [Implement Materialization Kernel](epics/VDoZWCfw3/voyages/VDoaYfn6o/) | in-progress |
-
-### [Implement Multi-Node Consensus And Leader Election](epics/VDssrPWoX/) (active)
+### [Implement Branch-Aware Materialization And Processing](epics/VDoZWCfw3/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Implement Consensus Kernel](epics/VDssrPWoX/voyages/VDsswMQlJ/) | in-progress |
+| [Implement Materialization Kernel](epics/VDoZWCfw3/voyages/VDoaYfn6o/) | done |
+
+### [Implement Multi-Node Consensus And Leader Election](epics/VDssrPWoX/) (done)
+
+| Voyage | Status |
+|--------|--------|
+| [Implement Consensus Kernel](epics/VDssrPWoX/voyages/VDsswMQlJ/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

@@ -19,8 +19,8 @@ index: 5
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 6/6 stories done
+**Progress:** 1/1 voyages complete, 6/6 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Implement Materialization Kernel](voyages/VDoaYfn6o/) | in-progress | 6/6 |
+| [Implement Materialization Kernel](voyages/VDoaYfn6o/) | done | 6/6 |
 <!-- END GENERATED -->

@@ -19,8 +19,8 @@ index: 4
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 3/3 stories done
+**Progress:** 1/1 voyages complete, 3/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Implement Verifiable Lineage Primitives](voyages/VDoZgweFQ/) | in-progress | 3/3 |
+| [Implement Verifiable Lineage Primitives](voyages/VDoZgweFQ/) | done | 3/3 |
 <!-- END GENERATED -->
