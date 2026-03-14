@@ -1,6 +1,7 @@
 use crate::kernel::{
     LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage, StreamPosition,
 };
+use crate::consensus::{ConsensusHandle, NodeId, StreamLease};
 use crate::storage::{
     ContentDigest, LineageCheckpoint, ManifestId, ObjectStoreKey, ObjectStoreLocation,
     SegmentChecksum, SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
@@ -261,7 +262,13 @@ impl LocalStreamStatus {
 
 #[derive(Debug, Clone)]
 pub struct LocalEngine {
+    inner: std::sync::Arc<LocalEngineInner>,
+}
+
+#[derive(Debug)]
+struct LocalEngineInner {
     config: LocalEngineConfig,
+    leases: dashmap::DashMap<StreamId, Box<dyn ConsensusHandle>>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -289,15 +296,35 @@ impl LocalEngine {
             )
         })?;
 
-        Ok(Self { config })
+        Ok(Self {
+            inner: std::sync::Arc::new(LocalEngineInner {
+                config,
+                leases: dashmap::DashMap::new(),
+            }),
+        })
     }
 
     pub fn data_dir(&self) -> &Path {
-        self.config.data_dir()
+        self.inner.config.data_dir()
     }
 
     pub fn durability(&self) -> DurabilityMode {
-        self.config.durability()
+        self.inner.config.durability()
+    }
+
+    /// Bind a consensus lease handle to this engine for a specific stream.
+    pub fn bind_consensus(&self, stream_id: StreamId, handle: Box<dyn ConsensusHandle>) {
+        self.inner.leases.insert(stream_id, handle);
+    }
+
+    /// Explicitly check if this engine instance is the current leader for a stream.
+    pub fn is_leader(&self, stream_id: &StreamId) -> bool {
+        if let Some(handle) = self.inner.leases.get(stream_id) {
+            handle.is_leader()
+        } else {
+            // If no consensus handle is bound, we assume single-node mode (always leader).
+            true
+        }
     }
 
     pub fn create_stream(&self, descriptor: StreamDescriptor) -> Result<LocalStreamStatus> {
@@ -355,6 +382,8 @@ impl LocalEngine {
         stream_id: &StreamId,
         payload: impl AsRef<[u8]>,
     ) -> Result<LocalAppendOutcome> {
+        ensure!(self.is_leader(stream_id), "not the leader for stream '{}'", stream_id.as_str());
+
         let mut state = self.load_state(stream_id)?;
         let record = PersistedRecord {
             offset: state.next_offset,
@@ -382,7 +411,7 @@ impl LocalEngine {
         state.active_record_count += 1;
         state.active_byte_length += (encoded.len() + 1) as u64;
 
-        let rolled_segment = if state.active_record_count >= self.config.segment_max_records() {
+        let rolled_segment = if state.active_record_count >= self.inner.config.segment_max_records() {
             Some(self.roll_active_segment(&mut state)?)
         } else {
             write_json_durable(&self.state_path(stream_id), &state)?;
@@ -391,7 +420,7 @@ impl LocalEngine {
 
         Ok(LocalAppendOutcome {
             position,
-            durability: self.config.durability(),
+            durability: self.inner.config.durability(),
             manifest_generation: state.manifest_generation,
             rolled_segment,
         })
@@ -415,7 +444,7 @@ impl LocalEngine {
         if manifest.segments().is_empty() {
             return Ok(LocalPublicationOutcome {
                 stream_id: stream_id.clone(),
-                durability: self.config.durability(),
+                durability: self.inner.config.durability(),
                 published_segment_ids: Vec::new(),
                 manifest_generation: manifest.generation(),
                 manifest_object_key: manifest
@@ -498,7 +527,7 @@ impl LocalEngine {
                 write_json_durable(&self.manifest_path(stream_id), &published_manifest)?;
                 return Ok(LocalPublicationOutcome {
                     stream_id: stream_id.clone(),
-                    durability: self.config.durability(),
+                    durability: self.inner.config.durability(),
                     published_segment_ids,
                     manifest_generation: next_generation,
                     manifest_object_key: Some(object_key),
@@ -508,7 +537,7 @@ impl LocalEngine {
 
         Ok(LocalPublicationOutcome {
             stream_id: stream_id.clone(),
-            durability: self.config.durability(),
+            durability: self.inner.config.durability(),
             published_segment_ids,
             manifest_generation: manifest.generation(),
             manifest_object_key,
@@ -657,7 +686,7 @@ impl LocalEngine {
 
         Ok(LocalRestoreOutcome {
             stream_id,
-            durability: self.config.durability(),
+            durability: self.inner.config.durability(),
             restored_segment_ids,
             manifest_generation: local_manifest.generation(),
             manifest_object_key: manifest_object_key.clone(),
@@ -681,7 +710,7 @@ impl LocalEngine {
 
         Ok(LocalRecoveryOutcome {
             stream_id: stream_id.clone(),
-            durability: self.config.durability(),
+            durability: self.inner.config.durability(),
             committed_next_offset: Offset::new(state.next_offset),
             retained_active_records: state.active_record_count,
             truncated_bytes,
@@ -1056,7 +1085,7 @@ impl LocalEngine {
     }
 
     fn stream_dir(&self, stream_id: &StreamId) -> PathBuf {
-        self.config
+        self.inner.config
             .data_dir()
             .join(STREAMS_DIR)
             .join(sanitize_stream_id(stream_id))
@@ -2396,5 +2425,51 @@ mod tests {
         engine.append(&stream_id, b"second").expect("append 2");
         let err = engine.verify_checkpoint(&checkpoint).expect_err("should detect stale checkpoint");
         assert!(err.to_string().contains("checkpoint manifest root mismatch"));
+    }
+
+    #[tokio::test]
+    async fn engine_enforces_leadership_for_appends() {
+        use crate::consensus::{ConsensusProvider, NodeId, ObjectStoreConsensus};
+        use object_store::local::LocalFileSystem;
+
+        let temp = tempdir().expect("temp");
+        let engine = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("engine");
+        let stream_id = stream_id("task.root");
+        engine.create_stream(root_descriptor("task.root")).expect("create");
+
+        let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
+        let consensus = ObjectStoreConsensus::new(store, "leases");
+
+        // 1. Acquire lease for Node A and bind to Engine A
+        let handle_a = consensus.acquire(&stream_id, NodeId::new("node-a")).await.expect("a acquire");
+        engine.bind_consensus(stream_id.clone(), handle_a);
+
+        // Append should succeed
+        engine.append(&stream_id, b"allowed").expect("a allowed");
+
+        // 2. Engine B (not leader) should fail to append
+        let engine_b = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("engine b");
+        
+        #[derive(Debug)]
+        struct NotLeaderHandle(StreamId);
+        #[async_trait::async_trait]
+        impl crate::consensus::ConsensusHandle for NotLeaderHandle {
+            fn is_leader(&self) -> bool { false }
+            fn stream_id(&self) -> &StreamId { &self.0 }
+            fn lease(&self) -> crate::consensus::StreamLease {
+                crate::consensus::StreamLease {
+                    stream_id: self.0.clone(),
+                    owner: NodeId::new("not-leader"),
+                    version: 0,
+                    expires_at: 0,
+                }
+            }
+            async fn heartbeat(&self) -> anyhow::Result<()> { Ok(()) }
+        }
+
+        engine_b.bind_consensus(stream_id.clone(), Box::new(NotLeaderHandle(stream_id.clone())));
+        
+        let err = engine_b.append(&stream_id, b"denied").expect_err("should be denied");
+        assert!(err.to_string().contains("not the leader"));
     }
 }

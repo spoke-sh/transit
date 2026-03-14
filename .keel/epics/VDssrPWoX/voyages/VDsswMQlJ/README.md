@@ -25,11 +25,11 @@ started_at: 2026-03-14T15:41:54
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Define Consensus And Provider Traits](../../../../stories/VDst5yAoK/README.md) | feat | done |
-| [Implement Object Store Lease Provider](../../../../stories/VDst61n2U/README.md) | feat | in-progress |
-| [Enforce Consensus Leadership In Local Engine](../../../../stories/VDst65L66/README.md) | feat | backlog |
+| [Implement Object Store Lease Provider](../../../../stories/VDst61n2U/README.md) | feat | done |
+| [Enforce Consensus Leadership In Local Engine](../../../../stories/VDst65L66/README.md) | feat | in-progress |
 <!-- END GENERATED -->
