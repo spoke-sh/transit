@@ -25,6 +25,8 @@ Goal: Deliver the first processing crate and prolly-tree snapshot implementation
 | SRS-01 | Create the `transit-materialize` crate and define Reducer and Materializer traits. | SCOPE-01 | FR-01 | automated |
 | SRS-02 | Implement the core Prolly Tree structure for snapshots. | SCOPE-02 | FR-02 | automated |
 | SRS-03 | Implement checkpoint-based resume logic. | SCOPE-03 | FR-03 | automated |
+| SRS-04 | Implement Prolly Tree content-defined chunking and tree construction. | SCOPE-02 | FR-02 | automated |
+| SRS-05 | Deliver a reference materializer proving the full loop. | SCOPE-01 | FR-01 | automated |
 <!-- END FUNCTIONAL_REQUIREMENTS -->
 
 ## Non-Functional Requirements
