@@ -602,7 +602,7 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
         (0.0, 100.0), // Core
         (1.0, 100.0), // Server
         (2.0, integrity_score), // Integrity
-        (3.0, 30.0),  // Materialize (Prolly Core)
+        (3.0, 60.0),  // Materialize (Engine + Checkpoints)
     ];
 
     println!("\nCompletion Profile:");
