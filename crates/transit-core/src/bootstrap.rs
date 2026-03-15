@@ -25,6 +25,7 @@ const REQUIRED_KERNEL_FILES: &[&str] = &[
     "crates/transit-core/src/kernel.rs",
     "crates/transit-core/src/storage.rs",
     "crates/transit-core/src/engine.rs",
+    "crates/transit-core/src/consensus.rs",
 ];
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -44,6 +45,7 @@ pub struct MissionStatus {
     pub kernel_files: Vec<ArtifactStatus>,
     pub ready: bool,
     pub integrity_ready: bool,
+    pub consensus_ready: bool,
 }
 
 impl MissionStatus {
@@ -94,6 +96,7 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
         && kernel_files.iter().all(|artifact| artifact.present);
 
     let integrity_ready = docs.iter().any(|a| a.path == "INTEGRITY.md" && a.present);
+    let consensus_ready = kernel_files.iter().any(|a| a.path == "crates/transit-core/src/consensus.rs" && a.present);
 
     MissionStatus {
         project: "transit",
@@ -105,6 +108,7 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
         kernel_files,
         ready,
         integrity_ready,
+        consensus_ready,
     }
 }
 

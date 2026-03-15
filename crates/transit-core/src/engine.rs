@@ -6,7 +6,7 @@ use crate::storage::{
     ContentDigest, LineageCheckpoint, ManifestId, ObjectStoreKey, ObjectStoreLocation,
     SegmentChecksum, SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
 };
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use bytes::Bytes;
 use object_store::path::Path as ObjectPath;
 use object_store::{ObjectStore, ObjectStoreExt};
@@ -268,7 +268,7 @@ pub struct LocalEngine {
 #[derive(Debug)]
 struct LocalEngineInner {
     config: LocalEngineConfig,
-    leases: dashmap::DashMap<StreamId, Box<dyn ConsensusHandle>>,
+    leases: dashmap::DashMap<StreamId, std::sync::Arc<dyn ConsensusHandle + 'static>>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -313,7 +313,7 @@ impl LocalEngine {
     }
 
     /// Bind a consensus lease handle to this engine for a specific stream.
-    pub fn bind_consensus(&self, stream_id: StreamId, handle: Box<dyn ConsensusHandle>) {
+    pub fn bind_consensus(&self, stream_id: StreamId, handle: std::sync::Arc<dyn ConsensusHandle + 'static>) {
         self.inner.leases.insert(stream_id, handle);
     }
 
@@ -507,16 +507,43 @@ impl LocalEngine {
                     manifest.materialization_boundary().cloned(),
                 )?;
 
-                let published_manifest = manifest.with_publication(
+                let mut published_manifest = manifest.with_publication(
                     manifest_id(next_generation)?,
                     next_generation,
                     published_segments,
                     manifest_root,
                     remote_storage,
                 );
+
+                // If we have an active lease, attach the ownership proof (lease version)
+                if let Some(handle) = self.inner.leases.get(stream_id) {
+                    published_manifest = published_manifest.with_ownership_proof(handle.lease().version);
+                }
+
                 let mut encoded =
                     serde_json::to_vec_pretty(&published_manifest).context("serialize manifest")?;
                 encoded.push(b'\n');
+
+                // If we have an ownership proof, verify that the lease hasn't moved before writing
+                if let Some(version) = published_manifest.ownership_proof() {
+                    let lease_path = ObjectPath::from(format!("leases/{}.lease.json", stream_id.as_str()));
+                    match store.get(&lease_path).await {
+                        Ok(result) => {
+                            let bytes = result.bytes().await.context("read fence lease")?;
+                            let lease: StreamLease = serde_json::from_slice(&bytes).context("parse fence lease")?;
+                            ensure!(
+                                lease.version == version, 
+                                "manifest publication FENCED: remote lease version {} differs from local version {}", 
+                                lease.version, version
+                            );
+                        }
+                        Err(object_store::Error::NotFound { .. }) => {
+                            bail!("manifest publication FENCED: lease not found for stream '{}'", stream_id.as_str());
+                        }
+                        Err(e) => bail!("failed to check fence lease: {e}"),
+                    }
+                }
+
                 store
                     .put(
                         &ObjectPath::from(object_key.as_str()),
@@ -2467,9 +2494,45 @@ mod tests {
             async fn heartbeat(&self) -> anyhow::Result<()> { Ok(()) }
         }
 
-        engine_b.bind_consensus(stream_id.clone(), Box::new(NotLeaderHandle(stream_id.clone())));
+        engine_b.bind_consensus(stream_id.clone(), std::sync::Arc::new(NotLeaderHandle(stream_id.clone())));
         
         let err = engine_b.append(&stream_id, b"denied").expect_err("should be denied");
         assert!(err.to_string().contains("not the leader"));
+    }
+
+    #[tokio::test]
+    async fn manifest_publication_enforces_distributed_fencing() {
+        use crate::consensus::{ConsensusProvider, NodeId, ObjectStoreConsensus};
+        use object_store::local::LocalFileSystem;
+
+        let temp = tempdir().expect("temp");
+        let engine = LocalEngine::open(LocalEngineConfig::new(temp.path()).with_segment_max_records(1).expect("config")).expect("engine");
+        let stream_id = stream_id("task.root");
+        engine.create_stream(root_descriptor("task.root")).expect("create");
+
+        let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
+        let consensus = ObjectStoreConsensus::new(store.clone(), "leases");
+
+        // 1. Node A acquires lease and binds
+        let handle_a = consensus.acquire(&stream_id, NodeId::new("node-a")).await.expect("a acquire");
+        let current_version = handle_a.lease().version;
+        engine.bind_consensus(stream_id.clone(), handle_a);
+
+        // 2. Node A appends (triggers segment roll)
+        engine.append(&stream_id, b"first").expect("a append");
+
+        // 3. Node B steals lease (simulated by updating the object directly)
+        let lease_path = ObjectPath::from(format!("leases/{}.lease.json", stream_id.as_str()));
+        let new_lease = crate::consensus::StreamLease {
+            stream_id: stream_id.clone(),
+            owner: NodeId::new("node-b"),
+            version: current_version + 1, // Definitely different
+            expires_at: chrono::Utc::now().timestamp() + 30,
+        };
+        store.put(&lease_path, serde_json::to_vec(&new_lease).unwrap().into()).await.expect("steal");
+
+        // 4. Node A tries to publish (should be FENCED)
+        let err = engine.publish_rolled_segments(&stream_id, &store, "proof").await.expect_err("should be fenced");
+        assert!(err.to_string().contains("FENCED"));
     }
 }
