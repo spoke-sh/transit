@@ -47,6 +47,7 @@ pub struct MissionStatus {
     pub integrity_ready: bool,
     pub consensus_ready: bool,
     pub clients_ready: bool,
+    pub dojo_ready: bool,
 }
 
 impl MissionStatus {
@@ -99,6 +100,7 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
     let integrity_ready = docs.iter().any(|a| a.path == "INTEGRITY.md" && a.present);
     let consensus_ready = kernel_files.iter().any(|a| a.path == "crates/transit-core/src/consensus.rs" && a.present);
     let clients_ready = Path::new("clients/python/transit/client.py").exists();
+    let dojo_ready = Path::new("dojo/training/sparring_tapes.py").exists();
 
     MissionStatus {
         project: "transit",
@@ -112,6 +114,7 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
         integrity_ready,
         consensus_ready,
         clients_ready,
+        dojo_ready,
     }
 }
 
