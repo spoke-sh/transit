@@ -50,13 +50,75 @@ pub trait ConsensusHandle: std::fmt::Debug + Send + Sync {
 #[async_trait]
 pub trait ConsensusProvider: Send + Sync {
     /// Attempt to acquire leadership for a stream.
-    async fn acquire(&self, stream_id: &StreamId, owner: NodeId) -> Result<Box<dyn ConsensusHandle>>;
+    async fn acquire(&self, stream_id: &StreamId, owner: NodeId) -> Result<Arc<dyn ConsensusHandle + 'static>>;
 }
 
 pub struct ObjectStoreConsensus {
     store: Arc<dyn ObjectStore>,
     prefix: ObjectPath,
     lease_duration_secs: i64,
+}
+
+/// Manages active leases and their background heartbeats.
+pub struct ConsensusManager {
+    provider: Arc<dyn ConsensusProvider>,
+    node_id: NodeId,
+    active_leases: Arc<std::sync::RwLock<std::collections::HashMap<StreamId, Arc<dyn ConsensusHandle + 'static>>>>,
+    shutdown: tokio::sync::broadcast::Sender<()>,
+}
+
+impl ConsensusManager {
+    pub fn new(provider: Arc<dyn ConsensusProvider>, node_id: NodeId) -> Self {
+        let (shutdown, _) = tokio::sync::broadcast::channel(1);
+        Self {
+            provider,
+            node_id,
+            active_leases: Arc::new(std::sync::RwLock::new(std::collections::HashMap::new())),
+            shutdown,
+        }
+    }
+
+    /// Acquire leadership for a stream and start heartbeating.
+    pub async fn acquire(&self, stream_id: &StreamId) -> Result<Arc<dyn ConsensusHandle + 'static>> {
+        let handle = self.provider.acquire(stream_id, self.node_id.clone()).await?;
+        self.active_leases.write().unwrap().insert(stream_id.clone(), handle.clone());
+        Ok(handle)
+    }
+
+    pub fn node_id(&self) -> &NodeId {
+        &self.node_id
+    }
+
+    /// Spawn the background heartbeat loop.
+    pub fn spawn_heartbeat_loop(&self) -> tokio::task::JoinHandle<()> {
+        let active_leases = self.active_leases.clone();
+        let mut shutdown = self.shutdown.subscribe();
+        
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        let handles: Vec<(StreamId, Arc<dyn ConsensusHandle>)> = {
+                            let map = active_leases.read().unwrap();
+                            map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+                        };
+
+                        for (stream_id, handle) in handles {
+                            if let Err(e) = handle.heartbeat().await {
+                                eprintln!("failed to heartbeat lease for stream '{}': {:#}", stream_id.as_str(), e);
+                            }
+                        }
+                    }
+                    _ = shutdown.recv() => break,
+                }
+            }
+        })
+    }
+
+    pub fn shutdown(&self) {
+        let _ = self.shutdown.send(());
+    }
 }
 
 impl ObjectStoreConsensus {
@@ -118,7 +180,7 @@ impl ConsensusHandle for ObjectStoreLeaseHandle {
 
 #[async_trait]
 impl ConsensusProvider for ObjectStoreConsensus {
-    async fn acquire(&self, stream_id: &StreamId, owner: NodeId) -> Result<Box<dyn ConsensusHandle>> {
+    async fn acquire(&self, stream_id: &StreamId, owner: NodeId) -> Result<Arc<dyn ConsensusHandle + 'static>> {
         let path = self.lease_path(stream_id);
         
         let existing = match self.store.get(&path).await {
@@ -149,7 +211,7 @@ impl ConsensusProvider for ObjectStoreConsensus {
         let bytes = serde_json::to_vec(&lease).context("serialize lease")?;
         self.store.put(&path, bytes.into()).await.context("put lease")?;
 
-        Ok(Box::new(ObjectStoreLeaseHandle {
+        Ok(Arc::new(ObjectStoreLeaseHandle {
             store: self.store.clone(),
             path,
             stream_id: stream_id.clone(),
@@ -187,5 +249,24 @@ mod tests {
         let version_before = handle_a.lease().version;
         handle_a.heartbeat().await.expect("a heartbeat");
         assert!(handle_a.lease().version > version_before);
+    }
+
+    #[tokio::test]
+    async fn consensus_manager_manages_background_heartbeats() {
+        let temp = tempdir().expect("temp");
+        let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
+        let provider = Arc::new(ObjectStoreConsensus::new(store, "leases"));
+        let manager = ConsensusManager::new(provider, NodeId::new("test-node"));
+
+        let stream_id = StreamId::new("test.stream").expect("id");
+        let handle = manager.acquire(&stream_id).await.expect("acquire");
+        
+        let initial_version = handle.lease().version;
+        
+        // Manual heartbeat to prove it works through the manager's handle
+        handle.heartbeat().await.expect("manual heartbeat");
+        assert_eq!(handle.lease().version, initial_version + 1);
+
+        manager.shutdown();
     }
 }

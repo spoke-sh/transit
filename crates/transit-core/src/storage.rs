@@ -343,6 +343,7 @@ pub struct SegmentManifest {
     manifest_root: ContentDigest,
     storage: StorageLocation,
     materialization_boundary: Option<MaterializationBoundary>,
+    ownership_proof: Option<u64>, // The lease version used to authorize this update
 }
 
 impl SegmentManifest {
@@ -363,7 +364,17 @@ impl SegmentManifest {
             manifest_root,
             storage,
             materialization_boundary,
+            ownership_proof: None,
         }
+    }
+
+    pub fn with_ownership_proof(mut self, version: u64) -> Self {
+        self.ownership_proof = Some(version);
+        self
+    }
+
+    pub fn ownership_proof(&self) -> Option<u64> {
+        self.ownership_proof
     }
 
     pub fn manifest_id(&self) -> &ManifestId {
@@ -414,6 +425,7 @@ impl SegmentManifest {
             manifest_root,
             storage,
             materialization_boundary: self.materialization_boundary.clone(),
+            ownership_proof: self.ownership_proof,
         }
     }
 }
