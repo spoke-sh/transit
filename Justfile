@@ -113,3 +113,25 @@ python-client-proof:
     
     # Wait for server to finish
     wait $server_pid
+
+# Prove the Dojo sparring tapes work end to end.
+dojo-proof:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    proof_root="$(mktemp -d)"
+    trap 'rm -rf "$proof_root"' EXIT
+    
+    # Start server in background
+    cargo run -p transit-cli --bin transit -- server run --root "$proof_root" --listen-addr 127.0.0.1:7171 --serve-for-ms 5000 &
+    server_pid=$!
+    
+    # Wait for server to be ready
+    sleep 2
+    
+    # Run Dojo proof
+    export PYTHONPATH="dojo:clients/python"
+    python3 dojo/proof.py
+    
+    # Wait for server to finish
+    wait $server_pid
