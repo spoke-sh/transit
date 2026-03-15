@@ -91,3 +91,25 @@ help:
 # Run the transit CLI with arbitrary arguments.
 run *args:
     cargo run -p transit-cli --bin transit -- {{args}}
+
+# Prove the Python client library works end to end.
+python-client-proof:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    proof_root="$(mktemp -d)"
+    trap 'rm -rf "$proof_root"' EXIT
+    
+    # Start server in background
+    cargo run -p transit-cli --bin transit -- server run --root "$proof_root" --listen-addr 127.0.0.1:7171 --serve-for-ms 5000 &
+    server_pid=$!
+    
+    # Wait for server to be ready
+    sleep 2
+    
+    # Run Python proof
+    export PYTHONPATH="clients/python"
+    python3 clients/python/proof.py
+    
+    # Wait for server to finish
+    wait $server_pid

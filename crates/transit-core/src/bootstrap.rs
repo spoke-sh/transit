@@ -46,6 +46,7 @@ pub struct MissionStatus {
     pub ready: bool,
     pub integrity_ready: bool,
     pub consensus_ready: bool,
+    pub clients_ready: bool,
 }
 
 impl MissionStatus {
@@ -97,6 +98,7 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
 
     let integrity_ready = docs.iter().any(|a| a.path == "INTEGRITY.md" && a.present);
     let consensus_ready = kernel_files.iter().any(|a| a.path == "crates/transit-core/src/consensus.rs" && a.present);
+    let clients_ready = Path::new("clients/python/transit/client.py").exists();
 
     MissionStatus {
         project: "transit",
@@ -109,6 +111,7 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
         ready,
         integrity_ready,
         consensus_ready,
+        clients_ready,
     }
 }
 

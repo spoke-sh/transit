@@ -601,23 +601,25 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
     println!("version: {}", status.version);
 
     // Visual completion profile
-    // X-axis: 0:Core, 1:Server, 2:Integrity, 3:Materialize, 4:MultiNode
+    // X-axis: 0:Core, 1:Server, 2:Integrity, 3:Materialize, 4:MultiNode, 5:Clients
     // Y-axis: % Completion
     let integrity_score = if status.integrity_ready { 100.0 } else { 0.0 };
     let consensus_score = if status.consensus_ready { 100.0 } else { 0.0 };
+    let clients_score = if status.clients_ready { 100.0 } else { 0.0 };
     let points = vec![
         (0.0, 100.0), // Core
         (1.0, 100.0), // Server
         (2.0, integrity_score), // Integrity
         (3.0, 100.0), // Materialize (Engine + Prolly Tree)
         (4.0, consensus_score), // Multi-Node (Kernel)
+        (5.0, clients_score),   // Clients (Python SDK)
     ];
 
     println!("\nCompletion Profile:");
-    Chart::new(60, 40, 0.0, 4.0)
+    Chart::new(60, 40, 0.0, 5.0)
         .lineplot(&Shape::Lines(&points))
         .display();
-    println!("  0:Core  1:Server  2:Integrity  3:Materialize  4:MultiNode\n");
+    println!("  0:Core  1:Server  2:Integrity  3:Materialize  4:MultiNode  5:Clients\n");
 
     println!(
         "docs: {}/{} present",
@@ -655,7 +657,6 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
 
     println!("\nNext Missions:");
     println!("  - Multi-Node Replication (Distribution)");
-    println!("  - Client Libraries (Expansion)");
     println!("  - Learned Verification (Dojo)");
 
     Ok(())
