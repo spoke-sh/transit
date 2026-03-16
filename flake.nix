@@ -39,13 +39,13 @@
         };
         keelPkg = keelRustPlatform.buildRustPackage {
           pname = "keel";
-          version = keelCargoToml.package.version;
+          version = keelCargoToml.package.version or keelCargoToml.workspace.package.version;
           src = keelSrc;
 
           cargoLock = {
             lockFile = "${keelSrc}/Cargo.lock";
             outputHashes = {
-              "txtplot-0.1.0" = "sha256-PXj4ntPJ1UXda++7gcE+yk2cCLy/CFBMBGxgfBGSH5c=";
+              "txtplot-0.1.0" = "sha256-bC6zo1yhJg41iz69XbXqwIKOfNVXwFke0vzcSMbqvFE=";
             };
           };
 
