@@ -15,7 +15,7 @@ id: VDd1F0OXH
 
 ## Technical Research
 
-### Feasibility
+## Feasibility
 Feasibility is high as a reference workload because the repo already maps communication semantics directly onto streams and branches. The remaining work is to define the minimal event vocabulary and decide where UI-level behavior stops and storage semantics begin [SRC-01] [SRC-02] [SRC-03] [SRC-04].
 
 ## Key Findings

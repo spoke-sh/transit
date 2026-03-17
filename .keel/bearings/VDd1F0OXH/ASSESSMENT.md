@@ -22,20 +22,20 @@ id: VDd1F0OXH
 
 ## Analysis
 
-### Findings
+## Findings
 
 - The communication thesis is already structurally supported: root streams, thread branches, classifier evidence, and replay correctness are all first-class concepts in the current docs [SRC-01] [SRC-02] [SRC-03] [SRC-04].
 - The key research challenge is scope discipline. `transit` should own branch and merge lineage, while thread summaries, backlinks, moderation, and UI policy should stay mostly above the storage substrate [SRC-02] [SRC-03].
 
-### Opportunity Cost
+## Opportunity Cost
 
 This work competes with deeper storage engineering, but without a concrete communication workload the product risks underspecifying the signature branch-as-thread story that differentiates it [SRC-01] [SRC-04].
 
-### Dependencies
+## Dependencies
 
 - Reliable branch creation, lineage metadata, merge artifacts, and evaluation harnesses are prerequisites for validating this workload beyond documents [SRC-02] [SRC-04].
 
-### Alternatives Considered
+## Alternatives Considered
 
 - Treat communication as just another flat append stream with application-level threading tables, but that throws away the explicit lineage model `transit` is built to provide [SRC-01] [SRC-02].
 

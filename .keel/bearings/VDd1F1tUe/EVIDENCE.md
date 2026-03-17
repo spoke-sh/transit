@@ -14,7 +14,7 @@ id: VDd1F1tUe
 
 ## Technical Research
 
-### Feasibility
+## Feasibility
 Feasibility looks high because the storage design already has the right anchors for verification: immutable segment boundaries, manifest metadata, explicit lineage events, and remote-backed history [SRC-01] [SRC-02] [SRC-03].
 
 ## Key Findings
