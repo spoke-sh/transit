@@ -31,45 +31,7 @@
           extensions = [ "clippy" "llvm-tools" "rust-analyzer" "rust-src" "rustfmt" ];
         };
         isLinux = pkgs.stdenv.isLinux;
-        keelSrc = keel.outPath;
-        keelCargoToml = pkgs.lib.importTOML "${keelSrc}/Cargo.toml";
-        keelRustPlatform = pkgs.makeRustPlatform {
-          cargo = rust;
-          rustc = rust;
-        };
-        keelPkg = keelRustPlatform.buildRustPackage {
-          pname = "keel";
-          version = keelCargoToml.package.version or keelCargoToml.workspace.package.version;
-          src = keelSrc;
-
-          cargoLock = {
-            lockFile = "${keelSrc}/Cargo.lock";
-            outputHashes = {
-              "txtplot-0.1.0" = "sha256-bC6zo1yhJg41iz69XbXqwIKOfNVXwFke0vzcSMbqvFE=";
-            };
-          };
-
-          nativeBuildInputs = [
-            pkgs.pkg-config
-          ];
-
-          nativeCheckInputs = [
-            pkgs.git
-          ];
-
-          buildInputs = [
-            pkgs.zstd
-          ];
-
-          doCheck = false;
-
-          meta = with pkgs.lib; {
-            description = "Fast CLI for project board management";
-            homepage = "https://github.com/rupurt/keel";
-            license = licenses.mit;
-            maintainers = [ ];
-          };
-        };
+        keelPkg = keel.packages.${system}.keel;
         siftPkg = sift.packages.${system}.sift;
       in {
         packages = {
