@@ -1,1 +1,1 @@
-Sealing move: migrate bearing headers to level 2 and initialize pacemaker
+build: upgrade keel to revision b35f5f7 and adopt new commit body protocol
