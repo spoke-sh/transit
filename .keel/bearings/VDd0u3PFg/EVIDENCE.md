@@ -14,7 +14,7 @@ id: VDd0u3PFg
 
 ## Technical Research
 
-### Feasibility
+## Feasibility
 Feasibility looks strong as a follow-on initiative. The repo already treats materialization as a first-party-adjacent layer rather than a speculative add-on, and the existing architecture gives it the exact primitives it needs: deterministic replay, explicit lineage, manifests, and checkpoints [SRC-01] [SRC-02].
 
 ## Key Findings

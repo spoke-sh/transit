@@ -22,20 +22,20 @@ id: VDd1EybWm
 
 ## Analysis
 
-### Findings
+## Findings
 
 - This bearing is already supported by the project thesis: AI harnesses and agent runtimes are named as first-class workloads in the README, guide, evaluation plan, and constitution [SRC-01] [SRC-02] [SRC-03] [SRC-04].
 - The work is mostly about formalization, not invention. The repo already describes roots, branches, tool traces, evaluator metadata, and artifact references in enough detail to define a canonical reference model [SRC-02] [SRC-03].
 
-### Opportunity Cost
+## Opportunity Cost
 
 Time spent codifying the reference workload is time not spent on storage internals, but without it the API and benchmark story risk drifting away from the product’s stated target users [SRC-01] [SRC-03].
 
-### Dependencies
+## Dependencies
 
 - The single-node kernel must expose reliable append, branch, merge, replay, and artifact-reference ergonomics before the workload can be proven in code [SRC-02] [SRC-03].
 
-### Alternatives Considered
+## Alternatives Considered
 
 - Stay with generic queue-style examples, but that would weaken the product narrative and fail to test the lineage-heavy behavior the repo says matters most [SRC-01] [SRC-04].
 

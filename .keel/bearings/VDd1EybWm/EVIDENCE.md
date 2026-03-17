@@ -15,7 +15,7 @@ id: VDd1EybWm
 
 ## Technical Research
 
-### Feasibility
+## Feasibility
 Feasibility is high because the current docs already contain most of the workload primitives. What is missing is a concrete reference contract that engineering, benchmarks, and future demos can all share [SRC-01] [SRC-02] [SRC-03] [SRC-04].
 
 ## Key Findings

@@ -15,7 +15,7 @@ id: VDd1IzACq
 
 ## Technical Research
 
-### Feasibility
+## Feasibility
 CRDT overlays are feasible, but the evidence points toward treating them as optional derived-state machinery rather than as part of the core storage semantics. The core engine is optimized for explicit lineage, not for making every record participate in collaborative-state convergence [SRC-01] [SRC-02] [SRC-03] [SRC-04].
 
 ## Key Findings

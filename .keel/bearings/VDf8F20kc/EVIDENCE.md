@@ -17,7 +17,7 @@ id: VDf8F20kc
 
 ## Technical Research
 
-### Feasibility
+## Feasibility
 Feasibility is good if the scope stays narrow. The evidence supports WireGuard as a credible secure underlay for trusted node-to-node communication, but not as a substitute for `transit`'s own application protocol. That means the useful question is not "WireGuard or protocol," but "should `transit` support a WireGuard underlay mode while keeping framing, acknowledgements, multiplexing, and replication semantics in its own protocol layer" [SRC-01] [SRC-02] [SRC-03] [SRC-05] [SRC-06].
 
 ## Key Findings

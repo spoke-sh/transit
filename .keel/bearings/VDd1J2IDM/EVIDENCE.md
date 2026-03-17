@@ -15,7 +15,7 @@ id: VDd1J2IDM
 
 ## Technical Research
 
-### Feasibility
+## Feasibility
 Feasibility is good if this bearing is split into stages. The docs already justify server mode as a direct extension of the same engine, while also making it clear that distributed replication should wait until the single-node semantics are sharp [SRC-01] [SRC-02] [SRC-03] [SRC-04].
 
 ## Key Findings

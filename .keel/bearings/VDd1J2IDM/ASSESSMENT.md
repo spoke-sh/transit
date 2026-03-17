@@ -22,20 +22,20 @@ id: VDd1J2IDM
 
 ## Analysis
 
-### Findings
+## Findings
 
 - The evidence strongly supports a staged recommendation: proceed on server semantics that wrap the shared engine, but keep full replication explicitly downstream of the single-node and tiered-storage milestones [SRC-01] [SRC-02] [SRC-04].
 - The constitution rules out any server or replication path that invents a second database or hides multi-writer semantics behind vague claims [SRC-03].
 
-### Opportunity Cost
+## Opportunity Cost
 
 Pulling distributed design forward would dilute the current kernel mission, and premature replication abstractions would likely be anchored to unstable local semantics [SRC-02] [SRC-04].
 
-### Dependencies
+## Dependencies
 
 - A stable single-node engine, explicit durability modes, and concrete manifest behavior are prerequisites for any meaningful server or replication design [SRC-02] [SRC-03] [SRC-04].
 
-### Alternatives Considered
+## Alternatives Considered
 
 - Jump directly to replicated multi-node design, but that would violate the repo’s current sequencing and force distributed assumptions before the base engine semantics are proven [SRC-02] [SRC-04].
 

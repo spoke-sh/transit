@@ -22,20 +22,20 @@ id: VDd1IzACq
 
 ## Analysis
 
-### Findings
+## Findings
 
 - The strongest current conclusion is negative scope guidance: CRDTs do not belong in the base engine today, because the product thesis is explicit append, branch, merge, and lineage rather than generalized convergent mutable state [SRC-01] [SRC-03].
 - If CRDTs become useful at all, they fit best as optional overlays or materialized views built on top of the core log and its checkpoints [SRC-02].
 
-### Opportunity Cost
+## Opportunity Cost
 
 Pursuing CRDT-heavy design now would steal attention from the single-node kernel and materialization substrate while adding complexity to performance-sensitive code paths that the evaluation plan says must stay fast [SRC-04].
 
-### Dependencies
+## Dependencies
 
 - A stable materialization layer and concrete collaborative workload are prerequisites before CRDT overlays can be judged on real merit instead of abstraction appeal [SRC-02] [SRC-04].
 
-### Alternatives Considered
+## Alternatives Considered
 
 - Lean on explicit branch and merge artifacts plus workload-specific reducers, which keeps the core engine simpler and may already solve most collaboration cases the project currently targets [SRC-01] [SRC-03].
 
