@@ -1,0 +1,168 @@
+{
+  "data_root": "target/transit-mission/integrity-proof-tamper-verify",
+  "durability": "local",
+  "stream_id": "mission.integrity.root",
+  "records_appended": 2,
+  "manifest_id": "manifest-00000000000000000002",
+  "manifest_generation": 2,
+  "manifest_root": "ddf6a3af0a8e175cceb17dd4256a5db6fb5aad63aa1a6047639fb76612613c0d",
+  "verification_api": "LocalEngine::verify_local_lineage",
+  "publication_api": "LocalEngine::publish_rolled_segments",
+  "restore_api": "LocalEngine::restore_stream_from_remote_manifest",
+  "checkpoint_api": "LocalEngine::checkpoint",
+  "checkpoint_verification_api": "LocalEngine::verify_checkpoint",
+  "verified": true,
+  "segments": [
+    {
+      "segment_id": "segment-00000000000000000000",
+      "start_offset": 0,
+      "last_offset": 1,
+      "record_count": 2,
+      "byte_length": 134,
+      "checksum_algorithm": "fnv1a64",
+      "checksum_digest": "1d689173ece2d21b",
+      "checksum_verified": true,
+      "content_digest_algorithm": "sha256",
+      "content_digest": "7671d61e064cddbbd99d5407b01a63fd2f6f70a8fdfb5a93eba78f72f0a06665",
+      "content_digest_verified": true
+    }
+  ],
+  "publication": {
+    "published_segment_ids": [
+      "segment-00000000000000000000"
+    ],
+    "manifest_object_key": "integrity-proof/streams/mission.integrity.root/manifests/manifest-00000000000000000002.json"
+  },
+  "restore": {
+    "stream_id": "mission.integrity.root",
+    "restored_segment_ids": [
+      "segment-00000000000000000000"
+    ],
+    "manifest_generation": 2,
+    "manifest_root": "ddf6a3af0a8e175cceb17dd4256a5db6fb5aad63aa1a6047639fb76612613c0d",
+    "manifest_roots_match": true,
+    "next_offset": 2
+  },
+  "checkpoints": [
+    {
+      "stream_id": "mission.integrity.branch",
+      "lineage_kind": "branch",
+      "head_offset": 3,
+      "manifest_root": "e34ea9880a545592c887f92e53c3a1b1e52c9b027ce4045709a6e15fbdf00562",
+      "kind": "branch-handoff",
+      "verified": true,
+      "error": null
+    },
+    {
+      "stream_id": "mission.integrity.merge",
+      "lineage_kind": "merge",
+      "head_offset": 3,
+      "manifest_root": "1d1ef631d7d9d8e8761facf3cd49bb772e256f68e9a509446217ac65279dbfd4",
+      "kind": "merge-handoff",
+      "verified": true,
+      "error": null
+    }
+  ],
+  "tamper": {
+    "data_root": "target/transit-mission/integrity-proof-tamper-verify/tamper",
+    "stream_id": "mission.integrity.tamper",
+    "segment_id": "segment-00000000000000000000",
+    "corrupted_path": "target/transit-mission/integrity-proof-tamper-verify/tamper/streams/mission.integrity.tamper/segments/segment-00000000000000000000.segment",
+    "verification_api": "LocalEngine::verify_local_lineage",
+    "detected": true,
+    "error": "segment checksum mismatch for algorithm fnv1a64"
+  },
+  "server_parity": {
+    "data_root": "target/transit-mission/integrity-proof-tamper-verify/server",
+    "server_addr": "127.0.0.1:36881",
+    "durability": "local",
+    "topology": "single_node",
+    "verification_api": "LocalEngine::verify_local_lineage",
+    "remote_api": "RemoteClient",
+    "server_api": "ServerHandle::bind",
+    "accepted_connections": 16,
+    "graceful_shutdown": true,
+    "verified": true,
+    "streams": [
+      {
+        "stream_id": "mission.integrity.server.root",
+        "remote_lineage_kind": "root",
+        "local_lineage_kind": "root",
+        "remote_parents": [],
+        "local_parents": [],
+        "remote_next_offset": 2,
+        "local_next_offset": 2,
+        "remote_manifest_generation": 1,
+        "local_manifest_generation": 1,
+        "remote_rolled_segment_count": 1,
+        "local_rolled_segment_count": 1,
+        "manifest_root": "4a97eca04d697d30d7b02a74f2e43f602532541e27ab3b743f0f5011de6e7fac",
+        "verified": true,
+        "error": null
+      },
+      {
+        "stream_id": "mission.integrity.server.branch",
+        "remote_lineage_kind": "branch",
+        "local_lineage_kind": "branch",
+        "remote_parents": [
+          "mission.integrity.server.root"
+        ],
+        "local_parents": [
+          "mission.integrity.server.root"
+        ],
+        "remote_next_offset": 4,
+        "local_next_offset": 4,
+        "remote_manifest_generation": 1,
+        "local_manifest_generation": 1,
+        "remote_rolled_segment_count": 1,
+        "local_rolled_segment_count": 1,
+        "manifest_root": "33c5bce70b33100c2ab83937ca430777089ffef6de7c2f69e80632040b577909",
+        "verified": true,
+        "error": null
+      },
+      {
+        "stream_id": "mission.integrity.server.branch-two",
+        "remote_lineage_kind": "branch",
+        "local_lineage_kind": "branch",
+        "remote_parents": [
+          "mission.integrity.server.root"
+        ],
+        "local_parents": [
+          "mission.integrity.server.root"
+        ],
+        "remote_next_offset": 4,
+        "local_next_offset": 4,
+        "remote_manifest_generation": 1,
+        "local_manifest_generation": 1,
+        "remote_rolled_segment_count": 1,
+        "local_rolled_segment_count": 1,
+        "manifest_root": "f59e3887c2d758f6d9845ff21706823f3c9f2c157460ca12321321b407f76d71",
+        "verified": true,
+        "error": null
+      },
+      {
+        "stream_id": "mission.integrity.server.merge",
+        "remote_lineage_kind": "merge",
+        "local_lineage_kind": "merge",
+        "remote_parents": [
+          "mission.integrity.server.branch",
+          "mission.integrity.server.branch-two"
+        ],
+        "local_parents": [
+          "mission.integrity.server.branch",
+          "mission.integrity.server.branch-two"
+        ],
+        "remote_next_offset": 4,
+        "local_next_offset": 4,
+        "remote_manifest_generation": 1,
+        "local_manifest_generation": 1,
+        "remote_rolled_segment_count": 1,
+        "local_rolled_segment_count": 1,
+        "manifest_root": "1de47e0cd462756308fce5daca6ba9d26d1233c2097dcd62c5d6f878f2cc5125",
+        "verified": true,
+        "error": null
+      }
+    ]
+  },
+  "error": null
+}

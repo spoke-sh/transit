@@ -147,7 +147,7 @@ The current bootstrap developer loop is:
 1. enter `nix develop`
 2. run `just screen`
 3. use `just run mission local-engine-proof --root target/transit-mission/local-engine` when you want the explicit durable-engine proof without the rest of the mission flow
-4. use `just run mission integrity-proof --root target/transit-mission/integrity` when you want the explicit checksum, manifest-root, restore, and checkpoint proof
+4. use `just run mission integrity-proof --root target/transit-mission/integrity` when you want the explicit checksum, manifest-root, restore, checkpoint, tamper-detection, and server-parity proof
 5. use `just run mission tiered-engine-proof --root target/transit-mission/tiered-engine` when you want the explicit publication and restore proof
 6. use `just run mission networked-server-proof --root target/transit-mission/networked-server` when you want the explicit live server proof, including the transport-boundary note
 7. use `just run server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap

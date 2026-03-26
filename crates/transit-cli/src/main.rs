@@ -52,7 +52,7 @@ enum MissionCommands {
     TieredEngineProof(LocalEngineProofArgs),
     /// Exercise the networked single-node server and its transport boundary end to end.
     NetworkedServerProof(LocalEngineProofArgs),
-    /// Exercise segment, manifest-root, and checkpoint verification across local, tiered, and lineage flows.
+    /// Exercise segment, manifest-root, checkpoint, tamper, and server-parity verification across the integrity proof flow.
     IntegrityProof(IntegrityProofArgs),
     /// Explicitly verify the cryptographic integrity of local history.
     VerifyLineage(VerifyLineageArgs),
@@ -811,6 +811,50 @@ struct IntegrityProofCheckpointResult {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct IntegrityProofTamperResult {
+    data_root: PathBuf,
+    stream_id: String,
+    segment_id: String,
+    corrupted_path: PathBuf,
+    verification_api: &'static str,
+    detected: bool,
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct IntegrityProofServerParityStreamResult {
+    stream_id: String,
+    remote_lineage_kind: String,
+    local_lineage_kind: String,
+    remote_parents: Vec<String>,
+    local_parents: Vec<String>,
+    remote_next_offset: u64,
+    local_next_offset: u64,
+    remote_manifest_generation: u64,
+    local_manifest_generation: u64,
+    remote_rolled_segment_count: usize,
+    local_rolled_segment_count: usize,
+    manifest_root: String,
+    verified: bool,
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct IntegrityProofServerParityResult {
+    data_root: PathBuf,
+    server_addr: String,
+    durability: String,
+    topology: String,
+    verification_api: &'static str,
+    remote_api: &'static str,
+    server_api: &'static str,
+    accepted_connections: u64,
+    graceful_shutdown: bool,
+    verified: bool,
+    streams: Vec<IntegrityProofServerParityStreamResult>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 struct IntegrityProofResult {
     data_root: PathBuf,
     durability: String,
@@ -829,6 +873,8 @@ struct IntegrityProofResult {
     publication: IntegrityProofPublicationResult,
     restore: IntegrityProofRestoreResult,
     checkpoints: Vec<IntegrityProofCheckpointResult>,
+    tamper: IntegrityProofTamperResult,
+    server_parity: IntegrityProofServerParityResult,
     error: Option<String>,
 }
 
@@ -1285,6 +1331,8 @@ async fn run_integrity_proof(root: PathBuf) -> Result<IntegrityProofResult> {
         summarize_integrity_checkpoint(&engine, &branch_stream, "branch-handoff")?,
         summarize_integrity_checkpoint(&engine, &merge_stream, "merge-handoff")?,
     ];
+    let tamper = run_integrity_tamper_detection(&root)?;
+    let server_parity = run_integrity_server_parity(&root)?;
 
     Ok(IntegrityProofResult {
         data_root: root,
@@ -1304,7 +1352,9 @@ async fn run_integrity_proof(root: PathBuf) -> Result<IntegrityProofResult> {
                 .iter()
                 .all(|segment| segment.checksum_verified && segment.content_digest_verified)
             && manifest_roots_match
-            && checkpoints.iter().all(|checkpoint| checkpoint.verified),
+            && checkpoints.iter().all(|checkpoint| checkpoint.verified)
+            && tamper.detected
+            && server_parity.verified,
         segments,
         publication: IntegrityProofPublicationResult {
             published_segment_ids: publication
@@ -1327,6 +1377,8 @@ async fn run_integrity_proof(root: PathBuf) -> Result<IntegrityProofResult> {
             next_offset: restore.next_offset().value(),
         },
         checkpoints,
+        tamper,
+        server_parity,
         error: verification.err().map(|error| format!("{error:#}")),
     })
 }
@@ -1856,6 +1908,335 @@ fn summarize_integrity_checkpoint(
     })
 }
 
+fn run_integrity_tamper_detection(root: &Path) -> Result<IntegrityProofTamperResult> {
+    let tamper_root = root.join("tamper");
+    let engine = LocalEngine::open(
+        LocalEngineConfig::new(&tamper_root)
+            .with_segment_max_records(2)
+            .context("integrity tamper config")?,
+    )
+    .context("open integrity tamper root")?;
+    let stream_id = StreamId::new("mission.integrity.tamper")?;
+    engine.create_stream(StreamDescriptor::root(
+        stream_id.clone(),
+        LineageMetadata::new(Some("mission".into()), Some("integrity-tamper".into())),
+    ))?;
+    engine.append(&stream_id, b"tamper-0")?;
+    let second_append = engine.append(&stream_id, b"tamper-1")?;
+    ensure!(
+        second_append.rolled_segment().is_some(),
+        "integrity tamper scenario expected a rolled segment"
+    );
+
+    let manifest = engine
+        .load_manifest(&stream_id)
+        .context("load tamper manifest")?;
+    let segment = manifest
+        .segments()
+        .first()
+        .context("integrity tamper scenario expected one sealed segment")?;
+    let corrupted_path = segment
+        .storage()
+        .local_path()
+        .cloned()
+        .context("integrity tamper scenario requires a local segment path")?;
+    let mut corrupted_bytes =
+        fs::read(&corrupted_path).with_context(|| format!("read {}", corrupted_path.display()))?;
+    ensure!(
+        !corrupted_bytes.is_empty(),
+        "integrity tamper scenario expected non-empty segment bytes"
+    );
+    corrupted_bytes[0] ^= 0xff;
+    fs::write(&corrupted_path, corrupted_bytes)
+        .with_context(|| format!("overwrite corrupted segment {}", corrupted_path.display()))?;
+
+    let verification = engine.verify_local_lineage(&stream_id);
+    let error = verification.err().map(|error| format!("{error:#}"));
+    let detected = error.as_deref().is_some_and(|message| {
+        message.contains("segment checksum mismatch")
+            || message.contains("segment content digest mismatch")
+    });
+
+    Ok(IntegrityProofTamperResult {
+        data_root: tamper_root,
+        stream_id: stream_id.as_str().to_owned(),
+        segment_id: segment.segment_id().as_str().to_owned(),
+        corrupted_path,
+        verification_api: "LocalEngine::verify_local_lineage",
+        detected,
+        error,
+    })
+}
+
+fn run_integrity_server_parity(root: &Path) -> Result<IntegrityProofServerParityResult> {
+    let server_root = root.join("server");
+    let requested_listen_addr = "127.0.0.1:0"
+        .parse::<SocketAddr>()
+        .context("parse integrity server parity listen addr")?;
+    let server = ServerHandle::bind(ServerConfig::new(
+        LocalEngineConfig::new(&server_root).with_segment_max_records(2)?,
+        requested_listen_addr,
+    ))
+    .context("bind integrity server parity daemon")?;
+    let server_addr = server.local_addr();
+    let engine = server.engine();
+
+    let parity = (|| -> Result<(String, String, Vec<IntegrityProofServerParityStreamResult>)> {
+        let root_stream_id = "mission.integrity.server.root";
+        let branch_stream_id = "mission.integrity.server.branch";
+        let branch_two_stream_id = "mission.integrity.server.branch-two";
+        let merge_stream_id = "mission.integrity.server.merge";
+
+        run_remote_create_root(ServerCreateRootArgs {
+            server_addr,
+            stream_id: root_stream_id.into(),
+            actor: Some("mission".into()),
+            reason: Some("integrity-server-proof".into()),
+            labels: vec!["kind=integrity-root".into()],
+            json: false,
+        })?;
+        run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: root_stream_id.into(),
+            payload_text: "root-0".into(),
+            json: false,
+        })?;
+        let root_second_append = run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: root_stream_id.into(),
+            payload_text: "root-1".into(),
+            json: false,
+        })?;
+        ensure!(
+            root_second_append.rolled_segment_id.is_some(),
+            "integrity server parity expected root segment roll"
+        );
+
+        run_remote_branch(ServerBranchArgs {
+            server_addr,
+            stream_id: branch_stream_id.into(),
+            parent_stream_id: root_stream_id.into(),
+            parent_offset: 1,
+            actor: Some("mission.classifier".into()),
+            reason: Some("integrity-branch".into()),
+            labels: vec!["branch=one".into()],
+            json: false,
+        })?;
+        run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: branch_stream_id.into(),
+            payload_text: "branch-0".into(),
+            json: false,
+        })?;
+        let branch_second_append = run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: branch_stream_id.into(),
+            payload_text: "branch-1".into(),
+            json: false,
+        })?;
+        ensure!(
+            branch_second_append.rolled_segment_id.is_some(),
+            "integrity server parity expected branch segment roll"
+        );
+
+        run_remote_branch(ServerBranchArgs {
+            server_addr,
+            stream_id: branch_two_stream_id.into(),
+            parent_stream_id: root_stream_id.into(),
+            parent_offset: 1,
+            actor: Some("mission.classifier".into()),
+            reason: Some("integrity-branch-two".into()),
+            labels: vec!["branch=two".into()],
+            json: false,
+        })?;
+        run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: branch_two_stream_id.into(),
+            payload_text: "branch-two-0".into(),
+            json: false,
+        })?;
+        let branch_two_second_append = run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: branch_two_stream_id.into(),
+            payload_text: "branch-two-1".into(),
+            json: false,
+        })?;
+        ensure!(
+            branch_two_second_append.rolled_segment_id.is_some(),
+            "integrity server parity expected second branch segment roll"
+        );
+
+        run_remote_merge(ServerMergeArgs {
+            server_addr,
+            stream_id: merge_stream_id.into(),
+            parents: vec![
+                "mission.integrity.server.branch@3".into(),
+                "mission.integrity.server.branch-two@3".into(),
+            ],
+            merge_base: Some("mission.integrity.server.root@1".into()),
+            policy: "recursive".into(),
+            policy_metadata: vec!["resolver=integrity-proof".into()],
+            actor: Some("mission.judge".into()),
+            reason: Some("integrity-merge".into()),
+            labels: vec!["decision=accepted".into()],
+            json: false,
+        })?;
+        run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: merge_stream_id.into(),
+            payload_text: "merge-0".into(),
+            json: false,
+        })?;
+        let merge_second_append = run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: merge_stream_id.into(),
+            payload_text: "merge-1".into(),
+            json: false,
+        })?;
+        ensure!(
+            merge_second_append.rolled_segment_id.is_some(),
+            "integrity server parity expected merge segment roll"
+        );
+
+        let root_lineage = run_remote_lineage(ServerLineageArgs {
+            server_addr,
+            stream_id: root_stream_id.into(),
+            json: false,
+        })?;
+        let branch_lineage = run_remote_lineage(ServerLineageArgs {
+            server_addr,
+            stream_id: branch_stream_id.into(),
+            json: false,
+        })?;
+        let branch_two_lineage = run_remote_lineage(ServerLineageArgs {
+            server_addr,
+            stream_id: branch_two_stream_id.into(),
+            json: false,
+        })?;
+        let merge_lineage = run_remote_lineage(ServerLineageArgs {
+            server_addr,
+            stream_id: merge_stream_id.into(),
+            json: false,
+        })?;
+
+        Ok((
+            root_second_append.durability,
+            root_second_append.topology,
+            vec![
+                summarize_integrity_server_parity_stream(&engine, root_lineage)?,
+                summarize_integrity_server_parity_stream(&engine, branch_lineage)?,
+                summarize_integrity_server_parity_stream(&engine, branch_two_lineage)?,
+                summarize_integrity_server_parity_stream(&engine, merge_lineage)?,
+            ],
+        ))
+    })();
+
+    let shutdown = server
+        .shutdown()
+        .context("shutdown integrity server parity daemon")?;
+    let (durability, topology, streams) = parity?;
+
+    Ok(IntegrityProofServerParityResult {
+        data_root: shutdown.data_dir().to_path_buf(),
+        server_addr: server_addr.to_string(),
+        durability,
+        topology,
+        verification_api: "LocalEngine::verify_local_lineage",
+        remote_api: "RemoteClient",
+        server_api: "ServerHandle::bind",
+        accepted_connections: shutdown.accepted_connections(),
+        graceful_shutdown: true,
+        verified: streams.iter().all(|stream| stream.verified),
+        streams,
+    })
+}
+
+fn summarize_integrity_server_parity_stream(
+    engine: &LocalEngine,
+    remote_lineage: RemoteLineageResult,
+) -> Result<IntegrityProofServerParityStreamResult> {
+    let stream_id = StreamId::new(&remote_lineage.stream_id)?;
+    let descriptor = engine
+        .stream_descriptor(&stream_id)
+        .with_context(|| format!("load local descriptor for {}", stream_id.as_str()))?;
+    let local_status = engine
+        .stream_status(&stream_id)
+        .with_context(|| format!("load local status for {}", stream_id.as_str()))?;
+    let local_manifest = engine
+        .load_manifest(&stream_id)
+        .with_context(|| format!("load local manifest for {}", stream_id.as_str()))?;
+    let local_lineage_kind = match &descriptor.lineage {
+        StreamLineage::Root { .. } => "root".to_owned(),
+        StreamLineage::Branch { .. } => "branch".to_owned(),
+        StreamLineage::Merge { .. } => "merge".to_owned(),
+    };
+    let local_parents = descriptor
+        .parent_stream_ids()
+        .into_iter()
+        .map(|parent| parent.as_str().to_owned())
+        .collect::<Vec<_>>();
+
+    let mut mismatches = Vec::new();
+    if remote_lineage.lineage_kind != local_lineage_kind {
+        mismatches.push(format!(
+            "lineage kind mismatch: remote {}, local {}",
+            remote_lineage.lineage_kind, local_lineage_kind
+        ));
+    }
+    if remote_lineage.parents != local_parents {
+        mismatches.push(format!(
+            "parent mismatch: remote {:?}, local {:?}",
+            remote_lineage.parents, local_parents
+        ));
+    }
+    if remote_lineage.next_offset != local_status.next_offset().value() {
+        mismatches.push(format!(
+            "next offset mismatch: remote {}, local {}",
+            remote_lineage.next_offset,
+            local_status.next_offset().value()
+        ));
+    }
+    if remote_lineage.manifest_generation != local_status.manifest_generation() {
+        mismatches.push(format!(
+            "manifest generation mismatch: remote {}, local {}",
+            remote_lineage.manifest_generation,
+            local_status.manifest_generation()
+        ));
+    }
+    if remote_lineage.rolled_segment_count != local_status.rolled_segment_count() {
+        mismatches.push(format!(
+            "rolled segment mismatch: remote {}, local {}",
+            remote_lineage.rolled_segment_count,
+            local_status.rolled_segment_count()
+        ));
+    }
+
+    if let Err(error) = engine.verify_local_lineage(&stream_id) {
+        mismatches.push(format!("{error:#}"));
+    }
+
+    Ok(IntegrityProofServerParityStreamResult {
+        stream_id: remote_lineage.stream_id,
+        remote_lineage_kind: remote_lineage.lineage_kind,
+        local_lineage_kind,
+        remote_parents: remote_lineage.parents,
+        local_parents,
+        remote_next_offset: remote_lineage.next_offset,
+        local_next_offset: local_status.next_offset().value(),
+        remote_manifest_generation: remote_lineage.manifest_generation,
+        local_manifest_generation: local_status.manifest_generation(),
+        remote_rolled_segment_count: remote_lineage.rolled_segment_count,
+        local_rolled_segment_count: local_status.rolled_segment_count(),
+        manifest_root: local_manifest.manifest_root().digest().to_owned(),
+        verified: mismatches.is_empty(),
+        error: if mismatches.is_empty() {
+            None
+        } else {
+            Some(mismatches.join("; "))
+        },
+    })
+}
+
 fn reset_directory(root: &Path) -> Result<()> {
     if root.exists() {
         fs::remove_dir_all(root)
@@ -2072,6 +2453,77 @@ fn render_integrity_proof(result: IntegrityProofResult, json: bool) -> Result<()
             );
             if let Some(error) = &checkpoint.error {
                 println!("    error: {error}");
+            }
+        }
+    }
+
+    println!("tamper detection:");
+    println!("  root: {}", result.tamper.data_root.display());
+    println!("  stream: {}", result.tamper.stream_id);
+    println!("  segment: {}", result.tamper.segment_id);
+    println!("  path: {}", result.tamper.corrupted_path.display());
+    println!("  verification api: {}", result.tamper.verification_api);
+    println!(
+        "  status: {}",
+        if result.tamper.detected {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    if let Some(error) = &result.tamper.error {
+        println!("  error: {error}");
+    }
+
+    println!("server parity:");
+    println!("  root: {}", result.server_parity.data_root.display());
+    println!("  server: {}", result.server_parity.server_addr);
+    println!("  durability: {}", result.server_parity.durability);
+    println!("  topology: {}", result.server_parity.topology);
+    println!(
+        "  verification api: {}",
+        result.server_parity.verification_api
+    );
+    println!("  remote api: {}", result.server_parity.remote_api);
+    println!("  server api: {}", result.server_parity.server_api);
+    println!(
+        "  accepted connections: {}",
+        result.server_parity.accepted_connections
+    );
+    println!(
+        "  graceful shutdown: {}",
+        if result.server_parity.graceful_shutdown {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    if result.server_parity.streams.is_empty() {
+        println!("  streams: none");
+    } else {
+        println!("  streams:");
+        for stream in &result.server_parity.streams {
+            println!(
+                "    - {} [{}] root {} remote/local next {}/{} generation {}/{} segments {}/{} {}",
+                stream.stream_id,
+                stream.local_lineage_kind,
+                stream.manifest_root,
+                stream.remote_next_offset,
+                stream.local_next_offset,
+                stream.remote_manifest_generation,
+                stream.local_manifest_generation,
+                stream.remote_rolled_segment_count,
+                stream.local_rolled_segment_count,
+                if stream.verified { "PASS" } else { "FAIL" }
+            );
+            if !(stream.remote_parents.is_empty() && stream.local_parents.is_empty()) {
+                println!(
+                    "      parents remote/local: {:?} / {:?}",
+                    stream.remote_parents, stream.local_parents
+                );
+            }
+            if let Some(error) = &stream.error {
+                println!("      error: {error}");
             }
         }
     }
@@ -2667,8 +3119,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn integrity_proof_exercises_segment_checksum_digest_restore_and_checkpoint_verification()
-    {
+    async fn integrity_proof_exercises_segment_checksum_restore_checkpoint_tamper_and_server_parity_verification()
+     {
         let temp_dir = tempdir().expect("temp dir");
         let proof = run_integrity_proof(temp_dir.path().join("integrity"))
             .await
@@ -2719,6 +3171,41 @@ mod tests {
                 .iter()
                 .all(|checkpoint| checkpoint.verified)
         );
+        assert_eq!(
+            proof.tamper.verification_api,
+            "LocalEngine::verify_local_lineage"
+        );
+        assert!(proof.tamper.detected);
+        assert_eq!(proof.tamper.stream_id, "mission.integrity.tamper");
+        assert!(
+            proof
+                .tamper
+                .error
+                .as_deref()
+                .is_some_and(|message| message.contains("segment checksum mismatch"))
+        );
+        assert_eq!(
+            proof.server_parity.verification_api,
+            "LocalEngine::verify_local_lineage"
+        );
+        assert_eq!(proof.server_parity.remote_api, "RemoteClient");
+        assert_eq!(proof.server_parity.server_api, "ServerHandle::bind");
+        assert_eq!(proof.server_parity.durability, "local");
+        assert_eq!(proof.server_parity.topology, "single_node");
+        assert!(proof.server_parity.graceful_shutdown);
+        assert!(proof.server_parity.accepted_connections > 0);
+        assert!(proof.server_parity.verified);
+        assert_eq!(proof.server_parity.streams.len(), 4);
+        assert_eq!(proof.server_parity.streams[0].local_lineage_kind, "root");
+        assert_eq!(proof.server_parity.streams[1].local_lineage_kind, "branch");
+        assert_eq!(proof.server_parity.streams[3].local_lineage_kind, "merge");
+        assert!(
+            proof
+                .server_parity
+                .streams
+                .iter()
+                .all(|stream| stream.verified)
+        );
     }
 
     #[tokio::test]
@@ -2749,6 +3236,18 @@ mod tests {
         );
         assert_eq!(
             proof_json["checkpoints"][0]
+                .get("verified")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["tamper"]
+                .get("detected")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["server_parity"]
                 .get("verified")
                 .and_then(serde_json::Value::as_bool),
             Some(true)
