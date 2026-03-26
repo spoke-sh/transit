@@ -89,10 +89,6 @@ quality:
     just fmt-check
     just clippy
 
-# Run the pinned keel CLI through the flake input.
-keel *args:
-    nix run .#keel -- {{args}}
-
 # Run the transit CLI help output.
 help:
     cargo run -p transit-cli --bin transit -- --help

@@ -1,67 +1,153 @@
 # INSTRUCTIONS.md
 
-Procedural instructions for agents and operators working on `transit`.
+Procedural instructions and workflow guidance for agents and operators working with transit.
 
-## Tactical Loop
+## The Tactical Loop
 
-Every session should follow the same control loop:
+Transit uses Keel as its project management engine. Your job is to perform "tactical moves" that push work through the state machine while eliminating drift.
 
-1. **Mission Orientation**: Run `just keel mission next --status` and `just keel flow --scene` to see whether the board is autonomous, idle, or waiting on human input.
-2. **Role Selection**: Stay in one role for one atomic change. Use manager mode for planning and acceptance. Use operator mode for implementation and evidence.
-3. **Execute One Move**: Perform one tactical move at a time: fix doctor drift, plan a voyage, implement a story, or close a lifecycle transition.
-4. **Seal The Move**: Use the matching lifecycle command such as `just keel story submit`, `just keel voyage plan`, `just keel voyage done`, or `just keel bearing lay`.
-5. **Log And Commit**:
-   - Record the move in the relevant mission `LOG.md` when the change is mission-scoped.
-   - Refresh the pacemaker with `just keel poke "Sealing move: <summary>"` before committing.
-   - Commit once per logical unit. The installed pre-commit hook runs `just quality` and `just test` automatically.
-6. **Re-Orient**: After the commit lands, run `just keel doctor --status` and `just keel flow` before choosing the next move.
+Every session follows this deterministic cycle:
 
-## Human Interaction
+1.  **Mission Orientation**: Start by running `keel mission next --status`. This gives you the top 3 high-signal moves required by the engine. Check `keel flow --scene` to quickly visualize if the workflow is autonomous or blocked waiting for human input.
+2.  **Role Selection**: Identify if you are a `manager` (planning/decisions) or an `operator` (implementation). Do not drift across these roles in a single atomic change.
+3.  **Execute Move**: Perform exactly ONE move (e.g., plan a voyage, implement a story, fix a diagnostic).
+4.  **Seal Move**: Close the loop with `story submit`, `voyage plan`, or `bearing lay`. This mutates the `.keel` state. Ensure the pacemaker is stable (committed heartbeat).
+5.  **Log & Commit**:
+    - Record your move in the mission `LOG.md`.
+    - **Pace-setting**: Execute `keel poke "Sealing move: <summary>"` to synchronize the pacemaker with the board state.
+    - **Commit**: Execute `git commit`. The pre-commit hook will automatically run `just quality` and `just test`. Resolve any issues if the commit is rejected.
+6.  **Re-orient**: After the commit lands, run `keel doctor --status` and `keel flow` to see what the board needs next.
+ This is the "plug the chord back in" moment — you reconnect to the board's current state. If the delivery lane has ready work, start the next loop immediately. Only stop to ask the human when you reach a manual lane (design direction, bearing assessment, or human verification).
 
-When a human opens chat or explicitly pokes the system:
+## Primary Workflows
 
-1. Run `just keel poke "Human interaction in chat"`.
-2. Run `just keel health --scene`.
-3. Run `just keel mission next --status` and `just keel pulse`.
-4. Run `just keel flow --scene`.
-5. Run `just keel doctor`.
+### Operator (Implementation)
+Focus on **evidence-backed delivery**.
+- **Context**: `keel story show <id>` and `keel voyage show <id>`.
+- **Action**: Implement requirements, record proofs with `keel story record`, and `submit`.
+- **Constraint**: Every AC must have a proof.
 
-Do not ask the human for input until you have completed that orientation and resolved any doctor failures that are safely actionable inside the repo.
+### Manager (Planning)
+Focus on **strategic alignment and unblocking**.
+- **Context**: `keel epic show <id>` and `keel flow`.
+- **Action**: Author `PRD.md`, `SRS.md`, `SDD.md`, and decompose stories.
+- **Constraint**: Move voyages from `draft` to `planned` only when requirements are coherent.
 
-## Global Hygiene
+### Explorer (Research)
+Focus on **technical discovery and fog reduction**.
+- **Context**: `keel bearing list`.
+- **Action**: Fill `BRIEF.md`, collect `EVIDENCE.md`, and `assess`.
+- **Constraint**: Graduate to epics only when research is conclusive.
 
-Apply these checks to every change:
+## Human Interaction & Pokes
 
-1. **Doctor First**: `just keel doctor` is the source of truth for board integrity.
-2. **Pacemaker Protocol**: Any unit of work that mutates the board should end with a committed `.keel/heartbeat`.
-3. **Automated Guardrails**: Do not manually duplicate `just quality` or `just test` before every commit unless you need early feedback; the pre-commit hook enforces them.
-4. **Lifecycle Before Commit**: Run story, voyage, epic, or bearing lifecycle commands before the atomic commit so generated `.keel` artifacts land in the same change.
-5. **Atomic Commits**: Keep one logical story, planning slice, or maintenance change per commit.
-6. **Mission Loop Discipline**: After each completed move, return to `mission next`, `doctor`, and `flow` rather than continuing ad hoc.
+Keel's autonomous flow is governed by a physical battery metaphor. If the system is IDLE (LIGHT OFF) due to battery decay, it requires a "spark" to resume autonomy.
 
-## Command Model
+If a human user pokes you (e.g., "I'm poking you", "Wake up"), you MUST:
+1.  **Energize the System**: Immediately execute `keel poke "Human interaction in chat"`. This physically mutates the board state and recharges the battery, signaling the engine to resume autonomous flow.
+2.  **Autonomous Scan**: Run `keel mission next --status` and `keel pulse` to identify any new work that has become ready or materialized.
+3. **Visual Confirmation**: Run `keel flow --scene` to verify the light is now ON and the circuit is closed.
 
-Use one path per concern:
+## Autonomous Backlog Discharge
 
-- `just ...` for repo build, test, proof, and helper commands.
-- `just keel ...` for board and workflow operations through the pinned keel flake input.
+As long as the system is **AUTONOMOUS (LIGHT ON)** and the circuit is healthy (no blown capacitors), you are responsible for discharging the delivery backlog.
 
-Common commands:
+1.  **Identify Ready Work**: Scan the delivery lane for stories in `backlog` that are not blocked by dependencies.
+2.  **Autonomous Start**: For each ready story, execute `keel story start <id>`.
+3.  **Rube Goldberg Loop**: Transitioning a story to `in-progress` mutates the board, which physically recharges the system battery, keeping the circuit closed and the engine running.
+4.  **Priority**: Discharging the backlog is your primary tactical objective once energized. You must continue until the backlog is empty or the circuit trips.
+5.  **Loop Closure**: After every successful implementation or transition, you MUST stabilize the pacemaker by executing `keel poke "Sealing move: <summary>"` and committing the `.keel/heartbeat` alongside the board changes. This applies to ALL work, including storyless gardening or engine changes. Do not leave the loop open.
 
-- `just screen`: default human proof path
-- `just quality`: formatting and clippy checks
-- `just test`: workspace tests
-- `just keel doctor`
-- `just keel mission next --status`
-- `just keel flow --scene`
-- `just keel hooks install`
+## Global Hygiene Checklist
 
-## Upgrade Rule
+Apply these checks to **every change** before finalizing work:
 
-When upgrading the `keel` input:
+1. **Doctor First**: `keel doctor` is the ultimate source of truth for board integrity. You MUST run the doctor at the start of every session. If the doctor reports errors or "Short Circuits", you MUST prioritize fixing those diagnostic orders before attempting any other work or architectural changes.
+2. **The Health Loop**: Use `keel health --scene` for high-level triage. Subsystems are mapped as follows:
+   - **NEURAL**: Stories (ID consistency, AC completion)
+   - **MOTOR**: Voyages (Structure, SRS/SDD authorship)
+   - **STRATEGIC**: Epics (PRD, Goal lineage)
+   - **SENSORY**: Bearings (Research, Evidence quality)
+   - **SKELETAL**: ADRs (Architecture decisions)
+   - **VITAL**: Missions (Strategic achievement)
+   - **AUTONOMIC**: Routines (Cadence, materialization)
+   - **CIRCULATORY**: Workflow (Graph integrity, topology)
+   - **PACEMAKER**: Heartbeat (System energization and commit stability)
+   - **KINETIC**: Delivery (Backlog liquidity, execution capacity)
+3. **Pacemaker Protocol**: The system's heartbeat (.keel/heartbeat) is its pacemaker. You MUST ensure the pacemaker is stable (committed) before concluding any unit of work. Every commit MUST be preceded by a `keel poke "Sealing move: <summary>"` to refresh the system's pulse and reflect the latest change, especially when working without a story. Uncommitted energy is a signal of an open tactical loop and will trigger a CRITICAL status in the Med-Bay bio-scan. Any commit that includes `.keel/heartbeat` MUST append the output of `keel doctor --status` to the commit message body so reviewers can see the board's importance snapshot at the time of the commit.
+4. **Gardening First**: You MUST tend to the garden (fixing `doctor` errors, discharging automated backlog, and resolving structural drift) BEFORE notifying the human operator or requesting input.
+5. **Notification Threshold**: Only request human intervention when you reach a "Manual Lane" that requires design direction or a decision on application behavior (e.g., assessing a Bearing, planning a Voyage, or human verification of a complex Story).
+6. **Automated Guardrails**: You no longer need to run `just quality` or `just test` manually before every commit. The git pre-commit hook (installed via `keel hooks install`) automatically enforces these checks. If a commit fails, resolve the reported lints or test failures and try again.
+7. **Lifecycle Before Commit**: Run board-mutating lifecycle commands before the atomic commit when they generate or rewrite `.keel` artifacts (for example `story submit`, `voyage plan`, `voyage done`, `bearing assess`, `bearing lay`). After the transition, inspect `git status` and include the resulting `.keel` churn in the same commit.
+8. **Atomic Commits**: Commit once per logical unit of work. Use [Conventional Commits](https://www.conventionalcommits.org/):
+   - `feat:` (new feature)
+   - `fix:` (bug fix)
+   - `docs:` (documentation)
+   - `refactor:` (code change, no behavior change)
+   - `test:` (adding/updating tests)
+   - `chore:` (build/tooling)
+9. **Mission Loop Discipline**: For mission-driven work, return to the mission steward loop after every completed story, planning unit, or bearing instead of continuing ad hoc from the last worker context.
+10. **Knowledge Quality Bar**: Prefer no new knowledge over low-signal knowledge. A new knowledge entry should be novel, reusable across stories, and materially reduce future drift; otherwise link existing knowledge or omit capture entirely.
 
-1. Update `flake.lock`.
-2. Build the new `keel`.
-3. Install hooks with `just keel hooks install`.
-4. Reconcile any upstream workflow changes from `~/workspace/spoke-sh/keel/AGENTS.md` and `~/workspace/spoke-sh/keel/INSTRUCTIONS.md` into this repo's `AGENTS.md`, `INSTRUCTIONS.md`, `Justfile`, and related docs.
-5. Run the human-interaction orientation loop and clear doctor issues before reporting status back to the user.
+## Compatibility Policy (Hard Cutover)
+
+At this stage of development, this repository uses a **hard cutover** policy by default.
+
+1. **No Backward Compatibility by Default**: Do not add compatibility aliases, dual-write logic, soft-deprecated schema fields, or fallback parsing for legacy formats unless a story explicitly requires it.
+2. **Replace, Don't Bridge**: When introducing a new canonical token, field, command behavior, or document contract, remove the old path in the same change slice.
+3. **Fail Fast in Validation**: `keel doctor` and transition gates should treat legacy or unfilled scaffold patterns as hard failures when they violate the new contract.
+4. **Single Canonical Path**: Keep one source of truth for rendering, parsing, and validation; avoid parallel implementations meant only to preserve old behavior.
+5. **Migration Is Explicit Work**: If existing board artifacts need updates, handle that in a dedicated migration pass/story instead of embedding runtime compatibility logic.
+
+## Commands
+
+### Command Execution Model
+
+Use one path for each concern:
+
+- `nix develop` for the repository shell and shared tooling.
+- `just ...` for repo build, test, proof, and helper workflows.
+- `keel ...` for all board and workflow operations.
+
+### `just` Workflow Commands
+
+| Command | Purpose |
+|---------|---------|
+| `just` | List available recipes |
+| `just screen` | Default human proof path (local, tiered, networked, board) |
+| `just quality` | Formatting and clippy checks |
+| `just test` | Workspace tests |
+| `just doctest` | Run doc tests |
+| `just coverage` | Produce coverage output |
+
+### `keel` Board Workflow Commands
+
+Run `keel --help` for the full command tree. The core commands you should rely on:
+
+| Category | Commands |
+|----------|----------|
+| Discovery | `keel bearing new <name>` `keel bearing research <id>` `keel bearing assess <id>` `keel bearing list` |
+| Planning | `keel epic new "<name>" --problem "<problem>"` `keel voyage new "<name>" --epic <epic-id> --goal "<goal>"` |
+| Execution | `keel story new "<title>" [--type <type>] [--epic <epic-id> [--voyage <voyage-id>]]` |
+| Board Ops | `keel mission next [<id>]` `keel next --role manager` `keel next --role operator` `keel flow` `keel doctor` `keel generate` `keel config show` `keel mission show <id>` |
+| Lifecycle | Story/voyage/epic transitions in the table below |
+
+## Story and Milestone State Changes
+
+Use CLI commands only. Do not move `.keel` files manually.
+
+| Action | Command |
+|--------|---------|
+| Start | `keel story start <id>` |
+| Reflect | `keel story reflect <id>` |
+| Submit | `keel story submit <id>` |
+| Reject | `keel story reject <id> "reason"` |
+| Accept | `keel story accept <id> --role manager` |
+| Ice | `keel story ice <id>` |
+| Thaw | `keel story thaw <id>` |
+| Voyage plan | `keel voyage plan <id>` |
+| Voyage done | `keel voyage done <id>` |
+| Bearing assess | `keel bearing assess <id>` |
+| Bearing lay | `keel bearing lay <id>` |
+| Mission activate | `keel mission activate <id>` |
+| Mission achieve | `keel mission achieve <id>` |

@@ -2,21 +2,30 @@
 
 Shared guidance for AI agents working with this repository.
 
+## Operational Guidance
+
+This repository uses Keel as its project management engine. Your primary responsibility is to execute tactical moves that advance the board state while maintaining 100% integrity.
+
+### Core Principles
+1. **Gardening First**: You MUST tend to the garden (fixing `doctor` errors, discharging automated backlog, and resolving structural drift) BEFORE notifying the human operator or requesting input.
+2. **Pacemaker Stability**: Monitor the system's pulse via `keel health --scene`. Treat "uncommitted energy" (dirty heartbeat) as tactical debt that must be resolved autonomously to maintain system stability.
+3. **Notification Discipline**: Ping the human operator ONLY when you need input on design direction or how the application behaves. Resolve technical drift and tactical moves autonomously.
+
+### Session Start & Human Interaction
+When a human user opens the chat or "pokes" you (e.g., "Wake up", "I'm poking you"), you MUST immediately energize the system and orient yourself by following the **Human Interaction & Pokes** workflow in [INSTRUCTIONS.md](INSTRUCTIONS.md):
+1.  **Energize**: Run `keel poke "Human interaction in chat"`.
+2.  **Pulse**: Run `keel health --scene` to check subsystem stability.
+3.  **Scan**: Run `keel mission next --status` and `keel pulse`.
+4.  **Confirm**: Run `keel flow --scene` to verify the LIGHT IS ON.
+5.  **Diagnose**: Run `keel doctor` to ensure board integrity before proceeding.
+
+### Procedural Instructions
+Follow the formal procedural loops and checklists defined in:
+👉 **[INSTRUCTIONS.md](INSTRUCTIONS.md)**
+
 ## Project Summary
 
 `transit` is a lineage-aware append-only log with native tiered storage. The same engine is intended to power embedded and server modes. Branching, object storage, and immutable history are product primitives, not optional features.
-
-## Read These First
-
-Before making substantial changes, open these documents in order:
-
-1. `README.md`
-2. `ARCHITECTURE.md`
-3. `CONSTITUTION.md`
-4. `INSTRUCTIONS.md`
-5. the task-specific reference doc such as `CONFIGURATION.md`, `EVALUATIONS.md`, or `RELEASE.md`
-
-Do not invent behavior that conflicts with those documents silently.
 
 ## Non-Negotiable Working Rules
 
@@ -101,9 +110,9 @@ When updating `keel`, follow this sequence literally:
 
 1. Update the Nix flake input and lockfile.
 2. Build the new `keel` version through Nix and confirm it runs.
-3. Install the git hooks with `just keel hooks install`.
+3. Install the git hooks with `keel hooks install`.
 4. Review upstream `~/workspace/spoke-sh/keel/AGENTS.md` and `~/workspace/spoke-sh/keel/INSTRUCTIONS.md`, then reconcile any required local workflow changes in `AGENTS.md`, `INSTRUCTIONS.md`, `Justfile`, or related docs.
-5. Run the human-interaction orientation loop: `just keel poke "Human interaction in chat"`, `just keel health --scene`, `just keel mission next --status`, `just keel pulse`, `just keel flow --scene`, and `just keel doctor`.
+5. Run the human-interaction orientation loop: `keel poke "Human interaction in chat"`, `keel health --scene`, `keel mission next --status`, `keel pulse`, `keel flow --scene`, and `keel doctor`.
 6. Fix every failing `doctor` issue before doing anything else, then report the `mission next` recommendation to the user.
 7. Ask the user whether they want to execute the recommended mission work before starting it.
 8. When the upgrade works, the hooks are installed, `keel doctor` is clean, and the board is clean, make a git commit for the maintenance change before moving on.
@@ -121,3 +130,86 @@ Commit granularity is literal in this repository.
 - Before starting the next story, stop and commit the previous story with its code, docs, evidence logs, and generated board artifacts.
 
 The goal is simple: Keel story history and git history should line up without interpretation.
+
+## Decision Resolution Hierarchy
+
+When faced with ambiguity, resolve decisions in this descending order:
+1.  **ADRs**: Binding architectural constraints.
+2.  **CONSTITUTION**: The philosophy of collaboration.
+3.  **ARCHITECTURE**: Source layout and technical boundaries.
+4.  **PLANNING**: PRD/SRS/SDD authored for the current mission.
+
+## Foundational Documents
+
+These define the constraints and workflow of this repository:
+
+| Document | Purpose |
+|----------|---------|
+| `README.md` | Entrypoint and canonical document navigation |
+| `CONSTITUTION.md` | Non-negotiable product principles |
+| `ARCHITECTURE.md` | Reference architecture and system model |
+| `INSTRUCTIONS.md` | Step-by-step procedural loops and checklists |
+| `CONFIGURATION.md` | Configuration philosophy and reference |
+| `EVALUATIONS.md` | Benchmark and correctness evaluation guide |
+| `RELEASE.md` | Release process and artifacts |
+| `AI_TRACES.md` | Canonical AI trace workload contract |
+| `COMMUNICATION.md` | Communication workload contract |
+| `INTEGRITY.md` | Verifiable lineage and integrity contract |
+| `MATERIALIZATION.md` | Materialization and stream processing contract |
+| `GUIDE.md` | Developer guide and mental models |
+| `.keel/adrs/` | Binding architecture decisions |
+
+Use this order when interpreting constraints: ADRs → Constitution → Architecture → Configuration → Planning artifacts.
+
+## Commands
+
+### Command Execution Model
+
+Use one path for each concern:
+
+- `nix develop` for the repository shell and shared tooling.
+- `just ...` for repo build, test, proof, and helper workflows.
+- `keel ...` for all board and workflow operations.
+
+### `just` Workflow Commands
+
+| Command | Purpose |
+|---------|---------|
+| `just` | List available recipes |
+| `just screen` | Default human proof path (local, tiered, networked, board) |
+| `just quality` | Formatting and clippy checks |
+| `just test` | Workspace tests |
+| `just doctest` | Run doc tests |
+| `just coverage` | Produce coverage output |
+
+### `keel` Board Workflow Commands
+
+Run `keel --help` for the full command tree. Common commands:
+
+| Category | Commands |
+|----------|----------|
+| Discovery | `keel bearing new <name>` `keel bearing research <id>` `keel bearing assess <id>` `keel bearing list` |
+| Planning | `keel epic new "<name>" --problem "<problem>"` `keel voyage new "<name>" --epic <epic-id> --goal "<goal>"` |
+| Execution | `keel story new "<title>" [--type <type>] [--epic <epic-id> [--voyage <voyage-id>]]` |
+| Board Ops | `keel mission next [<id>]` `keel next --role manager` `keel next --role operator` `keel flow` `keel doctor` `keel generate` `keel config show` `keel mission show <id>` |
+| Lifecycle | Story/voyage/epic transitions in the table below |
+
+## Story and Milestone State Changes
+
+Use CLI commands only. Do not move `.keel` files manually.
+
+| Action | Command |
+|--------|---------|
+| Start | `keel story start <id>` |
+| Reflect | `keel story reflect <id>` |
+| Submit | `keel story submit <id>` |
+| Reject | `keel story reject <id> "reason"` |
+| Accept | `keel story accept <id> --role manager` |
+| Ice | `keel story ice <id>` |
+| Thaw | `keel story thaw <id>` |
+| Voyage plan | `keel voyage plan <id>` |
+| Voyage done | `keel voyage done <id>` |
+| Bearing assess | `keel bearing assess <id>` |
+| Bearing lay | `keel bearing lay <id>` |
+| Mission activate | `keel mission activate <id>` |
+| Mission achieve | `keel mission achieve <id>` |

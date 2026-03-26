@@ -1,7 +1,5 @@
 # transit
 
-[Architecture](ARCHITECTURE.md) | [Communication](COMMUNICATION.md) | [Integrity](INTEGRITY.md) | [AI Traces](AI_TRACES.md) | [AI Artifacts](AI_ARTIFACTS.md) | [Constitution](CONSTITUTION.md) | [Instructions](INSTRUCTIONS.md) | [Configuration](CONFIGURATION.md) | [Guide](GUIDE.md) | [Evaluations](EVALUATIONS.md) | [Release](RELEASE.md)
-
 `transit` is a fresh take on message streaming: a Rust-first, object-storage-native append-only log with native tiered storage, stream lineage, and explicit branch-and-merge semantics.
 
 The project thesis is simple:
@@ -95,14 +93,6 @@ This repository is at the bootstrap stage.
 
 Today it contains:
 
-- [README.md](README.md)
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [CONSTITUTION.md](CONSTITUTION.md)
-- [CONFIGURATION.md](CONFIGURATION.md)
-- [GUIDE.md](GUIDE.md)
-- [EVALUATIONS.md](EVALUATIONS.md)
-- [RELEASE.md](RELEASE.md)
-- [AGENTS.md](AGENTS.md)
 - a Rust workspace with `transit-core` and `transit-cli`
 - a Nix flake and Rust toolchain bootstrap
 - a `Justfile` with a human-facing `just screen` verification path for local-engine proof, tiered publication/restore proof, networked single-node server proof, object-store probing, and the current Keel board view
@@ -114,12 +104,6 @@ Today it contains:
 
 The implementation work now has a real scaffold to grow from instead of needing to reverse-engineer direction later.
 
-The first canonical AI workload contract now lives in [AI_TRACES.md](AI_TRACES.md).
-
-The first canonical communication workload contract now lives in [COMMUNICATION.md](COMMUNICATION.md).
-
-The first verifiable-lineage contract now lives in [INTEGRITY.md](INTEGRITY.md).
-
 ## Planned Surfaces
 
 The intended surface area is:
@@ -129,6 +113,37 @@ The intended surface area is:
 - a client library and CLI for operators, application runtimes, and benchmarks
 
 The server protocol remains an application-layer contract. It can run over ordinary transports, and secure meshes such as WireGuard are optional deployment underlays rather than protocol replacements.
+
+## Documentation Map
+
+### Root Contracts
+
+| Document | Purpose |
+|----------|---------|
+| [`CONSTITUTION.md`](CONSTITUTION.md) | Non-negotiable product principles |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Reference architecture and system model |
+| [`CONFIGURATION.md`](CONFIGURATION.md) | Configuration philosophy and reference |
+| [`RELEASE.md`](RELEASE.md) | Release process and versioning |
+| [`EVALUATIONS.md`](EVALUATIONS.md) | Benchmark and correctness evaluation guide |
+| [`AGENTS.md`](AGENTS.md) | Shared AI-agent workflow contract |
+| [`INSTRUCTIONS.md`](INSTRUCTIONS.md) | Procedural loops and checklists |
+
+### Workload Contracts
+
+| Document | Purpose |
+|----------|---------|
+| [`AI_TRACES.md`](AI_TRACES.md) | Canonical AI trace contract |
+| [`AI_ARTIFACTS.md`](AI_ARTIFACTS.md) | AI artifact envelope contract |
+| [`COMMUNICATION.md`](COMMUNICATION.md) | Communication channels and threading contract |
+| [`MATERIALIZATION.md`](MATERIALIZATION.md) | Materialization and stream processing contract |
+| [`INTEGRITY.md`](INTEGRITY.md) | Verifiable lineage and cryptographic integrity |
+
+### Focused Guides
+
+| Document | Purpose |
+|----------|---------|
+| [`GUIDE.md`](GUIDE.md) | Developer guide and mental models |
+| [`DRIFT.md`](DRIFT.md) | Drift management and measurement |
 
 ## First Principles
 
