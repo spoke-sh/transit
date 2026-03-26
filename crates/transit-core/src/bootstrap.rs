@@ -5,6 +5,7 @@ const REQUIRED_DOCS: &[&str] = &[
     "README.md",
     "ARCHITECTURE.md",
     "CONSTITUTION.md",
+    "INSTRUCTIONS.md",
     "CONFIGURATION.md",
     "GUIDE.md",
     "EVALUATIONS.md",
@@ -98,7 +99,9 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
         && kernel_files.iter().all(|artifact| artifact.present);
 
     let integrity_ready = docs.iter().any(|a| a.path == "INTEGRITY.md" && a.present);
-    let consensus_ready = kernel_files.iter().any(|a| a.path == "crates/transit-core/src/consensus.rs" && a.present);
+    let consensus_ready = kernel_files
+        .iter()
+        .any(|a| a.path == "crates/transit-core/src/consensus.rs" && a.present);
     let clients_ready = Path::new("clients/python/transit/client.py").exists();
     let dojo_ready = Path::new("dojo/training/sparring_tapes.py").exists();
 
@@ -142,6 +145,7 @@ mod tests {
             "README.md",
             "ARCHITECTURE.md",
             "CONSTITUTION.md",
+            "INSTRUCTIONS.md",
             "CONFIGURATION.md",
             "GUIDE.md",
             "EVALUATIONS.md",
@@ -156,6 +160,7 @@ mod tests {
             "crates/transit-core/src/kernel.rs",
             "crates/transit-core/src/storage.rs",
             "crates/transit-core/src/engine.rs",
+            "crates/transit-core/src/consensus.rs",
         ] {
             let path = repo_root.path().join(file);
             if let Some(parent) = path.parent() {
@@ -166,9 +171,9 @@ mod tests {
 
         let status = collect_mission_status(repo_root.path());
         assert!(status.ready);
-        assert_eq!(status.docs_present(), 8);
+        assert_eq!(status.docs_present(), 9);
         assert_eq!(status.workspace_files_present(), 6);
-        assert_eq!(status.kernel_files_present(), 3);
+        assert_eq!(status.kernel_files_present(), 4);
         assert!(status.missing_paths().is_empty());
     }
 

@@ -1,1 +1,1 @@
-build: upgrade keel to revision b35f5f7 and adopt new commit body protocol
+pre-commit auto-poke

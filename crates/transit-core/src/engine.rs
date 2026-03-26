@@ -1,7 +1,7 @@
+use crate::consensus::{ConsensusHandle, StreamLease};
 use crate::kernel::{
     LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage, StreamPosition,
 };
-use crate::consensus::{ConsensusHandle, NodeId, StreamLease};
 use crate::storage::{
     ContentDigest, LineageCheckpoint, ManifestId, ObjectStoreKey, ObjectStoreLocation,
     SegmentChecksum, SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
@@ -313,7 +313,11 @@ impl LocalEngine {
     }
 
     /// Bind a consensus lease handle to this engine for a specific stream.
-    pub fn bind_consensus(&self, stream_id: StreamId, handle: std::sync::Arc<dyn ConsensusHandle + 'static>) {
+    pub fn bind_consensus(
+        &self,
+        stream_id: StreamId,
+        handle: std::sync::Arc<dyn ConsensusHandle + 'static>,
+    ) {
         self.inner.leases.insert(stream_id, handle);
     }
 
@@ -339,13 +343,8 @@ impl LocalEngine {
         fs::create_dir_all(stream_dir.join(SEGMENTS_DIR))
             .with_context(|| format!("create stream directory at {}", stream_dir.display()))?;
 
-        let manifest_root = compute_manifest_root(
-            manifest_id(0)?,
-            &state.descriptor,
-            0,
-            &[],
-            None,
-        )?;
+        let manifest_root =
+            compute_manifest_root(manifest_id(0)?, &state.descriptor, 0, &[], None)?;
 
         let manifest = SegmentManifest::new(
             manifest_id(0)?,
@@ -382,7 +381,11 @@ impl LocalEngine {
         stream_id: &StreamId,
         payload: impl AsRef<[u8]>,
     ) -> Result<LocalAppendOutcome> {
-        ensure!(self.is_leader(stream_id), "not the leader for stream '{}'", stream_id.as_str());
+        ensure!(
+            self.is_leader(stream_id),
+            "not the leader for stream '{}'",
+            stream_id.as_str()
+        );
 
         let mut state = self.load_state(stream_id)?;
         let record = PersistedRecord {
@@ -411,7 +414,8 @@ impl LocalEngine {
         state.active_record_count += 1;
         state.active_byte_length += (encoded.len() + 1) as u64;
 
-        let rolled_segment = if state.active_record_count >= self.inner.config.segment_max_records() {
+        let rolled_segment = if state.active_record_count >= self.inner.config.segment_max_records()
+        {
             Some(self.roll_active_segment(&mut state)?)
         } else {
             write_json_durable(&self.state_path(stream_id), &state)?;
@@ -517,7 +521,8 @@ impl LocalEngine {
 
                 // If we have an active lease, attach the ownership proof (lease version)
                 if let Some(handle) = self.inner.leases.get(stream_id) {
-                    published_manifest = published_manifest.with_ownership_proof(handle.lease().version);
+                    published_manifest =
+                        published_manifest.with_ownership_proof(handle.lease().version);
                 }
 
                 let mut encoded =
@@ -526,19 +531,25 @@ impl LocalEngine {
 
                 // If we have an ownership proof, verify that the lease hasn't moved before writing
                 if let Some(version) = published_manifest.ownership_proof() {
-                    let lease_path = ObjectPath::from(format!("leases/{}.lease.json", stream_id.as_str()));
+                    let lease_path =
+                        ObjectPath::from(format!("leases/{}.lease.json", stream_id.as_str()));
                     match store.get(&lease_path).await {
                         Ok(result) => {
                             let bytes = result.bytes().await.context("read fence lease")?;
-                            let lease: StreamLease = serde_json::from_slice(&bytes).context("parse fence lease")?;
+                            let lease: StreamLease =
+                                serde_json::from_slice(&bytes).context("parse fence lease")?;
                             ensure!(
-                                lease.version == version, 
-                                "manifest publication FENCED: remote lease version {} differs from local version {}", 
-                                lease.version, version
+                                lease.version == version,
+                                "manifest publication FENCED: remote lease version {} differs from local version {}",
+                                lease.version,
+                                version
                             );
                         }
                         Err(object_store::Error::NotFound { .. }) => {
-                            bail!("manifest publication FENCED: lease not found for stream '{}'", stream_id.as_str());
+                            bail!(
+                                "manifest publication FENCED: lease not found for stream '{}'",
+                                stream_id.as_str()
+                            );
                         }
                         Err(e) => bail!("failed to check fence lease: {e}"),
                     }
@@ -758,7 +769,11 @@ impl LocalEngine {
     }
 
     /// Create a verifiable checkpoint for the current stream head.
-    pub fn checkpoint(&self, stream_id: &StreamId, kind: impl Into<String>) -> Result<LineageCheckpoint> {
+    pub fn checkpoint(
+        &self,
+        stream_id: &StreamId,
+        kind: impl Into<String>,
+    ) -> Result<LineageCheckpoint> {
         let status = self.stream_status(stream_id)?;
         let manifest = self.load_manifest(stream_id)?;
 
@@ -773,7 +788,7 @@ impl LocalEngine {
     /// Verify that a checkpoint correctly binds to the current stream state.
     pub fn verify_checkpoint(&self, checkpoint: &LineageCheckpoint) -> Result<()> {
         let manifest = self.load_manifest(&checkpoint.stream_id)?;
-        
+
         ensure!(
             checkpoint.manifest_root == *manifest.manifest_root(),
             "checkpoint manifest root mismatch for '{}': expected {}, found {}",
@@ -824,22 +839,19 @@ impl LocalEngine {
         // 2. Verify all local segments
         let mut verified_segments = Vec::with_capacity(manifest.segments().len());
         for descriptor in manifest.segments() {
-            let local_path = descriptor
-                .storage()
-                .local_path()
-                .with_context(|| {
-                    format!(
-                        "segment '{}' is missing local path",
-                        descriptor.segment_id().as_str()
-                    )
-                })?;
-            
+            let local_path = descriptor.storage().local_path().with_context(|| {
+                format!(
+                    "segment '{}' is missing local path",
+                    descriptor.segment_id().as_str()
+                )
+            })?;
+
             let bytes = fs::read(local_path)
                 .with_context(|| format!("read segment {}", local_path.display()))?;
-            
+
             validate_segment_checksum(&bytes, descriptor.checksum())?;
             validate_segment_digest(&bytes, descriptor.content_digest())?;
-            
+
             verified_segments.push(VerifiedSegment {
                 segment_id: descriptor.segment_id().clone(),
                 start_offset: descriptor.start_offset(),
@@ -1112,7 +1124,8 @@ impl LocalEngine {
     }
 
     fn stream_dir(&self, stream_id: &StreamId) -> PathBuf {
-        self.inner.config
+        self.inner
+            .config
             .data_dir()
             .join(STREAMS_DIR)
             .join(sanitize_stream_id(stream_id))
@@ -2394,33 +2407,54 @@ mod tests {
         engine.append(&target_stream_id, b"first").expect("append");
 
         // Verification should pass initially
-        let verified = engine.verify_local_lineage(&target_stream_id).expect("initial verification");
+        let verified = engine
+            .verify_local_lineage(&target_stream_id)
+            .expect("initial verification");
         assert_eq!(verified.segments.len(), 1);
         assert!(verified.segments[0].verified);
 
         // 1. Tamper with a segment
         let manifest = engine.load_manifest(&target_stream_id).expect("manifest");
-        let segment_path = manifest.segments()[0].storage().local_path().expect("local path").to_owned();
+        let segment_path = manifest.segments()[0]
+            .storage()
+            .local_path()
+            .expect("local path")
+            .to_owned();
         fs::write(&segment_path, b"tampered").expect("tamper segment");
 
-        let err = engine.verify_local_lineage(&target_stream_id).expect_err("should detect tampered segment");
+        let err = engine
+            .verify_local_lineage(&target_stream_id)
+            .expect_err("should detect tampered segment");
         let err_msg = err.to_string();
-        assert!(err_msg.contains("segment checksum mismatch") || err_msg.contains("segment content digest mismatch"));
+        assert!(
+            err_msg.contains("segment checksum mismatch")
+                || err_msg.contains("segment content digest mismatch")
+        );
 
         // 2. Tamper with the manifest root
         let target_stream_id_2 = stream_id("task.root.2");
-        engine.create_stream(root_descriptor("task.root.2")).expect("create stream 2");
-        engine.append(&target_stream_id_2, b"second").expect("append 2");
-        engine.verify_local_lineage(&target_stream_id_2).expect("initial verification 2");
+        engine
+            .create_stream(root_descriptor("task.root.2"))
+            .expect("create stream 2");
+        engine
+            .append(&target_stream_id_2, b"second")
+            .expect("append 2");
+        engine
+            .verify_local_lineage(&target_stream_id_2)
+            .expect("initial verification 2");
 
         let manifest_path = engine.manifest_path(&target_stream_id_2);
-        let mut manifest_json: serde_json::Value = serde_json::from_reader(File::open(&manifest_path).expect("open")).expect("parse");
-        manifest_json["manifest_root"]["digest"] = serde_json::Value::String("deadbeef".to_string());
-        
+        let mut manifest_json: serde_json::Value =
+            serde_json::from_reader(File::open(&manifest_path).expect("open")).expect("parse");
+        manifest_json["manifest_root"]["digest"] =
+            serde_json::Value::String("deadbeef".to_string());
+
         let file = File::create(&manifest_path).expect("re-create");
         serde_json::to_writer_pretty(file, &manifest_json).expect("serialize");
 
-        let err = engine.verify_local_lineage(&target_stream_id_2).expect_err("should detect tampered manifest");
+        let err = engine
+            .verify_local_lineage(&target_stream_id_2)
+            .expect_err("should detect tampered manifest");
         assert!(err.to_string().contains("local manifest root mismatch"));
     }
 
@@ -2435,23 +2469,38 @@ mod tests {
         )
         .expect("engine");
         let stream_id = stream_id("task.root");
-        engine.create_stream(root_descriptor("task.root")).expect("create stream");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
         engine.append(&stream_id, b"first").expect("append");
 
         let checkpoint = engine.checkpoint(&stream_id, "test").expect("checkpoint");
         assert_eq!(checkpoint.head_offset.value(), 0);
-        engine.verify_checkpoint(&checkpoint).expect("initial verification");
+        engine
+            .verify_checkpoint(&checkpoint)
+            .expect("initial verification");
 
         // 1. Tamper with checkpoint
         let mut tampered_checkpoint = checkpoint.clone();
-        tampered_checkpoint.manifest_root = ContentDigest::new("sha256", "deadbeef").expect("digest");
-        let err = engine.verify_checkpoint(&tampered_checkpoint).expect_err("should detect tampered checkpoint");
-        assert!(err.to_string().contains("checkpoint manifest root mismatch"));
+        tampered_checkpoint.manifest_root =
+            ContentDigest::new("sha256", "deadbeef").expect("digest");
+        let err = engine
+            .verify_checkpoint(&tampered_checkpoint)
+            .expect_err("should detect tampered checkpoint");
+        assert!(
+            err.to_string()
+                .contains("checkpoint manifest root mismatch")
+        );
 
         // 2. Append more data (manifest root changes)
         engine.append(&stream_id, b"second").expect("append 2");
-        let err = engine.verify_checkpoint(&checkpoint).expect_err("should detect stale checkpoint");
-        assert!(err.to_string().contains("checkpoint manifest root mismatch"));
+        let err = engine
+            .verify_checkpoint(&checkpoint)
+            .expect_err("should detect stale checkpoint");
+        assert!(
+            err.to_string()
+                .contains("checkpoint manifest root mismatch")
+        );
     }
 
     #[tokio::test]
@@ -2462,13 +2511,19 @@ mod tests {
         let temp = tempdir().expect("temp");
         let engine = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("engine");
         let stream_id = stream_id("task.root");
-        engine.create_stream(root_descriptor("task.root")).expect("create");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create");
 
-        let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
+        let store: std::sync::Arc<dyn object_store::ObjectStore> =
+            std::sync::Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
         let consensus = ObjectStoreConsensus::new(store, "leases");
 
         // 1. Acquire lease for Node A and bind to Engine A
-        let handle_a = consensus.acquire(&stream_id, NodeId::new("node-a")).await.expect("a acquire");
+        let handle_a = consensus
+            .acquire(&stream_id, NodeId::new("node-a"))
+            .await
+            .expect("a acquire");
         engine.bind_consensus(stream_id.clone(), handle_a);
 
         // Append should succeed
@@ -2476,13 +2531,17 @@ mod tests {
 
         // 2. Engine B (not leader) should fail to append
         let engine_b = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("engine b");
-        
+
         #[derive(Debug)]
         struct NotLeaderHandle(StreamId);
         #[async_trait::async_trait]
         impl crate::consensus::ConsensusHandle for NotLeaderHandle {
-            fn is_leader(&self) -> bool { false }
-            fn stream_id(&self) -> &StreamId { &self.0 }
+            fn is_leader(&self) -> bool {
+                false
+            }
+            fn stream_id(&self) -> &StreamId {
+                &self.0
+            }
             fn lease(&self) -> crate::consensus::StreamLease {
                 crate::consensus::StreamLease {
                     stream_id: self.0.clone(),
@@ -2491,12 +2550,19 @@ mod tests {
                     expires_at: 0,
                 }
             }
-            async fn heartbeat(&self) -> anyhow::Result<()> { Ok(()) }
+            async fn heartbeat(&self) -> anyhow::Result<()> {
+                Ok(())
+            }
         }
 
-        engine_b.bind_consensus(stream_id.clone(), std::sync::Arc::new(NotLeaderHandle(stream_id.clone())));
-        
-        let err = engine_b.append(&stream_id, b"denied").expect_err("should be denied");
+        engine_b.bind_consensus(
+            stream_id.clone(),
+            std::sync::Arc::new(NotLeaderHandle(stream_id.clone())),
+        );
+
+        let err = engine_b
+            .append(&stream_id, b"denied")
+            .expect_err("should be denied");
         assert!(err.to_string().contains("not the leader"));
     }
 
@@ -2506,15 +2572,26 @@ mod tests {
         use object_store::local::LocalFileSystem;
 
         let temp = tempdir().expect("temp");
-        let engine = LocalEngine::open(LocalEngineConfig::new(temp.path()).with_segment_max_records(1).expect("config")).expect("engine");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp.path())
+                .with_segment_max_records(1)
+                .expect("config"),
+        )
+        .expect("engine");
         let stream_id = stream_id("task.root");
-        engine.create_stream(root_descriptor("task.root")).expect("create");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create");
 
-        let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
+        let store: std::sync::Arc<dyn object_store::ObjectStore> =
+            std::sync::Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
         let consensus = ObjectStoreConsensus::new(store.clone(), "leases");
 
         // 1. Node A acquires lease and binds
-        let handle_a = consensus.acquire(&stream_id, NodeId::new("node-a")).await.expect("a acquire");
+        let handle_a = consensus
+            .acquire(&stream_id, NodeId::new("node-a"))
+            .await
+            .expect("a acquire");
         let current_version = handle_a.lease().version;
         engine.bind_consensus(stream_id.clone(), handle_a);
 
@@ -2529,10 +2606,16 @@ mod tests {
             version: current_version + 1, // Definitely different
             expires_at: chrono::Utc::now().timestamp() + 30,
         };
-        store.put(&lease_path, serde_json::to_vec(&new_lease).unwrap().into()).await.expect("steal");
+        store
+            .put(&lease_path, serde_json::to_vec(&new_lease).unwrap().into())
+            .await
+            .expect("steal");
 
         // 4. Node A tries to publish (should be FENCED)
-        let err = engine.publish_rolled_segments(&stream_id, &store, "proof").await.expect_err("should be fenced");
+        let err = engine
+            .publish_rolled_segments(&stream_id, &store, "proof")
+            .await
+            .expect_err("should be fenced");
         assert!(err.to_string().contains("FENCED"));
     }
 }

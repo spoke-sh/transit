@@ -13,7 +13,8 @@ Before making substantial changes, open these documents in order:
 1. `README.md`
 2. `ARCHITECTURE.md`
 3. `CONSTITUTION.md`
-4. the task-specific reference doc such as `CONFIGURATION.md`, `EVALUATIONS.md`, or `RELEASE.md`
+4. `INSTRUCTIONS.md`
+5. the task-specific reference doc such as `CONFIGURATION.md`, `EVALUATIONS.md`, or `RELEASE.md`
 
 Do not invent behavior that conflicts with those documents silently.
 
@@ -32,17 +33,19 @@ Do not invent behavior that conflicts with those documents silently.
 
 Keep `just screen` as the default human proof path. If verification gets richer, improve that path instead of making the operator memorize an expanding command list.
 
-## Current Status (2026-03-13)
+## Current Status (2026-03-25)
 
 - **Kernel Done:** Single-node local engine with branch, merge, and tiered storage verified.
 - **Server Done:** Networked daemon with framed protocol, remote CLI, and tail sessions verified.
+- **Integrity Done:** Verifiable lineage primitives, manifest roots, and checkpoints landed.
+- **Materialization Done:** Branch-aware materialization kernel and Prolly Tree snapshots landed.
+- **Consensus Slice Done:** Initial consensus kernel and leader-enforcement slice landed.
 - **Proof Ready:** `just screen` covers local, tiered, and networked end-to-end flows.
 
 ## Next Missions
 
-- **Verifiable Lineage:** Hardening segments and manifests with cryptographic content hashes.
-- **Materialization:** Implementing the first-party derived-state layer for branch-aware processing.
-- **Multi-Node:** Moving beyond single-node toward replication and distributed durability.
+- **Replication Planning:** Decomposing the staged multi-node replication model into voyages and ready stories.
+- **Board Hygiene:** Keeping mission/epic intent, generated artifacts, and pacemaker state aligned with execution.
 - **Client Libs:** Promoting external usage via dedicated Python/JS/Go client libraries.
 
 ## Terminology Discipline
@@ -98,12 +101,14 @@ When updating `keel`, follow this sequence literally:
 
 1. Update the Nix flake input and lockfile.
 2. Build the new `keel` version through Nix and confirm it runs.
-3. Run `keel doctor` and fix every failing check before doing anything else.
-4. Run `keel mission next` and report the recommendation to the user.
-5. Ask the user whether they want to execute the recommended mission work before starting it.
-6. When the upgrade works, `keel doctor` is clean, and the board is clean, make a git commit for the maintenance change before moving on.
+3. Install the git hooks with `just keel hooks install`.
+4. Review upstream `~/workspace/spoke-sh/keel/AGENTS.md` and `~/workspace/spoke-sh/keel/INSTRUCTIONS.md`, then reconcile any required local workflow changes in `AGENTS.md`, `INSTRUCTIONS.md`, `Justfile`, or related docs.
+5. Run the human-interaction orientation loop: `just keel poke "Human interaction in chat"`, `just keel health --scene`, `just keel mission next --status`, `just keel pulse`, `just keel flow --scene`, and `just keel doctor`.
+6. Fix every failing `doctor` issue before doing anything else, then report the `mission next` recommendation to the user.
+7. Ask the user whether they want to execute the recommended mission work before starting it.
+8. When the upgrade works, the hooks are installed, `keel doctor` is clean, and the board is clean, make a git commit for the maintenance change before moving on.
 
-Do not treat a `keel` upgrade as complete until the flake, build, doctor checks, and mission recommendation flow are all clean.
+Do not treat a `keel` upgrade as complete until the flake, hook install, upstream workflow reconciliation, doctor checks, and mission recommendation flow are all clean.
 
 ## Commit Discipline
 

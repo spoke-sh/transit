@@ -1,6 +1,6 @@
 # transit
 
-[Architecture](ARCHITECTURE.md) | [Communication](COMMUNICATION.md) | [Integrity](INTEGRITY.md) | [AI Traces](AI_TRACES.md) | [AI Artifacts](AI_ARTIFACTS.md) | [Constitution](CONSTITUTION.md) | [Configuration](CONFIGURATION.md) | [Guide](GUIDE.md) | [Evaluations](EVALUATIONS.md) | [Release](RELEASE.md)
+[Architecture](ARCHITECTURE.md) | [Communication](COMMUNICATION.md) | [Integrity](INTEGRITY.md) | [AI Traces](AI_TRACES.md) | [AI Artifacts](AI_ARTIFACTS.md) | [Constitution](CONSTITUTION.md) | [Instructions](INSTRUCTIONS.md) | [Configuration](CONFIGURATION.md) | [Guide](GUIDE.md) | [Evaluations](EVALUATIONS.md) | [Release](RELEASE.md)
 
 `transit` is a fresh take on message streaming: a Rust-first, object-storage-native append-only log with native tiered storage, stream lineage, and explicit branch-and-merge semantics.
 

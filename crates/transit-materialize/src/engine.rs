@@ -1,8 +1,8 @@
-use anyhow::{Context, Result};
 use crate::{MaterializationCheckpoint, Materializer, Reducer};
+use anyhow::{Context, Result};
+use async_trait::async_trait;
 use transit_core::engine::LocalEngine;
 use transit_core::kernel::{Offset, StreamId};
-use async_trait::async_trait;
 
 pub struct LocalMaterializationEngine<R: Reducer> {
     id: String,
@@ -38,7 +38,13 @@ impl<R: Reducer> Materializer for LocalMaterializationEngine<R> {
 }
 
 impl<R: Reducer> LocalMaterializationEngine<R> {
-    pub fn new(id: String, stream_id: StreamId, engine: LocalEngine, reducer: R, initial_state: R::State) -> Self {
+    pub fn new(
+        id: String,
+        stream_id: StreamId,
+        engine: LocalEngine,
+        reducer: R,
+        initial_state: R::State,
+    ) -> Self {
         Self {
             id: id.clone(),
             stream_id: stream_id.clone(),
@@ -61,16 +67,23 @@ impl<R: Reducer> LocalMaterializationEngine<R> {
 impl<R: Reducer> MaterializerInner<R> {
     pub async fn catch_up(&mut self) -> Result<()> {
         let status = self.engine.stream_status(&self.stream_id)?;
-        
-        let start_offset = self.last_checkpoint
+
+        let start_offset = self
+            .last_checkpoint
             .as_ref()
             .map(|c| c.lineage_anchor.head_offset.increment())
             .unwrap_or(Offset::new(0));
 
         let records = self.engine.replay(&self.stream_id)?;
         for record in records {
-            if record.position().offset >= start_offset && record.position().offset < status.next_offset() {
-                self.reducer.reduce(&mut self.current_state, record.position().offset, record.payload())?;
+            if record.position().offset >= start_offset
+                && record.position().offset < status.next_offset()
+            {
+                self.reducer.reduce(
+                    &mut self.current_state,
+                    record.position().offset,
+                    record.payload(),
+                )?;
             }
         }
 
@@ -96,9 +109,9 @@ impl<R: Reducer> MaterializerInner<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
     use transit_core::engine::{LocalEngine, LocalEngineConfig};
     use transit_core::kernel::{LineageMetadata, StreamDescriptor};
-    use tempfile::tempdir;
 
     struct CountReducer;
     impl Reducer for CountReducer {
@@ -114,8 +127,12 @@ mod tests {
         let temp = tempdir().expect("temp");
         let core = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("core");
         let stream_id = StreamId::new("task.root").expect("id");
-        core.create_stream(StreamDescriptor::root(stream_id.clone(), LineageMetadata::default())).expect("create");
-        
+        core.create_stream(StreamDescriptor::root(
+            stream_id.clone(),
+            LineageMetadata::default(),
+        ))
+        .expect("create");
+
         core.append(&stream_id, b"one").expect("append");
         core.append(&stream_id, b"two").expect("append");
 

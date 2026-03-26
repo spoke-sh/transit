@@ -99,13 +99,15 @@ impl ServerHandle {
             .spawn(move || {
                 run_accept_loop(
                     listener,
-                    thread_engine,
-                    thread_shutdown,
-                    thread_connections,
-                    thread_error,
-                    thread_tail_sessions,
-                    accept_poll_interval,
-                    connection_io_timeout,
+                    AcceptLoopContext {
+                        engine: thread_engine,
+                        shutdown_requested: thread_shutdown,
+                        accepted_connections: thread_connections,
+                        fatal_error: thread_error,
+                        tail_sessions: thread_tail_sessions,
+                        accept_poll_interval,
+                        connection_io_timeout,
+                    },
                 )
             })
             .context("spawn server listener thread")?;
@@ -540,7 +542,7 @@ impl RemoteClient {
             ResponseEnvelope::Ack { ack, outcome } => Ok(SuccessfulResponse {
                 request_id,
                 ack,
-                outcome,
+                outcome: *outcome,
             }),
             ResponseEnvelope::Error { error } => Err(RemoteClientError::Remote(
                 RemoteErrorResponse::new(request_id, error),
@@ -801,7 +803,7 @@ struct ProtocolResponse {
 enum ResponseEnvelope {
     Ack {
         ack: RemoteAcknowledgement,
-        outcome: OperationResponse,
+        outcome: Box<OperationResponse>,
     },
     Error {
         error: ProtocolErrorResponse,
@@ -982,14 +984,8 @@ struct TailSessionState {
     next_offset: Offset,
 }
 
-#[derive(Debug, Default)]
-struct TailSessionRegistry {
-    next_session_sequence: u64,
-    sessions: BTreeMap<TailSessionId, TailSessionState>,
-}
-
-fn run_accept_loop(
-    listener: TcpListener,
+#[derive(Debug, Clone)]
+struct AcceptLoopContext {
     engine: LocalEngine,
     shutdown_requested: Arc<AtomicBool>,
     accepted_connections: Arc<AtomicU64>,
@@ -997,27 +993,41 @@ fn run_accept_loop(
     tail_sessions: Arc<Mutex<TailSessionRegistry>>,
     accept_poll_interval: Duration,
     connection_io_timeout: Duration,
-) {
+}
+
+#[derive(Debug, Default)]
+struct TailSessionRegistry {
+    next_session_sequence: u64,
+    sessions: BTreeMap<TailSessionId, TailSessionState>,
+}
+
+fn run_accept_loop(listener: TcpListener, context: AcceptLoopContext) {
     loop {
-        if shutdown_requested.load(Ordering::Acquire) {
+        if context.shutdown_requested.load(Ordering::Acquire) {
             break;
         }
 
         match listener.accept() {
             Ok((stream, _peer_addr)) => {
-                if shutdown_requested.load(Ordering::Acquire) {
+                if context.shutdown_requested.load(Ordering::Acquire) {
                     let _ = stream.shutdown(Shutdown::Both);
                     break;
                 }
 
-                accepted_connections.fetch_add(1, Ordering::AcqRel);
-                serve_connection(stream, &engine, &tail_sessions, connection_io_timeout);
+                context.accepted_connections.fetch_add(1, Ordering::AcqRel);
+                serve_connection(
+                    stream,
+                    &context.engine,
+                    &context.tail_sessions,
+                    context.connection_io_timeout,
+                );
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                thread::sleep(accept_poll_interval);
+                thread::sleep(context.accept_poll_interval);
             }
             Err(error) => {
-                *fatal_error
+                *context
+                    .fatal_error
                     .lock()
                     .expect("listener fatal_error mutex poisoned") =
                     Some(format!("server listener failure: {error}"));
@@ -1110,16 +1120,17 @@ fn handle_request(
             ),
             Err(error) => engine_error_response(request_id, error),
         },
-        OperationRequest::CreateRoot { stream_id, metadata } => {
-            match engine.create_stream(StreamDescriptor::root(stream_id, metadata)) {
-                Ok(status) => ack_response(
-                    request_id,
-                    engine.durability(),
-                    OperationResponse::StreamStatusOk(map_stream_status(status)),
-                ),
-                Err(error) => engine_error_response(request_id, error),
-            }
-        }
+        OperationRequest::CreateRoot {
+            stream_id,
+            metadata,
+        } => match engine.create_stream(StreamDescriptor::root(stream_id, metadata)) {
+            Ok(status) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::StreamStatusOk(map_stream_status(status)),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
         OperationRequest::OpenTailSession {
             stream_id,
             from_offset,
@@ -1413,7 +1424,7 @@ fn ack_response(
                 durability: durability.as_str().to_owned(),
                 topology: RemoteTopology::SingleNode,
             },
-            outcome,
+            outcome: Box::new(outcome),
         },
     }
 }
@@ -1657,7 +1668,7 @@ mod tests {
             ResponseEnvelope::Ack { ack, outcome } => {
                 assert_eq!(ack.durability(), "local");
                 assert_eq!(ack.topology(), RemoteTopology::SingleNode);
-                match outcome {
+                match *outcome {
                     OperationResponse::RecordsOk(read) => {
                         assert_eq!(read.stream_id(), &root_stream);
                         assert_eq!(read.records().len(), 1);

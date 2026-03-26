@@ -467,7 +467,10 @@ fn render_verify_lineage(outcome: VerifyLineageOutcome, json: bool) -> Result<()
 
     use textplots::{Chart, Plot, Shape};
 
-    println!("transit integrity: verification profile for '{}'", outcome.stream_id);
+    println!(
+        "transit integrity: verification profile for '{}'",
+        outcome.stream_id
+    );
     println!("trust anchor: manifest_root={}", outcome.manifest_root);
     println!("manifest_id: {}", outcome.manifest_id);
 
@@ -475,7 +478,10 @@ fn render_verify_lineage(outcome: VerifyLineageOutcome, json: bool) -> Result<()
         println!("\nTrust Chain:");
         println!("  [ROOT] -> {}", outcome.manifest_root);
         for segment in &outcome.segments {
-            println!("    |-- [SEGMENT] {} (offsets {}..{}) [PASS]", segment.segment_id, segment.start_offset, segment.last_offset);
+            println!(
+                "    |-- [SEGMENT] {} (offsets {}..{}) [PASS]",
+                segment.segment_id, segment.start_offset, segment.last_offset
+            );
         }
 
         if !outcome.segments.is_empty() {
@@ -485,7 +491,11 @@ fn render_verify_lineage(outcome: VerifyLineageOutcome, json: bool) -> Result<()
                 points.push((segment.start_offset as f32, 100.0));
                 points.push((segment.last_offset as f32, 100.0));
             }
-            let max_offset = outcome.segments.last().map(|s| s.last_offset as f32).unwrap_or(1.0);
+            let max_offset = outcome
+                .segments
+                .last()
+                .map(|s| s.last_offset as f32)
+                .unwrap_or(1.0);
             Chart::new(60, 40, 0.0, max_offset)
                 .lineplot(&Shape::Lines(&points))
                 .display();
@@ -556,7 +566,8 @@ fn run_verify_checkpoint(args: &VerifyCheckpointArgs) -> Result<VerifyCheckpoint
 
     let engine = LocalEngine::open(LocalEngineConfig::new(&args.root))?;
     let bytes = fs::read(&args.checkpoint_path).context("read checkpoint file")?;
-    let checkpoint: LineageCheckpoint = serde_json::from_slice(&bytes).context("parse checkpoint")?;
+    let checkpoint: LineageCheckpoint =
+        serde_json::from_slice(&bytes).context("parse checkpoint")?;
 
     match engine.verify_checkpoint(&checkpoint) {
         Ok(_) => Ok(VerifyCheckpointOutcome {
@@ -608,10 +619,10 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
     let clients_score = if status.clients_ready { 100.0 } else { 0.0 };
     let dojo_score = if status.dojo_ready { 100.0 } else { 0.0 };
     let points = vec![
-        (0.0, 100.0), // Core
-        (1.0, 100.0), // Server
+        (0.0, 100.0),           // Core
+        (1.0, 100.0),           // Server
         (2.0, integrity_score), // Integrity
-        (3.0, 100.0), // Materialize (Engine + Prolly Tree)
+        (3.0, 100.0),           // Materialize (Engine + Prolly Tree)
         (4.0, consensus_score), // Multi-Node (Kernel)
         (5.0, clients_score),   // Clients (Python SDK)
         (6.0, dojo_score),      // Dojo (Sparring Tapes)
@@ -920,10 +931,7 @@ fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
                 .collect::<Vec<_>>(),
             _ => unreachable!("mission proof created a merge stream"),
         },
-        merge_base: match merge_spec.merge_base {
-            Some(position) => Some(render_position(position)),
-            None => None,
-        },
+        merge_base: merge_spec.merge_base.map(render_position),
         replay_before_recovery_failed,
         recovery: summarize_recovery(&merge_stream, recovery),
     })
@@ -1060,16 +1068,15 @@ fn run_networked_server_proof(root: PathBuf) -> Result<NetworkedServerProofResul
 }
 
 async fn run_server(args: ServerRunArgs) -> Result<ServerRunResult> {
-    use transit_core::consensus::{ConsensusManager, NodeId, ObjectStoreConsensus};
     use object_store::local::LocalFileSystem;
     use std::sync::Arc;
+    use transit_core::consensus::{ConsensusManager, NodeId, ObjectStoreConsensus};
 
     let requested_listen_addr = args.listen_addr;
     let engine_config = LocalEngineConfig::new(&args.root);
     let server_config = ServerConfig::new(engine_config, args.listen_addr);
-    
-    let server = ServerHandle::bind(server_config)
-        .context("bind shared-engine server")?;
+
+    let server = ServerHandle::bind(server_config).context("bind shared-engine server")?;
 
     // Optional: Initialize distributed consensus
     let mut _heartbeat_loop = None;
@@ -1078,12 +1085,15 @@ async fn run_server(args: ServerRunArgs) -> Result<ServerRunResult> {
         let provider = Arc::new(ObjectStoreConsensus::new(store, "leases"));
         let manager = ConsensusManager::new(provider, NodeId::new(node_id));
         _heartbeat_loop = Some(manager.spawn_heartbeat_loop());
-        
+
         if !args.json {
-            println!("consensus: enabled (node-id: {})", manager.node_id().as_str());
+            println!(
+                "consensus: enabled (node-id: {})",
+                manager.node_id().as_str()
+            );
         }
-        
-        // Note: In a real impl, we'd need to acquire leases for existing streams 
+
+        // Note: In a real impl, we'd need to acquire leases for existing streams
         // OR acquire them lazily during the first write.
         // For now, I'll just show the integration.
     }
@@ -1123,18 +1133,7 @@ fn run_remote_create_root(args: ServerCreateRootArgs) -> Result<RemoteStreamStat
         )
         .with_context(|| format!("create remote root {}", stream_id.as_str()))?;
 
-    Ok(summarize_remote_stream_status(
-        args.server_addr,
-        created.request_id().as_str(),
-        created.ack().durability(),
-        created.ack().topology(),
-        created.body().stream_id().as_str(),
-        created.body().next_offset().value(),
-        created.body().active_record_count(),
-        created.body().active_segment_start_offset().value(),
-        created.body().manifest_generation(),
-        created.body().rolled_segment_count(),
-    ))
+    Ok(summarize_remote_stream_status(args.server_addr, created))
 }
 
 fn run_remote_append(args: ServerAppendArgs) -> Result<RemoteAppendResult> {
@@ -1259,18 +1258,7 @@ fn run_remote_branch(args: ServerBranchArgs) -> Result<RemoteStreamStatusResult>
         )
         .with_context(|| format!("create remote branch {}", stream_id.as_str()))?;
 
-    Ok(summarize_remote_stream_status(
-        args.server_addr,
-        branch.request_id().as_str(),
-        branch.ack().durability(),
-        branch.ack().topology(),
-        branch.body().stream_id().as_str(),
-        branch.body().next_offset().value(),
-        branch.body().active_record_count(),
-        branch.body().active_segment_start_offset().value(),
-        branch.body().manifest_generation(),
-        branch.body().rolled_segment_count(),
-    ))
+    Ok(summarize_remote_stream_status(args.server_addr, branch))
 }
 
 fn run_remote_merge(args: ServerMergeArgs) -> Result<RemoteStreamStatusResult> {
@@ -1296,18 +1284,7 @@ fn run_remote_merge(args: ServerMergeArgs) -> Result<RemoteStreamStatusResult> {
         .create_merge(&stream_id, merge)
         .with_context(|| format!("create remote merge {}", stream_id.as_str()))?;
 
-    Ok(summarize_remote_stream_status(
-        args.server_addr,
-        merged.request_id().as_str(),
-        merged.ack().durability(),
-        merged.ack().topology(),
-        merged.body().stream_id().as_str(),
-        merged.body().next_offset().value(),
-        merged.body().active_record_count(),
-        merged.body().active_segment_start_offset().value(),
-        merged.body().manifest_generation(),
-        merged.body().rolled_segment_count(),
-    ))
+    Ok(summarize_remote_stream_status(args.server_addr, merged))
 }
 
 fn run_remote_lineage(args: ServerLineageArgs) -> Result<RemoteLineageResult> {
@@ -1437,27 +1414,19 @@ fn summarize_recovery(stream_id: &StreamId, outcome: LocalRecoveryOutcome) -> Re
 
 fn summarize_remote_stream_status(
     server_addr: SocketAddr,
-    request_id: &str,
-    durability: &str,
-    topology: transit_core::server::RemoteTopology,
-    stream_id: &str,
-    next_offset: u64,
-    active_record_count: u64,
-    active_segment_start_offset: u64,
-    manifest_generation: u64,
-    rolled_segment_count: usize,
+    response: transit_core::server::RemoteAcknowledged<transit_core::server::RemoteStreamStatus>,
 ) -> RemoteStreamStatusResult {
     RemoteStreamStatusResult {
         server_addr: server_addr.to_string(),
-        request_id: request_id.to_owned(),
-        durability: durability.to_owned(),
-        topology: render_topology(topology),
-        stream_id: stream_id.to_owned(),
-        next_offset,
-        active_record_count,
-        active_segment_start_offset,
-        manifest_generation,
-        rolled_segment_count,
+        request_id: response.request_id().as_str().to_owned(),
+        durability: response.ack().durability().to_owned(),
+        topology: render_topology(response.ack().topology()),
+        stream_id: response.body().stream_id().as_str().to_owned(),
+        next_offset: response.body().next_offset().value(),
+        active_record_count: response.body().active_record_count(),
+        active_segment_start_offset: response.body().active_segment_start_offset().value(),
+        manifest_generation: response.body().manifest_generation(),
+        rolled_segment_count: response.body().rolled_segment_count(),
     }
 }
 
