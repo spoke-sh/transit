@@ -63,6 +63,24 @@
 |--------|--------|
 | [Implement Consensus Kernel](epics/VDssrPWoX/voyages/VDsswMQlJ/) | done |
 
+### [Verifiable Integrity Proof Surface](epics/VEz2gV93L/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Integrity End-To-End Proof](epics/VEz2gV93L/voyages/VEz3V79iG/) | planned |
+
+### [Branch-Aware Materialization Proof Surface](epics/VEz2huKbt/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Materialization End-To-End Proof](epics/VEz2huKbt/voyages/VEz3VMCrg/) | planned |
+
+### [Client Libraries For External Server Access](epics/VEz2iOasp/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Python Client Library And Proof](epics/VEz2iOasp/voyages/VEz3VaL0a/) | planned |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
