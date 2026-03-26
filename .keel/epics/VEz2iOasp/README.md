@@ -3,14 +3,14 @@
 id: VEz2iOasp
 created_at: 2026-03-26T07:26:06
 # authored
-title: Client Libraries For External Server Access
+title: Rust Client For External Server Access
 mission: VDoZUUhQL
 index: 9
 ---
 
-# Client Libraries For External Server Access
+# Rust Client For External Server Access
 
-> Transit has a working networked server but no client libraries for external consumers. Without at least a Python client, external users cannot exercise append, branch, tail, and lineage operations programmatically against a running transit server.
+> Transit has a working networked server but no Rust client crate for external consumers. Without a native Rust client, external users cannot exercise append, branch, tail, and lineage operations programmatically against a running transit server without dropping to the CLI.
 
 ## Documents
 
@@ -25,5 +25,5 @@ index: 9
 **Progress:** 0/1 voyages complete, 0/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Python Client Library And Proof](voyages/VEz3VaL0a/) | planned | 0/3 |
+| [Rust Client Library And Proof](voyages/VEz3VaL0a/) | planned | 0/3 |
 <!-- END GENERATED -->

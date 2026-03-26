@@ -5,14 +5,14 @@ status: planned
 epic: VEz2iOasp
 created_at: 2026-03-26T07:29:15
 # authored
-title: Python Client Library And Proof
+title: Rust Client Library And Proof
 index: 1
 updated_at: 2026-03-26T08:06:55
 ---
 
-# Python Client Library And Proof
+# Rust Client Library And Proof
 
-> Deliver a Python client covering append, read, tail, branch, merge, and lineage inspection with an end-to-end proof script against a local server.
+> Deliver a Rust client crate covering append, read, tail, branch, merge, and lineage inspection with an end-to-end proof example against a local server.
 
 ## Documents
 
@@ -30,7 +30,7 @@ updated_at: 2026-03-26T08:06:55
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Add Tail Session Support To Python Client](../../../../stories/VEz8XrwHS/README.md) | feat | backlog |
-| [Add Merge And Lineage Inspection To Python Client](../../../../stories/VEz8Y3TQE/README.md) | feat | backlog |
-| [Deliver Comprehensive Python Client Proof Script](../../../../stories/VEz8YBlYR/README.md) | feat | backlog |
+| [Add Tail Session Support To Rust Client](../../../../stories/VEz8XrwHS/README.md) | feat | backlog |
+| [Add Lineage Inspection To Rust Client](../../../../stories/VEz8Y3TQE/README.md) | feat | backlog |
+| [Deliver Comprehensive Rust Client Proof Example](../../../../stories/VEz8YBlYR/README.md) | feat | backlog |
 <!-- END GENERATED -->

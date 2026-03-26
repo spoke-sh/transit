@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/transit-cli",
+    "crates/transit-client",
     "crates/transit-core",
     "crates/transit-materialize",
 ]

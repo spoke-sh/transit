@@ -6,7 +6,7 @@
 |----|-------------|--------------|
 | MG-01 | Deliver a verified integrity surface where segment checksums, manifest roots, and lineage checkpoints are exercised end-to-end through `just screen` with tamper-detection proof. | board: VEz2gV93L |
 | MG-02 | Deliver a verified materialization surface where branch-aware processors can checkpoint, resume, and produce Prolly Tree snapshots exercised end-to-end through `just screen`. | board: VEz2huKbt |
-| MG-03 | Deliver client library support (Python at minimum) so external consumers can exercise append, branch, tail, and lineage operations against a running transit server. | board: VEz2iOasp |
+| MG-03 | Deliver a Rust client library so external consumers can exercise append, branch, tail, and lineage operations against a running transit server before expanding to other languages. | board: VEz2iOasp |
 
 ## Constraints
 

@@ -55,7 +55,7 @@ Keep `just screen` as the default human proof path. If verification gets richer,
 
 - **Replication Planning:** Decomposing the staged multi-node replication model into voyages and ready stories.
 - **Board Hygiene:** Keeping mission/epic intent, generated artifacts, and pacemaker state aligned with execution.
-- **Client Libs:** Promoting external usage via dedicated Python/JS/Go client libraries.
+- **Client Libs:** Promoting external usage via a dedicated Rust client first; other language bindings can follow later.
 
 ## Terminology Discipline
 

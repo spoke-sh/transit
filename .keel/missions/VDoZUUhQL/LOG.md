@@ -15,3 +15,9 @@
 - Completed story `VEz8TGZ0O` by adding `transit mission integrity-proof` to `transit-cli`.
 - The proof now appends through the shared local engine, forces a segment roll, verifies the rolled segment with `LocalEngine::verify_local_lineage`, and reports per-segment checksum and SHA-256 digest status in both human-readable and JSON forms.
 - Recorded proof artifacts for command output and code-review evidence under story `VEz8TGZ0O`, then submitted and auto-completed the story after Keel verification passed.
+
+## 2026-03-26T09:28:11-07:00
+
+- Realigned mission `VDoZUUhQL` away from the Python client track and replaced it with a Rust-first client strategy so external access stays native to the current workspace language.
+- Removed the obsolete `dojo` workspace from the repo and scrubbed mission-status/bootstrap references that treated it as an active delivery surface.
+- Reframed epic `VEz2iOasp`, voyage `VEz3VaL0a`, and their backlog stories around a `transit-client` crate in `crates/transit-client`, keeping future non-Rust bindings explicitly out of scope for this mission.

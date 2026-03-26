@@ -21,7 +21,7 @@ We will treat **Drift**—the divergence between Execution and Intent—as a fir
 
 1.  Agents should monitor the drift magnitude (commits/time since last user check-in).
 2.  Agents should use `LineageCheckpoint`s not just for data integrity, but as "Intent Anchors" verified by the user.
-3.  Future work (e.g., `dojo`) will use `transit` lineage data to train agents in "Learned Verification" to minimize this drift.
+3.  Future work may use `transit` lineage data to train or evaluate agents in "Learned Verification" to minimize this drift.
 
 ## Constraints
 
@@ -31,7 +31,7 @@ We will treat **Drift**—the divergence between Execution and Intent—as a fir
 ## Verification
 
 - Implementation of Drift visuals in `transit mission status`.
-- Training success in future `dojo` environments.
+- Training success in future learned-verification environments.
 
 ## Consequences
 

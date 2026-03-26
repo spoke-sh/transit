@@ -627,27 +627,25 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
     println!("version: {}", status.version);
 
     // Visual completion profile
-    // X-axis: 0:Core, 1:Server, 2:Integrity, 3:Materialize, 4:MultiNode, 5:Clients, 6:Dojo
+    // X-axis: 0:Core, 1:Server, 2:Integrity, 3:Materialize, 4:MultiNode, 5:RustClient
     // Y-axis: % Completion
     let integrity_score = if status.integrity_ready { 100.0 } else { 0.0 };
     let consensus_score = if status.consensus_ready { 100.0 } else { 0.0 };
     let clients_score = if status.clients_ready { 100.0 } else { 0.0 };
-    let dojo_score = if status.dojo_ready { 100.0 } else { 0.0 };
     let points = vec![
         (0.0, 100.0),           // Core
         (1.0, 100.0),           // Server
         (2.0, integrity_score), // Integrity
         (3.0, 100.0),           // Materialize (Engine + Prolly Tree)
         (4.0, consensus_score), // Multi-Node (Kernel)
-        (5.0, clients_score),   // Clients (Python SDK)
-        (6.0, dojo_score),      // Dojo (Sparring Tapes)
+        (5.0, clients_score),   // Clients (Rust crate)
     ];
 
     println!("\nCompletion Profile:");
-    Chart::new(60, 40, 0.0, 6.0)
+    Chart::new(60, 40, 0.0, 5.0)
         .lineplot(&Shape::Lines(&points))
         .display();
-    println!("  0:Core  1:Server  2:Integrity  3:Materialize  4:MultiNode  5:Clients  6:Dojo\n");
+    println!("  0:Core  1:Server  2:Integrity  3:Materialize  4:MultiNode  5:RustClient\n");
 
     println!(
         "docs: {}/{} present",
@@ -685,7 +683,7 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
 
     println!("\nNext Missions:");
     println!("  - Multi-Node Replication (Distribution)");
-    println!("  - Autonomous Drift Correction (Self-Healing)");
+    println!("  - Polyglot Client Expansion (Post-Rust)");
 
     Ok(())
 }

@@ -20,6 +20,7 @@ const REQUIRED_WORKSPACE_FILES: &[&str] = &[
     "rust-toolchain.toml",
     "crates/transit-core/Cargo.toml",
     "crates/transit-cli/Cargo.toml",
+    "crates/transit-client/Cargo.toml",
 ];
 
 const REQUIRED_KERNEL_FILES: &[&str] = &[
@@ -48,7 +49,6 @@ pub struct MissionStatus {
     pub integrity_ready: bool,
     pub consensus_ready: bool,
     pub clients_ready: bool,
-    pub dojo_ready: bool,
 }
 
 impl MissionStatus {
@@ -102,8 +102,9 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
     let consensus_ready = kernel_files
         .iter()
         .any(|a| a.path == "crates/transit-core/src/consensus.rs" && a.present);
-    let clients_ready = Path::new("clients/python/transit/client.py").exists();
-    let dojo_ready = Path::new("dojo/training/sparring_tapes.py").exists();
+    let clients_ready = repo_root
+        .join("crates/transit-client/src/client.rs")
+        .exists();
 
     MissionStatus {
         project: "transit",
@@ -117,7 +118,6 @@ pub fn collect_mission_status(repo_root: impl AsRef<Path>) -> MissionStatus {
         integrity_ready,
         consensus_ready,
         clients_ready,
-        dojo_ready,
     }
 }
 
@@ -157,6 +157,7 @@ mod tests {
             "rust-toolchain.toml",
             "crates/transit-core/Cargo.toml",
             "crates/transit-cli/Cargo.toml",
+            "crates/transit-client/Cargo.toml",
             "crates/transit-core/src/kernel.rs",
             "crates/transit-core/src/storage.rs",
             "crates/transit-core/src/engine.rs",
@@ -172,7 +173,7 @@ mod tests {
         let status = collect_mission_status(repo_root.path());
         assert!(status.ready);
         assert_eq!(status.docs_present(), 9);
-        assert_eq!(status.workspace_files_present(), 6);
+        assert_eq!(status.workspace_files_present(), 7);
         assert_eq!(status.kernel_files_present(), 4);
         assert!(status.missing_paths().is_empty());
     }
