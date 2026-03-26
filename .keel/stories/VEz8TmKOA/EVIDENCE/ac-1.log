@@ -1,0 +1,195 @@
+---
+recorded_at: 2026-03-26T09:12:37.216815956-07:00
+mode: manual
+files: [".keel/stories/VEz8TmKOA/ac-1.log"]
+---
+
+--- File: ac-1.log ---
+
+==> Build workspace
+cargo build --workspace
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+
+==> Prove local engine
+cargo run -p transit-cli --bin transit -- mission local-engine-proof --root /home/alex/workspace/spoke-sh/transit/target/transit-screen/local-engine
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running `/home/alex/.cache/cargo-target/transit/debug/transit mission local-engine-proof --root /home/alex/workspace/spoke-sh/transit/target/transit-screen/local-engine`
+transit local-engine proof
+root: /home/alex/workspace/spoke-sh/transit/target/transit-screen/local-engine
+durability: local
+root replay: 3 records, head Some(2)
+branch replay: 3 records, head Some(2)
+merge replay: 3 records, head Some(2)
+branch parent: mission.root@1
+merge parents:
+  - mission.root@2
+  - mission.branch@2
+merge base: mission.root@1
+replay before recovery: failed as expected
+recovery target: mission.merge
+recovery retained active records: 1
+recovery truncated bytes: 51
+recovery committed next offset: 3
+recovery manifest generation: 0
+
+==> Prove tiered engine
+cargo run -p transit-cli --bin transit -- mission tiered-engine-proof --root /home/alex/workspace/spoke-sh/transit/target/transit-screen/tiered-engine
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running `/home/alex/.cache/cargo-target/transit/debug/transit mission tiered-engine-proof --root /home/alex/workspace/spoke-sh/transit/target/transit-screen/tiered-engine`
+transit tiered-engine proof
+root: /home/alex/workspace/spoke-sh/transit/target/transit-screen/tiered-engine
+durability: local
+published stream replay: 5 records, head Some(4)
+restored stream replay: 4 records, head Some(3)
+published segments:
+  - segment-00000000000000000000
+  - segment-00000000000000000001
+manifest object: tiered-proof/streams/tiered.root/manifests/manifest-00000000000000000003.json
+publication manifest generation: 3
+restored manifest generation: 3
+unpublished local records omitted from restore: 1
+publication api: LocalEngine::publish_rolled_segments
+restore api: LocalEngine::restore_stream_from_remote_manifest
+replay after remote removal: ok
+
+==> Prove networked server
+cargo run -p transit-cli --bin transit -- mission networked-server-proof --root /home/alex/workspace/spoke-sh/transit/target/transit-screen/networked-server
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running `/home/alex/.cache/cargo-target/transit/debug/transit mission networked-server-proof --root /home/alex/workspace/spoke-sh/transit/target/transit-screen/networked-server`
+transit networked-server proof
+root: /home/alex/workspace/spoke-sh/transit/target/transit-screen/networked-server
+server: 127.0.0.1:37027
+durability: local
+topology: single_node
+root create: mission.root next 0
+initial append: mission.root@0
+root replay: 1 records, head Some(0)
+branch streams: mission.branch, mission.branch-two
+merge stream: mission.merge (merge)
+merge parents:
+  - mission.branch
+  - mission.branch-two
+tail open: tail-1 delivered 1 state active
+tail append: mission.root@1
+tail poll: delivered 1 next 2 state active
+tail cancel: cancelled
+transport contract: framed request-response plus logical tail sessions
+transport boundary: the transit protocol stays above generic transports and below optional secure underlays
+wireguard role: optional secure underlay for trusted node links, not the application protocol
+replication scope: single_node_only
+accepted connections: 11
+graceful shutdown: yes
+server api: ServerHandle::bind
+remote api: RemoteClient
+
+==> Prove integrity proof
+cargo run -p transit-cli --bin transit -- mission integrity-proof --root /home/alex/workspace/spoke-sh/transit/target/transit-screen/integrity
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running `/home/alex/.cache/cargo-target/transit/debug/transit mission integrity-proof --root /home/alex/workspace/spoke-sh/transit/target/transit-screen/integrity`
+transit integrity-proof
+root: /home/alex/workspace/spoke-sh/transit/target/transit-screen/integrity
+durability: local
+stream: mission.integrity.root
+root records appended: 2
+manifest id: manifest-00000000000000000002
+manifest generation: 2
+manifest root: 1bba0c64a9a7e35e10ac6f28e902cb05ccc62b5aa8b42c287451126615349b98
+verification api: LocalEngine::verify_local_lineage
+verification timing: after segment roll
+publication api: LocalEngine::publish_rolled_segments
+restore api: LocalEngine::restore_stream_from_remote_manifest
+checkpoint api: LocalEngine::checkpoint
+checkpoint verification api: LocalEngine::verify_checkpoint
+segments:
+  - segment-00000000000000000000 offsets 0..1 records 2 bytes 134
+    checksum fnv1a64 1d689173ece2d21b PASS
+    content digest sha256 7671d61e064cddbbd99d5407b01a63fd2f6f70a8fdfb5a93eba78f72f0a06665 PASS
+published segments:
+  - segment-00000000000000000000
+manifest object key: integrity-proof/streams/mission.integrity.root/manifests/manifest-00000000000000000002.json
+restored stream: mission.integrity.root
+restored manifest generation: 2
+restored manifest root: 1bba0c64a9a7e35e10ac6f28e902cb05ccc62b5aa8b42c287451126615349b98
+manifest root parity: PASS
+restored next offset: 2
+restored segments:
+  - segment-00000000000000000000
+checkpoints:
+  - mission.integrity.branch [branch] head 3 kind branch-handoff root 78abf2b43be8a5b8c8346b7e4b713e6f965209f96c02100af60d29e9790f77ef PASS
+  - mission.integrity.merge [merge] head 3 kind merge-handoff root f7ce2d53448c2af016bb017a9eaed7c7541e5e54603bd00333a20384208e8896 PASS
+tamper detection:
+  root: /home/alex/workspace/spoke-sh/transit/target/transit-screen/integrity/tamper
+  stream: mission.integrity.tamper
+  segment: segment-00000000000000000000
+  path: /home/alex/workspace/spoke-sh/transit/target/transit-screen/integrity/tamper/streams/mission.integrity.tamper/segments/segment-00000000000000000000.segment
+  verification api: LocalEngine::verify_local_lineage
+  status: PASS
+  error: segment checksum mismatch for algorithm fnv1a64
+server parity:
+  root: /home/alex/workspace/spoke-sh/transit/target/transit-screen/integrity/server
+  server: 127.0.0.1:44577
+  durability: local
+  topology: single_node
+  verification api: LocalEngine::verify_local_lineage
+  remote api: RemoteClient
+  server api: ServerHandle::bind
+  accepted connections: 16
+  graceful shutdown: yes
+  streams:
+    - mission.integrity.server.root [root] root 072894013804f70e0a3828ec6e8f718af89249723d74b8597109690c4ed81dba remote/local next 2/2 generation 1/1 segments 1/1 PASS
+    - mission.integrity.server.branch [branch] root e7819a4472e4c3a4e13686b70f2c5aa21f8ab5ae38e891168be16cd326586bdf remote/local next 4/4 generation 1/1 segments 1/1 PASS
+      parents remote/local: ["mission.integrity.server.root"] / ["mission.integrity.server.root"]
+    - mission.integrity.server.branch-two [branch] root 226044d0f93ff5db2ad0cb9c24bcab8e0e78fade2907dad8f870bb6743be09af remote/local next 4/4 generation 1/1 segments 1/1 PASS
+      parents remote/local: ["mission.integrity.server.root"] / ["mission.integrity.server.root"]
+    - mission.integrity.server.merge [merge] root 3c1695ea07533d385012c6ab6aa3f2119b94caf6345968f40ebc42fb85d3e509 remote/local next 4/4 generation 1/1 segments 1/1 PASS
+      parents remote/local: ["mission.integrity.server.branch", "mission.integrity.server.branch-two"] / ["mission.integrity.server.branch", "mission.integrity.server.branch-two"]
+status: VERIFIED
+
+==> Probe object store
+cargo run -p transit-cli --bin transit -- object-store probe --root /home/alex/workspace/spoke-sh/transit/target/transit-screen/object-store
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running `/home/alex/.cache/cargo-target/transit/debug/transit object-store probe --root /home/alex/workspace/spoke-sh/transit/target/transit-screen/object-store`
+transit object-store probe
+backend: filesystem
+root: /home/alex/workspace/spoke-sh/transit/target/transit-screen/object-store
+object: mission/bootstrap/probe.txt
+bytes written: 23
+round trip: ok
+cleanup: ok
+
+==> Show transit status
+cargo run -p transit-cli --bin transit -- mission status --repo-root /home/alex/workspace/spoke-sh/transit
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running `/home/alex/.cache/cargo-target/transit/debug/transit mission status --repo-root /home/alex/workspace/spoke-sh/transit`
+transit mission status
+summary: durable local engine verified
+version: 0.1.0
+
+Completion Profile:
+⡉⠉⠉⠉⠉⡇⠀⠀⠀⠀⠀⠀⠀⠀⢰⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠁ 100.0
+⠄⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀⡎⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠂⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⢰⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⡁⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠀⠀⡎⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠄⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⢰⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠂⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⡎⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⡁⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⢰⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠄⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⡎⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠂⠀⠀⠀⠀⠀⠀⠀⠀⡇⢰⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⡁⠀⠀⠀⠀⠀⠀⠀⠀⢸⡎⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠁⠈⠀⠁⠈⠀⠁⠈⠀⠁⠉⠀⠁⠈⠀⠁⠈⠀⠁⠈⠀⠁⠈⠀⠁⠈⠀⠁⠈⠀⠁ 0.0
+0.0                        6.0
+
+  0:Core  1:Server  2:Integrity  3:Materialize  4:MultiNode  5:Clients  6:Dojo
+
+docs: 9/9 present
+workspace files: 6/6 present
+kernel files: 4/4 present
+kernel slice: durable local engine + tiered publish/restore
+object store: object_store + filesystem backend
+verification path: just screen
+missing: none
+
+Next Missions:
+  - Multi-Node Replication (Distribution)
+  - Autonomous Drift Correction (Self-Healing)
+
