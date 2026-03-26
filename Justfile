@@ -28,12 +28,14 @@ screen:
         cd "$repo_root"
 
         rm -rf "$screen_root"
-        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/tiered-engine" "$screen_root/networked-server"
+        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/integrity" "$screen_root/tiered-engine" "$screen_root/networked-server"
 
         announce "Build workspace"
         just build
         announce "Prove local engine"
         just run mission local-engine-proof --root "$screen_root/local-engine"
+        announce "Prove integrity surfaces"
+        just run mission integrity-proof --root "$screen_root/integrity"
         announce "Prove tiered engine"
         just run mission tiered-engine-proof --root "$screen_root/tiered-engine"
         announce "Prove networked server"

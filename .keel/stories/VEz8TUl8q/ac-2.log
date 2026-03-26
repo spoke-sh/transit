@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running unittests src/main.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit-58d61eeef5920af2)
+
+running 2 tests
+test tests::integrity_proof_results_serialize_cleanly_for_mission_scripts ... ok
+test tests::integrity_proof_exercises_segment_checksum_digest_restore_and_checkpoint_verification ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.14s
+

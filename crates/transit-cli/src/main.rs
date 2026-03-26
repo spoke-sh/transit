@@ -52,7 +52,7 @@ enum MissionCommands {
     TieredEngineProof(LocalEngineProofArgs),
     /// Exercise the networked single-node server and its transport boundary end to end.
     NetworkedServerProof(LocalEngineProofArgs),
-    /// Exercise local segment checksum and digest verification after segment roll.
+    /// Exercise segment, manifest-root, and checkpoint verification across local, tiered, and lineage flows.
     IntegrityProof(IntegrityProofArgs),
     /// Explicitly verify the cryptographic integrity of local history.
     VerifyLineage(VerifyLineageArgs),
@@ -355,7 +355,7 @@ async fn main() -> Result<()> {
                 render_networked_server_proof(run_networked_server_proof(args.root)?, args.json)?
             }
             MissionCommands::IntegrityProof(args) => {
-                render_integrity_proof(run_integrity_proof(args.root)?, args.json)?
+                render_integrity_proof(run_integrity_proof(args.root).await?, args.json)?
             }
             MissionCommands::VerifyLineage(args) => {
                 render_verify_lineage(run_verify_lineage(&args)?, args.json)?
@@ -784,6 +784,33 @@ struct IntegrityProofSegmentResult {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct IntegrityProofPublicationResult {
+    published_segment_ids: Vec<String>,
+    manifest_object_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct IntegrityProofRestoreResult {
+    stream_id: String,
+    restored_segment_ids: Vec<String>,
+    manifest_generation: u64,
+    manifest_root: String,
+    manifest_roots_match: bool,
+    next_offset: u64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct IntegrityProofCheckpointResult {
+    stream_id: String,
+    lineage_kind: String,
+    head_offset: u64,
+    manifest_root: String,
+    kind: String,
+    verified: bool,
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 struct IntegrityProofResult {
     data_root: PathBuf,
     durability: String,
@@ -793,8 +820,15 @@ struct IntegrityProofResult {
     manifest_generation: u64,
     manifest_root: String,
     verification_api: &'static str,
+    publication_api: &'static str,
+    restore_api: &'static str,
+    checkpoint_api: &'static str,
+    checkpoint_verification_api: &'static str,
     verified: bool,
     segments: Vec<IntegrityProofSegmentResult>,
+    publication: IntegrityProofPublicationResult,
+    restore: IntegrityProofRestoreResult,
+    checkpoints: Vec<IntegrityProofCheckpointResult>,
     error: Option<String>,
 }
 
@@ -1112,12 +1146,38 @@ fn run_networked_server_proof(root: PathBuf) -> Result<NetworkedServerProofResul
     })
 }
 
-fn run_integrity_proof(root: PathBuf) -> Result<IntegrityProofResult> {
+async fn run_integrity_proof(root: PathBuf) -> Result<IntegrityProofResult> {
     reset_directory(&root)?;
 
-    let engine = LocalEngine::open(LocalEngineConfig::new(&root).with_segment_max_records(2)?)
-        .context("open integrity proof root")?;
+    let publish_root = root.join("publish");
+    let restore_root = root.join("restore");
+    let object_store_root = root.join("object-store");
+    fs::create_dir_all(&publish_root)
+        .with_context(|| format!("create publish root {}", publish_root.display()))?;
+    fs::create_dir_all(&restore_root)
+        .with_context(|| format!("create restore root {}", restore_root.display()))?;
+    fs::create_dir_all(&object_store_root)
+        .with_context(|| format!("create object store root {}", object_store_root.display()))?;
+
+    let engine = LocalEngine::open(
+        LocalEngineConfig::new(&publish_root)
+            .with_segment_max_records(2)
+            .context("integrity proof config")?,
+    )
+    .context("open integrity publish root")?;
+    let restore_engine = LocalEngine::open(LocalEngineConfig::new(&restore_root))
+        .context("open integrity restore root")?;
+    let store = LocalFileSystem::new_with_prefix(&object_store_root).with_context(|| {
+        format!(
+            "open integrity object store {}",
+            object_store_root.display()
+        )
+    })?;
+
     let stream_id = StreamId::new("mission.integrity.root")?;
+    let branch_stream = StreamId::new("mission.integrity.branch")?;
+    let branch_two_stream = StreamId::new("mission.integrity.branch-two")?;
+    let merge_stream = StreamId::new("mission.integrity.merge")?;
     engine.create_stream(StreamDescriptor::root(
         stream_id.clone(),
         LineageMetadata::new(Some("mission".into()), Some("integrity-proof".into())),
@@ -1134,9 +1194,21 @@ fn run_integrity_proof(root: PathBuf) -> Result<IntegrityProofResult> {
         "integrity proof expected segment roll after second append"
     );
 
+    let publication = engine
+        .publish_rolled_segments(&stream_id, &store, "integrity-proof")
+        .await
+        .context("publish integrity proof segments")?;
+    ensure!(
+        !publication.published_segment_ids().is_empty(),
+        "integrity proof expected published segments"
+    );
+    let manifest_object_key = publication
+        .manifest_object_key()
+        .context("integrity proof publish should emit a remote manifest")?
+        .clone();
     let manifest = engine
         .load_manifest(&stream_id)
-        .context("load manifest for integrity proof")?;
+        .context("load published manifest for integrity proof")?;
     ensure!(
         !manifest.segments().is_empty(),
         "integrity proof expected at least one rolled segment"
@@ -1150,20 +1222,111 @@ fn run_integrity_proof(root: PathBuf) -> Result<IntegrityProofResult> {
         .map(summarize_integrity_segment)
         .collect::<Result<Vec<_>>>()?;
 
+    let restore = restore_engine
+        .restore_stream_from_remote_manifest(&store, &manifest_object_key)
+        .await
+        .context("restore integrity proof stream from remote manifest")?;
+    let restored_manifest = restore_engine
+        .load_manifest(&stream_id)
+        .context("load restored manifest for integrity proof")?;
+    let manifest_roots_match =
+        manifest.manifest_root().digest() == restored_manifest.manifest_root().digest();
+
+    let branch_parent = second_append.position().clone();
+    engine.create_branch(
+        branch_stream.clone(),
+        branch_parent.clone(),
+        LineageMetadata::new(
+            Some("mission.classifier".into()),
+            Some("integrity-branch".into()),
+        ),
+    )?;
+    engine.append(&branch_stream, b"branch-0")?;
+    let branch_head = engine.append(&branch_stream, b"branch-1")?;
+    ensure!(
+        branch_head.rolled_segment().is_some(),
+        "integrity proof expected rolled branch segment for checkpoint verification"
+    );
+
+    engine.create_branch(
+        branch_two_stream.clone(),
+        branch_parent.clone(),
+        LineageMetadata::new(
+            Some("mission.classifier".into()),
+            Some("integrity-branch-two".into()),
+        ),
+    )?;
+    engine.append(&branch_two_stream, b"branch-two-0")?;
+    let branch_two_head = engine.append(&branch_two_stream, b"branch-two-1")?;
+    ensure!(
+        branch_two_head.rolled_segment().is_some(),
+        "integrity proof expected rolled second branch segment for checkpoint verification"
+    );
+
+    let merge_spec = MergeSpec::new(
+        vec![
+            branch_head.position().clone(),
+            branch_two_head.position().clone(),
+        ],
+        Some(branch_parent),
+        MergePolicy::new(MergePolicyKind::Recursive)
+            .with_metadata("policy_reason", "integrity-proof"),
+        LineageMetadata::new(Some("mission.judge".into()), Some("integrity-merge".into())),
+    )?;
+    engine.create_merge(merge_stream.clone(), merge_spec)?;
+    engine.append(&merge_stream, b"merge-0")?;
+    let merge_head = engine.append(&merge_stream, b"merge-1")?;
+    ensure!(
+        merge_head.rolled_segment().is_some(),
+        "integrity proof expected rolled merge segment for checkpoint verification"
+    );
+
+    let checkpoints = vec![
+        summarize_integrity_checkpoint(&engine, &branch_stream, "branch-handoff")?,
+        summarize_integrity_checkpoint(&engine, &merge_stream, "merge-handoff")?,
+    ];
+
     Ok(IntegrityProofResult {
         data_root: root,
-        durability: second_append.durability().as_str().to_owned(),
+        durability: publication.durability().as_str().to_owned(),
         stream_id: stream_id.as_str().to_owned(),
         records_appended: 2,
         manifest_id: manifest.manifest_id().as_str().to_owned(),
         manifest_generation: manifest.generation(),
         manifest_root: manifest.manifest_root().digest().to_owned(),
         verification_api: "LocalEngine::verify_local_lineage",
+        publication_api: "LocalEngine::publish_rolled_segments",
+        restore_api: "LocalEngine::restore_stream_from_remote_manifest",
+        checkpoint_api: "LocalEngine::checkpoint",
+        checkpoint_verification_api: "LocalEngine::verify_checkpoint",
         verified: verification.is_ok()
             && segments
                 .iter()
-                .all(|segment| segment.checksum_verified && segment.content_digest_verified),
+                .all(|segment| segment.checksum_verified && segment.content_digest_verified)
+            && manifest_roots_match
+            && checkpoints.iter().all(|checkpoint| checkpoint.verified),
         segments,
+        publication: IntegrityProofPublicationResult {
+            published_segment_ids: publication
+                .published_segment_ids()
+                .iter()
+                .map(|segment_id| segment_id.as_str().to_owned())
+                .collect(),
+            manifest_object_key: manifest_object_key.as_str().to_owned(),
+        },
+        restore: IntegrityProofRestoreResult {
+            stream_id: restore.stream_id().as_str().to_owned(),
+            restored_segment_ids: restore
+                .restored_segment_ids()
+                .iter()
+                .map(|segment_id| segment_id.as_str().to_owned())
+                .collect(),
+            manifest_generation: restored_manifest.generation(),
+            manifest_root: restored_manifest.manifest_root().digest().to_owned(),
+            manifest_roots_match,
+            next_offset: restore.next_offset().value(),
+        },
+        checkpoints,
         error: verification.err().map(|error| format!("{error:#}")),
     })
 }
@@ -1665,6 +1828,34 @@ fn summarize_integrity_segment(
     })
 }
 
+fn summarize_integrity_checkpoint(
+    engine: &LocalEngine,
+    stream_id: &StreamId,
+    kind: &str,
+) -> Result<IntegrityProofCheckpointResult> {
+    let descriptor = engine
+        .stream_descriptor(stream_id)
+        .with_context(|| format!("load stream descriptor for {}", stream_id.as_str()))?;
+    let checkpoint = engine
+        .checkpoint(stream_id, kind)
+        .with_context(|| format!("create integrity checkpoint for {}", stream_id.as_str()))?;
+    let verification = engine.verify_checkpoint(&checkpoint);
+
+    Ok(IntegrityProofCheckpointResult {
+        stream_id: stream_id.as_str().to_owned(),
+        lineage_kind: match descriptor.lineage {
+            StreamLineage::Root { .. } => "root".to_owned(),
+            StreamLineage::Branch { .. } => "branch".to_owned(),
+            StreamLineage::Merge { .. } => "merge".to_owned(),
+        },
+        head_offset: checkpoint.head_offset.value(),
+        manifest_root: checkpoint.manifest_root.digest().to_owned(),
+        kind: checkpoint.kind,
+        verified: verification.is_ok(),
+        error: verification.err().map(|error| format!("{error:#}")),
+    })
+}
+
 fn reset_directory(root: &Path) -> Result<()> {
     if root.exists() {
         fs::remove_dir_all(root)
@@ -1779,12 +1970,19 @@ fn render_integrity_proof(result: IntegrityProofResult, json: bool) -> Result<()
     println!("root: {}", result.data_root.display());
     println!("durability: {}", result.durability);
     println!("stream: {}", result.stream_id);
-    println!("records appended: {}", result.records_appended);
+    println!("root records appended: {}", result.records_appended);
     println!("manifest id: {}", result.manifest_id);
     println!("manifest generation: {}", result.manifest_generation);
     println!("manifest root: {}", result.manifest_root);
     println!("verification api: {}", result.verification_api);
     println!("verification timing: after segment roll");
+    println!("publication api: {}", result.publication_api);
+    println!("restore api: {}", result.restore_api);
+    println!("checkpoint api: {}", result.checkpoint_api);
+    println!(
+        "checkpoint verification api: {}",
+        result.checkpoint_verification_api
+    );
 
     if result.segments.is_empty() {
         println!("segments: none");
@@ -1819,6 +2017,62 @@ fn render_integrity_proof(result: IntegrityProofResult, json: bool) -> Result<()
                     "FAIL"
                 }
             );
+        }
+    }
+
+    if result.publication.published_segment_ids.is_empty() {
+        println!("published segments: none");
+    } else {
+        println!("published segments:");
+        for segment_id in &result.publication.published_segment_ids {
+            println!("  - {segment_id}");
+        }
+    }
+    println!(
+        "manifest object key: {}",
+        result.publication.manifest_object_key
+    );
+    println!("restored stream: {}", result.restore.stream_id);
+    println!(
+        "restored manifest generation: {}",
+        result.restore.manifest_generation
+    );
+    println!("restored manifest root: {}", result.restore.manifest_root);
+    println!(
+        "manifest root parity: {}",
+        if result.restore.manifest_roots_match {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!("restored next offset: {}", result.restore.next_offset);
+    if result.restore.restored_segment_ids.is_empty() {
+        println!("restored segments: none");
+    } else {
+        println!("restored segments:");
+        for segment_id in &result.restore.restored_segment_ids {
+            println!("  - {segment_id}");
+        }
+    }
+
+    if result.checkpoints.is_empty() {
+        println!("checkpoints: none");
+    } else {
+        println!("checkpoints:");
+        for checkpoint in &result.checkpoints {
+            println!(
+                "  - {} [{}] head {} kind {} root {} {}",
+                checkpoint.stream_id,
+                checkpoint.lineage_kind,
+                checkpoint.head_offset,
+                checkpoint.kind,
+                checkpoint.manifest_root,
+                if checkpoint.verified { "PASS" } else { "FAIL" }
+            );
+            if let Some(error) = &checkpoint.error {
+                println!("    error: {error}");
+            }
         }
     }
 
@@ -2412,28 +2666,67 @@ mod tests {
         server.shutdown().expect("shutdown server");
     }
 
-    #[test]
-    fn integrity_proof_exercises_segment_checksum_and_digest_verification() {
+    #[tokio::test]
+    async fn integrity_proof_exercises_segment_checksum_digest_restore_and_checkpoint_verification()
+    {
         let temp_dir = tempdir().expect("temp dir");
-        let proof =
-            run_integrity_proof(temp_dir.path().join("integrity")).expect("run integrity proof");
+        let proof = run_integrity_proof(temp_dir.path().join("integrity"))
+            .await
+            .expect("run integrity proof");
 
         assert_eq!(proof.durability, "local");
         assert_eq!(proof.stream_id, "mission.integrity.root");
         assert_eq!(proof.records_appended, 2);
         assert_eq!(proof.verification_api, "LocalEngine::verify_local_lineage");
+        assert_eq!(
+            proof.publication_api,
+            "LocalEngine::publish_rolled_segments"
+        );
+        assert_eq!(
+            proof.restore_api,
+            "LocalEngine::restore_stream_from_remote_manifest"
+        );
+        assert_eq!(proof.checkpoint_api, "LocalEngine::checkpoint");
+        assert_eq!(
+            proof.checkpoint_verification_api,
+            "LocalEngine::verify_checkpoint"
+        );
         assert!(proof.verified);
         assert_eq!(proof.segments.len(), 1);
         assert_eq!(proof.segments[0].checksum_algorithm, "fnv1a64");
         assert_eq!(proof.segments[0].content_digest_algorithm, "sha256");
         assert!(proof.segments[0].checksum_verified);
         assert!(proof.segments[0].content_digest_verified);
+        assert_eq!(proof.manifest_generation, 2);
+        assert_eq!(proof.publication.published_segment_ids.len(), 1);
+        assert!(
+            proof
+                .publication
+                .manifest_object_key
+                .contains("integrity-proof")
+        );
+        assert_eq!(proof.restore.stream_id, "mission.integrity.root");
+        assert_eq!(proof.restore.manifest_generation, proof.manifest_generation);
+        assert_eq!(proof.restore.manifest_root, proof.manifest_root);
+        assert!(proof.restore.manifest_roots_match);
+        assert_eq!(proof.restore.next_offset, 2);
+        assert_eq!(proof.checkpoints.len(), 2);
+        assert_eq!(proof.checkpoints[0].lineage_kind, "branch");
+        assert_eq!(proof.checkpoints[1].lineage_kind, "merge");
+        assert!(
+            proof
+                .checkpoints
+                .iter()
+                .all(|checkpoint| checkpoint.verified)
+        );
     }
 
-    #[test]
-    fn integrity_proof_results_serialize_cleanly_for_mission_scripts() {
+    #[tokio::test]
+    async fn integrity_proof_results_serialize_cleanly_for_mission_scripts() {
         let temp_dir = tempdir().expect("temp dir");
-        let proof = run_integrity_proof(temp_dir.path().join("integrity-json")).expect("run proof");
+        let proof = run_integrity_proof(temp_dir.path().join("integrity-json"))
+            .await
+            .expect("run proof");
         let proof_json = serde_json::to_value(&proof).expect("serialize proof");
 
         assert_eq!(
@@ -2449,8 +2742,14 @@ mod tests {
             Some(true)
         );
         assert_eq!(
-            proof_json["segments"][0]
-                .get("checksum_verified")
+            proof_json["restore"]
+                .get("manifest_roots_match")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["checkpoints"][0]
+                .get("verified")
                 .and_then(serde_json::Value::as_bool),
             Some(true)
         );

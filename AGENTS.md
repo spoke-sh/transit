@@ -49,7 +49,7 @@ Keep `just screen` as the default human proof path. If verification gets richer,
 - **Integrity Done:** Verifiable lineage primitives, manifest roots, and checkpoints landed.
 - **Materialization Done:** Branch-aware materialization kernel and Prolly Tree snapshots landed.
 - **Consensus Slice Done:** Initial consensus kernel and leader-enforcement slice landed.
-- **Proof Ready:** `just screen` covers local, tiered, and networked end-to-end flows.
+- **Proof Ready:** `just screen` covers local, integrity, tiered, and networked end-to-end flows.
 
 ## Next Missions
 
@@ -176,7 +176,7 @@ Use one path for each concern:
 | Command | Purpose |
 |---------|---------|
 | `just` | List available recipes |
-| `just screen` | Default human proof path (local, tiered, networked, board) |
+| `just screen` | Default human proof path (local, integrity, tiered, networked, board) |
 | `just quality` | Formatting and clippy checks |
 | `just test` | Workspace tests |
 | `just doctest` | Run doc tests |

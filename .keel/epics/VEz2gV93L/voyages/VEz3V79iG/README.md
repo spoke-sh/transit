@@ -27,12 +27,12 @@ started_at: 2026-03-26T08:13:01
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/4 stories complete
+**Progress:** 2/4 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Implement Integrity Proof CLI Command With Segment Checksum And Digest Verification](../../../../stories/VEz8TGZ0O/README.md) | feat | done |
-| [Add Manifest Root Verification And Lineage Checkpoint Proof To Integrity Command](../../../../stories/VEz8TUl8q/README.md) | feat | backlog |
+| [Add Manifest Root Verification And Lineage Checkpoint Proof To Integrity Command](../../../../stories/VEz8TUl8q/README.md) | feat | done |
 | [Add Tamper Detection And Server Parity Verification To Integrity Command](../../../../stories/VEz8Td6GO/README.md) | feat | backlog |
 | [Integrate Integrity Proof Into Just Screen Flow](../../../../stories/VEz8TmKOA/README.md) | feat | backlog |
 <!-- END GENERATED -->

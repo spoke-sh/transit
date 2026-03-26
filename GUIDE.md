@@ -147,10 +147,11 @@ The current bootstrap developer loop is:
 1. enter `nix develop`
 2. run `just screen`
 3. use `just run mission local-engine-proof --root target/transit-mission/local-engine` when you want the explicit durable-engine proof without the rest of the mission flow
-4. use `just run mission tiered-engine-proof --root target/transit-mission/tiered-engine` when you want the explicit publication and restore proof
-5. use `just run mission networked-server-proof --root target/transit-mission/networked-server` when you want the explicit live server proof, including the transport-boundary note
-6. use `just run server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap
-7. use `just run server create-root --server-addr 127.0.0.1:7171 --stream-id task.root --actor cli --reason bootstrap --json`, then `just run server append --server-addr 127.0.0.1:7171 --stream-id task.root --payload-text hello --json`, plus the sibling `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel` commands when you want to exercise the remote CLI surface directly
-8. use `just help` or `just run -- --help` for the CLI surface
+4. use `just run mission integrity-proof --root target/transit-mission/integrity` when you want the explicit checksum, manifest-root, restore, and checkpoint proof
+5. use `just run mission tiered-engine-proof --root target/transit-mission/tiered-engine` when you want the explicit publication and restore proof
+6. use `just run mission networked-server-proof --root target/transit-mission/networked-server` when you want the explicit live server proof, including the transport-boundary note
+7. use `just run server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap
+8. use `just run server create-root --server-addr 127.0.0.1:7171 --stream-id task.root --actor cli --reason bootstrap --json`, then `just run server append --server-addr 127.0.0.1:7171 --stream-id task.root --payload-text hello --json`, plus the sibling `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel` commands when you want to exercise the remote CLI surface directly
+9. use `just help` or `just run -- --help` for the CLI surface
 
 If a proposed change conflicts with those documents, update the docs intentionally before or with the code change.

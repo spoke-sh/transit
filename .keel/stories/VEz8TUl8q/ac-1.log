@@ -1,0 +1,67 @@
+{
+  "data_root": "target/transit-mission/integrity-proof-verify",
+  "durability": "local",
+  "stream_id": "mission.integrity.root",
+  "records_appended": 2,
+  "manifest_id": "manifest-00000000000000000002",
+  "manifest_generation": 2,
+  "manifest_root": "49d295c4196caf3b08bde77b081ce676e776431e9d4128c8c3f8f7869089be0f",
+  "verification_api": "LocalEngine::verify_local_lineage",
+  "publication_api": "LocalEngine::publish_rolled_segments",
+  "restore_api": "LocalEngine::restore_stream_from_remote_manifest",
+  "checkpoint_api": "LocalEngine::checkpoint",
+  "checkpoint_verification_api": "LocalEngine::verify_checkpoint",
+  "verified": true,
+  "segments": [
+    {
+      "segment_id": "segment-00000000000000000000",
+      "start_offset": 0,
+      "last_offset": 1,
+      "record_count": 2,
+      "byte_length": 134,
+      "checksum_algorithm": "fnv1a64",
+      "checksum_digest": "1d689173ece2d21b",
+      "checksum_verified": true,
+      "content_digest_algorithm": "sha256",
+      "content_digest": "7671d61e064cddbbd99d5407b01a63fd2f6f70a8fdfb5a93eba78f72f0a06665",
+      "content_digest_verified": true
+    }
+  ],
+  "publication": {
+    "published_segment_ids": [
+      "segment-00000000000000000000"
+    ],
+    "manifest_object_key": "integrity-proof/streams/mission.integrity.root/manifests/manifest-00000000000000000002.json"
+  },
+  "restore": {
+    "stream_id": "mission.integrity.root",
+    "restored_segment_ids": [
+      "segment-00000000000000000000"
+    ],
+    "manifest_generation": 2,
+    "manifest_root": "49d295c4196caf3b08bde77b081ce676e776431e9d4128c8c3f8f7869089be0f",
+    "manifest_roots_match": true,
+    "next_offset": 2
+  },
+  "checkpoints": [
+    {
+      "stream_id": "mission.integrity.branch",
+      "lineage_kind": "branch",
+      "head_offset": 3,
+      "manifest_root": "dab6abe7b21e6a65554ce4e92d383940ee71e8996da316f27a2b0f11b577afe7",
+      "kind": "branch-handoff",
+      "verified": true,
+      "error": null
+    },
+    {
+      "stream_id": "mission.integrity.merge",
+      "lineage_kind": "merge",
+      "head_offset": 3,
+      "manifest_root": "02bd9bc308b14e398eca09b87a5ffc6b0d2055d9802f1e9d607e2ce6ce7b05f5",
+      "kind": "merge-handoff",
+      "verified": true,
+      "error": null
+    }
+  ],
+  "error": null
+}
