@@ -67,7 +67,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Integrity End-To-End Proof](epics/VEz2gV93L/voyages/VEz3V79iG/) | planned |
+| [Integrity End-To-End Proof](epics/VEz2gV93L/voyages/VEz3V79iG/) | in-progress |
 
 ### [Branch-Aware Materialization Proof Surface](epics/VEz2huKbt/) (active)
 

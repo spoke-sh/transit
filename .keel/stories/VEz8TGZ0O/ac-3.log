@@ -1,0 +1,2 @@
+Code review:
+run_integrity_proof configures segment_max_records=2, checks that the first append has no rolled segment, requires the second append to return a rolled segment, and only then calls LocalEngine::verify_local_lineage.

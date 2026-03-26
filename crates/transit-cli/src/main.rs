@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use clap::{Args, Parser, Subcommand};
 use object_store::local::LocalFileSystem;
 use serde::Serialize;
@@ -52,6 +52,8 @@ enum MissionCommands {
     TieredEngineProof(LocalEngineProofArgs),
     /// Exercise the networked single-node server and its transport boundary end to end.
     NetworkedServerProof(LocalEngineProofArgs),
+    /// Exercise local segment checksum and digest verification after segment roll.
+    IntegrityProof(IntegrityProofArgs),
     /// Explicitly verify the cryptographic integrity of local history.
     VerifyLineage(VerifyLineageArgs),
     /// Create a verifiable checkpoint for a stream head.
@@ -73,6 +75,16 @@ struct MissionStatusArgs {
 #[derive(Debug, Args)]
 struct LocalEngineProofArgs {
     /// Filesystem root used for the local durable-engine proof.
+    #[arg(long)]
+    root: PathBuf,
+    /// Render proof output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct IntegrityProofArgs {
+    /// Filesystem root used for the local integrity proof.
     #[arg(long)]
     root: PathBuf,
     /// Render proof output as JSON.
@@ -341,6 +353,9 @@ async fn main() -> Result<()> {
             }
             MissionCommands::NetworkedServerProof(args) => {
                 render_networked_server_proof(run_networked_server_proof(args.root)?, args.json)?
+            }
+            MissionCommands::IntegrityProof(args) => {
+                render_integrity_proof(run_integrity_proof(args.root)?, args.json)?
             }
             MissionCommands::VerifyLineage(args) => {
                 render_verify_lineage(run_verify_lineage(&args)?, args.json)?
@@ -753,6 +768,36 @@ struct NetworkedServerProofResult {
     remote_api: &'static str,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct IntegrityProofSegmentResult {
+    segment_id: String,
+    start_offset: u64,
+    last_offset: u64,
+    record_count: u64,
+    byte_length: u64,
+    checksum_algorithm: String,
+    checksum_digest: String,
+    checksum_verified: bool,
+    content_digest_algorithm: String,
+    content_digest: String,
+    content_digest_verified: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct IntegrityProofResult {
+    data_root: PathBuf,
+    durability: String,
+    stream_id: String,
+    records_appended: usize,
+    manifest_id: String,
+    manifest_generation: u64,
+    manifest_root: String,
+    verification_api: &'static str,
+    verified: bool,
+    segments: Vec<IntegrityProofSegmentResult>,
+    error: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 struct ServerRunResult {
     data_root: PathBuf,
@@ -1064,6 +1109,62 @@ fn run_networked_server_proof(root: PathBuf) -> Result<NetworkedServerProofResul
         graceful_shutdown: shutdown.graceful_shutdown,
         server_api: shutdown.server_api,
         remote_api: "RemoteClient",
+    })
+}
+
+fn run_integrity_proof(root: PathBuf) -> Result<IntegrityProofResult> {
+    reset_directory(&root)?;
+
+    let engine = LocalEngine::open(LocalEngineConfig::new(&root).with_segment_max_records(2)?)
+        .context("open integrity proof root")?;
+    let stream_id = StreamId::new("mission.integrity.root")?;
+    engine.create_stream(StreamDescriptor::root(
+        stream_id.clone(),
+        LineageMetadata::new(Some("mission".into()), Some("integrity-proof".into())),
+    ))?;
+
+    let first_append = engine.append(&stream_id, b"integrity-0")?;
+    let second_append = engine.append(&stream_id, b"integrity-1")?;
+    ensure!(
+        first_append.rolled_segment().is_none(),
+        "integrity verification must remain off the first append acknowledgement path"
+    );
+    ensure!(
+        second_append.rolled_segment().is_some(),
+        "integrity proof expected segment roll after second append"
+    );
+
+    let manifest = engine
+        .load_manifest(&stream_id)
+        .context("load manifest for integrity proof")?;
+    ensure!(
+        !manifest.segments().is_empty(),
+        "integrity proof expected at least one rolled segment"
+    );
+
+    // Verification is intentionally off the append path: it runs only after segment roll.
+    let verification = engine.verify_local_lineage(&stream_id);
+    let segments = manifest
+        .segments()
+        .iter()
+        .map(summarize_integrity_segment)
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(IntegrityProofResult {
+        data_root: root,
+        durability: second_append.durability().as_str().to_owned(),
+        stream_id: stream_id.as_str().to_owned(),
+        records_appended: 2,
+        manifest_id: manifest.manifest_id().as_str().to_owned(),
+        manifest_generation: manifest.generation(),
+        manifest_root: manifest.manifest_root().digest().to_owned(),
+        verification_api: "LocalEngine::verify_local_lineage",
+        verified: verification.is_ok()
+            && segments
+                .iter()
+                .all(|segment| segment.checksum_verified && segment.content_digest_verified),
+        segments,
+        error: verification.err().map(|error| format!("{error:#}")),
     })
 }
 
@@ -1505,6 +1606,65 @@ fn parse_key_value_arg(value: &str) -> Result<(String, String)> {
     Ok((key.to_owned(), value.to_owned()))
 }
 
+fn fnv1a64_hex(bytes: &[u8]) -> String {
+    const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x100000001b3;
+
+    let mut hash = FNV_OFFSET;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+
+    format!("{hash:016x}")
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+fn summarize_integrity_segment(
+    descriptor: &transit_core::storage::SegmentDescriptor,
+) -> Result<IntegrityProofSegmentResult> {
+    let local_path = descriptor.storage().local_path().with_context(|| {
+        format!(
+            "integrity proof requires local segment path for '{}'",
+            descriptor.segment_id().as_str()
+        )
+    })?;
+    let bytes = fs::read(local_path)
+        .with_context(|| format!("read integrity proof segment {}", local_path.display()))?;
+
+    let checksum_verified = match descriptor.checksum().algorithm() {
+        "fnv1a64" => fnv1a64_hex(&bytes) == descriptor.checksum().digest(),
+        other => {
+            anyhow::bail!("unsupported checksum algorithm '{other}' in integrity proof")
+        }
+    };
+    let content_digest_verified = match descriptor.content_digest().algorithm() {
+        "sha256" => sha256_hex(&bytes) == descriptor.content_digest().digest(),
+        other => anyhow::bail!("unsupported digest algorithm '{other}' in integrity proof"),
+    };
+
+    Ok(IntegrityProofSegmentResult {
+        segment_id: descriptor.segment_id().as_str().to_owned(),
+        start_offset: descriptor.start_offset().value(),
+        last_offset: descriptor.last_offset().value(),
+        record_count: descriptor.record_count(),
+        byte_length: descriptor.byte_length(),
+        checksum_algorithm: descriptor.checksum().algorithm().to_owned(),
+        checksum_digest: descriptor.checksum().digest().to_owned(),
+        checksum_verified,
+        content_digest_algorithm: descriptor.content_digest().algorithm().to_owned(),
+        content_digest: descriptor.content_digest().digest().to_owned(),
+        content_digest_verified,
+    })
+}
+
 fn reset_directory(root: &Path) -> Result<()> {
     if root.exists() {
         fs::remove_dir_all(root)
@@ -1605,6 +1765,74 @@ fn render_local_engine_proof(result: LocalEngineProofResult, json: bool) -> Resu
         "recovery manifest generation: {}",
         result.recovery.manifest_generation
     );
+
+    Ok(())
+}
+
+fn render_integrity_proof(result: IntegrityProofResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit integrity-proof");
+    println!("root: {}", result.data_root.display());
+    println!("durability: {}", result.durability);
+    println!("stream: {}", result.stream_id);
+    println!("records appended: {}", result.records_appended);
+    println!("manifest id: {}", result.manifest_id);
+    println!("manifest generation: {}", result.manifest_generation);
+    println!("manifest root: {}", result.manifest_root);
+    println!("verification api: {}", result.verification_api);
+    println!("verification timing: after segment roll");
+
+    if result.segments.is_empty() {
+        println!("segments: none");
+    } else {
+        println!("segments:");
+        for segment in &result.segments {
+            println!(
+                "  - {} offsets {}..{} records {} bytes {}",
+                segment.segment_id,
+                segment.start_offset,
+                segment.last_offset,
+                segment.record_count,
+                segment.byte_length
+            );
+            println!(
+                "    checksum {} {} {}",
+                segment.checksum_algorithm,
+                segment.checksum_digest,
+                if segment.checksum_verified {
+                    "PASS"
+                } else {
+                    "FAIL"
+                }
+            );
+            println!(
+                "    content digest {} {} {}",
+                segment.content_digest_algorithm,
+                segment.content_digest,
+                if segment.content_digest_verified {
+                    "PASS"
+                } else {
+                    "FAIL"
+                }
+            );
+        }
+    }
+
+    println!(
+        "status: {}",
+        if result.verified {
+            "VERIFIED"
+        } else {
+            "FAILED"
+        }
+    );
+    if let Some(error) = result.error {
+        println!("error: {error}");
+    }
 
     Ok(())
 }
@@ -2182,6 +2410,56 @@ mod tests {
         assert!(lineage_json.get("request_id").is_some());
 
         server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn integrity_proof_exercises_segment_checksum_and_digest_verification() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof =
+            run_integrity_proof(temp_dir.path().join("integrity")).expect("run integrity proof");
+
+        assert_eq!(proof.durability, "local");
+        assert_eq!(proof.stream_id, "mission.integrity.root");
+        assert_eq!(proof.records_appended, 2);
+        assert_eq!(proof.verification_api, "LocalEngine::verify_local_lineage");
+        assert!(proof.verified);
+        assert_eq!(proof.segments.len(), 1);
+        assert_eq!(proof.segments[0].checksum_algorithm, "fnv1a64");
+        assert_eq!(proof.segments[0].content_digest_algorithm, "sha256");
+        assert!(proof.segments[0].checksum_verified);
+        assert!(proof.segments[0].content_digest_verified);
+    }
+
+    #[test]
+    fn integrity_proof_results_serialize_cleanly_for_mission_scripts() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_integrity_proof(temp_dir.path().join("integrity-json")).expect("run proof");
+        let proof_json = serde_json::to_value(&proof).expect("serialize proof");
+
+        assert_eq!(
+            proof_json
+                .get("stream_id")
+                .and_then(serde_json::Value::as_str),
+            Some("mission.integrity.root")
+        );
+        assert_eq!(
+            proof_json
+                .get("verified")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["segments"][0]
+                .get("checksum_verified")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["segments"][0]
+                .get("content_digest_verified")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
     }
 
     #[test]

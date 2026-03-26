@@ -1,0 +1,15 @@
+transit integrity-proof
+root: target/transit-mission/integrity-proof
+durability: local
+stream: mission.integrity.root
+records appended: 2
+manifest id: manifest-00000000000000000001
+manifest generation: 1
+manifest root: db836458704ccd049ba81ffabea667774b5884b77cc8e0a4ac0f6d51edd00ad3
+verification api: LocalEngine::verify_local_lineage
+verification timing: after segment roll
+segments:
+  - segment-00000000000000000000 offsets 0..1 records 2 bytes 134
+    checksum fnv1a64 1d689173ece2d21b PASS
+    content digest sha256 7671d61e064cddbbd99d5407b01a63fd2f6f70a8fdfb5a93eba78f72f0a06665 PASS
+status: VERIFIED

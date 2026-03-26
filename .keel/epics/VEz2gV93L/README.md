@@ -22,8 +22,8 @@ index: 7
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/4 stories done
+**Progress:** 0/1 voyages complete, 1/4 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Integrity End-To-End Proof](voyages/VEz3V79iG/) | planned | 0/4 |
+| [Integrity End-To-End Proof](voyages/VEz3V79iG/) | in-progress | 1/4 |
 <!-- END GENERATED -->

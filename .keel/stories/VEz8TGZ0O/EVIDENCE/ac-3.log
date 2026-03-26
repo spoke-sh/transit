@@ -1,0 +1,10 @@
+---
+recorded_at: 2026-03-26T08:19:00.444332480-07:00
+mode: manual
+files: [".keel/stories/VEz8TGZ0O/ac-3.log"]
+---
+
+--- File: ac-3.log ---
+Code review:
+run_integrity_proof configures segment_max_records=2, checks that the first append has no rolled segment, requires the second append to return a rolled segment, and only then calls LocalEngine::verify_local_lineage.
+

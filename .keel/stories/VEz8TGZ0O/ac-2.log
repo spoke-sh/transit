@@ -1,0 +1,27 @@
+{
+  "data_root": "target/transit-mission/integrity-proof-json",
+  "durability": "local",
+  "stream_id": "mission.integrity.root",
+  "records_appended": 2,
+  "manifest_id": "manifest-00000000000000000001",
+  "manifest_generation": 1,
+  "manifest_root": "1c98cd206ca83821b3d8a6c92d0cace20d90a3250638ff5df863296353fdb3ac",
+  "verification_api": "LocalEngine::verify_local_lineage",
+  "verified": true,
+  "segments": [
+    {
+      "segment_id": "segment-00000000000000000000",
+      "start_offset": 0,
+      "last_offset": 1,
+      "record_count": 2,
+      "byte_length": 134,
+      "checksum_algorithm": "fnv1a64",
+      "checksum_digest": "1d689173ece2d21b",
+      "checksum_verified": true,
+      "content_digest_algorithm": "sha256",
+      "content_digest": "7671d61e064cddbbd99d5407b01a63fd2f6f70a8fdfb5a93eba78f72f0a06665",
+      "content_digest_verified": true
+    }
+  ],
+  "error": null
+}
