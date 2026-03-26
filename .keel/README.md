@@ -63,11 +63,11 @@
 |--------|--------|
 | [Implement Consensus Kernel](epics/VDssrPWoX/voyages/VDsswMQlJ/) | done |
 
-### [Verifiable Integrity Proof Surface](epics/VEz2gV93L/) (active)
+### [Verifiable Integrity Proof Surface](epics/VEz2gV93L/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Integrity End-To-End Proof](epics/VEz2gV93L/voyages/VEz3V79iG/) | in-progress |
+| [Integrity End-To-End Proof](epics/VEz2gV93L/voyages/VEz3V79iG/) | done |
 
 ### [Branch-Aware Materialization Proof Surface](epics/VEz2huKbt/) (active)
 
