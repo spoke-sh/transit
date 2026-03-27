@@ -79,7 +79,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Rust Client Library And Proof](epics/VEz2iOasp/voyages/VEz3VaL0a/) | planned |
+| [Rust Client Library And Proof](epics/VEz2iOasp/voyages/VEz3VaL0a/) | in-progress |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
