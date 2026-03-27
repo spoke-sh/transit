@@ -1,11 +1,12 @@
 ---
 id: VDssqtPXS
 title: Ship Multi-Node Consensus And Stream Ownership
-status: achieved
+status: verified
 created_at: 2026-03-14T15:40:25
-updated_at: 2026-03-27T07:59:27
+updated_at: 2026-03-27T08:05:03
 activated_at: 2026-03-27T07:59:10
 achieved_at: 2026-03-27T07:59:27
+verified_at: 2026-03-27T08:05:03
 ---
 
 # Ship Multi-Node Consensus And Stream Ownership
