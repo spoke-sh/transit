@@ -1145,6 +1145,7 @@ dependencies = [
  "textplots",
  "tokio",
  "transit-core",
+ "transit-materialize",
 ]
 
 [[package]]

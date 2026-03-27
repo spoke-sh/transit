@@ -17,6 +17,8 @@ use transit_core::object_store_support::{ObjectStoreProbeResult, probe_local_fil
 use transit_core::server::{
     RemoteClient, ServerConfig, ServerHandle, ServerShutdownOutcome, TailSessionId,
 };
+use transit_materialize::Reducer;
+use transit_materialize::engine::LocalMaterializationEngine;
 
 #[derive(Debug, Parser)]
 #[command(name = "transit")]
@@ -54,6 +56,8 @@ enum MissionCommands {
     NetworkedServerProof(LocalEngineProofArgs),
     /// Exercise segment, manifest-root, checkpoint, tamper, and server-parity verification across the integrity proof flow.
     IntegrityProof(IntegrityProofArgs),
+    /// Exercise checkpoint and resume through the materialization engine.
+    MaterializationProof(MaterializationProofArgs),
     /// Explicitly verify the cryptographic integrity of local history.
     VerifyLineage(VerifyLineageArgs),
     /// Create a verifiable checkpoint for a stream head.
@@ -85,6 +89,16 @@ struct LocalEngineProofArgs {
 #[derive(Debug, Args)]
 struct IntegrityProofArgs {
     /// Filesystem root used for the local integrity proof.
+    #[arg(long)]
+    root: PathBuf,
+    /// Render proof output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct MaterializationProofArgs {
+    /// Filesystem root used for the local materialization proof.
     #[arg(long)]
     root: PathBuf,
     /// Render proof output as JSON.
@@ -354,6 +368,10 @@ async fn main() -> Result<()> {
             MissionCommands::NetworkedServerProof(args) => {
                 render_networked_server_proof(run_networked_server_proof(args.root)?, args.json)?
             }
+            MissionCommands::MaterializationProof(args) => render_materialization_proof(
+                run_materialization_proof(args.root).await?,
+                args.json,
+            )?,
             MissionCommands::IntegrityProof(args) => {
                 render_integrity_proof(run_integrity_proof(args.root).await?, args.json)?
             }
@@ -876,6 +894,58 @@ struct IntegrityProofResult {
     error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, serde::Deserialize, PartialEq, Eq, Default)]
+struct MaterializationProofState {
+    processed_records: u64,
+    last_offset: Option<u64>,
+}
+
+struct MaterializationProofCountReducer;
+
+impl Reducer for MaterializationProofCountReducer {
+    type State = MaterializationProofState;
+
+    fn reduce(&self, state: &mut Self::State, offset: Offset, _payload: &[u8]) -> Result<()> {
+        state.processed_records += 1;
+        state.last_offset = Some(offset.value());
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct MaterializationProofCheckpointResult {
+    stream_id: String,
+    head_offset: u64,
+    manifest_root: String,
+    kind: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct MaterializationProofResumeResult {
+    appended_after_checkpoint: usize,
+    resumed_total_count: u64,
+    resumed_last_offset: Option<u64>,
+    processed_new_records: u64,
+    only_new_records_processed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct MaterializationProofResult {
+    data_root: PathBuf,
+    durability: String,
+    stream_id: String,
+    materialization_id: String,
+    initial_records_appended: usize,
+    initial_materialized_count: u64,
+    materialization_api: &'static str,
+    checkpoint_api: &'static str,
+    checkpoint_anchor_api: &'static str,
+    checkpoint: MaterializationProofCheckpointResult,
+    resume: MaterializationProofResumeResult,
+    verified: bool,
+    error: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 struct ServerRunResult {
     data_root: PathBuf,
@@ -1378,6 +1448,110 @@ async fn run_integrity_proof(root: PathBuf) -> Result<IntegrityProofResult> {
         tamper,
         server_parity,
         error: verification.err().map(|error| format!("{error:#}")),
+    })
+}
+
+async fn run_materialization_proof(root: PathBuf) -> Result<MaterializationProofResult> {
+    reset_directory(&root)?;
+
+    let engine = LocalEngine::open(
+        LocalEngineConfig::new(&root)
+            .with_segment_max_records(2)
+            .context("materialization proof config")?,
+    )
+    .context("open materialization proof root")?;
+    let stream_id = StreamId::new("mission.materialization.root")?;
+    let materialization_id = "mission.materialization.count".to_owned();
+
+    engine.create_stream(StreamDescriptor::root(
+        stream_id.clone(),
+        LineageMetadata::new(Some("mission".into()), Some("materialization-proof".into())),
+    ))?;
+
+    let first_append = engine.append(&stream_id, b"materialize-0")?;
+    engine.append(&stream_id, b"materialize-1")?;
+
+    let materializer = LocalMaterializationEngine::new(
+        materialization_id.clone(),
+        stream_id.clone(),
+        engine.clone(),
+        MaterializationProofCountReducer,
+        MaterializationProofState::default(),
+    );
+    materializer
+        .catch_up()
+        .await
+        .context("materialize initial records")?;
+    let initial_state = materializer.current_state().await;
+    ensure!(
+        initial_state.processed_records == 2,
+        "materialization proof expected 2 processed records before checkpoint, found {}",
+        initial_state.processed_records
+    );
+
+    let checkpoint = materializer
+        .checkpoint()
+        .await
+        .context("checkpoint materialization proof")?;
+    engine
+        .verify_checkpoint(&checkpoint.lineage_anchor)
+        .context("verify materialization checkpoint anchor")?;
+
+    engine.append(&stream_id, b"materialize-2")?;
+    engine.append(&stream_id, b"materialize-3")?;
+
+    let resumed = LocalMaterializationEngine::resume(
+        materialization_id.clone(),
+        stream_id.clone(),
+        engine.clone(),
+        MaterializationProofCountReducer,
+        checkpoint.clone(),
+    )
+    .context("resume materialization proof from checkpoint")?;
+    resumed
+        .catch_up()
+        .await
+        .context("materialize resumed records")?;
+    let resumed_state = resumed.current_state().await;
+    let processed_new_records = resumed_state
+        .processed_records
+        .checked_sub(initial_state.processed_records)
+        .context("materialization proof resumed total count regressed")?;
+    let only_new_records_processed =
+        processed_new_records == 2 && resumed_state.processed_records == 4;
+    ensure!(
+        only_new_records_processed,
+        "materialization proof expected resume to process only new records: initial={}, resumed={}, delta={}",
+        initial_state.processed_records,
+        resumed_state.processed_records,
+        processed_new_records
+    );
+
+    Ok(MaterializationProofResult {
+        data_root: root,
+        durability: first_append.durability().as_str().to_owned(),
+        stream_id: stream_id.as_str().to_owned(),
+        materialization_id,
+        initial_records_appended: initial_state.processed_records as usize,
+        initial_materialized_count: initial_state.processed_records,
+        materialization_api: "LocalMaterializationEngine::catch_up",
+        checkpoint_api: "LocalMaterializationEngine::checkpoint",
+        checkpoint_anchor_api: "LocalEngine::checkpoint",
+        checkpoint: MaterializationProofCheckpointResult {
+            stream_id: checkpoint.lineage_anchor.stream_id.as_str().to_owned(),
+            head_offset: checkpoint.lineage_anchor.head_offset.value(),
+            manifest_root: checkpoint.lineage_anchor.manifest_root.digest().to_owned(),
+            kind: checkpoint.lineage_anchor.kind,
+        },
+        resume: MaterializationProofResumeResult {
+            appended_after_checkpoint: processed_new_records as usize,
+            resumed_total_count: resumed_state.processed_records,
+            resumed_last_offset: resumed_state.last_offset,
+            processed_new_records,
+            only_new_records_processed,
+        },
+        verified: true,
+        error: None,
     })
 }
 
@@ -2541,6 +2715,67 @@ fn render_integrity_proof(result: IntegrityProofResult, json: bool) -> Result<()
     Ok(())
 }
 
+fn render_materialization_proof(result: MaterializationProofResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit materialization-proof");
+    println!("root: {}", result.data_root.display());
+    println!("durability: {}", result.durability);
+    println!("stream: {}", result.stream_id);
+    println!("materialization id: {}", result.materialization_id);
+    println!(
+        "initial records appended: {}",
+        result.initial_records_appended
+    );
+    println!("materialized count: {}", result.initial_materialized_count);
+    println!("materialization api: {}", result.materialization_api);
+    println!("checkpoint api: {}", result.checkpoint_api);
+    println!("checkpoint anchor api: {}", result.checkpoint_anchor_api);
+    println!("checkpoint stream: {}", result.checkpoint.stream_id);
+    println!("checkpoint head: {}", result.checkpoint.head_offset);
+    println!(
+        "checkpoint manifest root: {}",
+        result.checkpoint.manifest_root
+    );
+    println!("checkpoint kind: {}", result.checkpoint.kind);
+    println!(
+        "resume appended records: {}",
+        result.resume.appended_after_checkpoint
+    );
+    println!("resume total count: {}", result.resume.resumed_total_count);
+    println!(
+        "resume processed new records: {}",
+        result.resume.processed_new_records
+    );
+    if let Some(last_offset) = result.resume.resumed_last_offset {
+        println!("resume last offset: {last_offset}");
+    }
+    println!(
+        "resume status: {}",
+        if result.resume.only_new_records_processed {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "status: {}",
+        if result.verified {
+            "VERIFIED"
+        } else {
+            "FAILED"
+        }
+    );
+    if let Some(error) = result.error {
+        println!("error: {error}");
+    }
+
+    Ok(())
+}
+
 fn render_tiered_engine_proof(result: TieredEngineProofResult, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
@@ -3253,6 +3488,73 @@ mod tests {
         assert_eq!(
             proof_json["segments"][0]
                 .get("content_digest_verified")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[tokio::test]
+    async fn materialization_proof_exercises_checkpoint_and_resume() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_materialization_proof(temp_dir.path().join("materialization"))
+            .await
+            .expect("run materialization proof");
+
+        assert_eq!(proof.durability, "local");
+        assert_eq!(proof.stream_id, "mission.materialization.root");
+        assert_eq!(proof.materialization_id, "mission.materialization.count");
+        assert_eq!(proof.initial_records_appended, 2);
+        assert_eq!(proof.initial_materialized_count, 2);
+        assert_eq!(
+            proof.materialization_api,
+            "LocalMaterializationEngine::catch_up"
+        );
+        assert_eq!(
+            proof.checkpoint_api,
+            "LocalMaterializationEngine::checkpoint"
+        );
+        assert_eq!(proof.checkpoint_anchor_api, "LocalEngine::checkpoint");
+        assert_eq!(proof.checkpoint.stream_id, "mission.materialization.root");
+        assert_eq!(proof.checkpoint.head_offset, 1);
+        assert_eq!(proof.checkpoint.kind, "materialize");
+        assert_eq!(proof.resume.appended_after_checkpoint, 2);
+        assert_eq!(proof.resume.resumed_total_count, 4);
+        assert_eq!(proof.resume.resumed_last_offset, Some(3));
+        assert_eq!(proof.resume.processed_new_records, 2);
+        assert!(proof.resume.only_new_records_processed);
+        assert!(proof.verified);
+        assert!(proof.error.is_none());
+    }
+
+    #[tokio::test]
+    async fn materialization_proof_results_serialize_cleanly_for_mission_scripts() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_materialization_proof(temp_dir.path().join("materialization-json"))
+            .await
+            .expect("run materialization proof");
+        let proof_json = serde_json::to_value(&proof).expect("serialize proof");
+
+        assert_eq!(
+            proof_json
+                .get("stream_id")
+                .and_then(serde_json::Value::as_str),
+            Some("mission.materialization.root")
+        );
+        assert_eq!(
+            proof_json
+                .get("checkpoint_api")
+                .and_then(serde_json::Value::as_str),
+            Some("LocalMaterializationEngine::checkpoint")
+        );
+        assert_eq!(
+            proof_json["resume"]
+                .get("processed_new_records")
+                .and_then(serde_json::Value::as_u64),
+            Some(2)
+        );
+        assert_eq!(
+            proof_json
+                .get("verified")
                 .and_then(serde_json::Value::as_bool),
             Some(true)
         );

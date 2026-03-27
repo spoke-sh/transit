@@ -73,7 +73,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Materialization End-To-End Proof](epics/VEz2huKbt/voyages/VEz3VMCrg/) | planned |
+| [Materialization End-To-End Proof](epics/VEz2huKbt/voyages/VEz3VMCrg/) | in-progress |
 
 ### [Rust Client For External Server Access](epics/VEz2iOasp/) (active)
 

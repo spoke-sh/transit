@@ -1,5 +1,5 @@
 use crate::{MaterializationCheckpoint, Materializer, Reducer};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use async_trait::async_trait;
 use transit_core::engine::LocalEngine;
 use transit_core::kernel::{Offset, StreamId};
@@ -30,9 +30,8 @@ impl<R: Reducer> Materializer for LocalMaterializationEngine<R> {
     }
 
     async fn step(&self) -> Result<Option<transit_core::storage::LineageCheckpoint>> {
-        let mut inner = self.inner.lock().await;
-        inner.catch_up().await?;
-        let checkpoint = inner.checkpoint()?;
+        self.catch_up().await?;
+        let checkpoint = self.checkpoint().await?;
         Ok(Some(checkpoint.lineage_anchor))
     }
 }
@@ -57,6 +56,51 @@ impl<R: Reducer> LocalMaterializationEngine<R> {
                 last_checkpoint: None,
             }),
         }
+    }
+
+    pub fn resume(
+        id: String,
+        stream_id: StreamId,
+        engine: LocalEngine,
+        reducer: R,
+        checkpoint: MaterializationCheckpoint,
+    ) -> Result<Self> {
+        ensure!(
+            checkpoint.materialization_id == id,
+            "materialization checkpoint id mismatch: expected '{}', found '{}'",
+            id,
+            checkpoint.materialization_id
+        );
+        ensure!(
+            checkpoint.lineage_anchor.stream_id == stream_id,
+            "materialization checkpoint stream mismatch: expected '{}', found '{}'",
+            stream_id.as_str(),
+            checkpoint.lineage_anchor.stream_id.as_str()
+        );
+
+        let current_state = serde_json::from_slice(&checkpoint.opaque_state)
+            .context("deserialize checkpoint state")?;
+
+        Ok(Self {
+            id: id.clone(),
+            stream_id: stream_id.clone(),
+            inner: tokio::sync::Mutex::new(MaterializerInner {
+                id,
+                stream_id,
+                engine,
+                reducer,
+                current_state,
+                last_checkpoint: Some(checkpoint),
+            }),
+        })
+    }
+
+    pub async fn catch_up(&self) -> Result<()> {
+        self.inner.lock().await.catch_up().await
+    }
+
+    pub async fn checkpoint(&self) -> Result<MaterializationCheckpoint> {
+        self.inner.lock().await.checkpoint()
     }
 
     pub async fn current_state(&self) -> R::State {
@@ -151,5 +195,52 @@ mod tests {
         core.append(&stream_id, b"three").expect("append");
         mat.step().await.expect("step 2");
         assert_eq!(mat.current_state().await, 3);
+    }
+
+    #[tokio::test]
+    async fn materializer_can_resume_from_checkpoint_without_reprocessing_old_records() {
+        let temp = tempdir().expect("temp");
+        let core = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("core");
+        let stream_id = StreamId::new("task.root").expect("id");
+        let materialization_id = "test-mat".to_string();
+        core.create_stream(StreamDescriptor::root(
+            stream_id.clone(),
+            LineageMetadata::default(),
+        ))
+        .expect("create");
+
+        core.append(&stream_id, b"one").expect("append");
+        core.append(&stream_id, b"two").expect("append");
+
+        let mat = LocalMaterializationEngine::new(
+            materialization_id.clone(),
+            stream_id.clone(),
+            core.clone(),
+            CountReducer,
+            0,
+        );
+        mat.catch_up().await.expect("catch up");
+        assert_eq!(mat.current_state().await, 2);
+
+        let checkpoint = mat.checkpoint().await.expect("checkpoint");
+        assert_eq!(checkpoint.lineage_anchor.stream_id, stream_id);
+        assert_eq!(checkpoint.lineage_anchor.head_offset.value(), 1);
+        assert_eq!(checkpoint.lineage_anchor.kind, "materialize");
+        core.verify_checkpoint(&checkpoint.lineage_anchor)
+            .expect("verify lineage anchor");
+
+        core.append(&stream_id, b"three").expect("append");
+
+        let resumed = LocalMaterializationEngine::resume(
+            materialization_id,
+            stream_id,
+            core,
+            CountReducer,
+            checkpoint,
+        )
+        .expect("resume");
+        resumed.catch_up().await.expect("resume catch up");
+
+        assert_eq!(resumed.current_state().await, 3);
     }
 }
