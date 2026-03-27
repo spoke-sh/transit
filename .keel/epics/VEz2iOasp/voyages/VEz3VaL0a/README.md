@@ -27,11 +27,11 @@ started_at: 2026-03-26T23:51:25
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Add Tail Session Support To Rust Client](../../../../stories/VEz8XrwHS/README.md) | feat | done |
-| [Add Lineage Inspection To Rust Client](../../../../stories/VEz8Y3TQE/README.md) | feat | backlog |
+| [Add Lineage Inspection To Rust Client](../../../../stories/VEz8Y3TQE/README.md) | feat | done |
 | [Deliver Comprehensive Rust Client Proof Example](../../../../stories/VEz8YBlYR/README.md) | feat | backlog |
 <!-- END GENERATED -->

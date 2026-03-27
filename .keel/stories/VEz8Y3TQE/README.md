@@ -1,15 +1,17 @@
 ---
 # system-managed
 id: VEz8Y3TQE
-status: backlog
+status: done
 created_at: 2026-03-26T07:49:16
-updated_at: 2026-03-26T08:06:55
+updated_at: 2026-03-26T23:55:36
 # authored
 title: Add Lineage Inspection To Rust Client
 type: feat
 operator-signal:
 scope: VEz2iOasp/VEz3VaL0a
 index: 2
+started_at: 2026-03-26T23:53:50
+completed_at: 2026-03-26T23:55:36
 ---
 
 # Add Lineage Inspection To Rust Client
@@ -20,5 +22,5 @@ Extend the Rust client with `lineage()` method for inspecting stream lineage (br
 
 ## Acceptance Criteria
 
-- [ ] [SRS-03/AC-01] `TransitClient::lineage()` returns the lineage DAG for a stream including branch and merge relationships. <!-- [SRS-03/AC-01] verify: cargo test -p transit-client lineage_, SRS-03:start:end -->
-- [ ] [SRS-04/AC-01] The client surfaces server acknowledgement and error envelopes for lineage operations without reinterpreting them. <!-- [SRS-04/AC-01] verify: code review + cargo test -p transit-client lineage_, SRS-04:start:end -->
+- [x] [SRS-03/AC-01] `TransitClient::lineage()` returns the lineage DAG for a stream including branch and merge relationships. <!-- [SRS-03/AC-01] verify: cargo test -p transit-client lineage_ -- --nocapture, SRS-03:start:end, proof: ac-1.log -->
+- [x] [SRS-04/AC-01] The client surfaces server acknowledgement and error envelopes for lineage operations without reinterpreting them. <!-- [SRS-04/AC-01] verify: cargo test -p transit-client lineage_ -- --nocapture, SRS-04:start:end, proof: ac-2.log -->

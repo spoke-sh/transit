@@ -2,9 +2,9 @@ use std::net::SocketAddr;
 
 use transit_core::kernel::{LineageMetadata, MergeSpec, Offset, StreamId, StreamPosition};
 use transit_core::server::{
-    RemoteAcknowledged, RemoteAppendOutcome, RemoteClient, RemoteClientError, RemoteReadOutcome,
-    RemoteStreamStatus, RemoteTailBatch, RemoteTailSessionCancelled, RemoteTailSessionOpened,
-    TailSessionId,
+    RemoteAcknowledged, RemoteAppendOutcome, RemoteClient, RemoteClientError, RemoteLineageOutcome,
+    RemoteReadOutcome, RemoteStreamStatus, RemoteTailBatch, RemoteTailSessionCancelled,
+    RemoteTailSessionOpened, TailSessionId,
 };
 
 pub type ClientResult<T> = std::result::Result<T, RemoteClientError>;
@@ -62,6 +62,13 @@ impl TransitClient {
         self.inner.create_merge(stream_id, merge)
     }
 
+    pub fn lineage(
+        &self,
+        stream_id: &StreamId,
+    ) -> ClientResult<RemoteAcknowledged<RemoteLineageOutcome>> {
+        self.inner.inspect_lineage(stream_id)
+    }
+
     pub fn tail_open(
         &self,
         stream_id: &StreamId,
@@ -101,6 +108,7 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
     use transit_core::engine::LocalEngineConfig;
+    use transit_core::kernel::{MergePolicy, MergePolicyKind, StreamLineage};
     use transit_core::server::{
         RemoteClientError, RemoteErrorCode, RemoteTailSessionState, RemoteTopology, ServerConfig,
         ServerHandle,
@@ -120,6 +128,28 @@ mod tests {
             .create_root(
                 &stream_id,
                 LineageMetadata::new(Some("client".into()), Some("tail-tests".into())),
+            )
+            .expect("create root");
+
+        (temp_dir, server, client, stream_id)
+    }
+
+    fn lineage_test_client() -> (tempfile::TempDir, ServerHandle, TransitClient, StreamId) {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(8)
+                .expect("config"),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = TransitClient::new(server.local_addr());
+        let stream_id = StreamId::new("client.lineage.root").expect("stream id");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(Some("client".into()), Some("lineage-tests".into())),
             )
             .expect("create root");
 
@@ -221,6 +251,104 @@ mod tests {
                 assert!(error.message().contains("tail session"));
             }
             other => panic!("expected tail session not_found, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn lineage_returns_branch_and_merge_relationships() {
+        let (_temp_dir, server, client, root_stream) = lineage_test_client();
+        let branch_a = StreamId::new("client.lineage.retry").expect("branch a");
+        let branch_b = StreamId::new("client.lineage.critique").expect("branch b");
+        let merge_stream = StreamId::new("client.lineage.merge").expect("merge stream");
+
+        client.append(&root_stream, b"seed").expect("append seed");
+        client
+            .create_branch(
+                &branch_a,
+                StreamPosition::new(root_stream.clone(), Offset::new(0)),
+                LineageMetadata::new(Some("agent.retry".into()), Some("explore".into())),
+            )
+            .expect("create branch a");
+        client
+            .create_branch(
+                &branch_b,
+                StreamPosition::new(root_stream.clone(), Offset::new(0)),
+                LineageMetadata::new(Some("agent.critique".into()), Some("explore".into())),
+            )
+            .expect("create branch b");
+        client.append(&branch_a, b"retry").expect("append branch a");
+        client
+            .append(&branch_b, b"critique")
+            .expect("append branch b");
+
+        let merge_spec = MergeSpec::new(
+            vec![
+                StreamPosition::new(branch_a.clone(), Offset::new(1)),
+                StreamPosition::new(branch_b.clone(), Offset::new(1)),
+            ],
+            Some(StreamPosition::new(root_stream.clone(), Offset::new(0))),
+            MergePolicy::new(MergePolicyKind::Recursive).with_metadata("resolver", "judge-v1"),
+            LineageMetadata::new(Some("agent.judge".into()), Some("merge".into())),
+        )
+        .expect("merge spec");
+        client
+            .create_merge(&merge_stream, merge_spec.clone())
+            .expect("create merge");
+
+        let branch_lineage = client.lineage(&branch_a).expect("inspect branch lineage");
+        let merge_lineage = client
+            .lineage(&merge_stream)
+            .expect("inspect merge lineage");
+
+        assert_eq!(branch_lineage.ack().durability(), "local");
+        assert_eq!(branch_lineage.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(branch_lineage.body().status().stream_id(), &branch_a);
+        assert_eq!(branch_lineage.body().status().next_offset().value(), 2);
+        match &branch_lineage.body().descriptor().lineage {
+            StreamLineage::Branch { branch_point } => {
+                assert_eq!(branch_point.parent.stream_id, root_stream);
+                assert_eq!(branch_point.parent.offset.value(), 0);
+            }
+            other => panic!("expected branch lineage, got {other:?}"),
+        }
+
+        assert_eq!(merge_lineage.ack().durability(), "local");
+        assert_eq!(merge_lineage.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(merge_lineage.body().status().stream_id(), &merge_stream);
+        assert_eq!(merge_lineage.body().status().next_offset().value(), 1);
+        match &merge_lineage.body().descriptor().lineage {
+            StreamLineage::Merge { merge } => assert_eq!(merge, &merge_spec),
+            other => panic!("expected merge lineage, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn lineage_surfaces_server_acknowledgement_and_error_envelopes() {
+        let (_temp_dir, server, client, root_stream) = lineage_test_client();
+        let missing_stream = StreamId::new("client.lineage.missing").expect("missing stream");
+
+        client.append(&root_stream, b"seed").expect("append seed");
+        let lineage = client.lineage(&root_stream).expect("inspect root lineage");
+        assert_eq!(lineage.ack().durability(), "local");
+        assert_eq!(lineage.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(lineage.body().status().stream_id(), &root_stream);
+        assert_eq!(lineage.body().status().next_offset().value(), 1);
+
+        let missing = client
+            .lineage(&missing_stream)
+            .expect_err("missing stream lineage should fail");
+        match missing {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::NotFound);
+                assert_eq!(error.topology(), RemoteTopology::SingleNode);
+                assert!(!error.request_id().as_str().is_empty());
+                assert!(!error.message().is_empty());
+            }
+            other => panic!("expected remote not_found, got {other:?}"),
         }
 
         server.shutdown().expect("shutdown server");
