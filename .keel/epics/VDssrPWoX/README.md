@@ -1,6 +1,7 @@
 ---
 id: VDssrPWoX
 title: Implement Multi-Node Consensus And Leader Election
+mission: VDssqtPXS
 created_at: 2026-03-14T15:40:27
 index: 6
 ---
