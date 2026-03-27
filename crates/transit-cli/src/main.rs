@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use clap::{Args, Parser, Subcommand};
 use object_store::local::LocalFileSystem;
 use serde::Serialize;
@@ -17,11 +17,11 @@ use transit_core::object_store_support::{ObjectStoreProbeResult, probe_local_fil
 use transit_core::server::{
     RemoteClient, ServerConfig, ServerHandle, ServerShutdownOutcome, TailSessionId,
 };
-use transit_materialize::Reducer;
 use transit_materialize::engine::LocalMaterializationEngine;
 use transit_materialize::prolly::{
     LeafEntry, ObjectStoreProllyStore, ProllyTreeBuilder, SnapshotManifest,
 };
+use transit_materialize::{MaterializationCheckpoint, Reducer};
 
 #[derive(Debug, Parser)]
 #[command(name = "transit")]
@@ -945,6 +945,24 @@ struct MaterializationProofSnapshotResult {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct MaterializationProofBranchResult {
+    stream_id: String,
+    parent_stream_id: String,
+    parent_head_offset: u64,
+    lineage_kind: String,
+    materialization_id: String,
+    branch_records_appended: usize,
+    materialized_count: u64,
+    checkpoint_stream_id: String,
+    checkpoint_head_offset: u64,
+    checkpoint_manifest_root: String,
+    checkpoint_kind: String,
+    snapshot: MaterializationProofSnapshotResult,
+    shared_model_verified: bool,
+    distinct_from_root_snapshot: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 struct MaterializationProofResult {
     data_root: PathBuf,
     durability: String,
@@ -958,8 +976,15 @@ struct MaterializationProofResult {
     checkpoint: MaterializationProofCheckpointResult,
     resume: MaterializationProofResumeResult,
     snapshot: MaterializationProofSnapshotResult,
+    branch: MaterializationProofBranchResult,
     verified: bool,
     error: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct MaterializationProofSnapshotArtifacts {
+    result: MaterializationProofSnapshotResult,
+    manifest: SnapshotManifest,
 }
 
 #[derive(Debug, Serialize)]
@@ -1550,89 +1575,118 @@ async fn run_materialization_proof(root: PathBuf) -> Result<MaterializationProof
     engine
         .verify_checkpoint(&snapshot_checkpoint.lineage_anchor)
         .context("verify snapshot source checkpoint anchor")?;
+    let snapshot = build_materialization_snapshot(
+        &root.join("snapshot-store"),
+        &materialization_id,
+        &stream_id,
+        &snapshot_checkpoint,
+        &resumed_state,
+    )
+    .await?;
 
-    let snapshot_store_root = root.join("snapshot-store");
-    fs::create_dir_all(&snapshot_store_root).with_context(|| {
-        format!(
-            "create materialization proof snapshot store root at {}",
-            snapshot_store_root.display()
+    let branch_stream_id = StreamId::new("mission.materialization.branch")?;
+    let branch_parent = StreamPosition::new(stream_id.clone(), Offset::new(0));
+    engine
+        .create_branch(
+            branch_stream_id.clone(),
+            branch_parent.clone(),
+            LineageMetadata::new(
+                Some("mission".into()),
+                Some("materialization-branch-proof".into()),
+            ),
         )
-    })?;
-    let snapshot_object_store = std::sync::Arc::new(
-        LocalFileSystem::new_with_prefix(&snapshot_store_root).with_context(|| {
-            format!(
-                "open materialization proof snapshot store at {}",
-                snapshot_store_root.display()
-            )
-        })?,
-    );
-    let snapshot_store = ObjectStoreProllyStore::new(snapshot_object_store, "snapshots");
-    let snapshot_builder = ProllyTreeBuilder::new(&snapshot_store);
-    let snapshot_entries = vec![
-        LeafEntry {
-            key: b"last_offset".to_vec(),
-            value: resumed_state
-                .last_offset
-                .map(|offset| offset.to_string())
-                .unwrap_or_else(|| "none".to_owned())
-                .into_bytes(),
-        },
-        LeafEntry {
-            key: b"processed_records".to_vec(),
-            value: resumed_state.processed_records.to_string().into_bytes(),
-        },
-    ];
-    let root_digest = snapshot_builder
-        .build_from_entries(snapshot_entries)
-        .await
-        .context("build materialization proof prolly snapshot")?;
-    let snapshot_id = format!(
-        "snapshot-{:020}",
-        snapshot_checkpoint.lineage_anchor.head_offset.value()
-    );
-    let snapshot_manifest = SnapshotManifest {
-        materialization_id: materialization_id.clone(),
-        snapshot_id: snapshot_id.clone(),
-        source_stream_id: stream_id.clone(),
-        source_checkpoint: snapshot_checkpoint.lineage_anchor.clone(),
-        root_digest: root_digest.clone(),
-        created_at: snapshot_checkpoint.produced_at,
+        .context("create materialization proof branch")?;
+    let branch_descriptor = engine
+        .stream_descriptor(&branch_stream_id)
+        .context("load materialization proof branch descriptor")?;
+    let StreamLineage::Branch { branch_point } = &branch_descriptor.lineage else {
+        bail!("materialization proof branch descriptor did not preserve branch lineage");
     };
     ensure!(
-        snapshot_manifest.source_checkpoint.stream_id == stream_id,
-        "materialization proof snapshot manifest stream mismatch: expected '{}', found '{}'",
+        branch_point.parent.stream_id.as_str() == stream_id.as_str(),
+        "materialization proof branch parent stream mismatch: expected '{}', found '{}'",
         stream_id.as_str(),
-        snapshot_manifest.source_checkpoint.stream_id.as_str()
+        branch_point.parent.stream_id.as_str()
     );
     ensure!(
-        snapshot_manifest.source_checkpoint.head_offset.value()
-            == snapshot_checkpoint.lineage_anchor.head_offset.value(),
-        "materialization proof snapshot manifest head mismatch: expected {}, found {}",
-        snapshot_checkpoint.lineage_anchor.head_offset.value(),
-        snapshot_manifest.source_checkpoint.head_offset.value()
+        branch_point.parent.offset.value() == branch_parent.offset.value(),
+        "materialization proof branch parent offset mismatch: expected {}, found {}",
+        branch_parent.offset.value(),
+        branch_point.parent.offset.value()
+    );
+
+    engine
+        .append(&branch_stream_id, b"branch-materialize-0")
+        .context("append first branch materialization record")?;
+    engine
+        .append(&branch_stream_id, b"branch-materialize-1")
+        .context("append second branch materialization record")?;
+
+    let branch_materialization_id = "mission.materialization.count.branch".to_owned();
+    let branch_materializer = LocalMaterializationEngine::new(
+        branch_materialization_id.clone(),
+        branch_stream_id.clone(),
+        engine.clone(),
+        MaterializationProofCountReducer,
+        MaterializationProofState::default(),
+    );
+    branch_materializer
+        .catch_up()
+        .await
+        .context("materialize branch records")?;
+    let branch_state = branch_materializer.current_state().await;
+    ensure!(
+        branch_state.processed_records == 3,
+        "materialization proof branch expected 3 processed records, found {}",
+        branch_state.processed_records
     );
     ensure!(
-        snapshot_manifest.root_digest == root_digest,
-        "materialization proof snapshot manifest root digest mismatch"
+        branch_state.last_offset == Some(2),
+        "materialization proof branch expected last offset 2, found {:?}",
+        branch_state.last_offset
     );
-    let stored_nodes_dir = snapshot_store_root.join("snapshots");
-    let stored_node_count = fs::read_dir(&stored_nodes_dir)
-        .with_context(|| {
-            format!(
-                "read materialization proof nodes at {}",
-                stored_nodes_dir.display()
-            )
-        })?
-        .count();
+    let branch_checkpoint = branch_materializer
+        .checkpoint()
+        .await
+        .context("checkpoint branch materialization proof")?;
+    engine
+        .verify_checkpoint(&branch_checkpoint.lineage_anchor)
+        .context("verify branch materialization checkpoint anchor")?;
+    let branch_manifest = engine
+        .load_manifest(&branch_stream_id)
+        .context("load materialization proof branch manifest")?;
+    let shared_model_verified = branch_checkpoint.lineage_anchor.stream_id.as_str()
+        == branch_stream_id.as_str()
+        && branch_checkpoint.lineage_anchor.manifest_root.digest()
+            == branch_manifest.manifest_root().digest()
+        && branch_manifest.stream_descriptor() == &branch_descriptor;
     ensure!(
-        stored_node_count > 0,
-        "materialization proof expected at least one stored prolly node"
+        shared_model_verified,
+        "materialization proof branch checkpoint diverged from the shared engine manifest/lineage model"
     );
-    let root_node_path = stored_nodes_dir.join(root_digest.digest());
+
+    let branch_snapshot = build_materialization_snapshot(
+        &root.join("branch-snapshot-store"),
+        &branch_materialization_id,
+        &branch_stream_id,
+        &branch_checkpoint,
+        &branch_state,
+    )
+    .await?;
     ensure!(
-        root_node_path.is_file(),
-        "materialization proof missing persisted root node at {}",
-        root_node_path.display()
+        branch_snapshot
+            .manifest
+            .source_checkpoint
+            .manifest_root
+            .digest()
+            == branch_manifest.manifest_root().digest(),
+        "materialization proof branch snapshot manifest root does not match the shared engine manifest root"
+    );
+    let distinct_from_root_snapshot =
+        branch_snapshot.result.root_digest != snapshot.result.root_digest;
+    ensure!(
+        distinct_from_root_snapshot,
+        "materialization proof branch snapshot should differ from the root snapshot digest"
     );
 
     Ok(MaterializationProofResult {
@@ -1658,23 +1712,155 @@ async fn run_materialization_proof(root: PathBuf) -> Result<MaterializationProof
             processed_new_records,
             only_new_records_processed,
         },
-        snapshot: MaterializationProofSnapshotResult {
-            snapshot_id,
-            source_stream_id: snapshot_manifest.source_stream_id.as_str().to_owned(),
-            source_head_offset: snapshot_manifest.source_checkpoint.head_offset.value(),
-            source_manifest_root: snapshot_manifest
-                .source_checkpoint
+        snapshot: snapshot.result,
+        branch: MaterializationProofBranchResult {
+            stream_id: branch_stream_id.as_str().to_owned(),
+            parent_stream_id: branch_point.parent.stream_id.as_str().to_owned(),
+            parent_head_offset: branch_point.parent.offset.value(),
+            lineage_kind: "branch".to_owned(),
+            materialization_id: branch_materialization_id,
+            branch_records_appended: 2,
+            materialized_count: branch_state.processed_records,
+            checkpoint_stream_id: branch_checkpoint
+                .lineage_anchor
+                .stream_id
+                .as_str()
+                .to_owned(),
+            checkpoint_head_offset: branch_checkpoint.lineage_anchor.head_offset.value(),
+            checkpoint_manifest_root: branch_checkpoint
+                .lineage_anchor
                 .manifest_root
                 .digest()
                 .to_owned(),
-            root_digest: snapshot_manifest.root_digest.digest().to_owned(),
-            stored_node_count,
-            builder_api: "ProllyTreeBuilder::build_from_entries",
-            store_api: "ObjectStoreProllyStore",
+            checkpoint_kind: branch_checkpoint.lineage_anchor.kind.clone(),
+            snapshot: branch_snapshot.result,
+            shared_model_verified,
+            distinct_from_root_snapshot,
         },
         verified: true,
         error: None,
     })
+}
+
+async fn build_materialization_snapshot(
+    snapshot_store_root: &Path,
+    materialization_id: &str,
+    stream_id: &StreamId,
+    checkpoint: &MaterializationCheckpoint,
+    state: &MaterializationProofState,
+) -> Result<MaterializationProofSnapshotArtifacts> {
+    ensure!(
+        checkpoint.materialization_id == materialization_id,
+        "materialization proof snapshot checkpoint id mismatch: expected '{}', found '{}'",
+        materialization_id,
+        checkpoint.materialization_id
+    );
+    ensure!(
+        checkpoint.lineage_anchor.stream_id.as_str() == stream_id.as_str(),
+        "materialization proof snapshot checkpoint stream mismatch: expected '{}', found '{}'",
+        stream_id.as_str(),
+        checkpoint.lineage_anchor.stream_id.as_str()
+    );
+
+    fs::create_dir_all(snapshot_store_root).with_context(|| {
+        format!(
+            "create materialization proof snapshot store root at {}",
+            snapshot_store_root.display()
+        )
+    })?;
+    let snapshot_object_store = std::sync::Arc::new(
+        LocalFileSystem::new_with_prefix(snapshot_store_root).with_context(|| {
+            format!(
+                "open materialization proof snapshot store at {}",
+                snapshot_store_root.display()
+            )
+        })?,
+    );
+    let snapshot_store = ObjectStoreProllyStore::new(snapshot_object_store, "snapshots");
+    let snapshot_builder = ProllyTreeBuilder::new(&snapshot_store);
+    let root_digest = snapshot_builder
+        .build_from_entries(materialization_snapshot_entries(state))
+        .await
+        .context("build materialization proof prolly snapshot")?;
+    let snapshot_id = format!(
+        "snapshot-{:020}",
+        checkpoint.lineage_anchor.head_offset.value()
+    );
+    let manifest = SnapshotManifest {
+        materialization_id: materialization_id.to_owned(),
+        snapshot_id: snapshot_id.clone(),
+        source_stream_id: stream_id.clone(),
+        source_checkpoint: checkpoint.lineage_anchor.clone(),
+        root_digest: root_digest.clone(),
+        created_at: checkpoint.produced_at,
+    };
+    ensure!(
+        manifest.source_checkpoint.stream_id.as_str() == stream_id.as_str(),
+        "materialization proof snapshot manifest stream mismatch: expected '{}', found '{}'",
+        stream_id.as_str(),
+        manifest.source_checkpoint.stream_id.as_str()
+    );
+    ensure!(
+        manifest.source_checkpoint.head_offset.value()
+            == checkpoint.lineage_anchor.head_offset.value(),
+        "materialization proof snapshot manifest head mismatch: expected {}, found {}",
+        checkpoint.lineage_anchor.head_offset.value(),
+        manifest.source_checkpoint.head_offset.value()
+    );
+    ensure!(
+        manifest.root_digest == root_digest,
+        "materialization proof snapshot manifest root digest mismatch"
+    );
+    let stored_nodes_dir = snapshot_store_root.join("snapshots");
+    let stored_node_count = fs::read_dir(&stored_nodes_dir)
+        .with_context(|| {
+            format!(
+                "read materialization proof nodes at {}",
+                stored_nodes_dir.display()
+            )
+        })?
+        .count();
+    ensure!(
+        stored_node_count > 0,
+        "materialization proof expected at least one stored prolly node"
+    );
+    let root_node_path = stored_nodes_dir.join(root_digest.digest());
+    ensure!(
+        root_node_path.is_file(),
+        "materialization proof missing persisted root node at {}",
+        root_node_path.display()
+    );
+
+    Ok(MaterializationProofSnapshotArtifacts {
+        result: MaterializationProofSnapshotResult {
+            snapshot_id,
+            source_stream_id: manifest.source_stream_id.as_str().to_owned(),
+            source_head_offset: manifest.source_checkpoint.head_offset.value(),
+            source_manifest_root: manifest.source_checkpoint.manifest_root.digest().to_owned(),
+            root_digest: manifest.root_digest.digest().to_owned(),
+            stored_node_count,
+            builder_api: "ProllyTreeBuilder::build_from_entries",
+            store_api: "ObjectStoreProllyStore",
+        },
+        manifest,
+    })
+}
+
+fn materialization_snapshot_entries(state: &MaterializationProofState) -> Vec<LeafEntry> {
+    vec![
+        LeafEntry {
+            key: b"last_offset".to_vec(),
+            value: state
+                .last_offset
+                .map(|offset| offset.to_string())
+                .unwrap_or_else(|| "none".to_owned())
+                .into_bytes(),
+        },
+        LeafEntry {
+            key: b"processed_records".to_vec(),
+            value: state.processed_records.to_string().into_bytes(),
+        },
+    ]
 }
 
 async fn run_server(args: ServerRunArgs) -> Result<ServerRunResult> {
@@ -2903,6 +3089,60 @@ fn render_materialization_proof(result: MaterializationProofResult, json: bool) 
     );
     println!("snapshot builder api: {}", result.snapshot.builder_api);
     println!("snapshot store api: {}", result.snapshot.store_api);
+    println!("branch stream: {}", result.branch.stream_id);
+    println!("branch parent stream: {}", result.branch.parent_stream_id);
+    println!("branch parent head: {}", result.branch.parent_head_offset);
+    println!("branch lineage kind: {}", result.branch.lineage_kind);
+    println!(
+        "branch materialization id: {}",
+        result.branch.materialization_id
+    );
+    println!(
+        "branch records appended: {}",
+        result.branch.branch_records_appended
+    );
+    println!(
+        "branch materialized count: {}",
+        result.branch.materialized_count
+    );
+    println!(
+        "branch checkpoint stream: {}",
+        result.branch.checkpoint_stream_id
+    );
+    println!(
+        "branch checkpoint head: {}",
+        result.branch.checkpoint_head_offset
+    );
+    println!(
+        "branch checkpoint manifest root: {}",
+        result.branch.checkpoint_manifest_root
+    );
+    println!("branch checkpoint kind: {}", result.branch.checkpoint_kind);
+    println!("branch snapshot id: {}", result.branch.snapshot.snapshot_id);
+    println!(
+        "branch snapshot source manifest root: {}",
+        result.branch.snapshot.source_manifest_root
+    );
+    println!(
+        "branch snapshot root digest: {}",
+        result.branch.snapshot.root_digest
+    );
+    println!(
+        "branch shared model: {}",
+        if result.branch.shared_model_verified {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "branch distinct snapshot: {}",
+        if result.branch.distinct_from_root_snapshot {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
     println!(
         "status: {}",
         if result.verified {
@@ -3678,6 +3918,36 @@ mod tests {
             "ProllyTreeBuilder::build_from_entries"
         );
         assert_eq!(proof.snapshot.store_api, "ObjectStoreProllyStore");
+        assert_eq!(proof.branch.stream_id, "mission.materialization.branch");
+        assert_eq!(
+            proof.branch.parent_stream_id,
+            "mission.materialization.root"
+        );
+        assert_eq!(proof.branch.parent_head_offset, 0);
+        assert_eq!(proof.branch.lineage_kind, "branch");
+        assert_eq!(
+            proof.branch.materialization_id,
+            "mission.materialization.count.branch"
+        );
+        assert_eq!(proof.branch.branch_records_appended, 2);
+        assert_eq!(proof.branch.materialized_count, 3);
+        assert_eq!(
+            proof.branch.checkpoint_stream_id,
+            "mission.materialization.branch"
+        );
+        assert_eq!(proof.branch.checkpoint_head_offset, 2);
+        assert_eq!(proof.branch.checkpoint_kind, "materialize");
+        assert_eq!(
+            proof.branch.snapshot.source_stream_id,
+            "mission.materialization.branch"
+        );
+        assert_eq!(proof.branch.snapshot.source_head_offset, 2);
+        assert!(proof.branch.shared_model_verified);
+        assert!(proof.branch.distinct_from_root_snapshot);
+        assert_ne!(
+            proof.branch.snapshot.root_digest,
+            proof.snapshot.root_digest
+        );
         assert!(proof.verified);
         assert!(proof.error.is_none());
     }
@@ -3725,6 +3995,24 @@ mod tests {
                 .get("store_api")
                 .and_then(serde_json::Value::as_str),
             Some("ObjectStoreProllyStore")
+        );
+        assert_eq!(
+            proof_json["branch"]
+                .get("lineage_kind")
+                .and_then(serde_json::Value::as_str),
+            Some("branch")
+        );
+        assert_eq!(
+            proof_json["branch"]
+                .get("shared_model_verified")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["branch"]
+                .get("distinct_from_root_snapshot")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
         );
         assert_eq!(
             proof_json

@@ -27,12 +27,12 @@ started_at: 2026-03-26T23:24:20
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 2/4 stories complete
+**Progress:** 3/4 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Implement Materialization Proof CLI Command With Checkpoint And Resume](../../../../stories/VEz8Veo9i/README.md) | feat | done |
 | [Add Prolly Tree Snapshot Production To Materialization Proof](../../../../stories/VEz8VmRFM/README.md) | feat | done |
-| [Add Branch Aware Materialization Scenario To Proof](../../../../stories/VEz8W0SPu/README.md) | feat | backlog |
+| [Add Branch Aware Materialization Scenario To Proof](../../../../stories/VEz8W0SPu/README.md) | feat | done |
 | [Integrate Materialization Proof Into Just Screen Flow](../../../../stories/VEz8W9xVX/README.md) | feat | backlog |
 <!-- END GENERATED -->
