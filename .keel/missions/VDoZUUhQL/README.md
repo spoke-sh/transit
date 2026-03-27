@@ -1,10 +1,11 @@
 ---
 id: VDoZUUhQL
 title: Ship The Verifiable Lineage And Materialization Engine
-status: active
+status: achieved
 created_at: 2026-03-13T21:58:25
-updated_at: 2026-03-26T08:07:03
+updated_at: 2026-03-27T00:00:28
 activated_at: 2026-03-26T08:07:03
+achieved_at: 2026-03-27T00:00:28
 ---
 
 # Ship The Verifiable Lineage And Materialization Engine
