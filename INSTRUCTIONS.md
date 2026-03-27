@@ -115,6 +115,7 @@ Use one path for each concern:
 |---------|---------|
 | `just` | List available recipes |
 | `just screen` | Default human proof path (local, tiered, networked, integrity, materialization, board) |
+| `just rust-client-proof` | Run the native Rust client proof example against a local transit server |
 | `just quality` | Formatting and clippy checks |
 | `just test` | Workspace tests |
 | `just doctest` | Run doc tests |

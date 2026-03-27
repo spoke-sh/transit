@@ -1152,6 +1152,7 @@ dependencies = [
 name = "transit-client"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "tempfile",
  "transit-core",
 ]

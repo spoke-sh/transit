@@ -60,6 +60,10 @@ screen-status:
 mission-status:
     @just screen-status
 
+# Run the Rust client proof example against a locally started transit server.
+rust-client-proof:
+    cargo run -p transit-client --example proof
+
 # Build the workspace.
 build:
     cargo build --workspace

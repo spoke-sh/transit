@@ -13,4 +13,5 @@ path = "src/lib.rs"
 transit-core = { path = "../transit-core" }
 
 [dev-dependencies]
+anyhow.workspace = true
 tempfile.workspace = true

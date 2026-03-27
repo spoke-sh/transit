@@ -99,6 +99,7 @@ Today it contains:
 - a local durable engine that can append, replay, branch, merge, recover from trailing uncommitted active-head bytes, publish rolled immutable segments to object storage, and cold-restore published history from remote manifests
 - an initial shared-engine server bootstrap that can open the same local engine, bind a daemon listener, shut down deterministically, and serve provisional remote root creation, append/read/tail, branch/merge, and lineage-inspection operations through a framed request/response envelope with correlation IDs, explicit acknowledgement and error semantics, and logical tail sessions with credit-based delivery, without introducing a second storage path
 - a first CLI client surface for remote root creation, append, read, branch, merge, lineage inspection, and logical tail-session workflows
+- a first Rust client library surface plus a native proof example that exercises create_root, append, read, tail, branch, merge, and lineage against a locally started server
 - a first networked mission proof path that validates the live single-node server and keeps the `transit` protocol explicitly distinct from optional secure underlays such as WireGuard
 - an initial `object_store` integration with a filesystem probe command
 
