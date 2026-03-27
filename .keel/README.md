@@ -105,5 +105,9 @@
 |--------|--------|
 | [Verifiable Lineage Contract](epics/VDd1F1tUe/voyages/VDdGLscWy/) | done |
 
-### [Research Multi-Node Replication And Server Semantics](epics/VDd1J2IDM/) (draft)
+### [Research Multi-Node Replication And Server Semantics](epics/VDd1J2IDM/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Define Initial Replication Model And Boundaries](epics/VDd1J2IDM/voyages/VF5GTdm4X/) | planned |
 
