@@ -1,7 +1,7 @@
 ---
 # system-managed
 id: VEz3VaL0a
-status: in-progress
+status: done
 epic: VEz2iOasp
 created_at: 2026-03-26T07:29:15
 # authored
@@ -9,6 +9,7 @@ title: Rust Client Library And Proof
 index: 1
 updated_at: 2026-03-26T08:06:55
 started_at: 2026-03-26T23:51:25
+completed_at: 2026-03-27T00:00:03
 ---
 
 # Rust Client Library And Proof
@@ -22,6 +23,8 @@ started_at: 2026-03-26T23:51:25
 |----------|-------------|
 | [SRS.md](SRS.md) | Requirements and verification criteria |
 | [SDD.md](SDD.md) | Architecture and implementation details |
+| [VOYAGE_REPORT.md](VOYAGE_REPORT.md) | Narrative summary of implementation and evidence |
+| [COMPLIANCE_REPORT.md](COMPLIANCE_REPORT.md) | Traceability matrix and verification proof |
 <!-- END DOCUMENTS -->
 
 ## Stories

@@ -75,11 +75,11 @@
 |--------|--------|
 | [Materialization End-To-End Proof](epics/VEz2huKbt/voyages/VEz3VMCrg/) | done |
 
-### [Rust Client For External Server Access](epics/VEz2iOasp/) (active)
+### [Rust Client For External Server Access](epics/VEz2iOasp/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Rust Client Library And Proof](epics/VEz2iOasp/voyages/VEz3VaL0a/) | in-progress |
+| [Rust Client Library And Proof](epics/VEz2iOasp/voyages/VEz3VaL0a/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

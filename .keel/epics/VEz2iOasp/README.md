@@ -22,8 +22,8 @@ index: 9
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 3/3 stories done
+**Progress:** 1/1 voyages complete, 3/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Rust Client Library And Proof](voyages/VEz3VaL0a/) | in-progress | 3/3 |
+| [Rust Client Library And Proof](voyages/VEz3VaL0a/) | done | 3/3 |
 <!-- END GENERATED -->
