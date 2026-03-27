@@ -114,7 +114,7 @@ Use one path for each concern:
 | Command | Purpose |
 |---------|---------|
 | `just` | List available recipes |
-| `just screen` | Default human proof path (local, tiered, networked, integrity, board) |
+| `just screen` | Default human proof path (local, tiered, networked, integrity, materialization, board) |
 | `just quality` | Formatting and clippy checks |
 | `just test` | Workspace tests |
 | `just doctest` | Run doc tests |

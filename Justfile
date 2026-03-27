@@ -28,7 +28,7 @@ screen:
         cd "$repo_root"
 
         rm -rf "$screen_root"
-        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/integrity" "$screen_root/tiered-engine" "$screen_root/networked-server"
+        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/tiered-engine" "$screen_root/networked-server"
 
         announce "Build workspace"
         just build
@@ -40,6 +40,8 @@ screen:
         just run mission networked-server-proof --root "$screen_root/networked-server"
         announce "Prove integrity proof"
         just run mission integrity-proof --root "$screen_root/integrity"
+        announce "Prove materialization"
+        just run mission materialization-proof --root "$screen_root/materialization"
         announce "Probe object store"
         just run object-store probe --root "$screen_root/object-store"
         announce "Show transit status"
