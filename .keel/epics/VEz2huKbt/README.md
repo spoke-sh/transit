@@ -22,8 +22,8 @@ index: 8
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 4/4 stories done
+**Progress:** 1/1 voyages complete, 4/4 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Materialization End-To-End Proof](voyages/VEz3VMCrg/) | in-progress | 4/4 |
+| [Materialization End-To-End Proof](voyages/VEz3VMCrg/) | done | 4/4 |
 <!-- END GENERATED -->

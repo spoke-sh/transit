@@ -69,11 +69,11 @@
 |--------|--------|
 | [Integrity End-To-End Proof](epics/VEz2gV93L/voyages/VEz3V79iG/) | done |
 
-### [Branch-Aware Materialization Proof Surface](epics/VEz2huKbt/) (active)
+### [Branch-Aware Materialization Proof Surface](epics/VEz2huKbt/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Materialization End-To-End Proof](epics/VEz2huKbt/voyages/VEz3VMCrg/) | in-progress |
+| [Materialization End-To-End Proof](epics/VEz2huKbt/voyages/VEz3VMCrg/) | done |
 
 ### [Rust Client For External Server Access](epics/VEz2iOasp/) (active)
 
