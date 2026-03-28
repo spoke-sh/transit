@@ -38,7 +38,25 @@ Transit has one engine and two delivery modes:
 
 Those are packaging choices on top of the same storage semantics. The server is not a second database.
 
+## What Transit Tries To Keep Explicit
+
+Transit is opinionated about several boundaries that many systems blur:
+
+- **history is immutable once acknowledged**
+- **durability claims are explicit**
+- **branches are real lineage, not hidden copies**
+- **remote object storage is part of the system design**
+
+If a page in these docs sounds simpler than those rules, the page is wrong.
+
+## What To Read Next
+
+If you are brand new:
+
+1. Read [Choose Your Track](./start-here/choose-your-track.mdx).
+2. Follow either the [embedded/library first run](./start-here/embedded-library-first-run.mdx) or the [server first run](./start-here/server-first-run.mdx).
+3. Come back to the concept pages when you want the model behind the proofs.
+
 ## What Comes Next
 
 Start with [Choose Your Track](./start-here/choose-your-track.mdx) if you want the fastest path into the repo.
-

@@ -1,0 +1,38 @@
+---
+title: Durability Modes
+sidebar_position: 5
+description: Learn what local, replicated, and tiered acknowledgements mean in Transit.
+---
+
+# Durability Modes
+
+Transit is deliberate about acknowledgement language.
+
+It does not want "durable" to mean six different things depending on who is speaking.
+
+## Local
+
+`local` means the append is durable on the local node under the current shared-engine contract.
+
+That is the hot-path durability boundary.
+
+## Replicated
+
+`replicated` means the replicated handoff boundary has been published.
+
+Today that is below full quorum or failover language. It means the immutable handoff unit exists for clustered restore/catch-up semantics; it does **not** automatically mean every follower has applied it.
+
+## Tiered
+
+`tiered` means the relevant immutable history is durable in the remote tier and can support cold restore independently of the primary's hot local head.
+
+## Why This Matters
+
+These boundaries keep three bad habits out of the product:
+
+- vague marketing claims
+- server-only durability semantics
+- confusion between publication, replication, and failover
+
+When you read or write Transit docs, keep those three words separate unless a feature explicitly proves otherwise.
+

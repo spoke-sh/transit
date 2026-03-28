@@ -1,0 +1,67 @@
+---
+title: Embedded / Library First Run
+sidebar_position: 3
+description: The fastest path for understanding Transit as an embedded Rust engine.
+---
+
+# Embedded / Library First Run
+
+Choose this track when you want to understand Transit as a shared local engine first.
+
+## What You Are Proving
+
+This path is about four things:
+
+- local append and replay
+- branch and merge as first-class lineage
+- tiered publication and remote restore
+- the fact that the same semantics later power server mode
+
+## Fastest Proof Path
+
+From the repo root:
+
+```bash
+just screen
+```
+
+That is the default human proof path. It builds the workspace and runs the local engine, tiered history, server, integrity, and materialization proofs in one flow.
+
+## If You Want To Narrow The Scope
+
+Run the embedded proof directly:
+
+```bash
+cargo run -p transit-cli --bin transit -- mission local-engine-proof --root target/transit-docs/local
+```
+
+Run the tiered publication/restore proof:
+
+```bash
+cargo run -p transit-cli --bin transit -- mission tiered-engine-proof --root target/transit-docs/tiered
+```
+
+## What To Look For
+
+When these proofs pass, you should have evidence that:
+
+- appends become ordered immutable history
+- branches reuse ancestor history instead of copying old bytes
+- merges preserve explicit parent lineage
+- rolled immutable segments can be published and restored through the remote tier
+
+## Mental Model
+
+Think of the embedded engine as the local station where trains are assembled and dispatched.
+
+- the local head is the active platform
+- rolled segments are completed carriages
+- the manifest is the switching sheet that says where each carriage belongs
+- the remote tier is the yard where cold history can be restored later
+
+## Where To Go Next
+
+- Read [Core Model](../concepts/core-model.mdx)
+- Read [Durability Modes](../concepts/durability-modes.mdx)
+- Read [Tiered Storage And Manifests](../concepts/tiered-storage-and-manifests.mdx)
+

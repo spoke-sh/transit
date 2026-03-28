@@ -1,0 +1,91 @@
+---
+title: Server First Run
+sidebar_position: 4
+description: The fastest path for understanding Transit as a networked daemon with shared-engine semantics.
+---
+
+# Server First Run
+
+Choose this track when you want to evaluate Transit as a daemon that exposes the shared engine over a network boundary.
+
+## What Server Mode Is
+
+Server mode is not a separate database product. It is the same engine wrapped in a daemon and remote protocol surface.
+
+That means the point of this guide is not only "can it listen on a socket?" It is "does it preserve the same append, lineage, and durability semantics across the boundary?"
+
+## Fastest Proof Paths
+
+Run the end-to-end server proof:
+
+```bash
+cargo run -p transit-cli --bin transit -- mission networked-server-proof --root target/transit-docs/networked
+```
+
+Run the Rust client proof against a locally started server:
+
+```bash
+just rust-client-proof
+```
+
+## Minimal Manual Walkthrough
+
+Start a daemon:
+
+```bash
+cargo run -p transit-cli --bin transit -- server run --root target/transit-docs/server
+```
+
+In another terminal, create a stream:
+
+```bash
+cargo run -p transit-cli --bin transit -- server create-root \
+  --stream-id demo/main \
+  --actor docs \
+  --reason "manual walkthrough"
+```
+
+Append a record:
+
+```bash
+cargo run -p transit-cli --bin transit -- server append \
+  --stream-id demo/main \
+  --payload-text "hello from transit"
+```
+
+Read the replay:
+
+```bash
+cargo run -p transit-cli --bin transit -- server read --stream-id demo/main
+```
+
+Inspect lineage:
+
+```bash
+cargo run -p transit-cli --bin transit -- server lineage --stream-id demo/main
+```
+
+## What To Look For
+
+You should see that the server surface:
+
+- keeps acknowledgements explicit
+- keeps branch and lineage operations available remotely
+- stays single-node unless a feature explicitly says otherwise
+- does not invent a separate storage model for the daemon
+
+## Boundaries To Remember
+
+Current server mode is a shared-engine single-node server.
+
+That means these docs should not imply:
+
+- multi-primary behavior
+- hidden consensus across every deployment
+- a second replicated storage layer behind the API
+
+## Where To Go Next
+
+- Read [Embedded And Server Modes](../concepts/embedded-and-server.mdx)
+- Read [Durability Modes](../concepts/durability-modes.mdx)
+

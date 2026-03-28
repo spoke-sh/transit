@@ -27,11 +27,11 @@ started_at: 2026-03-27T19:38:07
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Publish Foundational Docs And Deploy Pipeline](../../../../stories/VF7qvmhSs/README.md) | chore | backlog |
-| [Author Library And Server Onramp Docs](../../../../stories/VF7qvnlSv/README.md) | docs | backlog |
+| [Author Library And Server Onramp Docs](../../../../stories/VF7qvnlSv/README.md) | docs | done |
 | [Scaffold Transit Docusaurus Site](../../../../stories/VF7qvnxSu/README.md) | feat | done |
 <!-- END GENERATED -->

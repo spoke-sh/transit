@@ -1,0 +1,9 @@
+Expanded the public concept track under `website/docs/concepts/`:
+
+- `core-model.mdx`
+- `embedded-and-server.mdx`
+- `durability-modes.mdx`
+- `tiered-storage-and-manifests.mdx`
+
+The docs now explain Transit terms in public-facing language and preserve the transport metaphor across streams, branches, manifests, and tiered history.
+

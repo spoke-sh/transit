@@ -23,6 +23,7 @@ Start with:
 - the root `README.md`
 - `just screen`
 - the local and tiered proof paths surfaced by the CLI
+- [Embedded / Library First Run](./embedded-library-first-run.mdx)
 
 ## Server Track
 
@@ -39,6 +40,13 @@ Start with:
 - `just screen`
 - `just rust-client-proof`
 - the networked server proof in the CLI output
+- [Server First Run](./server-first-run.mdx)
+
+## How To Decide Quickly
+
+Use the embedded track when your application wants direct engine calls and local storage semantics first.
+
+Use the server track when you want a network boundary, remote clients, or a daemon process that exposes the same model over RPC-like CLI commands and client libraries.
 
 ## Current State
 

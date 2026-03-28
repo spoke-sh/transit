@@ -23,12 +23,12 @@ const tracks = [
   {
     title: 'Embedded Track',
     body: 'Start from the shared Rust engine when you want local append, replay, branch, merge, and tiered publication in-process.',
-    href: '/docs/start-here/choose-your-track',
+    href: '/docs/start-here/embedded-library-first-run',
   },
   {
     title: 'Server Track',
     body: 'Start from the daemon and client surfaces when you want the same semantics through a network boundary.',
-    href: '/docs/start-here/choose-your-track',
+    href: '/docs/start-here/server-first-run',
   },
 ];
 
@@ -132,4 +132,3 @@ export default function Home(): ReactNode {
     </Layout>
   );
 }
-

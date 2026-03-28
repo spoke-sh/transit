@@ -1,0 +1,47 @@
+---
+title: Embedded And Server Modes
+sidebar_position: 4
+description: Understand how Transit keeps one storage model across library and server deployments.
+---
+
+# Embedded And Server Modes
+
+Transit has one engine and two deployment shapes.
+
+## Embedded Mode
+
+Embedded mode means your process calls the engine directly.
+
+This is the shortest path to understanding:
+
+- append semantics
+- replay behavior
+- branch and merge lineage
+- publication and restore
+
+## Server Mode
+
+Server mode means a daemon exposes those same semantics over the network.
+
+The key point is not just transport. It is preservation.
+
+The server should preserve:
+
+- the same append ordering rules
+- the same lineage semantics
+- the same storage and durability boundaries
+
+## What Transit Tries To Avoid
+
+Transit is intentionally trying to avoid a split-brain architecture where:
+
+- the library is one product
+- the server is another product
+- and the semantics drift over time
+
+That is why so much of the repo language insists on **one engine**.
+
+## Practical Reading Rule
+
+If a server guide sounds like it describes different storage semantics than the embedded guide, treat that as a bug in the docs or the implementation.
+

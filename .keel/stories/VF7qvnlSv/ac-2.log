@@ -1,0 +1,17 @@
+Added separate first-run tracks for new users:
+
+- `website/docs/start-here/embedded-library-first-run.mdx`
+- `website/docs/start-here/server-first-run.mdx`
+
+Updated the sidebar, intro flow, choose-track page, footer links, and homepage track cards so readers can move directly into the library or server path.
+
+The server guide uses the actual current CLI surfaces:
+
+- `transit server run`
+- `transit server create-root`
+- `transit server append`
+- `transit server read`
+- `transit server lineage`
+- `transit mission networked-server-proof`
+- `just rust-client-proof`
+

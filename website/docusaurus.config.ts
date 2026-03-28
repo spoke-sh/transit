@@ -65,7 +65,7 @@ const config: Config = {
           position: 'left',
         },
         {
-          to: '/docs/start-here/choose-your-track',
+          to: '/docs/start-here/embedded-library-first-run',
           label: 'Start Here',
           position: 'left',
         },
@@ -90,6 +90,10 @@ const config: Config = {
               label: 'Choose Your Track',
               to: '/docs/start-here/choose-your-track',
             },
+            {
+              label: 'Library First Run',
+              to: '/docs/start-here/embedded-library-first-run',
+            },
           ],
         },
         {
@@ -98,6 +102,10 @@ const config: Config = {
             {
               label: 'Core Model',
               to: '/docs/concepts/core-model',
+            },
+            {
+              label: 'Durability Modes',
+              to: '/docs/concepts/durability-modes',
             },
           ],
         },
@@ -129,4 +137,3 @@ const config: Config = {
 };
 
 export default config;
-

@@ -1,0 +1,49 @@
+---
+title: Tiered Storage And Manifests
+sidebar_position: 6
+description: Understand how Transit separates hot local state from immutable remote-tier history.
+---
+
+# Tiered Storage And Manifests
+
+Tiered storage is not an archive bolt-on in Transit. It is part of the design center.
+
+## Local Head Versus Remote Tier
+
+The local head is where fresh appends land and the hot path stays fast.
+
+The remote tier is where immutable history can live beyond the current local process, node, or crash boundary.
+
+Transit wants both layers to be explicit.
+
+## Why Segments Matter
+
+Transit rolls immutable segments instead of pretending the whole log is one shapeless blob.
+
+That gives the system stable units for:
+
+- publication
+- restore
+- integrity checks
+- future clustered handoff
+
+## What The Manifest Does
+
+The manifest is the routing sheet.
+
+It tells Transit:
+
+- which segments make up a stream
+- where those segments live
+- how local and remote history relate
+
+Without the manifest, the segments are just carriages in a yard with no timetable.
+
+## Why First-Time Users Should Care
+
+If you understand manifests and tiered storage, you understand why Transit can:
+
+- restore cold history
+- keep durability language precise
+- reuse the same immutable history model across embedded and server mode
+

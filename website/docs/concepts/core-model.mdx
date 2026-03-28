@@ -16,6 +16,8 @@ A `record` is immutable payload plus headers and timestamps. Once acknowledged, 
 
 A `stream` is an ordered append-only sequence of records.
 
+Most systems stop there. Transit does not.
+
 ## Branches
 
 A `branch` is a real child stream with explicit ancestry. It is not a filtered consumer view.
@@ -29,6 +31,8 @@ A `merge` is an explicit reconciliation step that records parent lineage instead
 - A `segment` is an immutable ordered block of records.
 - A `manifest` maps stream history to those segments across local and remote storage.
 
+That split matters because Transit wants hot local append and object-storage-backed cold history to coexist without pretending they are the same thing.
+
 ## Durability Language
 
 Transit keeps durability explicit:
@@ -38,4 +42,10 @@ Transit keeps durability explicit:
 - `tiered` means remote-tier durability is established for cold history
 
 The exact meanings matter. The public docs should clarify them, not blur them.
+
+Next:
+
+- [Embedded And Server Modes](./embedded-and-server.mdx)
+- [Durability Modes](./durability-modes.mdx)
+- [Tiered Storage And Manifests](./tiered-storage-and-manifests.mdx)
 

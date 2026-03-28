@@ -1,0 +1,14 @@
+Manually reviewed the authored docs against Transit’s repo contracts and current command surfaces.
+
+Confirmed the docs preserve the required semantics:
+
+- embedded and server mode are described as two packaging modes over one engine
+- acknowledged history remains immutable
+- durability language stays explicit (`local`, `replicated`, `tiered`)
+- server mode is not described as a second storage engine or implicit multi-primary system
+
+Re-ran the site build after the content changes:
+
+`nix shell nixpkgs#nodejs_20 --command npm --prefix website run build`
+
+The build completed successfully, so the authored docs are valid in the current site structure.
