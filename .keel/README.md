@@ -81,6 +81,12 @@
 |--------|--------|
 | [Rust Client Library And Proof](epics/VEz2iOasp/voyages/VEz3VaL0a/) | done |
 
+### [Public Docs Platform And First-Run Narrative](epics/VF7qPMy1g/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Launch Public Docs Platform](epics/VF7qPMy1g/voyages/VF7qsOO8T/) | planned |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
