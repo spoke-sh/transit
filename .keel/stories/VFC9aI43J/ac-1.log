@@ -1,0 +1,5 @@
+Adjusted the shared docs-body link decoration in `website/src/css/custom.css`.
+
+The resting underline no longer uses the previous light blue value. It now uses a quieter ink-toned decoration while keeping the existing link text color intact.
+
+This directly addresses the reported issue: the underline should stop reading as bright light blue in docs copy.

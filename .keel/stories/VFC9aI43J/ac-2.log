@@ -1,0 +1,8 @@
+Kept link affordance explicit after the underline refinement.
+
+Supporting choices:
+- added a slightly clearer underline thickness in the resting state
+- kept a warmer accent on hover so interaction remains obvious
+- left the link text color unchanged
+
+Links should still scan as links even though the default underline is calmer.

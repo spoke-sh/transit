@@ -1,0 +1,8 @@
+Reviewed the new underline treatment against the current Transit theme direction.
+
+Confirmed the refinement stays aligned with the existing shell:
+- default underline now leans on the same dark ink family used elsewhere in the docs body
+- hover state still picks up a Transit accent without returning to the original bright blue look
+- no broader palette or layout changes were introduced
+
+The result reads as theme polish rather than a separate design branch.

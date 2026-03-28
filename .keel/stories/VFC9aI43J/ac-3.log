@@ -1,0 +1,8 @@
+Ran the docs build verification command:
+
+- `just docs-build`
+
+Result:
+- Docusaurus build completed successfully and generated static files in `website/build`
+
+The shared-CSS underline tweak did not break the docs workflow.

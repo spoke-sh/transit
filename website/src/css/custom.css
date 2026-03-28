@@ -341,7 +341,8 @@ body {
 
 .theme-doc-markdown a {
   font-weight: 620;
-  text-decoration-color: rgba(19, 87, 183, 0.28);
+  text-decoration-color: rgba(17, 38, 58, 0.24);
+  text-decoration-thickness: 0.08em;
   text-underline-offset: 0.16em;
   transition:
     color 120ms ease,
@@ -349,7 +350,7 @@ body {
 }
 
 .theme-doc-markdown a:hover {
-  text-decoration-color: rgba(188, 35, 46, 0.44);
+  text-decoration-color: rgba(188, 35, 46, 0.34);
 }
 
 .theme-doc-markdown blockquote {

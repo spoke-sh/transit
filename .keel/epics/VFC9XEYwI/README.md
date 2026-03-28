@@ -22,8 +22,8 @@ index: 13
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/1 stories done
+**Progress:** 1/1 voyages complete, 1/1 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Tune Public Docs Link Decoration](voyages/VFC9YYrzQ/) | planned | 0/1 |
+| [Tune Public Docs Link Decoration](voyages/VFC9YYrzQ/) | done | 1/1 |
 <!-- END GENERATED -->
