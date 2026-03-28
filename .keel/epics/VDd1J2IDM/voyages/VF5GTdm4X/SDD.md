@@ -88,6 +88,22 @@ For this first clustered model, the `replicated` and `tiered` commitments can be
 - `execution slice`
   Defines the first implementation voyage and the initial story boundaries needed to start delivery without reopening research scope.
 
+## Delivery Decomposition
+
+The first follow-on execution voyage is:
+
+| Voyage | Goal | Boundaries |
+|--------|------|------------|
+| `VF7VP3H4s` / `Deliver Remote-Tier Replication Handoff Foundations` | Carry the planned clustered model into shared-engine publication, read-only follower catch-up, and explicit replicated acknowledgement work. | Stay below consensus, quorum writes, failover, and writable-follower behavior. |
+
+Initial story slices under `VF7VP3H4s`:
+
+| Story | Purpose | Explicit Boundary |
+|-------|---------|-------------------|
+| `VF7VSqtej` / `Surface Published Replication Frontier` | Surface the immutable segment-plus-manifest frontier that defines clustered handoff. | No new replica log or server-only publication format. |
+| `VF7VSpveo` / `Bootstrap Read-Only Follower Catch-Up` | Reuse restore semantics so followers can bootstrap and advance from published history. | Followers remain read-only and do not assume ownership transfer or failover semantics. |
+| `VF7VSqlep` / `Expose Replicated Acknowledgement Mode` | Make `replicated` commitment wait for publication of the handoff unit and report it explicitly. | Do not equate publication with follower hydration, quorum acknowledgement, or multi-primary capability. |
+
 ## Interfaces
 
 This voyage does not introduce runtime APIs. Its interfaces are planning artifacts:

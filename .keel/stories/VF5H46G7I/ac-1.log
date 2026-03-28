@@ -1,0 +1,3 @@
+Reviewed `.keel/epics/VDd1J2IDM/README.md` and `.keel/epics/VDd1J2IDM/voyages/VF7VP3H4s/README.md`.
+
+Confirmed the epic now contains a second planned voyage, `VF7VP3H4s` (`Deliver Remote-Tier Replication Handoff Foundations`), which carries the clustered model into a bounded execution lane below consensus and multi-primary scope.

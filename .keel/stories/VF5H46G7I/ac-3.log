@@ -1,0 +1,3 @@
+Reviewed `.keel/epics/VDd1J2IDM/PRD.md`, `.keel/epics/VDd1J2IDM/voyages/VF5GTdm4X/SDD.md`, and `.keel/epics/VDd1J2IDM/voyages/VF7VP3H4s/SDD.md`.
+
+Confirmed the follow-on execution slice preserves one-engine and lineage invariants by reusing rolled segments plus manifest updates, follower restore from published history, and explicit acknowledgement boundaries without adding a server-only replica log, follower writes, or consensus semantics.
