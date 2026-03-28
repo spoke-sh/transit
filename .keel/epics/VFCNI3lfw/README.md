@@ -22,8 +22,8 @@ index: 15
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/1 stories done
+**Progress:** 1/1 voyages complete, 1/1 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Add Spoke Header Nav Link](voyages/VFCNJ6KhR/) | planned | 0/1 |
+| [Add Spoke Header Nav Link](voyages/VFCNJ6KhR/) | done | 1/1 |
 <!-- END GENERATED -->

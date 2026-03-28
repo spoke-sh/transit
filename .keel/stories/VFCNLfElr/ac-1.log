@@ -1,0 +1,8 @@
+Updated `website/docusaurus.config.ts` to add a right-side `Spoke` navbar item.
+
+Implementation details:
+- target URL is `https://www.spoke.sh`
+- label is `Spoke`
+- item order places `Spoke` immediately before the existing `GitHub` navbar item
+
+This satisfies the public-header placement and destination requirement.

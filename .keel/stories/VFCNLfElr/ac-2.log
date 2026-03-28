@@ -1,0 +1,8 @@
+Transit now matches the upstream Spoke-family navbar pattern used in Keel.
+
+Alignment points:
+- `Spoke` is a right-side external link
+- it appears immediately to the left of `GitHub`
+- the destination remains the shared Spoke site at `https://www.spoke.sh`
+
+The Transit header keeps its existing left-side docs navigation while adopting the same right-side project-link arrangement.
