@@ -1,0 +1,25 @@
+---
+# system-managed
+id: VFCNLfElr
+status: backlog
+created_at: 2026-03-28T14:09:36
+updated_at: 2026-03-28T14:10:21
+# authored
+title: Add Spoke Header Navigation Link
+type: docs
+operator-signal:
+scope: VFCNI3lfw/VFCNJ6KhR
+index: 1
+---
+
+# Add Spoke Header Navigation Link
+
+## Summary
+
+Add a `Spoke` link to the public docs header immediately to the left of `GitHub`, matching the upstream Spoke-family navbar pattern.
+
+## Acceptance Criteria
+
+- [ ] [SRS-01/AC-01] Add a right-side `Spoke` navbar item that targets the upstream Spoke URL and sits immediately to the left of `GitHub`. <!-- [SRS-01/AC-01] verify: manual, SRS-01:start, SRS-01:end -->
+- [ ] [SRS-NFR-01/AC-01] Keep the docs build path passing through `just docs-build`. <!-- [SRS-NFR-01/AC-01] verify: just docs-build, SRS-NFR-01:start, SRS-NFR-01:end -->
+- [ ] [SRS-NFR-02/AC-01] Keep Transit aligned with the upstream Spoke-family header pattern. <!-- [SRS-NFR-02/AC-01] verify: manual, SRS-NFR-02:start, SRS-NFR-02:end -->

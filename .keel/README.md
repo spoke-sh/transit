@@ -111,6 +111,12 @@
 |--------|--------|
 | [Neutralize Markdown Hover Underline](epics/VFCAdyu9b/voyages/VFCAfFwD7/) | done |
 
+### [Expose Spoke In Header Navigation](epics/VFCNI3lfw/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Add Spoke Header Nav Link](epics/VFCNI3lfw/voyages/VFCNJ6KhR/) | planned |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
