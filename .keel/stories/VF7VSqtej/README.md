@@ -1,15 +1,18 @@
 ---
 # system-managed
 id: VF7VSqtej
-status: backlog
+status: done
 created_at: 2026-03-27T18:10:29
-updated_at: 2026-03-27T18:12:14
+updated_at: 2026-03-27T18:22:15
 # authored
 title: Surface Published Replication Frontier
 type: feat
 operator-signal:
 scope: VDd1J2IDM/VF7VP3H4s
 index: 2
+started_at: 2026-03-27T18:16:41
+submitted_at: 2026-03-27T18:22:08
+completed_at: 2026-03-27T18:22:15
 ---
 
 # Surface Published Replication Frontier
@@ -20,6 +23,6 @@ Surface the published segment-plus-manifest frontier that defines the clustered 
 
 ## Acceptance Criteria
 
-- [ ] [SRS-01/AC-01] Expose the published segment and manifest frontier as the first clustered handoff surface without creating a separate replicated log. <!-- [SRS-01/AC-01] verify: manual, SRS-01:start, SRS-01:end -->
-- [ ] [SRS-01/AC-02] Make frontier metadata explicit enough for follower catch-up and proof surfaces to identify the published positions and manifest state in play. <!-- [SRS-01/AC-02] verify: manual, SRS-01:continues, SRS-01:end -->
-- [ ] [SRS-NFR-01/AC-01] Preserve shared-engine lineage and object-store semantics in the surfaced frontier. <!-- [SRS-NFR-01/AC-01] verify: manual, SRS-NFR-01:start, SRS-NFR-01:end -->
+- [x] [SRS-01/AC-01] Expose the published segment and manifest frontier as the first clustered handoff surface without creating a separate replicated log. <!-- [SRS-01/AC-01] verify: manual, SRS-01:start, SRS-01:end, proof: ac-1.log -->
+- [x] [SRS-01/AC-02] Make frontier metadata explicit enough for follower catch-up and proof surfaces to identify the published positions and manifest state in play. <!-- [SRS-01/AC-02] verify: manual, SRS-01:continues, SRS-01:end, proof: ac-2.log -->
+- [x] [SRS-NFR-01/AC-01] Preserve shared-engine lineage and object-store semantics in the surfaced frontier. <!-- [SRS-NFR-01/AC-01] verify: manual, SRS-NFR-01:start, SRS-NFR-01:end, proof: ac-3.log -->

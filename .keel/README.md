@@ -110,5 +110,5 @@
 | Voyage | Status |
 |--------|--------|
 | [Define Initial Replication Model And Boundaries](epics/VDd1J2IDM/voyages/VF5GTdm4X/) | done |
-| [Deliver Remote-Tier Replication Handoff Foundations](epics/VDd1J2IDM/voyages/VF7VP3H4s/) | planned |
+| [Deliver Remote-Tier Replication Handoff Foundations](epics/VDd1J2IDM/voyages/VF7VP3H4s/) | in-progress |
 

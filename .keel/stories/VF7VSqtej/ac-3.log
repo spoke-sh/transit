@@ -1,0 +1,3 @@
+Reviewed `crates/transit-core/src/engine.rs`, `crates/transit-core/src/storage.rs`, and the publication/restore tests.
+
+Confirmed the surfaced frontier is derived from the existing `SegmentManifest` plus object-store-backed `SegmentDescriptor` metadata, remains anchored to shared-engine lineage and object-store semantics, and survives later local rolls or process reopen without changing the underlying manifest/segment model.

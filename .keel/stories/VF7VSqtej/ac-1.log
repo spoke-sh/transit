@@ -1,0 +1,4 @@
+Reviewed `crates/transit-core/src/engine.rs` and ran:
+- `cargo test -p transit-core published_replication_frontier -- --nocapture`
+
+Confirmed `LocalEngine` now persists and exposes a first-class published replication frontier from engine state, including manifest identity, manifest root, manifest object key, and published segment offset range, without introducing a separate replica log or alternate storage format.

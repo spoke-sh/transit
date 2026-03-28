@@ -1,0 +1,4 @@
+Reviewed `crates/transit-cli/src/main.rs` and ran:
+- `cargo test -p transit-cli tiered_engine_proof_exposes_published_frontier -- --nocapture`
+
+Confirmed the tiered proof now reports the published frontier manifest generation, manifest root, manifest object key, published offset range, and published segment inventory so follower bootstrap and proof surfaces can identify the clustered handoff state explicitly.

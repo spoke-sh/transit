@@ -745,6 +745,7 @@ struct TieredEngineProofResult {
     durability: String,
     publish_stream: StreamProofSummary,
     restored_stream: StreamProofSummary,
+    published_frontier: PublishedFrontierResult,
     published_segments: Vec<String>,
     manifest_object_key: String,
     publication_manifest_generation: u64,
@@ -806,6 +807,26 @@ struct IntegrityProofSegmentResult {
 struct IntegrityProofPublicationResult {
     published_segment_ids: Vec<String>,
     manifest_object_key: String,
+}
+
+#[derive(Debug, Serialize)]
+struct PublishedFrontierSegmentResult {
+    segment_id: String,
+    start_offset: u64,
+    last_offset: u64,
+    object_store_key: String,
+}
+
+#[derive(Debug, Serialize)]
+struct PublishedFrontierResult {
+    manifest_id: String,
+    manifest_generation: u64,
+    manifest_root: String,
+    manifest_object_key: String,
+    start_offset: Option<u64>,
+    last_offset: Option<u64>,
+    next_offset: u64,
+    segments: Vec<PublishedFrontierSegmentResult>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -2149,6 +2170,9 @@ async fn run_tiered_engine_proof(root: PathBuf) -> Result<TieredEngineProofResul
     let publication = publish_engine
         .publish_rolled_segments(&stream_id, &store, "tiered-proof")
         .await?;
+    let published_frontier = publish_engine
+        .published_replication_frontier(&stream_id)?
+        .context("tiered proof publish should persist a published frontier")?;
     let manifest_key = publication
         .manifest_object_key()
         .context("tiered proof publish should emit a remote manifest")?
@@ -2173,6 +2197,7 @@ async fn run_tiered_engine_proof(root: PathBuf) -> Result<TieredEngineProofResul
         durability: publication.durability().as_str().to_owned(),
         publish_stream: summarize_stream(&stream_id, &published_records),
         restored_stream: summarize_stream(&stream_id, &restored_records),
+        published_frontier: summarize_published_frontier(&published_frontier),
         published_segments: publication
             .published_segment_ids()
             .iter()
@@ -2195,6 +2220,30 @@ fn summarize_stream(stream_id: &StreamId, records: &[LocalRecord]) -> StreamProo
         head_offset: records
             .last()
             .map(|record| record.position().offset.value()),
+    }
+}
+
+fn summarize_published_frontier(
+    frontier: &transit_core::engine::LocalPublishedReplicationFrontier,
+) -> PublishedFrontierResult {
+    PublishedFrontierResult {
+        manifest_id: frontier.manifest_id().as_str().to_owned(),
+        manifest_generation: frontier.manifest_generation(),
+        manifest_root: frontier.manifest_root().digest().to_owned(),
+        manifest_object_key: frontier.manifest_object_key().as_str().to_owned(),
+        start_offset: frontier.start_offset().map(|offset| offset.value()),
+        last_offset: frontier.last_offset().map(|offset| offset.value()),
+        next_offset: frontier.next_offset().value(),
+        segments: frontier
+            .published_segments()
+            .iter()
+            .map(|segment| PublishedFrontierSegmentResult {
+                segment_id: segment.segment_id().as_str().to_owned(),
+                start_offset: segment.start_offset().value(),
+                last_offset: segment.last_offset().value(),
+                object_store_key: segment.object_store_key().as_str().to_owned(),
+            })
+            .collect(),
     }
 }
 
@@ -3175,6 +3224,22 @@ fn render_tiered_engine_proof(result: TieredEngineProofResult, json: bool) -> Re
         "restored stream replay: {} records, head {:?}",
         result.restored_stream.record_count, result.restored_stream.head_offset
     );
+    println!(
+        "published frontier: manifest {} generation {}, offsets {:?}..{:?}, next {}",
+        result.published_frontier.manifest_id,
+        result.published_frontier.manifest_generation,
+        result.published_frontier.start_offset,
+        result.published_frontier.last_offset,
+        result.published_frontier.next_offset
+    );
+    println!(
+        "published frontier root: {}",
+        result.published_frontier.manifest_root
+    );
+    println!(
+        "published frontier manifest object: {}",
+        result.published_frontier.manifest_object_key
+    );
     println!("published segments:");
     for segment_id in &result.published_segments {
         println!("  - {segment_id}");
@@ -4045,5 +4110,32 @@ mod tests {
                 .contains("optional secure underlay")
         );
         assert!(proof.accepted_connections >= 9);
+    }
+
+    #[tokio::test]
+    async fn tiered_engine_proof_exposes_published_frontier() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_tiered_engine_proof(temp_dir.path().join("tiered"))
+            .await
+            .expect("run tiered proof");
+
+        assert_eq!(proof.durability, "local");
+        assert_eq!(proof.published_segments.len(), 2);
+        assert_eq!(
+            proof.published_frontier.manifest_generation,
+            proof.publication_manifest_generation
+        );
+        assert_eq!(proof.published_frontier.start_offset, Some(0));
+        assert_eq!(proof.published_frontier.last_offset, Some(3));
+        assert_eq!(proof.published_frontier.next_offset, 4);
+        assert_eq!(proof.published_frontier.segments.len(), 2);
+        assert!(
+            proof
+                .published_frontier
+                .manifest_object_key
+                .contains("tiered-proof")
+        );
+        assert!(!proof.published_frontier.manifest_root.is_empty());
+        assert_eq!(proof.unpublished_local_records, 1);
     }
 }

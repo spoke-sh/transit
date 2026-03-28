@@ -164,6 +164,7 @@ pub struct LocalPublicationOutcome {
     published_segment_ids: Vec<SegmentId>,
     manifest_generation: u64,
     manifest_object_key: Option<ObjectStoreKey>,
+    published_frontier: Option<LocalPublishedReplicationFrontier>,
 }
 
 impl LocalPublicationOutcome {
@@ -185,6 +186,10 @@ impl LocalPublicationOutcome {
 
     pub fn manifest_object_key(&self) -> Option<&ObjectStoreKey> {
         self.manifest_object_key.as_ref()
+    }
+
+    pub fn published_frontier(&self) -> Option<&LocalPublishedReplicationFrontier> {
+        self.published_frontier.as_ref()
     }
 }
 
@@ -257,6 +262,85 @@ impl LocalStreamStatus {
 
     pub fn rolled_segment_count(&self) -> usize {
         self.rolled_segment_count
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PublishedSegmentFrontier {
+    segment_id: SegmentId,
+    start_offset: Offset,
+    last_offset: Offset,
+    object_store_key: ObjectStoreKey,
+}
+
+impl PublishedSegmentFrontier {
+    pub fn segment_id(&self) -> &SegmentId {
+        &self.segment_id
+    }
+
+    pub fn start_offset(&self) -> Offset {
+        self.start_offset
+    }
+
+    pub fn last_offset(&self) -> Offset {
+        self.last_offset
+    }
+
+    pub fn object_store_key(&self) -> &ObjectStoreKey {
+        &self.object_store_key
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LocalPublishedReplicationFrontier {
+    stream_id: StreamId,
+    manifest_id: ManifestId,
+    manifest_generation: u64,
+    manifest_root: ContentDigest,
+    manifest_object_key: ObjectStoreKey,
+    published_segments: Vec<PublishedSegmentFrontier>,
+    next_offset: Offset,
+}
+
+impl LocalPublishedReplicationFrontier {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn manifest_id(&self) -> &ManifestId {
+        &self.manifest_id
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+
+    pub fn manifest_root(&self) -> &ContentDigest {
+        &self.manifest_root
+    }
+
+    pub fn manifest_object_key(&self) -> &ObjectStoreKey {
+        &self.manifest_object_key
+    }
+
+    pub fn published_segments(&self) -> &[PublishedSegmentFrontier] {
+        &self.published_segments
+    }
+
+    pub fn start_offset(&self) -> Option<Offset> {
+        self.published_segments
+            .first()
+            .map(PublishedSegmentFrontier::start_offset)
+    }
+
+    pub fn last_offset(&self) -> Option<Offset> {
+        self.published_segments
+            .last()
+            .map(PublishedSegmentFrontier::last_offset)
+    }
+
+    pub fn next_offset(&self) -> Offset {
+        self.next_offset
     }
 }
 
@@ -444,6 +528,7 @@ impl LocalEngine {
         store: &dyn ObjectStore,
         key_prefix: &str,
     ) -> Result<LocalPublicationOutcome> {
+        let mut state = self.load_state(stream_id)?;
         let manifest = self.load_manifest(stream_id)?;
         if manifest.segments().is_empty() {
             return Ok(LocalPublicationOutcome {
@@ -455,6 +540,11 @@ impl LocalEngine {
                     .storage()
                     .object_store()
                     .map(|location| location.key().clone()),
+                published_frontier: state
+                    .published_manifest
+                    .as_ref()
+                    .map(published_frontier_from_manifest_snapshot)
+                    .transpose()?,
             });
         }
 
@@ -563,14 +653,31 @@ impl LocalEngine {
                     .await
                     .with_context(|| format!("publish manifest object {}", object_key.as_str()))?;
                 write_json_durable(&self.manifest_path(stream_id), &published_manifest)?;
+                state.manifest_generation = next_generation;
+                state.published_manifest = Some(published_manifest.clone());
+                write_json_durable(&self.state_path(stream_id), &state)?;
                 return Ok(LocalPublicationOutcome {
                     stream_id: stream_id.clone(),
                     durability: self.inner.config.durability(),
                     published_segment_ids,
                     manifest_generation: next_generation,
                     manifest_object_key: Some(object_key),
+                    published_frontier: Some(published_frontier_from_manifest_snapshot(
+                        &published_manifest,
+                    )?),
                 });
             }
+        };
+
+        let published_frontier = if let Some(snapshot) = state.published_manifest.as_ref() {
+            Some(published_frontier_from_manifest_snapshot(snapshot)?)
+        } else if manifest.storage().object_store().is_some() {
+            state.manifest_generation = manifest.generation();
+            state.published_manifest = Some(manifest.clone());
+            write_json_durable(&self.state_path(stream_id), &state)?;
+            Some(published_frontier_from_manifest_snapshot(&manifest)?)
+        } else {
+            None
         };
 
         Ok(LocalPublicationOutcome {
@@ -579,6 +686,7 @@ impl LocalEngine {
             published_segment_ids,
             manifest_generation: manifest.generation(),
             manifest_object_key,
+            published_frontier,
         })
     }
 
@@ -718,6 +826,7 @@ impl LocalEngine {
             active_record_count: 0,
             active_byte_length: 0,
             manifest_generation: local_manifest.generation(),
+            published_manifest: Some(local_manifest.clone()),
         };
         write_json_durable(&self.state_path(&stream_id), &state)?;
         create_empty_file(&self.active_segment_path(&stream_id))?;
@@ -815,6 +924,17 @@ impl LocalEngine {
             manifest_generation: state.manifest_generation,
             rolled_segment_count: manifest.segments().len(),
         })
+    }
+
+    pub fn published_replication_frontier(
+        &self,
+        stream_id: &StreamId,
+    ) -> Result<Option<LocalPublishedReplicationFrontier>> {
+        self.load_state(stream_id)?
+            .published_manifest
+            .as_ref()
+            .map(published_frontier_from_manifest_snapshot)
+            .transpose()
     }
 
     /// Explicitly verify the cryptographic integrity of local history.
@@ -1159,6 +1279,7 @@ struct LocalStreamState {
     active_record_count: u64,
     active_byte_length: u64,
     manifest_generation: u64,
+    published_manifest: Option<SegmentManifest>,
 }
 
 impl LocalStreamState {
@@ -1171,6 +1292,7 @@ impl LocalStreamState {
             active_record_count: 0,
             active_byte_length: 0,
             manifest_generation: 0,
+            published_manifest: None,
         }
     }
 
@@ -1247,6 +1369,58 @@ fn initial_next_offset_from_descriptor(descriptor: &StreamDescriptor) -> u64 {
             None => 0,
         },
     }
+}
+
+fn published_frontier_from_manifest_snapshot(
+    manifest: &SegmentManifest,
+) -> Result<LocalPublishedReplicationFrontier> {
+    let manifest_object_key = manifest
+        .storage()
+        .object_store()
+        .context("published frontier requires a remote manifest location")?
+        .key()
+        .clone();
+    let published_segments = manifest
+        .segments()
+        .iter()
+        .map(|descriptor| {
+            let object_store_key = descriptor
+                .storage()
+                .object_store()
+                .with_context(|| {
+                    format!(
+                        "published frontier requires remote placement for segment '{}'",
+                        descriptor.segment_id().as_str()
+                    )
+                })?
+                .key()
+                .clone();
+            Ok(PublishedSegmentFrontier {
+                segment_id: descriptor.segment_id().clone(),
+                start_offset: descriptor.start_offset(),
+                last_offset: descriptor.last_offset(),
+                object_store_key,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let next_offset = published_segments.last().map_or_else(
+        || {
+            Offset::new(initial_next_offset_from_descriptor(
+                manifest.stream_descriptor(),
+            ))
+        },
+        |segment| Offset::new(segment.last_offset().value() + 1),
+    );
+
+    Ok(LocalPublishedReplicationFrontier {
+        stream_id: manifest.stream_id().clone(),
+        manifest_id: manifest.manifest_id().clone(),
+        manifest_generation: manifest.generation(),
+        manifest_root: manifest.manifest_root().clone(),
+        manifest_object_key,
+        published_segments,
+        next_offset,
+    })
 }
 
 fn segment_id(sequence: u64) -> Result<SegmentId> {
@@ -2190,6 +2364,185 @@ mod tests {
                 .storage()
                 .object_store()
                 .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn published_replication_frontier_is_absent_before_publication() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        engine.append(&stream_id, b"first").expect("append");
+        engine.append(&stream_id, b"second").expect("append");
+
+        let frontier = engine
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup");
+        assert!(frontier.is_none());
+    }
+
+    #[tokio::test]
+    async fn published_replication_frontier_tracks_manifest_root_and_offsets() {
+        let temp_dir = tempdir().expect("temp dir");
+        let remote_root = tempdir().expect("remote root");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second", "third"] {
+            engine
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        let publication = engine
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish");
+        let frontier = engine
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("published frontier");
+        let status = engine.stream_status(&stream_id).expect("status");
+
+        assert_eq!(
+            publication.manifest_generation(),
+            frontier.manifest_generation()
+        );
+        assert_eq!(
+            publication
+                .published_frontier()
+                .expect("frontier on publication"),
+            &frontier
+        );
+        assert_eq!(status.manifest_generation(), frontier.manifest_generation());
+        assert_eq!(frontier.stream_id().as_str(), "task.root");
+        assert_eq!(frontier.start_offset(), Some(Offset::new(0)));
+        assert_eq!(frontier.last_offset(), Some(Offset::new(1)));
+        assert_eq!(frontier.next_offset(), Offset::new(2));
+        assert_eq!(frontier.published_segments().len(), 1);
+        assert_eq!(
+            frontier.published_segments()[0].object_store_key().as_str(),
+            "tiered/streams/task.root/segments/segment-00000000000000000000.segment"
+        );
+        assert!(
+            frontier
+                .manifest_object_key()
+                .as_str()
+                .contains("tiered/streams/task.root/manifests/")
+        );
+        assert!(!frontier.manifest_root().digest().is_empty());
+    }
+
+    #[tokio::test]
+    async fn published_replication_frontier_survives_new_local_rolls_until_republished() {
+        let temp_dir = tempdir().expect("temp dir");
+        let remote_root = tempdir().expect("remote root");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second", "third"] {
+            engine
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        let publication = engine
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish");
+        let first_frontier = engine
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("published frontier");
+
+        engine.append(&stream_id, b"fourth").expect("append fourth");
+        engine.append(&stream_id, b"fifth").expect("append fifth");
+
+        let manifest = engine.load_manifest(&stream_id).expect("manifest");
+        let frontier_after_new_roll = engine
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("published frontier");
+
+        assert_eq!(manifest.generation(), publication.manifest_generation() + 1);
+        assert_eq!(
+            frontier_after_new_roll.manifest_generation(),
+            first_frontier.manifest_generation()
+        );
+        assert_eq!(
+            frontier_after_new_roll.manifest_object_key(),
+            first_frontier.manifest_object_key()
+        );
+        assert_eq!(frontier_after_new_roll.last_offset(), Some(Offset::new(1)));
+        assert_eq!(frontier_after_new_roll.next_offset(), Offset::new(2));
+    }
+
+    #[tokio::test]
+    async fn published_replication_frontier_survives_engine_reopen() {
+        let temp_dir = tempdir().expect("temp dir");
+        let remote_root = tempdir().expect("remote root");
+        let stream_id = stream_id("task.root");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+
+        {
+            let engine = LocalEngine::open(
+                LocalEngineConfig::new(temp_dir.path())
+                    .with_segment_max_records(2)
+                    .expect("config"),
+            )
+            .expect("engine");
+            engine
+                .create_stream(root_descriptor("task.root"))
+                .expect("create stream");
+            for payload in ["first", "second", "third"] {
+                engine
+                    .append(&stream_id, payload.as_bytes())
+                    .expect("append");
+            }
+            engine
+                .publish_rolled_segments(&stream_id, &store, "tiered")
+                .await
+                .expect("publish");
+        }
+
+        let reopened = LocalEngine::open(LocalEngineConfig::new(temp_dir.path())).expect("reopen");
+        let frontier = reopened
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("published frontier");
+
+        assert_eq!(frontier.start_offset(), Some(Offset::new(0)));
+        assert_eq!(frontier.last_offset(), Some(Offset::new(1)));
+        assert_eq!(frontier.next_offset(), Offset::new(2));
+        assert!(
+            frontier
+                .manifest_object_key()
+                .as_str()
+                .contains("tiered/streams/task.root/manifests/")
         );
     }
 
