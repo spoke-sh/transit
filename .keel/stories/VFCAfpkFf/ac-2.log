@@ -1,0 +1,8 @@
+Hover/focus affordance remains explicit after the override.
+
+Supporting choices:
+- hover changes both link text color and underline color together
+- focus-visible uses the same non-blue treatment for consistency
+- the resting underline behavior is unchanged
+
+Links should still read as interactive on hover without leaking the blue accent.

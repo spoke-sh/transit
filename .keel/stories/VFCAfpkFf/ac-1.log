@@ -1,0 +1,7 @@
+Updated the shared markdown hover link rule in `website/src/css/custom.css`.
+
+Hovered and focus-visible markdown links now explicitly use the Transit red accent instead of inheriting the blue hover path:
+- hover text color is `var(--transit-route-red-strong)`
+- hover underline color is `rgba(143, 24, 34, 0.32)`
+
+This removes the remaining blue hover underline/accent in docs content.

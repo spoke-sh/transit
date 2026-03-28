@@ -1,0 +1,8 @@
+Reviewed the new hover treatment against the Transit docs theme.
+
+Confirmed the override stays aligned with the existing palette:
+- hover links now use the same warm red family already present in Transit accents
+- the change is limited to markdown hover/focus states
+- no broader palette, layout, or non-markdown link changes were introduced
+
+The result removes the stray blue accent without creating a new visual branch.

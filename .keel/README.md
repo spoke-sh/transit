@@ -105,11 +105,11 @@
 |--------|--------|
 | [Tune Public Docs Link Decoration](epics/VFC9XEYwI/voyages/VFC9YYrzQ/) | done |
 
-### [Override Docs Hover Link Accent](epics/VFCAdyu9b/) (active)
+### [Override Docs Hover Link Accent](epics/VFCAdyu9b/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Neutralize Markdown Hover Underline](epics/VFCAdyu9b/voyages/VFCAfFwD7/) | planned |
+| [Neutralize Markdown Hover Underline](epics/VFCAdyu9b/voyages/VFCAfFwD7/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

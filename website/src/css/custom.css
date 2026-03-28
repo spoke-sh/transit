@@ -349,8 +349,10 @@ body {
     text-decoration-color 120ms ease;
 }
 
-.theme-doc-markdown a:hover {
-  text-decoration-color: rgba(188, 35, 46, 0.34);
+.theme-doc-markdown a:hover,
+.theme-doc-markdown a:focus-visible {
+  color: var(--transit-route-red-strong);
+  text-decoration-color: rgba(143, 24, 34, 0.32);
 }
 
 .theme-doc-markdown blockquote {
