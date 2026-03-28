@@ -99,6 +99,12 @@
 |--------|--------|
 | [Tune Transit Network Shape Contrast](epics/VFC8awXmb/voyages/VFC8cJIs8/) | done |
 
+### [Adjust Docs Link Decoration Tone](epics/VFC9XEYwI/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Tune Public Docs Link Decoration](epics/VFC9XEYwI/voyages/VFC9YYrzQ/) | planned |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
