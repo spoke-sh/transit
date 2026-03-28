@@ -1,0 +1,3 @@
+Reviewed `.keel/epics/VDd1J2IDM/voyages/VF5GTdm4X/SDD.md`.
+
+Confirmed the voyage now selects a single-primary leader/follower clustered model, names rolled segments plus manifest updates as the replication unit, and states that only the primary owns a writable local head.

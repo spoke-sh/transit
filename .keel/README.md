@@ -109,5 +109,5 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Define Initial Replication Model And Boundaries](epics/VDd1J2IDM/voyages/VF5GTdm4X/) | planned |
+| [Define Initial Replication Model And Boundaries](epics/VDd1J2IDM/voyages/VF5GTdm4X/) | in-progress |
 

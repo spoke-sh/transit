@@ -6,23 +6,23 @@
 
 ## Overview
 
-This voyage converts the finished replication bearing into executable planning. Instead of implementing clustered behavior directly, it defines the first clustered replication model, names the invariants the model must preserve, and decomposes the work into the first deliverable execution slices. The output is a planned voyage with concrete downstream stories, not distributed runtime code.
+This voyage converts the finished replication bearing into executable planning. The selected first clustered model is a single-primary leader/follower topology that keeps one writable local head on the primary node and replicates rolled segments plus manifest updates through the remote tier. Followers restore and catch up from object-store-backed history and do not accept writes. The output is a planned voyage with concrete downstream stories, not distributed runtime code.
 
 ## Context & Boundaries
 
 In scope: selecting the first replication unit and ownership model, defining acknowledgement/durability boundaries, publishing preserved invariants, and decomposing the next execution slice under the existing shared-engine architecture.
 
-Out of scope: implementing replication transport, follower catch-up, cluster membership, consensus, or any server-only persistence path.
+Out of scope: implementing replication transport, follower catch-up, cluster membership, consensus, quorum writes, multi-primary coordination, or any server-only persistence path.
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│                 This Voyage: Planning Layer               │
-│                                                            │
-│  PRD -> replication model -> invariants -> execution plan  │
-└────────────────────────────────────────────────────────────┘
-         ↑                            ↑
-   finished server                 future clustered
-   and consensus work              implementation voyage(s)
+┌───────────────────────────────────────────────────────────────────┐
+│                 First Clustered Model (planned)                  │
+│                                                                   │
+│  primary node -> rolled segments + manifests -> remote tier       │
+│        follower nodes <- restore / catch-up from remote tier      │
+└───────────────────────────────────────────────────────────────────┘
+            ↑                                         ↑
+     one writable local head                  read / catch-up replicas
 ```
 
 ## Dependencies
@@ -38,7 +38,10 @@ Out of scope: implementing replication transport, follower catch-up, cluster mem
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| First clustered planning focus | Plan below consensus and multi-primary semantics | Keeps the next slice deliverable and aligned with the bearing recommendation |
+| First clustered model | Single-primary leader/follower topology | Preserves one writable stream head while giving followers an explicit clustered role |
+| First replication unit | Rolled segments plus manifest updates | Matches the object-storage-native design and avoids record-by-record replication on the hot path |
+| Follower role | Followers restore and catch up from remote-tier history | Reuses existing restore semantics and keeps clustered replicas aligned with published history |
+| Excluded alternatives | No quorum writes, multi-primary, or general consensus in the first slice | Keeps the next slice bounded and aligned with the epic PRD |
 | Planning output shape | Produce explicit model, invariants, and decomposition artifacts | Converts research into executable work instead of leaving a vague draft epic |
 | Storage boundary | Preserve shared-engine semantics and object-store-native history | Prevents replicated work from inventing a second semantic world |
 
@@ -47,7 +50,7 @@ Out of scope: implementing replication transport, follower catch-up, cluster mem
 The voyage defines three planning layers that must stay coherent:
 
 - `replication model`
-  Names the first clustered design center, replication unit, and writer/ownership assumptions.
+  Names the single-primary leader/follower approach, rolled-segment/manifest replication unit, and one-writer ownership assumptions.
 - `guarantee surface`
   Defines acknowledgement, durability, and restore/catch-up boundaries across local, replicated, and tiered modes.
 - `delivery decomposition`
@@ -55,8 +58,12 @@ The voyage defines three planning layers that must stay coherent:
 
 ## Components
 
-- `model decision`
-  Chooses the initial clustered approach, such as leader-follower stream-head ownership with explicit segment/manifest propagation.
+- `primary writer`
+  Owns the writable local head, rolls immutable segments, and publishes manifests into the remote tier.
+- `remote tier replication unit`
+  Carries immutable segments and manifests as the clustered handoff surface between primary and followers.
+- `follower catch-up path`
+  Restores from remote-tier history and advances via published segments/manifests rather than direct record fan-out.
 - `invariants matrix`
   Maps ordering, lineage, durability, and storage rules from the proven single-node system into clustered constraints.
 - `execution slice`
@@ -73,11 +80,11 @@ This voyage does not introduce runtime APIs. Its interfaces are planning artifac
 
 ## Data Flow
 
-1. Read the existing replication PRD and bearing evidence.
-2. Select the initial clustered model and record its scope/exclusions.
-3. Translate that choice into explicit durability and invariant rules.
-4. Decompose the resulting model into the next execution voyage and initial stories.
-5. Re-run board checks so the mission can move from defining to active with planned work.
+1. The primary node accepts writes on its local head and rolls immutable segments.
+2. Rolled segments and manifest updates become the replication surface published into the remote tier.
+3. Followers restore and catch up from the remote tier instead of receiving record-by-record replicated writes.
+4. The planning artifacts capture that model, its exclusions, and the next execution slice.
+5. The mission advances once the epic has actionable voyages and stories anchored to that model.
 
 ## Error Handling
 

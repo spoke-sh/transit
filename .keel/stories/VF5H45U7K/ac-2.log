@@ -1,0 +1,3 @@
+Reviewed `.keel/epics/VDd1J2IDM/voyages/VF5GTdm4X/SRS.md` scope and `.keel/epics/VDd1J2IDM/voyages/VF5GTdm4X/SDD.md` key decisions.
+
+Confirmed the first clustered slice explicitly excludes consensus, quorum writes, and multi-primary coordination while preserving the shared-engine replication plan.
