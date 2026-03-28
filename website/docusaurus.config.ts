@@ -70,6 +70,11 @@ const config: Config = {
           position: 'left',
         },
         {
+          to: '/docs/reference/foundational-docs',
+          label: 'Reference',
+          position: 'left',
+        },
+        {
           href: repoUrl,
           label: 'GitHub',
           position: 'right',
@@ -118,11 +123,15 @@ const config: Config = {
             },
             {
               label: 'Architecture',
-              href: `${repoUrl}/blob/main/ARCHITECTURE.md`,
+              to: '/docs/reference/contracts/architecture',
             },
             {
               label: 'Constitution',
-              href: `${repoUrl}/blob/main/CONSTITUTION.md`,
+              to: '/docs/reference/contracts/constitution',
+            },
+            {
+              label: 'Foundational Docs',
+              to: '/docs/reference/foundational-docs',
             },
           ],
         },

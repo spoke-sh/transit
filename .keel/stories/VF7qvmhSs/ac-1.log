@@ -1,0 +1,13 @@
+Added a repeatable foundational-doc sync path:
+
+- `website/scripts/sync-foundational-docs.mjs`
+- `website/package.json` `sync:foundations`, `prestart`, and `prebuild` hooks
+- `Justfile` helpers: `docs-sync`, `docs-build`, `docs-dev`, `docs-install`
+
+The sync script now publishes selected root Markdown contracts into:
+
+- `website/docs/reference/contracts/`
+
+Verified the sync step with:
+
+`nix shell nixpkgs#nodejs_20 --command npm --prefix website run sync:foundations`

@@ -1,0 +1,20 @@
+Added the static docs deployment workflow in `.github/workflows/docs.yml`.
+
+Manual review confirmed the workflow now:
+
+- builds the docs site on pull requests, pushes to `main`, and manual dispatch
+- uploads the built site as a workflow artifact
+- deploys on `main` only when `TRANSIT_DOCS_DEPLOY_ENABLED=true`, or on manual dispatch with `deploy=true`
+- syncs `website/build/` to S3
+- issues a CloudFront invalidation
+- reads deployment configuration from repository variables
+
+Documented the deployment inputs in `website/README.md`:
+
+- `TRANSIT_DOCS_DEPLOY_ENABLED`
+- `TRANSIT_DOCS_SITE_URL`
+- `TRANSIT_DOCS_BASE_URL`
+- `TRANSIT_DOCS_BUCKET`
+- `TRANSIT_DOCS_DISTRIBUTION_ID`
+- `TRANSIT_DOCS_AWS_ROLE_ARN`
+- `TRANSIT_DOCS_AWS_REGION`

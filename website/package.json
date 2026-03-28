@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "sync:foundations": "node ./scripts/sync-foundational-docs.mjs",
+    "prestart": "npm run sync:foundations",
+    "prebuild": "npm run sync:foundations",
     "start": "docusaurus start",
     "build": "docusaurus build",
     "serve": "docusaurus serve",
@@ -30,4 +33,3 @@
     "node": ">=20.0"
   }
 }
-

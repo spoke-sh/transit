@@ -1,0 +1,16 @@
+Built the docs site after wiring the sync step and reference section:
+
+`nix shell nixpkgs#nodejs_20 --command npm --prefix website run build`
+
+The build succeeded, which proves:
+
+- the site can build from the repo without manual copying into `website/`
+- the prebuild sync step generates the reference corpus automatically
+- the new sidebar, navbar, footer, and generated doc links are coherent
+
+The published reference set now includes:
+
+- repository overview, constitution, architecture, configuration, guide, drift, evaluations, and release
+- communication, materialization, integrity, AI traces, and AI artifacts
+
+Repo-local operator docs remain linked from `website/docs/reference/foundational-docs.mdx` instead of being copied into the public reference set.
