@@ -1,0 +1,8 @@
+The refinement stays inside the existing Transit docs visual system.
+
+Scope notes:
+- the change is limited to `website/src/pages/index.module.css`
+- no docs-shell routing or navbar/footer behavior changed
+- the homepage hero structure in `index.tsx` stayed intact
+
+This keeps the adjustment as a local refinement rather than a new visual pattern.

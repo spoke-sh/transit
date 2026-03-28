@@ -1,0 +1,9 @@
+Updated `website/src/pages/index.module.css` to raise the diagram-panel readability inside the `Transit Network Shape` card.
+
+Contrast changes:
+- brighter foreground color for `.sceneDiagram`
+- heavier and slightly larger monospace type
+- reduced text-shadow heaviness
+- simplified, slightly cleaner deep-blue panel background
+
+The lineage box now uses a more explicit high-contrast treatment rather than a subdued dark panel.

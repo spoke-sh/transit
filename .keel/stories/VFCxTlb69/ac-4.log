@@ -1,0 +1,9 @@
+Verification command completed successfully:
+
+`just docs-build`
+
+Observed result:
+- Docusaurus production build completed successfully
+- static files were generated in `website/build`
+
+This preserves the expected docs proof path for the hero-card refinement.

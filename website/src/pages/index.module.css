@@ -153,6 +153,8 @@
   position: relative;
   overflow: hidden;
   isolation: isolate;
+  display: grid;
+  gap: var(--transit-space-3);
   padding: 1.65rem;
   border-radius: 2rem;
   background: var(--transit-surface-raised);
@@ -217,7 +219,7 @@
 }
 
 .sceneLabel {
-  margin: 0 0 var(--transit-space-3);
+  margin: 0;
   font-size: 0.8rem;
   font-weight: 760;
   letter-spacing: 0.18em;
@@ -226,33 +228,36 @@
 }
 
 .sceneDiagram {
-  margin: 0 0 var(--transit-space-4);
-  padding: 1.08rem 1.18rem;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 1.16rem 1.22rem;
   overflow: auto;
   border-radius: 1.2rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   background:
     linear-gradient(
       180deg,
-      rgba(7, 17, 30, 0.99),
-      rgba(10, 24, 42, 0.985) 48%,
-      rgba(14, 31, 54, 0.985)
+      rgba(10, 24, 40, 0.98),
+      rgba(14, 32, 53, 0.975) 54%,
+      rgba(19, 42, 68, 0.97)
     );
-  color: rgba(255, 253, 248, 0.99);
+  color: rgba(255, 252, 246, 1);
   font-family: var(--ifm-font-family-monospace);
-  font-size: 1rem;
-  font-weight: 560;
-  line-height: 1.6;
-  letter-spacing: 0.018em;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.34);
+  font-size: 1.04rem;
+  font-weight: 640;
+  line-height: 1.64;
+  letter-spacing: 0.024em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
   font-variant-ligatures: none;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 14px 24px rgba(7, 17, 30, 0.2);
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 14px 24px rgba(7, 17, 30, 0.16);
 }
 
 .sceneSteps {
   display: grid;
+  width: 100%;
   gap: var(--transit-space-3);
   margin: 0;
   padding: 0;
@@ -260,6 +265,7 @@
 }
 
 .sceneSteps li {
+  width: 100%;
   margin: 0;
 }
 
@@ -269,6 +275,8 @@
   gap: var(--transit-space-4);
   align-items: center;
   width: 100%;
+  box-sizing: border-box;
+  min-height: 4rem;
   padding: 0.9rem 1rem;
   border-radius: 1.25rem;
   background: rgba(17, 38, 58, 0.05);

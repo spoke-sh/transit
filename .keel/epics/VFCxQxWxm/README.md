@@ -22,8 +22,8 @@ index: 17
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/1 stories done
+**Progress:** 1/1 voyages complete, 1/1 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Tune Hero Diagram Card](voyages/VFCxRwY2T/) | in-progress | 0/1 |
+| [Tune Hero Diagram Card](voyages/VFCxRwY2T/) | done | 1/1 |
 <!-- END GENERATED -->

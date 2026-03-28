@@ -1,0 +1,9 @@
+Adjusted the hero-card width treatment so the route-link list below the diagram occupies the same usable width as the lineage box.
+
+Width-related changes in `website/src/pages/index.module.css`:
+- `.sceneDiagram` now declares `width: 100%` and `box-sizing: border-box`
+- `.sceneSteps` now declares `width: 100%`
+- `.sceneSteps li` now declares `width: 100%`
+- `.sceneStepLink` now keeps `width: 100%` with explicit `box-sizing: border-box`
+
+This aligns the four route items with the diagram box above them instead of letting them read as a narrower track.

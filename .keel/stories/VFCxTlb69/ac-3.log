@@ -1,0 +1,8 @@
+The homepage hero-card structure and route destinations are unchanged.
+
+`website/src/pages/index.tsx` still renders:
+- the same `Transit Network Shape` label
+- the same lineage diagram content
+- the same four route links and destinations
+
+This refinement changes presentation only; it does not alter hero-card content or navigation targets.
