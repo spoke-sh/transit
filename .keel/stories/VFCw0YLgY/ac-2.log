@@ -1,0 +1,6 @@
+Added an earlier responsive handoff in `website/src/css/custom.css`:
+
+- `@media (max-width: 1200px)` now shows `.navbar__toggle`
+- the same breakpoint hides desktop `.navbar__item` entries
+
+The built docs CSS includes this `max-width:1200px` rule, so the site moves to the mobile navbar before the desktop header can wrap into a broken second row.

@@ -1,0 +1,7 @@
+Navigation content remains intact.
+
+`website/docusaurus.config.ts` still defines:
+- `Spoke` as a right-side link to `https://www.spoke.sh`
+- `GitHub` immediately after it on the right side
+
+The regression repair changes only the navbar shell behavior, not the requested link order.

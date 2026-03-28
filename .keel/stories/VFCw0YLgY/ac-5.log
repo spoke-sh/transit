@@ -1,0 +1,8 @@
+The repair stays within the existing Transit docs shell pattern.
+
+Scope notes:
+- the swizzled navbar layout component was left structurally unchanged
+- no docs routes or navbar labels changed
+- the only product-code delta is in `website/src/css/custom.css`
+
+This keeps the fix aligned with the current Transit theme and upstream-inspired navbar structure.

@@ -22,8 +22,8 @@ index: 16
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/1 stories done
+**Progress:** 1/1 voyages complete, 1/1 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Repair Docs Header Layout](voyages/VFCvzxgfk/) | in-progress | 0/1 |
+| [Repair Docs Header Layout](voyages/VFCvzxgfk/) | done | 1/1 |
 <!-- END GENERATED -->

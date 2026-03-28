@@ -1,0 +1,9 @@
+Updated `website/src/css/custom.css` to stabilize the Transit navbar shell itself.
+
+Header-shell changes:
+- `.navbar` now declares `width: 100%`
+- `.navbar__surface` now declares `width: 100%`
+- `.navbar__inner` now stays `flex-wrap: nowrap`
+- nav items and links now use `white-space: nowrap`
+
+These rules prevent the multi-line wrapped header state that caused the page body to overlap the bottom of the navbar.

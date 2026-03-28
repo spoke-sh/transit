@@ -146,6 +146,7 @@ body {
   position: relative;
   display: flex;
   flex-direction: column;
+  width: 100%;
   min-height: var(--ifm-navbar-height);
   padding-block: 0;
   padding-inline: 0;
@@ -159,6 +160,7 @@ body {
   z-index: 1;
   display: flex;
   align-items: center;
+  width: 100%;
   min-height: var(--transit-header-surface-height);
   padding-inline: var(--ifm-navbar-padding-horizontal);
   box-shadow: var(--transit-shadow-shell);
@@ -190,10 +192,25 @@ body {
   background: rgba(19, 87, 183, 0.96);
 }
 
+.navbar__inner {
+  width: 100%;
+  flex-wrap: nowrap;
+  gap: var(--transit-space-2);
+}
+
 .navbar__inner,
 .navbar-sidebar__brand {
   min-height: var(--transit-header-surface-height);
   box-sizing: border-box;
+}
+
+.navbar__items {
+  flex-wrap: nowrap;
+  gap: 0.1rem;
+}
+
+.navbar__items--right {
+  margin-left: auto;
 }
 
 .navbar-sidebar__items {
@@ -220,12 +237,28 @@ body {
 .navbar__link {
   font-size: 0.93rem;
   font-weight: 590;
+  white-space: nowrap;
+}
+
+.navbar__item {
+  white-space: nowrap;
 }
 
 .navbar__link:hover,
 .navbar__brand:hover,
 .navbar__toggle {
   color: #fffdfa;
+}
+
+/* Hand off to the mobile navbar before the Transit desktop shell starts wrapping. */
+@media (max-width: 1200px) {
+  .navbar__toggle {
+    display: inherit;
+  }
+
+  .navbar__item {
+    display: none;
+  }
 }
 
 .footer {

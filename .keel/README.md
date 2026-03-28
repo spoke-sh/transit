@@ -117,11 +117,11 @@
 |--------|--------|
 | [Add Spoke Header Nav Link](epics/VFCNI3lfw/voyages/VFCNJ6KhR/) | done |
 
-### [Stabilize Docs Navbar Shell](epics/VFCvzGZeD/) (active)
+### [Stabilize Docs Navbar Shell](epics/VFCvzGZeD/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Repair Docs Header Layout](epics/VFCvzGZeD/voyages/VFCvzxgfk/) | in-progress |
+| [Repair Docs Header Layout](epics/VFCvzGZeD/voyages/VFCvzxgfk/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
