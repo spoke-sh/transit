@@ -1,0 +1,8 @@
+Balanced the contrast increase so the panel remains part of the hero composition.
+
+Supporting choices that preserve cohesion:
+- kept the existing panel size, placement, and scene-frame structure
+- used deeper navy tones already present in the Transit palette rather than introducing a new hue family
+- strengthened glyph clarity mostly through typography and subtle framing instead of aggressive decorative changes
+
+The panel should read more clearly without looking detached from the rest of the page.

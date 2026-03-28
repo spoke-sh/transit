@@ -93,11 +93,11 @@
 |--------|--------|
 | [Re-skin Transit Public Docs](epics/VFC1jEl3d/voyages/VFC1kvq6u/) | done |
 
-### [Increase Hero Diagram Legibility](epics/VFC8awXmb/) (active)
+### [Increase Hero Diagram Legibility](epics/VFC8awXmb/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Tune Transit Network Shape Contrast](epics/VFC8awXmb/voyages/VFC8cJIs8/) | planned |
+| [Tune Transit Network Shape Contrast](epics/VFC8awXmb/voyages/VFC8cJIs8/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

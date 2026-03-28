@@ -22,8 +22,8 @@ index: 12
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/1 stories done
+**Progress:** 1/1 voyages complete, 1/1 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Tune Transit Network Shape Contrast](voyages/VFC8cJIs8/) | planned | 0/1 |
+| [Tune Transit Network Shape Contrast](voyages/VFC8cJIs8/) | done | 1/1 |
 <!-- END GENERATED -->

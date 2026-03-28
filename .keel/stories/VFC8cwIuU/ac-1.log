@@ -1,0 +1,10 @@
+Adjusted the Transit Network Shape panel styling in `website/src/pages/index.module.css`.
+
+Readability changes:
+- darkened and simplified the panel background gradient
+- raised text opacity to near-white
+- increased monospace font size and weight
+- added slight letter spacing and text shadow
+- disabled ligatures for cleaner glyph rendering
+
+These changes target the exact complaint: the monospace diagram content is now materially stronger against the background.

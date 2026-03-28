@@ -1,0 +1,8 @@
+Reviewed the adjusted panel styling against the surrounding hero shell.
+
+Confirmed the panel still fits the current Transit homepage:
+- the dark navy panel remains inside the existing scene frame
+- border and shadow treatment stay consistent with the broader raised-card language
+- no changes were made to navbar, footer, route cards, or hero copy
+
+The fix reads as a focused refinement rather than a new local visual system.
