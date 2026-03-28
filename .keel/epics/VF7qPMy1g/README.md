@@ -22,8 +22,8 @@ index: 10
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 2/3 stories done
+**Progress:** 1/1 voyages complete, 3/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Launch Public Docs Platform](voyages/VF7qsOO8T/) | in-progress | 2/3 |
+| [Launch Public Docs Platform](voyages/VF7qsOO8T/) | done | 3/3 |
 <!-- END GENERATED -->
