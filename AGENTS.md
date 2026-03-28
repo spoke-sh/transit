@@ -8,15 +8,15 @@ This repository uses Keel as its project management engine. Your primary respons
 
 ### Core Principles
 1. **Gardening First**: You MUST tend to the garden (fixing `doctor` errors, discharging automated backlog, and resolving structural drift) BEFORE notifying the human operator or requesting input.
-2. **Heartbeat Hygiene**: Monitor the system's pulse via `keel health --scene`. A missing heartbeat is not structural drift, but "uncommitted energy" (a dirty heartbeat) is tactical debt that should be closed autonomously by landing the sealing commit.
+2. **Heartbeat Hygiene**: Monitor the system's pulse via `keel heartbeat` and `keel health --scene`. The pacemaker is derived from repository activity; uncommitted energy in the worktree is tactical debt that should be closed autonomously by landing the sealing commit.
 3. **Notification Discipline**: Ping the human operator ONLY when you need input on design direction or how the application behaves. Resolve technical drift and tactical moves autonomously.
 
 ### Session Start & Human Interaction
 When a human user opens the chat or "pokes" you (e.g., "Wake up", "I'm poking you"), you MUST immediately energize the system and orient yourself by following the **Human Interaction & Pokes** workflow in [INSTRUCTIONS.md](INSTRUCTIONS.md):
-1.  **Energize**: Run `keel poke "Human interaction in chat"`.
+1.  **Heartbeat**: Run `keel heartbeat` to inspect current charge and whether the worktree is carrying uncommitted energy.
 2.  **Pulse**: Run `keel health --scene` to check subsystem stability.
 3.  **Scan**: Run `keel mission next --status` and `keel pulse`.
-4.  **Confirm**: Run `keel flow --scene` to verify the LIGHT IS ON.
+4.  **Confirm**: Run `keel flow --scene` to verify whether the LIGHT IS ON or the board is idle waiting for fresh repository activity.
 5.  **Diagnose**: Run `keel doctor` to ensure board integrity before proceeding.
 
 ### Procedural Instructions
@@ -110,12 +110,12 @@ When updating `keel`, follow this sequence literally:
 
 1. Update the Nix flake input and lockfile.
 2. Build the new `keel` version through Nix and confirm it runs.
-3. Install the git hooks with `keel hooks install` so the pre-commit hook enforces `just quality`, `just test`, and heartbeat staging, and the commit-msg hook appends `keel doctor --status`.
+3. Install the git hooks with `keel hooks install` so the pre-commit hook enforces `just quality` and `just test`, and the commit-msg hook appends `keel doctor --status`.
 4. Review upstream `~/workspace/spoke-sh/keel/AGENTS.md` and `~/workspace/spoke-sh/keel/INSTRUCTIONS.md`, then reconcile any required local workflow changes in `AGENTS.md`, `INSTRUCTIONS.md`, `Justfile`, or related docs.
-5. Run the human-interaction orientation loop: `keel poke "Human interaction in chat"`, `keel health --scene`, `keel mission next --status`, `keel pulse`, `keel flow --scene`, and `keel doctor`.
-6. Fix every structural `doctor` issue before doing anything else. Treat any dirty heartbeat as open-loop debt that must be cleared by the sealing commit, then report the `mission next` recommendation to the user.
+5. Run the human-interaction orientation loop: `keel heartbeat`, `keel health --scene`, `keel mission next --status`, `keel pulse`, `keel flow --scene`, and `keel doctor`.
+6. Fix every structural `doctor` issue before doing anything else. Treat any uncommitted energy reported by `keel heartbeat` or `keel doctor` as open-loop debt that must be cleared by the sealing commit, then report the `mission next` recommendation to the user.
 7. Ask the user whether they want to execute the recommended mission work before starting it.
-8. When the upgrade works, the hooks are installed, the upstream workflow reconciliation is landed, and the board is otherwise clean, make the sealing git commit for the maintenance change. Re-run `keel doctor --status` and `keel flow` after that commit before moving on.
+8. When the upgrade works, the hooks are installed, the upstream workflow reconciliation is landed, and the board is otherwise clean, make the sealing git commit for the maintenance change. Re-run `keel heartbeat`, `keel doctor --status`, and `keel flow` after that commit before moving on.
 
 Do not treat a `keel` upgrade as complete until the flake, hook install, upstream workflow reconciliation, doctor checks, and mission recommendation flow are all clean, with no structural errors and no open heartbeat debt after the sealing commit.
 
