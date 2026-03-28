@@ -1,0 +1,10 @@
+Verified the Docusaurus scaffold by installing website dependencies with a Node 20 Nix shell and running:
+
+`nix shell nixpkgs#nodejs_20 --command npm run build`
+
+Result:
+- `website/package.json`, `docusaurus.config.ts`, `sidebars.ts`, and `tsconfig.json` are present.
+- Base docs exist under `website/docs/`.
+- Home page, custom CSS, and static assets are present under `website/src/` and `website/static/`.
+- Docusaurus completed successfully and generated static output in `website/build/`.
+

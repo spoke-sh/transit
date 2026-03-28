@@ -1,0 +1,9 @@
+Reviewed the scaffolded public docs shell for Transit-specific identity.
+
+Confirmed the site no longer reads as a stock Docusaurus install:
+- homepage hero and sections use a rail-network narrative instead of generic product copy
+- custom palette emphasizes signal copper, deep navy, and timetable sand rather than default theme colors
+- logo, favicon, and social card use track/signal geometry
+- docs typography, navbar, footer, and section framing are all overridden in `website/src/css/custom.css`
+
+The visual direction is transport-native and clearly distinct from upstream Keel while still being practical for documentation.

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title">
+  <title>Transit social card</title>
+  <rect width="1200" height="630" fill="#102c3d"/>
+  <path d="M0 470h1200v160H0z" fill="#0f5c66"/>
+  <path d="M80 430h1040v18H80zm0 54h1040v10H80z" fill="#f7f1e6" opacity=".9"/>
+  <path d="M160 170h420l120 140-120 140H160L70 310z" fill="#14384b" stroke="#ba5a2d" stroke-width="10"/>
+  <text x="160" y="282" fill="#f7f1e6" font-family="Geist, Segoe UI, sans-serif" font-size="96" font-weight="700">Transit</text>
+  <text x="160" y="364" fill="#eadfcd" font-family="Geist, Segoe UI, sans-serif" font-size="34" font-weight="500">Lineage-aware event streaming for embedded and server rails</text>
+  <g stroke="#ba5a2d" stroke-width="12" stroke-linecap="round">
+    <path d="M820 156v320"/>
+    <path d="M910 156v320"/>
+    <path d="M1000 156v320"/>
+  </g>
+</svg>

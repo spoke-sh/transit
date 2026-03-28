@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VF7qsOO8T
-status: planned
+status: in-progress
 epic: VF7qPMy1g
 created_at: 2026-03-27T19:35:32
 # authored
 title: Launch Public Docs Platform
 index: 1
 updated_at: 2026-03-27T19:37:13
+started_at: 2026-03-27T19:38:07
 ---
 
 # Launch Public Docs Platform
@@ -26,11 +27,11 @@ updated_at: 2026-03-27T19:37:13
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/3 stories complete
+**Progress:** 1/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Publish Foundational Docs And Deploy Pipeline](../../../../stories/VF7qvmhSs/README.md) | chore | backlog |
 | [Author Library And Server Onramp Docs](../../../../stories/VF7qvnlSv/README.md) | docs | backlog |
-| [Scaffold Transit Docusaurus Site](../../../../stories/VF7qvnxSu/README.md) | feat | backlog |
+| [Scaffold Transit Docusaurus Site](../../../../stories/VF7qvnxSu/README.md) | feat | done |
 <!-- END GENERATED -->

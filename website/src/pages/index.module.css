@@ -1,0 +1,212 @@
+.page {
+  overflow: hidden;
+}
+
+.hero {
+  padding: 5.5rem 0 4rem;
+}
+
+.heroGrid {
+  display: grid;
+  gap: 2rem;
+}
+
+.copy {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.eyebrow,
+.sectionEyebrow,
+.signalLabel,
+.panelLabel {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.eyebrow,
+.sectionEyebrow,
+.signalLabel {
+  color: var(--transit-signal);
+}
+
+.copy h1,
+.sectionHeader h2 {
+  margin: 0;
+  color: var(--transit-ink);
+  letter-spacing: -0.05em;
+}
+
+.copy h1 {
+  max-width: 11ch;
+  font-size: clamp(3rem, 7vw, 5.5rem);
+  line-height: 0.92;
+}
+
+.sectionHeader h2 {
+  max-width: 18ch;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 0.98;
+}
+
+.lede {
+  max-width: 35rem;
+  margin: 0;
+  font-size: 1.18rem;
+  line-height: 1.7;
+  color: var(--transit-ink-soft);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.primary,
+.secondary {
+  border-radius: 999px;
+  padding: 0.9rem 1.4rem;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.primary {
+  background: linear-gradient(135deg, var(--transit-navy), #0f6f79);
+  color: #fdf8ef;
+  box-shadow: 0 18px 40px rgba(13, 47, 66, 0.18);
+}
+
+.secondary {
+  border: 1px solid rgba(15, 63, 87, 0.18);
+  background: rgba(255, 253, 248, 0.86);
+  color: var(--transit-ink);
+}
+
+.points {
+  display: grid;
+  gap: 0.55rem;
+  padding-left: 1.2rem;
+  margin: 0;
+  color: var(--transit-ink-soft);
+}
+
+.panel {
+  display: flex;
+}
+
+.mapCard {
+  width: 100%;
+  padding: 1.5rem;
+  border-radius: 1.5rem;
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(245, 236, 221, 0.92));
+  border: 1px solid rgba(18, 58, 77, 0.12);
+  box-shadow: 0 24px 60px rgba(18, 58, 77, 0.14);
+}
+
+.diagram {
+  margin: 0.8rem 0 1rem;
+  padding: 1rem;
+  overflow: auto;
+  border-radius: 1rem;
+  background: #132f3d;
+  color: #f2ede1;
+  font-size: 0.92rem;
+}
+
+.steps {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--transit-ink);
+}
+
+.steps span {
+  display: block;
+  font-weight: 700;
+}
+
+.steps code {
+  font-size: 0.88rem;
+}
+
+.section,
+.sectionAlt {
+  padding: 4rem 0;
+}
+
+.sectionAlt {
+  background: linear-gradient(180deg, rgba(208, 221, 220, 0.26), rgba(255, 255, 255, 0));
+}
+
+.sectionHeader {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 1.8rem;
+}
+
+.sectionHeader p {
+  max-width: 40rem;
+  margin: 0;
+  color: var(--transit-ink-soft);
+}
+
+.signalGrid,
+.trackGrid {
+  display: grid;
+  gap: 1rem;
+}
+
+.signalCard,
+.trackCard {
+  border-radius: 1.3rem;
+  border: 1px solid rgba(18, 58, 77, 0.12);
+  background: rgba(255, 253, 248, 0.88);
+  box-shadow: 0 18px 42px rgba(18, 58, 77, 0.1);
+}
+
+.signalCard {
+  padding: 1.35rem;
+}
+
+.signalCard p:last-child {
+  margin: 0;
+  color: var(--transit-ink-soft);
+}
+
+.trackCard {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.35rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.trackCard strong {
+  color: var(--transit-ink);
+  font-size: 1.1rem;
+}
+
+.trackCard span {
+  color: var(--transit-ink-soft);
+}
+
+@media (min-width: 996px) {
+  .heroGrid {
+    grid-template-columns: minmax(0, 1.2fr) minmax(21rem, 0.8fr);
+    align-items: center;
+  }
+
+  .signalGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .trackGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+

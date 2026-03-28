@@ -1,0 +1,41 @@
+---
+title: Core Model
+sidebar_position: 3
+description: Learn the core Transit terms without dropping into internal planning language.
+---
+
+# Core Model
+
+Transit uses a small set of words consistently.
+
+## Records
+
+A `record` is immutable payload plus headers and timestamps. Once acknowledged, it should not be rewritten in place.
+
+## Streams
+
+A `stream` is an ordered append-only sequence of records.
+
+## Branches
+
+A `branch` is a real child stream with explicit ancestry. It is not a filtered consumer view.
+
+## Merges
+
+A `merge` is an explicit reconciliation step that records parent lineage instead of hiding history.
+
+## Segments And Manifests
+
+- A `segment` is an immutable ordered block of records.
+- A `manifest` maps stream history to those segments across local and remote storage.
+
+## Durability Language
+
+Transit keeps durability explicit:
+
+- `local` means durable on the local node
+- `replicated` means the replicated handoff boundary has been published
+- `tiered` means remote-tier durability is established for cold history
+
+The exact meanings matter. The public docs should clarify them, not blur them.
+

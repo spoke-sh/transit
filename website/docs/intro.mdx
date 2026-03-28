@@ -1,0 +1,44 @@
+---
+title: Transit, Explained
+sidebar_position: 1
+description: A user-facing introduction to Transit as a lineage-aware event log for embedded and server deployments.
+---
+
+# Transit, Explained
+
+Transit is an append-only event line built for systems that need more than a flat log.
+
+It gives you:
+
+- **streams** for ordered immutable history
+- **branches** for cheap divergence without copying old records
+- **merges** for explicit reconciliation
+- **tiered storage** so local hot state and remote history stay separate and visible
+- one engine that can run **embedded in-process** or as a **networked server**
+
+The product point is not "Kafka, but renamed." Transit is designed for workloads where lineage matters: AI traces, experiments, communication threads, derived views, and systems that need to prove how state evolved rather than only what the latest answer is.
+
+## Why The Name Fits
+
+Think about a rail network instead of a single straight track.
+
+- A `stream` is a line with ordered stops.
+- A `branch` is a spur that leaves the main line at a known junction.
+- A `merge` is an explicit interchange back into another route.
+- A `manifest` is the timetable and routing sheet for immutable segments.
+
+That metaphor matters because Transit treats divergence as a normal operating mode, not as an error the application has to hide.
+
+## Two Ways To Use Transit
+
+Transit has one engine and two delivery modes:
+
+- **Embedded / library mode** when your process wants direct local access to append, replay, branch, merge, and publish history.
+- **Server mode** when you want the same semantics over a network boundary through the Transit daemon and client surfaces.
+
+Those are packaging choices on top of the same storage semantics. The server is not a second database.
+
+## What Comes Next
+
+Start with [Choose Your Track](./start-here/choose-your-track.mdx) if you want the fastest path into the repo.
+

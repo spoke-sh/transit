@@ -1,0 +1,164 @@
+@import '@fontsource-variable/geist/wght.css';
+@import '@fontsource-variable/geist-mono/wght.css';
+
+:root {
+  --ifm-color-primary: #0f5c66;
+  --ifm-color-primary-dark: #0d535c;
+  --ifm-color-primary-darker: #0c4d56;
+  --ifm-color-primary-darkest: #093f46;
+  --ifm-color-primary-light: #126873;
+  --ifm-color-primary-lighter: #167681;
+  --ifm-color-primary-lightest: #25919e;
+  --ifm-background-color: #f7f1e6;
+  --ifm-background-surface-color: rgba(255, 251, 244, 0.92);
+  --ifm-code-font-size: 88%;
+  --ifm-font-family-base:
+    'Geist Variable',
+    'Geist',
+    'Segoe UI',
+    sans-serif;
+  --ifm-font-family-monospace:
+    'Geist Mono Variable',
+    'Geist Mono',
+    'SFMono-Regular',
+    monospace;
+  --ifm-heading-font-family: var(--ifm-font-family-base);
+  --ifm-navbar-background-color: rgba(16, 44, 61, 0.96);
+  --ifm-footer-background-color: #102c3d;
+  --ifm-heading-color: #14384b;
+  --ifm-link-color: #0f5c66;
+  --ifm-link-hover-color: #0a444d;
+  --ifm-menu-color-background-active: rgba(15, 92, 102, 0.12);
+  --ifm-menu-color-background-hover: rgba(15, 92, 102, 0.08);
+  --docusaurus-highlighted-code-line-bg: rgba(15, 92, 102, 0.12);
+  --transit-ink: #14384b;
+  --transit-ink-soft: #4a6272;
+  --transit-navy: #102c3d;
+  --transit-signal: #ba5a2d;
+  --transit-sand: #eadfcd;
+}
+
+html {
+  background:
+    radial-gradient(circle at top right, rgba(186, 90, 45, 0.14), transparent 22%),
+    radial-gradient(circle at left center, rgba(15, 92, 102, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(20, 56, 75, 0.03) 0 2px,
+      transparent 2px 48px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(186, 90, 45, 0.025) 0 1px,
+      transparent 1px 48px
+    ),
+    var(--ifm-background-color);
+}
+
+body {
+  color: var(--transit-ink);
+  letter-spacing: -0.012em;
+}
+
+.navbar {
+  backdrop-filter: blur(18px);
+  box-shadow: 0 16px 34px rgba(16, 44, 61, 0.22);
+}
+
+.navbar__brand,
+.navbar__brand:hover,
+.navbar__link,
+.navbar__title {
+  color: rgba(250, 244, 235, 0.92);
+}
+
+.navbar__title {
+  font-size: 1.12rem;
+  font-weight: 720;
+  letter-spacing: -0.03em;
+}
+
+.footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.footer::before {
+  content: '||  ||||  ||  ||||  ||  ||||';
+  display: block;
+  padding-top: 1.2rem;
+  text-align: center;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.76rem;
+  letter-spacing: 0.2em;
+  color: rgba(250, 244, 235, 0.4);
+}
+
+.theme-doc-markdown {
+  font-size: 1.04rem;
+  line-height: 1.8;
+}
+
+.theme-doc-markdown h1,
+.theme-doc-markdown h2,
+.theme-doc-markdown h3 {
+  color: var(--transit-ink);
+  letter-spacing: -0.045em;
+}
+
+.theme-doc-markdown h1 {
+  max-width: 14ch;
+  font-size: clamp(2.9rem, 5vw, 4.5rem);
+  line-height: 0.94;
+}
+
+.theme-doc-markdown h2 {
+  max-width: 19ch;
+  margin-top: 3.5rem;
+  font-size: clamp(1.85rem, 3vw, 2.8rem);
+  line-height: 1;
+}
+
+.theme-doc-markdown h2::after {
+  content: 'signal / junction / timetable';
+  display: block;
+  margin-top: 0.75rem;
+  color: rgba(186, 90, 45, 0.72);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.theme-doc-markdown p,
+.theme-doc-markdown ul,
+.theme-doc-markdown ol,
+.theme-doc-markdown blockquote {
+  max-width: 68ch;
+  color: var(--transit-ink-soft);
+}
+
+.theme-doc-markdown strong {
+  color: var(--transit-ink);
+}
+
+.theme-doc-markdown code {
+  border: 1px solid rgba(16, 44, 61, 0.1);
+  background: rgba(255, 253, 248, 0.9);
+}
+
+.theme-doc-sidebar-container {
+  background: rgba(255, 253, 248, 0.55);
+}
+
+.theme-doc-sidebar-item-link-level-1.menu__list-item-collapsible,
+.theme-doc-sidebar-item-link {
+  border-radius: 0.8rem;
+}
+
+.pagination-nav__link,
+.table-of-contents {
+  background: rgba(255, 253, 248, 0.74);
+  border: 1px solid rgba(16, 44, 61, 0.1);
+  box-shadow: 0 14px 28px rgba(16, 44, 61, 0.08);
+}
+

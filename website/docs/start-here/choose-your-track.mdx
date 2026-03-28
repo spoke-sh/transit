@@ -1,0 +1,45 @@
+---
+title: Choose Your Track
+sidebar_position: 2
+description: Pick the right starting path depending on whether you want Transit as a library or a server.
+---
+
+# Choose Your Track
+
+Most first-time users arrive with one of two goals:
+
+## Embedded Track
+
+Choose this path if you want Transit as a Rust library inside your own process.
+
+Typical signs:
+
+- you want local append and replay first
+- you care about branch and merge semantics in-process
+- you want to understand tiered publication and restore without a network hop
+
+Start with:
+
+- the root `README.md`
+- `just screen`
+- the local and tiered proof paths surfaced by the CLI
+
+## Server Track
+
+Choose this path if you want to run Transit as a daemon and access it over the network.
+
+Typical signs:
+
+- you want a remote append/read/tail surface
+- you need client/server separation
+- you want the same shared engine semantics exposed through a server boundary
+
+Start with:
+
+- `just screen`
+- `just rust-client-proof`
+- the networked server proof in the CLI output
+
+## Current State
+
+This site is the public onramp, not the whole product reference yet. The next docs slices will expand the library guide, the server guide, and the published reference set.

@@ -85,7 +85,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Launch Public Docs Platform](epics/VF7qPMy1g/voyages/VF7qsOO8T/) | planned |
+| [Launch Public Docs Platform](epics/VF7qPMy1g/voyages/VF7qsOO8T/) | in-progress |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
