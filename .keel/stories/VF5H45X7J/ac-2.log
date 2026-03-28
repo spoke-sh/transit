@@ -1,0 +1,3 @@
+Reviewed `.keel/epics/VDd1J2IDM/voyages/VF5GTdm4X/SRS.md` preserved invariants and `.keel/epics/VDd1J2IDM/voyages/VF5GTdm4X/SDD.md` preserved invariants section.
+
+Confirmed the clustered plan preserves primary-ordered history, immutable rolled segments plus manifest updates, shared lineage semantics, and the object-storage-native publication path from the shared engine.

@@ -1,0 +1,6 @@
+Reviewed `.keel/epics/VDd1J2IDM/voyages/VF5GTdm4X/SRS.md`.
+
+Confirmed the SRS now makes operator language explicit enough to distinguish:
+- `local` commitment on the primary hot head
+- `replicated` clustered handoff for follower catch-up
+- `tiered` remote durability for cold restore and retention

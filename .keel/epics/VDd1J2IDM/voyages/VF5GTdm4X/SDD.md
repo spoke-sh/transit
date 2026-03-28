@@ -41,6 +41,7 @@ Out of scope: implementing replication transport, follower catch-up, cluster mem
 | First clustered model | Single-primary leader/follower topology | Preserves one writable stream head while giving followers an explicit clustered role |
 | First replication unit | Rolled segments plus manifest updates | Matches the object-storage-native design and avoids record-by-record replication on the hot path |
 | Follower role | Followers restore and catch up from remote-tier history | Reuses existing restore semantics and keeps clustered replicas aligned with published history |
+| Ack boundary model | Keep `local`, `replicated`, and `tiered` as distinct operator commitments even when they share the same publish path | Avoids semantic drift between cluster handoff and remote durability |
 | Excluded alternatives | No quorum writes, multi-primary, or general consensus in the first slice | Keeps the next slice bounded and aligned with the epic PRD |
 | Planning output shape | Produce explicit model, invariants, and decomposition artifacts | Converts research into executable work instead of leaving a vague draft epic |
 | Storage boundary | Preserve shared-engine semantics and object-store-native history | Prevents replicated work from inventing a second semantic world |
@@ -55,6 +56,24 @@ The voyage defines three planning layers that must stay coherent:
   Defines acknowledgement, durability, and restore/catch-up boundaries across local, replicated, and tiered modes.
 - `delivery decomposition`
   Breaks the chosen model into the first execution voyage and initial stories with explicit exclusions.
+
+## Guarantee Surface
+
+| Commitment | Meaning | Trigger | Operator Reading |
+|------------|---------|---------|------------------|
+| `local` | The primary has durably accepted an append on the live writable head. | Existing local durability contract completes on the primary node. | The record is safe on the primary, but no clustered replica or remote restore claim has been made yet. |
+| `replicated` | The append has crossed the clustered handoff boundary. | The primary rolls the relevant immutable segment and publishes that segment plus manifest update into the remote tier so followers can restore and catch up from published history. | Followers may still be behind, but the cluster now has a durable shared handoff surface outside the primary's hot head. |
+| `tiered` | The append is durable as remote history under the tiered-storage contract. | The same published segment, manifest update, and referenced objects are durable in the remote tier and suitable for cold restore independent of primary-local retention. | Operators can reason about restore/retention durability without inferring follower hydration or failover behavior. |
+
+For this first clustered model, the `replicated` and `tiered` commitments can be produced by the same publication event because the remote tier is both the follower catch-up surface and the object-store durability surface. They are still documented separately because clustered availability and tiered retention answer different operator questions.
+
+## Preserved Invariants
+
+- One writable local head remains the ordering authority for a stream or branch; followers never create competing acknowledged heads in this slice.
+- Replication ships rolled immutable segments plus manifest updates, so acknowledged records remain immutable and replay order remains identical to the shared engine.
+- Followers learn history through published manifests and segments, which preserves lineage, branch ancestry, and merge visibility instead of creating a server-only branch model.
+- Object-store publication remains the serious persistence substrate for clustered history; no separate replicated WAL, follower-only log, or alternate manifest format is introduced.
+- Referenced large objects must be durable alongside the manifest publication they are named from, so clustered durability does not diverge from object-storage-native semantics.
 
 ## Components
 
@@ -81,10 +100,13 @@ This voyage does not introduce runtime APIs. Its interfaces are planning artifac
 ## Data Flow
 
 1. The primary node accepts writes on its local head and rolls immutable segments.
-2. Rolled segments and manifest updates become the replication surface published into the remote tier.
-3. Followers restore and catch up from the remote tier instead of receiving record-by-record replicated writes.
-4. The planning artifacts capture that model, its exclusions, and the next execution slice.
-5. The mission advances once the epic has actionable voyages and stories anchored to that model.
+2. A `local` acknowledgement only claims that the append is durable on the primary under the existing shared-engine contract.
+3. Rolled segments and manifest updates become the replication surface published into the remote tier.
+4. A `replicated` acknowledgement claims that this published immutable surface now exists for follower restore and catch-up, not that any follower has already applied it.
+5. A `tiered` acknowledgement claims that the same published surface is durable for cold restore and retention in the remote tier, independent of the primary's hot local head.
+6. Followers restore and catch up from the remote tier instead of receiving record-by-record replicated writes.
+7. The planning artifacts capture that model, its exclusions, guarantees, and the next execution slice.
+8. The mission advances once the epic has actionable voyages and stories anchored to that model.
 
 ## Error Handling
 

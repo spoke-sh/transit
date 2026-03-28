@@ -27,11 +27,11 @@ started_at: 2026-03-27T18:01:14
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Define Clustered Replication Model](../../../../stories/VF5H45U7K/README.md) | feat | done |
-| [Define Replicated Durability And Ack Boundaries](../../../../stories/VF5H45X7J/README.md) | feat | backlog |
+| [Define Replicated Durability And Ack Boundaries](../../../../stories/VF5H45X7J/README.md) | feat | done |
 | [Decompose Initial Clustered Delivery Slice](../../../../stories/VF5H46G7I/README.md) | feat | backlog |
 <!-- END GENERATED -->

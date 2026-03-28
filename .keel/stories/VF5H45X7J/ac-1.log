@@ -1,0 +1,3 @@
+Reviewed `.keel/epics/VDd1J2IDM/voyages/VF5GTdm4X/SRS.md` and `.keel/epics/VDd1J2IDM/voyages/VF5GTdm4X/SDD.md`.
+
+Confirmed both documents now define explicit `local`, `replicated`, and `tiered` commitment boundaries, including the specific trigger and non-claim for each level in the first clustered model.

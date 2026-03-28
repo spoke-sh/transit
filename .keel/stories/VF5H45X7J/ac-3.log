@@ -1,0 +1,3 @@
+Reviewed `.keel/epics/VDd1J2IDM/PRD.md` FR-01 and `.keel/epics/VDd1J2IDM/voyages/VF5GTdm4X/SDD.md`.
+
+Confirmed the guarantee surface is still anchored to the shared engine: clustered durability is expressed through primary-local state, rolled immutable segments, manifest updates, and remote-tier publication rather than any server-only replication log or alternate storage model.

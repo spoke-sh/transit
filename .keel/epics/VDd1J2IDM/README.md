@@ -19,8 +19,8 @@ created_at: 2026-03-12T19:33:49
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 1/3 stories done
+**Progress:** 0/1 voyages complete, 2/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Define Initial Replication Model And Boundaries](voyages/VF5GTdm4X/) | in-progress | 1/3 |
+| [Define Initial Replication Model And Boundaries](voyages/VF5GTdm4X/) | in-progress | 2/3 |
 <!-- END GENERATED -->
