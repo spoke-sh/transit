@@ -87,11 +87,11 @@
 |--------|--------|
 | [Launch Public Docs Platform](epics/VF7qPMy1g/voyages/VF7qsOO8T/) | done |
 
-### [Adopt Keel Docs Theme With Subway Palette](epics/VFC1jEl3d/) (active)
+### [Adopt Keel Docs Theme With Subway Palette](epics/VFC1jEl3d/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Re-skin Transit Public Docs](epics/VFC1jEl3d/voyages/VFC1kvq6u/) | planned |
+| [Re-skin Transit Public Docs](epics/VFC1jEl3d/voyages/VFC1kvq6u/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

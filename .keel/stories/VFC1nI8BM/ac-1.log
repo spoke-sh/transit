@@ -1,0 +1,11 @@
+Ported the shared docs shell to the upstream Keel structure.
+
+Changed files:
+- `website/src/theme/Navbar/Layout/index.tsx`
+- `website/src/theme/Navbar/Layout/styles.module.css`
+- `website/src/css/custom.css`
+
+Confirmed the Transit site now exposes and styles the same shell primitives the upstream Keel theme expects:
+- swizzled navbar layout renders `navbar__surface` and `navbar__slice`
+- shared docs chrome uses the same raised-panel, sidebar, TOC, pagination, and doc-body treatment patterns
+- the site still builds successfully after the port via `just docs-build`

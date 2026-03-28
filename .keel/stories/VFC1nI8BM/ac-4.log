@@ -1,0 +1,9 @@
+Reviewed the refreshed shell for readability and contrast.
+
+Confirmed the main readability protections remain intact:
+- cream page surfaces keep long-form docs comfortable to read
+- body text and headings use dark ink values with strong contrast
+- inline code, preformatted blocks, nav links, and buttons retain clear separation from surrounding surfaces
+- route colors are used as accents rather than replacing the primary reading colors
+
+The visual refresh increases character without making the docs harder to scan.

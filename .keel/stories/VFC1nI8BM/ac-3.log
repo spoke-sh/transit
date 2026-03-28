@@ -1,0 +1,11 @@
+Restyled the Transit homepage to use the Keel visual language while preserving Transit content.
+
+Changed files:
+- `website/src/pages/index.tsx`
+- `website/src/pages/index.module.css`
+
+Confirmed the homepage now uses:
+- a Keel-style hero with strong copy, paired CTA buttons, and framed scene panel
+- route-badge cards for the three core product signals
+- track-selection cards for embedded, server, and reference docs paths
+- a closing CTA band that keeps Transit’s existing docs routes intact

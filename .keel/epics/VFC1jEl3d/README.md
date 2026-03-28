@@ -22,8 +22,8 @@ index: 11
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/1 stories done
+**Progress:** 1/1 voyages complete, 1/1 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Re-skin Transit Public Docs](voyages/VFC1kvq6u/) | planned | 0/1 |
+| [Re-skin Transit Public Docs](voyages/VFC1kvq6u/) | done | 1/1 |
 <!-- END GENERATED -->

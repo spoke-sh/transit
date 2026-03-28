@@ -1,0 +1,9 @@
+Reviewed the refreshed palette and shell chrome for Transit-specific differentiation.
+
+Confirmed the subway-inspired color treatment is visible across the shell:
+- top navbar surface is route red rather than the upstream Keel blue
+- navbar slice layers use yellow and blue route accents under the header
+- footer shifts to deep route blue while links remain legible
+- buttons, pills, and card accents reuse red, blue, yellow, and green route tones
+
+The shell reads as the Keel theme family with a clearly different Transit identity.

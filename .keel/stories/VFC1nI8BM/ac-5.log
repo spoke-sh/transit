@@ -1,0 +1,10 @@
+Ran the public docs verification commands in the repo shell:
+
+- `nix shell nixpkgs#nodejs_20 --command npm --prefix website run typecheck`
+- `just docs-build`
+
+Results:
+- TypeScript check passed with `tsc --noEmit`
+- Docusaurus build completed successfully and generated static files in `website/build`
+
+The existing docs workflow still works after the theme port.
