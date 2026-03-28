@@ -1,0 +1,4 @@
+Reviewed `crates/transit-core/src/engine.rs` and ran:
+- `cargo test -p transit-core read_only_replica -- --nocapture`
+
+Confirmed follower advancement is defined through `sync_read_only_replica_from_frontier(...)`, which consumes the persisted published frontier and remote manifest to materialize only newly published segments. The follower catch-up path never uses direct record fan-out or follower-local append writes.

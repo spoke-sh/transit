@@ -1,0 +1,4 @@
+Reviewed `crates/transit-core/src/engine.rs` and ran:
+- `cargo test -p transit-core read_only_replica -- --nocapture`
+
+Confirmed a `LocalEngineConfig::as_read_only_replica()` follower can bootstrap from a published replication frontier, restore the published remote history locally, replay that history, and keep an empty active head while rejecting direct writes.

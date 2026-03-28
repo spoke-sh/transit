@@ -1,0 +1,3 @@
+Reviewed the read-only replica access mode and sync semantics in `crates/transit-core/src/engine.rs`.
+
+Confirmed the follower slice remains explicitly below consensus and failover scope: replicas are read-only, sync is driven by published manifest frontiers, and the implementation does not introduce lease transfer, election, quorum acknowledgement, or writable-follower behavior.

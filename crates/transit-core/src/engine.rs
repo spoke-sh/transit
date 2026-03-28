@@ -34,11 +34,31 @@ impl DurabilityMode {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AccessMode {
+    ReadWrite,
+    ReadOnlyReplica,
+}
+
+impl AccessMode {
+    pub const fn allows_writes(self) -> bool {
+        matches!(self, Self::ReadWrite)
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ReadWrite => "read_write",
+            Self::ReadOnlyReplica => "read_only_replica",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LocalEngineConfig {
     data_dir: PathBuf,
     segment_max_records: u64,
     durability: DurabilityMode,
+    access_mode: AccessMode,
 }
 
 impl LocalEngineConfig {
@@ -47,6 +67,7 @@ impl LocalEngineConfig {
             data_dir: data_dir.into(),
             segment_max_records: 1_024,
             durability: DurabilityMode::Local,
+            access_mode: AccessMode::ReadWrite,
         }
     }
 
@@ -69,6 +90,15 @@ impl LocalEngineConfig {
 
     pub fn durability(&self) -> DurabilityMode {
         self.durability
+    }
+
+    pub fn access_mode(&self) -> AccessMode {
+        self.access_mode
+    }
+
+    pub fn as_read_only_replica(mut self) -> Self {
+        self.access_mode = AccessMode::ReadOnlyReplica;
+        self
     }
 }
 
@@ -226,6 +256,47 @@ impl LocalRestoreOutcome {
 
     pub fn next_offset(&self) -> Offset {
         self.next_offset
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalReplicaSyncOutcome {
+    stream_id: StreamId,
+    durability: DurabilityMode,
+    restored_segment_ids: Vec<SegmentId>,
+    manifest_generation: u64,
+    manifest_object_key: ObjectStoreKey,
+    next_offset: Offset,
+    bootstrapped: bool,
+}
+
+impl LocalReplicaSyncOutcome {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn durability(&self) -> DurabilityMode {
+        self.durability
+    }
+
+    pub fn restored_segment_ids(&self) -> &[SegmentId] {
+        &self.restored_segment_ids
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+
+    pub fn manifest_object_key(&self) -> &ObjectStoreKey {
+        &self.manifest_object_key
+    }
+
+    pub fn next_offset(&self) -> Offset {
+        self.next_offset
+    }
+
+    pub fn bootstrapped(&self) -> bool {
+        self.bootstrapped
     }
 }
 
@@ -396,6 +467,10 @@ impl LocalEngine {
         self.inner.config.durability()
     }
 
+    pub fn access_mode(&self) -> AccessMode {
+        self.inner.config.access_mode()
+    }
+
     /// Bind a consensus lease handle to this engine for a specific stream.
     pub fn bind_consensus(
         &self,
@@ -416,6 +491,7 @@ impl LocalEngine {
     }
 
     pub fn create_stream(&self, descriptor: StreamDescriptor) -> Result<LocalStreamStatus> {
+        self.ensure_writable("create stream", Some(&descriptor.stream_id))?;
         let state = self.initialize_stream_state(descriptor)?;
         let stream_dir = self.stream_dir(state.stream_id());
         ensure!(
@@ -453,10 +529,12 @@ impl LocalEngine {
         parent: StreamPosition,
         metadata: LineageMetadata,
     ) -> Result<LocalStreamStatus> {
+        self.ensure_writable("create branch", Some(&stream_id))?;
         self.create_stream(StreamDescriptor::branch(stream_id, parent, metadata)?)
     }
 
     pub fn create_merge(&self, stream_id: StreamId, merge: MergeSpec) -> Result<LocalStreamStatus> {
+        self.ensure_writable("create merge", Some(&stream_id))?;
         self.create_stream(StreamDescriptor::merge(stream_id, merge)?)
     }
 
@@ -465,6 +543,7 @@ impl LocalEngine {
         stream_id: &StreamId,
         payload: impl AsRef<[u8]>,
     ) -> Result<LocalAppendOutcome> {
+        self.ensure_writable("append to", Some(stream_id))?;
         ensure!(
             self.is_leader(stream_id),
             "not the leader for stream '{}'",
@@ -937,6 +1016,206 @@ impl LocalEngine {
             .transpose()
     }
 
+    pub async fn sync_read_only_replica_from_frontier(
+        &self,
+        store: &dyn ObjectStore,
+        frontier: &LocalPublishedReplicationFrontier,
+    ) -> Result<LocalReplicaSyncOutcome> {
+        ensure!(
+            self.access_mode() == AccessMode::ReadOnlyReplica,
+            "sync_read_only_replica_from_frontier requires read-only replica mode"
+        );
+
+        let remote_manifest = fetch_remote_manifest(store, frontier.manifest_object_key()).await?;
+        ensure!(
+            remote_manifest.stream_id() == frontier.stream_id(),
+            "published frontier stream '{}' does not match remote manifest '{}'",
+            frontier.stream_id().as_str(),
+            remote_manifest.stream_id().as_str()
+        );
+        ensure!(
+            remote_manifest.manifest_id() == frontier.manifest_id(),
+            "published frontier manifest '{}' does not match remote manifest '{}'",
+            frontier.manifest_id().as_str(),
+            remote_manifest.manifest_id().as_str()
+        );
+        ensure!(
+            remote_manifest.generation() == frontier.manifest_generation(),
+            "published frontier generation {} does not match remote manifest generation {}",
+            frontier.manifest_generation(),
+            remote_manifest.generation()
+        );
+        ensure!(
+            remote_manifest.manifest_root() == frontier.manifest_root(),
+            "published frontier root '{}' does not match remote manifest root '{}'",
+            frontier.manifest_root().digest(),
+            remote_manifest.manifest_root().digest()
+        );
+
+        let stream_id = frontier.stream_id().clone();
+        let stream_dir = self.stream_dir(&stream_id);
+        let bootstrapped = !stream_dir.exists();
+        let initial_next_offset =
+            initial_next_offset_from_descriptor(remote_manifest.stream_descriptor());
+        let mut restored_segment_ids = Vec::new();
+        let updated_segments = if bootstrapped {
+            fs::create_dir_all(stream_dir.join(SEGMENTS_DIR))
+                .with_context(|| format!("create stream directory at {}", stream_dir.display()))?;
+
+            let mut expected_start_offset = initial_next_offset;
+            let mut updated_segments = Vec::with_capacity(remote_manifest.segments().len());
+            for descriptor in remote_manifest.segments() {
+                ensure!(
+                    descriptor.start_offset().value() == expected_start_offset,
+                    "remote segment '{}' starts at {} but bootstrap expected {}",
+                    descriptor.segment_id().as_str(),
+                    descriptor.start_offset().value(),
+                    expected_start_offset
+                );
+                let restored_descriptor = materialize_remote_segment(
+                    store,
+                    descriptor,
+                    &self.segment_path(&stream_id, descriptor.segment_id()),
+                )
+                .await?;
+                expected_start_offset = descriptor.last_offset().value() + 1;
+                restored_segment_ids.push(descriptor.segment_id().clone());
+                updated_segments.push(restored_descriptor);
+            }
+            updated_segments
+        } else {
+            let local_state = self.load_state(&stream_id)?;
+            let local_manifest = self.load_manifest(&stream_id)?;
+            ensure!(
+                local_state.active_record_count == 0,
+                "read-only replica '{}' cannot catch up while active local records are present",
+                stream_id.as_str()
+            );
+            ensure!(
+                remote_manifest.generation() >= local_manifest.generation(),
+                "published frontier generation {} is behind local manifest generation {}",
+                remote_manifest.generation(),
+                local_manifest.generation()
+            );
+            ensure!(
+                local_manifest.segments().len() <= remote_manifest.segments().len(),
+                "local replica has {} segments but remote manifest only has {}",
+                local_manifest.segments().len(),
+                remote_manifest.segments().len()
+            );
+            ensure!(
+                local_manifest.stream_descriptor() == remote_manifest.stream_descriptor(),
+                "read-only replica '{}' diverged from remote stream descriptor",
+                stream_id.as_str()
+            );
+
+            let mut updated_segments = Vec::with_capacity(remote_manifest.segments().len());
+            for (index, remote_descriptor) in remote_manifest.segments().iter().enumerate() {
+                if let Some(local_descriptor) = local_manifest.segments().get(index) {
+                    ensure!(
+                        local_descriptor.segment_id() == remote_descriptor.segment_id(),
+                        "local replica segment '{}' does not match remote segment '{}'",
+                        local_descriptor.segment_id().as_str(),
+                        remote_descriptor.segment_id().as_str()
+                    );
+                    ensure!(
+                        local_descriptor.start_offset() == remote_descriptor.start_offset()
+                            && local_descriptor.last_offset() == remote_descriptor.last_offset()
+                            && local_descriptor.content_digest()
+                                == remote_descriptor.content_digest(),
+                        "local replica segment '{}' diverged from published frontier",
+                        local_descriptor.segment_id().as_str()
+                    );
+                    let remote_location = remote_descriptor
+                        .storage()
+                        .object_store()
+                        .cloned()
+                        .with_context(|| {
+                            format!(
+                                "published frontier is missing remote placement for segment '{}'",
+                                remote_descriptor.segment_id().as_str()
+                            )
+                        })?;
+                    let local_path = local_descriptor
+                        .storage()
+                        .local_path()
+                        .cloned()
+                        .with_context(|| {
+                            format!(
+                                "local replica is missing local placement for segment '{}'",
+                                local_descriptor.segment_id().as_str()
+                            )
+                        })?;
+                    updated_segments.push(remote_descriptor.with_storage(StorageLocation::new(
+                        Some(local_path),
+                        Some(remote_location),
+                    )?));
+                } else {
+                    let restored_descriptor = materialize_remote_segment(
+                        store,
+                        remote_descriptor,
+                        &self.segment_path(&stream_id, remote_descriptor.segment_id()),
+                    )
+                    .await?;
+                    restored_segment_ids.push(remote_descriptor.segment_id().clone());
+                    updated_segments.push(restored_descriptor);
+                }
+            }
+            updated_segments
+        };
+
+        let manifest_path = self.manifest_path(&stream_id);
+        let local_manifest = SegmentManifest::new(
+            remote_manifest.manifest_id().clone(),
+            remote_manifest.stream_descriptor().clone(),
+            remote_manifest.generation(),
+            updated_segments,
+            remote_manifest.manifest_root().clone(),
+            StorageLocation::new(
+                Some(manifest_path.clone()),
+                Some(
+                    remote_manifest
+                        .storage()
+                        .object_store()
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            ObjectStoreLocation::new(frontier.manifest_object_key().clone(), None)
+                        }),
+                ),
+            )?,
+            remote_manifest.materialization_boundary().cloned(),
+        );
+        write_json_durable(&manifest_path, &local_manifest)?;
+
+        let next_offset = local_manifest
+            .segments()
+            .last()
+            .map(|descriptor| descriptor.last_offset().value() + 1)
+            .unwrap_or(initial_next_offset);
+        let state = LocalStreamState {
+            descriptor: local_manifest.stream_descriptor().clone(),
+            next_offset,
+            active_segment_sequence: local_manifest.segments().len() as u64,
+            active_segment_start_offset: next_offset,
+            active_record_count: 0,
+            active_byte_length: 0,
+            manifest_generation: local_manifest.generation(),
+            published_manifest: Some(local_manifest.clone()),
+        };
+        write_json_durable(&self.state_path(&stream_id), &state)?;
+        create_empty_file(&self.active_segment_path(&stream_id))?;
+
+        Ok(LocalReplicaSyncOutcome {
+            stream_id,
+            durability: self.durability(),
+            restored_segment_ids,
+            manifest_generation: local_manifest.generation(),
+            manifest_object_key: frontier.manifest_object_key().clone(),
+            next_offset: Offset::new(next_offset),
+            bootstrapped,
+        })
+    }
+
     /// Explicitly verify the cryptographic integrity of local history.
     pub fn verify_local_lineage(&self, stream_id: &StreamId) -> Result<VerifiedLineage> {
         let manifest = self.load_manifest(stream_id)?;
@@ -1102,6 +1381,20 @@ impl LocalEngine {
             parent_status.next_offset().value()
         );
         Ok(())
+    }
+
+    fn ensure_writable(&self, action: &str, stream_id: Option<&StreamId>) -> Result<()> {
+        if self.inner.config.access_mode().allows_writes() {
+            return Ok(());
+        }
+
+        match stream_id {
+            Some(stream_id) => bail!(
+                "read-only replica cannot {action} stream '{}'",
+                stream_id.as_str()
+            ),
+            None => bail!("read-only replica cannot {action}"),
+        }
     }
 
     fn read_replay_records(&self, stream_id: &StreamId) -> Result<Vec<LocalRecord>> {
@@ -1576,6 +1869,82 @@ fn validate_segment_digest(bytes: &[u8], digest: &ContentDigest) -> Result<()> {
     Ok(())
 }
 
+async fn fetch_remote_manifest(
+    store: &dyn ObjectStore,
+    manifest_object_key: &ObjectStoreKey,
+) -> Result<SegmentManifest> {
+    let manifest_bytes = store
+        .get(&ObjectPath::from(manifest_object_key.as_str()))
+        .await
+        .with_context(|| format!("fetch remote manifest {}", manifest_object_key.as_str()))?
+        .bytes()
+        .await
+        .with_context(|| format!("read remote manifest {}", manifest_object_key.as_str()))?;
+    let remote_manifest: SegmentManifest =
+        serde_json::from_slice(&manifest_bytes).context("parse remote manifest")?;
+
+    let computed_root = compute_manifest_root(
+        remote_manifest.manifest_id().clone(),
+        remote_manifest.stream_descriptor(),
+        remote_manifest.generation(),
+        remote_manifest.segments(),
+        remote_manifest.materialization_boundary().cloned(),
+    )?;
+    ensure!(
+        computed_root.digest() == remote_manifest.manifest_root().digest(),
+        "remote manifest root mismatch: expected {}, computed {}",
+        remote_manifest.manifest_root().digest(),
+        computed_root.digest()
+    );
+
+    Ok(remote_manifest)
+}
+
+async fn materialize_remote_segment(
+    store: &dyn ObjectStore,
+    descriptor: &SegmentDescriptor,
+    local_path: &Path,
+) -> Result<SegmentDescriptor> {
+    let remote_location = descriptor.storage().object_store().with_context(|| {
+        format!(
+            "remote segment '{}' is missing object-store location",
+            descriptor.segment_id().as_str()
+        )
+    })?;
+    let bytes = store
+        .get(&ObjectPath::from(remote_location.key().as_str()))
+        .await
+        .with_context(|| format!("fetch remote segment {}", remote_location.key().as_str()))?
+        .bytes()
+        .await
+        .with_context(|| format!("read remote segment {}", remote_location.key().as_str()))?;
+    validate_segment_checksum(&bytes, descriptor.checksum())?;
+    validate_segment_digest(&bytes, descriptor.content_digest())?;
+    ensure!(
+        bytes.len() as u64 == descriptor.byte_length(),
+        "remote segment '{}' expected {} bytes but found {}",
+        descriptor.segment_id().as_str(),
+        descriptor.byte_length(),
+        bytes.len()
+    );
+
+    write_bytes_durable(local_path, &bytes)?;
+    let restored_storage = StorageLocation::new(
+        Some(local_path.to_path_buf()),
+        Some(remote_location.clone()),
+    )?;
+    let restored_descriptor = descriptor.with_storage(restored_storage);
+    let restored_records = read_records(local_path)?;
+    validate_record_offsets(
+        &restored_records,
+        descriptor.start_offset().value(),
+        descriptor.last_offset().value() + 1,
+        &format!("restored segment '{}'", descriptor.segment_id().as_str()),
+    )?;
+
+    Ok(restored_descriptor)
+}
+
 fn write_json_durable<T>(path: &Path, value: &T) -> Result<()>
 where
     T: Serialize,
@@ -1719,7 +2088,7 @@ fn compute_manifest_root(
 
 #[cfg(test)]
 mod tests {
-    use super::{DurabilityMode, LocalEngine, LocalEngineConfig};
+    use super::{AccessMode, DurabilityMode, LocalEngine, LocalEngineConfig};
     use crate::kernel::{
         LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor,
         StreamId, StreamLineage, StreamPosition,
@@ -2741,6 +3110,149 @@ mod tests {
         assert_eq!(replayed.len(), 4);
         assert_eq!(replayed[0].payload(), b"first");
         assert_eq!(replayed[3].payload(), b"fourth");
+    }
+
+    #[tokio::test]
+    async fn read_only_replica_bootstraps_from_published_frontier_and_rejects_writes() {
+        let primary_root = tempdir().expect("primary root");
+        let follower_root = tempdir().expect("follower root");
+        let remote_root = tempdir().expect("remote root");
+        let primary = LocalEngine::open(
+            LocalEngineConfig::new(primary_root.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("primary");
+        let follower =
+            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
+                .expect("follower");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+        let stream_id = stream_id("task.root");
+
+        primary
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second", "third", "fourth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        primary
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish");
+        let frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("published frontier");
+        let sync = follower
+            .sync_read_only_replica_from_frontier(&store, &frontier)
+            .await
+            .expect("sync read-only replica");
+        let replayed = follower.replay(&stream_id).expect("replay");
+
+        assert_eq!(follower.access_mode(), AccessMode::ReadOnlyReplica);
+        assert!(sync.bootstrapped());
+        assert_eq!(sync.restored_segment_ids().len(), 2);
+        assert_eq!(sync.next_offset(), Offset::new(4));
+        assert_eq!(replayed.len(), 4);
+        assert_eq!(replayed[0].payload(), b"first");
+        assert_eq!(replayed[3].payload(), b"fourth");
+        assert_eq!(
+            follower
+                .stream_status(&stream_id)
+                .expect("status")
+                .active_record_count(),
+            0
+        );
+
+        let append_error = follower
+            .append(&stream_id, b"forbidden")
+            .expect_err("read-only replica must reject append");
+        assert!(append_error.to_string().contains("read-only replica"));
+
+        let create_error = follower
+            .create_stream(root_descriptor("task.follower.root"))
+            .expect_err("read-only replica must reject new streams");
+        assert!(create_error.to_string().contains("read-only replica"));
+    }
+
+    #[tokio::test]
+    async fn read_only_replica_catches_up_when_published_frontier_advances() {
+        let primary_root = tempdir().expect("primary root");
+        let follower_root = tempdir().expect("follower root");
+        let remote_root = tempdir().expect("remote root");
+        let primary = LocalEngine::open(
+            LocalEngineConfig::new(primary_root.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("primary");
+        let follower =
+            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
+                .expect("follower");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+        let stream_id = stream_id("task.root");
+
+        primary
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second", "third", "fourth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+        primary
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish first frontier");
+        let first_frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("first frontier");
+        follower
+            .sync_read_only_replica_from_frontier(&store, &first_frontier)
+            .await
+            .expect("initial sync");
+
+        for payload in ["fifth", "sixth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+        primary
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish advanced frontier");
+        let advanced_frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("advanced frontier");
+        let sync = follower
+            .sync_read_only_replica_from_frontier(&store, &advanced_frontier)
+            .await
+            .expect("catch up follower");
+        let replayed = follower.replay(&stream_id).expect("replay");
+        let follower_frontier = follower
+            .published_replication_frontier(&stream_id)
+            .expect("follower frontier lookup")
+            .expect("follower frontier");
+
+        assert!(!sync.bootstrapped());
+        assert_eq!(sync.restored_segment_ids().len(), 1);
+        assert_eq!(sync.next_offset(), Offset::new(6));
+        assert_eq!(replayed.len(), 6);
+        assert_eq!(replayed[4].payload(), b"fifth");
+        assert_eq!(replayed[5].payload(), b"sixth");
+        assert_eq!(
+            follower_frontier.manifest_generation(),
+            advanced_frontier.manifest_generation()
+        );
+        assert_eq!(
+            follower_frontier.next_offset(),
+            advanced_frontier.next_offset()
+        );
     }
 
     #[test]

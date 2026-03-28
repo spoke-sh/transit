@@ -27,11 +27,11 @@ started_at: 2026-03-27T18:16:41
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Bootstrap Read-Only Follower Catch-Up](../../../../stories/VF7VSpveo/README.md) | feat | backlog |
+| [Bootstrap Read-Only Follower Catch-Up](../../../../stories/VF7VSpveo/README.md) | feat | done |
 | [Expose Replicated Acknowledgement Mode](../../../../stories/VF7VSqlep/README.md) | feat | backlog |
 | [Surface Published Replication Frontier](../../../../stories/VF7VSqtej/README.md) | feat | done |
 <!-- END GENERATED -->
