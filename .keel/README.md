@@ -105,10 +105,10 @@
 |--------|--------|
 | [Verifiable Lineage Contract](epics/VDd1F1tUe/voyages/VDdGLscWy/) | done |
 
-### [Research Multi-Node Replication And Server Semantics](epics/VDd1J2IDM/) (active)
+### [Research Multi-Node Replication And Server Semantics](epics/VDd1J2IDM/) (done)
 
 | Voyage | Status |
 |--------|--------|
 | [Define Initial Replication Model And Boundaries](epics/VDd1J2IDM/voyages/VF5GTdm4X/) | done |
-| [Deliver Remote-Tier Replication Handoff Foundations](epics/VDd1J2IDM/voyages/VF7VP3H4s/) | in-progress |
+| [Deliver Remote-Tier Replication Handoff Foundations](epics/VDd1J2IDM/voyages/VF7VP3H4s/) | done |
 

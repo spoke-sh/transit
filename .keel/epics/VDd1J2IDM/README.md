@@ -19,9 +19,9 @@ created_at: 2026-03-12T19:33:49
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/2 voyages complete, 5/6 stories done
+**Progress:** 2/2 voyages complete, 6/6 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
 | [Define Initial Replication Model And Boundaries](voyages/VF5GTdm4X/) | done | 3/3 |
-| [Deliver Remote-Tier Replication Handoff Foundations](voyages/VF7VP3H4s/) | in-progress | 2/3 |
+| [Deliver Remote-Tier Replication Handoff Foundations](voyages/VF7VP3H4s/) | done | 3/3 |
 <!-- END GENERATED -->

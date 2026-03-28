@@ -1,0 +1,9 @@
+Reviewed `crates/transit-cli/src/main.rs` and ran:
+- `cargo test -p transit-cli tiered_engine_proof_exposes_published_frontier -- --nocapture`
+
+Confirmed the tiered proof now exposes a commitment surface with:
+- local head offset
+- replicated frontier offset
+- tiered restore offset
+
+It also reports the explicit replicated acknowledgement result, including the acknowledged position, frontier next offset, manifest generation, and published segment inventory.

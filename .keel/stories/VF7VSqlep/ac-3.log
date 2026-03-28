@@ -1,0 +1,3 @@
+Reviewed the replicated acknowledgement result and tiered proof output in `crates/transit-core/src/engine.rs` and `crates/transit-cli/src/main.rs`.
+
+Confirmed the guarantee language remains explicit: the replicated acknowledgement is tied to publication of the handoff frontier, and the proof surface states that publication does not imply follower hydration, failover readiness, or quorum acknowledgement.

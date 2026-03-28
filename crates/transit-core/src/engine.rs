@@ -53,6 +53,23 @@ impl AccessMode {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CommitmentLevel {
+    Local,
+    Replicated,
+    Tiered,
+}
+
+impl CommitmentLevel {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Replicated => "replicated",
+            Self::Tiered => "tiered",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LocalEngineConfig {
     data_dir: PathBuf,
@@ -125,6 +142,47 @@ impl LocalAppendOutcome {
 
     pub fn rolled_segment(&self) -> Option<&SegmentDescriptor> {
         self.rolled_segment.as_ref()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplicatedAppendOutcome {
+    position: StreamPosition,
+    commitment: CommitmentLevel,
+    manifest_generation: u64,
+    frontier_next_offset: Offset,
+    manifest_object_key: ObjectStoreKey,
+    published_segment_ids: Vec<SegmentId>,
+    rolled_segment_id: Option<SegmentId>,
+}
+
+impl ReplicatedAppendOutcome {
+    pub fn position(&self) -> &StreamPosition {
+        &self.position
+    }
+
+    pub fn commitment(&self) -> CommitmentLevel {
+        self.commitment
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+
+    pub fn frontier_next_offset(&self) -> Offset {
+        self.frontier_next_offset
+    }
+
+    pub fn manifest_object_key(&self) -> &ObjectStoreKey {
+        &self.manifest_object_key
+    }
+
+    pub fn published_segment_ids(&self) -> &[SegmentId] {
+        &self.published_segment_ids
+    }
+
+    pub fn rolled_segment_id(&self) -> Option<&SegmentId> {
+        self.rolled_segment_id.as_ref()
     }
 }
 
@@ -590,6 +648,45 @@ impl LocalEngine {
             durability: self.inner.config.durability(),
             manifest_generation: state.manifest_generation,
             rolled_segment,
+        })
+    }
+
+    pub async fn append_with_replicated_ack(
+        &self,
+        stream_id: &StreamId,
+        payload: impl AsRef<[u8]>,
+        store: &dyn ObjectStore,
+        key_prefix: &str,
+    ) -> Result<ReplicatedAppendOutcome> {
+        let outcome = self.append(stream_id, payload)?;
+        let rolled_segment = match outcome.rolled_segment() {
+            Some(segment) => Some(segment.segment_id().clone()),
+            None => self
+                .roll_active_segment_for_replication(stream_id)?
+                .map(|segment| segment.segment_id().clone()),
+        };
+        let publication = self
+            .publish_rolled_segments(stream_id, store, key_prefix)
+            .await?;
+        let frontier = self
+            .published_replication_frontier(stream_id)?
+            .context("replicated acknowledgement requires a published frontier")?;
+        ensure!(
+            outcome.position().offset.value() < frontier.next_offset().value(),
+            "replicated acknowledgement for '{}' at offset {} did not reach the published frontier {}",
+            stream_id.as_str(),
+            outcome.position().offset.value(),
+            frontier.next_offset().value()
+        );
+
+        Ok(ReplicatedAppendOutcome {
+            position: outcome.position().clone(),
+            commitment: CommitmentLevel::Replicated,
+            manifest_generation: frontier.manifest_generation(),
+            frontier_next_offset: frontier.next_offset(),
+            manifest_object_key: frontier.manifest_object_key().clone(),
+            published_segment_ids: publication.published_segment_ids().to_vec(),
+            rolled_segment_id: rolled_segment,
         })
     }
 
@@ -1418,6 +1515,18 @@ impl LocalEngine {
         Ok(records)
     }
 
+    fn roll_active_segment_for_replication(
+        &self,
+        stream_id: &StreamId,
+    ) -> Result<Option<SegmentDescriptor>> {
+        let mut state = self.load_state(stream_id)?;
+        if state.active_record_count == 0 {
+            return Ok(None);
+        }
+
+        Ok(Some(self.roll_active_segment(&mut state)?))
+    }
+
     fn read_inherited_records(&self, descriptor: &StreamDescriptor) -> Result<Vec<LocalRecord>> {
         match &descriptor.lineage {
             StreamLineage::Root { .. } => Ok(Vec::new()),
@@ -2088,7 +2197,7 @@ fn compute_manifest_root(
 
 #[cfg(test)]
 mod tests {
-    use super::{AccessMode, DurabilityMode, LocalEngine, LocalEngineConfig};
+    use super::{AccessMode, CommitmentLevel, DurabilityMode, LocalEngine, LocalEngineConfig};
     use crate::kernel::{
         LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor,
         StreamId, StreamLineage, StreamPosition,
@@ -3253,6 +3362,55 @@ mod tests {
             follower_frontier.next_offset(),
             advanced_frontier.next_offset()
         );
+    }
+
+    #[tokio::test]
+    async fn replicated_ack_publishes_the_handoff_unit_before_returning() {
+        let temp_dir = tempdir().expect("temp dir");
+        let remote_root = tempdir().expect("remote root");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path())
+                .with_segment_max_records(8)
+                .expect("config"),
+        )
+        .expect("engine");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+
+        let replicated = engine
+            .append_with_replicated_ack(&stream_id, b"replicated", &store, "tiered")
+            .await
+            .expect("replicated ack append");
+        let frontier = engine
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("published frontier");
+        let status = engine.stream_status(&stream_id).expect("status");
+
+        assert_eq!(replicated.commitment(), CommitmentLevel::Replicated);
+        assert_eq!(replicated.position().offset.value(), 0);
+        assert_eq!(replicated.frontier_next_offset(), Offset::new(1));
+        assert_eq!(
+            replicated.manifest_generation(),
+            frontier.manifest_generation()
+        );
+        assert_eq!(
+            replicated.manifest_object_key(),
+            frontier.manifest_object_key()
+        );
+        assert_eq!(replicated.published_segment_ids().len(), 1);
+        assert_eq!(
+            replicated
+                .rolled_segment_id()
+                .expect("forced roll segment")
+                .as_str(),
+            "segment-00000000000000000000"
+        );
+        assert_eq!(status.active_record_count(), 0);
+        assert_eq!(frontier.last_offset(), Some(Offset::new(0)));
     }
 
     #[test]

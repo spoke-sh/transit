@@ -746,6 +746,8 @@ struct TieredEngineProofResult {
     publish_stream: StreamProofSummary,
     restored_stream: StreamProofSummary,
     published_frontier: PublishedFrontierResult,
+    replicated_ack: ReplicatedAckResult,
+    commitment_surface: CommitmentSurfaceResult,
     published_segments: Vec<String>,
     manifest_object_key: String,
     publication_manifest_generation: u64,
@@ -827,6 +829,26 @@ struct PublishedFrontierResult {
     last_offset: Option<u64>,
     next_offset: u64,
     segments: Vec<PublishedFrontierSegmentResult>,
+}
+
+#[derive(Debug, Serialize)]
+struct ReplicatedAckResult {
+    commitment: String,
+    position: String,
+    manifest_generation: u64,
+    frontier_next_offset: u64,
+    manifest_object_key: String,
+    published_segment_ids: Vec<String>,
+    rolled_segment_id: Option<String>,
+    non_claim: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct CommitmentSurfaceResult {
+    local_head_offset: Option<u64>,
+    replicated_frontier_offset: Option<u64>,
+    tiered_restore_offset: Option<u64>,
+    unpublished_local_records: usize,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -2154,7 +2176,8 @@ async fn run_tiered_engine_proof(root: PathBuf) -> Result<TieredEngineProofResul
     )
     .context("open publish engine")?;
     let restore_engine =
-        LocalEngine::open(LocalEngineConfig::new(&restore_root)).context("open restore engine")?;
+        LocalEngine::open(LocalEngineConfig::new(&restore_root).as_read_only_replica())
+            .context("open restore engine")?;
     let store = LocalFileSystem::new_with_prefix(&object_store_root)
         .with_context(|| format!("open local object store at {}", object_store_root.display()))?;
 
@@ -2163,22 +2186,20 @@ async fn run_tiered_engine_proof(root: PathBuf) -> Result<TieredEngineProofResul
         stream_id.clone(),
         LineageMetadata::new(Some("mission".into()), Some("tiered-engine-proof".into())),
     ))?;
-    for payload in ["first", "second", "third", "fourth", "fifth"] {
+    for payload in ["first", "second", "third", "fourth"] {
         publish_engine.append(&stream_id, payload.as_bytes())?;
     }
-
-    let publication = publish_engine
-        .publish_rolled_segments(&stream_id, &store, "tiered-proof")
+    let replicated_ack = publish_engine
+        .append_with_replicated_ack(&stream_id, b"fifth", &store, "tiered-proof")
         .await?;
     let published_frontier = publish_engine
         .published_replication_frontier(&stream_id)?
         .context("tiered proof publish should persist a published frontier")?;
-    let manifest_key = publication
-        .manifest_object_key()
-        .context("tiered proof publish should emit a remote manifest")?
-        .clone();
+    publish_engine.append(&stream_id, b"sixth")?;
+
+    let manifest_key = published_frontier.manifest_object_key().clone();
     let restore = restore_engine
-        .restore_stream_from_remote_manifest(&store, &manifest_key)
+        .sync_read_only_replica_from_frontier(&store, &published_frontier)
         .await?;
 
     let published_records = publish_engine.replay(&stream_id)?;
@@ -2194,21 +2215,34 @@ async fn run_tiered_engine_proof(root: PathBuf) -> Result<TieredEngineProofResul
 
     Ok(TieredEngineProofResult {
         data_root: root,
-        durability: publication.durability().as_str().to_owned(),
+        durability: publish_engine.durability().as_str().to_owned(),
         publish_stream: summarize_stream(&stream_id, &published_records),
         restored_stream: summarize_stream(&stream_id, &restored_records),
         published_frontier: summarize_published_frontier(&published_frontier),
-        published_segments: publication
+        replicated_ack: summarize_replicated_ack(&replicated_ack),
+        commitment_surface: CommitmentSurfaceResult {
+            local_head_offset: published_records
+                .last()
+                .map(|record| record.position().offset.value()),
+            replicated_frontier_offset: published_frontier
+                .last_offset()
+                .map(|offset| offset.value()),
+            tiered_restore_offset: restored_records
+                .last()
+                .map(|record| record.position().offset.value()),
+            unpublished_local_records,
+        },
+        published_segments: replicated_ack
             .published_segment_ids()
             .iter()
             .map(|segment_id| segment_id.as_str().to_owned())
             .collect(),
         manifest_object_key: manifest_key.as_str().to_owned(),
-        publication_manifest_generation: publication.manifest_generation(),
+        publication_manifest_generation: replicated_ack.manifest_generation(),
         restored_manifest_generation: restore.manifest_generation(),
         unpublished_local_records,
-        publication_api: "LocalEngine::publish_rolled_segments",
-        restore_api: "LocalEngine::restore_stream_from_remote_manifest",
+        publication_api: "LocalEngine::append_with_replicated_ack",
+        restore_api: "LocalEngine::sync_read_only_replica_from_frontier",
         replay_after_remote_removal_ok,
     })
 }
@@ -2244,6 +2278,31 @@ fn summarize_published_frontier(
                 object_store_key: segment.object_store_key().as_str().to_owned(),
             })
             .collect(),
+    }
+}
+
+fn summarize_replicated_ack(
+    outcome: &transit_core::engine::ReplicatedAppendOutcome,
+) -> ReplicatedAckResult {
+    ReplicatedAckResult {
+        commitment: outcome.commitment().as_str().to_owned(),
+        position: format!(
+            "{}@{}",
+            outcome.position().stream_id.as_str(),
+            outcome.position().offset.value()
+        ),
+        manifest_generation: outcome.manifest_generation(),
+        frontier_next_offset: outcome.frontier_next_offset().value(),
+        manifest_object_key: outcome.manifest_object_key().as_str().to_owned(),
+        published_segment_ids: outcome
+            .published_segment_ids()
+            .iter()
+            .map(|segment_id| segment_id.as_str().to_owned())
+            .collect(),
+        rolled_segment_id: outcome
+            .rolled_segment_id()
+            .map(|segment_id| segment_id.as_str().to_owned()),
+        non_claim: "publication does not imply follower hydration, failover readiness, or quorum acknowledgement",
     }
 }
 
@@ -3240,6 +3299,23 @@ fn render_tiered_engine_proof(result: TieredEngineProofResult, json: bool) -> Re
         "published frontier manifest object: {}",
         result.published_frontier.manifest_object_key
     );
+    println!(
+        "replicated ack: {} at {}, frontier next {}, manifest {}",
+        result.replicated_ack.commitment,
+        result.replicated_ack.position,
+        result.replicated_ack.frontier_next_offset,
+        result.replicated_ack.manifest_generation
+    );
+    println!(
+        "replicated ack non-claim: {}",
+        result.replicated_ack.non_claim
+    );
+    println!(
+        "commitments: local head {:?}, replicated frontier {:?}, tiered restore {:?}",
+        result.commitment_surface.local_head_offset,
+        result.commitment_surface.replicated_frontier_offset,
+        result.commitment_surface.tiered_restore_offset
+    );
     println!("published segments:");
     for segment_id in &result.published_segments {
         println!("  - {segment_id}");
@@ -4120,15 +4196,15 @@ mod tests {
             .expect("run tiered proof");
 
         assert_eq!(proof.durability, "local");
-        assert_eq!(proof.published_segments.len(), 2);
+        assert_eq!(proof.published_segments.len(), 3);
         assert_eq!(
             proof.published_frontier.manifest_generation,
             proof.publication_manifest_generation
         );
         assert_eq!(proof.published_frontier.start_offset, Some(0));
-        assert_eq!(proof.published_frontier.last_offset, Some(3));
-        assert_eq!(proof.published_frontier.next_offset, 4);
-        assert_eq!(proof.published_frontier.segments.len(), 2);
+        assert_eq!(proof.published_frontier.last_offset, Some(4));
+        assert_eq!(proof.published_frontier.next_offset, 5);
+        assert_eq!(proof.published_frontier.segments.len(), 3);
         assert!(
             proof
                 .published_frontier
@@ -4136,6 +4212,12 @@ mod tests {
                 .contains("tiered-proof")
         );
         assert!(!proof.published_frontier.manifest_root.is_empty());
+        assert_eq!(proof.replicated_ack.commitment, "replicated");
+        assert_eq!(proof.replicated_ack.position, "tiered.root@4");
+        assert_eq!(proof.replicated_ack.frontier_next_offset, 5);
+        assert_eq!(proof.commitment_surface.local_head_offset, Some(5));
+        assert_eq!(proof.commitment_surface.replicated_frontier_offset, Some(4));
+        assert_eq!(proof.commitment_surface.tiered_restore_offset, Some(4));
         assert_eq!(proof.unpublished_local_records, 1);
     }
 }

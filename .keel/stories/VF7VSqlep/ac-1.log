@@ -1,0 +1,4 @@
+Reviewed `crates/transit-core/src/engine.rs` and ran:
+- `cargo test -p transit-core replicated_ack -- --nocapture`
+
+Confirmed `LocalEngine::append_with_replicated_ack(...)` now provides an explicit replicated acknowledgement path that forces the active handoff unit to roll and publish before returning, instead of reporting success at local durability alone.
