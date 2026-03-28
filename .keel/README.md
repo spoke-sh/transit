@@ -123,6 +123,12 @@
 |--------|--------|
 | [Repair Docs Header Layout](epics/VFCvzGZeD/voyages/VFCvzxgfk/) | done |
 
+### [Refine Transit Hero Panel](epics/VFCxQxWxm/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Tune Hero Diagram Card](epics/VFCxQxWxm/voyages/VFCxRwY2T/) | in-progress |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
