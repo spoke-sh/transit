@@ -1,13 +1,15 @@
 ---
 # system-managed
 id: VF5F4AuxO
-status: active
+status: verified
 created_at: 2026-03-27T08:52:48
-updated_at: 2026-03-27T09:02:23
+updated_at: 2026-03-27T18:38:41
 # authored
 title: Plan Multi-Node Replication And Server Semantics
 watch: ~
 activated_at: 2026-03-27T09:02:23
+achieved_at: 2026-03-27T18:37:42
+verified_at: 2026-03-27T18:38:41
 ---
 
 # Plan Multi-Node Replication And Server Semantics

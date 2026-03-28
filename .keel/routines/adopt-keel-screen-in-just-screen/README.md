@@ -5,7 +5,7 @@ cadence:
   cron: "0 9 1 * *"
   timezone: America/Los_Angeles
   trigger: keel-upgrade
-target-scope: VDd1J2IDM
+target-scope: VF7c7T2Hl
 created_at: 2026-03-12T20:05:04
 updated_at: 2026-03-12T20:05:04
 ---
