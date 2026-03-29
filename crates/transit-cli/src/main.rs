@@ -8,7 +8,9 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use transit_core::bootstrap::{MissionStatus, collect_mission_status};
-use transit_core::engine::{LocalEngine, LocalEngineConfig, LocalRecord, LocalRecoveryOutcome};
+use transit_core::engine::{
+    LocalEngine, LocalEngineConfig, LocalRecord, LocalRecoveryOutcome, OwnershipPosture,
+};
 use transit_core::kernel::{
     LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor, StreamId,
     StreamLineage, StreamPosition,
@@ -55,6 +57,8 @@ enum MissionCommands {
     LocalEngineProof(LocalEngineProofArgs),
     /// Exercise publication and cold restore through the shared local engine.
     TieredEngineProof(LocalEngineProofArgs),
+    /// Exercise readiness, lease handoff, and stale-primary fencing for the bounded failover slice.
+    ControlledFailoverProof(LocalEngineProofArgs),
     /// Exercise the networked single-node server and its transport boundary end to end.
     NetworkedServerProof(LocalEngineProofArgs),
     /// Exercise segment, manifest-root, checkpoint, tamper, and server-parity verification across the integrity proof flow.
@@ -368,6 +372,10 @@ async fn main() -> Result<()> {
             MissionCommands::TieredEngineProof(args) => {
                 render_tiered_engine_proof(run_tiered_engine_proof(args.root).await?, args.json)?
             }
+            MissionCommands::ControlledFailoverProof(args) => render_controlled_failover_proof(
+                run_controlled_failover_proof(args.root).await?,
+                args.json,
+            )?,
             MissionCommands::NetworkedServerProof(args) => {
                 render_networked_server_proof(run_networked_server_proof(args.root)?, args.json)?
             }
@@ -756,6 +764,77 @@ struct TieredEngineProofResult {
     publication_api: &'static str,
     restore_api: &'static str,
     replay_after_remote_removal_ok: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct OwnershipPostureResult {
+    posture: String,
+    lease_owner: Option<String>,
+    lease_version: Option<u64>,
+    lease_expires_at: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+struct LocalAppendProofResult {
+    position: String,
+    durability: String,
+    manifest_generation: u64,
+    rolled_segment_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ControlledFailoverReadinessResult {
+    source_replicated_ack: ReplicatedAckResult,
+    restore_next_offset: u64,
+    required_frontier: PublishedFrontierResult,
+    local_frontier: Option<PublishedFrontierResult>,
+    candidate_posture: OwnershipPostureResult,
+    frontier_caught_up: bool,
+    ownership_ready: bool,
+    promotable: bool,
+    blockers: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ControlledFailoverHandoffResult {
+    stream_id: String,
+    previous_owner: String,
+    new_owner: String,
+    lease_version: u64,
+    expires_at: i64,
+    manifest_generation: u64,
+    frontier_next_offset: u64,
+    promoted_posture: OwnershipPostureResult,
+    promoted_append: LocalAppendProofResult,
+}
+
+#[derive(Debug, Serialize)]
+struct ControlledFailoverFencingResult {
+    former_primary_posture: OwnershipPostureResult,
+    former_primary_append_rejected: bool,
+    rejection: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ControlledFailoverContractResult {
+    local: &'static str,
+    replicated: &'static str,
+    tiered: &'static str,
+    quorum: &'static str,
+    multi_primary: &'static str,
+    automation: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct ControlledFailoverProofResult {
+    data_root: PathBuf,
+    stream_id: String,
+    readiness: ControlledFailoverReadinessResult,
+    handoff: ControlledFailoverHandoffResult,
+    fencing: ControlledFailoverFencingResult,
+    contract: ControlledFailoverContractResult,
+    verified: bool,
+    error: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -2247,6 +2326,183 @@ async fn run_tiered_engine_proof(root: PathBuf) -> Result<TieredEngineProofResul
     })
 }
 
+async fn run_controlled_failover_proof(root: PathBuf) -> Result<ControlledFailoverProofResult> {
+    use object_store::local::LocalFileSystem;
+    use transit_core::consensus::{ConsensusProvider, NodeId, ObjectStoreConsensus};
+
+    reset_directory(&root)?;
+
+    let primary_root = root.join("primary");
+    let follower_root = root.join("follower");
+    let object_store_root = root.join("object-store");
+    fs::create_dir_all(&object_store_root).with_context(|| {
+        format!(
+            "create failover object store {}",
+            object_store_root.display()
+        )
+    })?;
+
+    let primary = LocalEngine::open(
+        LocalEngineConfig::new(&primary_root)
+            .with_segment_max_records(2)
+            .context("controlled failover primary config")?,
+    )
+    .context("open controlled failover primary engine")?;
+    let follower = LocalEngine::open(
+        LocalEngineConfig::new(&follower_root)
+            .with_segment_max_records(2)
+            .context("controlled failover follower config")?
+            .as_read_only_replica(),
+    )
+    .context("open controlled failover follower engine")?;
+    let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
+        LocalFileSystem::new_with_prefix(&object_store_root).with_context(|| {
+            format!(
+                "open controlled failover object store {}",
+                object_store_root.display()
+            )
+        })?,
+    );
+    let consensus = ObjectStoreConsensus::new(store.clone(), "leases");
+
+    let stream_id = StreamId::new("mission.failover.root")?;
+    primary.create_stream(StreamDescriptor::root(
+        stream_id.clone(),
+        LineageMetadata::new(
+            Some("mission".into()),
+            Some("controlled-failover-proof".into()),
+        ),
+    ))?;
+
+    primary
+        .append(&stream_id, b"handoff-local-0")
+        .context("append first controlled failover record")?;
+    primary
+        .append(&stream_id, b"handoff-local-1")
+        .context("append second controlled failover record")?;
+
+    let handle_a = consensus
+        .acquire(&stream_id, NodeId::new("node-a"))
+        .await
+        .context("acquire primary failover lease")?;
+    primary.bind_consensus(stream_id.clone(), handle_a);
+
+    let source_replicated_ack = primary
+        .append_with_replicated_ack(
+            &stream_id,
+            b"handoff-replicated-2",
+            store.as_ref(),
+            "failover-proof",
+        )
+        .await
+        .context("append controlled failover replication unit")?;
+    let required_frontier = primary
+        .published_replication_frontier(&stream_id)?
+        .context("controlled failover proof requires a published frontier")?;
+    let sync = follower
+        .sync_read_only_replica_from_frontier(store.as_ref(), &required_frontier)
+        .await
+        .context("sync controlled failover follower from frontier")?;
+    let eligibility = follower
+        .promotion_eligibility(&stream_id, &required_frontier)
+        .context("compute controlled failover promotion eligibility")?;
+
+    let transfer = primary
+        .handoff_primary(&stream_id, NodeId::new("node-b"), &eligibility)
+        .await
+        .context("handoff controlled failover primary")?;
+    let former_primary_error = primary
+        .append(&stream_id, b"stale-primary-write")
+        .expect_err("former primary must be fenced")
+        .to_string();
+    let former_primary_append_rejected = former_primary_error.contains("not the leader");
+    let former_primary_posture =
+        summarize_ownership_posture(&primary.ownership_posture(&stream_id));
+
+    let promoted = LocalEngine::open(
+        LocalEngineConfig::new(&follower_root)
+            .with_segment_max_records(2)
+            .context("controlled failover promoted config")?,
+    )
+    .context("open controlled failover promoted engine")?;
+    let handle_b = consensus
+        .acquire(&stream_id, NodeId::new("node-b"))
+        .await
+        .context("acquire promoted failover lease")?;
+    promoted.bind_consensus(stream_id.clone(), handle_b);
+    let promoted_posture = summarize_ownership_posture(&promoted.ownership_posture(&stream_id));
+    let promoted_append = promoted
+        .append(&stream_id, b"promoted-primary-write")
+        .context("append on promoted primary after handoff")?;
+
+    let readiness = ControlledFailoverReadinessResult {
+        source_replicated_ack: summarize_replicated_ack(&source_replicated_ack),
+        restore_next_offset: sync.next_offset().value(),
+        required_frontier: summarize_published_frontier(&required_frontier),
+        local_frontier: eligibility
+            .local_frontier()
+            .map(summarize_published_frontier),
+        candidate_posture: summarize_ownership_posture(eligibility.ownership_posture()),
+        frontier_caught_up: eligibility.frontier_caught_up(),
+        ownership_ready: eligibility.ownership_ready(),
+        promotable: eligibility.promotable(),
+        blockers: eligibility.blockers().to_vec(),
+    };
+
+    let handoff = ControlledFailoverHandoffResult {
+        stream_id: transfer.stream_id().as_str().to_owned(),
+        previous_owner: transfer.previous_owner().as_str().to_owned(),
+        new_owner: transfer.new_owner().as_str().to_owned(),
+        lease_version: transfer.lease_version(),
+        expires_at: transfer.expires_at(),
+        manifest_generation: transfer.manifest_generation(),
+        frontier_next_offset: transfer.frontier_next_offset().value(),
+        promoted_posture,
+        promoted_append: summarize_local_append(&promoted_append),
+    };
+
+    let fencing = ControlledFailoverFencingResult {
+        former_primary_posture,
+        former_primary_append_rejected,
+        rejection: Some(former_primary_error),
+    };
+
+    let contract = ControlledFailoverContractResult {
+        local: "post-handoff writes on the promoted primary are only locally durable until they are explicitly published or acknowledged at a stronger level",
+        replicated: "promotion readiness is anchored to a published frontier and explicit replicated acknowledgement, but the handoff does not replicate later writes automatically",
+        tiered: "the proof restores the follower from the published object-store frontier; tiered publication remains an explicit step rather than hidden failover automation",
+        quorum: "no quorum acknowledgement, majority election, or automatic leader selection is implied by this slice",
+        multi_primary: "the lease still permits exactly one writable primary and fences stale leaders instead of supporting concurrent writable nodes",
+        automation: "operators or higher-level orchestration must decide when to hand off; this proof does not perform autonomous failover",
+    };
+
+    let verified = readiness.promotable
+        && readiness.frontier_caught_up
+        && readiness.ownership_ready
+        && fencing.former_primary_append_rejected
+        && handoff.promoted_posture.posture == "lease_leader"
+        && handoff.promoted_append.durability == "local"
+        && handoff.promoted_append.position == "mission.failover.root@3";
+    let error = if verified {
+        None
+    } else {
+        Some(
+            "controlled failover proof did not preserve promotable readiness, former-primary fencing, and local-only promoted writes".to_owned(),
+        )
+    };
+
+    Ok(ControlledFailoverProofResult {
+        data_root: root,
+        stream_id: stream_id.as_str().to_owned(),
+        readiness,
+        handoff,
+        fencing,
+        contract,
+        verified,
+        error,
+    })
+}
+
 fn summarize_stream(stream_id: &StreamId, records: &[LocalRecord]) -> StreamProofSummary {
     StreamProofSummary {
         stream_id: stream_id.as_str().to_owned(),
@@ -2303,6 +2559,29 @@ fn summarize_replicated_ack(
             .rolled_segment_id()
             .map(|segment_id| segment_id.as_str().to_owned()),
         non_claim: "publication does not imply follower hydration, failover readiness, or quorum acknowledgement",
+    }
+}
+
+fn summarize_ownership_posture(posture: &OwnershipPosture) -> OwnershipPostureResult {
+    let lease = posture.lease();
+    OwnershipPostureResult {
+        posture: posture.as_str().to_owned(),
+        lease_owner: lease.map(|lease| lease.owner.as_str().to_owned()),
+        lease_version: lease.map(|lease| lease.version),
+        lease_expires_at: lease.map(|lease| lease.expires_at),
+    }
+}
+
+fn summarize_local_append(
+    outcome: &transit_core::engine::LocalAppendOutcome,
+) -> LocalAppendProofResult {
+    LocalAppendProofResult {
+        position: render_position(outcome.position().clone()),
+        durability: outcome.durability().as_str().to_owned(),
+        manifest_generation: outcome.manifest_generation(),
+        rolled_segment_id: outcome
+            .rolled_segment()
+            .map(|segment| segment.segment_id().as_str().to_owned()),
     }
 }
 
@@ -3347,6 +3626,133 @@ fn render_tiered_engine_proof(result: TieredEngineProofResult, json: bool) -> Re
     Ok(())
 }
 
+fn render_controlled_failover_proof(
+    result: ControlledFailoverProofResult,
+    json: bool,
+) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit controlled-failover-proof");
+    println!("root: {}", result.data_root.display());
+    println!("stream: {}", result.stream_id);
+    println!(
+        "readiness replicated ack: {}",
+        result.readiness.source_replicated_ack.position
+    );
+    println!(
+        "readiness commitment: {}",
+        result.readiness.source_replicated_ack.commitment
+    );
+    println!(
+        "required frontier: manifest {} generation {} next {}",
+        result.readiness.required_frontier.manifest_id,
+        result.readiness.required_frontier.manifest_generation,
+        result.readiness.required_frontier.next_offset
+    );
+    println!(
+        "candidate frontier next offset: {}",
+        result
+            .readiness
+            .local_frontier
+            .as_ref()
+            .map(|frontier| frontier.next_offset)
+            .unwrap_or(0)
+    );
+    println!(
+        "candidate restore next offset: {}",
+        result.readiness.restore_next_offset
+    );
+    println!(
+        "candidate posture: {}",
+        result.readiness.candidate_posture.posture
+    );
+    println!(
+        "frontier caught up: {}",
+        if result.readiness.frontier_caught_up {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "ownership ready: {}",
+        if result.readiness.ownership_ready {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "promotable: {}",
+        if result.readiness.promotable {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    if result.readiness.blockers.is_empty() {
+        println!("readiness blockers: none");
+    } else {
+        println!("readiness blockers:");
+        for blocker in &result.readiness.blockers {
+            println!("  - {blocker}");
+        }
+    }
+    println!(
+        "handoff: {} -> {} lease {} frontier next {}",
+        result.handoff.previous_owner,
+        result.handoff.new_owner,
+        result.handoff.lease_version,
+        result.handoff.frontier_next_offset
+    );
+    println!(
+        "promoted posture: {}",
+        result.handoff.promoted_posture.posture
+    );
+    println!(
+        "promoted append: {} durability {}",
+        result.handoff.promoted_append.position, result.handoff.promoted_append.durability
+    );
+    println!(
+        "former primary posture: {}",
+        result.fencing.former_primary_posture.posture
+    );
+    println!(
+        "former primary append: {}",
+        if result.fencing.former_primary_append_rejected {
+            "rejected as expected"
+        } else {
+            "unexpectedly accepted"
+        }
+    );
+    if let Some(rejection) = &result.fencing.rejection {
+        println!("former primary rejection: {rejection}");
+    }
+    println!("bounded contract:");
+    println!("  local: {}", result.contract.local);
+    println!("  replicated: {}", result.contract.replicated);
+    println!("  tiered: {}", result.contract.tiered);
+    println!("  quorum: {}", result.contract.quorum);
+    println!("  multi-primary: {}", result.contract.multi_primary);
+    println!("  automation: {}", result.contract.automation);
+    println!(
+        "status: {}",
+        if result.verified {
+            "VERIFIED"
+        } else {
+            "FAILED"
+        }
+    );
+    if let Some(error) = result.error {
+        println!("error: {error}");
+    }
+
+    Ok(())
+}
+
 fn render_networked_server_proof(result: NetworkedServerProofResult, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
@@ -4154,6 +4560,120 @@ mod tests {
                 .get("distinct_from_root_snapshot")
                 .and_then(serde_json::Value::as_bool),
             Some(true)
+        );
+        assert_eq!(
+            proof_json
+                .get("verified")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[tokio::test]
+    async fn controlled_failover_proof_exercises_readiness_handoff_and_fencing() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_controlled_failover_proof(temp_dir.path().join("controlled-failover"))
+            .await
+            .expect("run controlled failover proof");
+
+        assert_eq!(proof.stream_id, "mission.failover.root");
+        assert_eq!(
+            proof.readiness.source_replicated_ack.commitment,
+            "replicated"
+        );
+        assert_eq!(proof.readiness.restore_next_offset, 3);
+        assert_eq!(proof.readiness.required_frontier.next_offset, 3);
+        assert_eq!(
+            proof.readiness.candidate_posture.posture,
+            "read_only_replica"
+        );
+        assert!(proof.readiness.frontier_caught_up);
+        assert!(proof.readiness.ownership_ready);
+        assert!(proof.readiness.promotable);
+        assert!(proof.readiness.blockers.is_empty());
+        assert_eq!(proof.handoff.previous_owner, "node-a");
+        assert_eq!(proof.handoff.new_owner, "node-b");
+        assert_eq!(proof.handoff.frontier_next_offset, 3);
+        assert_eq!(proof.handoff.promoted_posture.posture, "lease_leader");
+        assert_eq!(
+            proof.handoff.promoted_append.position,
+            "mission.failover.root@3"
+        );
+        assert_eq!(proof.handoff.promoted_append.durability, "local");
+        assert_eq!(
+            proof.fencing.former_primary_posture.posture,
+            "lease_follower"
+        );
+        assert!(proof.fencing.former_primary_append_rejected);
+        assert!(
+            proof
+                .fencing
+                .rejection
+                .as_deref()
+                .is_some_and(|message| message.contains("not the leader"))
+        );
+        assert!(
+            proof.contract.quorum.contains("no quorum acknowledgement"),
+            "unexpected quorum contract: {}",
+            proof.contract.quorum
+        );
+        assert!(
+            proof
+                .contract
+                .multi_primary
+                .contains("exactly one writable primary"),
+            "unexpected multi-primary contract: {}",
+            proof.contract.multi_primary
+        );
+        assert!(proof.verified);
+        assert!(proof.error.is_none());
+    }
+
+    #[tokio::test]
+    async fn controlled_failover_proof_results_serialize_cleanly_for_mission_scripts() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_controlled_failover_proof(temp_dir.path().join("controlled-failover-json"))
+            .await
+            .expect("run controlled failover proof");
+        let proof_json = serde_json::to_value(&proof).expect("serialize proof");
+
+        assert_eq!(
+            proof_json
+                .get("stream_id")
+                .and_then(serde_json::Value::as_str),
+            Some("mission.failover.root")
+        );
+        assert_eq!(
+            proof_json["readiness"]["source_replicated_ack"]
+                .get("commitment")
+                .and_then(serde_json::Value::as_str),
+            Some("replicated")
+        );
+        assert_eq!(
+            proof_json["readiness"]
+                .get("promotable")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["handoff"]["promoted_append"]
+                .get("durability")
+                .and_then(serde_json::Value::as_str),
+            Some("local")
+        );
+        assert_eq!(
+            proof_json["fencing"]
+                .get("former_primary_append_rejected")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["contract"]
+                .get("multi_primary")
+                .and_then(serde_json::Value::as_str),
+            Some(
+                "the lease still permits exactly one writable primary and fences stale leaders instead of supporting concurrent writable nodes"
+            )
         );
         assert_eq!(
             proof_json

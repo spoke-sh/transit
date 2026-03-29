@@ -1,0 +1,39 @@
+---
+recorded_at: 2026-03-29T11:56:23.219722065-07:00
+mode: manual
+files: ["ac-1.log"]
+---
+
+--- File: ac-1.log ---
+cargo run -p transit-cli --bin transit -- mission controlled-failover-proof --root target/transit-story/VFDykn3zT/controlled-failover
+   Compiling transit-cli v0.1.0 (/home/alex/workspace/spoke-sh/transit/crates/transit-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.97s
+     Running `/home/alex/.cache/cargo-target/transit/debug/transit mission controlled-failover-proof --root target/transit-story/VFDykn3zT/controlled-failover`
+transit controlled-failover-proof
+root: target/transit-story/VFDykn3zT/controlled-failover
+stream: mission.failover.root
+readiness replicated ack: mission.failover.root@2
+readiness commitment: replicated
+required frontier: manifest manifest-00000000000000000003 generation 3 next 3
+candidate frontier next offset: 3
+candidate restore next offset: 3
+candidate posture: read_only_replica
+frontier caught up: PASS
+ownership ready: PASS
+promotable: PASS
+readiness blockers: none
+handoff: node-a -> node-b lease 1774810551 frontier next 3
+promoted posture: lease_leader
+promoted append: mission.failover.root@3 durability local
+former primary posture: lease_follower
+former primary append: rejected as expected
+former primary rejection: not the leader for stream 'mission.failover.root'
+bounded contract:
+  local: post-handoff writes on the promoted primary are only locally durable until they are explicitly published or acknowledged at a stronger level
+  replicated: promotion readiness is anchored to a published frontier and explicit replicated acknowledgement, but the handoff does not replicate later writes automatically
+  tiered: the proof restores the follower from the published object-store frontier; tiered publication remains an explicit step rather than hidden failover automation
+  quorum: no quorum acknowledgement, majority election, or automatic leader selection is implied by this slice
+  multi-primary: the lease still permits exactly one writable primary and fences stale leaders instead of supporting concurrent writable nodes
+  automation: operators or higher-level orchestration must decide when to hand off; this proof does not perform autonomous failover
+status: VERIFIED
+

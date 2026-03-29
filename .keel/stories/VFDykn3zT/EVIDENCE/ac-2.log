@@ -1,0 +1,12 @@
+---
+recorded_at: 2026-03-29T11:56:23.265483792-07:00
+mode: manual
+files: ["ac-2.log"]
+---
+
+--- File: ac-2.log ---
+GUIDE.md:47:The first replicated failover slice is proof-oriented and intentionally bounded. A caught-up read-only replica can be promoted through an explicit lease handoff, the former primary is fenced, and the proof surface makes the non-claims explicit: this is not quorum acknowledgement, automatic election, or multi-primary behavior.
+GUIDE.md:153:5. use `just run mission controlled-failover-proof --root target/transit-mission/controlled-failover` when you want the bounded failover proof for readiness, lease handoff, former-primary fencing, and the explicit non-claims around `local`, `replicated`, `tiered`, quorum, and multi-primary behavior
+README.md:98:- a `Justfile` with a human-facing `just screen` verification path for local-engine proof, tiered publication/restore proof, controlled failover proof, networked single-node server proof, integrity proof, materialization proof, object-store probing, and the current Keel board view
+README.md:103:- a first controlled failover proof path that shows promotion readiness, explicit lease handoff, and former-primary fencing while keeping local, replicated, tiered, quorum, and multi-primary guarantees explicit
+

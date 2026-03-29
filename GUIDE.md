@@ -44,6 +44,8 @@ Examples:
 
 At the current bootstrap stage, the shared-engine server exposes provisional remote root creation, append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations through `transit-core::server::RemoteClient`. The first wire shape now includes request correlation plus explicit acknowledgement and error envelopes, and the first tail-session model now uses logical `open/poll/cancel` operations with credit-based delivery rather than assuming one long-lived socket. The `transit server` CLI namespace now mirrors those workflows directly with `create-root`, `append`, `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel`. The surface is still explicitly single-node; replication-aware behavior is downstream work, and secure transports such as WireGuard remain optional underlays instead of becoming the `transit` protocol.
 
+The first replicated failover slice is proof-oriented and intentionally bounded. A caught-up read-only replica can be promoted through an explicit lease handoff, the former primary is fenced, and the proof surface makes the non-claims explicit: this is not quorum acknowledgement, automatic election, or multi-primary behavior.
+
 ## Modeling Conversations
 
 The communication use case should stay simple:
@@ -148,12 +150,13 @@ The current bootstrap developer loop is:
 2. run `just screen`
 3. use `just run mission local-engine-proof --root target/transit-mission/local-engine` when you want the explicit durable-engine proof without the rest of the mission flow
 4. use `just run mission tiered-engine-proof --root target/transit-mission/tiered-engine` when you want the explicit publication and restore proof
-5. use `just run mission networked-server-proof --root target/transit-mission/networked-server` when you want the explicit live server proof, including the transport-boundary note
-6. use `just run mission integrity-proof --root target/transit-mission/integrity` when you want the explicit checksum, manifest-root, restore, checkpoint, tamper-detection, and server-parity proof
-7. use `just run mission materialization-proof --root target/transit-mission/materialization` when you want the explicit checkpoint, resume, root snapshot, and branch-aware snapshot proof
-8. use `just rust-client-proof` when you want the native Rust client proof that starts a local server and exercises create_root, append, read, tail, branch, merge, and lineage end-to-end
-9. use `just run server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap
-10. use `just run server create-root --server-addr 127.0.0.1:7171 --stream-id task.root --actor cli --reason bootstrap --json`, then `just run server append --server-addr 127.0.0.1:7171 --stream-id task.root --payload-text hello --json`, plus the sibling `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel` commands when you want to exercise the remote CLI surface directly
-11. use `just help` or `just run -- --help` for the CLI surface
+5. use `just run mission controlled-failover-proof --root target/transit-mission/controlled-failover` when you want the bounded failover proof for readiness, lease handoff, former-primary fencing, and the explicit non-claims around `local`, `replicated`, `tiered`, quorum, and multi-primary behavior
+6. use `just run mission networked-server-proof --root target/transit-mission/networked-server` when you want the explicit live server proof, including the transport-boundary note
+7. use `just run mission integrity-proof --root target/transit-mission/integrity` when you want the explicit checksum, manifest-root, restore, checkpoint, tamper-detection, and server-parity proof
+8. use `just run mission materialization-proof --root target/transit-mission/materialization` when you want the explicit checkpoint, resume, root snapshot, and branch-aware snapshot proof
+9. use `just rust-client-proof` when you want the native Rust client proof that starts a local server and exercises create_root, append, read, tail, branch, merge, and lineage end-to-end
+10. use `just run server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap
+11. use `just run server create-root --server-addr 127.0.0.1:7171 --stream-id task.root --actor cli --reason bootstrap --json`, then `just run server append --server-addr 127.0.0.1:7171 --stream-id task.root --payload-text hello --json`, plus the sibling `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel` commands when you want to exercise the remote CLI surface directly
+12. use `just help` or `just run -- --help` for the CLI surface
 
 If a proposed change conflicts with those documents, update the docs intentionally before or with the code change.
