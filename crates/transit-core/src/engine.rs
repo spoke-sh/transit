@@ -1800,7 +1800,7 @@ impl LocalEngine {
         }
     }
 
-    fn ownership_posture(&self, stream_id: &StreamId) -> OwnershipPosture {
+    pub fn ownership_posture(&self, stream_id: &StreamId) -> OwnershipPosture {
         if let Some(handle) = self.inner.leases.get(stream_id) {
             let lease = handle.lease();
             if handle.is_leader() {
@@ -4225,6 +4225,164 @@ mod tests {
             err.to_string().contains("current primary frontier"),
             "unexpected error: {err:#}"
         );
+    }
+
+    #[tokio::test]
+    async fn handoff_primary_fences_former_primary_writes() {
+        use crate::consensus::{ConsensusProvider, NodeId, ObjectStoreConsensus};
+
+        let primary_root = tempdir().expect("primary root");
+        let follower_root = tempdir().expect("follower root");
+        let remote_root = tempdir().expect("remote root");
+        let primary = LocalEngine::open(
+            LocalEngineConfig::new(primary_root.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("primary");
+        let follower =
+            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
+                .expect("follower");
+        let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
+            LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store"),
+        );
+        let consensus = ObjectStoreConsensus::new(store.clone(), "leases");
+        let stream_id = stream_id("task.root");
+
+        primary
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second", "third", "fourth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        let handle_a = consensus
+            .acquire(&stream_id, NodeId::new("node-a"))
+            .await
+            .expect("a acquire");
+        primary.bind_consensus(stream_id.clone(), handle_a);
+
+        primary
+            .publish_rolled_segments(&stream_id, store.as_ref(), "tiered")
+            .await
+            .expect("publish");
+        let frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("published frontier");
+        follower
+            .sync_read_only_replica_from_frontier(store.as_ref(), &frontier)
+            .await
+            .expect("sync read-only replica");
+        let eligibility = follower
+            .promotion_eligibility(&stream_id, &frontier)
+            .expect("promotion eligibility");
+
+        primary
+            .handoff_primary(&stream_id, NodeId::new("node-b"), &eligibility)
+            .await
+            .expect("handoff primary");
+
+        let old_primary_err = primary
+            .append(&stream_id, b"stale-write")
+            .expect_err("former primary must be fenced");
+        assert!(old_primary_err.to_string().contains("not the leader"));
+
+        let promoted = LocalEngine::open(LocalEngineConfig::new(follower_root.path()))
+            .expect("promoted primary");
+        let handle_b = consensus
+            .acquire(&stream_id, NodeId::new("node-b"))
+            .await
+            .expect("b acquire");
+        promoted.bind_consensus(stream_id.clone(), handle_b);
+
+        let appended = promoted
+            .append(&stream_id, b"promoted-write")
+            .expect("promoted append");
+        assert_eq!(appended.position().offset.value(), 4);
+    }
+
+    #[tokio::test]
+    async fn handoff_primary_leaves_former_primary_in_lease_follower_posture() {
+        use crate::consensus::{ConsensusProvider, NodeId, ObjectStoreConsensus};
+
+        let primary_root = tempdir().expect("primary root");
+        let follower_root = tempdir().expect("follower root");
+        let remote_root = tempdir().expect("remote root");
+        let primary = LocalEngine::open(
+            LocalEngineConfig::new(primary_root.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("primary");
+        let follower =
+            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
+                .expect("follower");
+        let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
+            LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store"),
+        );
+        let consensus = ObjectStoreConsensus::new(store.clone(), "leases");
+        let stream_id = stream_id("task.root");
+
+        primary
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second", "third", "fourth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        let handle_a = consensus
+            .acquire(&stream_id, NodeId::new("node-a"))
+            .await
+            .expect("a acquire");
+        primary.bind_consensus(stream_id.clone(), handle_a);
+
+        primary
+            .publish_rolled_segments(&stream_id, store.as_ref(), "tiered")
+            .await
+            .expect("publish");
+        let frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("published frontier");
+        follower
+            .sync_read_only_replica_from_frontier(store.as_ref(), &frontier)
+            .await
+            .expect("sync read-only replica");
+        let eligibility = follower
+            .promotion_eligibility(&stream_id, &frontier)
+            .expect("promotion eligibility");
+
+        primary
+            .handoff_primary(&stream_id, NodeId::new("node-b"), &eligibility)
+            .await
+            .expect("handoff primary");
+
+        match primary.ownership_posture(&stream_id) {
+            OwnershipPosture::LeaseFollower { lease } => {
+                assert_eq!(lease.owner, NodeId::new("node-b"));
+            }
+            posture => panic!("unexpected former primary posture: {posture:?}"),
+        }
+
+        let promoted = LocalEngine::open(LocalEngineConfig::new(follower_root.path()))
+            .expect("promoted primary");
+        let handle_b = consensus
+            .acquire(&stream_id, NodeId::new("node-b"))
+            .await
+            .expect("b acquire");
+        promoted.bind_consensus(stream_id.clone(), handle_b);
+
+        match promoted.ownership_posture(&stream_id) {
+            OwnershipPosture::LeaseLeader { lease } => {
+                assert_eq!(lease.owner, NodeId::new("node-b"));
+            }
+            posture => panic!("unexpected promoted posture: {posture:?}"),
+        }
     }
 
     #[test]
