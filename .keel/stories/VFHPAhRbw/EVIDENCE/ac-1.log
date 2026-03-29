@@ -1,0 +1,17 @@
+---
+recorded_at: 2026-03-29T11:08:15.641829027-07:00
+mode: manual
+files: [".keel/stories/VFHPAhRbw/ac-1.log"]
+---
+
+--- File: ac-1.log ---
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-ecaff62f858c9816)
+
+running 1 test
+test engine::tests::branch_replay_view_keeps_shared_prefix_and_branch_suffix_explicit ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 54 filtered out; finished in 0.03s
+
+

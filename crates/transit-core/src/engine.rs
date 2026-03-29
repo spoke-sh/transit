@@ -210,6 +210,32 @@ impl LocalRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalBranchReplayView {
+    stream_id: StreamId,
+    parent: StreamPosition,
+    shared_prefix: Vec<LocalRecord>,
+    branch_suffix: Vec<LocalRecord>,
+}
+
+impl LocalBranchReplayView {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn parent(&self) -> &StreamPosition {
+        &self.parent
+    }
+
+    pub fn shared_prefix(&self) -> &[LocalRecord] {
+        &self.shared_prefix
+    }
+
+    pub fn branch_suffix(&self) -> &[LocalRecord] {
+        &self.branch_suffix
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalRecoveryOutcome {
     stream_id: StreamId,
     durability: DurabilityMode,
@@ -1043,6 +1069,30 @@ impl LocalEngine {
 
     pub fn replay(&self, stream_id: &StreamId) -> Result<Vec<LocalRecord>> {
         self.read_replay_records(stream_id)
+    }
+
+    pub fn branch_replay_view(&self, stream_id: &StreamId) -> Result<LocalBranchReplayView> {
+        let descriptor = self.stream_descriptor(stream_id)?;
+        let StreamLineage::Branch { branch_point } = descriptor.lineage else {
+            bail!(
+                "stream '{}' does not have branch lineage for branch replay view",
+                stream_id.as_str()
+            );
+        };
+
+        let shared_prefix = self.read_prefix(&branch_point.parent)?;
+        let branch_suffix = self
+            .read_replay_records(stream_id)?
+            .into_iter()
+            .skip(shared_prefix.len())
+            .collect();
+
+        Ok(LocalBranchReplayView {
+            stream_id: stream_id.clone(),
+            parent: branch_point.parent,
+            shared_prefix,
+            branch_suffix,
+        })
     }
 
     pub fn tail_from(&self, stream_id: &StreamId, from: Offset) -> Result<Vec<LocalRecord>> {
@@ -2527,6 +2577,81 @@ mod tests {
                 b"second".as_slice(),
                 b"branch-only".as_slice()
             ]
+        );
+    }
+
+    #[test]
+    fn branch_replay_view_keeps_shared_prefix_and_branch_suffix_explicit() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(LocalEngineConfig::new(temp_dir.path())).expect("engine");
+        let root_stream = stream_id("task.root");
+        let branch_stream = stream_id("task.root.thread");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+
+        for payload in ["first", "second", "third"] {
+            engine
+                .append(&root_stream, payload.as_bytes())
+                .expect("append root");
+        }
+
+        engine
+            .create_branch(
+                branch_stream.clone(),
+                StreamPosition::new(root_stream.clone(), Offset::new(1)),
+                LineageMetadata::new(
+                    Some("classifier.thread-boundary".into()),
+                    Some("split-thread".into()),
+                ),
+            )
+            .expect("create branch");
+        engine
+            .append(&branch_stream, b"branch-only")
+            .expect("append branch");
+
+        let view = engine
+            .branch_replay_view(&branch_stream)
+            .expect("branch replay view");
+
+        assert_eq!(view.stream_id(), &branch_stream);
+        assert_eq!(view.parent().stream_id, root_stream);
+        assert_eq!(view.parent().offset.value(), 1);
+
+        let shared_payloads: Vec<&[u8]> = view
+            .shared_prefix()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+        let branch_payloads: Vec<&[u8]> = view
+            .branch_suffix()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+
+        assert_eq!(
+            shared_payloads,
+            vec![b"first".as_slice(), b"second".as_slice()]
+        );
+        assert_eq!(branch_payloads, vec![b"branch-only".as_slice()]);
+    }
+
+    #[test]
+    fn branch_replay_view_rejects_non_branch_streams() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(LocalEngineConfig::new(temp_dir.path())).expect("engine");
+        let root_stream = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create root");
+
+        let error = engine
+            .branch_replay_view(&root_stream)
+            .expect_err("root stream should not produce branch replay view");
+        assert!(
+            error
+                .to_string()
+                .contains("does not have branch lineage for branch replay view")
         );
     }
 
