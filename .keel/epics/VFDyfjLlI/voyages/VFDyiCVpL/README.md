@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VFDyiCVpL
-status: planned
+status: in-progress
 epic: VFDyfjLlI
 created_at: 2026-03-28T20:44:17
 # authored
 title: Enable Controlled Primary Transfer
 index: 1
 updated_at: 2026-03-28T20:49:38
+started_at: 2026-03-29T11:34:49
 ---
 
 # Enable Controlled Primary Transfer
@@ -26,11 +27,11 @@ updated_at: 2026-03-28T20:49:38
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/4 stories complete
+**Progress:** 1/4 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Surface Promotion Eligibility Frontier](../../../../stories/VFDyklixV/README.md) | feat | backlog |
+| [Surface Promotion Eligibility Frontier](../../../../stories/VFDyklixV/README.md) | feat | done |
 | [Implement Lease-Backed Primary Transfer](../../../../stories/VFDykmAyU/README.md) | feat | backlog |
 | [Fence Former Primaries After Handoff](../../../../stories/VFDykmbyK/README.md) | feat | backlog |
 | [Prove Controlled Failover Semantics](../../../../stories/VFDykn3zT/README.md) | feat | backlog |

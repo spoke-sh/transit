@@ -133,7 +133,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Enable Controlled Primary Transfer](epics/VFDyfjLlI/voyages/VFDyiCVpL/) | planned |
+| [Enable Controlled Primary Transfer](epics/VFDyfjLlI/voyages/VFDyiCVpL/) | in-progress |
 
 ### [Deliver Embedded Replay And Artifact Helper APIs](epics/VFHP6ptRw/) (done)
 

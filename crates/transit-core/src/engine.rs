@@ -499,6 +499,78 @@ impl LocalPublishedReplicationFrontier {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub enum OwnershipPosture {
+    ReadOnlyReplica,
+    StandaloneWritable,
+    LeaseLeader { lease: StreamLease },
+    LeaseFollower { lease: StreamLease },
+}
+
+impl OwnershipPosture {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::ReadOnlyReplica => "read_only_replica",
+            Self::StandaloneWritable => "standalone_writable",
+            Self::LeaseLeader { .. } => "lease_leader",
+            Self::LeaseFollower { .. } => "lease_follower",
+        }
+    }
+
+    pub fn lease(&self) -> Option<&StreamLease> {
+        match self {
+            Self::LeaseLeader { lease } | Self::LeaseFollower { lease } => Some(lease),
+            Self::ReadOnlyReplica | Self::StandaloneWritable => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LocalPromotionEligibility {
+    stream_id: StreamId,
+    required_frontier: LocalPublishedReplicationFrontier,
+    local_frontier: Option<LocalPublishedReplicationFrontier>,
+    ownership_posture: OwnershipPosture,
+    frontier_caught_up: bool,
+    ownership_ready: bool,
+    promotable: bool,
+    blockers: Vec<String>,
+}
+
+impl LocalPromotionEligibility {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn required_frontier(&self) -> &LocalPublishedReplicationFrontier {
+        &self.required_frontier
+    }
+
+    pub fn local_frontier(&self) -> Option<&LocalPublishedReplicationFrontier> {
+        self.local_frontier.as_ref()
+    }
+
+    pub fn ownership_posture(&self) -> &OwnershipPosture {
+        &self.ownership_posture
+    }
+
+    pub fn frontier_caught_up(&self) -> bool {
+        self.frontier_caught_up
+    }
+
+    pub fn ownership_ready(&self) -> bool {
+        self.ownership_ready
+    }
+
+    pub fn promotable(&self) -> bool {
+        self.promotable
+    }
+
+    pub fn blockers(&self) -> &[String] {
+        &self.blockers
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LocalEngine {
     inner: std::sync::Arc<LocalEngineInner>,
@@ -1163,6 +1235,85 @@ impl LocalEngine {
             .transpose()
     }
 
+    pub fn promotion_eligibility(
+        &self,
+        stream_id: &StreamId,
+        required_frontier: &LocalPublishedReplicationFrontier,
+    ) -> Result<LocalPromotionEligibility> {
+        ensure!(
+            required_frontier.stream_id() == stream_id,
+            "required frontier stream '{}' does not match promotion target '{}'",
+            required_frontier.stream_id().as_str(),
+            stream_id.as_str()
+        );
+
+        let local_frontier = self.published_replication_frontier(stream_id)?;
+        let ownership_posture = self.ownership_posture(stream_id);
+        let mut blockers = Vec::new();
+
+        let frontier_caught_up = match local_frontier.as_ref() {
+            Some(local_frontier)
+                if local_frontier.manifest_id() == required_frontier.manifest_id()
+                    && local_frontier.manifest_generation()
+                        == required_frontier.manifest_generation()
+                    && local_frontier.manifest_root() == required_frontier.manifest_root()
+                    && local_frontier.next_offset() == required_frontier.next_offset() =>
+            {
+                true
+            }
+            Some(local_frontier)
+                if local_frontier.next_offset().value()
+                    < required_frontier.next_offset().value() =>
+            {
+                blockers.push(format!(
+                    "local frontier next offset {} is behind required frontier {}",
+                    local_frontier.next_offset().value(),
+                    required_frontier.next_offset().value()
+                ));
+                false
+            }
+            Some(local_frontier) => {
+                blockers.push(format!(
+                    "local frontier {}@{} does not match required frontier {}@{}",
+                    local_frontier.manifest_root().digest(),
+                    local_frontier.next_offset().value(),
+                    required_frontier.manifest_root().digest(),
+                    required_frontier.next_offset().value()
+                ));
+                false
+            }
+            None => {
+                blockers.push(format!(
+                    "local engine has no published frontier for '{}'",
+                    stream_id.as_str()
+                ));
+                false
+            }
+        };
+
+        let ownership_ready = match &ownership_posture {
+            OwnershipPosture::ReadOnlyReplica => true,
+            posture => {
+                blockers.push(format!(
+                    "ownership posture '{}' is not promotable; explicit transfer requires a read-only replica candidate",
+                    posture.as_str()
+                ));
+                false
+            }
+        };
+
+        Ok(LocalPromotionEligibility {
+            stream_id: stream_id.clone(),
+            required_frontier: required_frontier.clone(),
+            local_frontier,
+            ownership_posture,
+            frontier_caught_up,
+            ownership_ready,
+            promotable: frontier_caught_up && ownership_ready,
+            blockers,
+        })
+    }
+
     pub async fn sync_read_only_replica_from_frontier(
         &self,
         store: &dyn ObjectStore,
@@ -1541,6 +1692,21 @@ impl LocalEngine {
                 stream_id.as_str()
             ),
             None => bail!("read-only replica cannot {action}"),
+        }
+    }
+
+    fn ownership_posture(&self, stream_id: &StreamId) -> OwnershipPosture {
+        if let Some(handle) = self.inner.leases.get(stream_id) {
+            let lease = handle.lease();
+            if handle.is_leader() {
+                OwnershipPosture::LeaseLeader { lease }
+            } else {
+                OwnershipPosture::LeaseFollower { lease }
+            }
+        } else if self.access_mode() == AccessMode::ReadOnlyReplica {
+            OwnershipPosture::ReadOnlyReplica
+        } else {
+            OwnershipPosture::StandaloneWritable
         }
     }
 
@@ -2247,7 +2413,10 @@ fn compute_manifest_root(
 
 #[cfg(test)]
 mod tests {
-    use super::{AccessMode, CommitmentLevel, DurabilityMode, LocalEngine, LocalEngineConfig};
+    use super::{
+        AccessMode, CommitmentLevel, DurabilityMode, LocalEngine, LocalEngineConfig,
+        OwnershipPosture,
+    };
     use crate::kernel::{
         LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor,
         StreamId, StreamLineage, StreamPosition,
@@ -3536,6 +3705,195 @@ mod tests {
         );
         assert_eq!(status.active_record_count(), 0);
         assert_eq!(frontier.last_offset(), Some(Offset::new(0)));
+    }
+
+    #[tokio::test]
+    async fn promotion_eligibility_reports_caught_up_read_only_follower_as_promotable() {
+        let primary_root = tempdir().expect("primary root");
+        let follower_root = tempdir().expect("follower root");
+        let remote_root = tempdir().expect("remote root");
+        let primary = LocalEngine::open(
+            LocalEngineConfig::new(primary_root.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("primary");
+        let follower =
+            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
+                .expect("follower");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+        let stream_id = stream_id("task.root");
+
+        primary
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second", "third", "fourth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+        primary
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish");
+        let frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("published frontier");
+        follower
+            .sync_read_only_replica_from_frontier(&store, &frontier)
+            .await
+            .expect("sync read-only replica");
+
+        let eligibility = follower
+            .promotion_eligibility(&stream_id, &frontier)
+            .expect("promotion eligibility");
+
+        assert!(eligibility.promotable());
+        assert!(eligibility.frontier_caught_up());
+        assert!(eligibility.ownership_ready());
+        assert!(eligibility.blockers().is_empty());
+        assert_eq!(
+            eligibility.ownership_posture(),
+            &OwnershipPosture::ReadOnlyReplica
+        );
+        assert_eq!(
+            eligibility
+                .local_frontier()
+                .expect("local frontier")
+                .manifest_root(),
+            frontier.manifest_root()
+        );
+    }
+
+    #[tokio::test]
+    async fn promotion_eligibility_reports_followers_behind_required_frontier() {
+        let primary_root = tempdir().expect("primary root");
+        let follower_root = tempdir().expect("follower root");
+        let remote_root = tempdir().expect("remote root");
+        let primary = LocalEngine::open(
+            LocalEngineConfig::new(primary_root.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("primary");
+        let follower =
+            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
+                .expect("follower");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+        let stream_id = stream_id("task.root");
+
+        primary
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second", "third", "fourth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+        primary
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish first frontier");
+        let first_frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("first frontier");
+        follower
+            .sync_read_only_replica_from_frontier(&store, &first_frontier)
+            .await
+            .expect("initial sync");
+
+        for payload in ["fifth", "sixth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+        primary
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish advanced frontier");
+        let advanced_frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("advanced frontier");
+
+        let eligibility = follower
+            .promotion_eligibility(&stream_id, &advanced_frontier)
+            .expect("promotion eligibility");
+
+        assert!(!eligibility.promotable());
+        assert!(!eligibility.frontier_caught_up());
+        assert!(eligibility.ownership_ready());
+        assert_eq!(eligibility.blockers().len(), 1);
+        assert!(
+            eligibility.blockers()[0].contains("behind required frontier"),
+            "unexpected blocker: {}",
+            eligibility.blockers()[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn promotion_eligibility_reports_lease_leader_as_ineligible() {
+        use crate::consensus::{ConsensusProvider, NodeId, ObjectStoreConsensus};
+
+        let primary_root = tempdir().expect("primary root");
+        let remote_root = tempdir().expect("remote root");
+        let lease_root = tempdir().expect("lease root");
+        let primary = LocalEngine::open(
+            LocalEngineConfig::new(primary_root.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("primary");
+        let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
+        let stream_id = stream_id("task.root");
+
+        primary
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+        primary
+            .publish_rolled_segments(&stream_id, &store, "tiered")
+            .await
+            .expect("publish");
+
+        let lease_store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
+            LocalFileSystem::new_with_prefix(lease_root.path()).expect("local"),
+        );
+        let consensus = ObjectStoreConsensus::new(lease_store, "leases");
+        let handle = consensus
+            .acquire(&stream_id, NodeId::new("node-a"))
+            .await
+            .expect("acquire lease");
+        let bound_lease = handle.lease();
+        primary.bind_consensus(stream_id.clone(), handle);
+
+        let frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("published frontier");
+        let eligibility = primary
+            .promotion_eligibility(&stream_id, &frontier)
+            .expect("promotion eligibility");
+
+        assert!(!eligibility.promotable());
+        assert!(eligibility.frontier_caught_up());
+        assert!(!eligibility.ownership_ready());
+        assert_eq!(eligibility.blockers().len(), 1);
+        assert!(
+            eligibility.blockers()[0].contains("ownership posture 'lease_leader'"),
+            "unexpected blocker: {}",
+            eligibility.blockers()[0]
+        );
+        assert_eq!(
+            eligibility.ownership_posture(),
+            &OwnershipPosture::LeaseLeader { lease: bound_lease }
+        );
     }
 
     #[test]
