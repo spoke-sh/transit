@@ -145,6 +145,7 @@ impl ObjectStoreConsensus {
 
     fn lease_path(&self, stream_id: &StreamId) -> ObjectPath {
         self.prefix
+            .clone()
             .child(format!("{}.lease.json", stream_id.as_str()))
     }
 }
