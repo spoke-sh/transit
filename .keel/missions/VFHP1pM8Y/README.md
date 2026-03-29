@@ -1,16 +1,15 @@
 ---
 # system-managed
-id: VFDyfiqlL
-status: paused
-created_at: 2026-03-28T20:44:08
-updated_at: 2026-03-29T10:47:31
+id: VFHP1pM8Y
+status: defining
+created_at: 2026-03-29T10:47:38
+updated_at: 2026-03-29T10:47:38
 # authored
-title: Ship Replicated Primary Handoff And Failover Semantics
+title: Strengthen Embedded Branch Metadata Replay Views And Artifact Helpers
 watch: ~
-activated_at: 2026-03-28T20:49:39
 ---
 
-# Ship Replicated Primary Handoff And Failover Semantics
+# Strengthen Embedded Branch Metadata Replay Views And Artifact Helpers
 
 ## Documents
 
