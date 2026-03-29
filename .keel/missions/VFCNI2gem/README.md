@@ -1,14 +1,15 @@
 ---
 # system-managed
 id: VFCNI2gem
-status: achieved
+status: verified
 created_at: 2026-03-28T14:09:22
-updated_at: 2026-03-28T14:13:31
+updated_at: 2026-03-28T18:56:03
 # authored
 title: Add Spoke Link To Docs Header
 watch: ~
 activated_at: 2026-03-28T14:10:21
 achieved_at: 2026-03-28T14:13:31
+verified_at: 2026-03-28T18:56:03
 ---
 
 # Add Spoke Link To Docs Header
