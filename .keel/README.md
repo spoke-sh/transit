@@ -129,6 +129,12 @@
 |--------|--------|
 | [Tune Hero Diagram Card](epics/VFCxQxWxm/voyages/VFCxRwY2T/) | done |
 
+### [Deliver Replicated Primary Handoff](epics/VFDyfjLlI/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Enable Controlled Primary Transfer](epics/VFDyfjLlI/voyages/VFDyiCVpL/) | planned |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
