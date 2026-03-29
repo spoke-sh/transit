@@ -97,6 +97,12 @@ A materializer should resume according to explicit lineage rules:
 
 Resume should never depend on hidden mutable state in the engine.
 
+For embedded helper layers, the preferred implementation shape is an explicit
+resume cursor derived from the checkpoint itself. That cursor should expose the
+checkpoint anchor, the next replay offset, and the current replay boundary so
+applications can inspect or resume derived state without inventing side caches
+or shadow indexes.
+
 ## Durability And Packaging Invariants
 
 This contract must preserve the repo's current invariants:
