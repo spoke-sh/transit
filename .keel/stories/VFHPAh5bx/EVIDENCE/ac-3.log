@@ -1,0 +1,20 @@
+---
+recorded_at: 2026-03-29T11:05:04.855459650-07:00
+mode: manual
+files: [".keel/stories/VFHPAh5bx/ac-3.log"]
+---
+
+--- File: ac-3.log ---
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on artifact directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-ecaff62f858c9816)
+
+running 1 test
+test kernel::tests::branch_descriptor_records_parent_position_and_metadata ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 52 filtered out; finished in 0.00s
+
+

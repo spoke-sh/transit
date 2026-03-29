@@ -2,6 +2,9 @@ use anyhow::{Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+pub const BRANCH_KIND_LABEL: &str = "branch_kind";
+pub const BRANCH_ANCHOR_REF_LABEL: &str = "branch_anchor_ref";
+
 /// Stable identifier for one logical append-only stream.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct StreamId(String);
@@ -77,9 +80,41 @@ impl LineageMetadata {
         }
     }
 
+    pub fn with_branch_kind(self, kind: impl Into<String>) -> Self {
+        self.with_label(BRANCH_KIND_LABEL, kind)
+    }
+
+    pub fn with_anchor_ref(self, anchor_ref: impl Into<String>) -> Self {
+        self.with_label(BRANCH_ANCHOR_REF_LABEL, anchor_ref)
+    }
+
     pub fn with_label(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.labels.insert(key.into(), value.into());
         self
+    }
+
+    pub fn with_labels<I, K, V>(mut self, labels: I) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<String>,
+        V: Into<String>,
+    {
+        for (key, value) in labels {
+            self.labels.insert(key.into(), value.into());
+        }
+        self
+    }
+
+    pub fn label(&self, key: &str) -> Option<&str> {
+        self.labels.get(key).map(String::as_str)
+    }
+
+    pub fn branch_kind(&self) -> Option<&str> {
+        self.label(BRANCH_KIND_LABEL)
+    }
+
+    pub fn anchor_ref(&self) -> Option<&str> {
+        self.label(BRANCH_ANCHOR_REF_LABEL)
     }
 }
 
@@ -237,8 +272,8 @@ impl StreamDescriptor {
 #[cfg(test)]
 mod tests {
     use super::{
-        LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor,
-        StreamId, StreamLineage, StreamPosition,
+        BRANCH_ANCHOR_REF_LABEL, BRANCH_KIND_LABEL, LineageMetadata, MergePolicy, MergePolicyKind,
+        MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage, StreamPosition,
     };
 
     fn stream_id(value: &str) -> StreamId {
@@ -261,7 +296,8 @@ mod tests {
                 Some("agent.planner".into()),
                 Some("retry-after-timeout".into()),
             )
-            .with_label("branch_kind", "retry"),
+            .with_branch_kind("retry")
+            .with_anchor_ref("message:msg-1042"),
         )
         .expect("valid branch");
 
@@ -278,17 +314,32 @@ mod tests {
                     branch_point.metadata.reason.as_deref(),
                     Some("retry-after-timeout")
                 );
-                assert_eq!(
-                    branch_point
-                        .metadata
-                        .labels
-                        .get("branch_kind")
-                        .map(String::as_str),
-                    Some("retry")
-                );
+                assert_eq!(branch_point.metadata.branch_kind(), Some("retry"));
+                assert_eq!(branch_point.metadata.anchor_ref(), Some("message:msg-1042"));
             }
             other => panic!("expected branch lineage, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn lineage_metadata_helpers_preserve_generic_branch_context() {
+        let metadata = LineageMetadata::new(
+            Some("classifier.thread-boundary".into()),
+            Some("split-thread".into()),
+        )
+        .with_branch_kind("conversation")
+        .with_anchor_ref("message:msg-42")
+        .with_labels([("thread_kind", "classifier"), ("decision_id", "thd-0091")]);
+
+        assert_eq!(metadata.branch_kind(), Some("conversation"));
+        assert_eq!(metadata.anchor_ref(), Some("message:msg-42"));
+        assert_eq!(metadata.label("thread_kind"), Some("classifier"));
+        assert_eq!(metadata.label("decision_id"), Some("thd-0091"));
+        assert_eq!(metadata.label(BRANCH_KIND_LABEL), Some("conversation"));
+        assert_eq!(
+            metadata.label(BRANCH_ANCHOR_REF_LABEL),
+            Some("message:msg-42")
+        );
     }
 
     #[test]

@@ -139,7 +139,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Publish Embedded Lineage Helper Surface](epics/VFHP6ptRw/voyages/VFHP9H1ZM/) | planned |
+| [Publish Embedded Lineage Helper Surface](epics/VFHP6ptRw/voyages/VFHP9H1ZM/) | in-progress |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

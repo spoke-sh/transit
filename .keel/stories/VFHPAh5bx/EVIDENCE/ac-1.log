@@ -1,0 +1,19 @@
+---
+recorded_at: 2026-03-29T11:04:58.301088813-07:00
+mode: manual
+files: [".keel/stories/VFHPAh5bx/ac-1.log"]
+---
+
+--- File: ac-1.log ---
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-ecaff62f858c9816)
+
+running 1 test
+test kernel::tests::lineage_metadata_helpers_preserve_generic_branch_context ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 52 filtered out; finished in 0.00s
+
+
