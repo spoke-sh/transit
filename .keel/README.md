@@ -135,11 +135,11 @@
 |--------|--------|
 | [Enable Controlled Primary Transfer](epics/VFDyfjLlI/voyages/VFDyiCVpL/) | planned |
 
-### [Deliver Embedded Replay And Artifact Helper APIs](epics/VFHP6ptRw/) (active)
+### [Deliver Embedded Replay And Artifact Helper APIs](epics/VFHP6ptRw/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Publish Embedded Lineage Helper Surface](epics/VFHP6ptRw/voyages/VFHP9H1ZM/) | in-progress |
+| [Publish Embedded Lineage Helper Surface](epics/VFHP6ptRw/voyages/VFHP9H1ZM/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

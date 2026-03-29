@@ -1,7 +1,7 @@
 ---
 # system-managed
 id: VFHP9H1ZM
-status: in-progress
+status: done
 epic: VFHP6ptRw
 created_at: 2026-03-29T10:48:07
 # authored
@@ -9,6 +9,7 @@ title: Publish Embedded Lineage Helper Surface
 index: 1
 updated_at: 2026-03-29T10:50:41
 started_at: 2026-03-29T10:58:07
+completed_at: 2026-03-29T11:19:15
 ---
 
 # Publish Embedded Lineage Helper Surface
@@ -22,17 +23,19 @@ started_at: 2026-03-29T10:58:07
 |----------|-------------|
 | [SRS.md](SRS.md) | Requirements and verification criteria |
 | [SDD.md](SDD.md) | Architecture and implementation details |
+| [VOYAGE_REPORT.md](VOYAGE_REPORT.md) | Narrative summary of implementation and evidence |
+| [COMPLIANCE_REPORT.md](COMPLIANCE_REPORT.md) | Traceability matrix and verification proof |
 <!-- END DOCUMENTS -->
 
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 3/4 stories complete
+**Progress:** 4/4 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Stabilize Branch Metadata Helpers](../../../../stories/VFHPAh5bx/README.md) | feat | done |
 | [Add Root Plus Branch Replay Views](../../../../stories/VFHPAhRbw/README.md) | feat | done |
 | [Add Artifact Envelope Helper APIs](../../../../stories/VFHPAhmbz/README.md) | feat | done |
-| [Improve Checkpoint Replay Ergonomics](../../../../stories/VFHPAi8dG/README.md) | feat | backlog |
+| [Improve Checkpoint Replay Ergonomics](../../../../stories/VFHPAi8dG/README.md) | feat | done |
 <!-- END GENERATED -->

@@ -22,8 +22,8 @@ mission: VFHP1pM8Y
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 3/4 stories done
+**Progress:** 1/1 voyages complete, 4/4 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Publish Embedded Lineage Helper Surface](voyages/VFHP9H1ZM/) | in-progress | 3/4 |
+| [Publish Embedded Lineage Helper Surface](voyages/VFHP9H1ZM/) | done | 4/4 |
 <!-- END GENERATED -->
