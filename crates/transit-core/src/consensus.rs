@@ -1,5 +1,5 @@
 use crate::kernel::StreamId;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use async_trait::async_trait;
 use object_store::path::Path as ObjectPath;
 use object_store::{ObjectStore, ObjectStoreExt};
@@ -42,6 +42,9 @@ pub trait ConsensusHandle: std::fmt::Debug + Send + Sync {
 
     /// Attempt to heartbeat the lease to keep it alive.
     async fn heartbeat(&self) -> Result<()>;
+
+    /// Explicitly hand writable ownership to a new owner.
+    async fn handoff(&self, next_owner: NodeId) -> Result<StreamLease>;
 }
 
 /// Provider for distributed coordination.
@@ -155,6 +158,7 @@ struct ObjectStoreLeaseHandle {
     store: Arc<dyn ObjectStore>,
     path: ObjectPath,
     stream_id: StreamId,
+    local_owner: NodeId,
     lease: std::sync::RwLock<StreamLease>,
     duration: i64,
 }
@@ -163,7 +167,7 @@ struct ObjectStoreLeaseHandle {
 impl ConsensusHandle for ObjectStoreLeaseHandle {
     fn is_leader(&self) -> bool {
         let lease = self.lease.read().unwrap();
-        chrono::Utc::now().timestamp() < lease.expires_at
+        chrono::Utc::now().timestamp() < lease.expires_at && lease.owner == self.local_owner
     }
 
     fn stream_id(&self) -> &StreamId {
@@ -175,6 +179,12 @@ impl ConsensusHandle for ObjectStoreLeaseHandle {
     }
 
     async fn heartbeat(&self) -> Result<()> {
+        ensure!(
+            self.is_leader(),
+            "cannot heartbeat lease for '{}' after ownership moved",
+            self.stream_id.as_str()
+        );
+
         let next_lease = {
             let lease = self.lease.read().unwrap();
             StreamLease {
@@ -193,6 +203,40 @@ impl ConsensusHandle for ObjectStoreLeaseHandle {
 
         *self.lease.write().unwrap() = next_lease;
         Ok(())
+    }
+
+    async fn handoff(&self, next_owner: NodeId) -> Result<StreamLease> {
+        ensure!(
+            self.is_leader(),
+            "cannot handoff non-leader lease for '{}'",
+            self.stream_id.as_str()
+        );
+
+        let next_lease = {
+            let lease = self.lease.read().unwrap();
+            ensure!(
+                lease.owner != next_owner,
+                "stream '{}' is already owned by '{}'",
+                self.stream_id.as_str(),
+                next_owner.as_str()
+            );
+
+            StreamLease {
+                stream_id: lease.stream_id.clone(),
+                owner: next_owner,
+                version: lease.version + 1,
+                expires_at: chrono::Utc::now().timestamp() + self.duration,
+            }
+        };
+
+        let bytes = serde_json::to_vec(&next_lease).context("serialize handoff lease")?;
+        self.store
+            .put(&self.path, bytes.into())
+            .await
+            .context("put handoff lease")?;
+
+        *self.lease.write().unwrap() = next_lease.clone();
+        Ok(next_lease)
     }
 }
 
@@ -244,6 +288,7 @@ impl ConsensusProvider for ObjectStoreConsensus {
             store: self.store.clone(),
             path,
             stream_id: stream_id.clone(),
+            local_owner: owner,
             lease: std::sync::RwLock::new(lease),
             duration: self.lease_duration_secs,
         }))
@@ -285,6 +330,36 @@ mod tests {
         let version_before = handle_a.lease().version;
         handle_a.heartbeat().await.expect("a heartbeat");
         assert!(handle_a.lease().version > version_before);
+    }
+
+    #[tokio::test]
+    async fn object_store_consensus_supports_explicit_handoff() {
+        let temp = tempdir().expect("temp");
+        let store: Arc<dyn ObjectStore> =
+            Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
+        let consensus = ObjectStoreConsensus::new(store, "leases");
+
+        let stream_id = StreamId::new("test.stream").expect("id");
+        let handle_a = consensus
+            .acquire(&stream_id, NodeId::new("node-a"))
+            .await
+            .expect("a acquire");
+        let handed_off = handle_a
+            .handoff(NodeId::new("node-b"))
+            .await
+            .expect("handoff");
+
+        assert_eq!(handed_off.owner, NodeId::new("node-b"));
+        assert!(!handle_a.is_leader());
+
+        let handle_b = consensus
+            .acquire(&stream_id, NodeId::new("node-b"))
+            .await
+            .expect("b acquire");
+        assert!(handle_b.is_leader());
+
+        let err = handle_a.heartbeat().await.expect_err("old owner fenced");
+        assert!(err.to_string().contains("ownership moved"));
     }
 
     #[tokio::test]

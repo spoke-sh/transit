@@ -1,4 +1,4 @@
-use crate::consensus::{ConsensusHandle, StreamLease};
+use crate::consensus::{ConsensusHandle, NodeId, StreamLease};
 use crate::kernel::{
     LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage, StreamPosition,
 };
@@ -569,6 +569,58 @@ impl LocalPromotionEligibility {
     pub fn blockers(&self) -> &[String] {
         &self.blockers
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LocalPrimaryTransferOutcome {
+    stream_id: StreamId,
+    previous_owner: NodeId,
+    new_owner: NodeId,
+    lease_version: u64,
+    expires_at: i64,
+    manifest_generation: u64,
+    frontier_next_offset: Offset,
+}
+
+impl LocalPrimaryTransferOutcome {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn previous_owner(&self) -> &NodeId {
+        &self.previous_owner
+    }
+
+    pub fn new_owner(&self) -> &NodeId {
+        &self.new_owner
+    }
+
+    pub fn lease_version(&self) -> u64 {
+        self.lease_version
+    }
+
+    pub fn expires_at(&self) -> i64 {
+        self.expires_at
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+
+    pub fn frontier_next_offset(&self) -> Offset {
+        self.frontier_next_offset
+    }
+}
+
+fn frontiers_match(
+    left: &LocalPublishedReplicationFrontier,
+    right: &LocalPublishedReplicationFrontier,
+) -> bool {
+    left.stream_id() == right.stream_id()
+        && left.manifest_id() == right.manifest_id()
+        && left.manifest_generation() == right.manifest_generation()
+        && left.manifest_root() == right.manifest_root()
+        && left.next_offset() == right.next_offset()
 }
 
 #[derive(Debug, Clone)]
@@ -1252,15 +1304,7 @@ impl LocalEngine {
         let mut blockers = Vec::new();
 
         let frontier_caught_up = match local_frontier.as_ref() {
-            Some(local_frontier)
-                if local_frontier.manifest_id() == required_frontier.manifest_id()
-                    && local_frontier.manifest_generation()
-                        == required_frontier.manifest_generation()
-                    && local_frontier.manifest_root() == required_frontier.manifest_root()
-                    && local_frontier.next_offset() == required_frontier.next_offset() =>
-            {
-                true
-            }
+            Some(local_frontier) if frontiers_match(local_frontier, required_frontier) => true,
             Some(local_frontier)
                 if local_frontier.next_offset().value()
                     < required_frontier.next_offset().value() =>
@@ -1311,6 +1355,67 @@ impl LocalEngine {
             ownership_ready,
             promotable: frontier_caught_up && ownership_ready,
             blockers,
+        })
+    }
+
+    pub async fn handoff_primary(
+        &self,
+        stream_id: &StreamId,
+        target_owner: NodeId,
+        target: &LocalPromotionEligibility,
+    ) -> Result<LocalPrimaryTransferOutcome> {
+        ensure!(
+            target.stream_id() == stream_id,
+            "promotion target '{}' does not match transfer stream '{}'",
+            target.stream_id().as_str(),
+            stream_id.as_str()
+        );
+        ensure!(
+            target.promotable(),
+            "promotion target is not eligible: {}",
+            target.blockers().join("; ")
+        );
+
+        let current_frontier = self
+            .published_replication_frontier(stream_id)?
+            .context("primary handoff requires a published frontier")?;
+        ensure!(
+            frontiers_match(&current_frontier, target.required_frontier()),
+            "current primary frontier {}@{} does not match required transfer frontier {}@{}",
+            current_frontier.manifest_root().digest(),
+            current_frontier.next_offset().value(),
+            target.required_frontier().manifest_root().digest(),
+            target.required_frontier().next_offset().value()
+        );
+
+        let handle = self
+            .inner
+            .leases
+            .get(stream_id)
+            .context("primary handoff requires a bound consensus lease")?;
+        ensure!(
+            handle.is_leader(),
+            "primary handoff requires current leader ownership for '{}'",
+            stream_id.as_str()
+        );
+
+        let current_lease = handle.lease();
+        ensure!(
+            current_lease.owner != target_owner,
+            "primary handoff target '{}' already owns '{}'",
+            target_owner.as_str(),
+            stream_id.as_str()
+        );
+
+        let transferred = handle.handoff(target_owner.clone()).await?;
+        Ok(LocalPrimaryTransferOutcome {
+            stream_id: stream_id.clone(),
+            previous_owner: current_lease.owner,
+            new_owner: transferred.owner.clone(),
+            lease_version: transferred.version,
+            expires_at: transferred.expires_at,
+            manifest_generation: current_frontier.manifest_generation(),
+            frontier_next_offset: current_frontier.next_offset(),
         })
     }
 
@@ -3896,6 +4001,232 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn handoff_primary_transfers_writable_ownership_to_eligible_follower() {
+        use crate::consensus::{ConsensusProvider, NodeId, ObjectStoreConsensus};
+
+        let primary_root = tempdir().expect("primary root");
+        let follower_root = tempdir().expect("follower root");
+        let remote_root = tempdir().expect("remote root");
+        let primary = LocalEngine::open(
+            LocalEngineConfig::new(primary_root.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("primary");
+        let follower =
+            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
+                .expect("follower");
+        let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
+            LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store"),
+        );
+        let consensus = ObjectStoreConsensus::new(store.clone(), "leases");
+        let stream_id = stream_id("task.root");
+
+        primary
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second", "third", "fourth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        let handle_a = consensus
+            .acquire(&stream_id, NodeId::new("node-a"))
+            .await
+            .expect("a acquire");
+        primary.bind_consensus(stream_id.clone(), handle_a);
+
+        primary
+            .publish_rolled_segments(&stream_id, store.as_ref(), "tiered")
+            .await
+            .expect("publish");
+        let frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("published frontier");
+        follower
+            .sync_read_only_replica_from_frontier(store.as_ref(), &frontier)
+            .await
+            .expect("sync read-only replica");
+        let eligibility = follower
+            .promotion_eligibility(&stream_id, &frontier)
+            .expect("promotion eligibility");
+
+        let transfer = primary
+            .handoff_primary(&stream_id, NodeId::new("node-b"), &eligibility)
+            .await
+            .expect("handoff primary");
+        let promoted = LocalEngine::open(LocalEngineConfig::new(follower_root.path()))
+            .expect("promoted primary");
+        let handle_b = consensus
+            .acquire(&stream_id, NodeId::new("node-b"))
+            .await
+            .expect("b acquire");
+        promoted.bind_consensus(stream_id.clone(), handle_b);
+
+        let appended = promoted
+            .append(&stream_id, b"promoted-write")
+            .expect("promoted append");
+
+        assert_eq!(transfer.previous_owner(), &NodeId::new("node-a"));
+        assert_eq!(transfer.new_owner(), &NodeId::new("node-b"));
+        assert_eq!(
+            transfer.manifest_generation(),
+            frontier.manifest_generation()
+        );
+        assert_eq!(transfer.frontier_next_offset(), frontier.next_offset());
+        assert_eq!(appended.position().offset.value(), 4);
+    }
+
+    #[tokio::test]
+    async fn handoff_primary_rejects_ineligible_promotion_targets() {
+        use crate::consensus::{ConsensusProvider, NodeId, ObjectStoreConsensus};
+
+        let primary_root = tempdir().expect("primary root");
+        let follower_root = tempdir().expect("follower root");
+        let remote_root = tempdir().expect("remote root");
+        let primary = LocalEngine::open(
+            LocalEngineConfig::new(primary_root.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("primary");
+        let follower =
+            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
+                .expect("follower");
+        let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
+            LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store"),
+        );
+        let consensus = ObjectStoreConsensus::new(store.clone(), "leases");
+        let stream_id = stream_id("task.root");
+
+        primary
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second", "third", "fourth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        let handle_a = consensus
+            .acquire(&stream_id, NodeId::new("node-a"))
+            .await
+            .expect("a acquire");
+        primary.bind_consensus(stream_id.clone(), handle_a);
+
+        primary
+            .publish_rolled_segments(&stream_id, store.as_ref(), "tiered")
+            .await
+            .expect("publish first frontier");
+        let first_frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("first frontier");
+        follower
+            .sync_read_only_replica_from_frontier(store.as_ref(), &first_frontier)
+            .await
+            .expect("initial sync");
+
+        for payload in ["fifth", "sixth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+        primary
+            .publish_rolled_segments(&stream_id, store.as_ref(), "tiered")
+            .await
+            .expect("publish advanced frontier");
+        let advanced_frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("advanced frontier");
+        let behind = follower
+            .promotion_eligibility(&stream_id, &advanced_frontier)
+            .expect("promotion eligibility");
+
+        let err = primary
+            .handoff_primary(&stream_id, NodeId::new("node-b"), &behind)
+            .await
+            .expect_err("behind follower should be rejected");
+        assert!(err.to_string().contains("promotion target is not eligible"));
+    }
+
+    #[tokio::test]
+    async fn handoff_primary_rejects_stale_primary_frontier() {
+        use crate::consensus::{ConsensusProvider, NodeId, ObjectStoreConsensus};
+
+        let primary_root = tempdir().expect("primary root");
+        let follower_root = tempdir().expect("follower root");
+        let remote_root = tempdir().expect("remote root");
+        let primary = LocalEngine::open(
+            LocalEngineConfig::new(primary_root.path())
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("primary");
+        let follower =
+            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
+                .expect("follower");
+        let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
+            LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store"),
+        );
+        let consensus = ObjectStoreConsensus::new(store.clone(), "leases");
+        let stream_id = stream_id("task.root");
+
+        primary
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        for payload in ["first", "second", "third", "fourth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        let handle_a = consensus
+            .acquire(&stream_id, NodeId::new("node-a"))
+            .await
+            .expect("a acquire");
+        primary.bind_consensus(stream_id.clone(), handle_a);
+
+        primary
+            .publish_rolled_segments(&stream_id, store.as_ref(), "tiered")
+            .await
+            .expect("publish first frontier");
+        let first_frontier = primary
+            .published_replication_frontier(&stream_id)
+            .expect("frontier lookup")
+            .expect("first frontier");
+        follower
+            .sync_read_only_replica_from_frontier(store.as_ref(), &first_frontier)
+            .await
+            .expect("initial sync");
+        let stale_eligibility = follower
+            .promotion_eligibility(&stream_id, &first_frontier)
+            .expect("promotion eligibility");
+
+        for payload in ["fifth", "sixth"] {
+            primary
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+        primary
+            .publish_rolled_segments(&stream_id, store.as_ref(), "tiered")
+            .await
+            .expect("publish advanced frontier");
+
+        let err = primary
+            .handoff_primary(&stream_id, NodeId::new("node-b"), &stale_eligibility)
+            .await
+            .expect_err("stale primary frontier should be rejected");
+        assert!(
+            err.to_string().contains("current primary frontier"),
+            "unexpected error: {err:#}"
+        );
+    }
+
     #[test]
     fn verify_local_lineage_detects_tampering() {
         use std::fs::File;
@@ -4058,6 +4389,12 @@ mod tests {
             }
             async fn heartbeat(&self) -> anyhow::Result<()> {
                 Ok(())
+            }
+            async fn handoff(
+                &self,
+                _next_owner: NodeId,
+            ) -> anyhow::Result<crate::consensus::StreamLease> {
+                anyhow::bail!("not the leader")
             }
         }
 

@@ -27,12 +27,12 @@ started_at: 2026-03-29T11:34:49
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/4 stories complete
+**Progress:** 2/4 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Surface Promotion Eligibility Frontier](../../../../stories/VFDyklixV/README.md) | feat | done |
-| [Implement Lease-Backed Primary Transfer](../../../../stories/VFDykmAyU/README.md) | feat | backlog |
+| [Implement Lease-Backed Primary Transfer](../../../../stories/VFDykmAyU/README.md) | feat | done |
 | [Fence Former Primaries After Handoff](../../../../stories/VFDykmbyK/README.md) | feat | backlog |
 | [Prove Controlled Failover Semantics](../../../../stories/VFDykn3zT/README.md) | feat | backlog |
 <!-- END GENERATED -->
