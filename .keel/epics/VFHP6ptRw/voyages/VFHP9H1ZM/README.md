@@ -27,12 +27,12 @@ started_at: 2026-03-29T10:58:07
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 2/4 stories complete
+**Progress:** 3/4 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Stabilize Branch Metadata Helpers](../../../../stories/VFHPAh5bx/README.md) | feat | done |
 | [Add Root Plus Branch Replay Views](../../../../stories/VFHPAhRbw/README.md) | feat | done |
-| [Add Artifact Envelope Helper APIs](../../../../stories/VFHPAhmbz/README.md) | feat | backlog |
+| [Add Artifact Envelope Helper APIs](../../../../stories/VFHPAhmbz/README.md) | feat | done |
 | [Improve Checkpoint Replay Ergonomics](../../../../stories/VFHPAi8dG/README.md) | feat | backlog |
 <!-- END GENERATED -->

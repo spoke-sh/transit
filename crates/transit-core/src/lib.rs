@@ -3,6 +3,7 @@
 //! The first slice keeps the CLI thin and concentrates reusable workspace,
 //! mission, and object-store concerns in the core crate.
 
+pub mod artifact;
 pub mod bootstrap;
 pub mod consensus;
 pub mod engine;

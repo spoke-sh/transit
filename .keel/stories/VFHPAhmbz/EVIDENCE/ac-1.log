@@ -1,0 +1,17 @@
+---
+recorded_at: 2026-03-29T11:12:48.400770887-07:00
+mode: manual
+files: [".keel/stories/VFHPAhmbz/ac-1.log"]
+---
+
+--- File: ac-1.log ---
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-ecaff62f858c9816)
+
+running 1 test
+test artifact::tests::summary_helper_preserves_explicit_descriptor_fields ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 57 filtered out; finished in 0.00s
+
+
