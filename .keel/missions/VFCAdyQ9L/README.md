@@ -1,14 +1,15 @@
 ---
 # system-managed
 id: VFCAdyQ9L
-status: achieved
+status: verified
 created_at: 2026-03-28T13:19:08
-updated_at: 2026-03-28T13:21:12
+updated_at: 2026-03-28T18:55:56
 # authored
 title: Remove Blue Hover Link Underline
 watch: ~
 activated_at: 2026-03-28T13:20:05
 achieved_at: 2026-03-28T13:21:12
+verified_at: 2026-03-28T18:55:56
 ---
 
 # Remove Blue Hover Link Underline
