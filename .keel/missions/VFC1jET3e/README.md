@@ -1,14 +1,15 @@
 ---
 # system-managed
 id: VFC1jET3e
-status: achieved
+status: verified
 created_at: 2026-03-28T12:43:43
-updated_at: 2026-03-28T13:01:15
+updated_at: 2026-03-28T18:55:18
 # authored
 title: Refresh Transit Docs Theme With Subway Palette
 watch: ~
 activated_at: 2026-03-28T12:53:02
 achieved_at: 2026-03-28T13:01:15
+verified_at: 2026-03-28T18:55:18
 ---
 
 # Refresh Transit Docs Theme With Subway Palette
