@@ -129,11 +129,11 @@
 |--------|--------|
 | [Tune Hero Diagram Card](epics/VFCxQxWxm/voyages/VFCxRwY2T/) | done |
 
-### [Deliver Replicated Primary Handoff](epics/VFDyfjLlI/) (active)
+### [Deliver Replicated Primary Handoff](epics/VFDyfjLlI/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Enable Controlled Primary Transfer](epics/VFDyfjLlI/voyages/VFDyiCVpL/) | in-progress |
+| [Enable Controlled Primary Transfer](epics/VFDyfjLlI/voyages/VFDyiCVpL/) | done |
 
 ### [Deliver Embedded Replay And Artifact Helper APIs](epics/VFHP6ptRw/) (done)
 

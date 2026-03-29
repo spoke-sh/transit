@@ -22,8 +22,8 @@ index: 18
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 3/4 stories done
+**Progress:** 1/1 voyages complete, 4/4 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Enable Controlled Primary Transfer](voyages/VFDyiCVpL/) | in-progress | 3/4 |
+| [Enable Controlled Primary Transfer](voyages/VFDyiCVpL/) | done | 4/4 |
 <!-- END GENERATED -->
