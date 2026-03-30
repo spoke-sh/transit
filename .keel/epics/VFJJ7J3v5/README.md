@@ -22,8 +22,8 @@ mission: VFJJ7Icv2
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/1 stories done
+**Progress:** 1/1 voyages complete, 1/1 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Sync Controlled Failover Contracts And Guides](voyages/VFJJBrC66/) | planned | 0/1 |
+| [Sync Controlled Failover Contracts And Guides](voyages/VFJJBrC66/) | done | 1/1 |
 <!-- END GENERATED -->

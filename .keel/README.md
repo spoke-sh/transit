@@ -141,11 +141,11 @@
 |--------|--------|
 | [Publish Embedded Lineage Helper Surface](epics/VFHP6ptRw/voyages/VFHP9H1ZM/) | done |
 
-### [Sync Controlled Failover Foundational And User Docs](epics/VFJJ7J3v5/) (active)
+### [Sync Controlled Failover Foundational And User Docs](epics/VFJJ7J3v5/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Sync Controlled Failover Contracts And Guides](epics/VFJJ7J3v5/voyages/VFJJBrC66/) | planned |
+| [Sync Controlled Failover Contracts And Guides](epics/VFJJ7J3v5/voyages/VFJJBrC66/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
