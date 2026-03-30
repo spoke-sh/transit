@@ -1,0 +1,29 @@
+---
+recorded_at: 2026-03-29T18:40:56.644759678-07:00
+mode: manual
+files: ["ac-3.log"]
+---
+
+--- File: ac-3.log ---
+nix shell nixpkgs#nodejs_20 --command npm --prefix website run build
+
+> transit-website@0.0.0 prebuild
+> npm run sync:foundations
+
+
+> transit-website@0.0.0 sync:foundations
+> node ./scripts/sync-foundational-docs.mjs
+
+
+> transit-website@0.0.0 build
+> docusaurus build
+
+[INFO] [en] Creating an optimized production build...
+[WARNING] Cannot infer the update date for some files, as they are not tracked by git.
+[webpackbar] ℹ Compiling Client
+[webpackbar] ℹ Compiling Server
+[webpackbar] ✔ Server: Compiled successfully in 822.95ms
+[webpackbar] ✔ Client: Compiled successfully in 1.00s
+[SUCCESS] Generated static files in "build".
+[INFO] Use `npm run serve` command to test your build locally.
+

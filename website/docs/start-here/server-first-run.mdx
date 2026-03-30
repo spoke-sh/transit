@@ -22,6 +22,12 @@ Run the end-to-end server proof:
 cargo run -p transit-cli --bin transit -- mission networked-server-proof --root target/transit-docs/networked
 ```
 
+Run the current controlled failover proof:
+
+```bash
+cargo run -p transit-cli --bin transit -- mission controlled-failover-proof --root target/transit-docs/controlled-failover
+```
+
 Run the Rust client proof against a locally started server:
 
 ```bash
@@ -74,6 +80,8 @@ You should see that the server surface:
 - stays single-node unless a feature explicitly says otherwise
 - does not invent a separate storage model for the daemon
 
+And separately, the controlled failover proof should show that the shared engine can now prove readiness, explicit lease handoff, and former-primary fencing without pretending the server already ships quorum or automatic election.
+
 ## Boundaries To Remember
 
 Current server mode is a shared-engine single-node server.
@@ -83,9 +91,10 @@ That means these docs should not imply:
 - multi-primary behavior
 - hidden consensus across every deployment
 - a second replicated storage layer behind the API
+- automatic failover orchestration beyond the explicit proof path
 
 ## Where To Go Next
 
 - Read [Embedded And Server Modes](../concepts/embedded-and-server.mdx)
 - Read [Durability Modes](../concepts/durability-modes.mdx)
-
+- Read [Controlled Failover](../concepts/controlled-failover.mdx)

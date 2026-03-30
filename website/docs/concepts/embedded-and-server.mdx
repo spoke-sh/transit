@@ -31,6 +31,8 @@ The server should preserve:
 - the same lineage semantics
 - the same storage and durability boundaries
 
+That now includes the first controlled failover slice in the shared engine: published-frontier readiness, explicit lease handoff, and former-primary fencing. The important boundary is still explicit. Server mode does **not** suddenly imply quorum acknowledgement, automatic election, or multi-primary behavior.
+
 ## What Transit Tries To Avoid
 
 Transit is intentionally trying to avoid a split-brain architecture where:
@@ -45,3 +47,7 @@ That is why so much of the repo language insists on **one engine**.
 
 If a server guide sounds like it describes different storage semantics than the embedded guide, treat that as a bug in the docs or the implementation.
 
+Next:
+
+- [Controlled Failover](./controlled-failover.mdx)
+- [Server First Run](../start-here/server-first-run.mdx)

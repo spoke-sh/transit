@@ -25,7 +25,7 @@ That gives the system stable units for:
 - publication
 - restore
 - integrity checks
-- future clustered handoff
+- controlled failover readiness and explicit handoff
 
 ## What The Manifest Does
 
@@ -36,6 +36,7 @@ It tells Transit:
 - which segments make up a stream
 - where those segments live
 - how local and remote history relate
+- which published frontier a read-only replica can use for catch-up and promotion checks
 
 Without the manifest, the segments are just carriages in a yard with no timetable.
 
@@ -46,4 +47,4 @@ If you understand manifests and tiered storage, you understand why Transit can:
 - restore cold history
 - keep durability language precise
 - reuse the same immutable history model across embedded and server mode
-
+- prove the current controlled failover slice without pretending it already solved quorum or multi-primary behavior

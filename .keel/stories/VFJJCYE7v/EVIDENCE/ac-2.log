@@ -1,0 +1,27 @@
+---
+recorded_at: 2026-03-29T18:40:56.618141010-07:00
+mode: manual
+files: ["ac-2.log"]
+---
+
+--- File: ac-2.log ---
+website/docs/start-here/server-first-run.mdx:25:Run the current controlled failover proof:
+website/docs/start-here/server-first-run.mdx:28:cargo run -p transit-cli --bin transit -- mission controlled-failover-proof --root target/transit-docs/controlled-failover
+website/docs/start-here/server-first-run.mdx:83:And separately, the controlled failover proof should show that the shared engine can now prove readiness, explicit lease handoff, and former-primary fencing without pretending the server already ships quorum or automatic election.
+website/docs/start-here/server-first-run.mdx:91:- multi-primary behavior
+website/docs/start-here/embedded-library-first-run.mdx:28:That is the default human proof path. It builds the workspace and runs the local engine, tiered history, controlled failover, server, integrity, and materialization proofs in one flow.
+website/docs/start-here/embedded-library-first-run.mdx:44:Run the controlled failover proof:
+website/docs/start-here/embedded-library-first-run.mdx:47:cargo run -p transit-cli --bin transit -- mission controlled-failover-proof --root target/transit-docs/controlled-failover
+website/docs/start-here/embedded-library-first-run.mdx:58:- the current failover slice uses explicit readiness, lease handoff, and former-primary fencing instead of hidden election behavior
+website/docs/concepts/tiered-storage-and-manifests.mdx:28:- controlled failover readiness and explicit handoff
+website/docs/concepts/tiered-storage-and-manifests.mdx:50:- prove the current controlled failover slice without pretending it already solved quorum or multi-primary behavior
+website/docs/concepts/durability-modes.mdx:23:Today that is the readiness boundary for the current controlled failover slice. It means the immutable handoff unit exists for clustered restore/catch-up semantics and promotion checks; it does **not** automatically mean every follower has applied it, that quorum has been reached, or that later writes on the promoted node are already replicated.
+website/docs/concepts/controlled-failover.mdx:4:description: Understand Transit's current replicated handoff slice without overreading it as quorum or multi-primary behavior.
+website/docs/concepts/controlled-failover.mdx:24:2. writable ownership moves only through an explicit lease handoff
+website/docs/concepts/controlled-failover.mdx:31:cargo run -p transit-cli --bin transit -- mission controlled-failover-proof --root target/transit-docs/controlled-failover
+website/docs/concepts/controlled-failover.mdx:63:The controlled failover proof is careful about these non-claims because Transit wants durability and failover language to stay precise.
+website/docs/concepts/controlled-failover.mdx:85:- quorum acknowledgement
+website/docs/concepts/controlled-failover.mdx:87:- multi-primary behavior
+website/docs/concepts/embedded-and-server.mdx:34:That now includes the first controlled failover slice in the shared engine: published-frontier readiness, explicit lease handoff, and former-primary fencing. The important boundary is still explicit. Server mode does **not** suddenly imply quorum acknowledgement, automatic election, or multi-primary behavior.
+website/docs/concepts/core-model.mdx:44:The exact meanings matter. `replicated` still does not imply quorum acknowledgement, automatic election, or multi-primary behavior.
+

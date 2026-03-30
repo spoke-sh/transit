@@ -38,14 +38,14 @@ That split matters because Transit wants hot local append and object-storage-bac
 Transit keeps durability explicit:
 
 - `local` means durable on the local node
-- `replicated` means the replicated handoff boundary has been published
+- `replicated` means the published handoff frontier exists for read-only replica catch-up and promotion readiness
 - `tiered` means remote-tier durability is established for cold history
 
-The exact meanings matter. The public docs should clarify them, not blur them.
+The exact meanings matter. `replicated` still does not imply quorum acknowledgement, automatic election, or multi-primary behavior.
 
 Next:
 
 - [Embedded And Server Modes](./embedded-and-server.mdx)
 - [Durability Modes](./durability-modes.mdx)
+- [Controlled Failover](./controlled-failover.mdx)
 - [Tiered Storage And Manifests](./tiered-storage-and-manifests.mdx)
-

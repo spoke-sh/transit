@@ -25,7 +25,7 @@ From the repo root:
 just screen
 ```
 
-That is the default human proof path. It builds the workspace and runs the local engine, tiered history, server, integrity, and materialization proofs in one flow.
+That is the default human proof path. It builds the workspace and runs the local engine, tiered history, controlled failover, server, integrity, and materialization proofs in one flow.
 
 ## If You Want To Narrow The Scope
 
@@ -41,6 +41,12 @@ Run the tiered publication/restore proof:
 cargo run -p transit-cli --bin transit -- mission tiered-engine-proof --root target/transit-docs/tiered
 ```
 
+Run the controlled failover proof:
+
+```bash
+cargo run -p transit-cli --bin transit -- mission controlled-failover-proof --root target/transit-docs/controlled-failover
+```
+
 ## What To Look For
 
 When these proofs pass, you should have evidence that:
@@ -49,6 +55,7 @@ When these proofs pass, you should have evidence that:
 - branches reuse ancestor history instead of copying old bytes
 - merges preserve explicit parent lineage
 - rolled immutable segments can be published and restored through the remote tier
+- the current failover slice uses explicit readiness, lease handoff, and former-primary fencing instead of hidden election behavior
 
 ## Mental Model
 
@@ -63,5 +70,5 @@ Think of the embedded engine as the local station where trains are assembled and
 
 - Read [Core Model](../concepts/core-model.mdx)
 - Read [Durability Modes](../concepts/durability-modes.mdx)
+- Read [Controlled Failover](../concepts/controlled-failover.mdx)
 - Read [Tiered Storage And Manifests](../concepts/tiered-storage-and-manifests.mdx)
-

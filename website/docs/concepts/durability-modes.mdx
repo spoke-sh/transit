@@ -20,7 +20,7 @@ That is the hot-path durability boundary.
 
 `replicated` means the replicated handoff boundary has been published.
 
-Today that is below full quorum or failover language. It means the immutable handoff unit exists for clustered restore/catch-up semantics; it does **not** automatically mean every follower has applied it.
+Today that is the readiness boundary for the current controlled failover slice. It means the immutable handoff unit exists for clustered restore/catch-up semantics and promotion checks; it does **not** automatically mean every follower has applied it, that quorum has been reached, or that later writes on the promoted node are already replicated.
 
 ## Tiered
 
@@ -36,3 +36,4 @@ These boundaries keep three bad habits out of the product:
 
 When you read or write Transit docs, keep those three words separate unless a feature explicitly proves otherwise.
 
+If you want the current replicated handoff story in one place, read [Controlled Failover](./controlled-failover.mdx).

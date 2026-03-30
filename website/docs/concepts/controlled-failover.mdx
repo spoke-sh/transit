@@ -1,0 +1,96 @@
+---
+title: Controlled Failover
+sidebar_position: 7
+description: Understand Transit's current replicated handoff slice without overreading it as quorum or multi-primary behavior.
+---
+
+# Controlled Failover
+
+Transit now has a first bounded failover slice.
+
+That slice is intentionally specific:
+
+- a read-only replica can catch up to a published frontier
+- the current primary can hand off the writable lease explicitly
+- the former primary is fenced after handoff
+
+This is real progress, but it is not the whole distributed-systems stack.
+
+## What The Current Slice Proves
+
+The current proof surface demonstrates four things:
+
+1. promotion readiness is anchored to a published replication frontier
+2. writable ownership moves only through an explicit lease handoff
+3. the promoted node can continue as the writable primary
+4. the former primary is rejected if it tries to keep writing
+
+You can run that proof directly:
+
+```bash
+cargo run -p transit-cli --bin transit -- mission controlled-failover-proof --root target/transit-docs/controlled-failover
+```
+
+Or run it as part of the default operator path:
+
+```bash
+just screen
+```
+
+## Promotion Readiness
+
+Transit does not treat promotion as a local guess.
+
+A follower is ready only when:
+
+- the required published frontier is known
+- the follower has caught up to that frontier
+- the candidate is still a read-only replica before handoff
+
+That keeps the promotion boundary inspectable instead of hidden in background heuristics.
+
+## What Handoff Means
+
+The handoff step means the writable lease moved from one node to another.
+
+It does **not** mean:
+
+- every follower is caught up
+- a majority voted
+- the system ran an automatic election
+- multiple primaries may write at once
+
+The controlled failover proof is careful about these non-claims because Transit wants durability and failover language to stay precise.
+
+## Former-Primary Fencing
+
+After handoff, the old primary is not "probably stale." It is fenced.
+
+That means stale-primary writes are rejected instead of being silently accepted and reconciled later.
+
+This is the mechanism that keeps the first failover slice compatible with Transit’s one-writer-per-stream-head consistency model.
+
+## How This Relates To Durability
+
+- `local` still means durable on the local node
+- `replicated` means the published handoff frontier exists for catch-up and readiness checks
+- `tiered` still means durable in the remote tier for cold history
+
+Handoff does not magically upgrade later writes on the promoted node beyond the durability level they actually reached.
+
+## The Important Boundaries
+
+Today this feature is still below:
+
+- quorum acknowledgement
+- automatic leader election
+- multi-primary behavior
+- hidden failover orchestration
+
+That boundary is a feature, not a caveat. It keeps Transit honest about what the current engine actually proves.
+
+Next:
+
+- [Durability Modes](./durability-modes.mdx)
+- [Embedded And Server Modes](./embedded-and-server.mdx)
+- [Server First Run](../start-here/server-first-run.mdx)

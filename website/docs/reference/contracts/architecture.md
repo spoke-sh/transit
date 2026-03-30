@@ -137,7 +137,7 @@ Server mode exposes the same storage engine behind a network API:
 
 The server should not invent a second storage format or branch model.
 
-The first implementation step is a thin daemon bootstrap that opens the shared engine and binds a listener. The current server slice now layers provisional remote root creation, append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations on top of that bootstrap, wrapped in a framed request/response envelope with correlation IDs plus explicit acknowledgement and error semantics. Tail streaming now uses logical session IDs with `open/poll/cancel` operations and credit-based delivery so the semantics do not collapse into one socket or underlay assumption. The first CLI client surface now mirrors those remote workflows directly, while richer client surfaces remain downstream. It remains explicitly single-node and should not imply replication, quorum, or leader semantics.
+The first implementation step is a thin daemon bootstrap that opens the shared engine and binds a listener. The current server slice now layers provisional remote root creation, append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations on top of that bootstrap, wrapped in a framed request/response envelope with correlation IDs plus explicit acknowledgement and error semantics. Tail streaming now uses logical session IDs with `open/poll/cancel` operations and credit-based delivery so the semantics do not collapse into one socket or underlay assumption. The first CLI client surface now mirrors those remote workflows directly, while richer client surfaces remain downstream. The public server surface remains explicitly single-node. Separately, the shared engine now has a bounded controlled failover slice for published-frontier readiness, explicit lease handoff, and former-primary fencing, but that slice still sits below quorum acknowledgement, automatic election, and multi-primary behavior.
 
 The transport boundary is also explicit: `transit` defines an application protocol above the transport layer. TCP, QUIC, or other ordinary transports can carry that protocol, and secure meshes such as WireGuard remain optional deployment underlays rather than protocol replacements.
 
@@ -194,6 +194,7 @@ Suggested durability modes:
 
 - `memory`: acknowledged after in-memory acceptance, for tests only
 - `local`: acknowledged after local durable write
+- `replicated`: acknowledged after the published handoff frontier is durable enough for read-only replica catch-up and promotion readiness; it does not imply follower hydration, quorum acknowledgement, or automatic failover
 - `tiered`: acknowledged only after the relevant segment state is durable in the remote tier
 
 ## Read Path
@@ -238,6 +239,8 @@ The initial reference model should be simple:
 - append order defines stream order
 - acknowledged records are immutable
 - recovery must never expose unacknowledged bytes as committed history
+
+The first controlled failover slice preserves that model by allowing a caught-up read-only replica to become the writable primary only through explicit lease handoff. Former primaries are fenced after handoff so stale leaders cannot continue acknowledged writes. This slice remains explicitly below quorum acknowledgement, election, and multi-primary behavior.
 
 Any move toward replicated or multi-writer semantics must preserve those invariants and define conflict rules directly.
 
