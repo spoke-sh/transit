@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-03-30T15:38:14.005918200-07:00
+mode: manual
+---
+Implemented quorum_size() default implementation.
