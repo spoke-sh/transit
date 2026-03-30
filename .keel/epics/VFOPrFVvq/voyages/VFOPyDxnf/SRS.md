@@ -29,6 +29,7 @@ Automate the transition from a read-only follower to a writable primary when the
 | SRS-02 | Eligible followers must attempt to acquire the primary lease once it becomes available. | SCOPE-02 | FR-02 | FR-02 | must |
 | SRS-03 | The engine must verify its writable ownership (lease) before every append. | SCOPE-03 | FR-04 | FR-04 | must |
 | SRS-04 | Ensure that the failover event is logged and exposed through the server status API. | SCOPE-01 | NFR-03 | NFR-03 | must |
+| SRS-05 | A follower becomes writable automatically after primary failure is detected. | SCOPE-02 | FR-02 | FR-02 | must |
 <!-- END FUNCTIONAL_REQUIREMENTS -->
 
 ### Non-Functional Requirements

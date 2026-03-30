@@ -22,9 +22,9 @@ mission: VFOPrEjuy
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/2 voyages complete, 4/4 stories done
+**Progress:** 1/2 voyages complete, 4/8 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
 | [Implement Quorum Durability and Membership](voyages/VFOPuiaUH/) | done | 4/4 |
-| [Enable Automatic Leader Election and Failover](voyages/VFOPyDxnf/) | draft | 0/0 |
+| [Enable Automatic Leader Election and Failover](voyages/VFOPyDxnf/) | planned | 0/4 |
 <!-- END GENERATED -->
