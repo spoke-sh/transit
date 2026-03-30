@@ -147,6 +147,13 @@
 |--------|--------|
 | [Sync Controlled Failover Contracts And Guides](epics/VFJJ7J3v5/voyages/VFJJBrC66/) | done |
 
+### [Implement Quorum Acknowledgement and Automatic Failover](epics/VFOPrFVvq/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Implement Quorum Durability and Membership](epics/VFOPrFVvq/voyages/VFOPuiaUH/) | planned |
+| [Enable Automatic Leader Election and Failover](epics/VFOPrFVvq/voyages/VFOPyDxnf/) | draft |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
