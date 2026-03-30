@@ -15,7 +15,7 @@ This repository uses Keel as its project management engine. Your primary respons
 Keel's operator rhythm is the `Orient -> Inspect -> Pull -> Ship -> Close` loop surfaced by `keel turn`.
 
 - **Orient**: Inspect charge and board stability with `keel heartbeat`, `keel health --scene`, `keel flow --scene`, and `keel doctor`.
-- **Inspect**: Read current demand with `keel mission next --status`, `keel pulse`, and `keel workshop` when a manual lane may be waiting.
+- **Inspect**: Read current demand with `keel mission next --status`, `keel pulse`, `keel roles`, and `keel next --role <role> --explain` when routing is unclear.
 - **Pull**: Select one role-scoped slice with `keel next --role <role>`.
 - **Ship**: Execute the slice, record proof, and advance lifecycle state.
 - **Close**: Land the relevant transition and the sealing commit that clears open-loop energy.
@@ -199,11 +199,11 @@ Run `keel --help` for the full command tree. Common commands:
 | Category | Commands |
 |----------|----------|
 | Orientation | `keel turn` `keel heartbeat` `keel health --scene` `keel flow --scene` `keel doctor` `keel screen --static` |
-| Inspection | `keel mission next [<id>]` `keel pulse` `keel workshop` |
+| Inspection | `keel mission next [<id>]` `keel pulse` `keel roles` `keel workshop` `keel next --role <role> --explain` |
 | Discovery | `keel bearing new <name>` `keel bearing research <id>` `keel bearing assess <id>` `keel bearing list` |
 | Planning | `keel epic new "<name>" --problem "<problem>"` `keel voyage new "<name>" --epic <epic-id> --goal "<goal>"` |
 | Execution | `keel story new "<title>" [--type <type>] [--epic <epic-id> [--voyage <voyage-id>]]` |
-| Board Ops | `keel mission next [<id>]` `keel next --role manager` `keel next --role operator` `keel flow` `keel doctor` `keel generate` `keel config show` `keel mission show <id>` |
+| Board Ops | `keel mission next [<id>]` `keel next --role manager` `keel next --role operator` `keel flow` `keel doctor` `keel generate` `keel config show` `keel mission show <id>` `keel mission attach <mission-id> --epic <epic-id>` |
 | Lifecycle | Story/voyage/epic transitions in the table below |
 
 ## Story and Milestone State Changes

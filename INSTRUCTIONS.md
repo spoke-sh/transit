@@ -9,7 +9,7 @@ Transit uses Keel as its project management engine. Your job is to move the boar
 `keel turn` is the canonical reference surface for this rhythm. Every session follows this deterministic cycle:
 
 1.  **Orient**: Run `keel heartbeat`, `keel health --scene`, `keel flow --scene`, and `keel doctor`. This tells you whether the board is energized, healthy, and structurally coherent.
-2.  **Inspect**: Run `keel mission next --status` and `keel pulse`. If routing is unclear or a manual lane may be waiting, inspect `keel workshop`.
+2.  **Inspect**: Run `keel mission next --status` and `keel pulse`. If routing is unclear, inspect `keel roles` or `keel next --role <role> --explain`.
 3.  **Pull**: Choose the correct lane and role (`manager`, `operator`, or a configured role family) and pull exactly ONE slice of work.
 4.  **Ship**: Execute the move, record proof while the work is fresh, and land the relevant lifecycle transition (`story submit`, `voyage plan`, `bearing lay`, etc.).
 5.  **Close**:
@@ -29,8 +29,8 @@ Focus on **evidence-backed delivery**.
 
 ### Manager (Planning)
 Focus on **strategic alignment and unblocking**.
-- **Context**: `keel epic show <id>`, `keel workshop`, and `keel flow`.
-- **Action**: Author `PRD.md`, `SRS.md`, `SDD.md`, resolve routing, and decompose stories.
+- **Context**: `keel epic show <id>`, `keel roles`, `keel next --role manager --explain`, and `keel flow`.
+- **Action**: Author `PRD.md`, `SRS.md`, `SDD.md`, resolve routing, decompose stories, and attach mission children explicitly with `keel mission attach <mission-id> --epic <epic-id>`, `--bearing <bearing-id>`, or `--adr <adr-id>`.
 - **Constraint**: Move voyages from `draft` to `planned` only when requirements are coherent.
 
 ### Explorer (Research)
@@ -130,11 +130,11 @@ Run `keel --help` for the full command tree. The core commands you should rely o
 | Category | Commands |
 |----------|----------|
 | Orientation | `keel turn` `keel heartbeat` `keel health --scene` `keel flow --scene` `keel doctor` `keel screen --static` |
-| Inspection | `keel mission next [<id>]` `keel pulse` `keel workshop` |
+| Inspection | `keel mission next [<id>]` `keel pulse` `keel roles` `keel workshop` `keel next --role <role> --explain` |
 | Discovery | `keel bearing new <name>` `keel bearing research <id>` `keel bearing assess <id>` `keel bearing list` |
 | Planning | `keel epic new "<name>" --problem "<problem>"` `keel voyage new "<name>" --epic <epic-id> --goal "<goal>"` |
 | Execution | `keel story new "<title>" [--type <type>] [--epic <epic-id> [--voyage <voyage-id>]]` |
-| Board Ops | `keel mission next [<id>]` `keel next --role manager` `keel next --role operator` `keel flow` `keel doctor` `keel generate` `keel config show` `keel mission show <id>` |
+| Board Ops | `keel mission next [<id>]` `keel next --role manager` `keel next --role operator` `keel flow` `keel doctor` `keel generate` `keel config show` `keel mission show <id>` `keel mission attach <mission-id> --epic <epic-id>` |
 | Lifecycle | Story/voyage/epic transitions in the table below |
 
 ## Story and Milestone State Changes
