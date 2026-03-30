@@ -1166,6 +1166,7 @@ dependencies = [
  "bytes",
  "chrono",
  "dashmap",
+ "futures",
  "object_store",
  "serde",
  "serde_json",

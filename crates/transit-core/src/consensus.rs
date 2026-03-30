@@ -1,23 +1,11 @@
 use crate::kernel::StreamId;
+pub use crate::membership::NodeId;
 use anyhow::{Context, Result, bail, ensure};
 use async_trait::async_trait;
 use object_store::path::Path as ObjectPath;
 use object_store::{ObjectStore, ObjectStoreExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-/// Identifies a unique node in the Transit cluster.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NodeId(pub String);
-
-impl NodeId {
-    pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
 
 /// A verifiable distributed lease for a stream head.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

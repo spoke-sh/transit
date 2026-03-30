@@ -15,6 +15,7 @@ async-trait.workspace = true
 bytes.workspace = true
 chrono = "0.4"
 dashmap.workspace = true
+futures = { version = "0.3", package = "futures" }
 object_store.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 const STREAMS_DIR: &str = "streams";
 const SEGMENTS_DIR: &str = "segments";
@@ -24,12 +25,18 @@ const MANIFEST_FILE: &str = "manifest.json";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DurabilityMode {
     Local,
+    Replicated,
+    Tiered,
+    Quorum,
 }
 
 impl DurabilityMode {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Local => "local",
+            Self::Replicated => "replicated",
+            Self::Tiered => "tiered",
+            Self::Quorum => "quorum",
         }
     }
 }
@@ -57,6 +64,7 @@ impl AccessMode {
 pub enum CommitmentLevel {
     Local,
     Replicated,
+    Quorum,
     Tiered,
 }
 
@@ -65,6 +73,7 @@ impl CommitmentLevel {
         match self {
             Self::Local => "local",
             Self::Replicated => "replicated",
+            Self::Quorum => "quorum",
             Self::Tiered => "tiered",
         }
     }
@@ -76,6 +85,7 @@ pub struct LocalEngineConfig {
     segment_max_records: u64,
     durability: DurabilityMode,
     access_mode: AccessMode,
+    membership: Option<std::sync::Arc<dyn crate::membership::ClusterMembership>>,
 }
 
 impl LocalEngineConfig {
@@ -85,7 +95,21 @@ impl LocalEngineConfig {
             segment_max_records: 1_024,
             durability: DurabilityMode::Local,
             access_mode: AccessMode::ReadWrite,
+            membership: None,
         }
+    }
+
+    pub fn with_membership(
+        mut self,
+        membership: std::sync::Arc<dyn crate::membership::ClusterMembership>,
+    ) -> Self {
+        self.membership = Some(membership);
+        self
+    }
+
+    pub fn with_durability(mut self, durability: DurabilityMode) -> Self {
+        self.durability = durability;
+        self
     }
 
     pub fn with_segment_max_records(mut self, segment_max_records: u64) -> Result<Self> {
@@ -632,6 +656,12 @@ pub struct LocalEngine {
 struct LocalEngineInner {
     config: LocalEngineConfig,
     leases: dashmap::DashMap<StreamId, std::sync::Arc<dyn ConsensusHandle + 'static>>,
+    membership: Option<std::sync::Arc<dyn crate::membership::ClusterMembership>>,
+    /// Tracks the last acknowledged offset for each peer in a stream.
+    /// StreamId -> { NodeId -> Offset }
+    peer_acks: dashmap::DashMap<StreamId, dashmap::DashMap<crate::membership::NodeId, Offset>>,
+    /// Notify when peer acks are updated.
+    stream_updates: dashmap::DashMap<StreamId, std::sync::Arc<tokio::sync::Notify>>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -661,14 +691,95 @@ impl LocalEngine {
 
         Ok(Self {
             inner: std::sync::Arc::new(LocalEngineInner {
+                membership: config.membership.clone(),
                 config,
                 leases: dashmap::DashMap::new(),
+                peer_acks: dashmap::DashMap::new(),
+                stream_updates: dashmap::DashMap::new(),
             }),
         })
     }
 
     pub fn data_dir(&self) -> &Path {
         self.inner.config.data_dir()
+    }
+
+    pub fn record_peer_ack(
+        &self,
+        stream_id: &StreamId,
+        node_id: crate::membership::NodeId,
+        offset: Offset,
+    ) {
+        self.inner
+            .peer_acks
+            .entry(stream_id.clone())
+            .or_default()
+            .insert(node_id, offset);
+
+        if let Some(notify) = self.inner.stream_updates.get(stream_id) {
+            notify.notify_waiters();
+        }
+    }
+
+    pub async fn is_quorum_reached(&self, stream_id: &StreamId, offset: Offset) -> Result<bool> {
+        let quorum_size = if let Some(membership) = self.inner.membership.as_ref() {
+            membership.quorum_size().await?
+        } else {
+            bail!("quorum durability requires a membership provider");
+        };
+
+        let mut ack_count = 1;
+        if let Some(stream_map) = self.inner.peer_acks.get(stream_id) {
+            for peer in stream_map.iter() {
+                if peer.value().value() >= offset.value() {
+                    ack_count += 1;
+                }
+            }
+        }
+
+        Ok(ack_count >= quorum_size)
+    }
+
+    pub async fn wait_for_quorum(
+        &self,
+        stream_id: &StreamId,
+        offset: Offset,
+        timeout: std::time::Duration,
+    ) -> Result<()> {
+        let stream_updates = self
+            .inner
+            .stream_updates
+            .entry(stream_id.clone())
+            .or_default()
+            .clone();
+
+        let start = std::time::Instant::now();
+        loop {
+            if self.is_quorum_reached(stream_id, offset).await? {
+                return Ok(());
+            }
+
+            let notified = stream_updates.notified();
+
+            // Re-check after creating the notified future to avoid missing a race.
+            if self.is_quorum_reached(stream_id, offset).await? {
+                return Ok(());
+            }
+
+            let elapsed = start.elapsed();
+            if elapsed >= timeout {
+                bail!(
+                    "timeout waiting for quorum on stream '{}' at offset {}",
+                    stream_id.as_str(),
+                    offset.value()
+                );
+            }
+
+            tokio::select! {
+                _ = notified => {},
+                _ = tokio::time::sleep(timeout.saturating_sub(elapsed)) => {},
+            }
+        }
     }
 
     pub fn durability(&self) -> DurabilityMode {
@@ -809,6 +920,28 @@ impl LocalEngine {
         key_prefix: &str,
     ) -> Result<ReplicatedAppendOutcome> {
         let outcome = self.append(stream_id, payload)?;
+
+        if self.inner.config.durability() == DurabilityMode::Quorum {
+            self.wait_for_quorum(
+                stream_id,
+                outcome.position().offset,
+                Duration::from_secs(30),
+            )
+            .await?;
+
+            // For quorum mode, we still return a ReplicatedAppendOutcome but with Quorum commitment.
+            return Ok(ReplicatedAppendOutcome {
+                position: outcome.position().clone(),
+                commitment: CommitmentLevel::Quorum,
+                manifest_generation: outcome.manifest_generation(),
+                // These fields are less relevant for pure quorum mode but kept for compatibility
+                frontier_next_offset: outcome.position().offset.increment(),
+                manifest_object_key: ObjectStoreKey::new("quorum-ack").unwrap(),
+                published_segment_ids: Vec::new(),
+                rolled_segment_id: outcome.rolled_segment().map(|s| s.segment_id().clone()),
+            });
+        }
+
         let rolled_segment = match outcome.rolled_segment() {
             Some(segment) => Some(segment.segment_id().clone()),
             None => self
@@ -2522,6 +2655,126 @@ mod tests {
         AccessMode, CommitmentLevel, DurabilityMode, LocalEngine, LocalEngineConfig,
         OwnershipPosture,
     };
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn quorum_mode_is_defined() {
+        let mode = DurabilityMode::Quorum;
+        assert_eq!(mode.as_str(), "quorum");
+    }
+
+    #[tokio::test]
+    async fn engine_tracks_peer_acks() {
+        let temp = tempdir().expect("temp");
+        let config = LocalEngineConfig::new(temp.path());
+        let engine = LocalEngine::open(config).expect("open");
+        let stream_id = StreamId::new("test.stream").unwrap();
+        let peer1 = crate::membership::NodeId::new("peer1");
+        let offset = Offset::new(10);
+
+        engine.record_peer_ack(&stream_id, peer1.clone(), offset);
+        let acks = engine.inner.peer_acks.get(&stream_id).unwrap();
+        assert_eq!(*acks.get(&peer1).unwrap(), Offset::new(10));
+    }
+
+    #[tokio::test]
+    async fn engine_requires_quorum_to_acknowledge() {
+        use crate::membership::{ClusterMembership, NodeId};
+
+        #[derive(Debug)]
+        struct ThreeNodeMembership;
+        #[async_trait::async_trait]
+        impl ClusterMembership for ThreeNodeMembership {
+            async fn heartbeat(&self, _id: &NodeId) -> anyhow::Result<()> {
+                Ok(())
+            }
+            async fn nodes(&self) -> anyhow::Result<Vec<NodeId>> {
+                Ok(vec![
+                    NodeId::new("node1"),
+                    NodeId::new("node2"),
+                    NodeId::new("node3"),
+                ])
+            }
+        }
+
+        let temp = tempdir().expect("temp");
+        let membership = std::sync::Arc::new(ThreeNodeMembership);
+        let config = LocalEngineConfig::new(temp.path())
+            .with_membership(membership.clone())
+            .with_durability(DurabilityMode::Quorum);
+        let engine = LocalEngine::open(config).expect("open");
+        let stream_id = StreamId::new("test.stream").unwrap();
+        engine
+            .create_stream(root_descriptor("test.stream"))
+            .expect("create stream");
+
+        let store = object_store::memory::InMemory::new();
+
+        // 1. Append should block because quorum (2/3) is not reached.
+        let engine_clone = std::sync::Arc::new(engine);
+        let engine_for_spawn = engine_clone.clone();
+        let stream_id_clone = stream_id.clone();
+        let append_handle = tokio::spawn(async move {
+            engine_for_spawn
+                .append_with_replicated_ack(&stream_id_clone, b"data", &store, "test")
+                .await
+        });
+
+        // Give it a moment to block
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(!append_handle.is_finished());
+
+        // 2. Record one peer ack. Now we have 2/3 (primary + peer1).
+        engine_clone.record_peer_ack(&stream_id, NodeId::new("node2"), Offset::new(0));
+
+        // 3. Now it should finish
+        let result = append_handle.await.unwrap().expect("append success");
+        assert_eq!(result.commitment(), CommitmentLevel::Quorum);
+    }
+
+    #[tokio::test]
+    async fn engine_quorum_append_times_out_if_no_acks() {
+        use crate::membership::{ClusterMembership, NodeId};
+
+        #[derive(Debug)]
+        struct TwoNodeMembership;
+        #[async_trait::async_trait]
+        impl ClusterMembership for TwoNodeMembership {
+            async fn heartbeat(&self, _id: &NodeId) -> anyhow::Result<()> {
+                Ok(())
+            }
+            async fn nodes(&self) -> anyhow::Result<Vec<NodeId>> {
+                Ok(vec![NodeId::new("node1"), NodeId::new("node2")])
+            }
+        }
+
+        let temp = tempdir().expect("temp");
+        let membership = std::sync::Arc::new(TwoNodeMembership);
+        let config = LocalEngineConfig::new(temp.path())
+            .with_membership(membership.clone())
+            .with_durability(DurabilityMode::Quorum);
+        let engine = LocalEngine::open(config).expect("open");
+        let stream_id = StreamId::new("test.stream").unwrap();
+        engine
+            .create_stream(root_descriptor("test.stream"))
+            .expect("create stream");
+
+        let _store = object_store::memory::InMemory::new();
+
+        // 1. Append with a short timeout.
+        // For a 2-node cluster, quorum is 2. The primary is 1, so we need 1 more.
+        let result = tokio::time::timeout(
+            Duration::from_millis(500),
+            engine.wait_for_quorum(&stream_id, Offset::new(0), Duration::from_millis(100)),
+        )
+        .await;
+
+        // 2. It should return a timeout error from wait_for_quorum, not from tokio::time::timeout
+        match result {
+            Ok(Err(e)) => assert!(e.to_string().contains("timeout waiting for quorum")),
+            _ => panic!("expected quorum timeout error, got {:?}", result),
+        }
+    }
     use crate::kernel::{
         LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor,
         StreamId, StreamLineage, StreamPosition,

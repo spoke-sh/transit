@@ -12,4 +12,4 @@ pub use anyhow::Result;
 pub use async_trait::async_trait;
 pub use serde::{Deserialize, Serialize};
 
-pub use crate::membership::{ClusterMembership, NodeIdentity};
+pub use crate::membership::{ClusterMembership, NodeId};
