@@ -1,0 +1,113 @@
+---
+title: Failover
+sidebar_position: 7
+description: Understand Transit's failover model including controlled handoff, automatic leader election, and quorum durability.
+---
+
+# Failover
+
+Transit supports two failover paths and a quorum durability mode. Both failover paths preserve the one-writer-per-stream-head consistency model.
+
+## Controlled Failover
+
+Controlled failover is an explicit, operator-driven handoff:
+
+- a read-only replica catches up to a published frontier
+- the current primary hands off the writable lease explicitly
+- the former primary is fenced after handoff
+
+You can run that proof directly:
+
+```bash
+cargo run -p transit-cli --bin transit -- mission controlled-failover-proof --root target/transit-docs/controlled-failover
+```
+
+Or run it as part of the default operator path:
+
+```bash
+just screen
+```
+
+### Promotion Readiness
+
+Transit does not treat promotion as a local guess.
+
+A follower is ready only when:
+
+- the required published frontier is known
+- the follower has caught up to that frontier
+- the candidate is still a read-only replica before handoff
+
+That keeps the promotion boundary inspectable instead of hidden in background heuristics.
+
+### What Handoff Means
+
+The handoff step means the writable lease moved from one node to another.
+
+It does **not** mean:
+
+- every follower is caught up
+- multiple primaries may write at once
+
+Controlled failover is precise about these non-claims because Transit wants failover language to stay honest.
+
+## Automatic Failover
+
+Automatic failover removes the operator from the recovery path.
+
+An `ElectionMonitor` periodically checks the primary lease. When the lease expires — because the primary crashed, lost connectivity, or stopped heartbeating — the monitor triggers an election:
+
+1. the monitor detects lease expiration
+2. the engine attempts to acquire the lease via the `ConsensusProvider`
+3. the provider uses optimistic locking so only one follower succeeds
+4. the winner binds the new lease and becomes the writable primary
+5. the former primary is fenced on its next write attempt
+
+The election timeout and monitor poll interval are configurable to balance recovery speed against false-positive failover risk from network blips.
+
+## Cluster Membership
+
+Nodes discover each other through the `ClusterMembership` surface:
+
+- each node registers a periodic heartbeat
+- active nodes are those whose heartbeat is within the configured expiry window
+- quorum size is calculated as `(n / 2) + 1` from the current membership
+
+This membership view is used by the quorum durability mode to determine how many peers must acknowledge an append.
+
+## Quorum Durability
+
+The `quorum` durability mode blocks append acknowledgement until a majority of configured cluster peers have confirmed receipt. If the required number of peers do not acknowledge within the configured timeout, the append fails explicitly rather than silently degrading to local durability.
+
+## Former-Primary Fencing
+
+After both controlled and automatic failover, the old primary is not "probably stale." It is fenced.
+
+That means stale-primary writes are rejected instead of being silently accepted and reconciled later.
+
+This is the mechanism that keeps Transit's failover model compatible with the one-writer-per-stream-head consistency model.
+
+## How This Relates To Durability
+
+- `local` means durable on the local node
+- `replicated` means the published handoff frontier exists for catch-up and readiness checks
+- `quorum` means a majority of cluster peers have acknowledged the append
+- `tiered` means durable in the remote tier for cold history
+
+Failover does not magically upgrade later writes on the promoted node beyond the durability level they actually reached.
+
+## The Remaining Boundary
+
+Transit still does not support:
+
+- multi-primary or multi-writer behavior
+- dynamic cluster rebalancing
+- hidden failover orchestration — the election monitor is explicit and configurable
+
+That boundary is a feature, not a caveat. It keeps Transit honest about what the current engine actually proves.
+
+Next:
+
+- [Durability Modes](./durability-modes.mdx)
+- [Embedded And Server Modes](./embedded-and-server.mdx)
+- [Server First Run](../start-here/server-first-run.mdx)

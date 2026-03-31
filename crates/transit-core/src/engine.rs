@@ -872,8 +872,9 @@ impl LocalEngine {
         if let Some(handle) = self.inner.leases.get(stream_id) {
             handle.is_leader()
         } else {
-            // If no consensus handle is bound, we assume single-node mode (always leader).
-            true
+            // If a consensus provider is configured, we must be bound to a handle to be leader.
+            // Otherwise we are a standalone engine and always leader.
+            self.inner.provider.is_none()
         }
     }
 

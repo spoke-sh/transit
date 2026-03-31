@@ -1,7 +1,7 @@
 ---
 title: Durability Modes
 sidebar_position: 5
-description: Learn what local, replicated, and tiered acknowledgements mean in Transit.
+description: Learn what local, replicated, quorum, and tiered acknowledgements mean in Transit.
 ---
 
 # Durability Modes
@@ -20,7 +20,13 @@ That is the hot-path durability boundary.
 
 `replicated` means the replicated handoff boundary has been published.
 
-Today that is the readiness boundary for the current controlled failover slice. It means the immutable handoff unit exists for clustered restore/catch-up semantics and promotion checks; it does **not** automatically mean every follower has applied it, that quorum has been reached, or that later writes on the promoted node are already replicated.
+That is the readiness boundary for failover. It means the immutable handoff unit exists for clustered restore/catch-up semantics and promotion checks; it does **not** automatically mean every follower has applied it or that later writes on the promoted node are already replicated.
+
+## Quorum
+
+`quorum` means a majority of configured cluster peers have acknowledged receipt of the appended records before the write is considered durable.
+
+This is the strongest distributed durability guarantee Transit offers. It requires a `ClusterMembership` provider so the engine can discover peers and calculate quorum size. If the required majority does not respond within the configured timeout, the append fails explicitly.
 
 ## Tiered
 
@@ -32,8 +38,8 @@ These boundaries keep three bad habits out of the product:
 
 - vague marketing claims
 - server-only durability semantics
-- confusion between publication, replication, and failover
+- confusion between publication, replication, quorum, and failover
 
-When you read or write Transit docs, keep those three words separate unless a feature explicitly proves otherwise.
+When you read or write Transit docs, keep those four words separate. Each represents a distinct guarantee.
 
-If you want the current replicated handoff story in one place, read [Controlled Failover](./controlled-failover.mdx).
+For the full failover model, read [Failover](./failover.mdx).

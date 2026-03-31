@@ -31,7 +31,7 @@ The server should preserve:
 - the same lineage semantics
 - the same storage and durability boundaries
 
-That now includes the first controlled failover slice in the shared engine: published-frontier readiness, explicit lease handoff, and former-primary fencing. The important boundary is still explicit. Server mode does **not** suddenly imply quorum acknowledgement, automatic election, or multi-primary behavior.
+That now includes the full failover stack in the shared engine: controlled handoff, automatic leader election, quorum durability, and cluster membership. The one-engine guarantee means these capabilities work identically whether the engine is embedded or behind a server daemon. Multi-primary behavior remains explicitly out of scope.
 
 ## What Transit Tries To Avoid
 
@@ -49,5 +49,5 @@ If a server guide sounds like it describes different storage semantics than the 
 
 Next:
 
-- [Controlled Failover](./controlled-failover.mdx)
+- [Failover](./failover.mdx)
 - [Server First Run](../start-here/server-first-run.mdx)

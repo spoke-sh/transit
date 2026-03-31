@@ -64,6 +64,8 @@ enum MissionCommands {
     TieredEngineProof(LocalEngineProofArgs),
     /// Exercise readiness, lease handoff, and stale-primary fencing for the bounded failover slice.
     ControlledFailoverProof(LocalEngineProofArgs),
+    /// Exercise automatic leader election and primary fencing after a simulated failure.
+    ChaosFailoverProof(LocalEngineProofArgs),
     /// Exercise the networked single-node server and its transport boundary end to end.
     NetworkedServerProof(LocalEngineProofArgs),
     /// Exercise segment, manifest-root, checkpoint, tamper, and server-parity verification across the integrity proof flow.
@@ -381,6 +383,9 @@ async fn main() -> Result<()> {
                 run_controlled_failover_proof(args.root).await?,
                 args.json,
             )?,
+            MissionCommands::ChaosFailoverProof(args) => {
+                render_chaos_failover_proof(run_chaos_failover_proof(args.root).await?, args.json)?
+            }
             MissionCommands::NetworkedServerProof(args) => {
                 render_networked_server_proof(run_networked_server_proof(args.root)?, args.json)?
             }
@@ -838,6 +843,28 @@ struct ControlledFailoverProofResult {
     handoff: ControlledFailoverHandoffResult,
     fencing: ControlledFailoverFencingResult,
     contract: ControlledFailoverContractResult,
+    verified: bool,
+    error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ChaosFailoverElectionResult {
+    trigger_reason: String,
+    new_owner: String,
+    lease_version: u64,
+    expires_at: i64,
+    election_duration_ms: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct ChaosFailoverProofResult {
+    data_root: PathBuf,
+    stream_id: String,
+    primary_failure_simulated: bool,
+    election: ChaosFailoverElectionResult,
+    promoted_append: LocalAppendProofResult,
+    former_primary_fenced: bool,
+    former_primary_rejection: Option<String>,
     verified: bool,
     error: Option<String>,
 }
@@ -3162,6 +3189,135 @@ fn inject_trailing_uncommitted_bytes(root: &Path, stream_id: &str) -> Result<()>
     Ok(())
 }
 
+async fn run_chaos_failover_proof(root: PathBuf) -> Result<ChaosFailoverProofResult> {
+    use object_store::local::LocalFileSystem;
+    use std::time::Duration;
+    use transit_core::consensus::{
+        ConsensusHandle, ElectionMonitor, ObjectStoreConsensus, StreamLease,
+    };
+
+    reset_directory(&root)?;
+
+    let primary_root = root.join("primary");
+    let follower_root = root.join("follower");
+    let object_store_root = root.join("object-store");
+    fs::create_dir_all(&object_store_root).context("create object store root")?;
+
+    let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
+        LocalFileSystem::new_with_prefix(&object_store_root).context("open object store")?,
+    );
+    // Shared consensus with a very short lease (1 second) for the proof
+    let consensus = ObjectStoreConsensus::new(store.clone(), "leases").with_lease_duration_secs(1);
+    let provider: std::sync::Arc<dyn transit_core::consensus::ConsensusProvider> =
+        std::sync::Arc::new(consensus);
+
+    let stream_id = StreamId::new("mission.chaos.root")?;
+
+    // --- Primary: acquire lease, write data ---
+    let primary = LocalEngine::open(
+        LocalEngineConfig::new(&primary_root, NodeId::new("node-primary"))
+            .with_provider(provider.clone()),
+    )
+    .context("open primary engine")?;
+
+    let handle_a: std::sync::Arc<dyn ConsensusHandle> = provider
+        .acquire(&stream_id, NodeId::new("node-primary"))
+        .await
+        .context("primary acquire")?;
+    primary.bind_consensus(stream_id.clone(), handle_a);
+
+    primary.create_stream(StreamDescriptor::root(
+        stream_id.clone(),
+        LineageMetadata::new(Some("mission".into()), Some("chaos-failover-proof".into())),
+    ))?;
+    primary.append(&stream_id, b"before-failover")?;
+
+    // --- Simulate primary failure: let the lease expire ---
+    // We don't heartbeat handle_a here, so it will expire.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    // --- Follower: configure with provider, start election monitor ---
+    // Copy the primary's data to the follower to simulate a caught-up replica
+    let primary_stream_dir = primary_root.join("streams").join(stream_id.as_str());
+    let follower_stream_dir = follower_root.join("streams").join(stream_id.as_str());
+    fs::create_dir_all(follower_stream_dir.join("segments"))?;
+
+    // Copy the core files
+    for file in &["active.segment", "manifest.json", "state.json"] {
+        fs::copy(
+            primary_stream_dir.join(file),
+            follower_stream_dir.join(file),
+        )?;
+    }
+    // No segments to copy in this proof yet (segment roll is at 2 records)
+
+    let follower: std::sync::Arc<LocalEngine> = std::sync::Arc::new(
+        LocalEngine::open(
+            LocalEngineConfig::new(&follower_root, NodeId::new("node-follower"))
+                .with_provider(provider.clone()),
+        )
+        .context("open follower engine")?,
+    );
+
+    let monitor = std::sync::Arc::new(ElectionMonitor::new(
+        provider.clone(),
+        follower.clone(),
+        Duration::from_millis(100),
+    ));
+    let monitor_handle = monitor.spawn(vec![stream_id.clone()]);
+
+    // Wait for the election to trigger and follower to acquire
+    let election_start = std::time::Instant::now();
+    let mut acquired = false;
+    while election_start.elapsed() < Duration::from_secs(5) {
+        if follower.is_leader(&stream_id) {
+            acquired = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let election_duration = election_start.elapsed();
+    monitor_handle.abort();
+
+    ensure!(acquired, "follower failed to acquire lease automatically");
+
+    let promoted_append = follower
+        .append(&stream_id, b"after-failover")
+        .context("append on promoted follower")?;
+
+    // --- Verify: the original primary is now fenced ---
+    let primary_err = primary
+        .append(&stream_id, b"should-fail")
+        .expect_err("primary must be fenced after lease loss");
+    let former_primary_fenced = primary_err.to_string().contains("FENCED")
+        || primary_err.to_string().contains("not the leader");
+
+    let lease: StreamLease = provider
+        .current_lease(&stream_id)
+        .await?
+        .context("lease must exist")?;
+
+    Ok(ChaosFailoverProofResult {
+        data_root: root,
+        stream_id: stream_id.as_str().to_owned(),
+        primary_failure_simulated: true,
+        election: ChaosFailoverElectionResult {
+            trigger_reason: "lease_expired".to_owned(),
+            new_owner: lease.owner.as_str().to_owned(),
+            lease_version: lease.version,
+            expires_at: lease.expires_at,
+            election_duration_ms: election_duration.as_millis() as u64,
+        },
+        promoted_append: summarize_local_append(&promoted_append),
+        former_primary_fenced,
+        former_primary_rejection: Some(primary_err.to_string()),
+        verified: acquired
+            && former_primary_fenced
+            && promoted_append.position().offset.value() == 1,
+        error: None,
+    })
+}
+
 fn render_local_engine_proof(result: LocalEngineProofResult, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
@@ -3760,6 +3916,56 @@ fn render_controlled_failover_proof(
     );
     if let Some(error) = result.error {
         println!("error: {error}");
+    }
+
+    Ok(())
+}
+
+fn render_chaos_failover_proof(outcome: ChaosFailoverProofResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&outcome)?);
+        return Ok(());
+    }
+
+    println!("transit mission: chaos failover proof");
+    println!("data root: {}", outcome.data_root.display());
+    println!("stream:    {}", outcome.stream_id);
+
+    println!("\n[1] Primary Failure Simulation:");
+    println!("  failure:        PRIMARY CRASH (NO HEARTBEAT)");
+    println!("  simulated:      {}", outcome.primary_failure_simulated);
+
+    println!("\n[2] Automatic Leader Election (ElectionMonitor):");
+    println!("  reason:         {}", outcome.election.trigger_reason);
+    println!("  new owner:      {}", outcome.election.new_owner);
+    println!("  lease version:  {}", outcome.election.lease_version);
+    println!(
+        "  election time:  {}ms",
+        outcome.election.election_duration_ms
+    );
+
+    println!("\n[3] Post-Promotion Append:");
+    println!(
+        "  position:       {} (durability={})",
+        outcome.promoted_append.position, outcome.promoted_append.durability
+    );
+
+    println!("\n[4] Stale-Primary Fencing:");
+    println!(
+        "  fenced:         {} (FAIL_SAFE)",
+        outcome.former_primary_fenced
+    );
+    if let Some(rejection) = &outcome.former_primary_rejection {
+        println!("  rejection:      {}", rejection);
+    }
+
+    if outcome.verified {
+        println!("\nstatus: VERIFIED");
+    } else {
+        println!("\nstatus: FAILED");
+        if let Some(error) = outcome.error {
+            println!("error: {error}");
+        }
     }
 
     Ok(())

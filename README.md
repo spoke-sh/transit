@@ -93,16 +93,14 @@ This repository is at the bootstrap stage.
 
 Today it contains:
 
-- a Rust workspace with `transit-core` and `transit-cli`
-- a Nix flake and Rust toolchain bootstrap
-- a `Justfile` with a human-facing `just screen` verification path for local-engine proof, tiered publication/restore proof, controlled failover proof, networked single-node server proof, integrity proof, materialization proof, object-store probing, and the current Keel board view
-- a local durable engine that can append, replay, branch, merge, recover from trailing uncommitted active-head bytes, publish rolled immutable segments to object storage, and cold-restore published history from remote manifests
-- an initial shared-engine server bootstrap that can open the same local engine, bind a daemon listener, shut down deterministically, and serve provisional remote root creation, append/read/tail, branch/merge, and lineage-inspection operations through a framed request/response envelope with correlation IDs, explicit acknowledgement and error semantics, and logical tail sessions with credit-based delivery, without introducing a second storage path
-- a first CLI client surface for remote root creation, append, read, branch, merge, lineage inspection, and logical tail-session workflows
-- a first Rust client library surface plus a native proof example that exercises create_root, append, read, tail, branch, merge, and lineage against a locally started server
-- a first controlled failover proof path that shows promotion readiness, explicit lease handoff, and former-primary fencing while keeping local, replicated, tiered, quorum, and multi-primary guarantees explicit
-- a first networked mission proof path that validates the live single-node server and keeps the `transit` protocol explicitly distinct from optional secure underlays such as WireGuard
-- an initial `object_store` integration with a filesystem probe command
+- **Local Engine:** Durable local append, replay, branch, merge, and crash recovery with trailing-byte truncation.
+- **Tiered Storage:** Native publication to object storage and cold restore from remote manifests.
+- **Failover Stack:** Controlled handoff with lease fencing, automatic leader election via `ElectionMonitor`, and quorum-based durability.
+- **Networked Server:** Single-node daemon bootstrap with a framed request/response protocol and logical tail sessions.
+- **Integrity:** Staged verification from checksums to manifest roots and lineage checkpoints.
+- **Materialization:** Incremental processing with Prolly Tree snapshots and checkpoint-based resume.
+- **Clients:** Native Rust client library and a feature-complete CLI for operations and proofs.
+- **Verification:** A unified `just screen` path that runs the full suite of human-verifiable missions.
 
 The implementation work now has a real scaffold to grow from instead of needing to reverse-engineer direction later.
 

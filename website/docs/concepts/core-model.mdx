@@ -39,13 +39,14 @@ Transit keeps durability explicit:
 
 - `local` means durable on the local node
 - `replicated` means the published handoff frontier exists for read-only replica catch-up and promotion readiness
+- `quorum` means a majority of configured cluster peers have acknowledged the append
 - `tiered` means remote-tier durability is established for cold history
 
-The exact meanings matter. `replicated` still does not imply quorum acknowledgement, automatic election, or multi-primary behavior.
+The exact meanings matter. Each mode represents a distinct guarantee with different latency, availability, and fault-tolerance tradeoffs.
 
 Next:
 
 - [Embedded And Server Modes](./embedded-and-server.mdx)
 - [Durability Modes](./durability-modes.mdx)
-- [Controlled Failover](./controlled-failover.mdx)
+- [Failover](./failover.mdx)
 - [Tiered Storage And Manifests](./tiered-storage-and-manifests.mdx)

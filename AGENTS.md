@@ -51,18 +51,18 @@ Follow the formal procedural loops and checklists defined in:
 
 Keep `just screen` as the default human proof path. If verification gets richer, improve that path instead of making the operator memorize an expanding command list.
 
-## Current Status (2026-03-25)
+## Current Status (2026-03-30)
 
 - **Kernel Done:** Single-node local engine with branch, merge, and tiered storage verified.
 - **Server Done:** Networked daemon with framed protocol, remote CLI, and tail sessions verified.
 - **Integrity Done:** Verifiable lineage primitives, manifest roots, and checkpoints landed.
 - **Materialization Done:** Branch-aware materialization kernel and Prolly Tree snapshots landed.
-- **Consensus Slice Done:** Initial consensus kernel and leader-enforcement slice landed.
-- **Proof Ready:** `just screen` covers local, tiered, networked, integrity, and materialization end-to-end flows.
+- **Consensus Done:** Lease-backed consensus, controlled failover, and leader enforcement verified.
+- **Quorum & Failover Done:** Quorum durability mode, cluster membership, automatic leader election, and election monitoring verified. A follower can automatically acquire an expired lease and become the writable primary; the former primary is fenced.
+- **Proof Ready:** `just screen` covers local, tiered, networked, integrity, materialization, and controlled failover end-to-end flows.
 
 ## Next Missions
 
-- **Replication Planning:** Decomposing the staged multi-node replication model into voyages and ready stories.
 - **Board Hygiene:** Keeping mission/epic intent, generated artifacts, and pacemaker state aligned with execution.
 - **Client Libs:** Promoting external usage via a dedicated Rust client first; other language bindings can follow later.
 
