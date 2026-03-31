@@ -117,7 +117,10 @@ mod tests {
     fn tail_test_client() -> (tempfile::TempDir, ServerHandle, TransitClient, StreamId) {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(
+                temp_dir.path(),
+                transit_core::membership::NodeId::new("test-node"),
+            ),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");
@@ -137,9 +140,12 @@ mod tests {
     fn lineage_test_client() -> (tempfile::TempDir, ServerHandle, TransitClient, StreamId) {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path())
-                .with_segment_max_records(8)
-                .expect("config"),
+            LocalEngineConfig::new(
+                temp_dir.path(),
+                transit_core::membership::NodeId::new("test-node"),
+            )
+            .with_segment_max_records(8)
+            .expect("config"),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");

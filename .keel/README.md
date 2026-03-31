@@ -152,7 +152,7 @@
 | Voyage | Status |
 |--------|--------|
 | [Implement Quorum Durability and Membership](epics/VFOPrFVvq/voyages/VFOPuiaUH/) | done |
-| [Enable Automatic Leader Election and Failover](epics/VFOPrFVvq/voyages/VFOPyDxnf/) | planned |
+| [Enable Automatic Leader Election and Failover](epics/VFOPrFVvq/voyages/VFOPyDxnf/) | in-progress |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

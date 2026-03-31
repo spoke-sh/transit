@@ -1,0 +1,13 @@
+---
+recorded_at: 2026-03-30T17:12:39.567347566-07:00
+command: cargo nextest run -E 'test(engine_enforces_leadership_for_appends)'
+---
+
+--- stderr ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+────────────
+ Nextest run ID 0b765ba2-6d51-4897-88f6-6f8d7acf2f2a with nextest profile: default
+    Starting 1 test across 4 binaries (99 tests skipped)
+        PASS [   0.017s] (1/1) transit-core engine::tests::engine_enforces_leadership_for_appends
+────────────
+     Summary [   0.018s] 1 test run: 1 passed, 99 skipped

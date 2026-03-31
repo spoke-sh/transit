@@ -1,0 +1,13 @@
+---
+recorded_at: 2026-03-30T17:12:29.815244810-07:00
+command: cargo nextest run -E 'test(test_election_monitor_triggers_on_expiration)'
+---
+
+--- stderr ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+────────────
+ Nextest run ID e50bc398-1474-4bc2-a128-fa2105a62c43 with nextest profile: default
+    Starting 1 test across 4 binaries (99 tests skipped)
+        PASS [   0.008s] (1/1) transit-core consensus::tests::test_election_monitor_triggers_on_expiration
+────────────
+     Summary [   0.009s] 1 test run: 1 passed, 99 skipped

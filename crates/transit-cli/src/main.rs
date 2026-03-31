@@ -15,6 +15,7 @@ use transit_core::kernel::{
     LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor, StreamId,
     StreamLineage, StreamPosition,
 };
+use transit_core::membership::NodeId;
 use transit_core::object_store_support::{ObjectStoreProbeResult, probe_local_filesystem_store};
 use transit_core::server::{
     RemoteClient, ServerConfig, ServerHandle, ServerShutdownOutcome, TailSessionId,
@@ -31,6 +32,10 @@ use transit_materialize::{MaterializationCheckpoint, Reducer};
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+
+    /// Unique identity of this node in the cluster.
+    #[arg(long, global = true)]
+    node_id: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -471,7 +476,7 @@ fn run_verify_lineage(args: &VerifyLineageArgs) -> Result<VerifyLineageOutcome> 
     use transit_core::engine::{LocalEngine, LocalEngineConfig};
     use transit_core::kernel::StreamId;
 
-    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root))?;
+    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root, NodeId::new("cli-node")))?;
     let stream_id = StreamId::new(&args.stream_id)?;
 
     match engine.verify_local_lineage(&stream_id) {
@@ -571,7 +576,7 @@ fn run_checkpoint(args: &CheckpointArgs) -> Result<CheckpointOutcome> {
     use transit_core::engine::{LocalEngine, LocalEngineConfig};
     use transit_core::kernel::StreamId;
 
-    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root))?;
+    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root, NodeId::new("cli-node")))?;
     let stream_id = StreamId::new(&args.stream_id)?;
     let checkpoint = engine.checkpoint(&stream_id, &args.kind)?;
 
@@ -608,7 +613,7 @@ fn run_verify_checkpoint(args: &VerifyCheckpointArgs) -> Result<VerifyCheckpoint
     use transit_core::engine::{LocalEngine, LocalEngineConfig};
     use transit_core::storage::LineageCheckpoint;
 
-    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root))?;
+    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root, NodeId::new("cli-node")))?;
     let bytes = fs::read(&args.checkpoint_path).context("read checkpoint file")?;
     let checkpoint: LineageCheckpoint =
         serde_json::from_slice(&bytes).context("parse checkpoint")?;
@@ -1224,8 +1229,10 @@ struct RemoteTailCancelResult {
 fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
     reset_directory(&root)?;
 
-    let engine = LocalEngine::open(LocalEngineConfig::new(&root).with_segment_max_records(2)?)
-        .context("open local engine proof root")?;
+    let engine = LocalEngine::open(
+        LocalEngineConfig::new(&root, NodeId::new("cli-node")).with_segment_max_records(2)?,
+    )
+    .context("open local engine proof root")?;
 
     let root_stream = StreamId::new("mission.root")?;
     let branch_stream = StreamId::new("mission.branch")?;
@@ -1300,7 +1307,7 @@ fn run_networked_server_proof(root: PathBuf) -> Result<NetworkedServerProofResul
         .parse::<SocketAddr>()
         .context("parse networked server proof listen addr")?;
     let server = ServerHandle::bind(ServerConfig::new(
-        LocalEngineConfig::new(&root).with_segment_max_records(2)?,
+        LocalEngineConfig::new(&root, NodeId::new("cli-node")).with_segment_max_records(2)?,
         requested_listen_addr,
     ))
     .context("bind networked server proof daemon")?;
@@ -1437,13 +1444,16 @@ async fn run_integrity_proof(root: PathBuf) -> Result<IntegrityProofResult> {
         .with_context(|| format!("create object store root {}", object_store_root.display()))?;
 
     let engine = LocalEngine::open(
-        LocalEngineConfig::new(&publish_root)
+        LocalEngineConfig::new(&publish_root, NodeId::new("cli-node"))
             .with_segment_max_records(2)
             .context("integrity proof config")?,
     )
     .context("open integrity publish root")?;
-    let restore_engine = LocalEngine::open(LocalEngineConfig::new(&restore_root))
-        .context("open integrity restore root")?;
+    let restore_engine = LocalEngine::open(LocalEngineConfig::new(
+        &restore_root,
+        NodeId::new("cli-node"),
+    ))
+    .context("open integrity restore root")?;
     let store = LocalFileSystem::new_with_prefix(&object_store_root).with_context(|| {
         format!(
             "open integrity object store {}",
@@ -1618,7 +1628,7 @@ async fn run_materialization_proof(root: PathBuf) -> Result<MaterializationProof
     reset_directory(&root)?;
 
     let engine = LocalEngine::open(
-        LocalEngineConfig::new(&root)
+        LocalEngineConfig::new(&root, NodeId::new("cli-node"))
             .with_segment_max_records(2)
             .context("materialization proof config")?,
     )
@@ -1991,7 +2001,7 @@ async fn run_server(args: ServerRunArgs) -> Result<ServerRunResult> {
     use transit_core::consensus::{ConsensusManager, NodeId, ObjectStoreConsensus};
 
     let requested_listen_addr = args.listen_addr;
-    let engine_config = LocalEngineConfig::new(&args.root);
+    let engine_config = LocalEngineConfig::new(&args.root, NodeId::new("cli-node"));
     let server_config = ServerConfig::new(engine_config, args.listen_addr);
 
     let server = ServerHandle::bind(server_config).context("bind shared-engine server")?;
@@ -2249,14 +2259,15 @@ async fn run_tiered_engine_proof(root: PathBuf) -> Result<TieredEngineProofResul
         .with_context(|| format!("create object store root {}", object_store_root.display()))?;
 
     let publish_engine = LocalEngine::open(
-        LocalEngineConfig::new(&publish_root)
+        LocalEngineConfig::new(&publish_root, NodeId::new("cli-node"))
             .with_segment_max_records(2)
             .context("tiered proof config")?,
     )
     .context("open publish engine")?;
-    let restore_engine =
-        LocalEngine::open(LocalEngineConfig::new(&restore_root).as_read_only_replica())
-            .context("open restore engine")?;
+    let restore_engine = LocalEngine::open(
+        LocalEngineConfig::new(&restore_root, NodeId::new("cli-node")).as_read_only_replica(),
+    )
+    .context("open restore engine")?;
     let store = LocalFileSystem::new_with_prefix(&object_store_root)
         .with_context(|| format!("open local object store at {}", object_store_root.display()))?;
 
@@ -2343,13 +2354,13 @@ async fn run_controlled_failover_proof(root: PathBuf) -> Result<ControlledFailov
     })?;
 
     let primary = LocalEngine::open(
-        LocalEngineConfig::new(&primary_root)
+        LocalEngineConfig::new(&primary_root, NodeId::new("cli-node"))
             .with_segment_max_records(2)
             .context("controlled failover primary config")?,
     )
     .context("open controlled failover primary engine")?;
     let follower = LocalEngine::open(
-        LocalEngineConfig::new(&follower_root)
+        LocalEngineConfig::new(&follower_root, NodeId::new("cli-node"))
             .with_segment_max_records(2)
             .context("controlled failover follower config")?
             .as_read_only_replica(),
@@ -2420,7 +2431,7 @@ async fn run_controlled_failover_proof(root: PathBuf) -> Result<ControlledFailov
         summarize_ownership_posture(&primary.ownership_posture(&stream_id));
 
     let promoted = LocalEngine::open(
-        LocalEngineConfig::new(&follower_root)
+        LocalEngineConfig::new(&follower_root, NodeId::new("cli-node"))
             .with_segment_max_records(2)
             .context("controlled failover promoted config")?,
     )
@@ -2778,7 +2789,7 @@ fn summarize_integrity_checkpoint(
 fn run_integrity_tamper_detection(root: &Path) -> Result<IntegrityProofTamperResult> {
     let tamper_root = root.join("tamper");
     let engine = LocalEngine::open(
-        LocalEngineConfig::new(&tamper_root)
+        LocalEngineConfig::new(&tamper_root, NodeId::new("cli-node"))
             .with_segment_max_records(2)
             .context("integrity tamper config")?,
     )
@@ -2841,7 +2852,8 @@ fn run_integrity_server_parity(root: &Path) -> Result<IntegrityProofServerParity
         .parse::<SocketAddr>()
         .context("parse integrity server parity listen addr")?;
     let server = ServerHandle::bind(ServerConfig::new(
-        LocalEngineConfig::new(&server_root).with_segment_max_records(2)?,
+        LocalEngineConfig::new(&server_root, NodeId::new("cli-node"))
+            .with_segment_max_records(2)?,
         requested_listen_addr,
     ))
     .context("bind integrity server parity daemon")?;
@@ -4052,7 +4064,7 @@ mod tests {
     fn start_server() -> (tempfile::TempDir, ServerHandle, SocketAddr) {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");

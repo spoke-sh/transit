@@ -23,9 +23,12 @@ fn main() -> ExitCode {
 fn run() -> Result<()> {
     let temp_dir = tempdir().context("create rust client proof tempdir")?;
     let server = ServerHandle::bind(ServerConfig::new(
-        LocalEngineConfig::new(temp_dir.path())
-            .with_segment_max_records(8)
-            .context("configure proof server")?,
+        LocalEngineConfig::new(
+            temp_dir.path(),
+            transit_core::membership::NodeId::new("proof-node"),
+        )
+        .with_segment_max_records(8)
+        .context("configure proof server")?,
         "127.0.0.1:0".parse().expect("static listen addr parses"),
     ))
     .context("bind rust client proof server")?;

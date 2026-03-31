@@ -1562,7 +1562,7 @@ mod tests {
     fn server_bootstrap_binds_listener_and_accepts_connections() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");
@@ -1588,7 +1588,7 @@ mod tests {
     fn server_shutdown_is_deterministic_for_tests_and_proof_flows() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");
@@ -1612,7 +1612,7 @@ mod tests {
     fn server_remains_a_wrapper_around_shared_engine_storage() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");
@@ -1627,8 +1627,11 @@ mod tests {
         let shutdown = server.shutdown().expect("shutdown server");
         assert_eq!(shutdown.accepted_connections(), 0);
 
-        let reopened = LocalEngine::open(LocalEngineConfig::new(temp_dir.path()))
-            .expect("reopen local engine");
+        let reopened = LocalEngine::open(LocalEngineConfig::new(
+            temp_dir.path(),
+            crate::membership::NodeId::new("test-node"),
+        ))
+        .expect("reopen local engine");
         let replayed = reopened.replay(&stream_id).expect("replay");
 
         assert_eq!(replayed.len(), 1);
@@ -1639,7 +1642,7 @@ mod tests {
     fn remote_protocol_envelope_carries_request_correlation_and_operation_selection() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");
@@ -1686,7 +1689,7 @@ mod tests {
     fn remote_append_read_and_tail_preserve_positions_and_branch_aware_replay_behavior() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node"))
                 .with_segment_max_records(8)
                 .expect("config"),
             "127.0.0.1:0".parse().expect("listen addr"),
@@ -1776,7 +1779,7 @@ mod tests {
     fn remote_client_surfaces_explicit_acknowledgement_and_error_envelopes() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");
@@ -1833,7 +1836,7 @@ mod tests {
     fn remote_tail_is_snapshot_based_with_explicit_lifecycle_and_durability_boundaries() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");
@@ -1886,7 +1889,7 @@ mod tests {
     fn remote_tail_sessions_have_explicit_lifecycle_and_cancellation() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");
@@ -1944,7 +1947,7 @@ mod tests {
     fn remote_tail_sessions_apply_explicit_credit_backpressure() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");
@@ -2011,7 +2014,7 @@ mod tests {
     fn remote_tail_sessions_are_logical_and_transport_agnostic_across_requests() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");
@@ -2050,7 +2053,7 @@ mod tests {
     fn remote_branch_creation_uses_explicit_parent_positions_and_preserves_lineage() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node"))
                 .with_segment_max_records(8)
                 .expect("config"),
             "127.0.0.1:0".parse().expect("listen addr"),
@@ -2130,7 +2133,7 @@ mod tests {
     fn remote_merge_and_lineage_inspection_remain_explicitly_single_node() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node"))
                 .with_segment_max_records(8)
                 .expect("config"),
             "127.0.0.1:0".parse().expect("listen addr"),
@@ -2201,7 +2204,7 @@ mod tests {
     fn remote_lineage_validation_errors_surface_as_invalid_requests() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");
@@ -2241,7 +2244,7 @@ mod tests {
     {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path()),
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
             "127.0.0.1:0".parse().expect("listen addr"),
         ))
         .expect("bind server");

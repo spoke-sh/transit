@@ -22,6 +22,9 @@ pub trait ConsensusHandle: std::fmt::Debug + Send + Sync {
     /// Check if this handle still represents the current leader for the stream.
     fn is_leader(&self) -> bool;
 
+    /// Check if the lease has expired.
+    fn is_expired(&self) -> bool;
+
     /// The stream this lease belongs to.
     fn stream_id(&self) -> &StreamId;
 
@@ -37,15 +40,84 @@ pub trait ConsensusHandle: std::fmt::Debug + Send + Sync {
 
 /// Provider for distributed coordination.
 #[async_trait]
-pub trait ConsensusProvider: Send + Sync {
+pub trait ConsensusProvider: Send + Sync + std::fmt::Debug {
     /// Attempt to acquire leadership for a stream.
     async fn acquire(
         &self,
         stream_id: &StreamId,
         owner: NodeId,
     ) -> Result<Arc<dyn ConsensusHandle + 'static>>;
+
+    /// Returns the current lease for a stream, if it exists.
+    async fn current_lease(&self, stream_id: &StreamId) -> Result<Option<StreamLease>>;
 }
 
+/// Trait for receiving election triggers from the monitor.
+#[async_trait]
+pub trait ElectionTrigger: Send + Sync + std::fmt::Debug {
+    async fn on_election_required(&self, stream_id: &StreamId) -> Result<()>;
+}
+
+/// Monitors stream leases and triggers elections when they expire.
+pub struct ElectionMonitor {
+    provider: Arc<dyn ConsensusProvider>,
+    trigger: Arc<dyn ElectionTrigger>,
+    check_interval: std::time::Duration,
+}
+
+impl ElectionMonitor {
+    pub fn new(
+        provider: Arc<dyn ConsensusProvider>,
+        trigger: Arc<dyn ElectionTrigger>,
+        check_interval: std::time::Duration,
+    ) -> Self {
+        Self {
+            provider,
+            trigger,
+            check_interval,
+        }
+    }
+
+    pub fn spawn(self: Arc<Self>, streams: Vec<StreamId>) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(self.check_interval);
+            loop {
+                interval.tick().await;
+                for stream_id in &streams {
+                    match self.provider.current_lease(stream_id).await {
+                        Ok(Some(lease)) => {
+                            let now = chrono::Utc::now().timestamp();
+                            if now >= lease.expires_at {
+                                if let Err(e) = self.trigger.on_election_required(stream_id).await {
+                                    eprintln!(
+                                        "election trigger failed for {}: {:#}",
+                                        stream_id.as_str(),
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                        Ok(None) => {
+                            // No lease exists at all, trigger election
+                            if let Err(e) = self.trigger.on_election_required(stream_id).await {
+                                eprintln!(
+                                    "election trigger failed for {}: {:#}",
+                                    stream_id.as_str(),
+                                    e
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("failed to check lease for {}: {:#}", stream_id.as_str(), e);
+                        }
+                    }
+                }
+            }
+        })
+    }
+}
+
+#[derive(Debug)]
 pub struct ObjectStoreConsensus {
     store: Arc<dyn ObjectStore>,
     prefix: ObjectPath,
@@ -154,8 +226,12 @@ struct ObjectStoreLeaseHandle {
 #[async_trait]
 impl ConsensusHandle for ObjectStoreLeaseHandle {
     fn is_leader(&self) -> bool {
+        !self.is_expired() && self.lease.read().unwrap().owner == self.local_owner
+    }
+
+    fn is_expired(&self) -> bool {
         let lease = self.lease.read().unwrap();
-        chrono::Utc::now().timestamp() < lease.expires_at && lease.owner == self.local_owner
+        chrono::Utc::now().timestamp() >= lease.expires_at
     }
 
     fn stream_id(&self) -> &StreamId {
@@ -237,15 +313,7 @@ impl ConsensusProvider for ObjectStoreConsensus {
     ) -> Result<Arc<dyn ConsensusHandle + 'static>> {
         let path = self.lease_path(stream_id);
 
-        let existing = match self.store.get(&path).await {
-            Ok(result) => {
-                let bytes = result.bytes().await.context("read lease bytes")?;
-                let lease: StreamLease = serde_json::from_slice(&bytes).context("parse lease")?;
-                Some(lease)
-            }
-            Err(object_store::Error::NotFound { .. }) => None,
-            Err(e) => bail!("failed to check lease: {e}"),
-        };
+        let existing = self.current_lease(stream_id).await?;
 
         let now = chrono::Utc::now().timestamp();
 
@@ -280,6 +348,20 @@ impl ConsensusProvider for ObjectStoreConsensus {
             lease: std::sync::RwLock::new(lease),
             duration: self.lease_duration_secs,
         }))
+    }
+
+    async fn current_lease(&self, stream_id: &StreamId) -> Result<Option<StreamLease>> {
+        let path = self.lease_path(stream_id);
+
+        match self.store.get(&path).await {
+            Ok(result) => {
+                let bytes = result.bytes().await.context("read lease bytes")?;
+                let lease: StreamLease = serde_json::from_slice(&bytes).context("parse lease")?;
+                Ok(Some(lease))
+            }
+            Err(object_store::Error::NotFound { .. }) => Ok(None),
+            Err(e) => bail!("failed to check lease: {e}"),
+        }
     }
 }
 
@@ -368,5 +450,82 @@ mod tests {
         assert_eq!(handle.lease().version, initial_version + 1);
 
         manager.shutdown();
+    }
+
+    #[tokio::test]
+    async fn test_lease_expiration_and_current_lease() {
+        let temp = tempdir().expect("temp");
+        let store: Arc<dyn ObjectStore> =
+            Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
+        let mut consensus = ObjectStoreConsensus::new(store, "leases");
+        // Set a very short duration for testing
+        consensus.lease_duration_secs = 1;
+
+        let stream_id = StreamId::new("test.stream").expect("id");
+        let node_a = NodeId::new("node-a");
+
+        // 1. Initially no lease
+        assert!(consensus.current_lease(&stream_id).await.unwrap().is_none());
+
+        // 2. Acquire lease
+        let handle = consensus
+            .acquire(&stream_id, node_a.clone())
+            .await
+            .expect("acquire");
+        assert!(!handle.is_expired());
+
+        // 3. Current lease should be Some
+        let lease = consensus.current_lease(&stream_id).await.unwrap().unwrap();
+        assert_eq!(lease.owner, node_a);
+
+        // 4. Wait for expiration
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        assert!(handle.is_expired());
+        assert!(!handle.is_leader());
+
+        // 5. Current lease still exists but is expired (checked via timestamp)
+        let lease = consensus.current_lease(&stream_id).await.unwrap().unwrap();
+        assert_eq!(lease.owner, node_a);
+        assert!(chrono::Utc::now().timestamp() >= lease.expires_at);
+    }
+
+    #[tokio::test]
+    async fn test_election_monitor_triggers_on_expiration() {
+        use tokio::sync::mpsc;
+
+        #[derive(Debug)]
+        struct MockTrigger(mpsc::Sender<StreamId>);
+        #[async_trait]
+        impl ElectionTrigger for MockTrigger {
+            async fn on_election_required(&self, stream_id: &StreamId) -> Result<()> {
+                self.0.send(stream_id.clone()).await.unwrap();
+                Ok(())
+            }
+        }
+
+        let temp = tempdir().expect("temp");
+        let store: Arc<dyn ObjectStore> =
+            Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
+        let mut consensus = ObjectStoreConsensus::new(store, "leases");
+        consensus.lease_duration_secs = 1;
+
+        let stream_id = StreamId::new("test.stream").expect("id");
+        let (tx, mut rx) = mpsc::channel(1);
+        let trigger = Arc::new(MockTrigger(tx));
+
+        let monitor = Arc::new(ElectionMonitor::new(
+            Arc::new(consensus),
+            trigger,
+            std::time::Duration::from_millis(100),
+        ));
+
+        let _handle = monitor.spawn(vec![stream_id.clone()]);
+
+        // Should trigger almost immediately because no lease exists
+        let triggered = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv())
+            .await
+            .expect("timeout waiting for election trigger")
+            .expect("channel closed");
+        assert_eq!(triggered, stream_id);
     }
 }

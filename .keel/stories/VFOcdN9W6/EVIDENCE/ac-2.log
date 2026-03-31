@@ -1,0 +1,13 @@
+---
+recorded_at: 2026-03-30T17:12:34.497879944-07:00
+command: cargo nextest run -E 'test(object_store_consensus_manages_exclusive_leases)'
+---
+
+--- stderr ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+────────────
+ Nextest run ID 49975ff3-e32d-4194-8b87-545616a5ab18 with nextest profile: default
+    Starting 1 test across 4 binaries (99 tests skipped)
+        PASS [   0.009s] (1/1) transit-core consensus::tests::object_store_consensus_manages_exclusive_leases
+────────────
+     Summary [   0.010s] 1 test run: 1 passed, 99 skipped

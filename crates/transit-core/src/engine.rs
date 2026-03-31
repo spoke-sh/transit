@@ -82,21 +82,40 @@ impl CommitmentLevel {
 #[derive(Debug, Clone)]
 pub struct LocalEngineConfig {
     data_dir: PathBuf,
+    node_id: crate::membership::NodeId,
     segment_max_records: u64,
     durability: DurabilityMode,
     access_mode: AccessMode,
     membership: Option<std::sync::Arc<dyn crate::membership::ClusterMembership>>,
+    provider: Option<std::sync::Arc<dyn crate::consensus::ConsensusProvider>>,
+    election_timeout: Duration,
 }
 
 impl LocalEngineConfig {
-    pub fn new(data_dir: impl Into<PathBuf>) -> Self {
+    pub fn new(data_dir: impl Into<PathBuf>, node_id: crate::membership::NodeId) -> Self {
         Self {
             data_dir: data_dir.into(),
+            node_id,
             segment_max_records: 1_024,
             durability: DurabilityMode::Local,
             access_mode: AccessMode::ReadWrite,
             membership: None,
+            provider: None,
+            election_timeout: Duration::from_secs(30),
         }
+    }
+
+    pub fn with_provider(
+        mut self,
+        provider: std::sync::Arc<dyn crate::consensus::ConsensusProvider>,
+    ) -> Self {
+        self.provider = Some(provider);
+        self
+    }
+
+    pub fn with_election_timeout(mut self, timeout: Duration) -> Self {
+        self.election_timeout = timeout;
+        self
     }
 
     pub fn with_membership(
@@ -655,6 +674,8 @@ pub struct LocalEngine {
 #[derive(Debug)]
 struct LocalEngineInner {
     config: LocalEngineConfig,
+    node_id: crate::membership::NodeId,
+    provider: Option<std::sync::Arc<dyn crate::consensus::ConsensusProvider>>,
     leases: dashmap::DashMap<StreamId, std::sync::Arc<dyn ConsensusHandle + 'static>>,
     membership: Option<std::sync::Arc<dyn crate::membership::ClusterMembership>>,
     /// Tracks the last acknowledged offset for each peer in a stream.
@@ -691,6 +712,8 @@ impl LocalEngine {
 
         Ok(Self {
             inner: std::sync::Arc::new(LocalEngineInner {
+                node_id: config.node_id.clone(),
+                provider: config.provider.clone(),
                 membership: config.membership.clone(),
                 config,
                 leases: dashmap::DashMap::new(),
@@ -790,6 +813,10 @@ impl LocalEngine {
         self.inner.config.access_mode()
     }
 
+    pub fn election_timeout(&self) -> Duration {
+        self.inner.config.election_timeout
+    }
+
     /// Bind a consensus lease handle to this engine for a specific stream.
     pub fn bind_consensus(
         &self,
@@ -798,7 +825,34 @@ impl LocalEngine {
     ) {
         self.inner.leases.insert(stream_id, handle);
     }
+}
 
+#[async_trait::async_trait]
+impl crate::consensus::ElectionTrigger for LocalEngine {
+    async fn on_election_required(&self, stream_id: &StreamId) -> Result<()> {
+        if let Some(provider) = self.inner.provider.as_ref() {
+            // Attempt to acquire the lease. ObjectStoreConsensus handles the "current lease" check
+            // and bails if it is still valid and owned by someone else.
+            match provider
+                .acquire(stream_id, self.inner.node_id.clone())
+                .await
+            {
+                Ok(handle) => {
+                    self.bind_consensus(stream_id.clone(), handle);
+                    Ok(())
+                }
+                Err(e) => {
+                    // This is expected if another node won the race
+                    bail!("failed to acquire lease during election: {:#}", e);
+                }
+            }
+        } else {
+            bail!("cannot trigger election: no consensus provider configured");
+        }
+    }
+}
+
+impl LocalEngine {
     /// Explicitly check if this engine instance is the current leader for a stream.
     pub fn is_leader(&self, stream_id: &StreamId) -> bool {
         if let Some(handle) = self.inner.leases.get(stream_id) {
@@ -2652,7 +2706,7 @@ fn compute_manifest_root(
 #[cfg(test)]
 mod tests {
     use super::{
-        AccessMode, CommitmentLevel, DurabilityMode, LocalEngine, LocalEngineConfig,
+        AccessMode, CommitmentLevel, DurabilityMode, LocalEngine, LocalEngineConfig, NodeId,
         OwnershipPosture,
     };
     use std::time::Duration;
@@ -2666,7 +2720,7 @@ mod tests {
     #[tokio::test]
     async fn engine_tracks_peer_acks() {
         let temp = tempdir().expect("temp");
-        let config = LocalEngineConfig::new(temp.path());
+        let config = LocalEngineConfig::new(temp.path(), NodeId::new("test-node"));
         let engine = LocalEngine::open(config).expect("open");
         let stream_id = StreamId::new("test.stream").unwrap();
         let peer1 = crate::membership::NodeId::new("peer1");
@@ -2699,7 +2753,7 @@ mod tests {
 
         let temp = tempdir().expect("temp");
         let membership = std::sync::Arc::new(ThreeNodeMembership);
-        let config = LocalEngineConfig::new(temp.path())
+        let config = LocalEngineConfig::new(temp.path(), NodeId::new("test-node"))
             .with_membership(membership.clone())
             .with_durability(DurabilityMode::Quorum);
         let engine = LocalEngine::open(config).expect("open");
@@ -2750,7 +2804,7 @@ mod tests {
 
         let temp = tempdir().expect("temp");
         let membership = std::sync::Arc::new(TwoNodeMembership);
-        let config = LocalEngineConfig::new(temp.path())
+        let config = LocalEngineConfig::new(temp.path(), NodeId::new("test-node"))
             .with_membership(membership.clone())
             .with_durability(DurabilityMode::Quorum);
         let engine = LocalEngine::open(config).expect("open");
@@ -2802,7 +2856,7 @@ mod tests {
     fn append_returns_explicit_stream_positions_for_local_commits() {
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(10)
                 .expect("config"),
         )
@@ -2838,7 +2892,7 @@ mod tests {
     fn append_rolls_segments_and_persists_manifest_state() {
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -2887,7 +2941,7 @@ mod tests {
     fn committed_state_is_persisted_under_explicit_local_durability_boundaries() {
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(1)
                 .expect("config"),
         )
@@ -2940,7 +2994,7 @@ mod tests {
     fn replay_reads_committed_records_in_manifest_order() {
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -2980,7 +3034,7 @@ mod tests {
     fn tail_from_reads_across_rolled_segments_and_active_head() {
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -3017,7 +3071,7 @@ mod tests {
     fn replay_stays_local_first_without_remote_hydration() {
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(1)
                 .expect("config"),
         )
@@ -3048,7 +3102,7 @@ mod tests {
     fn branch_creation_reuses_parent_history_without_copying_segments() {
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -3110,7 +3164,11 @@ mod tests {
     #[test]
     fn branch_replay_view_keeps_shared_prefix_and_branch_suffix_explicit() {
         let temp_dir = tempdir().expect("temp dir");
-        let engine = LocalEngine::open(LocalEngineConfig::new(temp_dir.path())).expect("engine");
+        let engine = LocalEngine::open(LocalEngineConfig::new(
+            temp_dir.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("engine");
         let root_stream = stream_id("task.root");
         let branch_stream = stream_id("task.root.thread");
         engine
@@ -3166,7 +3224,11 @@ mod tests {
     #[test]
     fn branch_replay_view_rejects_non_branch_streams() {
         let temp_dir = tempdir().expect("temp dir");
-        let engine = LocalEngine::open(LocalEngineConfig::new(temp_dir.path())).expect("engine");
+        let engine = LocalEngine::open(LocalEngineConfig::new(
+            temp_dir.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("engine");
         let root_stream = stream_id("task.root");
         engine
             .create_stream(root_descriptor("task.root"))
@@ -3186,7 +3248,7 @@ mod tests {
     fn merge_creation_records_parent_heads_and_metadata() {
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -3282,7 +3344,7 @@ mod tests {
     fn branch_and_merge_preserve_append_only_lineage_and_monotonic_offsets() {
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(4)
                 .expect("config"),
         )
@@ -3353,7 +3415,7 @@ mod tests {
     fn recovery_excludes_trailing_uncommitted_bytes_from_active_head() {
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(8)
                 .expect("config"),
         )
@@ -3403,7 +3465,7 @@ mod tests {
         let temp_dir = tempdir().expect("temp dir");
         let remote_root = tempdir().expect("remote root");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -3448,7 +3510,7 @@ mod tests {
         let temp_dir = tempdir().expect("temp dir");
         let remote_root = tempdir().expect("remote root");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -3501,7 +3563,7 @@ mod tests {
     async fn published_replication_frontier_is_absent_before_publication() {
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -3524,7 +3586,7 @@ mod tests {
         let temp_dir = tempdir().expect("temp dir");
         let remote_root = tempdir().expect("remote root");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -3584,7 +3646,7 @@ mod tests {
         let temp_dir = tempdir().expect("temp dir");
         let remote_root = tempdir().expect("remote root");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -3640,7 +3702,7 @@ mod tests {
 
         {
             let engine = LocalEngine::open(
-                LocalEngineConfig::new(temp_dir.path())
+                LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                     .with_segment_max_records(2)
                     .expect("config"),
             )
@@ -3659,7 +3721,11 @@ mod tests {
                 .expect("publish");
         }
 
-        let reopened = LocalEngine::open(LocalEngineConfig::new(temp_dir.path())).expect("reopen");
+        let reopened = LocalEngine::open(LocalEngineConfig::new(
+            temp_dir.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("reopen");
         let frontier = reopened
             .published_replication_frontier(&stream_id)
             .expect("frontier lookup")
@@ -3681,7 +3747,7 @@ mod tests {
         let temp_dir = tempdir().expect("temp dir");
         let remote_root = tempdir().expect("remote root");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -3717,13 +3783,16 @@ mod tests {
         let restore_root = tempdir().expect("restore root");
         let remote_root = tempdir().expect("remote root");
         let publish_engine = LocalEngine::open(
-            LocalEngineConfig::new(publish_root.path())
+            LocalEngineConfig::new(publish_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("publish engine");
-        let restore_engine =
-            LocalEngine::open(LocalEngineConfig::new(restore_root.path())).expect("restore engine");
+        let restore_engine = LocalEngine::open(LocalEngineConfig::new(
+            restore_root.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("restore engine");
         let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
         let stream_id = stream_id("task.root");
 
@@ -3777,13 +3846,16 @@ mod tests {
         let restore_root = tempdir().expect("restore root");
         let remote_root = tempdir().expect("remote root");
         let publish_engine = LocalEngine::open(
-            LocalEngineConfig::new(publish_root.path())
+            LocalEngineConfig::new(publish_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("publish engine");
-        let restore_engine =
-            LocalEngine::open(LocalEngineConfig::new(restore_root.path())).expect("restore engine");
+        let restore_engine = LocalEngine::open(LocalEngineConfig::new(
+            restore_root.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("restore engine");
         let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
         let stream_id = stream_id("task.root");
 
@@ -3833,13 +3905,16 @@ mod tests {
         let restore_root = tempdir().expect("restore root");
         let remote_root = tempdir().expect("remote root");
         let publish_engine = LocalEngine::open(
-            LocalEngineConfig::new(publish_root.path())
+            LocalEngineConfig::new(publish_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("publish engine");
-        let restore_engine =
-            LocalEngine::open(LocalEngineConfig::new(restore_root.path())).expect("restore engine");
+        let restore_engine = LocalEngine::open(LocalEngineConfig::new(
+            restore_root.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("restore engine");
         let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
         let stream_id = stream_id("task.root");
 
@@ -3879,14 +3954,16 @@ mod tests {
         let follower_root = tempdir().expect("follower root");
         let remote_root = tempdir().expect("remote root");
         let primary = LocalEngine::open(
-            LocalEngineConfig::new(primary_root.path())
+            LocalEngineConfig::new(primary_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("primary");
-        let follower =
-            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
-                .expect("follower");
+        let follower = LocalEngine::open(
+            LocalEngineConfig::new(follower_root.path(), NodeId::new("test-node"))
+                .as_read_only_replica(),
+        )
+        .expect("follower");
         let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
         let stream_id = stream_id("task.root");
 
@@ -3945,14 +4022,16 @@ mod tests {
         let follower_root = tempdir().expect("follower root");
         let remote_root = tempdir().expect("remote root");
         let primary = LocalEngine::open(
-            LocalEngineConfig::new(primary_root.path())
+            LocalEngineConfig::new(primary_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("primary");
-        let follower =
-            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
-                .expect("follower");
+        let follower = LocalEngine::open(
+            LocalEngineConfig::new(follower_root.path(), NodeId::new("test-node"))
+                .as_read_only_replica(),
+        )
+        .expect("follower");
         let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
         let stream_id = stream_id("task.root");
 
@@ -4021,7 +4100,7 @@ mod tests {
         let temp_dir = tempdir().expect("temp dir");
         let remote_root = tempdir().expect("remote root");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(8)
                 .expect("config"),
         )
@@ -4071,14 +4150,16 @@ mod tests {
         let follower_root = tempdir().expect("follower root");
         let remote_root = tempdir().expect("remote root");
         let primary = LocalEngine::open(
-            LocalEngineConfig::new(primary_root.path())
+            LocalEngineConfig::new(primary_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("primary");
-        let follower =
-            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
-                .expect("follower");
+        let follower = LocalEngine::open(
+            LocalEngineConfig::new(follower_root.path(), NodeId::new("test-node"))
+                .as_read_only_replica(),
+        )
+        .expect("follower");
         let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
         let stream_id = stream_id("task.root");
 
@@ -4130,14 +4211,16 @@ mod tests {
         let follower_root = tempdir().expect("follower root");
         let remote_root = tempdir().expect("remote root");
         let primary = LocalEngine::open(
-            LocalEngineConfig::new(primary_root.path())
+            LocalEngineConfig::new(primary_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("primary");
-        let follower =
-            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
-                .expect("follower");
+        let follower = LocalEngine::open(
+            LocalEngineConfig::new(follower_root.path(), NodeId::new("test-node"))
+                .as_read_only_replica(),
+        )
+        .expect("follower");
         let store = LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store");
         let stream_id = stream_id("task.root");
 
@@ -4199,7 +4282,7 @@ mod tests {
         let remote_root = tempdir().expect("remote root");
         let lease_root = tempdir().expect("lease root");
         let primary = LocalEngine::open(
-            LocalEngineConfig::new(primary_root.path())
+            LocalEngineConfig::new(primary_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
@@ -4262,14 +4345,16 @@ mod tests {
         let follower_root = tempdir().expect("follower root");
         let remote_root = tempdir().expect("remote root");
         let primary = LocalEngine::open(
-            LocalEngineConfig::new(primary_root.path())
+            LocalEngineConfig::new(primary_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("primary");
-        let follower =
-            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
-                .expect("follower");
+        let follower = LocalEngine::open(
+            LocalEngineConfig::new(follower_root.path(), NodeId::new("test-node"))
+                .as_read_only_replica(),
+        )
+        .expect("follower");
         let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
             LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store"),
         );
@@ -4311,8 +4396,11 @@ mod tests {
             .handoff_primary(&stream_id, NodeId::new("node-b"), &eligibility)
             .await
             .expect("handoff primary");
-        let promoted = LocalEngine::open(LocalEngineConfig::new(follower_root.path()))
-            .expect("promoted primary");
+        let promoted = LocalEngine::open(LocalEngineConfig::new(
+            follower_root.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("promoted primary");
         let handle_b = consensus
             .acquire(&stream_id, NodeId::new("node-b"))
             .await
@@ -4341,14 +4429,16 @@ mod tests {
         let follower_root = tempdir().expect("follower root");
         let remote_root = tempdir().expect("remote root");
         let primary = LocalEngine::open(
-            LocalEngineConfig::new(primary_root.path())
+            LocalEngineConfig::new(primary_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("primary");
-        let follower =
-            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
-                .expect("follower");
+        let follower = LocalEngine::open(
+            LocalEngineConfig::new(follower_root.path(), NodeId::new("test-node"))
+                .as_read_only_replica(),
+        )
+        .expect("follower");
         let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
             LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store"),
         );
@@ -4415,14 +4505,16 @@ mod tests {
         let follower_root = tempdir().expect("follower root");
         let remote_root = tempdir().expect("remote root");
         let primary = LocalEngine::open(
-            LocalEngineConfig::new(primary_root.path())
+            LocalEngineConfig::new(primary_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("primary");
-        let follower =
-            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
-                .expect("follower");
+        let follower = LocalEngine::open(
+            LocalEngineConfig::new(follower_root.path(), NodeId::new("test-node"))
+                .as_read_only_replica(),
+        )
+        .expect("follower");
         let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
             LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store"),
         );
@@ -4488,14 +4580,16 @@ mod tests {
         let follower_root = tempdir().expect("follower root");
         let remote_root = tempdir().expect("remote root");
         let primary = LocalEngine::open(
-            LocalEngineConfig::new(primary_root.path())
+            LocalEngineConfig::new(primary_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("primary");
-        let follower =
-            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
-                .expect("follower");
+        let follower = LocalEngine::open(
+            LocalEngineConfig::new(follower_root.path(), NodeId::new("test-node"))
+                .as_read_only_replica(),
+        )
+        .expect("follower");
         let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
             LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store"),
         );
@@ -4543,8 +4637,11 @@ mod tests {
             .expect_err("former primary must be fenced");
         assert!(old_primary_err.to_string().contains("not the leader"));
 
-        let promoted = LocalEngine::open(LocalEngineConfig::new(follower_root.path()))
-            .expect("promoted primary");
+        let promoted = LocalEngine::open(LocalEngineConfig::new(
+            follower_root.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("promoted primary");
         let handle_b = consensus
             .acquire(&stream_id, NodeId::new("node-b"))
             .await
@@ -4565,14 +4662,16 @@ mod tests {
         let follower_root = tempdir().expect("follower root");
         let remote_root = tempdir().expect("remote root");
         let primary = LocalEngine::open(
-            LocalEngineConfig::new(primary_root.path())
+            LocalEngineConfig::new(primary_root.path(), NodeId::new("test-node"))
                 .with_segment_max_records(2)
                 .expect("config"),
         )
         .expect("primary");
-        let follower =
-            LocalEngine::open(LocalEngineConfig::new(follower_root.path()).as_read_only_replica())
-                .expect("follower");
+        let follower = LocalEngine::open(
+            LocalEngineConfig::new(follower_root.path(), NodeId::new("test-node"))
+                .as_read_only_replica(),
+        )
+        .expect("follower");
         let store: std::sync::Arc<dyn object_store::ObjectStore> = std::sync::Arc::new(
             LocalFileSystem::new_with_prefix(remote_root.path()).expect("object store"),
         );
@@ -4622,8 +4721,11 @@ mod tests {
             posture => panic!("unexpected former primary posture: {posture:?}"),
         }
 
-        let promoted = LocalEngine::open(LocalEngineConfig::new(follower_root.path()))
-            .expect("promoted primary");
+        let promoted = LocalEngine::open(LocalEngineConfig::new(
+            follower_root.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("promoted primary");
         let handle_b = consensus
             .acquire(&stream_id, NodeId::new("node-b"))
             .await
@@ -4643,7 +4745,7 @@ mod tests {
         use std::fs::File;
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(1)
                 .expect("config"),
         )
@@ -4711,7 +4813,7 @@ mod tests {
         use crate::storage::ContentDigest;
         let temp_dir = tempdir().expect("temp dir");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp_dir.path())
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
                 .with_segment_max_records(1)
                 .expect("config"),
         )
@@ -4757,7 +4859,11 @@ mod tests {
         use object_store::local::LocalFileSystem;
 
         let temp = tempdir().expect("temp");
-        let engine = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("engine");
+        let engine = LocalEngine::open(LocalEngineConfig::new(
+            temp.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("engine");
         let stream_id = stream_id("task.root");
         engine
             .create_stream(root_descriptor("task.root"))
@@ -4778,13 +4884,20 @@ mod tests {
         engine.append(&stream_id, b"allowed").expect("a allowed");
 
         // 2. Engine B (not leader) should fail to append
-        let engine_b = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("engine b");
+        let engine_b = LocalEngine::open(LocalEngineConfig::new(
+            temp.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("engine b");
 
         #[derive(Debug)]
         struct NotLeaderHandle(StreamId);
         #[async_trait::async_trait]
         impl crate::consensus::ConsensusHandle for NotLeaderHandle {
             fn is_leader(&self) -> bool {
+                false
+            }
+            fn is_expired(&self) -> bool {
                 false
             }
             fn stream_id(&self) -> &StreamId {
@@ -4827,7 +4940,7 @@ mod tests {
 
         let temp = tempdir().expect("temp");
         let engine = LocalEngine::open(
-            LocalEngineConfig::new(temp.path())
+            LocalEngineConfig::new(temp.path(), NodeId::new("test-node"))
                 .with_segment_max_records(1)
                 .expect("config"),
         )

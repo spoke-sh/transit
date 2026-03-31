@@ -183,7 +183,11 @@ mod tests {
     #[tokio::test]
     async fn materializer_can_catch_up_and_checkpoint() {
         let temp = tempdir().expect("temp");
-        let core = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("core");
+        let core = LocalEngine::open(LocalEngineConfig::new(
+            temp.path(),
+            transit_core::membership::NodeId::new("test-node"),
+        ))
+        .expect("core");
         let stream_id = StreamId::new("task.root").expect("id");
         core.create_stream(StreamDescriptor::root(
             stream_id.clone(),
@@ -214,7 +218,11 @@ mod tests {
     #[tokio::test]
     async fn materializer_can_resume_from_checkpoint_without_reprocessing_old_records() {
         let temp = tempdir().expect("temp");
-        let core = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("core");
+        let core = LocalEngine::open(LocalEngineConfig::new(
+            temp.path(),
+            transit_core::membership::NodeId::new("test-node"),
+        ))
+        .expect("core");
         let stream_id = StreamId::new("task.root").expect("id");
         let materialization_id = "test-mat".to_string();
         core.create_stream(StreamDescriptor::root(
@@ -261,7 +269,11 @@ mod tests {
     #[tokio::test]
     async fn checkpoint_resume_cursor_reports_pending_branch_records() {
         let temp = tempdir().expect("temp");
-        let core = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("core");
+        let core = LocalEngine::open(LocalEngineConfig::new(
+            temp.path(),
+            transit_core::membership::NodeId::new("test-node"),
+        ))
+        .expect("core");
         let root_stream = StreamId::new("task.root").expect("root id");
         let branch_stream = StreamId::new("task.root.thread").expect("branch id");
 
@@ -310,7 +322,11 @@ mod tests {
     #[tokio::test]
     async fn resume_verified_uses_explicit_checkpoint_cursor_before_replay() {
         let temp = tempdir().expect("temp");
-        let core = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("core");
+        let core = LocalEngine::open(LocalEngineConfig::new(
+            temp.path(),
+            transit_core::membership::NodeId::new("test-node"),
+        ))
+        .expect("core");
         let stream_id = StreamId::new("task.root").expect("id");
         let materialization_id = "verified-mat".to_string();
         core.create_stream(StreamDescriptor::root(
@@ -358,7 +374,11 @@ mod tests {
     #[tokio::test]
     async fn resume_cursor_rejects_checkpoint_when_stream_falls_behind_anchor() {
         let temp = tempdir().expect("temp");
-        let core = LocalEngine::open(LocalEngineConfig::new(temp.path())).expect("core");
+        let core = LocalEngine::open(LocalEngineConfig::new(
+            temp.path(),
+            transit_core::membership::NodeId::new("test-node"),
+        ))
+        .expect("core");
         let stream_id = StreamId::new("task.root").expect("id");
         core.create_stream(StreamDescriptor::root(
             stream_id.clone(),
