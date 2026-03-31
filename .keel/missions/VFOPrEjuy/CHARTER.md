@@ -6,9 +6,7 @@ Archetype: Strategic
 
 | ID | Description | Verification |
 |----|-------------|--------------|
-| MG-01 | Deliver a verified quorum-based durability mode that requires acknowledgement from a majority of live nodes. | board: VFOPrFVvq/GOAL-01 |
-| MG-02 | Deliver an automatic election-based failover mechanism that promotes a follower to primary when the existing lease expires. | board: VFOPrFVvq/GOAL-02 |
-| MG-03 | Deliver a cluster membership primitive that allows nodes to discover their peers and calculate quorum. | board: VFOPrFVvq/GOAL-03 |
+| MG-01 | Deliver verified quorum-based durability, automatic election-based failover, and cluster membership primitives for high-availability Transit clusters. | board: VFOPrFVvq |
 
 ## Constraints
 

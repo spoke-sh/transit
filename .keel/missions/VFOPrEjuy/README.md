@@ -1,12 +1,15 @@
 ---
 # system-managed
 id: VFOPrEjuy
-status: defining
+status: verified
 created_at: 2026-03-30T15:34:50
-updated_at: 2026-03-30T15:34:50
+updated_at: 2026-03-30T17:23:45
 # authored
 title: Ship Quorum Acknowledgement and Automatic Failover
 watch: ~
+activated_at: 2026-03-30T17:23:40
+achieved_at: 2026-03-30T17:23:43
+verified_at: 2026-03-30T17:23:45
 ---
 
 # Ship Quorum Acknowledgement and Automatic Failover
