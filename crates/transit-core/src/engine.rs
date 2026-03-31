@@ -831,18 +831,32 @@ impl LocalEngine {
 impl crate::consensus::ElectionTrigger for LocalEngine {
     async fn on_election_required(&self, stream_id: &StreamId) -> Result<()> {
         if let Some(provider) = self.inner.provider.as_ref() {
-            // Attempt to acquire the lease. ObjectStoreConsensus handles the "current lease" check
-            // and bails if it is still valid and owned by someone else.
+            eprintln!(
+                "[failover] node={} stream={} event=election_triggered",
+                self.inner.node_id.as_str(),
+                stream_id.as_str()
+            );
             match provider
                 .acquire(stream_id, self.inner.node_id.clone())
                 .await
             {
                 Ok(handle) => {
+                    eprintln!(
+                        "[failover] node={} stream={} event=lease_acquired version={}",
+                        self.inner.node_id.as_str(),
+                        stream_id.as_str(),
+                        handle.lease().version
+                    );
                     self.bind_consensus(stream_id.clone(), handle);
                     Ok(())
                 }
                 Err(e) => {
-                    // This is expected if another node won the race
+                    eprintln!(
+                        "[failover] node={} stream={} event=election_lost reason={:#}",
+                        self.inner.node_id.as_str(),
+                        stream_id.as_str(),
+                        e
+                    );
                     bail!("failed to acquire lease during election: {:#}", e);
                 }
             }
@@ -4984,5 +4998,109 @@ mod tests {
             .await
             .expect_err("should be fenced");
         assert!(err.to_string().contains("FENCED"));
+    }
+
+    #[tokio::test]
+    async fn follower_automatically_acquires_lease_after_primary_failure() {
+        use crate::consensus::{ElectionMonitor, ObjectStoreConsensus};
+
+        let primary_root = tempdir().expect("primary root");
+        let follower_root = tempdir().expect("follower root");
+        let lease_root = tempdir().expect("lease root");
+
+        // Shared consensus with a very short lease (1 second)
+        let consensus = ObjectStoreConsensus::new(
+            std::sync::Arc::new(
+                LocalFileSystem::new_with_prefix(lease_root.path()).expect("lease store"),
+            ),
+            "leases",
+        )
+        .with_lease_duration_secs(1);
+        let provider: std::sync::Arc<dyn crate::consensus::ConsensusProvider> =
+            std::sync::Arc::new(consensus);
+
+        let stream_id = stream_id("task.root");
+
+        // --- Primary: acquire lease, write data ---
+        let primary = LocalEngine::open(
+            LocalEngineConfig::new(primary_root.path(), NodeId::new("node-primary"))
+                .with_provider(provider.clone()),
+        )
+        .expect("primary");
+
+        let handle_a = provider
+            .acquire(&stream_id, NodeId::new("node-primary"))
+            .await
+            .expect("primary acquire");
+        primary.bind_consensus(stream_id.clone(), handle_a);
+
+        primary
+            .create_stream(root_descriptor("task.root"))
+            .expect("create");
+        primary
+            .append(&stream_id, b"before-failover")
+            .expect("write");
+
+        // --- Simulate primary failure: let the lease expire (no heartbeat) ---
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // --- Follower: configure with provider, start election monitor ---
+        let follower: std::sync::Arc<LocalEngine> = std::sync::Arc::new(
+            LocalEngine::open(
+                LocalEngineConfig::new(follower_root.path(), NodeId::new("node-follower"))
+                    .with_provider(provider.clone()),
+            )
+            .expect("follower"),
+        );
+        // Create the stream locally so the follower can write to it after promotion
+        follower
+            .create_stream(root_descriptor("task.root"))
+            .expect("create on follower");
+
+        let monitor = std::sync::Arc::new(ElectionMonitor::new(
+            provider.clone(),
+            follower.clone(),
+            Duration::from_millis(100),
+        ));
+        let monitor_handle = monitor.spawn(vec![stream_id.clone()]);
+
+        // Wait for the election to trigger and follower to acquire
+        let election_start = std::time::Instant::now();
+        let mut acquired = false;
+        while election_start.elapsed() < Duration::from_secs(5) {
+            if follower.is_leader(&stream_id) {
+                acquired = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        let election_duration = election_start.elapsed();
+        monitor_handle.abort();
+
+        assert!(
+            acquired,
+            "follower must acquire lease after primary failure"
+        );
+        // Verify election happened within a reasonable window (lease was already expired)
+        assert!(
+            election_duration < Duration::from_secs(3),
+            "election should complete within timeout, took {:?}",
+            election_duration
+        );
+
+        // --- Verify: follower can now write ---
+        follower
+            .append(&stream_id, b"after-failover")
+            .expect("follower must be writable after acquiring lease");
+
+        // --- Verify: the original primary is now fenced ---
+        let primary_err = primary
+            .append(&stream_id, b"should-fail")
+            .expect_err("primary must be fenced after lease loss");
+        assert!(
+            primary_err.to_string().contains("not the leader"),
+            "primary fencing error: {}",
+            primary_err
+        );
     }
 }

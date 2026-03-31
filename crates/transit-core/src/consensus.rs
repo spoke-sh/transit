@@ -206,6 +206,11 @@ impl ObjectStoreConsensus {
         }
     }
 
+    pub fn with_lease_duration_secs(mut self, secs: i64) -> Self {
+        self.lease_duration_secs = secs;
+        self
+    }
+
     fn lease_path(&self, stream_id: &StreamId) -> ObjectPath {
         self.prefix
             .clone()

@@ -1,0 +1,13 @@
+---
+recorded_at: 2026-03-30T17:20:38.506251475-07:00
+command: cargo nextest run -E 'test(follower_automatically_acquires_lease_after_primary_failure)'
+---
+
+--- stderr ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+────────────
+ Nextest run ID 197da7ab-6810-42a3-932a-878ef8191190 with nextest profile: default
+    Starting 1 test across 4 binaries (100 tests skipped)
+        PASS [   2.030s] (1/1) transit-core engine::tests::follower_automatically_acquires_lease_after_primary_failure
+────────────
+     Summary [   2.031s] 1 test run: 1 passed, 100 skipped

@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-03-30T17:20:46.292697627-07:00
+mode: manual
+---
+Failover events are logged via structured eprintln! in LocalEngine::on_election_required with [failover] tags (election_triggered, lease_acquired, election_lost). Ownership posture is observable through engine.ownership_posture() which exposes LeaseLeader/LeaseFollower state with the full StreamLease. The chaos test (follower_automatically_acquires_lease_after_primary_failure) exercises the full election path and emits these log lines.

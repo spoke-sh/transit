@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-03-30T17:20:51.501775798-07:00
+mode: manual
+---
+The chaos test asserts election_duration < 3 seconds with a 1-second lease TTL and 100ms monitor poll interval. The test verifies that once the primary's lease expires (2 seconds sleep), the follower's ElectionMonitor detects the expiration and acquires the lease within the configured timeout window. The election_timeout config builder (with_election_timeout) allows operators to tune this tradeoff.
