@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T13:05:16.127554527-07:00
+mode: manual
+---
+Expanded MATERIALIZATION.md with a reference projection reducer contract that names the replay inputs, reducer extension points, emitted reference views, and checkpoint vocabulary required to derive authoritative views from replay. Verified the synced docs with just docs-sync and just docs-build.

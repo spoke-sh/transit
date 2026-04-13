@@ -60,6 +60,69 @@ A materializer should rely on a small, stable set of source facts:
 
 The engine does not need to expose mutable internal indexes or active file layout in order for a materializer to resume safely.
 
+## Reference Projection Reducer Contract
+
+Reference projections are the first generic reducer shape intended for hosted
+downstream workloads. They should derive replaceable read models from
+authoritative Transit history without turning Transit core into a policy engine
+or hidden mutable truth store.
+
+Minimum reducer inputs:
+
+- `source_record`: the authoritative replay record, including stream identity,
+  position, and payload bytes
+- `source_lineage`: the root, branch, or merge context that explains where that
+  record sits in shared history
+- `resume_anchor`: the checkpointed source offset, manifest generation, and
+  lineage reference that bound the previous projection state
+- `projection_state`: materializer-owned state loaded from the prior checkpoint
+  or snapshot
+
+Required extension points:
+
+- record decoding that maps consumer-owned payloads into reducer-friendly input
+  events
+- key selection that decides which reference entity or view the record touches
+- apply logic that transforms prior projection state into next projection state
+- branch or merge handling that chooses replay-through, partial recompute, or
+  explicit derived merge artifacts when the source lineage forks
+- output serialization that stores the derived view in consumer-owned state
+  blobs, snapshots, or inspection surfaces
+
+Reference reducers should emit:
+
+- an updated reference view that can be replaced by replay
+- checkpoint metadata that anchors the reducer to shared source history
+- optional snapshot references when reusing a stored derived-state image is
+  cheaper than replaying from zero
+
+Transit core must stop short of owning:
+
+- canonical auth, account, session, or entitlement schemas
+- provider-specific validation rules or policy decisions
+- consumer business logic that decides whether an event is acceptable or how a
+  read model should be interpreted outside replay
+
+## Reference Checkpoint Vocabulary
+
+Reference projections should reuse the generic checkpoint envelope, with a small
+vocabulary that keeps derived views inspectable:
+
+- `materialization_id`: stable identifier for the reference projection
+- `view_kind = "reference_projection"` when the checkpoint represents a
+  replaceable reference view
+- `source_stream_id`, `source_offset`, `source_manifest_generation`, and
+  `lineage_ref`: the shared replay anchor reused from the engine contract
+- `source_checkpoint_ref`: optional pointer to a stronger lineage checkpoint
+  when the projection wants an auditable proof anchor
+- `opaque_state_ref`: materializer-owned durable view state for the current
+  projection
+- `snapshot_ref`: optional reusable derived-state snapshot
+
+This vocabulary is an overlay on the existing materialization checkpoint, not a
+new projection-only authority model. If a reference view cannot be rebuilt from
+the checkpoint plus authoritative replay, the design has crossed the boundary.
+
 ## Checkpoint Envelope
 
 A materialization checkpoint should be an explicit envelope that binds derived state to immutable source history.

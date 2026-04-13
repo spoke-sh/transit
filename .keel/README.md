@@ -160,7 +160,7 @@
 |--------|--------|
 | [Remote Authority Contract And Consumer Wiring](epics/VGh59soBt/voyages/VGh5B5qMT/) | done |
 | [Object-Store Authority With Warm Cache](epics/VGh59soBt/voyages/VGh5BgrVO/) | done |
-| [Materialized Reference Projection Surface](epics/VGh59soBt/voyages/VGh5CIxcc/) | planned |
+| [Materialized Reference Projection Surface](epics/VGh59soBt/voyages/VGh5CIxcc/) | in-progress |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

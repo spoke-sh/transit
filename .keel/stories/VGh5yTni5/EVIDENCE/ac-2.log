@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T13:05:16.136185662-07:00
+mode: manual
+---
+Kept provider policy, consumer business logic, and canonical downstream schemas out of Transit core by making them explicit non-goals of the reference reducer contract. Verified the rendered website copy with just docs-build.
