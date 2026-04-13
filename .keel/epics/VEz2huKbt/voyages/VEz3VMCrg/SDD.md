@@ -93,12 +93,12 @@ struct CountReducer;
 Add a `Prove materialization` step to `just screen`:
 ```bash
 announce "Prove materialization"
-just transit mission materialization-proof --root "$screen_root/materialization"
+just transit materialization-proof --root "$screen_root/materialization"
 ```
 
 ## Interfaces
 
-- `transit mission materialization-proof --root <path> [--json]`
+- `transit materialization-proof --root <path> [--json]`
 - Human-readable terminal output by default.
 - `--json` produces `MaterializationProofResult`.
 

@@ -19,13 +19,13 @@ That means the point of this guide is not only "can it listen on a socket?" It i
 Run the end-to-end server proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- mission networked-server-proof --root target/transit-docs/networked
+cargo run -p transit-cli --bin transit -- networked-server-proof --root target/transit-docs/networked
 ```
 
 Run the current controlled failover proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- mission controlled-failover-proof --root target/transit-docs/controlled-failover
+cargo run -p transit-cli --bin transit -- controlled-failover-proof --root target/transit-docs/controlled-failover
 ```
 
 Run the Rust client proof against a locally started server:

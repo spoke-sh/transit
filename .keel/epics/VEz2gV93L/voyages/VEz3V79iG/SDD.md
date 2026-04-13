@@ -77,14 +77,14 @@ A struct mirroring `LocalEngineProofResult` and `TieredEngineProofResult`:
 Add a `Prove integrity` step to the `just screen` recipe:
 ```bash
 announce "Prove integrity"
-just transit mission integrity-proof --root "$screen_root/integrity"
+just transit integrity-proof --root "$screen_root/integrity"
 ```
 
 ## Interfaces
 
 The proof command follows the existing CLI interface pattern:
 
-- `transit mission integrity-proof --root <path> [--json]`
+- `transit integrity-proof --root <path> [--json]`
 - Human-readable terminal output by default with pass/fail indicators.
 - `--json` produces `IntegrityProofResult` for machine consumption.
 

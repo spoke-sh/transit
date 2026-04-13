@@ -25,23 +25,23 @@ screen:
         announce "Build workspace"
         just build
         announce "Prove local engine"
-        just transit mission local-engine-proof --root "$screen_root/local-engine"
+        just transit local-engine-proof --root "$screen_root/local-engine"
         announce "Prove tiered engine"
-        just transit mission tiered-engine-proof --root "$screen_root/tiered-engine"
+        just transit tiered-engine-proof --root "$screen_root/tiered-engine"
         announce "Prove warm-cache recovery"
-        just transit mission warm-cache-recovery-proof --root "$screen_root/warm-cache-recovery"
+        just transit warm-cache-recovery-proof --root "$screen_root/warm-cache-recovery"
         announce "Prove controlled failover"
-        just transit mission controlled-failover-proof --root "$screen_root/controlled-failover"
+        just transit controlled-failover-proof --root "$screen_root/controlled-failover"
         announce "Prove chaos failover"
-        just transit mission chaos-failover-proof --root "$screen_root/chaos-failover"
+        just transit chaos-failover-proof --root "$screen_root/chaos-failover"
         announce "Prove networked server"
-        just transit mission networked-server-proof --root "$screen_root/networked-server"
+        just transit networked-server-proof --root "$screen_root/networked-server"
         announce "Prove integrity proof"
-        just transit mission integrity-proof --root "$screen_root/integrity"
+        just transit integrity-proof --root "$screen_root/integrity"
         announce "Prove materialization"
-        just transit mission materialization-proof --root "$screen_root/materialization"
+        just transit materialization-proof --root "$screen_root/materialization"
         announce "Prove reference projection"
-        just transit mission reference-projection-proof --root "$screen_root/reference-projection"
+        just transit reference-projection-proof --root "$screen_root/reference-projection"
         announce "Probe object store"
         just transit object-store probe --root "$screen_root/object-store"
         announce "Show transit status"
@@ -56,7 +56,7 @@ mission:
 
 # Show the current transit status summary.
 screen-status:
-    cargo run -p transit-cli --bin transit -- mission status --repo-root {{justfile_directory()}}
+    cargo run -p transit-cli --bin transit -- status --repo-root {{justfile_directory()}}
 
 # Backward-compatible alias for the old status recipe name.
 mission-status:

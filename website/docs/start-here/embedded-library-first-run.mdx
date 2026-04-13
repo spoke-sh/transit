@@ -32,19 +32,19 @@ That is the default human proof path. It builds the workspace and runs the local
 Run the embedded proof directly:
 
 ```bash
-cargo run -p transit-cli --bin transit -- mission local-engine-proof --root target/transit-docs/local
+cargo run -p transit-cli --bin transit -- local-engine-proof --root target/transit-docs/local
 ```
 
 Run the tiered publication/restore proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- mission tiered-engine-proof --root target/transit-docs/tiered
+cargo run -p transit-cli --bin transit -- tiered-engine-proof --root target/transit-docs/tiered
 ```
 
 Run the controlled failover proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- mission controlled-failover-proof --root target/transit-docs/controlled-failover
+cargo run -p transit-cli --bin transit -- controlled-failover-proof --root target/transit-docs/controlled-failover
 ```
 
 ## What To Look For

@@ -45,22 +45,6 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Human-facing mission verification surfaces.
-    Mission(MissionArgs),
-    /// Probe configured object-store support.
-    ObjectStore(ObjectStoreArgs),
-    /// Run the shared-engine server daemon.
-    Server(ServerArgs),
-}
-
-#[derive(Debug, Args)]
-struct MissionArgs {
-    #[command(subcommand)]
-    command: MissionCommands,
-}
-
-#[derive(Debug, Subcommand)]
-enum MissionCommands {
     /// Show a human-readable bootstrap status summary.
     Status(MissionStatusArgs),
     /// Exercise append, replay, lineage, and crash recovery in one local proof.
@@ -89,6 +73,10 @@ enum MissionCommands {
     Checkpoint(CheckpointArgs),
     /// Verify an existing lineage checkpoint.
     VerifyCheckpoint(VerifyCheckpointArgs),
+    /// Probe configured object-store support.
+    ObjectStore(ObjectStoreArgs),
+    /// Run the shared-engine server daemon.
+    Server(ServerArgs),
 }
 
 #[derive(Debug, Args)]
@@ -380,54 +368,49 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Mission(args) => match args.command {
-            MissionCommands::Status(args) => {
-                render_mission_status(collect_mission_status(args.repo_root), args.json)?
-            }
-            MissionCommands::LocalEngineProof(args) => {
-                render_local_engine_proof(run_local_engine_proof(args.root)?, args.json)?
-            }
-            MissionCommands::TieredEngineProof(args) => {
-                render_tiered_engine_proof(run_tiered_engine_proof(args.root).await?, args.json)?
-            }
-            MissionCommands::ControlledFailoverProof(args) => render_controlled_failover_proof(
-                run_controlled_failover_proof(args.root).await?,
-                args.json,
-            )?,
-            MissionCommands::ChaosFailoverProof(args) => {
-                render_chaos_failover_proof(run_chaos_failover_proof(args.root).await?, args.json)?
-            }
-            MissionCommands::NetworkedServerProof(args) => {
-                render_networked_server_proof(run_networked_server_proof(args.root)?, args.json)?
-            }
-            MissionCommands::HostedAuthorityProof(args) => {
-                render_hosted_authority_proof(run_hosted_authority_proof(args.root)?, args.json)?
-            }
-            MissionCommands::WarmCacheRecoveryProof(args) => render_warm_cache_recovery_proof(
-                run_warm_cache_recovery_proof(args.root).await?,
-                args.json,
-            )?,
-            MissionCommands::MaterializationProof(args) => render_materialization_proof(
-                run_materialization_proof(args.root).await?,
-                args.json,
-            )?,
-            MissionCommands::ReferenceProjectionProof(args) => render_reference_projection_proof(
-                run_reference_projection_proof(args.root).await?,
-                args.json,
-            )?,
-            MissionCommands::IntegrityProof(args) => {
-                render_integrity_proof(run_integrity_proof(args.root).await?, args.json)?
-            }
-            MissionCommands::VerifyLineage(args) => {
-                render_verify_lineage(run_verify_lineage(&args)?, args.json)?
-            }
-            MissionCommands::Checkpoint(args) => {
-                render_checkpoint(run_checkpoint(&args)?, args.json)?
-            }
-            MissionCommands::VerifyCheckpoint(args) => {
-                render_verify_checkpoint(run_verify_checkpoint(&args)?, args.json)?
-            }
-        },
+        Commands::Status(args) => {
+            render_mission_status(collect_mission_status(args.repo_root), args.json)?
+        }
+        Commands::LocalEngineProof(args) => {
+            render_local_engine_proof(run_local_engine_proof(args.root)?, args.json)?
+        }
+        Commands::TieredEngineProof(args) => {
+            render_tiered_engine_proof(run_tiered_engine_proof(args.root).await?, args.json)?
+        }
+        Commands::ControlledFailoverProof(args) => render_controlled_failover_proof(
+            run_controlled_failover_proof(args.root).await?,
+            args.json,
+        )?,
+        Commands::ChaosFailoverProof(args) => {
+            render_chaos_failover_proof(run_chaos_failover_proof(args.root).await?, args.json)?
+        }
+        Commands::NetworkedServerProof(args) => {
+            render_networked_server_proof(run_networked_server_proof(args.root)?, args.json)?
+        }
+        Commands::HostedAuthorityProof(args) => {
+            render_hosted_authority_proof(run_hosted_authority_proof(args.root)?, args.json)?
+        }
+        Commands::WarmCacheRecoveryProof(args) => render_warm_cache_recovery_proof(
+            run_warm_cache_recovery_proof(args.root).await?,
+            args.json,
+        )?,
+        Commands::MaterializationProof(args) => {
+            render_materialization_proof(run_materialization_proof(args.root).await?, args.json)?
+        }
+        Commands::ReferenceProjectionProof(args) => render_reference_projection_proof(
+            run_reference_projection_proof(args.root).await?,
+            args.json,
+        )?,
+        Commands::IntegrityProof(args) => {
+            render_integrity_proof(run_integrity_proof(args.root).await?, args.json)?
+        }
+        Commands::VerifyLineage(args) => {
+            render_verify_lineage(run_verify_lineage(&args)?, args.json)?
+        }
+        Commands::Checkpoint(args) => render_checkpoint(run_checkpoint(&args)?, args.json)?,
+        Commands::VerifyCheckpoint(args) => {
+            render_verify_checkpoint(run_verify_checkpoint(&args)?, args.json)?
+        }
         Commands::ObjectStore(args) => match args.command {
             ObjectStoreCommands::Probe(args) => render_object_store_probe(
                 probe_local_filesystem_store(args.root).await?,
@@ -683,7 +666,7 @@ fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
 
     use textplots::{Chart, Plot, Shape};
 
-    println!("transit mission status");
+    println!("transit status");
     println!("summary: {}", status.summary());
     println!("version: {}", status.version);
 
@@ -4523,7 +4506,7 @@ fn render_chaos_failover_proof(outcome: ChaosFailoverProofResult, json: bool) ->
         return Ok(());
     }
 
-    println!("transit mission: chaos failover proof");
+    println!("transit chaos failover proof");
     println!("data root: {}", outcome.data_root.display());
     println!("stream:    {}", outcome.stream_id);
 
@@ -5109,6 +5092,7 @@ fn render_object_store_probe(result: ObjectStoreProbeResult, json: bool) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
     use tempfile::tempdir;
 
     fn start_server() -> (tempfile::TempDir, ServerHandle, SocketAddr) {
@@ -5120,6 +5104,29 @@ mod tests {
         .expect("bind server");
         let server_addr = server.local_addr();
         (temp_dir, server, server_addr)
+    }
+
+    #[test]
+    fn cli_promotes_status_and_proofs_to_top_level_commands() {
+        let cli = Cli::try_parse_from(["transit", "status", "--repo-root", "."])
+            .expect("parse top-level status command");
+        assert!(matches!(cli.command, Commands::Status(_)));
+
+        let cli = Cli::try_parse_from(["transit", "local-engine-proof", "--root", "target/demo"])
+            .expect("parse top-level proof command");
+        assert!(matches!(cli.command, Commands::LocalEngineProof(_)));
+    }
+
+    #[test]
+    fn cli_rejects_removed_mission_wrapper() {
+        let error = Cli::try_parse_from(["transit", "mission", "status", "--repo-root", "."])
+            .expect_err("mission wrapper should be rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("unrecognized subcommand 'mission'")
+        );
     }
 
     #[test]
