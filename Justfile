@@ -19,8 +19,24 @@ screen:
     (
         cd "$repo_root"
 
+        storage_probe_config="$screen_root/storage-probe.toml"
+
         rm -rf "$screen_root"
         mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/reference-projection" "$screen_root/tiered-engine" "$screen_root/warm-cache-recovery" "$screen_root/controlled-failover" "$screen_root/chaos-failover" "$screen_root/networked-server"
+
+        printf '%s\n' \
+            '[node]' \
+            'id = "screen"' \
+            'mode = "embedded"' \
+            "data_dir = \"$screen_root/storage-data\"" \
+            "cache_dir = \"$screen_root/storage-cache\"" \
+            '' \
+            '[storage]' \
+            'provider = "filesystem"' \
+            "bucket = \"$screen_root/object-store\"" \
+            'prefix = "screen"' \
+            'durability = "local"' \
+            > "$storage_probe_config"
 
         announce "Build workspace"
         just build
@@ -42,8 +58,8 @@ screen:
         just transit materialization-proof --root "$screen_root/materialization"
         announce "Prove reference projection"
         just transit reference-projection-proof --root "$screen_root/reference-projection"
-        announce "Probe object store"
-        just transit object-store probe --root "$screen_root/object-store"
+        announce "Probe storage"
+        just transit --config "$storage_probe_config" storage probe
         announce "Show transit status"
         just screen-status
         announce "Show board screen"

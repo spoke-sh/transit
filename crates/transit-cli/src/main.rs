@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use transit_client::TransitClient;
 use transit_core::bootstrap::{MissionStatus, collect_mission_status};
+use transit_core::config::{LoadedTransitConfig, StorageDurability, load_transit_config};
 use transit_core::engine::{
     LocalEngine, LocalEngineConfig, LocalRecord, LocalRecoveryOutcome, OwnershipPosture,
 };
@@ -18,7 +19,7 @@ use transit_core::kernel::{
     StreamLineage, StreamPosition,
 };
 use transit_core::membership::NodeId;
-use transit_core::object_store_support::{ObjectStoreProbeResult, probe_local_filesystem_store};
+use transit_core::object_store_support::{StorageProbeResult, probe_effective_storage};
 use transit_core::server::{
     RemoteClient, ServerConfig, ServerHandle, ServerShutdownOutcome, TailSessionId,
 };
@@ -37,6 +38,10 @@ use transit_server::bind_read_only_replica_from_frontier;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+
+    /// Transit configuration file. Defaults to the documented search order.
+    #[arg(long, global = true)]
+    config: Option<PathBuf>,
 
     /// Unique identity of this node in the cluster.
     #[arg(long, global = true)]
@@ -73,8 +78,8 @@ enum Commands {
     Checkpoint(CheckpointArgs),
     /// Verify an existing lineage checkpoint.
     VerifyCheckpoint(VerifyCheckpointArgs),
-    /// Probe configured object-store support.
-    ObjectStore(ObjectStoreArgs),
+    /// Probe configured storage support and guarantees.
+    Storage(StorageArgs),
     /// Run the shared-engine server daemon.
     Server(ServerArgs),
 }
@@ -91,9 +96,9 @@ struct MissionStatusArgs {
 
 #[derive(Debug, Args)]
 struct LocalEngineProofArgs {
-    /// Filesystem root used for the local durable-engine proof.
+    /// Filesystem root used for the local durable-engine proof. Defaults to configured [node].data_dir.
     #[arg(long)]
-    root: PathBuf,
+    root: Option<PathBuf>,
     /// Render proof output as JSON.
     #[arg(long)]
     json: bool,
@@ -101,9 +106,9 @@ struct LocalEngineProofArgs {
 
 #[derive(Debug, Args)]
 struct IntegrityProofArgs {
-    /// Filesystem root used for the local integrity proof.
+    /// Filesystem root used for the local integrity proof. Defaults to configured [node].data_dir.
     #[arg(long)]
-    root: PathBuf,
+    root: Option<PathBuf>,
     /// Render proof output as JSON.
     #[arg(long)]
     json: bool,
@@ -111,9 +116,9 @@ struct IntegrityProofArgs {
 
 #[derive(Debug, Args)]
 struct MaterializationProofArgs {
-    /// Filesystem root used for the local materialization proof.
+    /// Filesystem root used for the local materialization proof. Defaults to configured [node].data_dir.
     #[arg(long)]
-    root: PathBuf,
+    root: Option<PathBuf>,
     /// Render proof output as JSON.
     #[arg(long)]
     json: bool,
@@ -121,9 +126,9 @@ struct MaterializationProofArgs {
 
 #[derive(Debug, Args)]
 struct VerifyLineageArgs {
-    /// Filesystem root used for the shared local engine.
+    /// Filesystem root used for the shared local engine. Defaults to configured [node].data_dir.
     #[arg(long)]
-    root: PathBuf,
+    root: Option<PathBuf>,
     /// Stream identifier to verify.
     #[arg(long = "stream-id")]
     stream_id: String,
@@ -134,9 +139,9 @@ struct VerifyLineageArgs {
 
 #[derive(Debug, Args)]
 struct CheckpointArgs {
-    /// Filesystem root used for the shared local engine.
+    /// Filesystem root used for the shared local engine. Defaults to configured [node].data_dir.
     #[arg(long)]
-    root: PathBuf,
+    root: Option<PathBuf>,
     /// Stream identifier to checkpoint.
     #[arg(long = "stream-id")]
     stream_id: String,
@@ -150,9 +155,9 @@ struct CheckpointArgs {
 
 #[derive(Debug, Args)]
 struct VerifyCheckpointArgs {
-    /// Filesystem root used for the shared local engine.
+    /// Filesystem root used for the shared local engine. Defaults to configured [node].data_dir.
     #[arg(long)]
-    root: PathBuf,
+    root: Option<PathBuf>,
     /// Path to the JSON checkpoint file to verify.
     #[arg(long)]
     checkpoint_path: PathBuf,
@@ -162,9 +167,9 @@ struct VerifyCheckpointArgs {
 }
 
 #[derive(Debug, Args)]
-struct ObjectStoreArgs {
+struct StorageArgs {
     #[command(subcommand)]
-    command: ObjectStoreCommands,
+    command: StorageCommands,
 }
 
 #[derive(Debug, Args)]
@@ -199,12 +204,12 @@ enum ServerCommands {
 
 #[derive(Debug, Args)]
 struct ServerRunArgs {
-    /// Filesystem root used for the shared local engine.
+    /// Filesystem root used for the shared local engine. Defaults to configured [node].data_dir.
     #[arg(long)]
-    root: PathBuf,
-    /// Listen address for the first server daemon.
-    #[arg(long = "listen-addr", default_value = "127.0.0.1:7171")]
-    listen_addr: SocketAddr,
+    root: Option<PathBuf>,
+    /// Listen address for the first server daemon. Defaults to configured [server].listen_addr.
+    #[arg(long = "listen-addr")]
+    listen_addr: Option<SocketAddr>,
     /// Run for a bounded time before graceful shutdown. Useful for tests and proofs.
     #[arg(long = "serve-for-ms")]
     serve_for_ms: Option<u64>,
@@ -348,16 +353,13 @@ struct ServerLineageArgs {
 }
 
 #[derive(Debug, Subcommand)]
-enum ObjectStoreCommands {
-    /// Write, read, and delete a probe object using the filesystem backend.
-    Probe(ObjectStoreProbeArgs),
+enum StorageCommands {
+    /// Verify the effective local storage configuration and guarantee class.
+    Probe(StorageProbeArgs),
 }
 
 #[derive(Debug, Args)]
-struct ObjectStoreProbeArgs {
-    /// Filesystem root used for the local object-store probe.
-    #[arg(long)]
-    root: PathBuf,
+struct StorageProbeArgs {
     /// Render probe output as JSON.
     #[arg(long)]
     json: bool,
@@ -366,61 +368,80 @@ struct ObjectStoreProbeArgs {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    let config = load_transit_config(cli.config.clone())?;
 
     match cli.command {
         Commands::Status(args) => {
             render_mission_status(collect_mission_status(args.repo_root), args.json)?
         }
-        Commands::LocalEngineProof(args) => {
-            render_local_engine_proof(run_local_engine_proof(args.root)?, args.json)?
-        }
-        Commands::TieredEngineProof(args) => {
-            render_tiered_engine_proof(run_tiered_engine_proof(args.root).await?, args.json)?
-        }
+        Commands::LocalEngineProof(args) => render_local_engine_proof(
+            run_local_engine_proof(resolve_local_root(args.root, &config))?,
+            args.json,
+        )?,
+        Commands::TieredEngineProof(args) => render_tiered_engine_proof(
+            run_tiered_engine_proof(resolve_local_root(args.root, &config)).await?,
+            args.json,
+        )?,
         Commands::ControlledFailoverProof(args) => render_controlled_failover_proof(
-            run_controlled_failover_proof(args.root).await?,
+            run_controlled_failover_proof(resolve_local_root(args.root, &config)).await?,
             args.json,
         )?,
-        Commands::ChaosFailoverProof(args) => {
-            render_chaos_failover_proof(run_chaos_failover_proof(args.root).await?, args.json)?
-        }
-        Commands::NetworkedServerProof(args) => {
-            render_networked_server_proof(run_networked_server_proof(args.root)?, args.json)?
-        }
-        Commands::HostedAuthorityProof(args) => {
-            render_hosted_authority_proof(run_hosted_authority_proof(args.root)?, args.json)?
-        }
+        Commands::ChaosFailoverProof(args) => render_chaos_failover_proof(
+            run_chaos_failover_proof(resolve_local_root(args.root, &config)).await?,
+            args.json,
+        )?,
+        Commands::NetworkedServerProof(args) => render_networked_server_proof(
+            run_networked_server_proof(resolve_local_root(args.root, &config))?,
+            args.json,
+        )?,
+        Commands::HostedAuthorityProof(args) => render_hosted_authority_proof(
+            run_hosted_authority_proof(resolve_local_root(args.root, &config))?,
+            args.json,
+        )?,
         Commands::WarmCacheRecoveryProof(args) => render_warm_cache_recovery_proof(
-            run_warm_cache_recovery_proof(args.root).await?,
+            run_warm_cache_recovery_proof(resolve_local_root(args.root, &config)).await?,
             args.json,
         )?,
-        Commands::MaterializationProof(args) => {
-            render_materialization_proof(run_materialization_proof(args.root).await?, args.json)?
-        }
+        Commands::MaterializationProof(args) => render_materialization_proof(
+            run_materialization_proof(resolve_local_root(args.root, &config)).await?,
+            args.json,
+        )?,
         Commands::ReferenceProjectionProof(args) => render_reference_projection_proof(
-            run_reference_projection_proof(args.root).await?,
+            run_reference_projection_proof(resolve_local_root(args.root, &config)).await?,
             args.json,
         )?,
-        Commands::IntegrityProof(args) => {
-            render_integrity_proof(run_integrity_proof(args.root).await?, args.json)?
-        }
-        Commands::VerifyLineage(args) => {
-            render_verify_lineage(run_verify_lineage(&args)?, args.json)?
-        }
-        Commands::Checkpoint(args) => render_checkpoint(run_checkpoint(&args)?, args.json)?,
-        Commands::VerifyCheckpoint(args) => {
-            render_verify_checkpoint(run_verify_checkpoint(&args)?, args.json)?
-        }
-        Commands::ObjectStore(args) => match args.command {
-            ObjectStoreCommands::Probe(args) => render_object_store_probe(
-                probe_local_filesystem_store(args.root).await?,
-                args.json,
+        Commands::IntegrityProof(args) => render_integrity_proof(
+            run_integrity_proof(resolve_local_root(args.root, &config)).await?,
+            args.json,
+        )?,
+        Commands::VerifyLineage(args) => render_verify_lineage(
+            run_verify_lineage(resolve_local_root(args.root, &config), &args.stream_id)?,
+            args.json,
+        )?,
+        Commands::Checkpoint(args) => render_checkpoint(
+            run_checkpoint(
+                resolve_local_root(args.root, &config),
+                &args.stream_id,
+                &args.kind,
             )?,
+            args.json,
+        )?,
+        Commands::VerifyCheckpoint(args) => render_verify_checkpoint(
+            run_verify_checkpoint(
+                resolve_local_root(args.root, &config),
+                &args.checkpoint_path,
+            )?,
+            args.json,
+        )?,
+        Commands::Storage(args) => match args.command {
+            StorageCommands::Probe(args) => {
+                render_storage_probe(probe_effective_storage(&config).await?, args.json)?
+            }
         },
         Commands::Server(args) => match args.command {
             ServerCommands::Run(args) => {
                 let json = args.json;
-                render_server_run(run_server(args).await?, json)?
+                render_server_run(run_server(args, &config).await?, json)?
             }
             ServerCommands::CreateRoot(args) => {
                 let json = args.json;
@@ -464,6 +485,10 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+fn resolve_local_root(root: Option<PathBuf>, config: &LoadedTransitConfig) -> PathBuf {
+    root.unwrap_or_else(|| config.config().node.data_dir.clone())
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 struct VerifiedSegmentOutcome {
     segment_id: String,
@@ -482,16 +507,16 @@ struct VerifyLineageOutcome {
     error: Option<String>,
 }
 
-fn run_verify_lineage(args: &VerifyLineageArgs) -> Result<VerifyLineageOutcome> {
+fn run_verify_lineage(root: PathBuf, stream_id: &str) -> Result<VerifyLineageOutcome> {
     use transit_core::engine::{LocalEngine, LocalEngineConfig};
     use transit_core::kernel::StreamId;
 
-    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root, NodeId::new("cli-node")))?;
-    let stream_id = StreamId::new(&args.stream_id)?;
+    let engine = LocalEngine::open(LocalEngineConfig::new(&root, NodeId::new("cli-node")))?;
+    let stream_id = StreamId::new(stream_id)?;
 
     match engine.verify_local_lineage(&stream_id) {
         Ok(lineage) => Ok(VerifyLineageOutcome {
-            stream_id: args.stream_id.clone(),
+            stream_id: stream_id.as_str().to_owned(),
             manifest_id: lineage.manifest_id.as_str().to_string(),
             manifest_root: lineage.manifest_root.digest().to_string(),
             verified: true,
@@ -508,7 +533,7 @@ fn run_verify_lineage(args: &VerifyLineageArgs) -> Result<VerifyLineageOutcome> 
             error: None,
         }),
         Err(e) => Ok(VerifyLineageOutcome {
-            stream_id: args.stream_id.clone(),
+            stream_id: stream_id.as_str().to_owned(),
             manifest_id: "unknown".to_string(),
             manifest_root: "unknown".to_string(),
             verified: false,
@@ -582,13 +607,13 @@ struct CheckpointOutcome {
     kind: String,
 }
 
-fn run_checkpoint(args: &CheckpointArgs) -> Result<CheckpointOutcome> {
+fn run_checkpoint(root: PathBuf, stream_id: &str, kind: &str) -> Result<CheckpointOutcome> {
     use transit_core::engine::{LocalEngine, LocalEngineConfig};
     use transit_core::kernel::StreamId;
 
-    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root, NodeId::new("cli-node")))?;
-    let stream_id = StreamId::new(&args.stream_id)?;
-    let checkpoint = engine.checkpoint(&stream_id, &args.kind)?;
+    let engine = LocalEngine::open(LocalEngineConfig::new(&root, NodeId::new("cli-node")))?;
+    let stream_id = StreamId::new(stream_id)?;
+    let checkpoint = engine.checkpoint(&stream_id, kind)?;
 
     Ok(CheckpointOutcome {
         stream_id: checkpoint.stream_id,
@@ -619,12 +644,12 @@ struct VerifyCheckpointOutcome {
     error: Option<String>,
 }
 
-fn run_verify_checkpoint(args: &VerifyCheckpointArgs) -> Result<VerifyCheckpointOutcome> {
+fn run_verify_checkpoint(root: PathBuf, checkpoint_path: &Path) -> Result<VerifyCheckpointOutcome> {
     use transit_core::engine::{LocalEngine, LocalEngineConfig};
     use transit_core::storage::LineageCheckpoint;
 
-    let engine = LocalEngine::open(LocalEngineConfig::new(&args.root, NodeId::new("cli-node")))?;
-    let bytes = fs::read(&args.checkpoint_path).context("read checkpoint file")?;
+    let engine = LocalEngine::open(LocalEngineConfig::new(&root, NodeId::new("cli-node")))?;
+    let bytes = fs::read(checkpoint_path).context("read checkpoint file")?;
     let checkpoint: LineageCheckpoint =
         serde_json::from_slice(&bytes).context("parse checkpoint")?;
 
@@ -2580,23 +2605,40 @@ fn materialization_snapshot_entries(state: &MaterializationProofState) -> Vec<Le
     ]
 }
 
-async fn run_server(args: ServerRunArgs) -> Result<ServerRunResult> {
+async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result<ServerRunResult> {
     use object_store::local::LocalFileSystem;
     use std::sync::Arc;
     use transit_core::consensus::{ConsensusManager, NodeId, ObjectStoreConsensus};
 
-    let requested_listen_addr = args.listen_addr;
-    let engine_config = LocalEngineConfig::new(&args.root, NodeId::new("cli-node"));
-    let server_config = ServerConfig::new(engine_config, args.listen_addr);
+    let effective_config = config.config();
+    ensure!(
+        effective_config.storage.durability == StorageDurability::Local,
+        "transit server run currently supports only local durability from transit.toml; effective config durability is '{}'",
+        effective_config.storage.durability.as_str()
+    );
+
+    let root = resolve_local_root(args.root, config);
+    let requested_listen_addr = args
+        .listen_addr
+        .unwrap_or(effective_config.server.listen_addr);
+    let effective_node_id = args
+        .node_id
+        .unwrap_or_else(|| effective_config.effective_node_id().to_owned());
+    let effective_consensus_root = args
+        .consensus_root
+        .or_else(|| effective_config.replication.consensus_root.clone());
+
+    let engine_config = LocalEngineConfig::new(&root, NodeId::new(effective_node_id.clone()));
+    let server_config = ServerConfig::new(engine_config, requested_listen_addr);
 
     let server = ServerHandle::bind(server_config).context("bind shared-engine server")?;
 
     // Optional: Initialize distributed consensus
     let mut _heartbeat_loop = None;
-    if let (Some(node_id), Some(consensus_root)) = (args.node_id, args.consensus_root) {
+    if let Some(consensus_root) = effective_consensus_root {
         let store = Arc::new(LocalFileSystem::new_with_prefix(consensus_root)?);
         let provider = Arc::new(ObjectStoreConsensus::new(store, "leases"));
-        let manager = ConsensusManager::new(provider, NodeId::new(node_id));
+        let manager = ConsensusManager::new(provider, NodeId::new(effective_node_id.clone()));
         _heartbeat_loop = Some(manager.spawn_heartbeat_loop());
 
         if !args.json {
@@ -5066,17 +5108,52 @@ fn render_remote_tail_cancel(result: RemoteTailCancelResult, json: bool) -> Resu
     Ok(())
 }
 
-fn render_object_store_probe(result: ObjectStoreProbeResult, json: bool) -> Result<()> {
+fn render_storage_probe(result: StorageProbeResult, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
         return Ok(());
     }
 
-    println!("transit object-store probe");
-    println!("backend: {}", result.backend);
-    println!("root: {}", result.root.display());
+    println!("transit storage probe");
+    if result.config_sources.is_empty() {
+        println!("config: defaults only");
+    } else {
+        println!(
+            "config: {}",
+            result
+                .config_sources
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
+    println!("node: {}", result.node_id);
+    println!("mode: {}", result.mode);
+    println!("provider: {}", result.provider);
+    println!("durability: {}", result.durability);
+    println!("data dir: {}", result.data_dir.display());
+    println!("cache dir: {}", result.cache_dir.display());
+    println!("object store root: {}", result.object_store_root.display());
+    println!("object prefix: {}", result.object_prefix);
     println!("object: {}", result.object_path);
     println!("bytes written: {}", result.bytes_written);
+    println!(
+        "data dir probe: {}",
+        if result.data_dir_ready {
+            "ok"
+        } else {
+            "failed"
+        }
+    );
+    println!(
+        "cache dir probe: {}",
+        if result.cache_dir_ready {
+            "ok"
+        } else {
+            "failed"
+        }
+    );
     println!(
         "round trip: {}",
         if result.round_trip_ok { "ok" } else { "failed" }
@@ -5085,6 +5162,8 @@ fn render_object_store_probe(result: ObjectStoreProbeResult, json: bool) -> Resu
         "cleanup: {}",
         if result.cleanup_ok { "ok" } else { "failed" }
     );
+    println!("guarantee: {}", result.guarantee);
+    println!("non-claim: {}", result.non_claim);
 
     Ok(())
 }
@@ -5115,10 +5194,14 @@ mod tests {
         let cli = Cli::try_parse_from(["transit", "local-engine-proof", "--root", "target/demo"])
             .expect("parse top-level proof command");
         assert!(matches!(cli.command, Commands::LocalEngineProof(_)));
+
+        let cli = Cli::try_parse_from(["transit", "storage", "probe"])
+            .expect("parse storage probe command");
+        assert!(matches!(cli.command, Commands::Storage(_)));
     }
 
     #[test]
-    fn cli_rejects_removed_mission_wrapper() {
+    fn cli_rejects_removed_mission_wrapper_and_object_store_probe() {
         let error = Cli::try_parse_from(["transit", "mission", "status", "--repo-root", "."])
             .expect_err("mission wrapper should be rejected");
 
@@ -5126,6 +5209,15 @@ mod tests {
             error
                 .to_string()
                 .contains("unrecognized subcommand 'mission'")
+        );
+
+        let error = Cli::try_parse_from(["transit", "object-store", "probe"])
+            .expect_err("object-store probe should be rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("unrecognized subcommand 'object-store'")
         );
     }
 

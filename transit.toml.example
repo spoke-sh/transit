@@ -1,0 +1,46 @@
+[node]
+id = "dev-a"
+mode = "embedded"
+namespace = "default"
+data_dir = ".transit/data"
+cache_dir = ".transit/cache"
+
+[storage]
+provider = "filesystem"
+bucket = ".transit/objects"
+prefix = "dev-a"
+durability = "local"
+segment_target_bytes = 134217728
+flush_bytes = 1048576
+flush_interval_ms = 50
+compression = "zstd"
+checksum = "crc32c"
+local_cache_bytes = 2147483648
+prefetch_window_segments = 2
+
+[streams]
+max_record_bytes = 1048576
+index_stride_bytes = 4096
+local_head_min_segments = 2
+branch_policy = "single-writer"
+allow_branch_from_non_head = true
+
+[server]
+listen_addr = "127.0.0.1:7171"
+advertise_addr = "127.0.0.1:7171"
+max_connections = 1024
+request_body_limit_bytes = 8388608
+auth_mode = "none"
+
+[replication]
+mode = "single-node"
+lease_duration_secs = 10
+election_poll_interval_ms = 1000
+quorum_size = 1
+
+[telemetry]
+log_level = "info"
+metrics_namespace = "transit"
+prometheus_addr = "127.0.0.1:9464"
+tracing_json = false
+slow_request_ms = 25

@@ -12,6 +12,10 @@
 
 Environment variables should override file-based settings where set.
 
+`transit --config <path> ...` pins resolution to one explicit file before
+applying any `TRANSIT_*` overrides. This repository also keeps a starter file
+in `transit.toml.example`; a local `./transit.toml` is ignored by git.
+
 ## Expected Environment Overrides
 
 - `TRANSIT_CONFIG`
@@ -78,6 +82,9 @@ prometheus_addr = "127.0.0.1:9464"
 slow_request_ms = 25
 ```
 
+The checked-in [transit.toml.example](transit.toml.example) matches this local
+filesystem-first shape.
+
 ## Hosted Tiered Server Example
 
 When a hosted server is responsible for `tiered` durability, the configuration
@@ -134,11 +141,11 @@ Storage configuration defines how local and remote persistence interact.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `provider` | String | `"filesystem"` | Object-store backend: `filesystem`, `s3`, `gcs`, `azure`. |
-| `bucket` | String | `""` | Bucket, container, or filesystem root for immutable objects. |
+| `bucket` | String | `".transit/objects"` | Bucket, container, or filesystem root for immutable objects. |
 | `prefix` | String | `""` | Prefix used to isolate one namespace or environment. |
 | `endpoint` | String | `null` | Optional custom endpoint for S3-compatible stores. |
 | `region` | String | `null` | Backend region when relevant. |
-| `durability` | String | `"local"` | Append acknowledgment mode: `memory`, `local`, `tiered`. |
+| `durability` | String | `"local"` | Append acknowledgment mode: `memory`, `local`, `replicated`, `quorum`, `tiered`. |
 | `segment_target_bytes` | Integer | `134217728` | Target immutable segment size. |
 | `flush_bytes` | Integer | `1048576` | Flush threshold for the active segment. |
 | `flush_interval_ms` | Integer | `50` | Maximum time before the active segment is flushed. |
@@ -151,6 +158,8 @@ Storage configuration defines how local and remote persistence interact.
 
 - `memory`: tests and benchmarks only
 - `local`: record is durable on local storage before ack
+- `replicated`: record is not acknowledged until the configured publication path is durable
+- `quorum`: record is not acknowledged until the configured peer majority has confirmed receipt
 - `tiered`: record is not acknowledged until the required remote tier state is durable
 
 For hosted `tiered` deployments, the configuration contract should be read in
@@ -207,7 +216,21 @@ Network-facing settings for daemon mode.
 | `request_body_limit_bytes` | Integer | `8388608` | Maximum request size accepted by the server. |
 | `auth_mode` | String | `"none"` | Planned auth mode: `none`, `token`, `mtls`. |
 
-The current bootstrap implementation wires `data_dir` through `transit server run --root ...` and `listen_addr` through `transit server run --listen-addr ...`. The remaining server keys are still planned contract, not yet enforced runtime behavior.
+The current CLI now resolves `transit.toml` plus `TRANSIT_*` overrides at
+runtime. Commands that operate on one local engine root default to
+`[node].data_dir` when `--root` is omitted, and `transit server run` defaults
+`--root` plus `--listen-addr` from `[node].data_dir` and `[server].listen_addr`.
+
+The current runtime still enforces only the `local` guarantee class from
+configuration:
+
+- `transit storage probe` verifies `[node].data_dir`, `[node].cache_dir`, and
+  the configured filesystem object-store root, then reports the effective
+  `local` guarantee and its explicit non-claim
+- `transit server run` rejects non-`local` durability from config instead of
+  echoing stronger guarantees it does not yet enforce
+- non-filesystem storage providers remain part of the contract, but the
+  bootstrap CLI exits non-zero rather than implying they are already wired
 
 As the hosted authority contract expands, server startup should continue to
 hydrate and publish the same manifests, segments, and lineage descriptors that

@@ -1,5 +1,6 @@
 pub mod artifact;
 pub mod bootstrap;
+pub mod config;
 pub mod consensus;
 pub mod engine;
 pub mod kernel;
