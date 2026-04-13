@@ -20,7 +20,7 @@ screen:
         cd "$repo_root"
 
         rm -rf "$screen_root"
-        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/tiered-engine" "$screen_root/warm-cache-recovery" "$screen_root/controlled-failover" "$screen_root/chaos-failover" "$screen_root/networked-server"
+        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/reference-projection" "$screen_root/tiered-engine" "$screen_root/warm-cache-recovery" "$screen_root/controlled-failover" "$screen_root/chaos-failover" "$screen_root/networked-server"
 
         announce "Build workspace"
         just build
@@ -40,6 +40,8 @@ screen:
         just run mission integrity-proof --root "$screen_root/integrity"
         announce "Prove materialization"
         just run mission materialization-proof --root "$screen_root/materialization"
+        announce "Prove reference projection"
+        just run mission reference-projection-proof --root "$screen_root/reference-projection"
         announce "Probe object store"
         just run object-store probe --root "$screen_root/object-store"
         announce "Show transit status"

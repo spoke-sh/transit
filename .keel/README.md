@@ -154,13 +154,13 @@
 | [Implement Quorum Durability and Membership](epics/VFOPrFVvq/voyages/VFOPuiaUH/) | done |
 | [Enable Automatic Leader Election and Failover](epics/VFOPrFVvq/voyages/VFOPyDxnf/) | done |
 
-### [Make Transit Server The Hosted Authority For External Workloads And Derived State](epics/VGh59soBt/) (active)
+### [Make Transit Server The Hosted Authority For External Workloads And Derived State](epics/VGh59soBt/) (done)
 
 | Voyage | Status |
 |--------|--------|
 | [Remote Authority Contract And Consumer Wiring](epics/VGh59soBt/voyages/VGh5B5qMT/) | done |
 | [Object-Store Authority With Warm Cache](epics/VGh59soBt/voyages/VGh5BgrVO/) | done |
-| [Materialized Reference Projection Surface](epics/VGh59soBt/voyages/VGh5CIxcc/) | in-progress |
+| [Materialized Reference Projection Surface](epics/VGh59soBt/voyages/VGh5CIxcc/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

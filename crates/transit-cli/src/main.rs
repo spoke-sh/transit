@@ -2,6 +2,7 @@ use anyhow::{Context, Result, bail, ensure};
 use clap::{Args, Parser, Subcommand};
 use object_store::local::LocalFileSystem;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::net::SocketAddr;
@@ -25,7 +26,9 @@ use transit_materialize::engine::LocalMaterializationEngine;
 use transit_materialize::prolly::{
     LeafEntry, ObjectStoreProllyStore, ProllyTreeBuilder, SnapshotManifest,
 };
-use transit_materialize::{MaterializationCheckpoint, Reducer};
+use transit_materialize::{
+    MaterializationCheckpoint, Reducer, ReferenceProjectionMaterializer, ReferenceProjectionReducer,
+};
 use transit_server::bind_read_only_replica_from_frontier;
 
 #[derive(Debug, Parser)]
@@ -78,6 +81,8 @@ enum MissionCommands {
     IntegrityProof(IntegrityProofArgs),
     /// Exercise checkpoint and resume through the materialization engine.
     MaterializationProof(MaterializationProofArgs),
+    /// Exercise checkpoint resume and authoritative replay equivalence for reference projections.
+    ReferenceProjectionProof(MaterializationProofArgs),
     /// Explicitly verify the cryptographic integrity of local history.
     VerifyLineage(VerifyLineageArgs),
     /// Create a verifiable checkpoint for a stream head.
@@ -404,6 +409,10 @@ async fn main() -> Result<()> {
             )?,
             MissionCommands::MaterializationProof(args) => render_materialization_proof(
                 run_materialization_proof(args.root).await?,
+                args.json,
+            )?,
+            MissionCommands::ReferenceProjectionProof(args) => render_reference_projection_proof(
+                run_reference_projection_proof(args.root).await?,
                 args.json,
             )?,
             MissionCommands::IntegrityProof(args) => {
@@ -964,6 +973,70 @@ struct WarmCacheRecoveryProofResult {
     remote_api: &'static str,
 }
 
+#[derive(Debug, Clone, Serialize, serde::Deserialize, PartialEq, Eq)]
+struct ReferenceProjectionProofView {
+    display_name: String,
+    status: String,
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+struct ReferenceProjectionProofEvent {
+    reference_id: String,
+    display_name: String,
+    status: String,
+    deleted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct ReferenceProjectionProofCheckpointResult {
+    stream_id: String,
+    head_offset: u64,
+    manifest_root: String,
+    kind: String,
+    verified: bool,
+    shared_model_verified: bool,
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct ReferenceProjectionProofResumeResult {
+    appended_after_checkpoint: usize,
+    replay_from_offset: u64,
+    source_next_offset: u64,
+    pending_record_count: u64,
+    resumed_view: BTreeMap<String, ReferenceProjectionProofView>,
+    resumed_reference_count: usize,
+    resumed_only_new_history: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct ReferenceProjectionProofRebuildResult {
+    authoritative_record_count: usize,
+    rebuilt_view: BTreeMap<String, ReferenceProjectionProofView>,
+    rebuilt_reference_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct ReferenceProjectionProofResult {
+    data_root: PathBuf,
+    durability: String,
+    stream_id: String,
+    materialization_id: String,
+    materialization_api: &'static str,
+    checkpoint_api: &'static str,
+    checkpoint_anchor_api: &'static str,
+    checkpoint_verification_api: &'static str,
+    resume_api: &'static str,
+    authoritative_replay_api: &'static str,
+    checkpoint: ReferenceProjectionProofCheckpointResult,
+    resume: ReferenceProjectionProofResumeResult,
+    rebuild: ReferenceProjectionProofRebuildResult,
+    equivalent_views: bool,
+    projection_only_authority_used: bool,
+    verified: bool,
+    error: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 struct IntegrityProofSegmentResult {
     segment_id: String,
@@ -1130,6 +1203,51 @@ impl Reducer for MaterializationProofCountReducer {
         state.last_offset = Some(offset.value());
         Ok(())
     }
+}
+
+struct ReferenceProjectionProofReducer;
+
+impl ReferenceProjectionReducer for ReferenceProjectionProofReducer {
+    type View = ReferenceProjectionProofView;
+
+    fn reduce_view(
+        &self,
+        state: &mut BTreeMap<String, Self::View>,
+        _offset: Offset,
+        payload: &[u8],
+    ) -> Result<()> {
+        let event: ReferenceProjectionProofEvent = serde_json::from_slice(payload)
+            .context("deserialize reference projection proof event")?;
+
+        if event.deleted {
+            state.remove(&event.reference_id);
+        } else {
+            state.insert(
+                event.reference_id,
+                ReferenceProjectionProofView {
+                    display_name: event.display_name,
+                    status: event.status,
+                },
+            );
+        }
+
+        Ok(())
+    }
+}
+
+fn reference_projection_proof_event(
+    reference_id: &str,
+    display_name: &str,
+    status: &str,
+    deleted: bool,
+) -> Result<Vec<u8>> {
+    serde_json::to_vec(&ReferenceProjectionProofEvent {
+        reference_id: reference_id.to_owned(),
+        display_name: display_name.to_owned(),
+        status: status.to_owned(),
+        deleted,
+    })
+    .context("serialize reference projection proof event")
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -2186,6 +2304,174 @@ async fn run_materialization_proof(root: PathBuf) -> Result<MaterializationProof
             distinct_from_root_snapshot,
         },
         verified: true,
+        error: None,
+    })
+}
+
+async fn run_reference_projection_proof(root: PathBuf) -> Result<ReferenceProjectionProofResult> {
+    reset_directory(&root)?;
+
+    let engine = LocalEngine::open(
+        LocalEngineConfig::new(&root, NodeId::new("cli-node"))
+            .with_segment_max_records(2)
+            .context("reference projection proof config")?,
+    )
+    .context("open reference projection proof root")?;
+    let stream_id = StreamId::new("mission.materialization.reference-projection.root")?;
+    let materialization_id = "mission.materialization.reference-projection".to_owned();
+
+    engine.create_stream(StreamDescriptor::root(
+        stream_id.clone(),
+        LineageMetadata::new(
+            Some("mission".into()),
+            Some("reference-projection-proof".into()),
+        ),
+    ))?;
+
+    let first_append = engine.append(
+        &stream_id,
+        reference_projection_proof_event("ref-1", "alpha", "active", false)?,
+    )?;
+    engine.append(
+        &stream_id,
+        reference_projection_proof_event("ref-2", "beta", "pending", false)?,
+    )?;
+
+    let materializer = ReferenceProjectionMaterializer::new(
+        materialization_id.clone(),
+        stream_id.clone(),
+        engine.clone(),
+        ReferenceProjectionProofReducer,
+    );
+    materializer
+        .catch_up()
+        .await
+        .context("materialize initial reference projection replay")?;
+
+    let checkpoint = materializer
+        .checkpoint()
+        .await
+        .context("checkpoint reference projection proof")?;
+    engine
+        .verify_checkpoint(&checkpoint.lineage_anchor)
+        .context("verify reference projection checkpoint anchor")?;
+    let checkpoint_manifest = engine
+        .load_manifest(&stream_id)
+        .context("load checkpoint manifest for reference projection proof")?;
+    let shared_model_verified = checkpoint.lineage_anchor.stream_id == stream_id
+        && checkpoint.lineage_anchor.manifest_root.digest()
+            == checkpoint_manifest.manifest_root().digest();
+    ensure!(
+        shared_model_verified,
+        "reference projection proof checkpoint diverged from the shared manifest or lineage model"
+    );
+
+    engine.append(
+        &stream_id,
+        reference_projection_proof_event("ref-2", "beta", "active", false)?,
+    )?;
+    engine.append(
+        &stream_id,
+        reference_projection_proof_event("ref-3", "gamma", "active", false)?,
+    )?;
+    engine.append(
+        &stream_id,
+        reference_projection_proof_event("ref-1", "alpha", "active", true)?,
+    )?;
+
+    let resumed = ReferenceProjectionMaterializer::resume_verified(
+        materialization_id.clone(),
+        stream_id.clone(),
+        engine.clone(),
+        ReferenceProjectionProofReducer,
+        checkpoint.clone(),
+    )
+    .context("resume reference projection proof from checkpoint")?;
+    let resume_cursor = resumed
+        .resume_cursor()
+        .await
+        .context("load reference projection resume cursor")?
+        .context("reference projection proof expected a resume cursor")?;
+    let appended_after_checkpoint = 3usize;
+    let resumed_only_new_history =
+        resume_cursor.pending_record_count() == appended_after_checkpoint as u64;
+    ensure!(
+        resumed_only_new_history,
+        "reference projection proof expected only new history after checkpoint: expected {}, found {}",
+        appended_after_checkpoint,
+        resume_cursor.pending_record_count()
+    );
+
+    resumed
+        .catch_up()
+        .await
+        .context("materialize resumed reference projection replay")?;
+    let resumed_view = resumed.current_view().await;
+
+    let rebuilt = ReferenceProjectionMaterializer::new(
+        format!("{materialization_id}.replay"),
+        stream_id.clone(),
+        engine.clone(),
+        ReferenceProjectionProofReducer,
+    );
+    rebuilt
+        .catch_up()
+        .await
+        .context("rebuild reference projection from authoritative replay")?;
+    let rebuilt_view = rebuilt.current_view().await;
+    let authoritative_record_count = engine
+        .replay(&stream_id)
+        .context("load authoritative replay for reference projection proof")?
+        .len();
+    let equivalent_views = resumed_view == rebuilt_view;
+    ensure!(
+        equivalent_views,
+        "reference projection proof expected checkpoint resume and authoritative replay to converge on the same view"
+    );
+
+    let projection_only_authority_used = false;
+    let verified = equivalent_views
+        && resumed_only_new_history
+        && shared_model_verified
+        && !projection_only_authority_used;
+
+    Ok(ReferenceProjectionProofResult {
+        data_root: root,
+        durability: first_append.durability().as_str().to_owned(),
+        stream_id: stream_id.as_str().to_owned(),
+        materialization_id,
+        materialization_api: "ReferenceProjectionMaterializer::catch_up",
+        checkpoint_api: "ReferenceProjectionMaterializer::checkpoint",
+        checkpoint_anchor_api: "LocalEngine::checkpoint",
+        checkpoint_verification_api: "LocalEngine::verify_checkpoint",
+        resume_api: "ReferenceProjectionMaterializer::resume_verified",
+        authoritative_replay_api: "ReferenceProjectionMaterializer::catch_up via LocalEngine::tail_from",
+        checkpoint: ReferenceProjectionProofCheckpointResult {
+            stream_id: checkpoint.lineage_anchor.stream_id.as_str().to_owned(),
+            head_offset: checkpoint.lineage_anchor.head_offset.value(),
+            manifest_root: checkpoint.lineage_anchor.manifest_root.digest().to_owned(),
+            kind: checkpoint.lineage_anchor.kind,
+            verified: true,
+            shared_model_verified,
+            error: None,
+        },
+        resume: ReferenceProjectionProofResumeResult {
+            appended_after_checkpoint,
+            replay_from_offset: resume_cursor.replay_from().value(),
+            source_next_offset: resume_cursor.source_next_offset().value(),
+            pending_record_count: resume_cursor.pending_record_count(),
+            resumed_reference_count: resumed_view.len(),
+            resumed_view,
+            resumed_only_new_history,
+        },
+        rebuild: ReferenceProjectionProofRebuildResult {
+            authoritative_record_count,
+            rebuilt_reference_count: rebuilt_view.len(),
+            rebuilt_view,
+        },
+        equivalent_views,
+        projection_only_authority_used,
+        verified,
         error: None,
     })
 }
@@ -4352,6 +4638,118 @@ fn render_networked_server_proof(result: NetworkedServerProofResult, json: bool)
     Ok(())
 }
 
+fn render_reference_projection_proof(
+    result: ReferenceProjectionProofResult,
+    json: bool,
+) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit reference-projection-proof");
+    println!("root: {}", result.data_root.display());
+    println!("durability: {}", result.durability);
+    println!("stream: {}", result.stream_id);
+    println!("materialization id: {}", result.materialization_id);
+    println!("materialization api: {}", result.materialization_api);
+    println!("checkpoint api: {}", result.checkpoint_api);
+    println!("checkpoint anchor api: {}", result.checkpoint_anchor_api);
+    println!(
+        "checkpoint verification api: {}",
+        result.checkpoint_verification_api
+    );
+    println!("resume api: {}", result.resume_api);
+    println!(
+        "authoritative replay api: {}",
+        result.authoritative_replay_api
+    );
+    println!("checkpoint stream: {}", result.checkpoint.stream_id);
+    println!("checkpoint head: {}", result.checkpoint.head_offset);
+    println!(
+        "checkpoint manifest root: {}",
+        result.checkpoint.manifest_root
+    );
+    println!("checkpoint kind: {}", result.checkpoint.kind);
+    println!(
+        "checkpoint verification: {}",
+        if result.checkpoint.verified {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "checkpoint shared model: {}",
+        if result.checkpoint.shared_model_verified {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "resume appended records: {}",
+        result.resume.appended_after_checkpoint
+    );
+    println!(
+        "resume replay window: {}..{}",
+        result.resume.replay_from_offset, result.resume.source_next_offset
+    );
+    println!(
+        "resume pending records: {}",
+        result.resume.pending_record_count
+    );
+    println!(
+        "resumed references: {}",
+        result.resume.resumed_reference_count
+    );
+    println!(
+        "resume only new history: {}",
+        if result.resume.resumed_only_new_history {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "rebuilt authoritative records: {}",
+        result.rebuild.authoritative_record_count
+    );
+    println!(
+        "rebuilt references: {}",
+        result.rebuild.rebuilt_reference_count
+    );
+    println!(
+        "equivalent views: {}",
+        if result.equivalent_views {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "projection-only authority used: {}",
+        if result.projection_only_authority_used {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    println!(
+        "status: {}",
+        if result.verified {
+            "VERIFIED"
+        } else {
+            "FAILED"
+        }
+    );
+    if let Some(error) = result.error {
+        println!("error: {error}");
+    }
+
+    Ok(())
+}
+
 fn render_hosted_authority_proof(result: HostedAuthorityProofResult, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
@@ -5222,6 +5620,140 @@ mod tests {
         assert_eq!(
             proof_json["branch"]
                 .get("distinct_from_root_snapshot")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json
+                .get("verified")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[tokio::test]
+    async fn reference_projection_proof_rebuilds_equivalent_views_from_replay_and_resume() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_reference_projection_proof(temp_dir.path().join("reference-projection"))
+            .await
+            .expect("run reference projection proof");
+
+        assert_eq!(proof.durability, "local");
+        assert_eq!(
+            proof.stream_id,
+            "mission.materialization.reference-projection.root"
+        );
+        assert_eq!(
+            proof.materialization_id,
+            "mission.materialization.reference-projection"
+        );
+        assert_eq!(
+            proof.materialization_api,
+            "ReferenceProjectionMaterializer::catch_up"
+        );
+        assert_eq!(
+            proof.checkpoint_api,
+            "ReferenceProjectionMaterializer::checkpoint"
+        );
+        assert_eq!(proof.checkpoint_anchor_api, "LocalEngine::checkpoint");
+        assert_eq!(
+            proof.checkpoint_verification_api,
+            "LocalEngine::verify_checkpoint"
+        );
+        assert_eq!(
+            proof.resume_api,
+            "ReferenceProjectionMaterializer::resume_verified"
+        );
+        assert_eq!(proof.checkpoint.stream_id, proof.stream_id);
+        assert_eq!(proof.checkpoint.head_offset, 1);
+        assert_eq!(proof.checkpoint.kind, "materialize");
+        assert!(proof.checkpoint.verified);
+        assert!(proof.checkpoint.shared_model_verified);
+        assert_eq!(proof.resume.appended_after_checkpoint, 3);
+        assert_eq!(proof.resume.replay_from_offset, 2);
+        assert_eq!(proof.resume.source_next_offset, 5);
+        assert_eq!(proof.resume.pending_record_count, 3);
+        assert_eq!(proof.resume.resumed_reference_count, 2);
+        assert!(proof.resume.resumed_only_new_history);
+        assert_eq!(
+            proof.resume.resumed_view.get("ref-2"),
+            Some(&ReferenceProjectionProofView {
+                display_name: "beta".to_owned(),
+                status: "active".to_owned(),
+            })
+        );
+        assert_eq!(
+            proof.resume.resumed_view.get("ref-3"),
+            Some(&ReferenceProjectionProofView {
+                display_name: "gamma".to_owned(),
+                status: "active".to_owned(),
+            })
+        );
+        assert!(!proof.resume.resumed_view.contains_key("ref-1"));
+        assert_eq!(proof.rebuild.authoritative_record_count, 5);
+        assert_eq!(proof.rebuild.rebuilt_reference_count, 2);
+        assert_eq!(proof.rebuild.rebuilt_view, proof.resume.resumed_view);
+        assert!(proof.equivalent_views);
+        assert!(!proof.projection_only_authority_used);
+        assert!(proof.verified);
+        assert!(proof.error.is_none());
+    }
+
+    #[tokio::test]
+    async fn reference_projection_proof_results_serialize_cleanly_for_mission_scripts() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof =
+            run_reference_projection_proof(temp_dir.path().join("reference-projection-json"))
+                .await
+                .expect("run reference projection proof");
+        let proof_json =
+            serde_json::to_value(&proof).expect("serialize reference projection proof result");
+
+        assert_eq!(
+            proof_json
+                .get("stream_id")
+                .and_then(serde_json::Value::as_str),
+            Some("mission.materialization.reference-projection.root")
+        );
+        assert_eq!(
+            proof_json
+                .get("checkpoint_api")
+                .and_then(serde_json::Value::as_str),
+            Some("ReferenceProjectionMaterializer::checkpoint")
+        );
+        assert_eq!(
+            proof_json["checkpoint"]
+                .get("shared_model_verified")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["resume"]
+                .get("pending_record_count")
+                .and_then(serde_json::Value::as_u64),
+            Some(3)
+        );
+        assert_eq!(
+            proof_json["resume"]["resumed_view"]["ref-2"]
+                .get("status")
+                .and_then(serde_json::Value::as_str),
+            Some("active")
+        );
+        assert_eq!(
+            proof_json["rebuild"]
+                .get("authoritative_record_count")
+                .and_then(serde_json::Value::as_u64),
+            Some(5)
+        );
+        assert_eq!(
+            proof_json
+                .get("projection_only_authority_used")
+                .and_then(serde_json::Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            proof_json
+                .get("equivalent_views")
                 .and_then(serde_json::Value::as_bool),
             Some(true)
         );

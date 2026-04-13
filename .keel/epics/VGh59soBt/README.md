@@ -22,10 +22,10 @@ mission: VGh598Oz0
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 2/3 voyages complete, 8/9 stories done
+**Progress:** 3/3 voyages complete, 9/9 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
 | [Remote Authority Contract And Consumer Wiring](voyages/VGh5B5qMT/) | done | 3/3 |
 | [Object-Store Authority With Warm Cache](voyages/VGh5BgrVO/) | done | 3/3 |
-| [Materialized Reference Projection Surface](voyages/VGh5CIxcc/) | in-progress | 2/3 |
+| [Materialized Reference Projection Surface](voyages/VGh5CIxcc/) | done | 3/3 |
 <!-- END GENERATED -->

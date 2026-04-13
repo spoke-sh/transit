@@ -248,10 +248,11 @@ The current bootstrap developer loop is:
 7. use `just run mission networked-server-proof --root target/transit-mission/networked-server` when you want the explicit live server proof, including the transport-boundary note
 8. use `just run mission integrity-proof --root target/transit-mission/integrity` when you want the explicit checksum, manifest-root, restore, checkpoint, tamper-detection, and server-parity proof
 9. use `just run mission materialization-proof --root target/transit-mission/materialization` when you want the explicit checkpoint, resume, root snapshot, and branch-aware snapshot proof
-10. use `just rust-client-proof` when you want the native Rust client proof that starts a local server and exercises create_root, append, read, tail, branch, merge, and lineage end-to-end
-11. use `just run server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap
-12. use `just run server create-root --server-addr 127.0.0.1:7171 --stream-id task.root --actor cli --reason bootstrap --json`, then `just run server append --server-addr 127.0.0.1:7171 --stream-id task.root --payload-text hello --json`, plus the sibling `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel` commands when you want to exercise the remote CLI surface directly
-13. use `just help` or `just run -- --help` for the CLI surface
+10. use `just run mission reference-projection-proof --root target/transit-mission/reference-projection` when you want the explicit proof that checkpoint resume and authoritative replay converge on the same reference views anchored to shared lineage checkpoints
+11. use `just rust-client-proof` when you want the native Rust client proof that starts a local server and exercises create_root, append, read, tail, branch, merge, and lineage end-to-end
+12. use `just run server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap
+13. use `just run server create-root --server-addr 127.0.0.1:7171 --stream-id task.root --actor cli --reason bootstrap --json`, then `just run server append --server-addr 127.0.0.1:7171 --stream-id task.root --payload-text hello --json`, plus the sibling `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel` commands when you want to exercise the remote CLI surface directly
+14. use `just help` or `just run -- --help` for the CLI surface
 
 If a proposed change conflicts with those documents, update the docs intentionally before or with the code change.
 

@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T13:16:07.193025088-07:00
+mode: manual
+---
+The JSON proof output shows the checkpoint anchored to the shared LocalEngine lineage and manifest model, verified through ReferenceProjectionMaterializer::checkpoint, LocalEngine::checkpoint, and LocalEngine::verify_checkpoint via cargo run -q -p transit-cli -- mission reference-projection-proof --root target/transit-mission/reference-projection-json --json.

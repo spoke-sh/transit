@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T13:16:07.168354299-07:00
+mode: manual
+---
+Added the reference-projection-proof mission command, exercised it in transit-cli tests, and verified the acceptance surface with cargo run -q -p transit-cli -- mission reference-projection-proof --root target/transit-mission/reference-projection plus nix develop --command just screen.

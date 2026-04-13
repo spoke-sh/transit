@@ -1,15 +1,17 @@
 ---
 # system-managed
 id: VGh5zmy0a
-status: backlog
+status: done
 created_at: 2026-04-13T10:44:00
-updated_at: 2026-04-13T10:45:58
+updated_at: 2026-04-13T13:16:36
 # authored
 title: Prove Checkpointed Reconstruction Of Reference Projections
 type: feat
 operator-signal:
 scope: VGh59soBt/VGh5CIxcc
 index: 3
+started_at: 2026-04-13T13:11:27
+completed_at: 2026-04-13T13:16:36
 ---
 
 # Prove Checkpointed Reconstruction Of Reference Projections
@@ -20,5 +22,5 @@ Prove that reference projections can be reconstructed from authoritative history
 
 ## Acceptance Criteria
 
-- [ ] [SRS-04/AC-01] A proof surface rebuilds equivalent reference projection state from authoritative replay and checkpoint resume paths. <!-- verify: cargo run -q -p transit-cli -- mission reference-projection-proof --root target/transit-mission/reference-projection, SRS-04:start:end -->
-- [ ] [SRS-NFR-02/AC-01] Projection checkpoints used by the proof anchor to the shared lineage and manifest model rather than a projection-only authority path. <!-- verify: cargo run -q -p transit-cli -- mission reference-projection-proof --root target/transit-mission/reference-projection --json, SRS-NFR-02:start:end -->
+- [x] [SRS-04/AC-01] A proof surface rebuilds equivalent reference projection state from authoritative replay and checkpoint resume paths. <!-- verify: cargo run -q -p transit-cli -- mission reference-projection-proof --root target/transit-mission/reference-projection, SRS-04:start:end, proof: ac-1.log-->
+- [x] [SRS-NFR-02/AC-01] Projection checkpoints used by the proof anchor to the shared lineage and manifest model rather than a projection-only authority path. <!-- verify: cargo run -q -p transit-cli -- mission reference-projection-proof --root target/transit-mission/reference-projection --json, SRS-NFR-02:start:end, proof: ac-2.log-->
