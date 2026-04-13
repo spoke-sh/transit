@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T12:44:01.855353359-07:00
+mode: manual
+---
+Kept hosted authority framed as a thin remote server contract: consumers target transit-server, authenticate to that hosted surface, and keep schema and business policy outside Transit core instead of opening an embedded local authority store. Verified the rendered docs with just docs-build.

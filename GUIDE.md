@@ -46,6 +46,56 @@ At the current bootstrap stage, the shared-engine server exposes provisional rem
 
 The failover stack now supports two paths. **Controlled failover** lets an operator explicitly hand off the writable lease from a primary to a caught-up read-only replica. **Automatic failover** uses an `ElectionMonitor` that detects an expired primary lease and triggers a follower to acquire it via optimistic locking; only one node wins the race, and the former primary is fenced. The engine also supports a `quorum` durability mode where appends block until a majority of configured cluster peers have acknowledged, and a `ClusterMembership` surface for node discovery and quorum calculation. Multi-primary behavior remains explicitly out of scope.
 
+## Hosted Authority For External Workloads
+
+Hosted control planes should treat `transit-server` as the authoritative append
+and replay boundary for consumer-owned records.
+
+The contract is intentionally thin:
+
+- choose one hosted server endpoint and treat it as the append and replay target
+- present the server-selected access credential for that session or request path
+- publish and replay through the remote contract only
+- read acknowledgement posture literally instead of inferring stronger durability
+- keep payload schema and business policy owned by the downstream consumer
+
+For a Hub-like consumer, the minimum hosted configuration surface is:
+
+- `server_addr`: the `transit-server` endpoint the consumer will call
+- `access_credential`: the token, session credential, or equivalent secret the
+  server expects once auth is enabled
+- `namespace` and `stream_id`: consumer-owned routing identifiers for the
+  hosted workload
+- `durability_expectation`: the acknowledgement boundary the consumer expects
+  to observe, such as `local`, `tiered`, or `quorum`
+
+The current bootstrap server still defaults to `auth_mode = "none"`, so token
+enforcement is planned rather than fully live today. That does not change the
+authority boundary: hosted consumers should still target a server endpoint and
+plan to authenticate to that hosted surface instead of coupling themselves to
+embedded local storage.
+
+Durability labels remain literal:
+
+- `local`: the server has durably accepted the write on its local storage only
+- `tiered`: the write is acknowledged only after the remote tier is durable
+- `quorum`: the write is acknowledged only after the configured peer quorum has
+  confirmed receipt
+
+Consumers must not reinterpret a `local` acknowledgement as remote-tier safety,
+cache persistence, or cluster-wide durability.
+
+The anti-pattern is equally explicit:
+
+- do not open an embedded local Transit store as the authority for hosted
+  consumer-owned state
+- do not dual-write a local embedded authority path beside the hosted server
+- do not hide hosted acknowledgement or error envelopes behind client-side
+  reinterpretation
+
+Local mirrors, caches, or offline fixtures are acceptable only when they are
+derived from hosted authoritative history and can be rebuilt from replay.
+
 ## Modeling Conversations
 
 The communication use case should stay simple:

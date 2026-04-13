@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VGh5B5qMT
-status: planned
+status: in-progress
 epic: VGh59soBt
 created_at: 2026-04-13T10:40:45
 # authored
 title: Remote Authority Contract And Consumer Wiring
 index: 1
 updated_at: 2026-04-13T10:45:58
+started_at: 2026-04-13T12:42:35
 ---
 
 # Remote Authority Contract And Consumer Wiring
@@ -26,11 +27,11 @@ updated_at: 2026-04-13T10:45:58
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/3 stories complete
+**Progress:** 1/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Document Hosted Authority Contract For External Workload Consumers](../../../../stories/VGh5rrKTY/README.md) | docs | backlog |
+| [Document Hosted Authority Contract For External Workload Consumers](../../../../stories/VGh5rrKTY/README.md) | docs | done |
 | [Add Hosted Authority Proof For External Producers And Readers](../../../../stories/VGh5sVPck/README.md) | feat | backlog |
 | [Expose Thin Client Acknowledgement Guidance For Hosted Authority](../../../../stories/VGh5t7Eih/README.md) | docs | backlog |
 <!-- END GENERATED -->

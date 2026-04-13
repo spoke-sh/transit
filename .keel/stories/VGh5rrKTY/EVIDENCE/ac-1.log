@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T12:44:01.846739313-07:00
+mode: manual
+---
+Added the hosted-authority contract to GUIDE.md and a concise top-level statement to README.md, making the server endpoint, planned access credential, and literal durability posture expectations explicit for external workload consumers. Verified the website copies with just docs-sync and just docs-build.

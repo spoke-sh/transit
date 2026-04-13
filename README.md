@@ -49,6 +49,7 @@ The initial target use cases are direct:
 - AI model harnesses that need replayable traces, retries, forks, and evaluation provenance
 - agent runtimes where one interaction can branch into parallel tool-use or planning paths
 - a Slack-like communication system where channels are root streams and threads are native branches
+- hosted control planes that treat `transit-server` as the authoritative append and replay surface for consumer-owned records instead of embedding a second local authority store
 - systems that need to merge branch results back into a mainline without losing provenance
 - stream processing and incremental materialization over branching and merging event histories
 - classifier-driven auto-threading, where a model can fork a new branch when a conversation diverges
@@ -113,6 +114,13 @@ The intended surface area is:
 - a client library and CLI for operators, application runtimes, and benchmarks
 
 The server protocol remains an application-layer contract. It can run over ordinary transports, and secure meshes such as WireGuard are optional deployment underlays rather than protocol replacements.
+
+For hosted external workloads, the authoritative contract is thin by design:
+consumers target one `transit-server` endpoint, authenticate to that hosted
+surface, observe literal durability labels from acknowledgement envelopes, and
+keep domain-specific schema or policy outside Transit core. They should not
+treat embedded local Transit storage as the authority for hosted
+consumer-owned state.
 
 ## Documentation Map
 

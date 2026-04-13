@@ -1,15 +1,18 @@
 ---
 # system-managed
 id: VGh5rrKTY
-status: backlog
+status: done
 created_at: 2026-04-13T10:43:29
-updated_at: 2026-04-13T10:45:58
+updated_at: 2026-04-13T12:45:00
 # authored
 title: Document Hosted Authority Contract For External Workload Consumers
 type: docs
 operator-signal:
 scope: VGh59soBt/VGh5B5qMT
 index: 1
+started_at: 2026-04-13T12:42:35
+submitted_at: 2026-04-13T12:44:58
+completed_at: 2026-04-13T12:45:00
 ---
 
 # Document Hosted Authority Contract For External Workload Consumers
@@ -20,5 +23,5 @@ Author the canonical hosted-authority contract for Hub-like consumers so endpoin
 
 ## Acceptance Criteria
 
-- [ ] [SRS-01/AC-01] The authored contract explains how external workload consumers target transit-server for hosted append and replay, including endpoint, token, and durability posture expectations. <!-- verify: manual, SRS-01:start:end -->
-- [ ] [SRS-NFR-01/AC-01] The contract keeps hosted authority framed as a thin remote protocol and server contract rather than a second storage engine embedded in the consumer. <!-- verify: manual, SRS-NFR-01:start:end -->
+- [x] [SRS-01/AC-01] The authored contract explains how external workload consumers target transit-server for hosted append and replay, including endpoint, token, and durability posture expectations. <!-- verify: manual, SRS-01:start:end, proof: ac-1.log-->
+- [x] [SRS-NFR-01/AC-01] The contract keeps hosted authority framed as a thin remote protocol and server contract rather than a second storage engine embedded in the consumer. <!-- verify: manual, SRS-NFR-01:start:end, proof: ac-2.log-->
