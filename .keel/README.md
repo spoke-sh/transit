@@ -159,7 +159,7 @@
 | Voyage | Status |
 |--------|--------|
 | [Remote Authority Contract And Consumer Wiring](epics/VGh59soBt/voyages/VGh5B5qMT/) | done |
-| [Object-Store Authority With Warm Cache](epics/VGh59soBt/voyages/VGh5BgrVO/) | planned |
+| [Object-Store Authority With Warm Cache](epics/VGh59soBt/voyages/VGh5BgrVO/) | in-progress |
 | [Materialized Reference Projection Surface](epics/VGh59soBt/voyages/VGh5CIxcc/) | planned |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)

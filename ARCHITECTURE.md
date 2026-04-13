@@ -159,6 +159,11 @@ Object storage is not just backup:
 
 Each node may keep a local cache of remote segments. Cache eviction must never change logical history.
 
+For hosted server deployments, the configuration boundary should stay explicit:
+object-store coordinates identify the authoritative tier for rolled segments
+and manifests, while `data_dir` and `cache_dir` remain replaceable warm working
+state around the same shared engine and lineage model.
+
 ## Write Path
 
 The intended write path is:

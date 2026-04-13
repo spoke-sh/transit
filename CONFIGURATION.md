@@ -78,6 +78,41 @@ prometheus_addr = "127.0.0.1:9464"
 slow_request_ms = 25
 ```
 
+## Hosted Tiered Server Example
+
+When a hosted server is responsible for `tiered` durability, the configuration
+should make the authority boundary explicit:
+
+```toml
+[node]
+id = "prod-a"
+mode = "server"
+namespace = "hub-prod"
+data_dir = "/var/lib/transit/work"
+cache_dir = "/var/lib/transit/cache"
+
+[storage]
+provider = "s3"
+bucket = "transit-prod"
+prefix = "hub-prod/prod-a"
+region = "us-west-2"
+durability = "tiered"
+local_cache_bytes = 2147483648
+prefetch_window_segments = 2
+
+[streams]
+local_head_min_segments = 2
+
+[server]
+listen_addr = "0.0.0.0:7171"
+advertise_addr = "transit.prod.example:7171"
+auth_mode = "token"
+```
+
+In that shape, object storage is the long-term authority for rolled segments
+and manifests, while `data_dir` and `cache_dir` remain warm working state that
+can be rebuilt from the authoritative remote tier.
+
 ## Core Sections
 
 ### `[node]`
@@ -118,6 +153,34 @@ Storage configuration defines how local and remote persistence interact.
 - `local`: record is durable on local storage before ack
 - `tiered`: record is not acknowledged until the required remote tier state is durable
 
+For hosted `tiered` deployments, the configuration contract should be read in
+two groups.
+
+Object-store authority inputs:
+
+- `[storage].provider`, `[storage].bucket`, `[storage].prefix`, and optional
+  `[storage].endpoint` or `[storage].region` identify the authoritative remote
+  tier that stores rolled segments and manifests
+- `[storage].durability = "tiered"` means the server must not claim remote-tier
+  safety until that shared object-store publication path has actually completed
+- `[node].namespace` scopes those manifests and stream identifiers without
+  creating a server-only storage model
+
+Warm-cache and working-set inputs:
+
+- `[node].data_dir` is the local writable head and restart working area used by
+  the shared engine
+- `[node].cache_dir` is the replaceable cache for hydrated remote segments,
+  indexes, and similar local acceleration state
+- `[storage].local_cache_bytes`, `[storage].prefetch_window_segments`, and
+  `[streams].local_head_min_segments` control how much history stays warm
+  locally without changing what is authoritative
+
+Those groups do not define two durability worlds. They describe one shared
+manifest and lineage model with different roles: object storage is the
+authority for acknowledged `tiered` history, and the filesystem stays a warm
+cache plus working set.
+
 `checksum` should stay scoped to fast corruption detection for sealed segments. Future cryptographic digests, manifest roots, and checkpoint signing should be configured separately instead of overloading one field with unrelated guarantees.
 
 ### `[streams]`
@@ -145,6 +208,11 @@ Network-facing settings for daemon mode.
 | `auth_mode` | String | `"none"` | Planned auth mode: `none`, `token`, `mtls`. |
 
 The current bootstrap implementation wires `data_dir` through `transit server run --root ...` and `listen_addr` through `transit server run --listen-addr ...`. The remaining server keys are still planned contract, not yet enforced runtime behavior.
+
+As the hosted authority contract expands, server startup should continue to
+hydrate and publish the same manifests, segments, and lineage descriptors that
+embedded restore already uses. The server owns credentials and operator policy,
+not a separate durability semantic.
 
 ### `[replication]`
 

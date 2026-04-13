@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VGh5BgrVO
-status: planned
+status: in-progress
 epic: VGh59soBt
 created_at: 2026-04-13T10:40:47
 # authored
 title: Object-Store Authority With Warm Cache
 index: 2
 updated_at: 2026-04-13T10:45:58
+started_at: 2026-04-13T12:54:28
 ---
 
 # Object-Store Authority With Warm Cache
@@ -26,11 +27,11 @@ updated_at: 2026-04-13T10:45:58
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/3 stories complete
+**Progress:** 1/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Define Object-Store Authority And Warm-Cache Configuration Surface](../../../../stories/VGh5uL5xM/README.md) | feat | backlog |
+| [Define Object-Store Authority And Warm-Cache Configuration Surface](../../../../stories/VGh5uL5xM/README.md) | feat | done |
 | [Hydrate Transit Server From Object-Store Authority When Warm Cache Is Missing](../../../../stories/VGh5wGFJz/README.md) | feat | backlog |
 | [Prove Hosted Restart And Warm-Cache Recovery Through Just Screen](../../../../stories/VGh5xG0Td/README.md) | feat | backlog |
 <!-- END GENERATED -->

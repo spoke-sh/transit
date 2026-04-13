@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T12:55:42.609503094-07:00
+mode: manual
+---
+Updated CONFIGURATION.md and ARCHITECTURE.md to state that object storage becomes the authority for acknowledged tiered history while data_dir and cache_dir stay replaceable warm working state around the same shared manifest and lineage model. Verified the rendered docs with just docs-build.

@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T12:55:42.593115593-07:00
+mode: manual
+---
+Expanded CONFIGURATION.md with a hosted tiered-server example and grouped the existing keys into object-store authority inputs versus warm-cache inputs so the server configuration contract explicitly names what hosted tiered durability depends on. Verified the synced docs with just docs-sync and just docs-build.
