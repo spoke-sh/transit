@@ -7,6 +7,11 @@ use transit_core::storage::LineageCheckpoint;
 pub mod engine;
 pub mod prolly;
 
+pub use engine::{
+    LocalMaterializationEngine, ReferenceProjectionMaterializer, ReferenceProjectionReducer,
+    ReferenceProjectionState,
+};
+
 /// Envelope for a materializer's durable state and its lineage anchor.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MaterializationCheckpoint {

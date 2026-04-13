@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T13:08:45.442846467-07:00
+mode: manual
+---
+The reference projection tests verify that resumed views match a full replay and that checkpoints stay anchored to shared lineage checkpoints rather than hidden mutable projection truth. Verified with cargo test -p transit-materialize reference_projection_ -- --nocapture.

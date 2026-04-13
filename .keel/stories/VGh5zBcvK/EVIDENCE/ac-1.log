@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T13:08:45.409629395-07:00
+mode: manual
+---
+Added ReferenceProjectionReducer and ReferenceProjectionMaterializer to transit-materialize so reference views can be derived from authoritative replay and resumed from checkpoints without reprocessing settled history. Verified with cargo test -p transit-materialize reference_projection_ -- --nocapture.

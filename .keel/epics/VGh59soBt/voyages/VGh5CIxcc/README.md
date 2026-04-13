@@ -27,11 +27,11 @@ started_at: 2026-04-13T13:04:27
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Define Reference Projection Reducer Contracts](../../../../stories/VGh5yTni5/README.md) | feat | done |
-| [Materialize Authoritative Reference Views From Replay](../../../../stories/VGh5zBcvK/README.md) | feat | backlog |
+| [Materialize Authoritative Reference Views From Replay](../../../../stories/VGh5zBcvK/README.md) | feat | done |
 | [Prove Checkpointed Reconstruction Of Reference Projections](../../../../stories/VGh5zmy0a/README.md) | feat | backlog |
 <!-- END GENERATED -->
