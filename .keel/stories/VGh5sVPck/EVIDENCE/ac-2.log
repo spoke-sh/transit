@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T12:51:27.672168694-07:00
+mode: manual
+---
+The hosted-authority proof result keeps acknowledgement posture explicit by reporting local durability, single_node topology, remote_tier_publication_performed=false, and a literal tiered non-claim until publication exists. Verified with cargo test -p transit-client hosted_authority_ -- --nocapture and cargo run -q -p transit-cli -- mission hosted-authority-proof --root target/transit-mission/hosted-authority --json.

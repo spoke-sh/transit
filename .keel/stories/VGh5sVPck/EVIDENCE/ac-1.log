@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T12:51:27.635125669-07:00
+mode: manual
+---
+Added TransitClient hosted-authority coverage and a transit mission hosted-authority-proof surface that creates a hosted stream, appends representative consumer-owned records through transit-server, and replays the acknowledged history back through the remote contract only. Verified with cargo test -p transit-client hosted_authority_ -- --nocapture, cargo test -p transit-cli hosted_authority_proof -- --nocapture, and cargo run -q -p transit-cli -- mission hosted-authority-proof --root target/transit-mission/hosted-authority.

@@ -162,6 +162,23 @@ mod tests {
         (temp_dir, server, client, stream_id)
     }
 
+    fn hosted_authority_test_client() -> (tempfile::TempDir, ServerHandle, TransitClient) {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(
+                temp_dir.path(),
+                transit_core::membership::NodeId::new("hosted-authority-node"),
+            )
+            .with_segment_max_records(4)
+            .expect("config"),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = TransitClient::new(server.local_addr());
+
+        (temp_dir, server, client)
+    }
+
     #[test]
     fn tail_open_opens_a_tail_session_with_initial_credit() {
         let (_temp_dir, server, client, stream_id) = tail_test_client();
@@ -356,6 +373,87 @@ mod tests {
             }
             other => panic!("expected remote not_found, got {other:?}"),
         }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn hosted_authority_appends_and_replays_consumer_records_through_server() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let stream_id = StreamId::new("client.hosted.orders").expect("stream id");
+
+        let created = client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("hub.producer".into()),
+                    Some("hosted-authority-proof".into()),
+                ),
+            )
+            .expect("create root");
+        let first_payload = br#"{"consumer":"hub","record":"order.created","id":"order-1"}"#;
+        let second_payload = br#"{"consumer":"hub","record":"order.shipped","id":"order-1"}"#;
+
+        let first_append = client
+            .append(&stream_id, first_payload)
+            .expect("append first");
+        let second_append = client
+            .append(&stream_id, second_payload)
+            .expect("append second");
+        let replay = client.read(&stream_id).expect("read");
+
+        assert_eq!(created.ack().durability(), "local");
+        assert_eq!(created.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(first_append.ack().durability(), "local");
+        assert_eq!(first_append.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(second_append.ack().durability(), "local");
+        assert_eq!(second_append.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(replay.ack().durability(), "local");
+        assert_eq!(replay.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(first_append.body().position().offset.value(), 0);
+        assert_eq!(second_append.body().position().offset.value(), 1);
+        assert_eq!(
+            replay
+                .body()
+                .records()
+                .iter()
+                .map(|record| record.payload())
+                .collect::<Vec<_>>(),
+            vec![first_payload.as_slice(), second_payload.as_slice()]
+        );
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn hosted_authority_surfaces_local_acknowledgements_until_tiered_publication_exists() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let stream_id = StreamId::new("client.hosted.acks").expect("stream id");
+
+        let created = client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("hub.reader".into()),
+                    Some("hosted-authority-proof".into()),
+                ),
+            )
+            .expect("create root");
+        let append = client
+            .append(
+                &stream_id,
+                br#"{"consumer":"hub","record":"cache.invalidate","id":"job-7"}"#,
+            )
+            .expect("append");
+        let replay = client.read(&stream_id).expect("read");
+
+        assert_eq!(created.ack().durability(), "local");
+        assert_eq!(append.ack().durability(), "local");
+        assert_eq!(replay.ack().durability(), "local");
+        assert_eq!(created.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(append.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(replay.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(replay.body().records().len(), 1);
 
         server.shutdown().expect("shutdown server");
     }

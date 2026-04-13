@@ -27,11 +27,11 @@ started_at: 2026-04-13T12:42:35
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Document Hosted Authority Contract For External Workload Consumers](../../../../stories/VGh5rrKTY/README.md) | docs | done |
-| [Add Hosted Authority Proof For External Producers And Readers](../../../../stories/VGh5sVPck/README.md) | feat | backlog |
+| [Add Hosted Authority Proof For External Producers And Readers](../../../../stories/VGh5sVPck/README.md) | feat | done |
 | [Expose Thin Client Acknowledgement Guidance For Hosted Authority](../../../../stories/VGh5t7Eih/README.md) | docs | backlog |
 <!-- END GENERATED -->

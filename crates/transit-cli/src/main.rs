@@ -7,6 +7,7 @@ use std::io::Write;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use transit_client::TransitClient;
 use transit_core::bootstrap::{MissionStatus, collect_mission_status};
 use transit_core::engine::{
     LocalEngine, LocalEngineConfig, LocalRecord, LocalRecoveryOutcome, OwnershipPosture,
@@ -68,6 +69,8 @@ enum MissionCommands {
     ChaosFailoverProof(LocalEngineProofArgs),
     /// Exercise the networked single-node server and its transport boundary end to end.
     NetworkedServerProof(LocalEngineProofArgs),
+    /// Exercise thin-client producers and readers against a hosted transit-server authority.
+    HostedAuthorityProof(LocalEngineProofArgs),
     /// Exercise segment, manifest-root, checkpoint, tamper, and server-parity verification across the integrity proof flow.
     IntegrityProof(IntegrityProofArgs),
     /// Exercise checkpoint and resume through the materialization engine.
@@ -388,6 +391,9 @@ async fn main() -> Result<()> {
             }
             MissionCommands::NetworkedServerProof(args) => {
                 render_networked_server_proof(run_networked_server_proof(args.root)?, args.json)?
+            }
+            MissionCommands::HostedAuthorityProof(args) => {
+                render_hosted_authority_proof(run_hosted_authority_proof(args.root)?, args.json)?
             }
             MissionCommands::MaterializationProof(args) => render_materialization_proof(
                 run_materialization_proof(args.root).await?,
@@ -895,6 +901,29 @@ struct NetworkedServerProofResult {
     tail_poll: RemoteTailPollResult,
     tail_cancel: RemoteTailCancelResult,
     transport: NetworkedTransportProofSummary,
+    accepted_connections: u64,
+    graceful_shutdown: bool,
+    server_api: &'static str,
+    remote_api: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct HostedAuthorityProofResult {
+    data_root: PathBuf,
+    server_addr: String,
+    durability: String,
+    topology: String,
+    stream_id: String,
+    root_stream: RemoteStreamStatusResult,
+    producer_appends: Vec<RemoteAppendResult>,
+    reader_replay: RemoteReadResult,
+    acknowledged_payloads: Vec<String>,
+    replay_matches_acknowledged_history: bool,
+    remote_tier_publication_performed: bool,
+    authority_surface: &'static str,
+    consumer_boundary: &'static str,
+    tiered_non_claim: &'static str,
+    embedded_authority_used: bool,
     accepted_connections: u64,
     graceful_shutdown: bool,
     server_api: &'static str,
@@ -1454,6 +1483,107 @@ fn run_networked_server_proof(root: PathBuf) -> Result<NetworkedServerProofResul
         graceful_shutdown: shutdown.graceful_shutdown,
         server_api: shutdown.server_api,
         remote_api: "RemoteClient",
+    })
+}
+
+fn run_hosted_authority_proof(root: PathBuf) -> Result<HostedAuthorityProofResult> {
+    reset_directory(&root)?;
+
+    let requested_listen_addr = "127.0.0.1:0"
+        .parse::<SocketAddr>()
+        .context("parse hosted authority proof listen addr")?;
+    let server = ServerHandle::bind(ServerConfig::new(
+        LocalEngineConfig::new(&root, NodeId::new("cli-node")).with_segment_max_records(4)?,
+        requested_listen_addr,
+    ))
+    .context("bind hosted authority proof daemon")?;
+    let server_addr = server.local_addr();
+
+    let proof = (|| -> Result<_> {
+        let client = TransitClient::new(server_addr);
+        let stream_id = StreamId::new("hosted.consumer.orders")?;
+        let root_stream = client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("hub.producer".into()),
+                    Some("hosted-authority-proof".into()),
+                ),
+            )
+            .context("create hosted authority root stream through transit client")?;
+        let acknowledged_payloads = vec![
+            r#"{"consumer":"hub","record":"order.created","id":"order-1"}"#.to_owned(),
+            r#"{"consumer":"hub","record":"order.shipped","id":"order-1"}"#.to_owned(),
+        ];
+        let mut producer_appends = Vec::with_capacity(acknowledged_payloads.len());
+        for payload in &acknowledged_payloads {
+            let append = client
+                .append(&stream_id, payload.as_bytes())
+                .with_context(|| {
+                    format!("append hosted authority payload for {}", stream_id.as_str())
+                })?;
+            producer_appends.push(summarize_remote_append(server_addr, &stream_id, append));
+        }
+        let reader_replay = summarize_remote_read(
+            server_addr,
+            &stream_id,
+            client.read(&stream_id).with_context(|| {
+                format!("replay hosted authority history for {}", stream_id.as_str())
+            })?,
+        );
+        let replay_matches_acknowledged_history = reader_replay
+            .records
+            .iter()
+            .map(|record| record.payload_text.as_str())
+            .eq(acknowledged_payloads.iter().map(String::as_str));
+
+        Ok((
+            summarize_remote_stream_status(server_addr, root_stream),
+            producer_appends,
+            reader_replay,
+            acknowledged_payloads,
+            replay_matches_acknowledged_history,
+        ))
+    })();
+
+    let shutdown = summarize_server_shutdown(
+        requested_listen_addr,
+        server
+            .shutdown()
+            .context("shutdown hosted authority proof daemon")?,
+    )?;
+    let (
+        root_stream,
+        producer_appends,
+        reader_replay,
+        acknowledged_payloads,
+        replay_matches_acknowledged_history,
+    ) = proof?;
+    let topology = producer_appends
+        .first()
+        .map(|append| append.topology.clone())
+        .unwrap_or_else(|| root_stream.topology.clone());
+
+    Ok(HostedAuthorityProofResult {
+        data_root: shutdown.data_root,
+        server_addr: server_addr.to_string(),
+        durability: shutdown.durability,
+        topology,
+        stream_id: root_stream.stream_id.clone(),
+        root_stream,
+        producer_appends,
+        reader_replay,
+        acknowledged_payloads,
+        replay_matches_acknowledged_history,
+        remote_tier_publication_performed: false,
+        authority_surface: "transit-server remote append/read contract",
+        consumer_boundary: "external producers and readers use TransitClient over the server boundary; they do not open LocalEngine as their own authority",
+        tiered_non_claim: "tiered durability is not claimed here because this proof never publishes the acknowledged history to the remote tier",
+        embedded_authority_used: false,
+        accepted_connections: shutdown.accepted_connections,
+        graceful_shutdown: shutdown.graceful_shutdown,
+        server_api: shutdown.server_api,
+        remote_api: "TransitClient",
     })
 }
 
@@ -2098,16 +2228,11 @@ fn run_remote_append(args: ServerAppendArgs) -> Result<RemoteAppendResult> {
         .append(&stream_id, args.payload_text.as_bytes())
         .with_context(|| format!("append remotely to {}", stream_id.as_str()))?;
 
-    Ok(RemoteAppendResult {
-        server_addr: args.server_addr.to_string(),
-        request_id: append.request_id().as_str().to_owned(),
-        durability: append.ack().durability().to_owned(),
-        topology: render_topology(append.ack().topology()),
-        stream_id: stream_id.as_str().to_owned(),
-        position: render_position(append.body().position().clone()),
-        manifest_generation: append.body().manifest_generation(),
-        rolled_segment_id: append.body().rolled_segment_id().map(str::to_owned),
-    })
+    Ok(summarize_remote_append(
+        args.server_addr,
+        &stream_id,
+        append,
+    ))
 }
 
 fn run_remote_read(args: ServerReadArgs) -> Result<RemoteReadResult> {
@@ -2116,22 +2241,8 @@ fn run_remote_read(args: ServerReadArgs) -> Result<RemoteReadResult> {
     let read = client
         .read(&stream_id)
         .with_context(|| format!("read remotely from {}", stream_id.as_str()))?;
-    let records = summarize_remote_records(read.body().records());
 
-    Ok(RemoteReadResult {
-        server_addr: args.server_addr.to_string(),
-        request_id: read.request_id().as_str().to_owned(),
-        durability: read.ack().durability().to_owned(),
-        topology: render_topology(read.ack().topology()),
-        stream_id: stream_id.as_str().to_owned(),
-        record_count: records.len(),
-        head_offset: read
-            .body()
-            .records()
-            .last()
-            .map(|record| record.position().offset.value()),
-        records,
-    })
+    Ok(summarize_remote_read(args.server_addr, &stream_id, read))
 }
 
 fn run_remote_tail_open(args: ServerTailOpenArgs) -> Result<RemoteTailOpenResult> {
@@ -2648,6 +2759,46 @@ fn summarize_remote_stream_status(
         active_segment_start_offset: response.body().active_segment_start_offset().value(),
         manifest_generation: response.body().manifest_generation(),
         rolled_segment_count: response.body().rolled_segment_count(),
+    }
+}
+
+fn summarize_remote_append(
+    server_addr: SocketAddr,
+    stream_id: &StreamId,
+    response: transit_core::server::RemoteAcknowledged<transit_core::server::RemoteAppendOutcome>,
+) -> RemoteAppendResult {
+    RemoteAppendResult {
+        server_addr: server_addr.to_string(),
+        request_id: response.request_id().as_str().to_owned(),
+        durability: response.ack().durability().to_owned(),
+        topology: render_topology(response.ack().topology()),
+        stream_id: stream_id.as_str().to_owned(),
+        position: render_position(response.body().position().clone()),
+        manifest_generation: response.body().manifest_generation(),
+        rolled_segment_id: response.body().rolled_segment_id().map(str::to_owned),
+    }
+}
+
+fn summarize_remote_read(
+    server_addr: SocketAddr,
+    stream_id: &StreamId,
+    response: transit_core::server::RemoteAcknowledged<transit_core::server::RemoteReadOutcome>,
+) -> RemoteReadResult {
+    let records = summarize_remote_records(response.body().records());
+
+    RemoteReadResult {
+        server_addr: server_addr.to_string(),
+        request_id: response.request_id().as_str().to_owned(),
+        durability: response.ack().durability().to_owned(),
+        topology: render_topology(response.ack().topology()),
+        stream_id: stream_id.as_str().to_owned(),
+        record_count: records.len(),
+        head_offset: response
+            .body()
+            .records()
+            .last()
+            .map(|record| record.position().offset.value()),
+        records,
     }
 }
 
@@ -4042,6 +4193,75 @@ fn render_networked_server_proof(result: NetworkedServerProofResult, json: bool)
     Ok(())
 }
 
+fn render_hosted_authority_proof(result: HostedAuthorityProofResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit hosted-authority proof");
+    println!("root: {}", result.data_root.display());
+    println!("server: {}", result.server_addr);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!("authority surface: {}", result.authority_surface);
+    println!("consumer boundary: {}", result.consumer_boundary);
+    println!(
+        "root create: {} next {}",
+        result.root_stream.stream_id, result.root_stream.next_offset
+    );
+    println!("producer appends:");
+    for append in &result.producer_appends {
+        println!("  - {} ({})", append.position, append.durability);
+    }
+    println!(
+        "reader replay: {} records, head {:?}",
+        result.reader_replay.record_count, result.reader_replay.head_offset
+    );
+    println!("replayed payloads:");
+    for record in &result.reader_replay.records {
+        println!("  - {} {}", record.position, record.payload_text);
+    }
+    println!(
+        "replay matches acknowledged history: {}",
+        if result.replay_matches_acknowledged_history {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    println!(
+        "remote tier publication performed: {}",
+        if result.remote_tier_publication_performed {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    println!("tiered non-claim: {}", result.tiered_non_claim);
+    println!(
+        "embedded authority used by consumer: {}",
+        if result.embedded_authority_used {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    println!("accepted connections: {}", result.accepted_connections);
+    println!(
+        "graceful shutdown: {}",
+        if result.graceful_shutdown {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    println!("server api: {}", result.server_api);
+    println!("remote api: {}", result.remote_api);
+
+    Ok(())
+}
+
 fn summarize_server_shutdown(
     requested_listen_addr: SocketAddr,
     outcome: ServerShutdownOutcome,
@@ -4924,6 +5144,74 @@ mod tests {
                 .contains("optional secure underlay")
         );
         assert!(proof.accepted_connections >= 9);
+    }
+
+    #[test]
+    fn hosted_authority_proof_exercises_remote_consumer_workflow() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_hosted_authority_proof(temp_dir.path().join("hosted-authority"))
+            .expect("hosted authority proof");
+
+        assert_eq!(proof.durability, "local");
+        assert_eq!(proof.topology, "single_node");
+        assert_eq!(proof.stream_id, "hosted.consumer.orders");
+        assert_eq!(proof.root_stream.stream_id, "hosted.consumer.orders");
+        assert_eq!(proof.producer_appends.len(), 2);
+        assert_eq!(
+            proof.producer_appends[0].position,
+            "hosted.consumer.orders@0"
+        );
+        assert_eq!(
+            proof.producer_appends[1].position,
+            "hosted.consumer.orders@1"
+        );
+        assert_eq!(proof.reader_replay.record_count, 2);
+        assert!(proof.replay_matches_acknowledged_history);
+        assert!(!proof.remote_tier_publication_performed);
+        assert!(!proof.embedded_authority_used);
+        assert_eq!(proof.remote_api, "TransitClient");
+    }
+
+    #[test]
+    fn hosted_authority_proof_results_serialize_cleanly_for_mission_scripts() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_hosted_authority_proof(temp_dir.path().join("hosted-authority-json"))
+            .expect("hosted authority proof");
+        let proof_json =
+            serde_json::to_value(&proof).expect("serialize hosted authority proof result");
+
+        assert_eq!(
+            proof_json
+                .get("durability")
+                .and_then(serde_json::Value::as_str),
+            Some("local")
+        );
+        assert_eq!(
+            proof_json
+                .get("remote_tier_publication_performed")
+                .and_then(serde_json::Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            proof_json
+                .get("embedded_authority_used")
+                .and_then(serde_json::Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            proof_json
+                .get("reader_replay")
+                .and_then(|value| value.get("record_count"))
+                .and_then(serde_json::Value::as_u64),
+            Some(2)
+        );
+        assert!(
+            proof_json
+                .get("tiered_non_claim")
+                .and_then(serde_json::Value::as_str)
+                .expect("tiered non-claim string")
+                .contains("remote tier")
+        );
     }
 
     #[tokio::test]

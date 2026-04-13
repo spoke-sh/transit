@@ -1144,6 +1144,7 @@ dependencies = [
  "tempfile",
  "textplots",
  "tokio",
+ "transit-client",
  "transit-core",
  "transit-materialize",
 ]
