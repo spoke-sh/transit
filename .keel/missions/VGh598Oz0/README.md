@@ -1,14 +1,15 @@
 ---
 # system-managed
 id: VGh598Oz0
-status: achieved
+status: verified
 created_at: 2026-04-13T10:40:37
-updated_at: 2026-04-13T13:18:05
+updated_at: 2026-04-13T13:18:35
 # authored
 title: Hosted Transit Authority For External Workloads And Derived State
 watch: ~
 activated_at: 2026-04-13T10:48:25
 achieved_at: 2026-04-13T13:18:05
+verified_at: 2026-04-13T13:18:35
 ---
 
 # Hosted Transit Authority For External Workloads And Derived State
