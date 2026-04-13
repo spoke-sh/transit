@@ -16,14 +16,6 @@ screen:
         printf '\n==> %s\n' "$1"
     }
 
-    render_keel_screen() {
-        if keel screen --help >/dev/null 2>&1; then
-            keel screen
-        else
-            keel flow
-        fi
-    }
-
     (
         cd "$repo_root"
 
@@ -50,6 +42,8 @@ screen:
         just run object-store probe --root "$screen_root/object-store"
         announce "Show transit status"
         just screen-status
+        announce "Show board screen"
+        keel screen --static
     )
 
 # Backward-compatible alias for the old verification recipe name.

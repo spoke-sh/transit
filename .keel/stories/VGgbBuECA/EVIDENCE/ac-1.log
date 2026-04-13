@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T08:51:47.825288089-07:00
+mode: manual
+---
+Verified the routine blueprint by upgrading the flake-pinned keel input, installing hooks with keel hooks install, wiring just screen to call keel screen --static directly, and confirming the board render via direct keel heartbeat, keel health --scene, keel pulse, keel flow --scene, keel doctor, and keel screen --static after the upgrade. A full just screen proof run also completed successfully after the Justfile change.
