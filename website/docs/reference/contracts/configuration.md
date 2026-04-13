@@ -160,15 +160,18 @@ The current bootstrap implementation wires `data_dir` through `transit server ru
 
 ### `[replication]`
 
-Replication is deferred scope, but the config surface should be explicit once introduced.
+Replication and failover settings for clustered deployments.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `mode` | String | `"single-node"` | Initial deployment model. |
-| `sync_quorum` | Integer | `1` | Number of nodes required for future replicated ack. |
-| `peer_urls` | Array | `[]` | Planned peer list for future replicated topologies. |
+| `mode` | String | `"single-node"` | Deployment model: `single-node` or `cluster`. |
+| `node_id` | String | null | Unique identity for this node (overrides `[node].id`). |
+| `consensus_root` | String | null | Object-store path used for shared leases and elections. |
+| `lease_duration_secs` | Integer | `10` | TTL for the primary lease. |
+| `election_poll_interval_ms` | Integer | `1000` | How often the `ElectionMonitor` checks lease health. |
+| `quorum_size` | Integer | `1` | Number of nodes required for `quorum` durability. |
 
-Until replication exists, `single-node` should remain the only supported value.
+`durability` mode `quorum` depends on these settings to discover peers and calculate the required majority.
 
 ### `[telemetry]`
 

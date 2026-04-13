@@ -137,7 +137,7 @@ Server mode exposes the same storage engine behind a network API:
 
 The server should not invent a second storage format or branch model.
 
-The first implementation step is a thin daemon bootstrap that opens the shared engine and binds a listener. The current server slice now layers provisional remote root creation, append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations on top of that bootstrap, wrapped in a framed request/response envelope with correlation IDs plus explicit acknowledgement and error semantics. Tail streaming now uses logical session IDs with `open/poll/cancel` operations and credit-based delivery so the semantics do not collapse into one socket or underlay assumption. The first CLI client surface now mirrors those remote workflows directly, while richer client surfaces remain downstream. The public server surface remains explicitly single-node. Separately, the shared engine now has a bounded controlled failover slice for published-frontier readiness, explicit lease handoff, and former-primary fencing, but that slice still sits below quorum acknowledgement, automatic election, and multi-primary behavior.
+The first implementation step is a thin daemon bootstrap that opens the shared engine and binds a listener. The current server slice now layers provisional remote root creation, append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations on top of that bootstrap, wrapped in a framed request/response envelope with correlation IDs plus explicit acknowledgement and error semantics. Tail streaming now uses logical session IDs with `open/poll/cancel` operations and credit-based delivery so the semantics do not collapse into one socket or underlay assumption. The first CLI client surface now mirrors those remote workflows directly, while richer client surfaces remain downstream. The shared engine now has a full failover stack: controlled handoff, automatic leader election via `ElectionMonitor`, quorum-based durability, and cluster membership. Multi-primary behavior remains explicitly out of scope.
 
 The transport boundary is also explicit: `transit` defines an application protocol above the transport layer. TCP, QUIC, or other ordinary transports can carry that protocol, and secure meshes such as WireGuard remain optional deployment underlays rather than protocol replacements.
 
@@ -194,7 +194,8 @@ Suggested durability modes:
 
 - `memory`: acknowledged after in-memory acceptance, for tests only
 - `local`: acknowledged after local durable write
-- `replicated`: acknowledged after the published handoff frontier is durable enough for read-only replica catch-up and promotion readiness; it does not imply follower hydration, quorum acknowledgement, or automatic failover
+- `replicated`: acknowledged after the published handoff frontier is durable enough for read-only replica catch-up and promotion readiness
+- `quorum`: acknowledged after a majority of configured cluster peers have confirmed receipt
 - `tiered`: acknowledged only after the relevant segment state is durable in the remote tier
 
 ## Read Path
@@ -240,9 +241,18 @@ The initial reference model should be simple:
 - acknowledged records are immutable
 - recovery must never expose unacknowledged bytes as committed history
 
-The first controlled failover slice preserves that model by allowing a caught-up read-only replica to become the writable primary only through explicit lease handoff. Former primaries are fenced after handoff so stale leaders cannot continue acknowledged writes. This slice remains explicitly below quorum acknowledgement, election, and multi-primary behavior.
+The failover model preserves that invariant through three complementary components:
 
-Any move toward replicated or multi-writer semantics must preserve those invariants and define conflict rules directly.
+- **ClusterMembership:** Nodes discover each other and maintain heartbeats to calculate quorum size.
+- **ElectionMonitor:** A background worker that polls for lease expiration and triggers automatic leader election via the `ConsensusProvider`.
+- **ObjectStoreConsensus:** A provider that uses optimistic locking on the remote tier to ensure that only one node can acquire a writable lease at a time.
+
+Failover is supported through two paths:
+
+- **Controlled failover:** A caught-up read-only replica becomes the writable primary through explicit lease handoff. The former primary is fenced after handoff.
+- **Automatic failover:** The `ElectionMonitor` detects primary failure (lease expiry) and triggers automatic acquisition by an eligible follower.
+
+Both paths preserve the one-writer-per-stream-head invariant. Multi-primary behavior remains explicitly out of scope.
 
 ## Processing And Materialization
 
@@ -338,7 +348,8 @@ That means lineage metadata should be cheap to create and easy to query.
 
 These areas are important but should stay explicit future work until designed:
 
-- distributed consensus and cross-node replication
+- multi-primary or multi-writer semantics
+- dynamic cluster rebalancing and automatic data sharding
 - compaction or projection layers above immutable history
 - authn/authz and multi-tenant isolation
 - query surfaces beyond ordered log replay and tailing
