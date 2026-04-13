@@ -45,36 +45,6 @@
         "url": "ssh://git@github.com/spoke-sh/keel.git"
       }
     },
-    "keel_2": {
-      "inputs": {
-        "flake-utils": [
-          "sift",
-          "flake-utils"
-        ],
-        "nixpkgs": [
-          "sift",
-          "nixpkgs"
-        ],
-        "rust-overlay": [
-          "sift",
-          "rust-overlay"
-        ]
-      },
-      "locked": {
-        "lastModified": 1773100503,
-        "narHash": "sha256-YKDmgpHuO7N+fx1o3+n4KFyAL44F0zlAAQfY5vy5qpo=",
-        "owner": "rupurt",
-        "repo": "keel",
-        "rev": "3966e1cd0d48c4a0b0a0bf6074310af521d3cd80",
-        "type": "github"
-      },
-      "original": {
-        "owner": "rupurt",
-        "repo": "keel",
-        "rev": "3966e1cd0d48c4a0b0a0bf6074310af521d3cd80",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1772963539,
@@ -112,8 +82,7 @@
         "flake-utils": "flake-utils",
         "keel": "keel",
         "nixpkgs": "nixpkgs",
-        "rust-overlay": "rust-overlay",
-        "sift": "sift"
+        "rust-overlay": "rust-overlay"
       }
     },
     "rust-overlay": {
@@ -131,34 +100,6 @@
       "original": {
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "type": "github"
-      }
-    },
-    "sift": {
-      "inputs": {
-        "flake-utils": [
-          "flake-utils"
-        ],
-        "keel": "keel_2",
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "rust-overlay": [
-          "rust-overlay"
-        ]
-      },
-      "locked": {
-        "lastModified": 1773259736,
-        "narHash": "sha256-xeyHiahvaf6JsV7ogll+efTZsu714SIq1gOtn4KKdlk=",
-        "owner": "rupurt",
-        "repo": "sift",
-        "rev": "52f46f87527cc39cc5efe214708b77426cb12e87",
-        "type": "github"
-      },
-      "original": {
-        "owner": "rupurt",
-        "ref": "main",
-        "repo": "sift",
         "type": "github"
       }
     },

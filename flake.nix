@@ -6,12 +6,6 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
 
-    sift = {
-      url = "github:rupurt/sift?ref=main";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.rust-overlay.follows = "rust-overlay";
-      inputs.flake-utils.follows = "flake-utils";
-    };
     keel = {
       url = "git+ssh://git@github.com/spoke-sh/keel.git?ref=main";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -20,7 +14,7 @@
     };
   };
 
-  outputs = { nixpkgs, rust-overlay, flake-utils, keel, sift, ... }:
+  outputs = { nixpkgs, rust-overlay, flake-utils, keel, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -32,11 +26,9 @@
         };
         isLinux = pkgs.stdenv.isLinux;
         keelPkg = keel.packages.${system}.keel;
-        siftPkg = sift.packages.${system}.sift;
       in {
         packages = {
           keel = keelPkg;
-          sift = siftPkg;
         };
 
         devShells.default = pkgs.mkShell {
@@ -47,7 +39,6 @@
             keelPkg
             pkgs.just
             pkgs.pkg-config
-            siftPkg
           ] ++ pkgs.lib.optionals isLinux [
             pkgs.mold
           ];
