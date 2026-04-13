@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T12:53:47.057770656-07:00
+mode: manual
+---
+Kept the guidance focused on remote contracts and operator posture by stating that payload validation, business policy, and downstream projection rules stay in consumer services rather than Transit core. Verified the rendered website copy with just docs-build.

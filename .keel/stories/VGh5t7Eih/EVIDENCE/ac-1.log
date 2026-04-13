@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T12:53:47.044186204-07:00
+mode: manual
+---
+Extended the hosted-authority contract in GUIDE.md and README.md with thin-client acknowledgement, request_id, error-code, and durability-posture guidance so operators interpret hosted responses literally instead of reinterpreting server semantics in the client. Verified the synced docs with just docs-sync and just docs-build.

@@ -1,7 +1,7 @@
 ---
 # system-managed
 id: VGh5B5qMT
-status: in-progress
+status: done
 epic: VGh59soBt
 created_at: 2026-04-13T10:40:45
 # authored
@@ -9,6 +9,7 @@ title: Remote Authority Contract And Consumer Wiring
 index: 1
 updated_at: 2026-04-13T10:45:58
 started_at: 2026-04-13T12:42:35
+completed_at: 2026-04-13T12:54:03
 ---
 
 # Remote Authority Contract And Consumer Wiring
@@ -22,16 +23,18 @@ started_at: 2026-04-13T12:42:35
 |----------|-------------|
 | [SRS.md](SRS.md) | Requirements and verification criteria |
 | [SDD.md](SDD.md) | Architecture and implementation details |
+| [VOYAGE_REPORT.md](VOYAGE_REPORT.md) | Narrative summary of implementation and evidence |
+| [COMPLIANCE_REPORT.md](COMPLIANCE_REPORT.md) | Traceability matrix and verification proof |
 <!-- END DOCUMENTS -->
 
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 2/3 stories complete
+**Progress:** 3/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Document Hosted Authority Contract For External Workload Consumers](../../../../stories/VGh5rrKTY/README.md) | docs | done |
 | [Add Hosted Authority Proof For External Producers And Readers](../../../../stories/VGh5sVPck/README.md) | feat | done |
-| [Expose Thin Client Acknowledgement Guidance For Hosted Authority](../../../../stories/VGh5t7Eih/README.md) | docs | backlog |
+| [Expose Thin Client Acknowledgement Guidance For Hosted Authority](../../../../stories/VGh5t7Eih/README.md) | docs | done |
 <!-- END GENERATED -->

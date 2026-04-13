@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T12:53:47.062367743-07:00
+mode: manual
+---
+Documented the Hub-like cutover boundary explicitly: embedded local Transit can remain a cache or migration aid, but hosted consumer-owned authority moves to the transit-server endpoint and replay boundary after cutover. Verified the synced docs with just docs-sync and just docs-build.

@@ -120,7 +120,10 @@ consumers target one `transit-server` endpoint, authenticate to that hosted
 surface, observe literal durability labels from acknowledgement envelopes, and
 keep domain-specific schema or policy outside Transit core. They should not
 treat embedded local Transit storage as the authority for hosted
-consumer-owned state.
+consumer-owned state. Thin clients should surface server `request_id` values
+and explicit error codes literally, and a Hub-like cutover should move
+authority to the hosted server boundary rather than preserving a dual-write
+embedded store.
 
 ## Documentation Map
 

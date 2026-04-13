@@ -85,6 +85,37 @@ Durability labels remain literal:
 Consumers must not reinterpret a `local` acknowledgement as remote-tier safety,
 cache persistence, or cluster-wide durability.
 
+Thin clients and operators should interpret hosted responses literally:
+
+- `request_id` is the hosted server's correlation handle and should be preserved
+  in logs, support traces, and operator diagnostics
+- success bodies such as stream status, append position, replay head, or
+  lineage shape are the authoritative contract for what the server accepted;
+  clients should not invent stronger local meanings around them
+- `topology` describes the hosted authority shape the server is asserting, not
+  whether a consumer happens to keep a local cache or offline mirror
+
+Current error guidance is equally direct:
+
+- `invalid_request` means the caller asked for an impossible or malformed
+  operation and should fix the request instead of retrying it unchanged
+- `not_found` means the addressed hosted stream or session does not exist at
+  that authority boundary and should be repaired through routing, bootstrap, or
+  lifecycle handling rather than guessed away in the client
+- thin clients should surface the server's code, message, and `request_id`
+  together instead of collapsing them into a generic client-side failure
+
+A Hub-like consumer cutover is a boundary change, not a dual-write mode:
+
+- before cutover, any embedded local Transit store is only a cache, fixture, or
+  migration aid and is not the authority for hosted consumer-owned records
+- after cutover, producers and readers talk to the hosted `server_addr`,
+  authenticate there, and rebuild any local state from hosted replay instead of
+  trusting embedded local writes
+- payload validation, business policy, and downstream projection rules remain
+  owned by the consumer and its surrounding services rather than moving into
+  Transit core
+
 The anti-pattern is equally explicit:
 
 - do not open an embedded local Transit store as the authority for hosted
