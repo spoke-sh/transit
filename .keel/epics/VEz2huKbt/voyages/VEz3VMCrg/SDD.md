@@ -93,7 +93,7 @@ struct CountReducer;
 Add a `Prove materialization` step to `just screen`:
 ```bash
 announce "Prove materialization"
-just run mission materialization-proof --root "$screen_root/materialization"
+just transit mission materialization-proof --root "$screen_root/materialization"
 ```
 
 ## Interfaces

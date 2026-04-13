@@ -77,7 +77,7 @@ A struct mirroring `LocalEngineProofResult` and `TieredEngineProofResult`:
 Add a `Prove integrity` step to the `just screen` recipe:
 ```bash
 announce "Prove integrity"
-just run mission integrity-proof --root "$screen_root/integrity"
+just transit mission integrity-proof --root "$screen_root/integrity"
 ```
 
 ## Interfaces
