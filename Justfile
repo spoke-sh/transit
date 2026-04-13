@@ -70,9 +70,9 @@ screen:
 mission:
     @just screen
 
-# Show the current transit status summary.
+# Show the current transit log summary for the default screen proof root.
 screen-status:
-    cargo run -p transit-cli --bin transit -- status --repo-root {{justfile_directory()}}
+    cargo run -p transit-cli --bin transit -- status --root {{justfile_directory()}}/target/transit-screen/local-engine
 
 # Backward-compatible alias for the old status recipe name.
 mission-status:

@@ -239,9 +239,10 @@ The current bootstrap developer loop is:
 10. use `just transit proof materialization --root target/transit-mission/materialization` when you want the explicit checkpoint, resume, root snapshot, and branch-aware snapshot proof
 11. use `just transit proof reference-projection --root target/transit-mission/reference-projection` when you want the explicit proof that checkpoint resume and authoritative replay converge on the same reference views anchored to shared lineage checkpoints
 12. use `just transit --config target/transit-mission/storage-probe.toml storage probe` when you want the current effective storage guarantee verified through the config surface instead of an ad hoc root flag
-13. use `just rust-client-proof` when you want the native Rust client proof that starts a local server and exercises create_root, append, read, tail, branch, merge, and lineage end-to-end
-14. use `just transit server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap, or omit `--root` and `--listen-addr` when those defaults already live in `transit.toml`
-15. use `just transit server create-root --server-addr 127.0.0.1:7171 --stream-id task.root --actor cli --reason bootstrap --json`, then `just transit server append --server-addr 127.0.0.1:7171 --stream-id task.root --payload-text hello --json`, plus the sibling `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel` commands when you want to exercise the remote CLI surface directly
-16. use `just help` or `just transit help` for the CLI surface
+13. use `just transit status --root target/transit-mission/local-engine` when you want a concise summary of the actual log under a data root, including stream lineage, offsets, active records, rolled segments, and any published frontier
+14. use `just rust-client-proof` when you want the native Rust client proof that starts a local server and exercises create_root, append, read, tail, branch, merge, and lineage end-to-end
+15. use `just transit server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap, or omit `--root` and `--listen-addr` when those defaults already live in `transit.toml`
+16. use `just transit server create-root --server-addr 127.0.0.1:7171 --stream-id task.root --actor cli --reason bootstrap --json`, then `just transit server append --server-addr 127.0.0.1:7171 --stream-id task.root --payload-text hello --json`, plus the sibling `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel` commands when you want to exercise the remote CLI surface directly
+17. use `just help` or `just transit help` for the CLI surface
 
 If a proposed change conflicts with those documents, update the docs intentionally before or with the code change.

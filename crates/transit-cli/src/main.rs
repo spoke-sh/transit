@@ -9,10 +9,10 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use transit_client::TransitClient;
-use transit_core::bootstrap::{MissionStatus, collect_mission_status};
 use transit_core::config::{LoadedTransitConfig, StorageDurability, load_transit_config};
 use transit_core::engine::{
     LocalEngine, LocalEngineConfig, LocalRecord, LocalRecoveryOutcome, OwnershipPosture,
+    inspect_local_log,
 };
 use transit_core::kernel::{
     LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor, StreamId,
@@ -50,8 +50,8 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Show a human-readable bootstrap status summary.
-    Status(MissionStatusArgs),
+    /// Show the state of the local transit log.
+    Status(StatusArgs),
     /// Run the human-oriented proof workflows.
     Proof(ProofArgs),
     /// Explicitly verify the cryptographic integrity of local history.
@@ -97,11 +97,14 @@ enum ProofCommands {
 }
 
 #[derive(Debug, Args)]
-struct MissionStatusArgs {
-    /// Repository root used to verify required bootstrap artifacts.
-    #[arg(long = "repo-root", default_value = ".")]
-    repo_root: PathBuf,
-    /// Render mission status as JSON.
+struct StatusArgs {
+    /// Filesystem root used for the shared local engine. Defaults to configured [node].data_dir.
+    #[arg(long)]
+    root: Option<PathBuf>,
+    /// Optional stream identifier to inspect instead of listing every stream under the root.
+    #[arg(long = "stream-id")]
+    stream_id: Option<String>,
+    /// Render log status as JSON.
     #[arg(long)]
     json: bool,
 }
@@ -383,9 +386,13 @@ async fn main() -> Result<()> {
     let config = load_transit_config(cli.config.clone())?;
 
     match cli.command {
-        Commands::Status(args) => {
-            render_mission_status(collect_mission_status(args.repo_root), args.json)?
-        }
+        Commands::Status(args) => render_status(
+            run_status(
+                resolve_local_root(args.root, &config),
+                args.stream_id.as_deref(),
+            )?,
+            args.json,
+        )?,
         Commands::Proof(args) => match args.command {
             ProofCommands::LocalEngine(args) => render_local_engine_proof(
                 run_local_engine_proof(resolve_local_root(args.root, &config))?,
@@ -697,76 +704,184 @@ fn render_verify_checkpoint(outcome: VerifyCheckpointOutcome, json: bool) -> Res
     Ok(())
 }
 
-fn render_mission_status(status: MissionStatus, json: bool) -> Result<()> {
+#[derive(Debug, Serialize)]
+struct TransitLogStatusResult {
+    root: PathBuf,
+    initialized: bool,
+    state: String,
+    stream_count: usize,
+    streams: Vec<TransitLogStreamStatusResult>,
+}
+
+#[derive(Debug, Serialize)]
+struct TransitLogStreamStatusResult {
+    stream_id: String,
+    lineage_kind: String,
+    parents: Vec<String>,
+    merge_base: Option<String>,
+    record_count: u64,
+    head_offset: Option<u64>,
+    next_offset: u64,
+    active_record_count: u64,
+    active_segment_start_offset: u64,
+    manifest_generation: u64,
+    rolled_segment_count: usize,
+    published_frontier: Option<PublishedFrontierStatusResult>,
+}
+
+#[derive(Debug, Serialize)]
+struct PublishedFrontierStatusResult {
+    manifest_generation: u64,
+    manifest_root: String,
+    next_offset: u64,
+    start_offset: Option<u64>,
+    last_offset: Option<u64>,
+    segment_count: usize,
+}
+
+fn run_status(root: PathBuf, stream_filter: Option<&str>) -> Result<TransitLogStatusResult> {
+    let status = inspect_local_log(&root)?;
+    let stream_filter = stream_filter.map(parse_stream_id_arg).transpose()?;
+
+    let mut streams = status
+        .streams()
+        .iter()
+        .map(summarize_local_log_stream_status)
+        .collect::<Vec<_>>();
+
+    if let Some(stream_filter) = stream_filter.as_ref() {
+        streams.retain(|stream| stream.stream_id == stream_filter.as_str());
+        ensure!(
+            !streams.is_empty(),
+            "stream '{}' not found under {}",
+            stream_filter.as_str(),
+            root.display()
+        );
+    }
+
+    let state = if !status.initialized() {
+        "uninitialized"
+    } else if status.streams().is_empty() {
+        "empty"
+    } else {
+        "active"
+    };
+
+    Ok(TransitLogStatusResult {
+        root: status.data_dir().to_path_buf(),
+        initialized: status.initialized(),
+        state: state.to_owned(),
+        stream_count: streams.len(),
+        streams,
+    })
+}
+
+fn summarize_local_log_stream_status(
+    status: &transit_core::engine::LocalLogStreamStatus,
+) -> TransitLogStreamStatusResult {
+    let (lineage_kind, parents, merge_base) = match &status.descriptor().lineage {
+        StreamLineage::Root { .. } => ("root", Vec::new(), None),
+        StreamLineage::Branch { branch_point } => (
+            "branch",
+            vec![render_position(branch_point.parent.clone())],
+            None,
+        ),
+        StreamLineage::Merge { merge } => (
+            "merge",
+            merge.parents.iter().cloned().map(render_position).collect(),
+            merge.merge_base.clone().map(render_position),
+        ),
+    };
+    let next_offset = status.next_offset().value();
+
+    TransitLogStreamStatusResult {
+        stream_id: status.descriptor().stream_id.as_str().to_owned(),
+        lineage_kind: lineage_kind.to_owned(),
+        parents,
+        merge_base,
+        record_count: next_offset,
+        head_offset: next_offset.checked_sub(1),
+        next_offset,
+        active_record_count: status.active_record_count(),
+        active_segment_start_offset: status.active_segment_start_offset().value(),
+        manifest_generation: status.manifest_generation(),
+        rolled_segment_count: status.rolled_segment_count(),
+        published_frontier: status.published_frontier().map(|frontier| {
+            PublishedFrontierStatusResult {
+                manifest_generation: frontier.manifest_generation(),
+                manifest_root: frontier.manifest_root().digest().to_string(),
+                next_offset: frontier.next_offset().value(),
+                start_offset: frontier.start_offset().map(Offset::value),
+                last_offset: frontier.last_offset().map(Offset::value),
+                segment_count: frontier.published_segments().len(),
+            }
+        }),
+    }
+}
+
+fn render_status(status: TransitLogStatusResult, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&status)?);
         return Ok(());
     }
 
-    use textplots::{Chart, Plot, Shape};
-
     println!("transit status");
-    println!("summary: {}", status.summary());
-    println!("version: {}", status.version);
+    println!("root: {}", status.root.display());
+    println!("state: {}", status.state);
+    println!("streams: {}", status.stream_count);
 
-    // Visual completion profile
-    // X-axis: 0:Core, 1:Server, 2:Integrity, 3:Materialize, 4:MultiNode, 5:RustClient
-    // Y-axis: % Completion
-    let integrity_score = if status.integrity_ready { 100.0 } else { 0.0 };
-    let consensus_score = if status.consensus_ready { 100.0 } else { 0.0 };
-    let clients_score = if status.clients_ready { 100.0 } else { 0.0 };
-    let points = vec![
-        (0.0, 100.0),           // Core
-        (1.0, 100.0),           // Server
-        (2.0, integrity_score), // Integrity
-        (3.0, 100.0),           // Materialize (Engine + Prolly Tree)
-        (4.0, consensus_score), // Multi-Node (Kernel)
-        (5.0, clients_score),   // Clients (Rust crate)
-    ];
-
-    println!("\nCompletion Profile:");
-    Chart::new(60, 40, 0.0, 5.0)
-        .lineplot(&Shape::Lines(&points))
-        .display();
-    println!("  0:Core  1:Server  2:Integrity  3:Materialize  4:MultiNode  5:RustClient\n");
-
-    println!(
-        "docs: {}/{} present",
-        status.docs_present(),
-        status.docs.len()
-    );
-    println!(
-        "workspace files: {}/{} present",
-        status.workspace_files_present(),
-        status.workspace_files.len()
-    );
-    println!(
-        "kernel files: {}/{} present",
-        status.kernel_files_present(),
-        status.kernel_files.len()
-    );
-
-    if status.kernel_files.iter().all(|artifact| artifact.present) {
-        println!("kernel slice: durable local engine + tiered publish/restore");
-    } else {
-        println!("kernel slice: incomplete");
+    if status.streams.is_empty() {
+        if status.initialized {
+            println!("log: initialized with no streams");
+        } else {
+            println!("log: no stream state exists under this root yet");
+        }
+        return Ok(());
     }
-    println!("object store: {}", status.object_store_backend);
-    println!("verification path: {}", status.verification_recipe);
 
-    let missing = status.missing_paths();
-    if missing.is_empty() {
-        println!("missing: none");
-    } else {
-        println!("missing:");
-        for path in missing {
-            println!("  - {path}");
+    for stream in status.streams {
+        println!();
+        println!("stream: {}", stream.stream_id);
+        println!("lineage: {}", stream.lineage_kind);
+        if stream.parents.is_empty() {
+            println!("parents: none");
+        } else {
+            println!("parents: {}", stream.parents.join(", "));
+        }
+        if let Some(merge_base) = stream.merge_base {
+            println!("merge base: {merge_base}");
+        }
+        println!("records: {}", stream.record_count);
+        match stream.head_offset {
+            Some(head_offset) => println!("head offset: {head_offset}"),
+            None => println!("head offset: empty"),
+        }
+        println!("next offset: {}", stream.next_offset);
+        println!("active records: {}", stream.active_record_count);
+        println!(
+            "active segment start offset: {}",
+            stream.active_segment_start_offset
+        );
+        println!("manifest generation: {}", stream.manifest_generation);
+        println!("rolled segments: {}", stream.rolled_segment_count);
+
+        if let Some(frontier) = stream.published_frontier {
+            println!(
+                "published frontier: generation {} next offset {}",
+                frontier.manifest_generation, frontier.next_offset
+            );
+            match (frontier.start_offset, frontier.last_offset) {
+                (Some(start_offset), Some(last_offset)) => {
+                    println!("published range: {start_offset}..{last_offset}");
+                }
+                _ => println!("published range: none"),
+            }
+            println!("published segments: {}", frontier.segment_count);
+            println!("published manifest root: {}", frontier.manifest_root);
+        } else {
+            println!("published frontier: none");
         }
     }
-
-    println!("\nNext Missions:");
-    println!("  - Multi-Node Replication (Distribution)");
-    println!("  - Polyglot Client Expansion (Post-Rust)");
 
     Ok(())
 }
@@ -5201,8 +5316,15 @@ mod tests {
 
     #[test]
     fn cli_promotes_status_and_proofs_to_their_new_namespaces() {
-        let cli = Cli::try_parse_from(["transit", "status", "--repo-root", "."])
-            .expect("parse top-level status command");
+        let cli = Cli::try_parse_from([
+            "transit",
+            "status",
+            "--root",
+            "target/demo",
+            "--stream-id",
+            "task.root",
+        ])
+        .expect("parse top-level status command");
         assert!(matches!(cli.command, Commands::Status(_)));
 
         let cli =
@@ -5226,6 +5348,11 @@ mod tests {
                 .contains("unrecognized subcommand 'mission'")
         );
 
+        let error = Cli::try_parse_from(["transit", "status", "--repo-root", "."])
+            .expect_err("old repo-root status argument should be rejected");
+
+        assert!(error.to_string().contains("--repo-root"));
+
         let error = Cli::try_parse_from(["transit", "object-store", "probe"])
             .expect_err("object-store probe should be rejected");
 
@@ -5243,6 +5370,71 @@ mod tests {
                 .to_string()
                 .contains("unrecognized subcommand 'local-engine-proof'")
         );
+    }
+
+    #[test]
+    fn status_reports_local_log_state_instead_of_bootstrap_state() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let root_stream = StreamId::new("task.root").expect("stream id");
+        let branch_stream = StreamId::new("task.branch").expect("stream id");
+
+        engine
+            .create_stream(StreamDescriptor::root(
+                root_stream.clone(),
+                LineageMetadata::new(Some("test".into()), Some("status".into())),
+            ))
+            .expect("create root stream");
+        engine.append(&root_stream, b"first").expect("append first");
+        engine
+            .append(&root_stream, b"second")
+            .expect("append second");
+        engine
+            .create_stream(
+                StreamDescriptor::branch(
+                    branch_stream.clone(),
+                    StreamPosition::new(root_stream.clone(), Offset::new(1)),
+                    LineageMetadata::new(Some("test".into()), Some("branch".into()))
+                        .with_branch_kind("review"),
+                )
+                .expect("branch descriptor"),
+            )
+            .expect("create branch stream");
+
+        let status = run_status(temp_dir.path().to_path_buf(), None).expect("run status");
+        assert_eq!(status.state, "active");
+        assert_eq!(status.stream_count, 2);
+
+        let root_status = status
+            .streams
+            .iter()
+            .find(|stream| stream.stream_id == "task.root")
+            .expect("root stream status");
+        assert_eq!(root_status.lineage_kind, "root");
+        assert_eq!(root_status.record_count, 2);
+        assert_eq!(root_status.head_offset, Some(1));
+        assert_eq!(root_status.rolled_segment_count, 1);
+
+        let branch_status = status
+            .streams
+            .iter()
+            .find(|stream| stream.stream_id == "task.branch")
+            .expect("branch stream status");
+        assert_eq!(branch_status.lineage_kind, "branch");
+        assert_eq!(branch_status.parents, vec!["task.root@1"]);
+        assert_eq!(branch_status.record_count, 2);
+        assert_eq!(branch_status.head_offset, Some(1));
+        assert_eq!(branch_status.active_record_count, 0);
+
+        let filtered =
+            run_status(temp_dir.path().to_path_buf(), Some("task.root")).expect("filtered status");
+        assert_eq!(filtered.stream_count, 1);
+        assert_eq!(filtered.streams[0].stream_id, "task.root");
     }
 
     #[test]

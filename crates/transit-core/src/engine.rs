@@ -464,6 +464,68 @@ impl LocalStreamStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LocalLogStreamStatus {
+    descriptor: StreamDescriptor,
+    next_offset: Offset,
+    active_record_count: u64,
+    active_segment_start_offset: Offset,
+    manifest_generation: u64,
+    rolled_segment_count: usize,
+    published_frontier: Option<LocalPublishedReplicationFrontier>,
+}
+
+impl LocalLogStreamStatus {
+    pub fn descriptor(&self) -> &StreamDescriptor {
+        &self.descriptor
+    }
+
+    pub fn next_offset(&self) -> Offset {
+        self.next_offset
+    }
+
+    pub fn active_record_count(&self) -> u64 {
+        self.active_record_count
+    }
+
+    pub fn active_segment_start_offset(&self) -> Offset {
+        self.active_segment_start_offset
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+
+    pub fn rolled_segment_count(&self) -> usize {
+        self.rolled_segment_count
+    }
+
+    pub fn published_frontier(&self) -> Option<&LocalPublishedReplicationFrontier> {
+        self.published_frontier.as_ref()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LocalLogStatus {
+    data_dir: PathBuf,
+    initialized: bool,
+    streams: Vec<LocalLogStreamStatus>,
+}
+
+impl LocalLogStatus {
+    pub fn data_dir(&self) -> &Path {
+        &self.data_dir
+    }
+
+    pub fn initialized(&self) -> bool {
+        self.initialized
+    }
+
+    pub fn streams(&self) -> &[LocalLogStreamStatus] {
+        &self.streams
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PublishedSegmentFrontier {
     segment_id: SegmentId,
     start_offset: Offset,
@@ -2348,6 +2410,65 @@ fn published_frontier_from_manifest_snapshot(
     })
 }
 
+pub fn inspect_local_log(root: impl AsRef<Path>) -> Result<LocalLogStatus> {
+    let data_dir = root.as_ref().to_path_buf();
+    let streams_dir = data_dir.join(STREAMS_DIR);
+    if !streams_dir.exists() {
+        return Ok(LocalLogStatus {
+            data_dir,
+            initialized: false,
+            streams: Vec::new(),
+        });
+    }
+
+    let mut streams = Vec::new();
+    for entry in fs::read_dir(&streams_dir)
+        .with_context(|| format!("read streams directory {}", streams_dir.display()))?
+    {
+        let entry = entry.with_context(|| format!("read entry in {}", streams_dir.display()))?;
+        if !entry
+            .file_type()
+            .with_context(|| format!("read file type for {}", entry.path().display()))?
+            .is_dir()
+        {
+            continue;
+        }
+
+        let stream_dir = entry.path();
+        let state: LocalStreamState = read_json(&stream_dir.join(STATE_FILE))
+            .with_context(|| format!("read stream state {}", stream_dir.display()))?;
+        let manifest: SegmentManifest = read_json(&stream_dir.join(MANIFEST_FILE))
+            .with_context(|| format!("read stream manifest {}", stream_dir.display()))?;
+
+        streams.push(LocalLogStreamStatus {
+            descriptor: state.descriptor.clone(),
+            next_offset: Offset::new(state.next_offset),
+            active_record_count: state.active_record_count,
+            active_segment_start_offset: Offset::new(state.active_segment_start_offset),
+            manifest_generation: state.manifest_generation,
+            rolled_segment_count: manifest.segments().len(),
+            published_frontier: state
+                .published_manifest
+                .as_ref()
+                .map(published_frontier_from_manifest_snapshot)
+                .transpose()?,
+        });
+    }
+
+    streams.sort_by(|left, right| {
+        left.descriptor
+            .stream_id
+            .as_str()
+            .cmp(right.descriptor.stream_id.as_str())
+    });
+
+    Ok(LocalLogStatus {
+        data_dir,
+        initialized: true,
+        streams,
+    })
+}
+
 fn segment_id(sequence: u64) -> Result<SegmentId> {
     SegmentId::new(format!("segment-{sequence:020}"))
 }
@@ -2722,7 +2843,7 @@ fn compute_manifest_root(
 mod tests {
     use super::{
         AccessMode, CommitmentLevel, DurabilityMode, LocalEngine, LocalEngineConfig, NodeId,
-        OwnershipPosture,
+        OwnershipPosture, inspect_local_log,
     };
     use std::time::Duration;
 
@@ -2950,6 +3071,52 @@ mod tests {
         assert_eq!(status.active_record_count(), 0);
         assert_eq!(status.active_segment_start_offset(), Offset::new(2));
         assert_eq!(status.rolled_segment_count(), 1);
+    }
+
+    #[test]
+    fn inspect_local_log_reports_uninitialized_roots() {
+        let temp_dir = tempdir().expect("temp dir");
+
+        let status = inspect_local_log(temp_dir.path()).expect("inspect local log");
+
+        assert_eq!(status.data_dir(), temp_dir.path());
+        assert!(!status.initialized());
+        assert!(status.streams().is_empty());
+    }
+
+    #[test]
+    fn inspect_local_log_reports_stream_state_for_initialized_logs() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        engine.append(&stream_id, b"first").expect("append first");
+        engine.append(&stream_id, b"second").expect("append second");
+
+        let status = inspect_local_log(temp_dir.path()).expect("inspect local log");
+        assert!(status.initialized());
+        assert_eq!(status.streams().len(), 1);
+
+        let stream = &status.streams()[0];
+        assert_eq!(stream.descriptor().stream_id.as_str(), "task.root");
+        assert!(matches!(
+            &stream.descriptor().lineage,
+            StreamLineage::Root { .. }
+        ));
+        assert_eq!(stream.next_offset().value(), 2);
+        assert_eq!(stream.active_record_count(), 0);
+        assert_eq!(stream.active_segment_start_offset(), Offset::new(2));
+        assert_eq!(stream.manifest_generation(), 1);
+        assert_eq!(stream.rolled_segment_count(), 1);
+        assert!(stream.published_frontier().is_none());
     }
 
     #[test]
