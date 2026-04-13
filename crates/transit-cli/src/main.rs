@@ -52,26 +52,8 @@ struct Cli {
 enum Commands {
     /// Show a human-readable bootstrap status summary.
     Status(MissionStatusArgs),
-    /// Exercise append, replay, lineage, and crash recovery in one local proof.
-    LocalEngineProof(LocalEngineProofArgs),
-    /// Exercise publication and cold restore through the shared local engine.
-    TieredEngineProof(LocalEngineProofArgs),
-    /// Exercise readiness, lease handoff, and stale-primary fencing for the bounded failover slice.
-    ControlledFailoverProof(LocalEngineProofArgs),
-    /// Exercise automatic leader election and primary fencing after a simulated failure.
-    ChaosFailoverProof(LocalEngineProofArgs),
-    /// Exercise the networked single-node server and its transport boundary end to end.
-    NetworkedServerProof(LocalEngineProofArgs),
-    /// Exercise thin-client producers and readers against a hosted transit-server authority.
-    HostedAuthorityProof(LocalEngineProofArgs),
-    /// Exercise server restart and warm-cache recovery from the authoritative remote tier.
-    WarmCacheRecoveryProof(LocalEngineProofArgs),
-    /// Exercise segment, manifest-root, checkpoint, tamper, and server-parity verification across the integrity proof flow.
-    IntegrityProof(IntegrityProofArgs),
-    /// Exercise checkpoint and resume through the materialization engine.
-    MaterializationProof(MaterializationProofArgs),
-    /// Exercise checkpoint resume and authoritative replay equivalence for reference projections.
-    ReferenceProjectionProof(MaterializationProofArgs),
+    /// Run the human-oriented proof workflows.
+    Proof(ProofArgs),
     /// Explicitly verify the cryptographic integrity of local history.
     VerifyLineage(VerifyLineageArgs),
     /// Create a verifiable checkpoint for a stream head.
@@ -82,6 +64,36 @@ enum Commands {
     Storage(StorageArgs),
     /// Run the shared-engine server daemon.
     Server(ServerArgs),
+}
+
+#[derive(Debug, Args)]
+struct ProofArgs {
+    #[command(subcommand)]
+    command: ProofCommands,
+}
+
+#[derive(Debug, Subcommand)]
+enum ProofCommands {
+    /// Exercise append, replay, lineage, and crash recovery in one local proof.
+    LocalEngine(LocalEngineProofArgs),
+    /// Exercise publication and cold restore through the shared local engine.
+    TieredEngine(LocalEngineProofArgs),
+    /// Exercise readiness, lease handoff, and stale-primary fencing for the bounded failover slice.
+    ControlledFailover(LocalEngineProofArgs),
+    /// Exercise automatic leader election and primary fencing after a simulated failure.
+    ChaosFailover(LocalEngineProofArgs),
+    /// Exercise the networked single-node server and its transport boundary end to end.
+    NetworkedServer(LocalEngineProofArgs),
+    /// Exercise thin-client producers and readers against a hosted transit-server authority.
+    HostedAuthority(LocalEngineProofArgs),
+    /// Exercise server restart and warm-cache recovery from the authoritative remote tier.
+    WarmCacheRecovery(LocalEngineProofArgs),
+    /// Exercise segment, manifest-root, checkpoint, tamper, and server-parity verification across the integrity proof flow.
+    Integrity(IntegrityProofArgs),
+    /// Exercise checkpoint and resume through the materialization engine.
+    Materialization(MaterializationProofArgs),
+    /// Exercise checkpoint resume and authoritative replay equivalence for reference projections.
+    ReferenceProjection(MaterializationProofArgs),
 }
 
 #[derive(Debug, Args)]
@@ -374,46 +386,48 @@ async fn main() -> Result<()> {
         Commands::Status(args) => {
             render_mission_status(collect_mission_status(args.repo_root), args.json)?
         }
-        Commands::LocalEngineProof(args) => render_local_engine_proof(
-            run_local_engine_proof(resolve_local_root(args.root, &config))?,
-            args.json,
-        )?,
-        Commands::TieredEngineProof(args) => render_tiered_engine_proof(
-            run_tiered_engine_proof(resolve_local_root(args.root, &config)).await?,
-            args.json,
-        )?,
-        Commands::ControlledFailoverProof(args) => render_controlled_failover_proof(
-            run_controlled_failover_proof(resolve_local_root(args.root, &config)).await?,
-            args.json,
-        )?,
-        Commands::ChaosFailoverProof(args) => render_chaos_failover_proof(
-            run_chaos_failover_proof(resolve_local_root(args.root, &config)).await?,
-            args.json,
-        )?,
-        Commands::NetworkedServerProof(args) => render_networked_server_proof(
-            run_networked_server_proof(resolve_local_root(args.root, &config))?,
-            args.json,
-        )?,
-        Commands::HostedAuthorityProof(args) => render_hosted_authority_proof(
-            run_hosted_authority_proof(resolve_local_root(args.root, &config))?,
-            args.json,
-        )?,
-        Commands::WarmCacheRecoveryProof(args) => render_warm_cache_recovery_proof(
-            run_warm_cache_recovery_proof(resolve_local_root(args.root, &config)).await?,
-            args.json,
-        )?,
-        Commands::MaterializationProof(args) => render_materialization_proof(
-            run_materialization_proof(resolve_local_root(args.root, &config)).await?,
-            args.json,
-        )?,
-        Commands::ReferenceProjectionProof(args) => render_reference_projection_proof(
-            run_reference_projection_proof(resolve_local_root(args.root, &config)).await?,
-            args.json,
-        )?,
-        Commands::IntegrityProof(args) => render_integrity_proof(
-            run_integrity_proof(resolve_local_root(args.root, &config)).await?,
-            args.json,
-        )?,
+        Commands::Proof(args) => match args.command {
+            ProofCommands::LocalEngine(args) => render_local_engine_proof(
+                run_local_engine_proof(resolve_local_root(args.root, &config))?,
+                args.json,
+            )?,
+            ProofCommands::TieredEngine(args) => render_tiered_engine_proof(
+                run_tiered_engine_proof(resolve_local_root(args.root, &config)).await?,
+                args.json,
+            )?,
+            ProofCommands::ControlledFailover(args) => render_controlled_failover_proof(
+                run_controlled_failover_proof(resolve_local_root(args.root, &config)).await?,
+                args.json,
+            )?,
+            ProofCommands::ChaosFailover(args) => render_chaos_failover_proof(
+                run_chaos_failover_proof(resolve_local_root(args.root, &config)).await?,
+                args.json,
+            )?,
+            ProofCommands::NetworkedServer(args) => render_networked_server_proof(
+                run_networked_server_proof(resolve_local_root(args.root, &config))?,
+                args.json,
+            )?,
+            ProofCommands::HostedAuthority(args) => render_hosted_authority_proof(
+                run_hosted_authority_proof(resolve_local_root(args.root, &config))?,
+                args.json,
+            )?,
+            ProofCommands::WarmCacheRecovery(args) => render_warm_cache_recovery_proof(
+                run_warm_cache_recovery_proof(resolve_local_root(args.root, &config)).await?,
+                args.json,
+            )?,
+            ProofCommands::Integrity(args) => render_integrity_proof(
+                run_integrity_proof(resolve_local_root(args.root, &config)).await?,
+                args.json,
+            )?,
+            ProofCommands::Materialization(args) => render_materialization_proof(
+                run_materialization_proof(resolve_local_root(args.root, &config)).await?,
+                args.json,
+            )?,
+            ProofCommands::ReferenceProjection(args) => render_reference_projection_proof(
+                run_reference_projection_proof(resolve_local_root(args.root, &config)).await?,
+                args.json,
+            )?,
+        },
         Commands::VerifyLineage(args) => render_verify_lineage(
             run_verify_lineage(resolve_local_root(args.root, &config), &args.stream_id)?,
             args.json,
@@ -3945,7 +3959,7 @@ fn render_local_engine_proof(result: LocalEngineProofResult, json: bool) -> Resu
         return Ok(());
     }
 
-    println!("transit local-engine proof");
+    println!("transit proof local-engine");
     println!("root: {}", result.data_root.display());
     println!("durability: {}", result.durability);
     println!(
@@ -4003,7 +4017,7 @@ fn render_integrity_proof(result: IntegrityProofResult, json: bool) -> Result<()
         return Ok(());
     }
 
-    println!("transit integrity-proof");
+    println!("transit proof integrity");
     println!("root: {}", result.data_root.display());
     println!("durability: {}", result.durability);
     println!("stream: {}", result.stream_id);
@@ -4205,7 +4219,7 @@ fn render_materialization_proof(result: MaterializationProofResult, json: bool) 
         return Ok(());
     }
 
-    println!("transit materialization-proof");
+    println!("transit proof materialization");
     println!("root: {}", result.data_root.display());
     println!("durability: {}", result.durability);
     println!("stream: {}", result.stream_id);
@@ -4340,7 +4354,7 @@ fn render_tiered_engine_proof(result: TieredEngineProofResult, json: bool) -> Re
         return Ok(());
     }
 
-    println!("transit tiered-engine proof");
+    println!("transit proof tiered-engine");
     println!("root: {}", result.data_root.display());
     println!("durability: {}", result.durability);
     println!(
@@ -4424,7 +4438,7 @@ fn render_controlled_failover_proof(
         return Ok(());
     }
 
-    println!("transit controlled-failover-proof");
+    println!("transit proof controlled-failover");
     println!("root: {}", result.data_root.display());
     println!("stream: {}", result.stream_id);
     println!(
@@ -4548,7 +4562,7 @@ fn render_chaos_failover_proof(outcome: ChaosFailoverProofResult, json: bool) ->
         return Ok(());
     }
 
-    println!("transit chaos failover proof");
+    println!("transit proof chaos-failover");
     println!("data root: {}", outcome.data_root.display());
     println!("stream:    {}", outcome.stream_id);
 
@@ -4598,7 +4612,7 @@ fn render_networked_server_proof(result: NetworkedServerProofResult, json: bool)
         return Ok(());
     }
 
-    println!("transit networked-server proof");
+    println!("transit proof networked-server");
     println!("root: {}", result.data_root.display());
     println!("server: {}", result.server_addr);
     println!("durability: {}", result.durability);
@@ -4672,7 +4686,7 @@ fn render_reference_projection_proof(
         return Ok(());
     }
 
-    println!("transit reference-projection-proof");
+    println!("transit proof reference-projection");
     println!("root: {}", result.data_root.display());
     println!("durability: {}", result.durability);
     println!("stream: {}", result.stream_id);
@@ -4781,7 +4795,7 @@ fn render_hosted_authority_proof(result: HostedAuthorityProofResult, json: bool)
         return Ok(());
     }
 
-    println!("transit hosted-authority proof");
+    println!("transit proof hosted-authority");
     println!("root: {}", result.data_root.display());
     println!("server: {}", result.server_addr);
     println!("durability: {}", result.durability);
@@ -4853,7 +4867,7 @@ fn render_warm_cache_recovery_proof(
         return Ok(());
     }
 
-    println!("transit warm-cache-recovery proof");
+    println!("transit proof warm-cache-recovery");
     println!("root: {}", result.data_root.display());
     println!("stream: {}", result.stream_id);
     println!("local write durability: {}", result.local_write_durability);
@@ -5186,14 +5200,15 @@ mod tests {
     }
 
     #[test]
-    fn cli_promotes_status_and_proofs_to_top_level_commands() {
+    fn cli_promotes_status_and_proofs_to_their_new_namespaces() {
         let cli = Cli::try_parse_from(["transit", "status", "--repo-root", "."])
             .expect("parse top-level status command");
         assert!(matches!(cli.command, Commands::Status(_)));
 
-        let cli = Cli::try_parse_from(["transit", "local-engine-proof", "--root", "target/demo"])
-            .expect("parse top-level proof command");
-        assert!(matches!(cli.command, Commands::LocalEngineProof(_)));
+        let cli =
+            Cli::try_parse_from(["transit", "proof", "local-engine", "--root", "target/demo"])
+                .expect("parse proof command");
+        assert!(matches!(cli.command, Commands::Proof(_)));
 
         let cli = Cli::try_parse_from(["transit", "storage", "probe"])
             .expect("parse storage probe command");
@@ -5201,7 +5216,7 @@ mod tests {
     }
 
     #[test]
-    fn cli_rejects_removed_mission_wrapper_and_object_store_probe() {
+    fn cli_rejects_removed_mission_wrapper_old_probe_and_old_top_level_proofs() {
         let error = Cli::try_parse_from(["transit", "mission", "status", "--repo-root", "."])
             .expect_err("mission wrapper should be rejected");
 
@@ -5218,6 +5233,15 @@ mod tests {
             error
                 .to_string()
                 .contains("unrecognized subcommand 'object-store'")
+        );
+
+        let error = Cli::try_parse_from(["transit", "local-engine-proof", "--root", "target/demo"])
+            .expect_err("old top-level proof command should be rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("unrecognized subcommand 'local-engine-proof'")
         );
     }
 

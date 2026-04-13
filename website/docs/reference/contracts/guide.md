@@ -242,14 +242,14 @@ The current bootstrap developer loop is:
 1. enter `nix develop`
 2. run `just screen`
 3. use `transit.toml.example` as the starter contract for local config, then rely on `./transit.toml` or `transit --config <path> ...` when you want the CLI to resolve defaults through the file-based surface
-4. use `just transit local-engine-proof --root target/transit-mission/local-engine` when you want the explicit durable-engine proof without the rest of the mission flow
-5. use `just transit tiered-engine-proof --root target/transit-mission/tiered-engine` when you want the explicit publication and restore proof
-6. use `just transit warm-cache-recovery-proof --root target/transit-mission/warm-cache-recovery` when you want the explicit hosted restart and cache-loss recovery proof that distinguishes `local` writes from `tiered` authority recovery
-7. use `just transit controlled-failover-proof --root target/transit-mission/controlled-failover` when you want the bounded failover proof for readiness, lease handoff, former-primary fencing, and the explicit non-claims around `local`, `replicated`, `tiered`, quorum, and multi-primary behavior
-8. use `just transit networked-server-proof --root target/transit-mission/networked-server` when you want the explicit live server proof, including the transport-boundary note
-9. use `just transit integrity-proof --root target/transit-mission/integrity` when you want the explicit checksum, manifest-root, restore, checkpoint, tamper-detection, and server-parity proof
-10. use `just transit materialization-proof --root target/transit-mission/materialization` when you want the explicit checkpoint, resume, root snapshot, and branch-aware snapshot proof
-11. use `just transit reference-projection-proof --root target/transit-mission/reference-projection` when you want the explicit proof that checkpoint resume and authoritative replay converge on the same reference views anchored to shared lineage checkpoints
+4. use `just transit proof local-engine --root target/transit-mission/local-engine` when you want the explicit durable-engine proof without the rest of the mission flow
+5. use `just transit proof tiered-engine --root target/transit-mission/tiered-engine` when you want the explicit publication and restore proof
+6. use `just transit proof warm-cache-recovery --root target/transit-mission/warm-cache-recovery` when you want the explicit hosted restart and cache-loss recovery proof that distinguishes `local` writes from `tiered` authority recovery
+7. use `just transit proof controlled-failover --root target/transit-mission/controlled-failover` when you want the bounded failover proof for readiness, lease handoff, former-primary fencing, and the explicit non-claims around `local`, `replicated`, `tiered`, quorum, and multi-primary behavior
+8. use `just transit proof networked-server --root target/transit-mission/networked-server` when you want the explicit live server proof, including the transport-boundary note
+9. use `just transit proof integrity --root target/transit-mission/integrity` when you want the explicit checksum, manifest-root, restore, checkpoint, tamper-detection, and server-parity proof
+10. use `just transit proof materialization --root target/transit-mission/materialization` when you want the explicit checkpoint, resume, root snapshot, and branch-aware snapshot proof
+11. use `just transit proof reference-projection --root target/transit-mission/reference-projection` when you want the explicit proof that checkpoint resume and authoritative replay converge on the same reference views anchored to shared lineage checkpoints
 12. use `just transit --config target/transit-mission/storage-probe.toml storage probe` when you want the current effective storage guarantee verified through the config surface instead of an ad hoc root flag
 13. use `just rust-client-proof` when you want the native Rust client proof that starts a local server and exercises create_root, append, read, tail, branch, merge, and lineage end-to-end
 14. use `just transit server run --root target/transit-mission/server --listen-addr 127.0.0.1:0 --serve-for-ms 100` when you want to exercise the first shared-engine daemon bootstrap, or omit `--root` and `--listen-addr` when those defaults already live in `transit.toml`
