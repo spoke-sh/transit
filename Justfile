@@ -20,7 +20,7 @@ screen:
         cd "$repo_root"
 
         rm -rf "$screen_root"
-        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/tiered-engine" "$screen_root/controlled-failover" "$screen_root/chaos-failover" "$screen_root/networked-server"
+        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/tiered-engine" "$screen_root/warm-cache-recovery" "$screen_root/controlled-failover" "$screen_root/chaos-failover" "$screen_root/networked-server"
 
         announce "Build workspace"
         just build
@@ -28,6 +28,8 @@ screen:
         just run mission local-engine-proof --root "$screen_root/local-engine"
         announce "Prove tiered engine"
         just run mission tiered-engine-proof --root "$screen_root/tiered-engine"
+        announce "Prove warm-cache recovery"
+        just run mission warm-cache-recovery-proof --root "$screen_root/warm-cache-recovery"
         announce "Prove controlled failover"
         just run mission controlled-failover-proof --root "$screen_root/controlled-failover"
         announce "Prove chaos failover"

@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T13:03:13.173858429-07:00
+mode: manual
+---
+The warm-cache-recovery proof prints local write durability separately from authoritative tiered recovery durability and includes an explicit local non-claim so operators can see the recovery result is not merely filesystem-local. Verified with nix develop --command just screen and cargo test -p transit-cli warm_cache_recovery_proof -- --nocapture.

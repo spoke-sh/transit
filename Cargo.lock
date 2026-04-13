@@ -1147,6 +1147,7 @@ dependencies = [
  "transit-client",
  "transit-core",
  "transit-materialize",
+ "transit-server",
 ]
 
 [[package]]

@@ -26,6 +26,7 @@ use transit_materialize::prolly::{
     LeafEntry, ObjectStoreProllyStore, ProllyTreeBuilder, SnapshotManifest,
 };
 use transit_materialize::{MaterializationCheckpoint, Reducer};
+use transit_server::bind_read_only_replica_from_frontier;
 
 #[derive(Debug, Parser)]
 #[command(name = "transit")]
@@ -71,6 +72,8 @@ enum MissionCommands {
     NetworkedServerProof(LocalEngineProofArgs),
     /// Exercise thin-client producers and readers against a hosted transit-server authority.
     HostedAuthorityProof(LocalEngineProofArgs),
+    /// Exercise server restart and warm-cache recovery from the authoritative remote tier.
+    WarmCacheRecoveryProof(LocalEngineProofArgs),
     /// Exercise segment, manifest-root, checkpoint, tamper, and server-parity verification across the integrity proof flow.
     IntegrityProof(IntegrityProofArgs),
     /// Exercise checkpoint and resume through the materialization engine.
@@ -395,6 +398,10 @@ async fn main() -> Result<()> {
             MissionCommands::HostedAuthorityProof(args) => {
                 render_hosted_authority_proof(run_hosted_authority_proof(args.root)?, args.json)?
             }
+            MissionCommands::WarmCacheRecoveryProof(args) => render_warm_cache_recovery_proof(
+                run_warm_cache_recovery_proof(args.root).await?,
+                args.json,
+            )?,
             MissionCommands::MaterializationProof(args) => render_materialization_proof(
                 run_materialization_proof(args.root).await?,
                 args.json,
@@ -926,6 +933,33 @@ struct HostedAuthorityProofResult {
     embedded_authority_used: bool,
     accepted_connections: u64,
     graceful_shutdown: bool,
+    server_api: &'static str,
+    remote_api: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct WarmCacheRecoveryHydrationResult {
+    server_addr: String,
+    bootstrapped: bool,
+    restored_segment_ids: Vec<String>,
+    replay: RemoteReadResult,
+    accepted_connections: u64,
+    graceful_shutdown: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct WarmCacheRecoveryProofResult {
+    data_root: PathBuf,
+    stream_id: String,
+    local_write_durability: String,
+    authoritative_recovery_durability: String,
+    published_frontier: PublishedFrontierResult,
+    warm_cache_removed: bool,
+    initial_hydrate: WarmCacheRecoveryHydrationResult,
+    restart_hydrate: WarmCacheRecoveryHydrationResult,
+    restored_history_matches: bool,
+    local_non_claim: &'static str,
+    authoritative_source: &'static str,
     server_api: &'static str,
     remote_api: &'static str,
 }
@@ -1584,6 +1618,131 @@ fn run_hosted_authority_proof(root: PathBuf) -> Result<HostedAuthorityProofResul
         graceful_shutdown: shutdown.graceful_shutdown,
         server_api: shutdown.server_api,
         remote_api: "TransitClient",
+    })
+}
+
+async fn run_warm_cache_recovery_proof(root: PathBuf) -> Result<WarmCacheRecoveryProofResult> {
+    reset_directory(&root)?;
+
+    let authority_root = root.join("authority");
+    let server_root = root.join("server");
+    let object_store_root = root.join("object-store");
+    fs::create_dir_all(&object_store_root)
+        .with_context(|| format!("create object store root {}", object_store_root.display()))?;
+
+    let authority = LocalEngine::open(
+        LocalEngineConfig::new(&authority_root, NodeId::new("cli-node"))
+            .with_segment_max_records(2)
+            .context("warm cache recovery config")?,
+    )
+    .context("open warm cache authority engine")?;
+    let store = LocalFileSystem::new_with_prefix(&object_store_root)
+        .with_context(|| format!("open local object store at {}", object_store_root.display()))?;
+    let stream_id = StreamId::new("server.recovery.root")?;
+
+    authority.create_stream(StreamDescriptor::root(
+        stream_id.clone(),
+        LineageMetadata::new(
+            Some("mission".into()),
+            Some("warm-cache-recovery-proof".into()),
+        ),
+    ))?;
+    let local_write = authority.append(&stream_id, b"first")?;
+    for payload in ["second", "third", "fourth"] {
+        authority.append(&stream_id, payload.as_bytes())?;
+    }
+    authority
+        .publish_rolled_segments(&stream_id, &store, "warm-cache-recovery")
+        .await?;
+    let frontier = authority
+        .published_replication_frontier(&stream_id)?
+        .context("warm cache recovery proof requires a published frontier")?;
+    let source_payloads = authority
+        .replay(&stream_id)?
+        .into_iter()
+        .map(|record| String::from_utf8_lossy(record.payload()).into_owned())
+        .collect::<Vec<_>>();
+
+    let replica_config =
+        LocalEngineConfig::new(&server_root, NodeId::new("server-replica")).as_read_only_replica();
+    let initial_hydrate =
+        hydrate_server_from_frontier(&replica_config, &store, &frontier, &stream_id).await?;
+    fs::remove_dir_all(&server_root)
+        .with_context(|| format!("remove warm cache root {}", server_root.display()))?;
+    let restart_hydrate =
+        hydrate_server_from_frontier(&replica_config, &store, &frontier, &stream_id).await?;
+
+    let restored_history_matches = initial_hydrate
+        .replay
+        .records
+        .iter()
+        .map(|record| record.payload_text.as_str())
+        .eq(source_payloads.iter().map(String::as_str))
+        && restart_hydrate
+            .replay
+            .records
+            .iter()
+            .map(|record| record.payload_text.as_str())
+            .eq(source_payloads.iter().map(String::as_str));
+
+    Ok(WarmCacheRecoveryProofResult {
+        data_root: root,
+        stream_id: stream_id.as_str().to_owned(),
+        local_write_durability: local_write.durability().as_str().to_owned(),
+        authoritative_recovery_durability: "tiered".to_owned(),
+        published_frontier: summarize_published_frontier(&frontier),
+        warm_cache_removed: true,
+        initial_hydrate,
+        restart_hydrate,
+        restored_history_matches,
+        local_non_claim: "local append acknowledgement does not by itself claim remote-tier safety; recovery depends on the published frontier in object-store authority",
+        authoritative_source: "published manifest and segment objects in the shared object-store tier",
+        server_api: "transit_server::bind_read_only_replica_from_frontier",
+        remote_api: "RemoteClient",
+    })
+}
+
+async fn hydrate_server_from_frontier(
+    config: &LocalEngineConfig,
+    store: &LocalFileSystem,
+    frontier: &transit_core::engine::LocalPublishedReplicationFrontier,
+    stream_id: &StreamId,
+) -> Result<WarmCacheRecoveryHydrationResult> {
+    let requested_listen_addr = "127.0.0.1:0"
+        .parse::<SocketAddr>()
+        .context("parse warm cache recovery listen addr")?;
+    let (server, sync) = bind_read_only_replica_from_frontier(
+        config.clone(),
+        requested_listen_addr,
+        store,
+        frontier,
+    )
+    .await
+    .context("bind hydrated warm cache recovery server")?;
+    let server_addr = server.local_addr();
+    let replay = run_remote_read(ServerReadArgs {
+        server_addr,
+        stream_id: stream_id.as_str().to_owned(),
+        json: false,
+    })?;
+    let shutdown = summarize_server_shutdown(
+        requested_listen_addr,
+        server
+            .shutdown()
+            .context("shutdown warm cache recovery server")?,
+    )?;
+
+    Ok(WarmCacheRecoveryHydrationResult {
+        server_addr: server_addr.to_string(),
+        bootstrapped: sync.bootstrapped(),
+        restored_segment_ids: sync
+            .restored_segment_ids()
+            .iter()
+            .map(|segment_id| segment_id.as_str().to_owned())
+            .collect(),
+        replay,
+        accepted_connections: shutdown.accepted_connections,
+        graceful_shutdown: shutdown.graceful_shutdown,
     })
 }
 
@@ -4262,6 +4421,73 @@ fn render_hosted_authority_proof(result: HostedAuthorityProofResult, json: bool)
     Ok(())
 }
 
+fn render_warm_cache_recovery_proof(
+    result: WarmCacheRecoveryProofResult,
+    json: bool,
+) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit warm-cache-recovery proof");
+    println!("root: {}", result.data_root.display());
+    println!("stream: {}", result.stream_id);
+    println!("local write durability: {}", result.local_write_durability);
+    println!(
+        "authoritative recovery durability: {}",
+        result.authoritative_recovery_durability
+    );
+    println!(
+        "published frontier: manifest {} generation {} next {}",
+        result.published_frontier.manifest_id,
+        result.published_frontier.manifest_generation,
+        result.published_frontier.next_offset
+    );
+    println!(
+        "initial hydrate: bootstrapped {}, restored {} segments, replayed {} records",
+        if result.initial_hydrate.bootstrapped {
+            "yes"
+        } else {
+            "no"
+        },
+        result.initial_hydrate.restored_segment_ids.len(),
+        result.initial_hydrate.replay.record_count
+    );
+    println!(
+        "warm cache removed: {}",
+        if result.warm_cache_removed {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    println!(
+        "restart hydrate: bootstrapped {}, restored {} segments, replayed {} records",
+        if result.restart_hydrate.bootstrapped {
+            "yes"
+        } else {
+            "no"
+        },
+        result.restart_hydrate.restored_segment_ids.len(),
+        result.restart_hydrate.replay.record_count
+    );
+    println!(
+        "restored history matches authoritative replay: {}",
+        if result.restored_history_matches {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    println!("authoritative source: {}", result.authoritative_source);
+    println!("local non-claim: {}", result.local_non_claim);
+    println!("server api: {}", result.server_api);
+    println!("remote api: {}", result.remote_api);
+
+    Ok(())
+}
+
 fn summarize_server_shutdown(
     requested_listen_addr: SocketAddr,
     outcome: ServerShutdownOutcome,
@@ -5211,6 +5437,70 @@ mod tests {
                 .and_then(serde_json::Value::as_str)
                 .expect("tiered non-claim string")
                 .contains("remote tier")
+        );
+    }
+
+    #[tokio::test]
+    async fn warm_cache_recovery_proof_demonstrates_restart_from_authoritative_remote_tier() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_warm_cache_recovery_proof(temp_dir.path().join("warm-cache-recovery"))
+            .await
+            .expect("warm cache recovery proof");
+
+        assert_eq!(proof.stream_id, "server.recovery.root");
+        assert_eq!(proof.local_write_durability, "local");
+        assert_eq!(proof.authoritative_recovery_durability, "tiered");
+        assert_eq!(proof.published_frontier.next_offset, 4);
+        assert!(proof.warm_cache_removed);
+        assert!(proof.initial_hydrate.bootstrapped);
+        assert!(proof.restart_hydrate.bootstrapped);
+        assert_eq!(proof.initial_hydrate.replay.record_count, 4);
+        assert_eq!(proof.restart_hydrate.replay.record_count, 4);
+        assert!(proof.restored_history_matches);
+        assert_eq!(
+            proof.server_api,
+            "transit_server::bind_read_only_replica_from_frontier"
+        );
+    }
+
+    #[tokio::test]
+    async fn warm_cache_recovery_proof_results_serialize_cleanly_for_mission_scripts() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_warm_cache_recovery_proof(temp_dir.path().join("warm-cache-recovery-json"))
+            .await
+            .expect("warm cache recovery proof");
+        let proof_json =
+            serde_json::to_value(&proof).expect("serialize warm cache recovery proof result");
+
+        assert_eq!(
+            proof_json
+                .get("local_write_durability")
+                .and_then(serde_json::Value::as_str),
+            Some("local")
+        );
+        assert_eq!(
+            proof_json
+                .get("authoritative_recovery_durability")
+                .and_then(serde_json::Value::as_str),
+            Some("tiered")
+        );
+        assert_eq!(
+            proof_json
+                .get("warm_cache_removed")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["restart_hydrate"]
+                .get("bootstrapped")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json
+                .get("restored_history_matches")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
         );
     }
 

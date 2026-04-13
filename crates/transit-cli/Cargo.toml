@@ -22,6 +22,7 @@ textplots.workspace = true
 transit-client = { path = "../transit-client" }
 transit-core = { path = "../transit-core" }
 transit-materialize = { path = "../transit-materialize" }
+transit-server = { path = "../transit-server" }
 
 [dev-dependencies]
 tempfile.workspace = true

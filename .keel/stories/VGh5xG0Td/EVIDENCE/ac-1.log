@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T13:03:13.154776422-07:00
+mode: manual
+---
+Added a warm-cache-recovery mission proof to transit-cli, wired it into just screen, and verified the full human proof path with nix develop --command just screen. The output now demonstrates tiered publication, hydrate bootstrap, deliberate warm-cache removal, restart, and replay from authoritative object-store history.
