@@ -27,11 +27,11 @@ started_at: 2026-04-13T12:54:28
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Define Object-Store Authority And Warm-Cache Configuration Surface](../../../../stories/VGh5uL5xM/README.md) | feat | done |
-| [Hydrate Transit Server From Object-Store Authority When Warm Cache Is Missing](../../../../stories/VGh5wGFJz/README.md) | feat | backlog |
+| [Hydrate Transit Server From Object-Store Authority When Warm Cache Is Missing](../../../../stories/VGh5wGFJz/README.md) | feat | done |
 | [Prove Hosted Restart And Warm-Cache Recovery Through Just Screen](../../../../stories/VGh5xG0Td/README.md) | feat | backlog |
 <!-- END GENERATED -->

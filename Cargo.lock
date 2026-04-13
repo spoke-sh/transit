@@ -1193,6 +1193,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "transit-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "object_store",
+ "tempfile",
+ "tokio",
+ "transit-core",
+]
+
+[[package]]
 name = "typenum"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

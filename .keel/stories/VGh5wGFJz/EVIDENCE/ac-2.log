@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T12:58:42.406338408-07:00
+mode: manual
+---
+The transit-server hydrate tests delete the replica root after initial hydration and prove the rehydrated server still replays the acknowledged tiered history from object-store authority. Verified with cargo test -p transit-server hydrate_from_object_store_ -- --nocapture.

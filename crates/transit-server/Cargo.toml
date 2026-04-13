@@ -1,0 +1,19 @@
+[package]
+name = "transit-server"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+object_store.workspace = true
+transit-core = { path = "../transit-core" }
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio.workspace = true

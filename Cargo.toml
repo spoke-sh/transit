@@ -3,6 +3,7 @@ members = [
     "crates/transit-cli",
     "crates/transit-client",
     "crates/transit-core",
+    "crates/transit-server",
     "crates/transit-materialize",
 ]
 resolver = "2"

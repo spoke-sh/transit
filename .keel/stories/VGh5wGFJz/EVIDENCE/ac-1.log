@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-13T12:58:42.394916064-07:00
+mode: manual
+---
+Added a transit-server crate with a bind_read_only_replica_from_frontier helper that hydrates a server root from an authoritative published object-store frontier before binding the remote server. Verified with cargo test -p transit-server hydrate_from_object_store_ -- --nocapture.
