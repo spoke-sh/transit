@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T12:00:26-07:00
+mode: manual
+---
+Aligned probe vocabulary with the hosted runtime contract by making the probe report the authored durability separately from the guarantee it can actually verify, and by using the same local-versus-tiered wording already enforced by the hosted acknowledgement and proof surfaces. Verified the synced contract output with `just docs-sync` and `just docs-build`.

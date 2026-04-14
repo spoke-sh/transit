@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T12:00:26-07:00
+mode: manual
+---
+Reshaped `transit storage probe` so hosted/tiered configs no longer fail on the old local-only gate. The probe now validates local working directories plus the authored object-store authority bootstrap path, then reports the truthful `guarantee` and `non_claim` surface for the current runtime posture. Verified with `cargo test -p transit-core storage_probe_ -- --nocapture` and `cargo run -q -p transit-cli -- --config <temp>/transit.toml storage probe --json`, which returned `durability = "tiered"`, `guarantee = "local"`, and a hosted object-store non-claim instead of an error.

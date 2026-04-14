@@ -5770,10 +5770,23 @@ fn render_storage_probe(result: StorageProbeResult, json: bool) -> Result<()> {
     println!("durability: {}", result.durability);
     println!("data dir: {}", result.data_dir.display());
     println!("cache dir: {}", result.cache_dir.display());
-    println!("object store root: {}", result.object_store_root.display());
+    println!("authority: {}", result.authority);
     println!("object prefix: {}", result.object_prefix);
-    println!("object: {}", result.object_path);
-    println!("bytes written: {}", result.bytes_written);
+    println!("authority check: {}", result.authority_check);
+    println!(
+        "authority bootstrap: {}",
+        if result.authority_ready {
+            "ok"
+        } else {
+            "failed"
+        }
+    );
+    if let Some(object_path) = &result.object_path {
+        println!("object: {object_path}");
+    }
+    if let Some(bytes_written) = result.bytes_written {
+        println!("bytes written: {bytes_written}");
+    }
     println!(
         "data dir probe: {}",
         if result.data_dir_ready {
@@ -5790,14 +5803,15 @@ fn render_storage_probe(result: StorageProbeResult, json: bool) -> Result<()> {
             "failed"
         }
     );
-    println!(
-        "round trip: {}",
-        if result.round_trip_ok { "ok" } else { "failed" }
-    );
-    println!(
-        "cleanup: {}",
-        if result.cleanup_ok { "ok" } else { "failed" }
-    );
+    if let Some(round_trip_ok) = result.round_trip_ok {
+        println!(
+            "round trip: {}",
+            if round_trip_ok { "ok" } else { "failed" }
+        );
+    }
+    if let Some(cleanup_ok) = result.cleanup_ok {
+        println!("cleanup: {}", if cleanup_ok { "ok" } else { "failed" });
+    }
     println!("guarantee: {}", result.guarantee);
     println!("non-claim: {}", result.non_claim);
 

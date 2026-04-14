@@ -283,8 +283,9 @@ The current runtime still enforces only the `local` guarantee class from
 configuration:
 
 - `transit storage probe` verifies `[node].data_dir`, `[node].cache_dir`, and
-  the configured filesystem object-store root, then reports the effective
-  `local` guarantee and its explicit non-claim
+  the authored object-store authority bootstrap path, then reports the
+  effective guarantee plus an explicit non-claim when hosted/tiered semantics
+  are configured but not yet part of the acknowledgement contract
 - `transit server run` validates the authored object-store provider during
   startup and binds the shared hosted server path without rewriting
   `transit.toml` back to `local`

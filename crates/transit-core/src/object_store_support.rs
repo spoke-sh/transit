@@ -124,43 +124,57 @@ pub struct StorageProbeResult {
     pub durability: String,
     pub data_dir: PathBuf,
     pub cache_dir: PathBuf,
-    pub object_store_root: PathBuf,
+    pub authority: String,
     pub object_prefix: String,
-    pub object_path: String,
-    pub bytes_written: usize,
+    pub authority_check: String,
+    pub authority_ready: bool,
+    pub object_path: Option<String>,
+    pub bytes_written: Option<usize>,
     pub data_dir_ready: bool,
     pub cache_dir_ready: bool,
-    pub round_trip_ok: bool,
-    pub cleanup_ok: bool,
+    pub round_trip_ok: Option<bool>,
+    pub cleanup_ok: Option<bool>,
     pub guarantee: String,
     pub non_claim: String,
 }
 
 pub async fn probe_effective_storage(loaded: &LoadedTransitConfig) -> Result<StorageProbeResult> {
     let config = loaded.config();
-
-    ensure!(
-        config.storage.provider == StorageProvider::Filesystem,
-        "transit storage probe currently supports only the filesystem provider; effective config provider is '{}'",
-        config.storage.provider.as_str()
-    );
-    ensure!(
-        config.storage.durability == StorageDurability::Local,
-        "transit storage probe can only verify 'local' durability today; effective config durability is '{}'",
-        config.storage.durability.as_str()
-    );
-
     let data_dir = config.node.data_dir.clone();
     probe_local_directory(&data_dir, "data").await?;
 
     let cache_dir = config.node.cache_dir.clone();
     probe_local_directory(&cache_dir, "cache").await?;
 
-    let object_store_root = config
-        .filesystem_object_store_root()
-        .context("filesystem storage probe requires [storage].bucket to be set")?;
-    let object_store_result =
-        probe_local_filesystem_store(&object_store_root, &config.storage.prefix).await?;
+    let authority = authority_description(config)?;
+    let (authority_check, object_path, bytes_written, round_trip_ok, cleanup_ok) =
+        match config.storage.provider {
+            StorageProvider::Filesystem => {
+                let object_store_root = config
+                    .filesystem_object_store_root()
+                    .context("filesystem storage probe requires [storage].bucket to be set")?;
+                let object_store_result =
+                    probe_local_filesystem_store(&object_store_root, &config.storage.prefix)
+                        .await?;
+                (
+                    "filesystem_round_trip".to_owned(),
+                    Some(object_store_result.object_path),
+                    Some(object_store_result.bytes_written),
+                    Some(object_store_result.round_trip_ok),
+                    Some(object_store_result.cleanup_ok),
+                )
+            }
+            _ => {
+                let _authority_store =
+                    build_loaded_runtime_object_store(loaded).with_context(|| {
+                        format!(
+                            "resolve {} object-store authority for transit storage probe",
+                            config.storage.provider.as_str()
+                        )
+                    })?;
+                ("provider_bootstrap".to_owned(), None, None, None, None)
+            }
+        };
 
     Ok(StorageProbeResult {
         config_sources: loaded.sources().to_vec(),
@@ -170,17 +184,96 @@ pub async fn probe_effective_storage(loaded: &LoadedTransitConfig) -> Result<Sto
         durability: config.storage.durability.as_str().to_owned(),
         data_dir,
         cache_dir,
-        object_store_root,
+        authority,
         object_prefix: config.storage.prefix.clone(),
-        object_path: object_store_result.object_path,
-        bytes_written: object_store_result.bytes_written,
+        authority_check,
+        authority_ready: true,
+        object_path,
+        bytes_written,
         data_dir_ready: true,
         cache_dir_ready: true,
-        round_trip_ok: object_store_result.round_trip_ok,
-        cleanup_ok: object_store_result.cleanup_ok,
-        guarantee: "local".to_owned(),
-        non_claim: "the current runtime verifies writable local durability only; it does not claim remote-tier acknowledgement from transit.toml".to_owned(),
+        round_trip_ok,
+        cleanup_ok,
+        guarantee: truthful_probe_guarantee(config).to_owned(),
+        non_claim: truthful_probe_non_claim(config),
     })
+}
+
+fn authority_description(config: &TransitConfig) -> Result<String> {
+    let prefix = normalized_prefix(&config.storage.prefix);
+
+    match config.storage.provider {
+        StorageProvider::Filesystem => Ok(required_filesystem_root(config)?.display().to_string()),
+        StorageProvider::S3 => {
+            let bucket = required_storage_value(
+                &config.storage.bucket,
+                "s3",
+                "[storage].bucket",
+                "name the backing bucket",
+            )?;
+            Ok(match prefix.as_deref() {
+                Some(prefix) => format!("s3://{bucket}/{prefix}"),
+                None => format!("s3://{bucket}"),
+            })
+        }
+        StorageProvider::Gcs => {
+            let bucket = required_storage_value(
+                &config.storage.bucket,
+                "gcs",
+                "[storage].bucket",
+                "name the backing bucket",
+            )?;
+            Ok(match prefix.as_deref() {
+                Some(prefix) => format!("gs://{bucket}/{prefix}"),
+                None => format!("gs://{bucket}"),
+            })
+        }
+        StorageProvider::Azure => {
+            let container = required_storage_value(
+                &config.storage.bucket,
+                "azure",
+                "[storage].bucket",
+                "name the backing container",
+            )?;
+            Ok(match prefix.as_deref() {
+                Some(prefix) => format!("azure://{container}/{prefix}"),
+                None => format!("azure://{container}"),
+            })
+        }
+    }
+}
+
+fn truthful_probe_guarantee(config: &TransitConfig) -> &'static str {
+    match config.storage.durability {
+        StorageDurability::Local => "local",
+        StorageDurability::Replicated | StorageDurability::Tiered | StorageDurability::Quorum => {
+            "local"
+        }
+        StorageDurability::Memory => "memory",
+    }
+}
+
+fn truthful_probe_non_claim(config: &TransitConfig) -> String {
+    match (config.storage.provider, config.storage.durability) {
+        (StorageProvider::Filesystem, StorageDurability::Local) => {
+            "the current runtime verifies writable local durability only; it does not claim remote-tier acknowledgement from transit.toml".to_owned()
+        }
+        (_, StorageDurability::Tiered) => {
+            "the current probe validates local working directories and hosted object-store bootstrap only; it does not claim remote-tier acknowledgement until append or recovery paths actually reach the authoritative object-store boundary".to_owned()
+        }
+        (_, StorageDurability::Replicated) => {
+            "the current probe validates local working directories and authored provider bootstrap only; it does not claim replicated acknowledgement until the shared publication path is part of the response contract".to_owned()
+        }
+        (_, StorageDurability::Quorum) => {
+            "the current probe validates local working directories and authored provider bootstrap only; it does not claim quorum acknowledgement until peer majority participation is part of the response contract".to_owned()
+        }
+        (_, StorageDurability::Memory) => {
+            "the current probe validates bootstrap posture only; it does not claim durable acknowledgement beyond the configured in-memory test mode".to_owned()
+        }
+        (_, StorageDurability::Local) => {
+            "the current probe validates local working directories and authored provider bootstrap; it does not claim any stronger hosted acknowledgement than local durability".to_owned()
+        }
+    }
 }
 
 fn required_filesystem_root(config: &TransitConfig) -> Result<PathBuf> {
@@ -408,29 +501,48 @@ mod tests {
         assert_eq!(result.durability, "local");
         assert!(result.data_dir_ready);
         assert!(result.cache_dir_ready);
-        assert!(result.round_trip_ok);
-        assert!(result.cleanup_ok);
-        assert_eq!(result.object_path, "dev-a/mission/bootstrap/probe.txt");
+        assert_eq!(
+            result.authority,
+            temp_dir.path().join("objects").display().to_string()
+        );
+        assert_eq!(result.authority_check, "filesystem_round_trip");
+        assert!(result.authority_ready);
+        assert_eq!(result.round_trip_ok, Some(true));
+        assert_eq!(result.cleanup_ok, Some(true));
+        assert_eq!(
+            result.object_path.as_deref(),
+            Some("dev-a/mission/bootstrap/probe.txt")
+        );
     }
 
     #[tokio::test]
-    async fn storage_probe_rejects_non_local_durability_claims() {
+    async fn storage_probe_reports_tiered_filesystem_posture_without_claiming_remote_ack() {
         let temp_dir = tempdir().expect("temp dir");
         let mut config = TransitConfig::default();
         config.node.data_dir = temp_dir.path().join("data");
         config.node.cache_dir = temp_dir.path().join("cache");
         config.storage.bucket = temp_dir.path().join("objects").display().to_string();
+        config.storage.prefix = "hosted/runtime".to_owned();
         config.storage.durability = StorageDurability::Tiered;
         let loaded = LoadedTransitConfig::new(config, Vec::new());
 
-        let error = probe_effective_storage(&loaded)
+        let result = probe_effective_storage(&loaded)
             .await
-            .expect_err("tiered storage should not be accepted");
+            .expect("probe hosted tiered filesystem posture");
 
+        assert_eq!(result.provider, "filesystem");
+        assert_eq!(result.durability, "tiered");
+        assert_eq!(result.guarantee, "local");
+        assert_eq!(result.authority_check, "filesystem_round_trip");
+        assert!(result.authority_ready);
+        assert_eq!(
+            result.object_path.as_deref(),
+            Some("hosted/runtime/mission/bootstrap/probe.txt")
+        );
         assert!(
-            error
-                .to_string()
-                .contains("can only verify 'local' durability")
+            result
+                .non_claim
+                .contains("does not claim remote-tier acknowledgement")
         );
     }
 }
