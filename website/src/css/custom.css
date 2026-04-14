@@ -144,6 +144,11 @@ body {
 
 .main-wrapper {
   background: transparent;
+  padding-top: var(--ifm-navbar-height);
+}
+
+.theme-layout-main {
+  padding-top: var(--ifm-navbar-height);
 }
 
 .navbar {
