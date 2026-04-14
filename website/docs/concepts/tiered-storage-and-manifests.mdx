@@ -16,6 +16,12 @@ The remote tier is where immutable history can live beyond the current local pro
 
 Transit wants both layers to be explicit.
 
+The short version:
+
+- the **local head** is where low-latency appends and fresh replay happen
+- the **remote tier** is where colder immutable history lives beyond one process or node
+- the **manifest** is the contract that tells Transit how those two layers fit together
+
 ## Why Segments Matter
 
 Transit rolls immutable segments instead of pretending the whole log is one shapeless blob.
@@ -40,6 +46,30 @@ It tells Transit:
 
 Without the manifest, the segments are just carriages in a yard with no timetable.
 
+## The History Lifecycle
+
+In the current product shape, history moves through these stages:
+
+1. records append to the active local segment
+2. the segment rolls into an immutable unit
+3. integrity metadata seals that immutable unit
+4. the manifest publishes the current immutable frontier
+5. restore, warm-cache recovery, materialization, and failover read from that published history
+
+That is why manifests sit in the middle of so many Transit features. They are the shared contract across storage, integrity, recovery, and derived-state work.
+
+## What `transit storage probe` Verifies
+
+`transit storage probe` is not a general cloud-storage certification command.
+
+Today it verifies the effective Transit configuration for the current local/filesystem runtime shape:
+
+- the local data directory
+- the local cache directory
+- the configured filesystem-backed object-store root
+
+It then reports the guarantee it can literally prove from that configuration.
+
 ## Why First-Time Users Should Care
 
 If you understand manifests and tiered storage, you understand why Transit can:
@@ -47,4 +77,4 @@ If you understand manifests and tiered storage, you understand why Transit can:
 - restore cold history
 - keep durability language precise
 - reuse the same immutable history model across embedded and server mode
-- prove the current controlled failover slice without pretending it already solved quorum or multi-primary behavior
+- prove the current controlled failover slice without pretending it already solved multi-primary behavior

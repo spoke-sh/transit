@@ -39,6 +39,40 @@ Most streaming systems make a strong trade:
 - stream branches and merges that reuse history without copying bytes
 - one storage model that works for embedded runtimes, servers, agents, processors, and operator tools
 
+## Architecture At A Glance
+
+### One Engine, Two Delivery Modes
+
+```mermaid
+flowchart LR
+    App[Application / Agent Runtime] --> Embedded[Embedded library surface]
+    Operator[CLI / Rust client / Hosted consumer] --> Server[transit server]
+    Embedded --> Engine[Shared lineage-aware engine]
+    Server --> Engine
+    Engine --> Local[Local head<br/>active segment + recent immutable segments]
+    Engine --> Metadata[Lineage + manifests + checkpoints]
+    Metadata --> Remote[Object storage / remote tier]
+    Engine --> Derived[Materializers / derived views]
+```
+
+The point of the architecture is not transport flexibility by itself. It is that embedded and server mode preserve the same lineage, durability, and tiered-storage model.
+
+### Immutable History Lifecycle
+
+```mermaid
+flowchart TD
+    Append[Append to stream head] --> Active[Active local segment]
+    Active --> Ack[Acknowledge at configured durability]
+    Active --> Roll[Roll immutable segment]
+    Roll --> Seal[Seal with checksum + digest]
+    Seal --> Manifest[Publish manifest frontier]
+    Manifest --> Remote[Remote object storage]
+    Remote --> Restore[Cold restore / warm-cache recovery]
+    Restore --> Replay[Replay / lineage inspection / materialization / failover catch-up]
+```
+
+This lifecycle is why Transit keeps the local head, immutable manifests, and remote tier explicit instead of hiding them behind one generic "durable" label.
+
 ## Core Model
 
 - `record`: immutable bytes plus headers and timestamps
@@ -117,6 +151,23 @@ Today it contains:
 
 The implementation work now has a real scaffold to grow from instead of needing to reverse-engineer direction later.
 
+## Current Capability Baseline
+
+| Slice | What ships today | Primary proof path |
+|-------|------------------|--------------------|
+| Local engine | durable append, replay, branch, merge, crash recovery, and `transit status` over a local log root | `just transit proof local-engine --root <path>` |
+| Server and operator surface | `transit server run`, protocol-shaped remote operations, plus `transit streams`, `transit produce`, and `transit consume` | `just rust-client-proof` and `just transit proof networked-server --root <path>` |
+| Storage and recovery | tiered publication, cold restore, warm-cache recovery, and effective-config verification through `transit storage probe` | `just transit proof tiered-engine --root <path>` and `just transit --config <path> storage probe` |
+| Integrity and derived state | manifest-root verification, checkpoint proofing, materialization resume, and reference projection coverage | `just transit proof integrity --root <path>` and `just transit proof materialization --root <path>` |
+| Failover and distributed durability | controlled handoff, automatic leader election, and quorum durability in the shared engine | `just transit proof controlled-failover --root <path>` and `just transit proof chaos-failover --root <path>` |
+
+Transit still does not claim:
+
+- multi-primary or concurrent multi-writer behavior
+- hidden remote-tier safety behind a `local` acknowledgement
+- automatic remote object-store reclamation for published stream deletion
+- pre-`1.0` storage-format or wire-format stability
+
 ## Planned Surfaces
 
 The intended surface area is:
@@ -137,6 +188,20 @@ and explicit error codes literally, and a Hub-like cutover should move
 authority to the hosted server boundary rather than preserving a dual-write
 embedded store.
 
+The canonical hosted-consumer endpoint and auth contract is documented in
+[`HOSTED_CONSUMERS.md`](https://github.com/spoke-sh/transit/blob/main/HOSTED_CONSUMERS.md), including the literal
+`request_id`, acknowledgement, durability, topology, and remote error
+envelopes downstream consumers should preserve.
+
+For Rust consumers, the canonical import surface is
+[`crates/transit-client`](https://github.com/spoke-sh/transit/blob/main/crates/transit-client/README.md). Downstream repos
+should use that crate for hosted operations and hosted response/error types
+instead of publishing a second repo-local client boundary.
+
+The canonical hard-cutover proof path for deleting duplicate local runtime or
+private hosted client ownership is documented in
+[`DIRECT_CUTOVER.md`](https://github.com/spoke-sh/transit/blob/main/DIRECT_CUTOVER.md).
+
 ## Documentation Map
 
 ### Root Contracts
@@ -146,6 +211,7 @@ embedded store.
 | [`CONSTITUTION.md`](./constitution.md) | Non-negotiable product principles |
 | [`ARCHITECTURE.md`](./architecture.md) | Reference architecture and system model |
 | [`CONFIGURATION.md`](./configuration.md) | Configuration philosophy and reference |
+| [`USER_GUIDE.md`](https://github.com/spoke-sh/transit/blob/main/USER_GUIDE.md) | First-time repository user guide and proof-path map |
 | [`RELEASE.md`](./release.md) | Release process and versioning |
 | [`EVALUATIONS.md`](./evaluations.md) | Benchmark and correctness evaluation guide |
 | [`AGENTS.md`](https://github.com/spoke-sh/transit/blob/main/AGENTS.md) | Shared AI-agent workflow contract |
@@ -160,12 +226,14 @@ embedded store.
 | [`COMMUNICATION.md`](./communication.md) | Communication channels and threading contract |
 | [`MATERIALIZATION.md`](./materialization.md) | Materialization and stream processing contract |
 | [`INTEGRITY.md`](./integrity.md) | Verifiable lineage and cryptographic integrity |
+| [`HOSTED_CONSUMERS.md`](https://github.com/spoke-sh/transit/blob/main/HOSTED_CONSUMERS.md) | Canonical hosted endpoint grammar and auth posture for downstream consumers |
+| [`DIRECT_CUTOVER.md`](https://github.com/spoke-sh/transit/blob/main/DIRECT_CUTOVER.md) | Canonical proof path for deleting duplicate local runtime or hosted client ownership |
+| [`crates/transit-client/README.md`](https://github.com/spoke-sh/transit/blob/main/crates/transit-client/README.md) | Canonical Rust import surface for hosted consumers |
 
 ### Focused Guides
 
 | Document | Purpose |
 |----------|---------|
-| [`USER_GUIDE.md`](https://github.com/spoke-sh/transit/blob/main/USER_GUIDE.md) | First-time repository user guide and onboarding map |
 | [`DRIFT.md`](./drift.md) | Drift management and measurement |
 
 ## First Principles

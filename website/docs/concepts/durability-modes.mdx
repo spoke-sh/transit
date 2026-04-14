@@ -10,6 +10,16 @@ Transit is deliberate about acknowledgement language.
 
 It does not want "durable" to mean six different things depending on who is speaking.
 
+## Quick Reference
+
+| Mode | What it means | What it does not mean |
+|------|---------------|-----------------------|
+| `memory` | accepted in memory only; useful for tests and benchmarks | crash-safe durability |
+| `local` | durable on the local node under the shared-engine contract | remote-tier safety or cluster-wide confirmation |
+| `replicated` | the published handoff frontier exists for catch-up and promotion readiness | that every follower has applied the write |
+| `quorum` | a majority of configured cluster peers acknowledged before success | remote-tier durability |
+| `tiered` | the relevant immutable history is durable in the remote tier | that every node is caught up locally |
+
 ## Local
 
 `local` means the append is durable on the local node under the current shared-engine contract.
@@ -31,6 +41,8 @@ This is the strongest distributed durability guarantee Transit offers. It requir
 ## Tiered
 
 `tiered` means the relevant immutable history is durable in the remote tier and can support cold restore independently of the primary's hot local head.
+
+For the current local/filesystem runtime shape, `transit storage probe` is the command that verifies the effective configuration and reports the guarantee it can literally prove.
 
 ## Why This Matters
 

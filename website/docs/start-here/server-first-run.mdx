@@ -36,6 +36,8 @@ just rust-client-proof
 
 For the broader shipped surface, read [Current Capabilities](./current-capabilities.mdx).
 
+If you set `[server].listen_addr` in `transit.toml`, the `streams`, `produce`, and `consume` commands will default to that configured server endpoint.
+
 ## Minimal Manual Walkthrough
 
 Start a daemon:
@@ -73,6 +75,12 @@ List hosted streams:
 
 ```bash
 cargo run -p transit-cli --bin transit -- streams list
+```
+
+Inspect the local log state behind that daemon:
+
+```bash
+cargo run -p transit-cli --bin transit -- status --root target/transit-docs/server
 ```
 
 Inspect lineage through the lower-level server namespace:

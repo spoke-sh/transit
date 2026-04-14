@@ -8,6 +8,15 @@ description: Understand how Transit keeps one storage model across library and s
 
 Transit has one engine and two deployment shapes.
 
+## Compare The Modes
+
+| Question | Embedded mode | Server mode |
+|----------|---------------|-------------|
+| who calls the engine? | your application or runtime directly | remote clients through the daemon |
+| where does authority live? | the in-process engine instance | the server boundary and its configured storage |
+| how do you inspect it? | local proofs and `transit status` | remote operator commands plus local proof roots on the server node |
+| what must stay the same? | lineage, durability labels, manifests, restore behavior | the exact same semantics |
+
 ## Embedded Mode
 
 Embedded mode means your process calls the engine directly.
@@ -32,6 +41,14 @@ The server should preserve:
 - the same storage and durability boundaries
 
 That now includes the full failover stack in the shared engine: controlled handoff, automatic leader election, quorum durability, and cluster membership. The one-engine guarantee means these capabilities work identically whether the engine is embedded or behind a server daemon. Multi-primary behavior remains explicitly out of scope.
+
+The common hosted operator path is now:
+
+- `transit streams`
+- `transit produce`
+- `transit consume`
+
+The lower-level `transit server ...` namespace remains available when you need protocol-shaped operations such as lineage inspection, explicit branching, or tail-session control.
 
 ## What Transit Tries To Avoid
 

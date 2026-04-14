@@ -25,9 +25,9 @@ What exists today:
 - configuration, guide, evaluation, and agent documents
 - bootstrapped Rust workspace with `transit-core` and `transit-cli`
 - Nix flake, Rust toolchain file, `cargo nextest`, and `just screen`
-- initial `object_store` filesystem probe wiring
-- initial shared-engine server daemon bootstrap with provisional remote root creation, append/read/tail, branch/merge, and lineage-inspection operations, framed request correlation, explicit acknowledgement/error envelopes, and logical tail sessions with credit-based delivery, but no stable wire protocol yet
-- initial CLI client commands for the same remote workflows
+- effective-config `transit storage probe` coverage for the local/filesystem guarantee
+- shared-engine server daemon bootstrap with provisional remote root creation, append/read/tail, branch/merge, and lineage-inspection operations, framed request correlation, explicit acknowledgement/error envelopes, logical tail sessions with credit-based delivery, and the higher-level `streams` / `produce` / `consume` operator path, but no stable wire protocol yet
+- CLI and Rust client surfaces for those hosted workflows
 - initial networked mission proof path that validates the live single-node server while keeping transport underlays such as WireGuard explicitly out of the application protocol contract
 
 What does not exist yet:
@@ -65,6 +65,23 @@ The intended release artifacts are:
 
 Additional language bindings can be added later, but the Rust release remains the reference surface.
 
+## Documentation Fidelity Requirement
+
+Transit releases are documentation-bound, not code-only drops.
+
+Every release candidate that changes user-visible behavior should update:
+
+- the root contract that defines the changed behavior
+- the public MDX page that explains the changed behavior to first-time users
+- the root `README.md` when the top-level architecture or proof map changed
+
+The minimum release documentation checks are:
+
+- `just docs-sync`
+- `just docs-build`
+
+If those docs are stale, the release is stale.
+
 ## Release Checklist
 
 ### 1. Update Version And Notes
@@ -83,6 +100,7 @@ At minimum, a code release should include evidence for:
 - tiered-storage round-trip or cold-restore behavior
 - segment, manifest, and checkpoint integrity behavior for the changed scope
 - benchmark results for the changed scope
+- synced root and public docs for any changed public behavior
 
 ### 3. Review Compatibility Surface
 

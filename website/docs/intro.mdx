@@ -18,6 +18,16 @@ It gives you:
 
 The product point is not "Kafka, but renamed." Transit is designed for workloads where lineage matters: AI traces, experiments, communication threads, derived views, and systems that need to prove how state evolved rather than only what the latest answer is.
 
+## The Architecture In One Sentence
+
+Transit keeps three layers visible instead of collapsing them into one vague "durable log":
+
+- a **hot local head** for low-latency append and replay
+- **immutable lineage and manifest metadata** that explain how history is structured
+- a **remote tier** that stores colder immutable history without changing the core model
+
+That same engine can be linked directly into your process or exposed through a daemon. The delivery mode changes. The storage semantics should not.
+
 ## Why The Name Fits
 
 Think about a rail network instead of a single straight track.
@@ -46,8 +56,21 @@ Transit is opinionated about several boundaries that many systems blur:
 - **durability claims are explicit**
 - **branches are real lineage, not hidden copies**
 - **remote object storage is part of the system design**
+- **derived state is downstream of replay, not a rewrite of source history**
 
 If a page in these docs sounds simpler than those rules, the page is wrong.
+
+## What Transit Already Ships
+
+Today the project already includes:
+
+- a local shared engine with append, replay, branch, merge, and status inspection
+- a server surface with `streams`, `produce`, `consume`, lineage inspection, and tail sessions
+- tiered publication, cold restore, warm-cache recovery, and `transit storage probe`
+- manifest-root integrity checks, materialization checkpoints, and reference projections
+- controlled failover, automatic lease election, and quorum durability in the shared engine
+
+The fastest public summary of those slices is [Current Capabilities](./start-here/current-capabilities.mdx).
 
 ## What To Read Next
 

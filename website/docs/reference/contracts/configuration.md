@@ -52,6 +52,18 @@ Three rules should shape configuration:
 2. Durability policy must be explicit and comparable.
 3. Tiered storage identity must be declared, not inferred.
 
+## Effective Resolution Rules
+
+Configuration should be easy to predict from the command line.
+
+| Source | How it is selected | Typical use |
+|--------|--------------------|-------------|
+| default search path | runtime reads `/etc/transit.toml`, XDG config, then `./transit.toml` | local development and operator defaults |
+| `--config <path>` | pins one file before applying env overrides | proof runs, CI, and explicit deployment bundles |
+| `TRANSIT_*` overrides | applied after file resolution | containers, CI, and one-off operational overrides |
+
+The practical rule is simple: file-based config establishes the intended deployment shape, and flags or `TRANSIT_*` variables are the smallest-possible override on top of that shape.
+
 ## Example Configuration
 
 ```toml
@@ -132,6 +144,34 @@ In that shape, object storage is the long-term authority for rolled segments
 and manifests, while `data_dir` and `cache_dir` remain warm working state that
 can be rebuilt from the authoritative remote tier.
 
+The canonical hosted consumer endpoint and auth posture contract that sits on
+top of these values is documented in [`HOSTED_CONSUMERS.md`](https://github.com/spoke-sh/transit/blob/main/HOSTED_CONSUMERS.md).
+
+## Deployment Profiles
+
+These profiles describe the intended operating shapes and the current fidelity of each one.
+
+| Profile | Core keys | Typical commands | Current status |
+|---------|-----------|------------------|----------------|
+| local embedded proof | `[node].mode = "embedded"`, local filesystem `[storage]`, `[storage].durability = "local"` | `transit proof local-engine`, `transit status` | fully wired |
+| local single-node server | `[node].mode = "server"`, `[server].listen_addr`, local filesystem `[storage]` | `transit server run`, `transit streams`, `transit produce`, `transit consume` | fully wired for the local/filesystem path |
+| hosted tiered server | object-store-backed `[storage]`, explicit namespace, hosted `[server]` endpoint | `transit storage probe`, tiered-engine and warm-cache proofs | contract is defined; bootstrap runtime still exits non-zero for non-filesystem providers |
+| clustered failover and quorum | `[replication]` plus `quorum` durability and shared consensus root | controlled-failover and chaos-failover proofs | shared-engine behavior is proven; general operator packaging is still evolving |
+
+## CLI Surface And Config Resolution
+
+The current CLI should resolve defaults predictably from the effective config.
+
+| Surface | Defaults from config | Primary explicit overrides |
+|---------|----------------------|----------------------------|
+| `transit status` and local proof commands | `[node].data_dir` | `--root` |
+| `transit storage probe` | `[node].data_dir`, `[node].cache_dir`, and `[storage]` | `--config`, `TRANSIT_*` |
+| `transit server run` | `[node].data_dir`, `[server].listen_addr`, and related server fields | `--root`, `--listen-addr`, `--serve-for-ms` |
+| `transit streams`, `transit produce`, `transit consume` | `[server].listen_addr` | `--server-addr` |
+| proof-specific generated roots | explicit proof arguments | explicit `--root` or proof fixture config |
+
+This split is intentional: local-engine commands resolve one filesystem-backed root, while remote operator commands resolve the server endpoint they should talk to.
+
 ## Core Sections
 
 ### `[node]`
@@ -173,6 +213,11 @@ Storage configuration defines how local and remote persistence interact.
 - `replicated`: record is not acknowledged until the configured publication path is durable
 - `quorum`: record is not acknowledged until the configured peer majority has confirmed receipt
 - `tiered`: record is not acknowledged until the required remote tier state is durable
+
+For hosted consumers, this configured durability becomes the literal
+`ack.durability` label surfaced by the server contract. Downstream wrappers
+should preserve that label instead of collapsing it into product-local
+commit-state vocabulary.
 
 For hosted `tiered` deployments, the configuration contract should be read in
 two groups.
@@ -248,6 +293,15 @@ As the hosted authority contract expands, server startup should continue to
 hydrate and publish the same manifests, segments, and lineage descriptors that
 embedded restore already uses. The server owns credentials and operator policy,
 not a separate durability semantic.
+
+For hosted consumers, read these fields with three explicit rules:
+
+- `listen_addr` is the local bind address, not automatically the published
+  consumer target
+- `advertise_addr` is the canonical consumer-facing endpoint when operators
+  publish one
+- `auth_mode` declares the hosted access posture, but `token` and `mtls` remain
+  explicit non-claims until the runtime enforces them on the wire
 
 ### `[replication]`
 

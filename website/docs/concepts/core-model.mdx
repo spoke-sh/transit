@@ -8,28 +8,49 @@ description: Learn the core Transit terms without dropping into internal plannin
 
 Transit uses a small set of words consistently.
 
+| Term | Meaning | What it is not |
+|------|---------|----------------|
+| `record` | immutable payload plus headers, timestamps, and a stream position | a mutable row that can be edited in place |
+| `stream` | one ordered append-only history with its own identity | a generic topic with invisible forks |
+| `branch` | a real child stream anchored to a parent position | a filtered consumer view |
+| `merge` | explicit reconciliation of parent heads under declared lineage metadata | hidden background compaction |
+| `segment` | immutable ordered block of records | a temporary cache chunk |
+| `manifest` | routing sheet that maps lineage and stream history to immutable segments | optional bookkeeping you can ignore |
+| `checkpoint` | proof-bearing anchor tying a head or derived state to immutable history | a mutable cursor with no audit value |
+
 ## Records
 
 A `record` is immutable payload plus headers and timestamps. Once acknowledged, it should not be rewritten in place.
 
 ## Streams
 
-A `stream` is an ordered append-only sequence of records.
+A `stream` is an ordered append-only sequence of records with its own identity.
 
 Most systems stop there. Transit does not.
 
 ## Branches
 
-A `branch` is a real child stream with explicit ancestry. It is not a filtered consumer view.
+A `branch` is a real child stream with explicit ancestry. It is created from a parent at a known position, keeps that parent prefix explicit, and then advances independently.
 
 ## Merges
 
 A `merge` is an explicit reconciliation step that records parent lineage instead of hiding history.
 
-## Segments And Manifests
+## Why Positions Are `stream_id@offset`
+
+Transit treats position identity as `stream_id@offset`, not a bare offset.
+
+That matters because:
+
+- parent and child streams may share the same offset numbers for shared ancestry
+- a branch should replay the parent prefix without pretending it is the same stream head
+- lineage inspection and derived-state checkpoints need the full identity, not only the ordinal number
+
+## Segments, Manifests, And Checkpoints
 
 - A `segment` is an immutable ordered block of records.
 - A `manifest` maps stream history to those segments across local and remote storage.
+- A `checkpoint` binds a stream head or derived state to that immutable history.
 
 That split matters because Transit wants hot local append and object-storage-backed cold history to coexist without pretending they are the same thing.
 

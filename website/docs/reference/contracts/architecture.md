@@ -25,6 +25,18 @@ Those are packaging choices, not two different databases.
 
 The engine is built around immutable segments, explicit branch-and-merge lineage, a hot local write/read path, and object storage as the normal home for colder history.
 
+## Architecture Invariants
+
+These invariants are the shortest way to evaluate whether a design still belongs in Transit.
+
+| Boundary | Required property | Why it matters |
+|----------|-------------------|----------------|
+| Delivery modes | Embedded and server mode call the same storage engine. | Transit cannot drift into two databases with different semantics. |
+| Lineage | Branches and merges are durable storage operations, not UI conventions. | Replay, audit, and derived-state correctness depend on explicit ancestry. |
+| Durability language | `local`, `replicated`, `quorum`, and `tiered` stay literal. | Operators need comparable latency and safety claims. |
+| Storage layers | The local head is hot working state; the remote tier is explicit immutable history. | Restore, failover, and cache behavior must stay inspectable. |
+| Derived state | Materialization and projections consume replay; they do not rewrite acknowledged history. | Transit stays append-only at its core. |
+
 ## System Model
 
 ### Record
@@ -140,6 +152,18 @@ The server should not invent a second storage format or branch model.
 The first implementation step is a thin daemon bootstrap that opens the shared engine and binds a listener. The current server slice now layers provisional remote root creation, append, read, snapshot-tail, branch creation, merge creation, and lineage inspection operations on top of that bootstrap, wrapped in a framed request/response envelope with correlation IDs plus explicit acknowledgement and error semantics. Tail streaming now uses logical session IDs with `open/poll/cancel` operations and credit-based delivery so the semantics do not collapse into one socket or underlay assumption. The first CLI client surface now mirrors those remote workflows directly, while richer client surfaces remain downstream. The shared engine now has a full failover stack: controlled handoff, automatic leader election via `ElectionMonitor`, quorum-based durability, and cluster membership. Multi-primary behavior remains explicitly out of scope.
 
 The transport boundary is also explicit: `transit` defines an application protocol above the transport layer. TCP, QUIC, or other ordinary transports can carry that protocol, and secure meshes such as WireGuard remain optional deployment underlays rather than protocol replacements.
+
+## Current Capability Baseline
+
+The architecture contract is anchored to the slices that exist today.
+
+| Slice | Current shape | Explicit boundary |
+|-------|---------------|-------------------|
+| Embedded engine | durable local append, replay, branch, merge, status inspection, and crash recovery | pre-`1.0` formats are still allowed to evolve |
+| Server surface | single-node daemon, framed request/response protocol, logical tail sessions, and kcat-style operator commands | the server must not invent a separate storage model |
+| Storage and recovery | tiered publication, cold restore, warm-cache recovery, and effective-config storage verification | `transit storage probe` verifies the effective local/filesystem guarantee only |
+| Failover and distributed durability | controlled handoff, automatic lease election, quorum acknowledgement, and former-primary fencing | multi-primary and dynamic rebalancing remain out of scope |
+| Integrity and materialization | checksums, digests, manifest roots, checkpoints, Prolly snapshots, and reference projections | compact partial proofs and attestation are later layers |
 
 ## Storage Architecture
 
@@ -317,6 +341,18 @@ Integrity and materialization should meet at checkpoints:
 - more compact proof structures such as Merkle manifests or Merkle Mountain Ranges can layer later if partial proofs become important
 
 CRDTs may be useful for selected collaborative views, but they should remain optional overlays inside materializers rather than changing base stream semantics.
+
+## Current Surface Map
+
+These named surfaces are the current architecture boundary the repo should keep coherent.
+
+| Surface | Primary role | Must preserve |
+|---------|--------------|---------------|
+| `transit-core` | shared engine, lineage, manifests, recovery, consensus, and protocol types | one-engine semantics across embedded and server mode |
+| `transit-server` | daemon packaging around the shared engine | no server-only storage model |
+| `transit-client` | thin Rust hosted-client surface | literal remote acknowledgements, request IDs, and errors |
+| `transit-cli` | operator proofs and human-facing commands | explicit durability labels and proof-backed workflows |
+| `transit-materialize` | derived-state and snapshot layer | replay-anchored checkpoints instead of hidden mutable truth |
 
 ## Suggested Package Layout
 

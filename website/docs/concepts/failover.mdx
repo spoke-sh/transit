@@ -8,6 +8,14 @@ description: Understand Transit's failover model including controlled handoff, a
 
 Transit supports two failover paths and a quorum durability mode. Both failover paths preserve the one-writer-per-stream-head consistency model.
 
+## Capability Map
+
+| Slice | What it does | What it does not imply |
+|-------|--------------|------------------------|
+| controlled failover | explicit lease handoff from one primary to a caught-up follower | automatic recovery or multi-primary writes |
+| automatic failover | lease-expiry detection and election-driven acquisition by one eligible follower | hidden coordination that makes every deployment clustered |
+| quorum durability | majority acknowledgement before append success | remote-tier durability or universal follower catch-up |
+
 ## Controlled Failover
 
 Controlled failover is an explicit, operator-driven handoff:
@@ -95,6 +103,12 @@ This is the mechanism that keeps Transit's failover model compatible with the on
 - `tiered` means durable in the remote tier for cold history
 
 Failover does not magically upgrade later writes on the promoted node beyond the durability level they actually reached.
+
+That distinction matters:
+
+- a system can be promotion-ready without claiming quorum acknowledgement
+- a quorum-acknowledged write can still be distinct from remote-tier durability
+- a promoted node still has to earn whatever durability label it reports after promotion
 
 ## The Remaining Boundary
 
