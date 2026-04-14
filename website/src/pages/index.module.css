@@ -28,7 +28,7 @@
 }
 
 .eyebrow {
-  color: var(--transit-route-red);
+  color: var(--transit-route-green);
 }
 
 .sectionEyebrow {
@@ -138,8 +138,8 @@
   width: 0.58rem;
   height: 0.58rem;
   border-radius: 999px;
-  background: var(--transit-route-red);
-  box-shadow: 0 0 0 0.28rem rgba(188, 35, 46, 0.14);
+  background: var(--transit-route-green);
+  box-shadow: 0 0 0 0.28rem rgba(18, 145, 84, 0.14);
 }
 
 .scenePanel {
@@ -207,7 +207,7 @@
 }
 
 .sceneChrome span:nth-child(1) {
-  background: var(--transit-route-red);
+  background: var(--transit-route-green);
 }
 
 .sceneChrome span:nth-child(2) {
@@ -224,7 +224,7 @@
   font-weight: 760;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--transit-route-blue);
+  color: var(--transit-route-green-strong);
 }
 
 .sceneDiagram {
@@ -234,25 +234,22 @@
   padding: 1.16rem 1.22rem;
   overflow: auto;
   border-radius: 1.2rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(17, 38, 58, 0.12);
   background:
-    linear-gradient(
-      180deg,
-      rgba(10, 24, 40, 0.98),
-      rgba(14, 32, 53, 0.975) 54%,
-      rgba(19, 42, 68, 0.97)
-    );
-  color: rgba(255, 252, 246, 1);
+    radial-gradient(circle at top right, rgba(19, 87, 183, 0.14), transparent 32%),
+    radial-gradient(circle at left center, rgba(18, 145, 84, 0.16), transparent 38%),
+    linear-gradient(180deg, rgba(252, 255, 253, 0.99), rgba(237, 247, 241, 0.98));
+  color: var(--transit-ink);
   font-family: var(--ifm-font-family-monospace);
-  font-size: 1.04rem;
-  font-weight: 640;
-  line-height: 1.64;
-  letter-spacing: 0.024em;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  font-size: 1.08rem;
+  font-weight: 680;
+  line-height: 1.7;
+  letter-spacing: 0.016em;
+  text-shadow: none;
   font-variant-ligatures: none;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 14px 24px rgba(7, 17, 30, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 14px 24px rgba(7, 17, 30, 0.08);
 }
 
 .sceneSteps {
@@ -438,10 +435,6 @@
   font-size: 1.1rem;
 }
 
-.routeRed {
-  color: var(--transit-route-red);
-}
-
 .routeBlue {
   color: var(--transit-route-blue);
 }
@@ -469,7 +462,7 @@
   padding: 2rem;
   border-radius: 2rem;
   background:
-    linear-gradient(135deg, rgba(188, 35, 46, 0.96), rgba(15, 59, 140, 0.96));
+    linear-gradient(135deg, rgba(18, 145, 84, 0.97), rgba(15, 59, 140, 0.94));
   border: 1px solid;
   border-color: rgba(255, 255, 255, 0.34) rgba(255, 255, 255, 0.22)
     rgba(17, 38, 58, 0.16) rgba(17, 38, 58, 0.12);
@@ -518,7 +511,7 @@
 
 .ctaCard .primaryAction {
   background: #fffdf8;
-  color: var(--transit-route-blue-strong);
+  color: var(--transit-route-green-strong);
 }
 
 .ctaCard .secondaryAction {

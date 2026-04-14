@@ -9,7 +9,7 @@
   --ifm-color-primary-light: #2a67c0;
   --ifm-color-primary-lighter: #3a72c6;
   --ifm-color-primary-lightest: #5e8ed3;
-  --ifm-navbar-height: calc(4.35rem + var(--transit-header-slice-height));
+  --ifm-navbar-height: 4.35rem;
   --ifm-background-color: #f8f5ee;
   --ifm-background-surface-color: rgba(255, 255, 252, 0.985);
   --ifm-code-font-size: 88%;
@@ -19,7 +19,7 @@
     'Geist Mono Variable', 'Geist Mono', 'SFMono-Regular', monospace;
   --ifm-heading-font-family: var(--ifm-font-family-base);
   --ifm-heading-color: #11263a;
-  --ifm-navbar-background-color: rgba(188, 35, 46, 0.96);
+  --ifm-navbar-background-color: rgba(18, 145, 84, 0.96);
   --ifm-navbar-link-color: rgba(252, 249, 242, 0.9);
   --ifm-navbar-link-hover-color: #fffdfa;
   --ifm-navbar-link-active-color: #fffdfa;
@@ -46,14 +46,15 @@
   --transit-route-blue-strong: #0f3b8c;
   --transit-route-yellow: #f5c542;
   --transit-route-green: #129154;
+  --transit-route-green-strong: #0c6b41;
   --transit-route-red-rgb: 188, 35, 46;
   --transit-route-blue-rgb: 19, 87, 183;
   --transit-route-yellow-rgb: 245, 197, 66;
   --transit-route-green-rgb: 18, 145, 84;
   --transit-shell-tint: rgba(19, 87, 183, 0.12);
   --transit-shell-tint-strong: rgba(19, 87, 183, 0.22);
-  --transit-shell-accent: rgba(188, 35, 46, 0.18);
-  --transit-shell-accent-strong: rgba(188, 35, 46, 0.28);
+  --transit-shell-accent: rgba(18, 145, 84, 0.18);
+  --transit-shell-accent-strong: rgba(18, 145, 84, 0.28);
   --transit-shell-chip: rgba(228, 238, 253, 0.92);
   --transit-surface: rgba(255, 255, 252, 0.98);
   --transit-surface-muted: rgba(247, 249, 253, 0.82);
@@ -87,11 +88,12 @@
   --transit-radius-xl: 1.95rem;
   --transit-card-padding: 1.45rem;
   --transit-doc-measure: 72ch;
+  --transit-doc-measure-wide: 86ch;
   --transit-header-surface-height: 4.35rem;
-  --transit-header-spacer-height: 0.72rem;
-  --transit-header-rule-height: 2px;
-  --transit-header-clear-height: 1px;
-  --transit-header-echo-height: 2px;
+  --transit-header-spacer-height: 0rem;
+  --transit-header-rule-height: 0px;
+  --transit-header-clear-height: 0px;
+  --transit-header-echo-height: 0px;
   --transit-header-slice-height: calc(
     var(--transit-header-spacer-height) + var(--transit-header-rule-height) +
       var(--transit-header-clear-height) + var(--transit-header-echo-height)
@@ -147,12 +149,13 @@ body {
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: auto;
   min-height: var(--ifm-navbar-height);
   padding-block: 0;
   padding-inline: 0;
   border-bottom: 0;
-  background: var(--ifm-navbar-background-color);
-  backdrop-filter: blur(16px);
+  background: transparent;
+  box-shadow: none;
 }
 
 .navbar__surface {
@@ -163,6 +166,8 @@ body {
   width: 100%;
   min-height: var(--transit-header-surface-height);
   padding-inline: var(--ifm-navbar-padding-horizontal);
+  backdrop-filter: blur(16px);
+  background: var(--ifm-navbar-background-color);
   box-shadow: var(--transit-shadow-shell);
 }
 
@@ -198,10 +203,48 @@ body {
   gap: var(--transit-space-2);
 }
 
-.navbar__inner,
-.navbar-sidebar__brand {
+.navbar__inner {
   min-height: var(--transit-header-surface-height);
   box-sizing: border-box;
+}
+
+.navbar-sidebar__brand {
+  height: var(--transit-header-surface-height);
+}
+
+.navbar-sidebar__backdrop {
+  z-index: 2;
+}
+
+.navbar-sidebar {
+  z-index: 3;
+  color: #fffdfa;
+  background:
+    linear-gradient(180deg, rgba(11, 109, 64, 0.985) 0%, rgba(18, 145, 84, 0.985) 100%);
+  --ifm-menu-color: rgba(255, 253, 248, 0.9);
+  --ifm-menu-color-active: #fffdfa;
+  --ifm-menu-color-background-active: rgba(255, 255, 255, 0.16);
+  --ifm-menu-color-background-hover: rgba(255, 255, 255, 0.1);
+  --ifm-menu-link-sublist-icon-filter: brightness(0) saturate(100%)
+    invert(100%);
+}
+
+.navbar-sidebar .navbar__brand,
+.navbar-sidebar .navbar__brand:hover,
+.navbar-sidebar .navbar__title,
+.navbar-sidebar .menu__link,
+.navbar-sidebar .menu__caret,
+.navbar-sidebar .navbar-sidebar__back,
+.navbar-sidebar .navbar-sidebar__close {
+  color: #fffdfa;
+}
+
+.navbar-sidebar .menu__link:hover,
+.navbar-sidebar .menu__link--active,
+.navbar-sidebar .menu__caret:hover,
+.navbar-sidebar .navbar-sidebar__back:hover,
+.navbar-sidebar .navbar-sidebar__close:hover {
+  color: #fffdfa;
 }
 
 .navbar__items {
@@ -279,13 +322,27 @@ body {
   background:
     linear-gradient(
       90deg,
-      var(--transit-route-red),
-      var(--transit-route-red) 33.33%,
-      var(--transit-route-yellow) 33.33%,
+      var(--transit-route-green),
+      var(--transit-route-green) 33.33%,
+      var(--transit-route-blue) 33.33%,
+      var(--transit-route-blue) 66.66%,
       var(--transit-route-yellow) 66.66%,
-      var(--transit-route-green) 66.66%,
-      var(--transit-route-green)
+      var(--transit-route-yellow)
     );
+}
+
+@media (min-width: 997px) {
+  .docs-doc-page [class*='docMainContainer'] {
+    max-width: calc(100% - var(--doc-sidebar-width));
+  }
+
+  .docs-doc-page [class*='docItemWrapperEnhanced'] {
+    max-width: calc(var(--ifm-container-width) + var(--doc-sidebar-width)) !important;
+  }
+
+  .docs-doc-page [class*='docItemCol'] {
+    max-width: 75% !important;
+  }
 }
 
 .footer__copyright {
@@ -384,13 +441,13 @@ body {
 
 .theme-doc-markdown a:hover,
 .theme-doc-markdown a:focus-visible {
-  color: var(--transit-route-red-strong);
-  text-decoration-color: rgba(143, 24, 34, 0.32);
+  color: var(--transit-route-green-strong);
+  text-decoration-color: rgba(12, 107, 65, 0.32);
 }
 
 .theme-doc-markdown blockquote {
   padding: var(--transit-space-4) var(--transit-space-5);
-  border-left: 3px solid rgba(188, 35, 46, 0.36);
+  border-left: 3px solid rgba(18, 145, 84, 0.36);
   border-radius: 0 var(--transit-radius-md) var(--transit-radius-md) 0;
   background: var(--transit-surface);
 }
@@ -545,7 +602,7 @@ body {
   width: 4.5rem;
   height: 2px;
   border-radius: 999px;
-  background: var(--transit-route-red);
+  background: var(--transit-route-green);
 }
 
 .transit-callout-grid,
@@ -566,7 +623,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--transit-route-red);
+  color: var(--transit-route-green);
 }
 
 .alert {
@@ -585,6 +642,10 @@ body {
 }
 
 @media (max-width: 996px) {
+  .docs-doc-page [class*='docItemContainer'] {
+    padding: 0 0.3rem;
+  }
+
   .table-of-contents {
     display: none;
   }

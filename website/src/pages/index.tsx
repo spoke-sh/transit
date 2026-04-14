@@ -4,7 +4,7 @@ import Layout from '@theme/Layout';
 
 import styles from './index.module.css';
 
-type Tone = 'routeBlue' | 'routeRed' | 'routeYellow' | 'routeGreen';
+type Tone = 'routeBlue' | 'routeYellow' | 'routeGreen';
 
 const signals: Array<{label: string; title: string; body: string; tone: Tone}> = [
   {
@@ -14,10 +14,10 @@ const signals: Array<{label: string; title: string; body: string; tone: Tone}> =
     tone: 'routeBlue',
   },
   {
-    label: 'Red Line',
+    label: 'Green Line',
     title: 'Lineage Native',
     body: 'Streams can branch and merge explicitly, so divergence is recorded instead of hidden.',
-    tone: 'routeRed',
+    tone: 'routeGreen',
   },
   {
     label: 'Yellow Line',
@@ -42,18 +42,18 @@ const tracks: Array<{
     tone: 'routeBlue',
   },
   {
-    label: 'Red Line',
+    label: 'Green Line',
     title: 'Server Track',
     body: 'Start from the daemon and client surfaces when you want the same semantics through a network boundary.',
     href: '/docs/start-here/server-first-run',
-    tone: 'routeRed',
+    tone: 'routeGreen',
   },
   {
-    label: 'Green Line',
+    label: 'Yellow Line',
     title: 'Reference Track',
     body: 'Move from the public narrative into foundational contracts when you need the exact repo-level constraints.',
     href: '/docs/reference/foundational-docs',
-    tone: 'routeGreen',
+    tone: 'routeYellow',
   },
 ];
 
