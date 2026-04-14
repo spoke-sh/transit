@@ -38,6 +38,7 @@
             pkgs.cargo-llvm-cov
             keelPkg
             pkgs.just
+            pkgs.nodejs_24
             pkgs.pkg-config
           ] ++ pkgs.lib.optionals isLinux [
             pkgs.mold

@@ -125,19 +125,19 @@ transit *args:
 
 # Install website dependencies through the repo-supported Node toolchain.
 docs-install:
-    nix shell nixpkgs#nodejs_20 --command npm --prefix website ci
+    nix shell nixpkgs#nodejs_24 --command npm --prefix website ci
 
 # Sync foundational root docs into the public website reference section.
 docs-sync:
-    nix shell nixpkgs#nodejs_20 --command npm --prefix website run sync:foundations
+    nix shell nixpkgs#nodejs_24 --command npm --prefix website run sync:foundations
 
 # Build the public docs site.
 docs-build:
-    nix shell nixpkgs#nodejs_20 --command npm --prefix website run build
+    nix shell nixpkgs#nodejs_24 --command npm --prefix website run build
 
 # Run the public docs dev server.
 docs-dev:
     #!/usr/bin/env bash
     set -euo pipefail
     port="${PORT:-3000}"
-    nix shell nixpkgs#nodejs_20 --command bash -lc "npm --prefix website run start -- --host 0.0.0.0 --port ${port}"
+    nix shell nixpkgs#nodejs_24 --command bash -lc "npm --prefix website run start -- --host 0.0.0.0 --port ${port}"
