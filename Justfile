@@ -127,10 +127,6 @@ transit *args:
 docs-install:
     nix shell nixpkgs#nodejs_24 --command npm --prefix website ci
 
-# Sync foundational root docs into the public website reference section.
-docs-sync:
-    nix shell nixpkgs#nodejs_24 --command npm --prefix website run sync:foundations
-
 # Build the public docs site.
 docs-build:
     nix shell nixpkgs#nodejs_24 --command npm --prefix website run build

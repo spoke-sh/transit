@@ -77,7 +77,6 @@ Every release candidate that changes user-visible behavior should update:
 
 The minimum release documentation checks are:
 
-- `just docs-sync`
 - `just docs-build`
 
 If those docs are stale, the release is stale.
@@ -166,4 +165,3 @@ These decisions are intentionally still open:
 - whether the first public packaging surface is library-first, server-first, or both
 
 When those are decided, this document should be updated before the release process is treated as stable.
-

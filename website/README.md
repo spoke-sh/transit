@@ -8,7 +8,6 @@ Use the repo-supported `just` recipes from the repository root:
 
 ```bash
 just docs-install
-just docs-sync
 just docs-dev
 just docs-build
 ```
