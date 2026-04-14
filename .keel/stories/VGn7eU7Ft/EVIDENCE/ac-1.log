@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T11:54:10-07:00
+mode: manual
+---
+Updated `transit server run` to resolve the authored object-store authority through the shared runtime factory before binding the server, which removes the old `durability = local` config rejection while keeping the shared server runtime on the proven local acknowledgement class. Verified the hosted bootstrap path with `cargo test -p transit-cli server_run_ -- --nocapture` and `cargo run -q -p transit-cli -- --config <temp>/transit.toml server run --serve-for-ms 1 --json`, where a tiered filesystem config bound successfully and returned a shutdown payload with `durability = "local"`.

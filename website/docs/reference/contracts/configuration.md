@@ -155,7 +155,7 @@ These profiles describe the intended operating shapes and the current fidelity o
 |---------|-----------|------------------|----------------|
 | local embedded proof | `[node].mode = "embedded"`, local filesystem `[storage]`, `[storage].durability = "local"` | `transit proof local-engine`, `transit status` | fully wired |
 | local single-node server | `[node].mode = "server"`, `[server].listen_addr`, local filesystem `[storage]` | `transit server run`, `transit streams`, `transit produce`, `transit consume` | fully wired for the local/filesystem path |
-| hosted tiered server | object-store-backed `[storage]`, explicit namespace, hosted `[server]` endpoint | `transit storage probe`, tiered-engine and warm-cache proofs | contract is defined; bootstrap runtime still exits non-zero for non-filesystem providers |
+| hosted tiered server | object-store-backed `[storage]`, explicit namespace, hosted `[server]` endpoint | `transit server run`, `transit storage probe`, tiered-engine and warm-cache proofs | bootstrap now validates authored object-store authority and binds the hosted server path; remote-tier acknowledgement truth remains an explicit contract boundary |
 | clustered failover and quorum | `[replication]` plus `quorum` durability and shared consensus root | controlled-failover and chaos-failover proofs | shared-engine behavior is proven; general operator packaging is still evolving |
 
 ## CLI Surface And Config Resolution
@@ -284,10 +284,12 @@ configuration:
 - `transit storage probe` verifies `[node].data_dir`, `[node].cache_dir`, and
   the configured filesystem object-store root, then reports the effective
   `local` guarantee and its explicit non-claim
-- `transit server run` rejects non-`local` durability from config instead of
-  echoing stronger guarantees it does not yet enforce
-- non-filesystem storage providers remain part of the contract, but the
-  bootstrap CLI exits non-zero rather than implying they are already wired
+- `transit server run` validates the authored object-store provider during
+  startup and binds the shared hosted server path without rewriting
+  `transit.toml` back to `local`
+- hosted runtime bootstrap acceptance is not the same thing as a truthful
+  remote-tier acknowledgement claim; append and recovery paths must still prove
+  when `tiered` is actually satisfied
 
 As the hosted authority contract expands, server startup should continue to
 hydrate and publish the same manifests, segments, and lineage descriptors that

@@ -9,7 +9,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use transit_client::TransitClient;
-use transit_core::config::{LoadedTransitConfig, StorageDurability, load_transit_config};
+use transit_core::config::{LoadedTransitConfig, load_transit_config};
 use transit_core::engine::{
     LocalEngine, LocalEngineConfig, LocalRecord, LocalRecoveryOutcome, OwnershipPosture,
     inspect_local_log,
@@ -19,7 +19,9 @@ use transit_core::kernel::{
     StreamLineage, StreamPosition,
 };
 use transit_core::membership::NodeId;
-use transit_core::object_store_support::{StorageProbeResult, probe_effective_storage};
+use transit_core::object_store_support::{
+    StorageProbeResult, build_loaded_runtime_object_store, probe_effective_storage,
+};
 use transit_core::server::{
     RemoteClient, ServerConfig, ServerHandle, ServerShutdownOutcome, TailSessionId,
 };
@@ -2968,11 +2970,12 @@ async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result
     use transit_core::consensus::{ConsensusManager, NodeId, ObjectStoreConsensus};
 
     let effective_config = config.config();
-    ensure!(
-        effective_config.storage.durability == StorageDurability::Local,
-        "transit server run currently supports only local durability from transit.toml; effective config durability is '{}'",
-        effective_config.storage.durability.as_str()
-    );
+    let _object_store_authority = build_loaded_runtime_object_store(config).with_context(|| {
+        format!(
+            "resolve {} object-store authority for transit server run",
+            effective_config.storage.provider.as_str()
+        )
+    })?;
 
     let root = resolve_local_root(args.root, config);
     let requested_listen_addr = args
@@ -5795,6 +5798,7 @@ fn render_storage_probe(result: StorageProbeResult, json: bool) -> Result<()> {
 mod tests {
     use super::*;
     use clap::Parser;
+    use std::path::Path;
     use tempfile::tempdir;
 
     fn start_server() -> (tempfile::TempDir, ServerHandle, SocketAddr) {
@@ -5806,6 +5810,12 @@ mod tests {
         .expect("bind server");
         let server_addr = server.local_addr();
         (temp_dir, server, server_addr)
+    }
+
+    fn load_temp_config(dir: &Path, contents: &str) -> LoadedTransitConfig {
+        let config_path = dir.join("transit.toml");
+        fs::write(&config_path, contents).expect("write transit config");
+        load_transit_config(Some(config_path)).expect("load transit config")
     }
 
     #[test]
@@ -6246,6 +6256,105 @@ mod tests {
         assert!(lineage_json.get("request_id").is_some());
 
         server.shutdown().expect("shutdown server");
+    }
+
+    #[tokio::test]
+    async fn server_run_accepts_tiered_config_and_binds_against_authored_object_store_authority() {
+        let temp_dir = tempdir().expect("temp dir");
+        let data_dir = temp_dir.path().join("server-data");
+        let cache_dir = temp_dir.path().join("server-cache");
+        let object_store_root = temp_dir.path().join("object-store");
+        let config = load_temp_config(
+            temp_dir.path(),
+            &format!(
+                r#"
+[node]
+id = "hosted-node"
+mode = "server"
+data_dir = "{data_dir}"
+cache_dir = "{cache_dir}"
+
+[storage]
+provider = "filesystem"
+bucket = "{object_store_root}"
+prefix = "hosted/runtime"
+durability = "tiered"
+
+[server]
+listen_addr = "127.0.0.1:0"
+"#,
+                data_dir = data_dir.display(),
+                cache_dir = cache_dir.display(),
+                object_store_root = object_store_root.display(),
+            ),
+        );
+
+        let result = run_server(
+            ServerRunArgs {
+                root: None,
+                listen_addr: None,
+                serve_for_ms: Some(1),
+                node_id: None,
+                consensus_root: None,
+                json: true,
+            },
+            &config,
+        )
+        .await
+        .expect("run server");
+
+        assert_eq!(result.data_root, data_dir);
+        assert_eq!(result.durability, "local");
+        assert!(object_store_root.is_dir());
+        assert!(data_dir.join("streams").is_dir());
+    }
+
+    #[tokio::test]
+    async fn server_run_surfaces_hosted_provider_validation_errors_clearly() {
+        let temp_dir = tempdir().expect("temp dir");
+        let config = load_temp_config(
+            temp_dir.path(),
+            r#"
+[node]
+id = "hosted-node"
+mode = "server"
+data_dir = "server-data"
+cache_dir = "server-cache"
+
+[storage]
+provider = "s3"
+bucket = "transit-prod"
+durability = "tiered"
+
+[server]
+listen_addr = "127.0.0.1:0"
+"#,
+        );
+
+        let error = run_server(
+            ServerRunArgs {
+                root: None,
+                listen_addr: None,
+                serve_for_ms: Some(1),
+                node_id: None,
+                consensus_root: None,
+                json: true,
+            },
+            &config,
+        )
+        .await
+        .expect_err("server run should reject incomplete hosted provider config");
+
+        assert!(
+            error
+                .to_string()
+                .contains("resolve s3 object-store authority for transit server run")
+        );
+        assert!(error.chain().any(|cause| {
+            cause.to_string().contains(
+                "s3 object-store provider requires [storage].region or [storage].endpoint",
+            )
+        }));
     }
 
     #[tokio::test]

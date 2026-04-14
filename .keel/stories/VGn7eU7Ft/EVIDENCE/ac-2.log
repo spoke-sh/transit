@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T11:54:10-07:00
+mode: manual
+---
+Hosted bootstrap errors now preserve provider-specific context from the shared runtime factory instead of failing on the old local-only guard. Verified the error path with `cargo test -p transit-cli server_run_ -- --nocapture` and `cargo run -q -p transit-cli -- --config <temp>/transit.toml server run --serve-for-ms 1 --json`, which failed with `resolve s3 object-store authority for transit server run` caused by `s3 object-store provider requires [storage].region or [storage].endpoint`.
