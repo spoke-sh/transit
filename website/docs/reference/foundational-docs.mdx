@@ -40,6 +40,23 @@ Use those root contracts when you need the canonical answer to questions like th
 - [AI Traces](./contracts/ai-traces.md)
 - [AI Artifacts](./contracts/ai-artifacts.md)
 
+## Hosted Cutover Contracts
+
+These repo-root contracts stay outside the generated reference set today, but
+they are still the canonical answer for downstream hosted cutover work:
+
+- [`HOSTED_CONSUMERS.md`](https://github.com/spoke-sh/transit/blob/main/HOSTED_CONSUMERS.md)
+- [`DIRECT_CUTOVER.md`](https://github.com/spoke-sh/transit/blob/main/DIRECT_CUTOVER.md)
+- [`crates/transit-client/README.md`](https://github.com/spoke-sh/transit/blob/main/crates/transit-client/README.md)
+
+Use that hosted cutover set when you need the literal downstream target:
+
+- which server endpoint grammar and runtime posture hosted consumers should
+  preserve
+- which upstream Rust client surface should replace repo-local hosted wrappers
+- which duplicate adapters should be deleted instead of kept as a
+  compatibility lane
+
 ## Repo-Local Operator Contracts
 
 `AGENTS.md` and `INSTRUCTIONS.md` still matter, but they describe how this repository is operated rather than how Transit behaves as a public product surface. Keep them in the repo for operator work:

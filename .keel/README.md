@@ -169,13 +169,13 @@
 | [Publish Upstream Consumer Client And Direct Cutover Proof](epics/VGj3EvcuK/voyages/VGj3HWSL4/) | done |
 | [Define Hosted Consumer Endpoint Contract](epics/VGj3EvcuK/voyages/VGj3HXPMa/) | done |
 
-### [Hosted Tiered Server Runtime](epics/VGn6PdlVK/) (active)
+### [Hosted Tiered Server Runtime](epics/VGn6PdlVK/) (done)
 
 | Voyage | Status |
 |--------|--------|
 | [Object Store Runtime Bootstrap](epics/VGn6PdlVK/voyages/VGn6xmmDh/) | done |
 | [Hosted Tiered Durability Proof](epics/VGn6PdlVK/voyages/VGn6z2GXx/) | done |
-| [Published Cutover Surface](epics/VGn6PdlVK/voyages/VGn6zxceG/) | planned |
+| [Published Cutover Surface](epics/VGn6PdlVK/voyages/VGn6zxceG/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

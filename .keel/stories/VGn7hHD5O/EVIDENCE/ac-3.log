@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T12:04:20-07:00
+mode: manual
+---
+Made the hard-cutover posture explicit in `DIRECT_CUTOVER.md`, `README.md`, and the public server-track/foundational docs: downstream repos should delete duplicate hosted client wrappers, embedded-authority shims, and dual-write compatibility adapters instead of carrying them forward as a permanent transition lane.

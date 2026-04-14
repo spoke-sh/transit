@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T12:04:20-07:00
+mode: manual
+---
+Kept `transit-client` as the canonical Rust import surface in the repo and public docs by tightening `README.md`, `crates/transit-client/README.md`, and the server-track public pages around that upstream client boundary. Verified the shipped client surface with `cargo run -q -p transit-client --example proof`, which completed with `status: VERIFIED`.

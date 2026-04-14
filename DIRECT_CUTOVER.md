@@ -75,6 +75,16 @@ be clear:
 - repo-local hosted client wrappers or duplicate runtime surfaces are deleted,
   not preserved behind compatibility layers
 
+## Delete After Cutover
+
+Once the upstream proof path is adopted, downstream repos should remove:
+
+- repo-local hosted client wrappers that duplicate `transit-client`
+- embedded-runtime entry points that are still presented as the authority for
+  the same hosted workload lane
+- dual-write or compatibility adapters that keep both the old downstream lane
+  and the upstream Transit lane alive at the same time
+
 ## Explicit Non-Claims
 
 This cutover proof path is deliberately narrow.

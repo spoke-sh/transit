@@ -196,7 +196,9 @@ envelopes downstream consumers should preserve.
 For Rust consumers, the canonical import surface is
 [`crates/transit-client`](https://github.com/spoke-sh/transit/blob/main/crates/transit-client/README.md). Downstream repos
 should use that crate for hosted operations and hosted response/error types
-instead of publishing a second repo-local client boundary.
+instead of publishing a second repo-local client boundary, and they should
+delete private hosted adapter layers rather than preserve a compatibility lane
+once the cutover is complete.
 
 The canonical hard-cutover proof path for deleting duplicate local runtime or
 private hosted client ownership is documented in

@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T12:04:20-07:00
+mode: manual
+---
+Published the canonical hosted cutover target in both the repo contracts and the public docs onramp. Verified the hosted runtime contract with `cargo run -q -p transit-cli -- proof hosted-authority --root target/transit-cutover/hosted --json`, which returned the published `authority_surface`, `consumer_boundary`, `remote_api = "TransitClient"`, and explicit hosted non-claim fields. Synced and built the docs with `just docs-sync` and `just docs-build`.

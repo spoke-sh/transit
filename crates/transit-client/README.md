@@ -8,6 +8,7 @@ types from this crate instead of:
 - copying a private hosted Transit client into another repo
 - reaching into `transit-core::server` to assemble a second public consumer
   boundary
+- keeping a repo-local compatibility wrapper once this crate has replaced it
 - treating embedded local engine types as the authority for hosted workloads
 
 ## Import Surface

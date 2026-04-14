@@ -44,6 +44,10 @@ Start with:
 - the networked server proof in the CLI output
 - [Server First Run](./server-first-run.mdx)
 
+For downstream cutover work, the canonical target is the hosted pair of
+`transit-server` plus `transit-client`. Do not preserve a repo-local hosted
+adapter layer once those upstream surfaces replace it.
+
 ## How To Decide Quickly
 
 Use the embedded track when your application wants direct engine calls and local storage semantics first.

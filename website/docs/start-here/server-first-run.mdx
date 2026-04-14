@@ -38,6 +38,12 @@ For the broader shipped surface, read [Current Capabilities](./current-capabilit
 
 If you set `[server].listen_addr` in `transit.toml`, the `streams`, `produce`, and `consume` commands will default to that configured server endpoint.
 
+If you are evaluating Transit as a downstream cutover target, the canonical
+hosted runtime surface is `transit-server`, and the canonical Rust client
+surface is `transit-client`. The cutover posture is to delete private hosted
+adapter layers after the upstream proof path is adopted, not keep a permanent
+compatibility shim.
+
 ## Minimal Manual Walkthrough
 
 Start a daemon:
@@ -118,3 +124,4 @@ That means these docs should not imply:
 - Read [Durability Modes](../concepts/durability-modes.mdx)
 - Read [Failover](../concepts/failover.mdx)
 - Read [Current Capabilities](./current-capabilities.mdx)
+- Read [Foundational Docs](../reference/foundational-docs.mdx)
