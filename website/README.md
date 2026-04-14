@@ -28,16 +28,20 @@ The site reads these optional environment variables at build time:
 - `DOCS_SITE_URL`
 - `DOCS_BASE_URL`
 
-If they are not set, the site defaults to `https://transit.spoke.sh` and `/`.
+If they are not set, the site defaults to `https://www.spoke.sh` and
+`/transit/`, which matches the shared production route.
 
 ## Deployment Inputs
 
-The GitHub Actions docs workflow expects these repository variables for deployment:
+The GitHub Actions docs workflow deploy job targets the shared production docs
+lane:
 
-- `TRANSIT_DOCS_DEPLOY_ENABLED`
-- `TRANSIT_DOCS_SITE_URL`
-- `TRANSIT_DOCS_BASE_URL`
-- `TRANSIT_DOCS_BUCKET`
-- `TRANSIT_DOCS_DISTRIBUTION_ID`
+- stable docs at `https://www.spoke.sh/transit/docs`
+- preview docs at `https://www.spoke.sh/previews/transit/<branch>/docs`
+
+The deploy job runs in the repository's `prod` GitHub environment and expects
+these environment or repository variables:
+
 - `TRANSIT_DOCS_AWS_ROLE_ARN`
+- `TRANSIT_DOCS_BUCKET` (optional; defaults to `spoke-previews`)
 - `TRANSIT_DOCS_AWS_REGION` (optional; defaults to `us-east-1`)

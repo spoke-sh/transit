@@ -31,8 +31,8 @@ jobs:
     permissions:
       contents: read
     env:
-      DOCS_SITE_URL: ${{ vars.TRANSIT_DOCS_SITE_URL || 'https://transit.spoke.sh' }}
-      DOCS_BASE_URL: ${{ vars.TRANSIT_DOCS_BASE_URL || '/' }}
+      DOCS_SITE_URL: https://www.spoke.sh
+      DOCS_BASE_URL: /transit/
     steps:
       - uses: actions/checkout@v6
 
@@ -60,15 +60,23 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: prod
     if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.TRANSIT_DOCS_DEPLOY_ENABLED == 'true') ||
-      (github.event_name == 'workflow_dispatch' && inputs.deploy)
+      (
+        github.event_name == 'push' &&
+        github.ref == 'refs/heads/main' &&
+        vars.TRANSIT_DOCS_AWS_ROLE_ARN != ''
+      ) ||
+      (
+        github.event_name == 'workflow_dispatch' &&
+        inputs.deploy &&
+        vars.TRANSIT_DOCS_AWS_ROLE_ARN != ''
+      )
     permissions:
       contents: read
       id-token: write
     env:
-      TRANSIT_DOCS_BUCKET: ${{ vars.TRANSIT_DOCS_BUCKET }}
-      TRANSIT_DOCS_DISTRIBUTION_ID: ${{ vars.TRANSIT_DOCS_DISTRIBUTION_ID }}
+      TRANSIT_DOCS_BUCKET: ${{ vars.TRANSIT_DOCS_BUCKET != '' && vars.TRANSIT_DOCS_BUCKET || 'spoke-previews' }}
       TRANSIT_DOCS_AWS_ROLE_ARN: ${{ vars.TRANSIT_DOCS_AWS_ROLE_ARN }}
       AWS_REGION: ${{ vars.TRANSIT_DOCS_AWS_REGION != '' && vars.TRANSIT_DOCS_AWS_REGION || 'us-east-1' }}
     steps:
@@ -78,7 +86,7 @@ jobs:
           set -euo pipefail
           missing=0
 
-          for name in TRANSIT_DOCS_BUCKET TRANSIT_DOCS_DISTRIBUTION_ID TRANSIT_DOCS_AWS_ROLE_ARN; do
+          for name in TRANSIT_DOCS_AWS_ROLE_ARN; do
             if [[ -z "${!name:-}" ]]; then
               echo "Missing required repository variable: $name" >&2
               missing=1
@@ -92,15 +100,43 @@ jobs:
       - uses: actions/download-artifact@v5
         with:
           name: transit-docs-site
-          path: website-build
+          path: website-build-stable
+
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.13.0
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install website dependencies
+        run: npm --prefix website ci
 
       - uses: aws-actions/configure-aws-credentials@v5
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.TRANSIT_DOCS_AWS_ROLE_ARN }}
 
-      - name: Sync docs to S3
-        run: aws s3 sync website-build/ "s3://${TRANSIT_DOCS_BUCKET}/" --delete
+      - name: Derive branch publication path
+        id: branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          branch="${branch//\//-}"
+          echo "name=${branch}" >> "${GITHUB_OUTPUT}"
 
-      - name: Invalidate CloudFront
-        run: aws cloudfront create-invalidation --distribution-id "${TRANSIT_DOCS_DISTRIBUTION_ID}" --paths '/*'
+      - name: Build preview docs site
+        env:
+          DOCS_SITE_URL: https://www.spoke.sh
+          DOCS_BASE_URL: /previews/transit/${{ steps.branch.outputs.name }}/
+        run: |
+          npm --prefix website run build
+          mv website/build website-build-preview
+
+      - name: Sync stable docs to S3
+        run: aws s3 sync website-build-stable/ "s3://${TRANSIT_DOCS_BUCKET}/stable/transit/" --delete
+
+      - name: Sync preview docs to S3
+        run: aws s3 sync website-build-preview/ "s3://${TRANSIT_DOCS_BUCKET}/transit/${{ steps.branch.outputs.name }}/" --delete

@@ -2,8 +2,8 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
-const siteUrl = process.env.DOCS_SITE_URL || 'https://transit.spoke.sh';
-const baseUrl = process.env.DOCS_BASE_URL || '/';
+const siteUrl = process.env.DOCS_SITE_URL || 'https://www.spoke.sh';
+const baseUrl = process.env.DOCS_BASE_URL || '/transit/';
 const repoUrl = 'https://github.com/spoke-sh/transit';
 
 const config: Config = {
