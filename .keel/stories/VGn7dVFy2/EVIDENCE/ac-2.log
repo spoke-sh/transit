@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T11:47:28-07:00
+mode: manual
+---
+Centralized provider construction in `crates/transit-core/src/object_store_support.rs` and enabled the required `object_store` backend features in the workspace so future runtime, proof, and server surfaces can all reuse the same factory instead of open-coding local filesystem stores. Verified the shared path with `cargo test -p transit-core object_store_support::tests -- --nocapture`.

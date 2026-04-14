@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T11:47:28-07:00
+mode: manual
+---
+Added a shared runtime object-store factory in `transit-core` that resolves the authored `filesystem`, `s3`, `gcs`, and `azure` storage providers into `Arc<dyn ObjectStore>` instances, scopes them through the configured prefix, and fails with explicit provider-specific bootstrap errors when required config is missing.
