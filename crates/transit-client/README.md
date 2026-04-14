@@ -39,3 +39,7 @@ use transit_client::{
 - keep schema, policy, and reducer meaning outside Transit
 - do not re-open embedded local Transit storage as a second authority for the
   same hosted workload
+
+The upstream hard-cutover proof path for deleting duplicate local runtime or
+private hosted client ownership is documented in
+[`../../DIRECT_CUTOVER.md`](../../DIRECT_CUTOVER.md).

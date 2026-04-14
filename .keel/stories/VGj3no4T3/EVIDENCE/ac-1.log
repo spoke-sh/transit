@@ -1,0 +1,17 @@
+Reviewed the authored direct cutover proof path.
+
+Confirmed the upstream proof surface now names:
+- the hosted authority proof command
+- the Rust client proof command
+- the exact receipt fields downstream repos should cite when deleting duplicate
+  local runtime or private hosted client ownership
+
+Verification:
+- `cargo run -q -p transit-cli --bin transit -- proof hosted-authority --root target/transit-mission/direct-cutover-hosted --json`
+- `cargo run -q -p transit-client --example proof`
+
+Files checked:
+- `DIRECT_CUTOVER.md`
+- `README.md`
+- `HOSTED_CONSUMERS.md`
+- `crates/transit-client/README.md`

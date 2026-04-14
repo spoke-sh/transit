@@ -22,9 +22,9 @@ mission: VGj3Euttb
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/2 voyages complete, 3/4 stories done
+**Progress:** 2/2 voyages complete, 4/4 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Publish Upstream Consumer Client And Direct Cutover Proof](voyages/VGj3HWSL4/) | in-progress | 1/2 |
+| [Publish Upstream Consumer Client And Direct Cutover Proof](voyages/VGj3HWSL4/) | done | 2/2 |
 | [Define Hosted Consumer Endpoint Contract](voyages/VGj3HXPMa/) | done | 2/2 |
 <!-- END GENERATED -->

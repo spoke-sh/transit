@@ -210,6 +210,10 @@ Hosted consumers should also preserve these upstream semantics literally:
 - remote error `code` values stay Transit-defined instead of being renamed into
   repo-local categories
 
+The hard-cutover proof path for deleting duplicate local runtime or private
+hosted client ownership is documented in
+[`DIRECT_CUTOVER.md`](DIRECT_CUTOVER.md).
+
 ## Example Hosted Contract
 
 ```toml

@@ -1,0 +1,13 @@
+Reviewed inspectability of the direct cutover proof path.
+
+Confirmed the proof path is inspectable enough to cite:
+- `DIRECT_CUTOVER.md` names the exact commands to run
+- it calls out the exact hosted-authority JSON fields to inspect:
+  `remote_api`, `consumer_boundary`, `embedded_authority_used`,
+  `replay_matches_acknowledged_history`, and `authority_surface`
+- it keeps explicit non-claims for auth, tiered durability, and other separate
+  proof surfaces
+
+Files checked:
+- `DIRECT_CUTOVER.md`
+- `README.md`

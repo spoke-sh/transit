@@ -135,6 +135,10 @@ For Rust consumers, the canonical import surface is
 should use that crate for hosted operations and hosted response/error types
 instead of publishing a second repo-local client boundary.
 
+The canonical hard-cutover proof path for deleting duplicate local runtime or
+private hosted client ownership is documented in
+[`DIRECT_CUTOVER.md`](DIRECT_CUTOVER.md).
+
 ## Documentation Map
 
 ### Root Contracts
@@ -159,6 +163,7 @@ instead of publishing a second repo-local client boundary.
 | [`MATERIALIZATION.md`](MATERIALIZATION.md) | Materialization and stream processing contract |
 | [`INTEGRITY.md`](INTEGRITY.md) | Verifiable lineage and cryptographic integrity |
 | [`HOSTED_CONSUMERS.md`](HOSTED_CONSUMERS.md) | Canonical hosted endpoint grammar and auth posture for downstream consumers |
+| [`DIRECT_CUTOVER.md`](DIRECT_CUTOVER.md) | Canonical proof path for deleting duplicate local runtime or hosted client ownership |
 | [`crates/transit-client/README.md`](crates/transit-client/README.md) | Canonical Rust import surface for hosted consumers |
 
 ### Focused Guides
