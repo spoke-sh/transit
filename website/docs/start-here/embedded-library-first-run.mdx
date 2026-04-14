@@ -26,6 +26,7 @@ just screen
 ```
 
 That is the default human proof path. It builds the workspace and runs the local engine, tiered history, controlled failover, server, integrity, and materialization proofs in one flow.
+That is the default human proof path. It builds the workspace and runs the current proof suite: local engine, tiered engine, warm-cache recovery, controlled failover, automatic failover, networked server, integrity, materialization, reference projection, storage probe, status, and the board screen.
 
 ## If You Want To Narrow The Scope
 
@@ -47,6 +48,30 @@ Run the controlled failover proof:
 cargo run -p transit-cli --bin transit -- proof controlled-failover --root target/transit-docs/controlled-failover
 ```
 
+Run the integrity proof:
+
+```bash
+cargo run -p transit-cli --bin transit -- proof integrity --root target/transit-docs/integrity
+```
+
+Run the materialization proof:
+
+```bash
+cargo run -p transit-cli --bin transit -- proof materialization --root target/transit-docs/materialization
+```
+
+Run the reference-projection proof:
+
+```bash
+cargo run -p transit-cli --bin transit -- proof reference-projection --root target/transit-docs/reference-projection
+```
+
+Check the local log state after a proof:
+
+```bash
+cargo run -p transit-cli --bin transit -- status --root target/transit-docs/local
+```
+
 ## What To Look For
 
 When these proofs pass, you should have evidence that:
@@ -55,7 +80,8 @@ When these proofs pass, you should have evidence that:
 - branches reuse ancestor history instead of copying old bytes
 - merges preserve explicit parent lineage
 - rolled immutable segments can be published and restored through the remote tier
-- the current failover slice uses explicit readiness, lease handoff, and former-primary fencing instead of hidden election behavior
+- the current failover slices use explicit readiness, lease handoff, former-primary fencing, and automatic leader election without relaxing the one-writer model
+- integrity and derived-state proofs remain attached to the same shared history model
 
 ## Mental Model
 
@@ -69,6 +95,7 @@ Think of the embedded engine as the local station where trains are assembled and
 ## Where To Go Next
 
 - Read [Core Model](../concepts/core-model.mdx)
+- Read [Current Capabilities](./current-capabilities.mdx)
 - Read [Durability Modes](../concepts/durability-modes.mdx)
 - Read [Failover](../concepts/failover.mdx)
 - Read [Tiered Storage And Manifests](../concepts/tiered-storage-and-manifests.mdx)

@@ -1,0 +1,107 @@
+---
+title: Current Capabilities
+sidebar_position: 5
+description: A public-facing summary of what Transit can do today and which CLI surfaces prove each capability.
+---
+
+# Current Capabilities
+
+This page is the public-facing summary of what Transit currently ships.
+
+Examples below use `transit ...` for brevity. From the repository root, you can run the same commands as `cargo run -p transit-cli --bin transit -- ...`.
+
+## Shared Engine
+
+Today Transit can:
+
+- append immutable records to a stream
+- replay ordered history
+- create explicit branches and merges with preserved lineage
+- report local log state with `transit status --root <path>`
+
+The fastest embedded proof path is still:
+
+```bash
+transit proof local-engine --root target/transit-docs/local
+```
+
+## Server And Operator Surface
+
+Transit now exposes a kcat-style operator path on top of the hosted server boundary:
+
+```bash
+transit streams create --stream-id demo.root --actor docs --reason bootstrap
+printf 'hello\nworld\n' | transit produce --stream-id demo.root
+transit consume --stream-id demo.root --from-offset 0 --with-offsets
+transit streams list
+transit streams delete --stream-id demo.root --force
+```
+
+The lower-level `transit server ...` namespace still exists for protocol-shaped operations like `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel`.
+
+Current server mode is still explicitly single-node at the protocol surface. The daemon preserves shared-engine semantics instead of introducing a separate storage model.
+
+## Storage, Recovery, And Verification
+
+Transit currently ships:
+
+- tiered publication and cold restore
+- storage verification for the effective local configuration with `transit storage probe`
+- warm-cache recovery from the authoritative remote tier
+- hosted-authority proof coverage for thin-client producers and readers
+
+Useful proof entry points:
+
+```bash
+transit proof tiered-engine --root target/transit-docs/tiered
+transit proof warm-cache-recovery --root target/transit-docs/warm-cache
+transit --config target/transit-docs/storage-probe.toml storage probe
+```
+
+## Integrity And Derived State
+
+Transit also ships:
+
+- manifest-root and checkpoint verification
+- tamper-detection coverage through the integrity proof
+- incremental materialization with checkpoint resume
+- reference-projection proof coverage showing replay and resume converge on the same derived view
+
+Useful proof entry points:
+
+```bash
+transit proof integrity --root target/transit-docs/integrity
+transit proof materialization --root target/transit-docs/materialization
+transit proof reference-projection --root target/transit-docs/reference-projection
+```
+
+## Failover And Distributed Durability
+
+The shared engine now supports:
+
+- controlled failover with explicit lease handoff and former-primary fencing
+- automatic failover through `ElectionMonitor`
+- quorum durability with `ClusterMembership`-based majority acknowledgement
+
+Useful proof entry points:
+
+```bash
+transit proof controlled-failover --root target/transit-docs/controlled-failover
+transit proof chaos-failover --root target/transit-docs/chaos-failover
+```
+
+## Current Boundaries
+
+Transit still does not claim:
+
+- multi-primary or concurrent multi-writer behavior
+- hidden remote-tier safety behind a `local` acknowledgement
+- automatic remote object-store reclamation when deleting a published stream
+
+Those non-claims are part of the product contract, not temporary wording.
+
+Next:
+
+- [Embedded / Library First Run](./embedded-library-first-run.mdx)
+- [Server First Run](./server-first-run.mdx)
+- [Foundational Docs](../reference/foundational-docs.mdx)

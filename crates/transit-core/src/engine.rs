@@ -526,6 +526,27 @@ impl LocalLogStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LocalDeletedStream {
+    stream_id: StreamId,
+    deleted_path: PathBuf,
+    record_count: u64,
+}
+
+impl LocalDeletedStream {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn deleted_path(&self) -> &Path {
+        &self.deleted_path
+    }
+
+    pub fn record_count(&self) -> u64 {
+        self.record_count
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PublishedSegmentFrontier {
     segment_id: SegmentId,
     start_offset: Offset,
@@ -986,6 +1007,60 @@ impl LocalEngine {
     pub fn create_merge(&self, stream_id: StreamId, merge: MergeSpec) -> Result<LocalStreamStatus> {
         self.ensure_writable("create merge", Some(&stream_id))?;
         self.create_stream(StreamDescriptor::merge(stream_id, merge)?)
+    }
+
+    pub fn list_streams(&self) -> Result<Vec<LocalLogStreamStatus>> {
+        Ok(inspect_local_log(self.data_dir())?.streams)
+    }
+
+    pub fn delete_stream(&self, stream_id: &StreamId) -> Result<LocalDeletedStream> {
+        self.ensure_writable("delete", Some(stream_id))?;
+        ensure!(
+            self.is_leader(stream_id),
+            "not the leader for stream '{}'",
+            stream_id.as_str()
+        );
+
+        let streams = self.list_streams()?;
+        let target = streams
+            .iter()
+            .find(|status| status.descriptor().stream_id == *stream_id)
+            .cloned()
+            .with_context(|| format!("stream '{}' not found", stream_id.as_str()))?;
+
+        let dependents = streams
+            .iter()
+            .filter(|status| status.descriptor().stream_id != *stream_id)
+            .filter(|status| {
+                status
+                    .descriptor()
+                    .parent_stream_ids()
+                    .into_iter()
+                    .any(|parent| parent == stream_id)
+            })
+            .map(|status| status.descriptor().stream_id.as_str().to_owned())
+            .collect::<Vec<_>>();
+        ensure!(
+            dependents.is_empty(),
+            "cannot delete stream '{}' while dependent streams exist: {}",
+            stream_id.as_str(),
+            dependents.join(", ")
+        );
+        ensure!(
+            target.published_frontier().is_none(),
+            "cannot delete stream '{}' because it has a published frontier; remote object-store reclamation is not implemented",
+            stream_id.as_str()
+        );
+
+        let stream_dir = self.stream_dir(stream_id);
+        fs::remove_dir_all(&stream_dir)
+            .with_context(|| format!("remove stream directory {}", stream_dir.display()))?;
+
+        Ok(LocalDeletedStream {
+            stream_id: stream_id.clone(),
+            deleted_path: stream_dir,
+            record_count: target.next_offset().value(),
+        })
     }
 
     pub fn append(
@@ -3117,6 +3192,87 @@ mod tests {
         assert_eq!(stream.manifest_generation(), 1);
         assert_eq!(stream.rolled_segment_count(), 1);
         assert!(stream.published_frontier().is_none());
+    }
+
+    #[test]
+    fn list_streams_returns_sorted_descriptors() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(4)
+                .expect("config"),
+        )
+        .expect("engine");
+
+        engine
+            .create_stream(root_descriptor("task.zeta"))
+            .expect("create zeta");
+        engine
+            .create_stream(root_descriptor("task.alpha"))
+            .expect("create alpha");
+
+        let streams = engine.list_streams().expect("list streams");
+        let stream_ids = streams
+            .iter()
+            .map(|status| status.descriptor().stream_id.as_str().to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(stream_ids, vec!["task.alpha", "task.zeta"]);
+    }
+
+    #[test]
+    fn delete_stream_removes_independent_streams() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(4)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        engine.append(&stream_id, b"first").expect("append");
+
+        let deleted = engine.delete_stream(&stream_id).expect("delete stream");
+        assert_eq!(deleted.stream_id().as_str(), "task.root");
+        assert_eq!(deleted.record_count(), 1);
+        assert!(!deleted.deleted_path().exists());
+        assert!(engine.list_streams().expect("list streams").is_empty());
+    }
+
+    #[test]
+    fn delete_stream_rejects_dependent_lineage() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(4)
+                .expect("config"),
+        )
+        .expect("engine");
+        let root_stream = stream_id("task.root");
+
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        engine.append(&root_stream, b"first").expect("append");
+        engine
+            .create_branch(
+                stream_id("task.branch"),
+                StreamPosition::new(root_stream.clone(), Offset::new(0)),
+                LineageMetadata::new(Some("test".into()), Some("branch".into())),
+            )
+            .expect("create branch");
+
+        let error = engine
+            .delete_stream(&root_stream)
+            .expect_err("delete should reject dependent lineage");
+        assert!(
+            error
+                .to_string()
+                .contains("cannot delete stream 'task.root' while dependent streams exist")
+        );
     }
 
     #[test]

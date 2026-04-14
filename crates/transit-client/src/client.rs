@@ -2,9 +2,10 @@ use std::net::SocketAddr;
 
 use transit_core::kernel::{LineageMetadata, MergeSpec, Offset, StreamId, StreamPosition};
 use transit_core::server::{
-    RemoteAcknowledged, RemoteAppendOutcome, RemoteClient, RemoteClientError, RemoteLineageOutcome,
-    RemoteReadOutcome, RemoteStreamStatus, RemoteTailBatch, RemoteTailSessionCancelled,
-    RemoteTailSessionOpened, TailSessionId,
+    RemoteAcknowledged, RemoteAppendOutcome, RemoteClient, RemoteClientError,
+    RemoteDeletedStreamOutcome, RemoteLineageOutcome, RemoteReadOutcome, RemoteStreamListOutcome,
+    RemoteStreamStatus, RemoteTailBatch, RemoteTailSessionCancelled, RemoteTailSessionOpened,
+    TailSessionId,
 };
 
 pub type ClientResult<T> = std::result::Result<T, RemoteClientError>;
@@ -28,6 +29,17 @@ impl TransitClient {
         metadata: LineageMetadata,
     ) -> ClientResult<RemoteAcknowledged<RemoteStreamStatus>> {
         self.inner.create_root(stream_id, metadata)
+    }
+
+    pub fn list_streams(&self) -> ClientResult<RemoteAcknowledged<RemoteStreamListOutcome>> {
+        self.inner.list_streams()
+    }
+
+    pub fn delete_stream(
+        &self,
+        stream_id: &StreamId,
+    ) -> ClientResult<RemoteAcknowledged<RemoteDeletedStreamOutcome>> {
+        self.inner.delete_stream(stream_id)
     }
 
     pub fn append(

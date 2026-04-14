@@ -4,7 +4,7 @@ use object_store::local::LocalFileSystem;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{self, BufRead, IsTerminal, Write};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -52,6 +52,12 @@ struct Cli {
 enum Commands {
     /// Show the state of the local transit log.
     Status(StatusArgs),
+    /// Manage streams through the hosted transit server.
+    Streams(StreamsArgs),
+    /// Produce records to a stream through the hosted transit server.
+    Produce(ProduceArgs),
+    /// Consume records from a stream through the hosted transit server.
+    Consume(ConsumeArgs),
     /// Run the human-oriented proof workflows.
     Proof(ProofArgs),
     /// Explicitly verify the cryptographic integrity of local history.
@@ -105,6 +111,108 @@ struct StatusArgs {
     #[arg(long = "stream-id")]
     stream_id: Option<String>,
     /// Render log status as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct StreamsArgs {
+    #[command(subcommand)]
+    command: StreamsCommands,
+}
+
+#[derive(Debug, Subcommand)]
+enum StreamsCommands {
+    /// List streams currently hosted by the server.
+    List(StreamsListArgs),
+    /// Create a new root stream on the server.
+    Create(StreamsCreateArgs),
+    /// Delete a stream from the server.
+    Delete(StreamsDeleteArgs),
+}
+
+#[derive(Debug, Args)]
+struct StreamsListArgs {
+    /// Transit server address. Defaults to configured [server].listen_addr.
+    #[arg(long = "server-addr")]
+    server_addr: Option<SocketAddr>,
+    /// Render list output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct StreamsCreateArgs {
+    /// Transit server address. Defaults to configured [server].listen_addr.
+    #[arg(long = "server-addr")]
+    server_addr: Option<SocketAddr>,
+    /// Stream identifier to create.
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    /// Optional lineage actor.
+    #[arg(long)]
+    actor: Option<String>,
+    /// Optional lineage reason.
+    #[arg(long)]
+    reason: Option<String>,
+    /// Optional lineage labels in key=value form.
+    #[arg(long = "label")]
+    labels: Vec<String>,
+    /// Render create output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct StreamsDeleteArgs {
+    /// Transit server address. Defaults to configured [server].listen_addr.
+    #[arg(long = "server-addr")]
+    server_addr: Option<SocketAddr>,
+    /// Stream identifier to delete.
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    /// Acknowledge the destructive delete.
+    #[arg(long)]
+    force: bool,
+    /// Render delete output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ProduceArgs {
+    /// Transit server address. Defaults to configured [server].listen_addr.
+    #[arg(long = "server-addr")]
+    server_addr: Option<SocketAddr>,
+    /// Stream identifier to append to.
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    /// Append one payload. Repeat to send multiple records; if omitted, newline-delimited stdin is used.
+    #[arg(long = "payload-text")]
+    payload_text: Vec<String>,
+    /// Render produce output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
+struct ConsumeArgs {
+    /// Transit server address. Defaults to configured [server].listen_addr.
+    #[arg(long = "server-addr")]
+    server_addr: Option<SocketAddr>,
+    /// Stream identifier to read from.
+    #[arg(long = "stream-id")]
+    stream_id: String,
+    /// Starting offset for consumption.
+    #[arg(long = "from-offset", default_value_t = 0)]
+    from_offset: u64,
+    /// Optional maximum record count.
+    #[arg(long)]
+    limit: Option<usize>,
+    /// Prefix each emitted record with its stream position.
+    #[arg(long = "with-offsets")]
+    with_offsets: bool,
+    /// Render consume output as JSON.
     #[arg(long)]
     json: bool,
 }
@@ -393,6 +501,36 @@ async fn main() -> Result<()> {
             )?,
             args.json,
         )?,
+        Commands::Streams(args) => match args.command {
+            StreamsCommands::List(args) => {
+                let json = args.json;
+                render_streams_list(
+                    run_streams_list(resolve_server_addr(args.server_addr, &config))?,
+                    json,
+                )?
+            }
+            StreamsCommands::Create(args) => {
+                let json = args.json;
+                let server_addr = resolve_server_addr(args.server_addr, &config);
+                render_remote_stream_status(run_streams_create(server_addr, args)?, json)?
+            }
+            StreamsCommands::Delete(args) => {
+                let json = args.json;
+                let server_addr = resolve_server_addr(args.server_addr, &config);
+                render_streams_delete(run_streams_delete(server_addr, args)?, json)?
+            }
+        },
+        Commands::Produce(args) => {
+            let json = args.json;
+            let server_addr = resolve_server_addr(args.server_addr, &config);
+            render_produce(run_produce(server_addr, args)?, json)?
+        }
+        Commands::Consume(args) => {
+            let with_offsets = args.with_offsets;
+            let json = args.json;
+            let server_addr = resolve_server_addr(args.server_addr, &config);
+            render_consume(run_consume(server_addr, args)?, with_offsets, json)?
+        }
         Commands::Proof(args) => match args.command {
             ProofCommands::LocalEngine(args) => render_local_engine_proof(
                 run_local_engine_proof(resolve_local_root(args.root, &config))?,
@@ -508,6 +646,13 @@ async fn main() -> Result<()> {
 
 fn resolve_local_root(root: Option<PathBuf>, config: &LoadedTransitConfig) -> PathBuf {
     root.unwrap_or_else(|| config.config().node.data_dir.clone())
+}
+
+fn resolve_server_addr(
+    server_addr: Option<SocketAddr>,
+    config: &LoadedTransitConfig,
+) -> SocketAddr {
+    server_addr.unwrap_or(config.config().server.listen_addr)
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -776,27 +921,33 @@ fn run_status(root: PathBuf, stream_filter: Option<&str>) -> Result<TransitLogSt
     })
 }
 
-fn summarize_local_log_stream_status(
-    status: &transit_core::engine::LocalLogStreamStatus,
-) -> TransitLogStreamStatusResult {
-    let (lineage_kind, parents, merge_base) = match &status.descriptor().lineage {
-        StreamLineage::Root { .. } => ("root", Vec::new(), None),
+fn summarize_descriptor_lineage(
+    descriptor: &StreamDescriptor,
+) -> (String, Vec<String>, Option<String>) {
+    match &descriptor.lineage {
+        StreamLineage::Root { .. } => ("root".to_owned(), Vec::new(), None),
         StreamLineage::Branch { branch_point } => (
-            "branch",
+            "branch".to_owned(),
             vec![render_position(branch_point.parent.clone())],
             None,
         ),
         StreamLineage::Merge { merge } => (
-            "merge",
+            "merge".to_owned(),
             merge.parents.iter().cloned().map(render_position).collect(),
             merge.merge_base.clone().map(render_position),
         ),
-    };
+    }
+}
+
+fn summarize_local_log_stream_status(
+    status: &transit_core::engine::LocalLogStreamStatus,
+) -> TransitLogStreamStatusResult {
+    let (lineage_kind, parents, merge_base) = summarize_descriptor_lineage(status.descriptor());
     let next_offset = status.next_offset().value();
 
     TransitLogStreamStatusResult {
         stream_id: status.descriptor().stream_id.as_str().to_owned(),
-        lineage_kind: lineage_kind.to_owned(),
+        lineage_kind,
         parents,
         merge_base,
         record_count: next_offset,
@@ -816,6 +967,26 @@ fn summarize_local_log_stream_status(
                 segment_count: frontier.published_segments().len(),
             }
         }),
+    }
+}
+
+fn summarize_remote_stream_summary(
+    summary: &transit_core::server::RemoteStreamSummary,
+) -> RemoteStreamSummaryResult {
+    let (lineage_kind, parents, merge_base) = summarize_descriptor_lineage(summary.descriptor());
+    let next_offset = summary.status().next_offset().value();
+
+    RemoteStreamSummaryResult {
+        stream_id: summary.descriptor().stream_id.as_str().to_owned(),
+        lineage_kind,
+        parents,
+        merge_base,
+        record_count: next_offset,
+        head_offset: next_offset.checked_sub(1),
+        active_record_count: summary.status().active_record_count(),
+        active_segment_start_offset: summary.status().active_segment_start_offset().value(),
+        manifest_generation: summary.status().manifest_generation(),
+        rolled_segment_count: summary.status().rolled_segment_count(),
     }
 }
 
@@ -1483,6 +1654,41 @@ struct RemoteAppendResult {
 }
 
 #[derive(Debug, Serialize)]
+struct RemoteStreamListResult {
+    server_addr: String,
+    request_id: String,
+    durability: String,
+    topology: String,
+    stream_count: usize,
+    streams: Vec<RemoteStreamSummaryResult>,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteStreamSummaryResult {
+    stream_id: String,
+    lineage_kind: String,
+    parents: Vec<String>,
+    merge_base: Option<String>,
+    record_count: u64,
+    head_offset: Option<u64>,
+    active_record_count: u64,
+    active_segment_start_offset: u64,
+    manifest_generation: u64,
+    rolled_segment_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct RemoteDeletedStreamResult {
+    server_addr: String,
+    request_id: String,
+    durability: String,
+    topology: String,
+    stream_id: String,
+    deleted_path: PathBuf,
+    record_count: u64,
+}
+
+#[derive(Debug, Serialize)]
 struct RemoteReadResult {
     server_addr: String,
     request_id: String,
@@ -1569,6 +1775,28 @@ struct RemoteTailCancelResult {
     stream_id: String,
     next_offset: u64,
     state: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ProduceResult {
+    server_addr: String,
+    stream_id: String,
+    append_count: usize,
+    last_position: Option<String>,
+    appends: Vec<RemoteAppendResult>,
+}
+
+#[derive(Debug, Serialize)]
+struct ConsumeResult {
+    server_addr: String,
+    request_id: String,
+    durability: String,
+    topology: String,
+    stream_id: String,
+    from_offset: u64,
+    record_count: usize,
+    head_offset: Option<u64>,
+    records: Vec<RemoteRecordView>,
 }
 
 fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
@@ -2807,6 +3035,120 @@ async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result
     )
 }
 
+fn run_streams_list(server_addr: SocketAddr) -> Result<RemoteStreamListResult> {
+    let client = RemoteClient::new(server_addr);
+    let listed = client
+        .list_streams()
+        .with_context(|| format!("list remote streams at {server_addr}"))?;
+
+    Ok(RemoteStreamListResult {
+        server_addr: server_addr.to_string(),
+        request_id: listed.request_id().as_str().to_owned(),
+        durability: listed.ack().durability().to_owned(),
+        topology: render_topology(listed.ack().topology()),
+        stream_count: listed.body().streams().len(),
+        streams: listed
+            .body()
+            .streams()
+            .iter()
+            .map(summarize_remote_stream_summary)
+            .collect(),
+    })
+}
+
+fn run_streams_create(
+    server_addr: SocketAddr,
+    args: StreamsCreateArgs,
+) -> Result<RemoteStreamStatusResult> {
+    run_remote_create_root(ServerCreateRootArgs {
+        server_addr,
+        stream_id: args.stream_id,
+        actor: args.actor,
+        reason: args.reason,
+        labels: args.labels,
+        json: args.json,
+    })
+}
+
+fn run_streams_delete(
+    server_addr: SocketAddr,
+    args: StreamsDeleteArgs,
+) -> Result<RemoteDeletedStreamResult> {
+    ensure!(
+        args.force,
+        "refusing to delete stream '{}' without --force",
+        args.stream_id
+    );
+
+    let client = RemoteClient::new(server_addr);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let deleted = client
+        .delete_stream(&stream_id)
+        .with_context(|| format!("delete remote stream {}", stream_id.as_str()))?;
+
+    Ok(RemoteDeletedStreamResult {
+        server_addr: server_addr.to_string(),
+        request_id: deleted.request_id().as_str().to_owned(),
+        durability: deleted.ack().durability().to_owned(),
+        topology: render_topology(deleted.ack().topology()),
+        stream_id: deleted.body().stream_id().as_str().to_owned(),
+        deleted_path: deleted.body().deleted_path().to_path_buf(),
+        record_count: deleted.body().record_count(),
+    })
+}
+
+fn run_produce(server_addr: SocketAddr, args: ProduceArgs) -> Result<ProduceResult> {
+    let client = RemoteClient::new(server_addr);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let payloads = read_produce_payloads(args.payload_text)?;
+    ensure!(
+        !payloads.is_empty(),
+        "produce requires at least one payload via --payload-text or stdin"
+    );
+
+    let mut appends = Vec::with_capacity(payloads.len());
+    for payload in payloads {
+        let append = client
+            .append(&stream_id, payload.as_bytes())
+            .with_context(|| format!("append remotely to {}", stream_id.as_str()))?;
+        appends.push(summarize_remote_append(server_addr, &stream_id, append));
+    }
+
+    Ok(ProduceResult {
+        server_addr: server_addr.to_string(),
+        stream_id: stream_id.as_str().to_owned(),
+        append_count: appends.len(),
+        last_position: appends.last().map(|append| append.position.clone()),
+        appends,
+    })
+}
+
+fn run_consume(server_addr: SocketAddr, args: ConsumeArgs) -> Result<ConsumeResult> {
+    let client = RemoteClient::new(server_addr);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let read = client
+        .tail(&stream_id, Offset::new(args.from_offset))
+        .with_context(|| format!("consume remotely from {}", stream_id.as_str()))?;
+    let mut records = summarize_remote_records(read.body().records());
+    if let Some(limit) = args.limit {
+        records.truncate(limit);
+    }
+
+    Ok(ConsumeResult {
+        server_addr: server_addr.to_string(),
+        request_id: read.request_id().as_str().to_owned(),
+        durability: read.ack().durability().to_owned(),
+        topology: render_topology(read.ack().topology()),
+        stream_id: stream_id.as_str().to_owned(),
+        from_offset: args.from_offset,
+        record_count: records.len(),
+        head_offset: records
+            .last()
+            .and_then(|record| parse_rendered_position_offset(&record.position)),
+        records,
+    })
+}
+
 fn run_remote_create_root(args: ServerCreateRootArgs) -> Result<RemoteStreamStatusResult> {
     let client = RemoteClient::new(args.server_addr);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
@@ -3413,6 +3755,24 @@ fn summarize_remote_records(
         .collect()
 }
 
+fn read_produce_payloads(payload_text: Vec<String>) -> Result<Vec<String>> {
+    if !payload_text.is_empty() {
+        return Ok(payload_text);
+    }
+
+    let stdin = io::stdin();
+    ensure!(
+        !stdin.is_terminal(),
+        "produce requires --payload-text or newline-delimited stdin"
+    );
+
+    stdin
+        .lock()
+        .lines()
+        .map(|line| line.context("read produce payload from stdin"))
+        .collect()
+}
+
 fn parse_stream_id_arg(value: &str) -> Result<StreamId> {
     StreamId::new(value).with_context(|| format!("parse stream id '{value}'"))
 }
@@ -3474,6 +3834,12 @@ fn parse_key_value_arg(value: &str) -> Result<(String, String)> {
         .split_once('=')
         .with_context(|| format!("parse key=value pair '{value}'"))?;
     Ok((key.to_owned(), value.to_owned()))
+}
+
+fn parse_rendered_position_offset(value: &str) -> Option<u64> {
+    value
+        .rsplit_once('@')
+        .and_then(|(_, offset)| offset.parse::<u64>().ok())
 }
 
 fn fnv1a64_hex(bytes: &[u8]) -> String {
@@ -5145,6 +5511,114 @@ fn render_remote_stream_status(result: RemoteStreamStatusResult, json: bool) -> 
     Ok(())
 }
 
+fn render_streams_list(result: RemoteStreamListResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit streams list");
+    println!("server: {}", result.server_addr);
+    println!("request: {}", result.request_id);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!("streams: {}", result.stream_count);
+
+    for stream in result.streams {
+        println!();
+        println!("stream: {}", stream.stream_id);
+        println!("lineage: {}", stream.lineage_kind);
+        if stream.parents.is_empty() {
+            println!("parents: none");
+        } else {
+            println!("parents: {}", stream.parents.join(", "));
+        }
+        if let Some(merge_base) = stream.merge_base {
+            println!("merge base: {merge_base}");
+        }
+        println!("records: {}", stream.record_count);
+        match stream.head_offset {
+            Some(head_offset) => println!("head offset: {head_offset}"),
+            None => println!("head offset: empty"),
+        }
+        println!("active records: {}", stream.active_record_count);
+        println!(
+            "active segment start offset: {}",
+            stream.active_segment_start_offset
+        );
+        println!("manifest generation: {}", stream.manifest_generation);
+        println!("rolled segments: {}", stream.rolled_segment_count);
+    }
+
+    Ok(())
+}
+
+fn render_streams_delete(result: RemoteDeletedStreamResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit streams delete");
+    println!("server: {}", result.server_addr);
+    println!("request: {}", result.request_id);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!("stream: {}", result.stream_id);
+    println!("records removed: {}", result.record_count);
+    println!("deleted path: {}", result.deleted_path.display());
+    Ok(())
+}
+
+fn render_produce(result: ProduceResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit produce");
+    println!("server: {}", result.server_addr);
+    println!("stream: {}", result.stream_id);
+    println!("appends: {}", result.append_count);
+    if let Some(last_position) = result.last_position {
+        println!("last position: {last_position}");
+    }
+    for append in result.appends {
+        println!("{}", append.position);
+    }
+    Ok(())
+}
+
+fn render_consume(result: ConsumeResult, with_offsets: bool, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    if with_offsets {
+        println!("transit consume");
+        println!("server: {}", result.server_addr);
+        println!("request: {}", result.request_id);
+        println!("durability: {}", result.durability);
+        println!("topology: {}", result.topology);
+        println!("stream: {}", result.stream_id);
+        println!("from offset: {}", result.from_offset);
+        println!("records: {}", result.record_count);
+        if let Some(head_offset) = result.head_offset {
+            println!("head offset: {head_offset}");
+        }
+        for record in result.records {
+            println!("{} {}", record.position, record.payload_text);
+        }
+        return Ok(());
+    }
+
+    for record in result.records {
+        println!("{}", record.payload_text);
+    }
+    Ok(())
+}
+
 fn render_remote_lineage(result: RemoteLineageResult, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
@@ -5327,6 +5801,32 @@ mod tests {
         .expect("parse top-level status command");
         assert!(matches!(cli.command, Commands::Status(_)));
 
+        let cli = Cli::try_parse_from(["transit", "streams", "list"])
+            .expect("parse streams list command");
+        assert!(matches!(cli.command, Commands::Streams(_)));
+
+        let cli = Cli::try_parse_from([
+            "transit",
+            "produce",
+            "--stream-id",
+            "task.root",
+            "--payload-text",
+            "hello",
+        ])
+        .expect("parse produce command");
+        assert!(matches!(cli.command, Commands::Produce(_)));
+
+        let cli = Cli::try_parse_from([
+            "transit",
+            "consume",
+            "--stream-id",
+            "task.root",
+            "--from-offset",
+            "0",
+        ])
+        .expect("parse consume command");
+        assert!(matches!(cli.command, Commands::Consume(_)));
+
         let cli =
             Cli::try_parse_from(["transit", "proof", "local-engine", "--root", "target/demo"])
                 .expect("parse proof command");
@@ -5435,6 +5935,77 @@ mod tests {
             run_status(temp_dir.path().to_path_buf(), Some("task.root")).expect("filtered status");
         assert_eq!(filtered.stream_count, 1);
         assert_eq!(filtered.streams[0].stream_id, "task.root");
+    }
+
+    #[test]
+    fn streams_produce_and_consume_cover_the_kcat_style_remote_flow() {
+        let (_temp_dir, server, server_addr) = start_server();
+
+        let listed_before = run_streams_list(server_addr).expect("list streams");
+        assert_eq!(listed_before.stream_count, 0);
+
+        let created = run_streams_create(
+            server_addr,
+            StreamsCreateArgs {
+                server_addr: Some(server_addr),
+                stream_id: "task.root".into(),
+                actor: Some("cli".into()),
+                reason: Some("create".into()),
+                labels: vec![],
+                json: true,
+            },
+        )
+        .expect("create stream");
+        assert_eq!(created.stream_id, "task.root");
+
+        let listed_after = run_streams_list(server_addr).expect("list streams");
+        assert_eq!(listed_after.stream_count, 1);
+        assert_eq!(listed_after.streams[0].stream_id, "task.root");
+        assert_eq!(listed_after.streams[0].lineage_kind, "root");
+
+        let produced = run_produce(
+            server_addr,
+            ProduceArgs {
+                server_addr: Some(server_addr),
+                stream_id: "task.root".into(),
+                payload_text: vec!["first".into(), "second".into()],
+                json: true,
+            },
+        )
+        .expect("produce");
+        assert_eq!(produced.append_count, 2);
+        assert_eq!(produced.last_position.as_deref(), Some("task.root@1"));
+
+        let consumed = run_consume(
+            server_addr,
+            ConsumeArgs {
+                server_addr: Some(server_addr),
+                stream_id: "task.root".into(),
+                from_offset: 1,
+                limit: Some(1),
+                with_offsets: false,
+                json: true,
+            },
+        )
+        .expect("consume");
+        assert_eq!(consumed.record_count, 1);
+        assert_eq!(consumed.records[0].payload_text, "second");
+        assert_eq!(consumed.head_offset, Some(1));
+
+        let deleted = run_streams_delete(
+            server_addr,
+            StreamsDeleteArgs {
+                server_addr: Some(server_addr),
+                stream_id: "task.root".into(),
+                force: true,
+                json: true,
+            },
+        )
+        .expect("delete");
+        assert_eq!(deleted.stream_id, "task.root");
+        assert_eq!(deleted.record_count, 2);
+
+        server.shutdown().expect("shutdown server");
     }
 
     #[test]

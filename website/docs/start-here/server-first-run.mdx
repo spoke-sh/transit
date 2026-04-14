@@ -34,6 +34,8 @@ Run the Rust client proof against a locally started server:
 just rust-client-proof
 ```
 
+For the broader shipped surface, read [Current Capabilities](./current-capabilities.mdx).
+
 ## Minimal Manual Walkthrough
 
 Start a daemon:
@@ -45,27 +47,35 @@ cargo run -p transit-cli --bin transit -- server run --root target/transit-docs/
 In another terminal, create a stream:
 
 ```bash
-cargo run -p transit-cli --bin transit -- server create-root \
+cargo run -p transit-cli --bin transit -- streams create \
   --stream-id demo/main \
   --actor docs \
   --reason "manual walkthrough"
 ```
 
-Append a record:
+Produce records:
 
 ```bash
-cargo run -p transit-cli --bin transit -- server append \
+printf 'hello from transit\nsecond record\n' | cargo run -p transit-cli --bin transit -- produce \
+  --stream-id demo/main
+```
+
+Consume the replay:
+
+```bash
+cargo run -p transit-cli --bin transit -- consume \
   --stream-id demo/main \
-  --payload-text "hello from transit"
+  --from-offset 0 \
+  --with-offsets
 ```
 
-Read the replay:
+List hosted streams:
 
 ```bash
-cargo run -p transit-cli --bin transit -- server read --stream-id demo/main
+cargo run -p transit-cli --bin transit -- streams list
 ```
 
-Inspect lineage:
+Inspect lineage through the lower-level server namespace:
 
 ```bash
 cargo run -p transit-cli --bin transit -- server lineage --stream-id demo/main
@@ -77,10 +87,11 @@ You should see that the server surface:
 
 - keeps acknowledgements explicit
 - keeps branch and lineage operations available remotely
+- exposes a higher-level `streams` / `produce` / `consume` path for common operator work
 - stays single-node unless a feature explicitly says otherwise
 - does not invent a separate storage model for the daemon
 
-And separately, the controlled failover proof should show that the shared engine can now prove readiness, explicit lease handoff, and former-primary fencing without pretending the server already ships quorum or automatic election.
+And separately, the shared engine now also ships quorum durability and automatic leader election. The minimal walkthrough here stays focused on the single-node remote operator surface; use the failover proofs when you want the distributed slice itself.
 
 ## Boundaries To Remember
 
@@ -91,10 +102,11 @@ That means these docs should not imply:
 - multi-primary behavior
 - hidden consensus across every deployment
 - a second replicated storage layer behind the API
-- automatic failover orchestration beyond the explicit proof path
+- automatic remote object reclamation after deleting a published stream
 
 ## Where To Go Next
 
 - Read [Embedded And Server Modes](../concepts/embedded-and-server.mdx)
 - Read [Durability Modes](../concepts/durability-modes.mdx)
 - Read [Failover](../concepts/failover.mdx)
+- Read [Current Capabilities](./current-capabilities.mdx)

@@ -1,6 +1,6 @@
 use crate::engine::{
-    DurabilityMode, LocalAppendOutcome, LocalEngine, LocalEngineConfig, LocalRecord,
-    LocalStreamStatus,
+    DurabilityMode, LocalAppendOutcome, LocalDeletedStream, LocalEngine, LocalEngineConfig,
+    LocalLogStreamStatus, LocalRecord, LocalStreamStatus,
 };
 use crate::kernel::{
     LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamPosition,
@@ -325,6 +325,39 @@ impl RemoteClient {
                 outcome: OperationResponse::StreamStatusOk(status),
             } => Ok(RemoteAcknowledged::new(request_id, ack, status)),
             other => Err(unexpected_operation_response("create_root", &other.outcome)),
+        }
+    }
+
+    pub fn list_streams(&self) -> RemoteClientResult<RemoteAcknowledged<RemoteStreamListOutcome>> {
+        match self.send_request(OperationRequest::ListStreams)? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::StreamListOk(outcome),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
+            other => Err(unexpected_operation_response(
+                "list_streams",
+                &other.outcome,
+            )),
+        }
+    }
+
+    pub fn delete_stream(
+        &self,
+        stream_id: &StreamId,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteDeletedStreamOutcome>> {
+        match self.send_request(OperationRequest::DeleteStream {
+            stream_id: stream_id.clone(),
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::DeleteStreamOk(outcome),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
+            other => Err(unexpected_operation_response(
+                "delete_stream",
+                &other.outcome,
+            )),
         }
     }
 
@@ -674,6 +707,54 @@ impl RemoteStreamStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteStreamSummary {
+    descriptor: StreamDescriptor,
+    status: RemoteStreamStatus,
+}
+
+impl RemoteStreamSummary {
+    pub fn descriptor(&self) -> &StreamDescriptor {
+        &self.descriptor
+    }
+
+    pub fn status(&self) -> &RemoteStreamStatus {
+        &self.status
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteStreamListOutcome {
+    streams: Vec<RemoteStreamSummary>,
+}
+
+impl RemoteStreamListOutcome {
+    pub fn streams(&self) -> &[RemoteStreamSummary] {
+        &self.streams
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteDeletedStreamOutcome {
+    stream_id: StreamId,
+    deleted_path: PathBuf,
+    record_count: u64,
+}
+
+impl RemoteDeletedStreamOutcome {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn deleted_path(&self) -> &Path {
+        &self.deleted_path
+    }
+
+    pub fn record_count(&self) -> u64 {
+        self.record_count
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteLineageOutcome {
     descriptor: StreamDescriptor,
     status: RemoteStreamStatus,
@@ -759,6 +840,10 @@ enum OperationRequest {
         stream_id: StreamId,
         metadata: LineageMetadata,
     },
+    ListStreams,
+    DeleteStream {
+        stream_id: StreamId,
+    },
     OpenTailSession {
         stream_id: StreamId,
         from_offset: Offset,
@@ -819,6 +904,8 @@ enum OperationResponse {
     TailBatchOk(RemoteTailBatch),
     TailSessionCancelled(RemoteTailSessionCancelled),
     StreamStatusOk(RemoteStreamStatus),
+    StreamListOk(RemoteStreamListOutcome),
+    DeleteStreamOk(RemoteDeletedStreamOutcome),
     LineageOk(RemoteLineageOutcome),
 }
 
@@ -1131,6 +1218,22 @@ fn handle_request(
             ),
             Err(error) => engine_error_response(request_id, error),
         },
+        OperationRequest::ListStreams => match list_streams(engine) {
+            Ok(streams) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::StreamListOk(streams),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
+        OperationRequest::DeleteStream { stream_id } => match engine.delete_stream(&stream_id) {
+            Ok(outcome) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::DeleteStreamOk(map_deleted_stream(outcome)),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
         OperationRequest::OpenTailSession {
             stream_id,
             from_offset,
@@ -1248,6 +1351,38 @@ fn map_stream_status(status: LocalStreamStatus) -> RemoteStreamStatus {
         manifest_generation: status.manifest_generation(),
         rolled_segment_count: status.rolled_segment_count(),
     }
+}
+
+fn map_log_stream_summary(status: LocalLogStreamStatus) -> RemoteStreamSummary {
+    RemoteStreamSummary {
+        descriptor: status.descriptor().clone(),
+        status: RemoteStreamStatus {
+            stream_id: status.descriptor().stream_id.clone(),
+            next_offset: status.next_offset(),
+            active_record_count: status.active_record_count(),
+            active_segment_start_offset: status.active_segment_start_offset(),
+            manifest_generation: status.manifest_generation(),
+            rolled_segment_count: status.rolled_segment_count(),
+        },
+    }
+}
+
+fn map_deleted_stream(outcome: LocalDeletedStream) -> RemoteDeletedStreamOutcome {
+    RemoteDeletedStreamOutcome {
+        stream_id: outcome.stream_id().clone(),
+        deleted_path: outcome.deleted_path().to_path_buf(),
+        record_count: outcome.record_count(),
+    }
+}
+
+fn list_streams(engine: &LocalEngine) -> Result<RemoteStreamListOutcome> {
+    Ok(RemoteStreamListOutcome {
+        streams: engine
+            .list_streams()?
+            .into_iter()
+            .map(map_log_stream_summary)
+            .collect(),
+    })
 }
 
 fn inspect_lineage(engine: &LocalEngine, stream_id: &StreamId) -> Result<RemoteLineageOutcome> {
@@ -1493,6 +1628,9 @@ fn is_invalid_request_message(message: &str) -> bool {
         "tail session start",
         "tail session credit",
         "already exists",
+        "cannot delete stream",
+        "published frontier",
+        "not the leader",
     ]
     .into_iter()
     .any(|pattern| message.contains(pattern))
@@ -1680,6 +1818,113 @@ mod tests {
                 }
             }
             other => panic!("expected ack envelope, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_stream_listing_reports_descriptors_and_status() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let stream_id = stream_id("task.root");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(Some("test".into()), Some("list".into())),
+            )
+            .expect("create root");
+        client.append(&stream_id, b"first").expect("append");
+
+        let listed = client.list_streams().expect("list streams");
+        assert_eq!(listed.ack().durability(), "local");
+        assert_eq!(listed.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(listed.body().streams().len(), 1);
+        assert_eq!(
+            listed.body().streams()[0].descriptor().stream_id.as_str(),
+            "task.root"
+        );
+        assert_eq!(listed.body().streams()[0].status().next_offset().value(), 1);
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_delete_stream_removes_independent_streams() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let stream_id = stream_id("task.root");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(Some("test".into()), Some("delete".into())),
+            )
+            .expect("create root");
+        client.append(&stream_id, b"first").expect("append");
+
+        let deleted = client.delete_stream(&stream_id).expect("delete stream");
+        assert_eq!(deleted.body().stream_id().as_str(), "task.root");
+        assert_eq!(deleted.body().record_count(), 1);
+        assert!(!deleted.body().deleted_path().exists());
+        assert!(
+            client
+                .list_streams()
+                .expect("list streams")
+                .body()
+                .streams()
+                .is_empty()
+        );
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_delete_stream_rejects_dependent_lineage() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let root_stream = stream_id("task.root");
+
+        client
+            .create_root(
+                &root_stream,
+                LineageMetadata::new(Some("test".into()), Some("delete".into())),
+            )
+            .expect("create root");
+        client.append(&root_stream, b"first").expect("append");
+        client
+            .create_branch(
+                &stream_id("task.branch"),
+                StreamPosition::new(root_stream.clone(), Offset::new(0)),
+                LineageMetadata::new(Some("test".into()), Some("branch".into())),
+            )
+            .expect("create branch");
+
+        let error = client
+            .delete_stream(&root_stream)
+            .expect_err("delete should reject dependent lineage");
+        match error {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::InvalidRequest);
+                assert!(error.message().contains("cannot delete stream 'task.root'"));
+            }
+            other => panic!("expected remote invalid_request, got {other:?}"),
         }
 
         server.shutdown().expect("shutdown server");
