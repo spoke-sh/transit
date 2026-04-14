@@ -162,7 +162,7 @@
 | [Object-Store Authority With Warm Cache](epics/VGh59soBt/voyages/VGh5BgrVO/) | done |
 | [Materialized Reference Projection Surface](epics/VGh59soBt/voyages/VGh5CIxcc/) | done |
 
-### [Publish Hosted Consumer Interface For Spoke Cutover](epics/VGj3EvcuK/) (active)
+### [Publish Hosted Consumer Interface For Direct Downstream Cutover](epics/VGj3EvcuK/) (active)
 
 | Voyage | Status |
 |--------|--------|

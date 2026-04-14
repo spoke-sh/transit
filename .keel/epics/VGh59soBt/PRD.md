@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-Spoke Hub and similar consumers still open local Transit storage for domain-owned control-plane records such as auth/account/session events, while transit-server still treats filesystem state as the primary persistence surface. We need hosted Transit to own authoritative append, replay, and generic materialization mechanics for external control planes without absorbing consumer schemas or introducing a second storage or lineage model.
+Some downstream control planes still open local Transit storage for domain-owned records, while transit-server still treats filesystem state as the primary persistence surface. We need hosted Transit to own authoritative append, replay, and generic materialization mechanics for external control planes without absorbing consumer schemas or introducing a second storage or lineage model.
 
 ## Goals & Objectives
 
@@ -16,9 +16,9 @@ Spoke Hub and similar consumers still open local Transit storage for domain-owne
 
 | Persona | Description | Primary Need |
 |---------|-------------|--------------|
-| Control-Plane Integrator | The engineer wiring Spoke Hub or a similar service onto hosted Transit for domain-owned stateful workloads. | Hosted append/replay/materialization surfaces that eliminate local embedded authority while leaving schema ownership in the consumer. |
+| Control-Plane Integrator | The engineer wiring a downstream service onto hosted Transit for domain-owned stateful workloads. | Hosted append/replay/materialization surfaces that eliminate local embedded authority while leaving schema ownership in the consumer. |
 | Transit Operator | The engineer running transit-server as a shared authority service. | Explicit durability rules, object-store-backed recovery, and proofs that match real server behavior. |
-| Projection Builder | The engineer deriving consumer-owned read models, such as Spoke auth/account/session state, from authoritative history. | Checkpointed materialization surfaces that reuse Transit lineage rather than inventing a second state system. |
+| Projection Builder | The engineer deriving consumer-owned read models from authoritative history. | Checkpointed materialization surfaces that reuse Transit lineage rather than inventing a second state system. |
 
 ## Scope
 
@@ -70,15 +70,15 @@ Spoke Hub and similar consumers still open local Transit storage for domain-owne
 
 | Assumption | Impact if Wrong | Validation |
 |------------|-----------------|------------|
-| Spoke Hub auth/account/session is the first high-value external consumer, but the hosted authority and projection surfaces should remain reusable for other control planes. | The epic could become too Spoke-specific or too abstract. | Re-check during voyage implementation and review shared boundaries in design. |
+| A downstream control-plane adopter is expected to validate the first high-value external use case, but the hosted authority and projection surfaces should remain reusable for other control planes. | The epic could become too consumer-specific or too abstract. | Re-check during voyage implementation and review shared boundaries in design. |
 | The existing client, tiered storage, and materialization primitives are sufficient foundations for this hosted authority slice without reopening consensus scope. | The epic may sprawl into replication or multi-node redesign. | Validate during voyage planning and keep replication work out of scope unless a hard blocker appears. |
 
 ## Open Questions & Risks
 
 | Question/Risk | Owner | Status |
 |---------------|-------|--------|
-| Should the hosted authority proof live only in Transit or also expose reusable fixtures for downstream repos such as Spoke? | Epic owner | Open |
-| How much reference projection vocabulary belongs in Transit before downstream repos such as Spoke should own the rest of the schema? | Epic owner | Open |
+| Should the hosted authority proof live only in Transit or also expose reusable fixtures for downstream consumers? | Epic owner | Open |
+| How much reference projection vocabulary belongs in Transit before downstream consumers should own the rest of the schema? | Epic owner | Open |
 | What acknowledgement boundary should gate `tiered` claims when object-store publication lags hot appends? | Epic owner | Open |
 
 ## Success Criteria

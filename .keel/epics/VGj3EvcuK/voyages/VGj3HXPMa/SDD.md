@@ -1,6 +1,6 @@
 # Define Hosted Consumer Endpoint Contract - Software Design Description
 
-> Make the authoritative hosted endpoint, auth, acknowledgement, and error contract explicit for downstream consumers such as Spoke so new semantics land only in Transit-owned contract surfaces.
+> Make the authoritative hosted endpoint, auth, acknowledgement, and error contract explicit for downstream consumers so new semantics land only in Transit-owned contract surfaces.
 
 **SRS:** [SRS.md](SRS.md)
 
@@ -8,7 +8,7 @@
 
 This voyage defines the authoritative hosted consumer contract above Transit's
 generic engine and below any downstream product semantics. The goal is to make
-it impossible for consumers such as Spoke to invent a second endpoint, auth, or
+it impossible for consumers to invent a second endpoint, auth, or
 acknowledgement contract locally.
 
 ## Context & Boundaries
@@ -37,7 +37,6 @@ rollout manifests.
 | Dependency | Type | Purpose | Version/API |
 |------------|------|---------|-------------|
 | Mission `VGh598Oz0` | prior Transit mission | Supplies the generic hosted authority vocabulary this voyage must refine rather than replace. | current repo |
-| Spoke mission `VGikpu8hf` | downstream consumer contract | Confirms that Spoke must consume the upstream contract and delete duplicate local runtime/client ownership. | current repo docs |
 
 ## Key Decisions
 
@@ -62,7 +61,7 @@ The voyage introduces one authored contract layer:
   surface.
 - `Auth posture`
   Purpose: state how credentials or other access material are presented without
-  making the contract Spoke-specific.
+  making the contract consumer-specific.
 - `Acknowledgement and error surface`
   Purpose: define the literal durability and failure vocabulary consumers must
   preserve.
@@ -77,8 +76,8 @@ The voyage introduces one authored contract layer:
 
 ## Data Flow
 
-1. A downstream repo such as Spoke targets the hosted Transit authority.
-2. The repo authenticates using the authored upstream posture.
+1. A downstream consumer targets the hosted Transit authority.
+2. The consumer authenticates using the authored upstream posture.
 3. Hosted operations return literal acknowledgement and error semantics from
    Transit-owned contract surfaces.
 4. Downstream repos consume those semantics directly instead of inventing or
@@ -89,5 +88,5 @@ The voyage introduces one authored contract layer:
 | Error Condition | Detection | Response | Recovery |
 |-----------------|-----------|----------|----------|
 | Downstream contract drift reappears in repo-local implementations | Review finds new endpoint or ack behavior authored only outside Transit | Treat as architectural drift | Update the upstream contract first, then consume it downstream |
-| Hosted auth posture becomes consumer-specific | Contract review finds Spoke-specific semantics inside Transit docs or interfaces | Reject the design as overscoped | Reframe the contract around generic hosted consumers |
+| Hosted auth posture becomes consumer-specific | Contract review finds consumer-specific semantics inside Transit docs or interfaces | Reject the design as overscoped | Reframe the contract around generic hosted consumers |
 | Ack or error vocabulary is underspecified | Downstream cutover planning cannot state what must be preserved literally | Treat the contract as incomplete | Expand the upstream authored surface before asking consumers to cut over |

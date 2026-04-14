@@ -5,12 +5,12 @@ status: active
 created_at: 2026-04-13T18:45:35
 updated_at: 2026-04-13T18:49:21
 # authored
-title: Upstream Hosted Consumer Interface For Spoke Cutover
+title: Upstream Hosted Consumer Interface For Direct Downstream Cutover
 watch: ~
 activated_at: 2026-04-13T18:49:21
 ---
 
-# Upstream Hosted Consumer Interface For Spoke Cutover
+# Upstream Hosted Consumer Interface For Direct Downstream Cutover
 
 ## Documents
 

@@ -17,10 +17,10 @@ index: 1
 ## Summary
 
 Define how downstream consumers identify the authoritative hosted Transit
-endpoint and how auth posture is expressed without falling back to Spoke-local
-protocol semantics.
+endpoint and how auth posture is expressed without falling back to
+consumer-local protocol semantics.
 
 ## Acceptance Criteria
 
-- [ ] [SRS-01/AC-01] The hosted consumer contract defines the canonical endpoint grammar and auth posture for downstream repos such as Spoke. <!-- verify: manual, SRS-01:start:end -->
-- [ ] [SRS-NFR-01/AC-02] The authored endpoint and auth posture stays generic and does not absorb Spoke-specific business semantics. <!-- verify: manual, SRS-NFR-01:start:end -->
+- [ ] [SRS-01/AC-01] The hosted consumer contract defines the canonical endpoint grammar and auth posture for downstream repos. <!-- verify: manual, SRS-01:start:end -->
+- [ ] [SRS-NFR-01/AC-02] The authored endpoint and auth posture stays generic and does not absorb consumer-specific business semantics. <!-- verify: manual, SRS-NFR-01:start:end -->

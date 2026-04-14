@@ -55,7 +55,7 @@ Transit already has a network server, a thin Rust client, and shared lineage sem
 |----------|--------|-----------|
 | Authority boundary | Hosted transit-server owns append and replay for consumer-owned records; consumers stop opening embedded local authority stores | Removes redeploy-sensitive local authority from downstream services |
 | Client model | Thin remote client and acknowledgement surfaces only | Preserves the one-engine thesis and avoids a second semantic path |
-| Workload vocabulary | Keep the remote contract generic while allowing downstream examples such as Spoke auth/account/session to exercise it | Keeps the voyage directly useful to Spoke without making Transit own that schema |
+| Workload vocabulary | Keep the remote contract generic while allowing downstream examples to exercise it | Keeps the voyage directly useful without making Transit own consumer schema |
 | Migration guidance | Explicitly document local embedded authority as an anti-pattern for hosted control planes | Prevents partial adoption that leaves the real failure mode intact |
 
 ## Architecture

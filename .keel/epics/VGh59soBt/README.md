@@ -10,7 +10,7 @@ mission: VGh598Oz0
 
 # Make Transit Server The Hosted Authority For External Workloads And Derived State
 
-> Spoke Hub and similar consumers still open local Transit storage for domain-owned control-plane records such as auth/account/session events, while transit-server still treats filesystem state as the primary persistence surface. We need hosted Transit to own authoritative append, replay, and generic materialization mechanics for external control planes without absorbing consumer schemas or introducing a second storage or lineage model.
+> Some downstream control planes still open local Transit storage for domain-owned records, while transit-server still treats filesystem state as the primary persistence surface. We need hosted Transit to own authoritative append, replay, and generic materialization mechanics for external control planes without absorbing consumer schemas or introducing a second storage or lineage model.
 
 ## Documents
 

@@ -12,7 +12,7 @@ updated_at: 2026-04-13T18:49:16
 
 # Define Hosted Consumer Endpoint Contract
 
-> Make the authoritative hosted endpoint, auth, acknowledgement, and error contract explicit for downstream consumers such as Spoke so new semantics land only in Transit-owned contract surfaces.
+> Make the authoritative hosted endpoint, auth, acknowledgement, and error contract explicit for downstream consumers so new semantics land only in Transit-owned contract surfaces.
 
 ## Documents
 

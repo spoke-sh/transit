@@ -3,7 +3,7 @@
 ## Summary
 
 Epic: VGj3EvcuK
-Goal: Make the authoritative hosted endpoint, auth, acknowledgement, and error contract explicit for downstream consumers such as Spoke so new semantics land only in Transit-owned contract surfaces.
+Goal: Make the authoritative hosted endpoint, auth, acknowledgement, and error contract explicit for downstream consumers so new semantics land only in Transit-owned contract surfaces.
 
 ## Scope
 
@@ -16,7 +16,7 @@ Goal: Make the authoritative hosted endpoint, auth, acknowledgement, and error c
 
 ### Out of Scope
 
-- [SCOPE-03] Spoke-side code changes that consume the resulting upstream
+- [SCOPE-03] Downstream code changes that consume the resulting upstream
   contract.
 - [SCOPE-04] Consumer-owned schema, projection, or policy semantics.
 
@@ -34,6 +34,6 @@ Goal: Make the authoritative hosted endpoint, auth, acknowledgement, and error c
 <!-- BEGIN NON_FUNCTIONAL_REQUIREMENTS -->
 | ID | Requirement | Scope | Source | Verification |
 |----|-------------|-------|--------|--------------|
-| SRS-NFR-01 | The hosted consumer endpoint contract must remain generic and must not absorb Spoke-specific business semantics. | SCOPE-01, SCOPE-02 | NFR-01 | story: VGj3nmhSJ, VGj3nnHSG |
+| SRS-NFR-01 | The hosted consumer endpoint contract must remain generic and must not absorb consumer-specific business semantics. | SCOPE-01, SCOPE-02 | NFR-01 | story: VGj3nmhSJ, VGj3nnHSG |
 | SRS-NFR-02 | Contract vocabulary and replacement posture must be explicit enough that downstream repos do not redefine endpoint or acknowledgement behavior locally. | SCOPE-01, SCOPE-02 | NFR-02 | story: VGj3nmhSJ, VGj3nnHSG |
 <!-- END NON_FUNCTIONAL_REQUIREMENTS -->

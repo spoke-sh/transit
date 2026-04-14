@@ -6,7 +6,7 @@
 
 ## Overview
 
-This voyage defines the first generic reference projection layer for hosted downstream workloads. The goal is to prove that external consumers can derive domain-owned state from authoritative Transit history and checkpoints instead of storing hidden mutable mirrors beside the server. Spoke auth/account/session is the first intended adopter, but the reducer contracts and proof surfaces remain generic.
+This voyage defines the first generic reference projection layer for hosted downstream workloads. The goal is to prove that external consumers can derive domain-owned state from authoritative Transit history and checkpoints instead of storing hidden mutable mirrors beside the server. The reducer contracts and proof surfaces remain generic.
 
 ## Context & Boundaries
 
@@ -56,7 +56,7 @@ Transit already has checkpointed materialization primitives. This voyage shapes 
 |----------|--------|-----------|
 | Projection role | Reference views are reference materializations, not mutable server-owned tables | Preserves append-only authority and replaceable read models |
 | Resume anchor | Checkpoints reuse the same lineage and manifest anchors as the core engine | Avoids a projection-only authority model |
-| Workload vocabulary | Keep reducer and proof vocabulary generic while allowing downstream repos such as Spoke to own auth/account/session schema details | Makes the slice directly useful without collapsing Transit into an auth product |
+| Workload vocabulary | Keep reducer and proof vocabulary generic while allowing downstream repos to own their schema details | Makes the slice directly useful without collapsing Transit into a consumer-specific product |
 | Proof style | Demonstrate both replay-from-zero and checkpoint-resume equivalence | Shows that derived state is rebuildable, not hidden |
 
 ## Architecture

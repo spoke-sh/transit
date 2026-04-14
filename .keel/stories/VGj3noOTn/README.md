@@ -21,5 +21,5 @@ for hosted append, replay, branch, and related consumer operations.
 
 ## Acceptance Criteria
 
-- [ ] [SRS-01/AC-01] The voyage defines the upstream client surface that downstream repos such as Spoke should consume for hosted operations. <!-- verify: manual, SRS-01:start:end -->
-- [ ] [SRS-NFR-01/AC-02] The client surface preserves generic Transit semantics instead of codifying Spoke-specific behavior. <!-- verify: manual, SRS-NFR-01:start:end -->
+- [ ] [SRS-01/AC-01] The voyage defines the upstream client surface that downstream repos should consume for hosted operations. <!-- verify: manual, SRS-01:start:end -->
+- [ ] [SRS-NFR-01/AC-02] The client surface preserves generic Transit semantics instead of codifying consumer-specific behavior. <!-- verify: manual, SRS-NFR-01:start:end -->

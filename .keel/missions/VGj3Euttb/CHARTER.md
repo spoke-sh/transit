@@ -1,4 +1,4 @@
-# Upstream Hosted Consumer Interface For Spoke Cutover - Charter
+# Upstream Hosted Consumer Interface For Direct Downstream Cutover - Charter
 
 Archetype: Strategic
 
@@ -6,7 +6,7 @@ Archetype: Strategic
 
 | ID | Description | Verification |
 |----|-------------|--------------|
-| MG-01 | Publish the canonical hosted consumer interface in Transit so downstream repos such as Spoke stop owning duplicate endpoint, auth, acknowledgement, and client/runtime semantics. | board: VGj3EvcuK |
+| MG-01 | Publish the canonical hosted consumer interface in Transit so downstream consumers stop owning duplicate endpoint, auth, acknowledgement, and client/runtime semantics. | board: VGj3EvcuK |
 
 ## Constraints
 
@@ -14,8 +14,8 @@ Archetype: Strategic
 - Require a direct cutover from duplicate downstream runtime/client ownership
   onto the upstream contract; do not preserve a second protocol lineage or
   transitional interface layer.
-- Do not silently bless a Spoke-only HTTP or bearer contract unless Transit
-  adopts it as a generic hosted consumer surface.
+- Do not silently bless a consumer-specific HTTP or bearer contract unless
+  Transit adopts it as a generic hosted consumer surface.
 
 ## Halting Rules
 

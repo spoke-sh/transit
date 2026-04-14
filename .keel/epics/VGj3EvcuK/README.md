@@ -3,14 +3,14 @@
 id: VGj3EvcuK
 created_at: 2026-04-13T18:45:35
 # authored
-title: Publish Hosted Consumer Interface For Spoke Cutover
+title: Publish Hosted Consumer Interface For Direct Downstream Cutover
 index: 23
 mission: VGj3Euttb
 ---
 
-# Publish Hosted Consumer Interface For Spoke Cutover
+# Publish Hosted Consumer Interface For Direct Downstream Cutover
 
-> Spoke still carries a duplicate transit-server runtime and a private hosted Transit client contract. The authoritative hosted consumer interface should live in Transit so downstream repos can consume one canonical endpoint/auth/acknowledgement surface and cut directly off duplicate local ownership.
+> Some downstream consumers still carry duplicate local runtime and hosted-client semantics. The authoritative hosted consumer interface should live in Transit so consumers can use one canonical endpoint/auth/acknowledgement surface and cut directly off duplicate local ownership.
 
 ## Documents
 

@@ -37,5 +37,5 @@ Goal: Define how external control planes publish consumer-owned records to hoste
 |----|-------------|-------|--------|--------------|
 | SRS-NFR-01 | The hosted authority path must remain a thin protocol and server contract, not a second storage engine embedded in the consumer. | SCOPE-01 | NFR-01 | code review |
 | SRS-NFR-02 | Hosted authority proofs must state whether observed durability is `local` or `tiered`; they must not imply remote-tier safety before object-store publication exists. | SCOPE-02 | NFR-02 | proof |
-| SRS-NFR-03 | Reference workloads may be informed by downstream domains such as Spoke auth, but consumer-specific policy and schema ownership must stay outside Transit core. | SCOPE-03 | NFR-03 | code review |
+| SRS-NFR-03 | Reference workloads may be informed by downstream domains, but consumer-specific policy and schema ownership must stay outside Transit core. | SCOPE-03 | NFR-03 | code review |
 <!-- END NON_FUNCTIONAL_REQUIREMENTS -->
