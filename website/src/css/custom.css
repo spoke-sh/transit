@@ -512,6 +512,22 @@ body {
   background: rgba(255, 255, 255, 0.3);
 }
 
+@media (min-width: 997px) {
+  .theme-doc-sidebar-container {
+    margin-top: 0;
+  }
+
+  .theme-doc-sidebar-container > div {
+    top: var(--ifm-navbar-height) !important;
+    max-height: calc(100vh - var(--ifm-navbar-height)) !important;
+    height: calc(100vh - var(--ifm-navbar-height)) !important;
+  }
+
+  .theme-doc-sidebar-container > div > div {
+    padding-top: 0;
+  }
+}
+
 .menu {
   padding: var(--transit-space-4);
 }
