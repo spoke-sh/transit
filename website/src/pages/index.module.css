@@ -92,6 +92,12 @@
   box-shadow: var(--transit-shadow-button);
 }
 
+.primaryAction:visited,
+.primaryAction:hover,
+.primaryAction:focus-visible {
+  color: #fffdf8;
+}
+
 .secondaryAction {
   color: var(--transit-ink);
   background: var(--transit-surface-control);
@@ -100,19 +106,17 @@
   box-shadow: var(--transit-shadow-button);
 }
 
+.secondaryAction:visited,
+.secondaryAction:hover,
+.secondaryAction:focus-visible {
+  color: var(--transit-ink);
+}
+
 .primaryAction:hover,
 .secondaryAction:hover {
   text-decoration: none;
   transform: translateY(-1px);
   box-shadow: var(--transit-shadow-button-hover-soft);
-}
-
-.primaryAction:hover {
-  color: #fffdf8;
-}
-
-.secondaryAction:hover {
-  color: var(--transit-ink);
 }
 
 .primaryAction:focus-visible,
