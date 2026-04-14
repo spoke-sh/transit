@@ -1,0 +1,72 @@
+---
+title: System Model
+description: The high-level model behind Transit’s lineage-aware log, storage tiers, and delivery modes.
+sidebar_position: 1
+---
+
+# System Model
+
+Transit is a lineage-aware append-only log.
+
+The core idea is simple: history is preserved, divergence is explicit, and storage stays honest about where data lives and what durability has actually been achieved.
+
+## History Is The Product
+
+Transit treats history as a first-class system model, not just as a stream of bytes.
+
+- A `stream` is one ordered history.
+- A `branch` is a real child history with explicit ancestry.
+- A `merge` is an explicit reconciliation event, not a hidden rewrite.
+
+That matters because Transit is designed for workloads where divergence is normal: agents, communication threads, replayable workflows, and systems that need to inspect how one line of work split and later converged.
+
+## Hot Local State, Cold Remote History
+
+Transit separates the hot path from the long-term history path.
+
+- The local head handles active appends, reads, and tailing.
+- Immutable `segments` capture ordered history once data rolls forward.
+- `manifests` map stream and lineage state onto those immutable segments.
+- The remote tier stores colder history as part of the normal system design.
+
+This is why Transit can support low-latency local behavior without pretending local disk is the whole product.
+
+## One Engine, Two Delivery Modes
+
+Transit runs the same storage model in two forms:
+
+- `embedded`: linked directly into an application or runtime
+- `server`: exposed over a network boundary for remote clients
+
+Those are delivery choices, not different databases. The lineage model, durability language, and storage layout should remain coherent across both.
+
+## Guarantees Stay Explicit
+
+Transit does not collapse every acknowledgement into a generic idea of "durable."
+
+Its durability modes describe what has actually happened:
+
+- `local`: durable on the local node
+- `replicated`: durable enough for read-only catch-up and promotion readiness
+- `quorum`: acknowledged by a majority of configured peers
+- `tiered`: durable in the remote tier
+
+That explicit language is part of the product contract. It keeps latency, availability, and safety tradeoffs visible instead of implied.
+
+## What Foundations Covers
+
+This Foundations section is the concept layer for the public docs.
+
+It should explain how Transit thinks:
+
+- lineage instead of hidden forks
+- immutable history instead of silent rewrites
+- tiered storage instead of local-disk-only assumptions
+- one engine across embedded and server delivery modes
+
+For the exact contract wording behind those ideas, continue into the detailed reference docs:
+
+- [Constitution](../reference/contracts/constitution.md)
+- [Architecture](../reference/contracts/architecture.md)
+- [Configuration](../reference/contracts/configuration.md)
+- [Integrity](../reference/contracts/integrity.md)
