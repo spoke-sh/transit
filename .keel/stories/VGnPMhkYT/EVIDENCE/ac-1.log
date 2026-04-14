@@ -1,0 +1,11 @@
+---
+recorded_at: 2026-04-14T12:47:18-07:00
+mode: command
+---
+Ran `cargo test -p transit-client projection_read_ -- --nocapture` after landing the new `ProjectionReadConsumer`, `ProjectionReadRequest`, `ProjectionReadOutcome`, and `TransitClient::read_projection(...)` surface. The targeted projection-read tests passed:
+
+- `projection_read_reduces_authoritative_replay_into_a_current_view`
+- `projection_read_surfaces_revision_and_checkpoint_match_metadata`
+- `projection_read_surfaces_reducer_failures_as_protocol_errors`
+
+This proves the upstream client now exposes a generic replay-driven projection-consumer API that rebuilds a current view from authoritative hosted replay.

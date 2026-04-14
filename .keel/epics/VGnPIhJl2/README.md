@@ -22,8 +22,8 @@ mission: VGnPIgzlP
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/1 stories done
+**Progress:** 1/1 voyages complete, 1/1 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Replay-Driven Projection Consumer API](voyages/VGnPLHvGm/) | planned | 0/1 |
+| [Replay-Driven Projection Consumer API](voyages/VGnPLHvGm/) | done | 1/1 |
 <!-- END GENERATED -->

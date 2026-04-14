@@ -283,6 +283,14 @@ impl<T> RemoteAcknowledged<T> {
     pub fn into_body(self) -> T {
         self.body
     }
+
+    pub fn map_body<U>(self, map: impl FnOnce(T) -> U) -> RemoteAcknowledged<U> {
+        RemoteAcknowledged {
+            request_id: self.request_id,
+            ack: self.ack,
+            body: map(self.body),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

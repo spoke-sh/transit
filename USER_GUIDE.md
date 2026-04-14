@@ -97,7 +97,7 @@ The important top-level areas are:
 - [README.md](README.md): product summary and document map
 - [crates/transit-core](crates/transit-core): shared engine, storage, lineage, consensus, and server protocol types
 - [crates/transit-cli](crates/transit-cli): CLI surface, proofs, operator helpers
-- [crates/transit-client](crates/transit-client): thin Rust client over the remote protocol
+- [crates/transit-client](crates/transit-client): thin Rust client over the remote protocol, including replay-driven projection-consumer helpers
 - [crates/transit-materialize](crates/transit-materialize): derived-state and Prolly Tree materialization layer
 - [website/docs](website/docs): public-facing MDX docs
 - [AGENTS.md](AGENTS.md) and [INSTRUCTIONS.md](INSTRUCTIONS.md): repo operator guidance, especially for AI agents and Keel workflow

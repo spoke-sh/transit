@@ -1,0 +1,7 @@
+---
+recorded_at: 2026-04-14T12:47:18-07:00
+mode: command
+---
+Verified the hosted acknowledgement boundary and projection metadata with `cargo test -p transit-client projection_read_ -- --nocapture`. The `read_projection(...)` helper preserves the outer `RemoteAcknowledged<_>` envelope and surfaces downstream-usable metadata on `ProjectionReadOutcome`, including `projection_ref`, `consumed_records`, `head_offset`, `projection_revision`, `checkpoint_id`, and `checkpoint_matches`.
+
+The targeted tests passed, including `projection_read_surfaces_revision_and_checkpoint_match_metadata`, which proves downstream wrappers can compare a requested checkpoint to the derived projection revision without bypassing the hosted acknowledgement boundary.

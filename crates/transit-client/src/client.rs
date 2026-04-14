@@ -1,5 +1,9 @@
+use anyhow::Context;
 use std::net::SocketAddr;
 
+use crate::projection::{
+    ProjectionReadConsumer, ProjectionReadOutcome, ProjectionReadRequest, projection_revision_for,
+};
 use transit_core::kernel::{LineageMetadata, MergeSpec, Offset, StreamId, StreamPosition};
 use transit_core::server::{
     RemoteAcknowledged, RemoteAppendOutcome, RemoteClient, RemoteClientError,
@@ -55,6 +59,56 @@ impl TransitClient {
         stream_id: &StreamId,
     ) -> ClientResult<RemoteAcknowledged<RemoteReadOutcome>> {
         self.inner.read(stream_id)
+    }
+
+    pub fn read_projection<C>(
+        &self,
+        request: ProjectionReadRequest,
+        consumer: C,
+    ) -> ClientResult<RemoteAcknowledged<ProjectionReadOutcome<C::View>>>
+    where
+        C: ProjectionReadConsumer,
+    {
+        let projection_ref = request.projection_ref().clone();
+        let checkpoint_id = request.checkpoint_id().map(ToOwned::to_owned);
+        let response = self.read(&projection_ref)?;
+        let body = response.body();
+        let mut view = consumer.initial_view();
+
+        for record in body.records() {
+            consumer
+                .reduce_view(&mut view, record.position(), record.payload())
+                .with_context(|| {
+                    format!(
+                        "reduce projection '{}' at offset {}",
+                        body.stream_id().as_str(),
+                        record.position().offset.value()
+                    )
+                })
+                .map_err(|error| RemoteClientError::Protocol(format!("{error:#}")))?;
+        }
+
+        let consumed_records = body.records().len();
+        let stream_id = body.stream_id().clone();
+        let head_offset = body.records().last().map(|record| record.position().offset);
+        let projection_revision =
+            head_offset.map(|offset| projection_revision_for(body.stream_id(), offset));
+        let checkpoint_matches = checkpoint_id
+            .as_ref()
+            .zip(projection_revision.as_ref())
+            .is_some_and(|(checkpoint_id, revision)| checkpoint_id == revision);
+
+        Ok(response.map_body(|_| {
+            ProjectionReadOutcome::new(
+                stream_id,
+                consumed_records,
+                head_offset,
+                projection_revision,
+                checkpoint_id,
+                checkpoint_matches,
+                view,
+            )
+        }))
     }
 
     pub fn create_branch(
@@ -118,6 +172,10 @@ impl TransitClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::projection::ProjectionReadRequest;
+    use anyhow::{Context, Result, bail};
+    use serde::{Deserialize, Serialize};
+    use std::collections::BTreeMap;
     use tempfile::tempdir;
     use transit_core::engine::LocalEngineConfig;
     use transit_core::kernel::{MergePolicy, MergePolicyKind, StreamLineage};
@@ -189,6 +247,84 @@ mod tests {
         let client = TransitClient::new(server.local_addr());
 
         (temp_dir, server, client)
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct ProjectionView {
+        display_name: String,
+        status: String,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    struct ProjectionEvent {
+        reference_id: String,
+        display_name: String,
+        status: String,
+        deleted: bool,
+    }
+
+    struct ReferenceProjectionConsumer;
+
+    impl ProjectionReadConsumer for ReferenceProjectionConsumer {
+        type View = BTreeMap<String, ProjectionView>;
+
+        fn initial_view(&self) -> Self::View {
+            BTreeMap::new()
+        }
+
+        fn reduce_view(
+            &self,
+            view: &mut Self::View,
+            _position: &transit_core::kernel::StreamPosition,
+            payload: &[u8],
+        ) -> Result<()> {
+            let event: ProjectionEvent =
+                serde_json::from_slice(payload).context("deserialize projection event")?;
+            if event.deleted {
+                view.remove(&event.reference_id);
+            } else {
+                view.insert(
+                    event.reference_id,
+                    ProjectionView {
+                        display_name: event.display_name,
+                        status: event.status,
+                    },
+                );
+            }
+            Ok(())
+        }
+    }
+
+    struct FailingProjectionConsumer;
+
+    impl ProjectionReadConsumer for FailingProjectionConsumer {
+        type View = ();
+
+        fn initial_view(&self) -> Self::View {}
+
+        fn reduce_view(
+            &self,
+            _view: &mut Self::View,
+            _position: &transit_core::kernel::StreamPosition,
+            _payload: &[u8],
+        ) -> Result<()> {
+            bail!("synthetic reducer failure")
+        }
+    }
+
+    fn projection_event(
+        reference_id: &str,
+        display_name: &str,
+        status: &str,
+        deleted: bool,
+    ) -> Vec<u8> {
+        serde_json::to_vec(&ProjectionEvent {
+            reference_id: reference_id.to_owned(),
+            display_name: display_name.to_owned(),
+            status: status.to_owned(),
+            deleted,
+        })
+        .expect("serialize projection event")
     }
 
     #[test]
@@ -466,6 +602,158 @@ mod tests {
         assert_eq!(append.ack().topology(), RemoteTopology::SingleNode);
         assert_eq!(replay.ack().topology(), RemoteTopology::SingleNode);
         assert_eq!(replay.body().records().len(), 1);
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn projection_read_reduces_authoritative_replay_into_a_current_view() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let projection_stream = StreamId::new("client.projection.accounts").expect("stream id");
+
+        client
+            .create_root(
+                &projection_stream,
+                LineageMetadata::new(
+                    Some("consumer".into()),
+                    Some("projection-read-tests".into()),
+                ),
+            )
+            .expect("create projection stream");
+        client
+            .append(
+                &projection_stream,
+                projection_event("acct-1", "Pilot", "active", false),
+            )
+            .expect("append acct-1");
+        client
+            .append(
+                &projection_stream,
+                projection_event("acct-2", "Copilot", "pending", false),
+            )
+            .expect("append acct-2");
+        client
+            .append(
+                &projection_stream,
+                projection_event("acct-1", "Pilot", "active", true),
+            )
+            .expect("append acct-1 delete");
+
+        let projection = client
+            .read_projection(
+                ProjectionReadRequest::new(projection_stream.clone()),
+                ReferenceProjectionConsumer,
+            )
+            .expect("read projection");
+
+        assert_eq!(projection.ack().durability(), "local");
+        assert_eq!(projection.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(projection.body().projection_ref(), &projection_stream);
+        assert_eq!(projection.body().consumed_records(), 3);
+        assert_eq!(projection.body().head_offset(), Some(Offset::new(2)));
+        assert_eq!(
+            projection.body().projection_revision(),
+            Some("projection:client.projection.accounts@2")
+        );
+        assert!(!projection.body().checkpoint_matches());
+        assert_eq!(projection.body().view().len(), 1);
+        assert_eq!(
+            projection.body().view().get("acct-2"),
+            Some(&ProjectionView {
+                display_name: "Copilot".into(),
+                status: "pending".into(),
+            })
+        );
+        assert!(!projection.body().view().contains_key("acct-1"));
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn projection_read_surfaces_revision_and_checkpoint_match_metadata() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let projection_stream = StreamId::new("client.projection.sessions").expect("stream id");
+
+        client
+            .create_root(
+                &projection_stream,
+                LineageMetadata::new(
+                    Some("consumer".into()),
+                    Some("projection-read-tests".into()),
+                ),
+            )
+            .expect("create projection stream");
+        client
+            .append(
+                &projection_stream,
+                projection_event("sess-1", "Session 1", "issued", false),
+            )
+            .expect("append projection");
+
+        let initial = client
+            .read_projection(
+                ProjectionReadRequest::new(projection_stream.clone()),
+                ReferenceProjectionConsumer,
+            )
+            .expect("initial projection");
+        let revision = initial
+            .body()
+            .projection_revision()
+            .expect("projection revision")
+            .to_owned();
+
+        let replayed = client
+            .read_projection(
+                ProjectionReadRequest::new(projection_stream.clone()).with_checkpoint_id(&revision),
+                ReferenceProjectionConsumer,
+            )
+            .expect("replayed projection");
+
+        assert_eq!(replayed.body().checkpoint_id(), Some(revision.as_str()));
+        assert!(replayed.body().checkpoint_matches());
+        assert_eq!(
+            replayed.body().projection_revision(),
+            Some(revision.as_str())
+        );
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn projection_read_surfaces_reducer_failures_as_protocol_errors() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let projection_stream = StreamId::new("client.projection.failures").expect("stream id");
+
+        client
+            .create_root(
+                &projection_stream,
+                LineageMetadata::new(
+                    Some("consumer".into()),
+                    Some("projection-read-tests".into()),
+                ),
+            )
+            .expect("create projection stream");
+        client
+            .append(
+                &projection_stream,
+                projection_event("broken", "Broken", "active", false),
+            )
+            .expect("append projection");
+
+        let error = client
+            .read_projection(
+                ProjectionReadRequest::new(projection_stream),
+                FailingProjectionConsumer,
+            )
+            .expect_err("failing reducer should error");
+
+        match error {
+            RemoteClientError::Protocol(message) => {
+                assert!(message.contains("reduce projection"));
+                assert!(message.contains("synthetic reducer failure"));
+            }
+            other => panic!("expected protocol error, got {other:?}"),
+        }
 
         server.shutdown().expect("shutdown server");
     }

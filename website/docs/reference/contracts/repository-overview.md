@@ -146,7 +146,7 @@ Today it contains:
 - **Networked Server:** Single-node daemon bootstrap with a framed request/response protocol and logical tail sessions.
 - **Integrity:** Staged verification from checksums to manifest roots and lineage checkpoints.
 - **Materialization:** Incremental processing with Prolly Tree snapshots and checkpoint-based resume.
-- **Clients:** Native Rust client library and a feature-complete CLI for operations and proofs.
+- **Clients:** Native Rust client library with replay-driven projection-consumer helpers and a feature-complete CLI for operations and proofs.
 - **Verification:** A unified `just screen` path that runs the full suite of human-verifiable missions.
 
 The implementation work now has a real scaffold to grow from instead of needing to reverse-engineer direction later.
@@ -195,10 +195,10 @@ envelopes downstream consumers should preserve.
 
 For Rust consumers, the canonical import surface is
 [`crates/transit-client`](https://github.com/spoke-sh/transit/blob/main/crates/transit-client/README.md). Downstream repos
-should use that crate for hosted operations and hosted response/error types
-instead of publishing a second repo-local client boundary, and they should
-delete private hosted adapter layers rather than preserve a compatibility lane
-once the cutover is complete.
+should use that crate for hosted operations, hosted response/error types, and
+replay-driven projection-consumer helpers instead of publishing a second
+repo-local client boundary, and they should delete private hosted adapter
+layers rather than preserve a compatibility lane once the cutover is complete.
 
 The canonical hard-cutover proof path for deleting duplicate local runtime or
 private hosted client ownership is documented in

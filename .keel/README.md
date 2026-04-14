@@ -177,11 +177,11 @@
 | [Hosted Tiered Durability Proof](epics/VGn6PdlVK/voyages/VGn6z2GXx/) | done |
 | [Published Cutover Surface](epics/VGn6PdlVK/voyages/VGn6zxceG/) | done |
 
-### [Projection Consumer Reads For Hosted Transit Client](epics/VGnPIhJl2/) (active)
+### [Projection Consumer Reads For Hosted Transit Client](epics/VGnPIhJl2/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Replay-Driven Projection Consumer API](epics/VGnPIhJl2/voyages/VGnPLHvGm/) | planned |
+| [Replay-Driven Projection Consumer API](epics/VGnPIhJl2/voyages/VGnPLHvGm/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

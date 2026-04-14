@@ -1,13 +1,77 @@
+use std::collections::BTreeMap;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail, ensure};
+use serde::{Deserialize, Serialize};
 use tempfile::tempdir;
 use transit_client::{
-    LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, RemoteTailSessionState,
-    StreamId, StreamLineage, StreamPosition, TransitClient,
+    LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, ProjectionReadConsumer,
+    ProjectionReadRequest, RemoteTailSessionState, StreamId, StreamLineage, StreamPosition,
+    TransitClient,
 };
 use transit_core::engine::LocalEngineConfig;
 use transit_core::server::{ServerConfig, ServerHandle};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProjectionView {
+    display_name: String,
+    status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ProjectionEvent {
+    reference_id: String,
+    display_name: String,
+    status: String,
+    deleted: bool,
+}
+
+struct ReferenceProjectionConsumer;
+
+impl ProjectionReadConsumer for ReferenceProjectionConsumer {
+    type View = BTreeMap<String, ProjectionView>;
+
+    fn initial_view(&self) -> Self::View {
+        BTreeMap::new()
+    }
+
+    fn reduce_view(
+        &self,
+        view: &mut Self::View,
+        _position: &StreamPosition,
+        payload: &[u8],
+    ) -> Result<()> {
+        let event: ProjectionEvent =
+            serde_json::from_slice(payload).context("deserialize proof projection event")?;
+        if event.deleted {
+            view.remove(&event.reference_id);
+        } else {
+            view.insert(
+                event.reference_id,
+                ProjectionView {
+                    display_name: event.display_name,
+                    status: event.status,
+                },
+            );
+        }
+        Ok(())
+    }
+}
+
+fn projection_event(
+    reference_id: &str,
+    display_name: &str,
+    status: &str,
+    deleted: bool,
+) -> Result<Vec<u8>> {
+    serde_json::to_vec(&ProjectionEvent {
+        reference_id: reference_id.to_owned(),
+        display_name: display_name.to_owned(),
+        status: status.to_owned(),
+        deleted,
+    })
+    .context("serialize proof projection event")
+}
 
 fn main() -> ExitCode {
     match run() {
@@ -44,6 +108,7 @@ fn run_proof(root: &std::path::Path, server: &ServerHandle) -> Result<()> {
     let root_stream = StreamId::new("proof.client.root")?;
     let branch_stream = StreamId::new("proof.client.branch")?;
     let merge_stream = StreamId::new("proof.client.merge")?;
+    let projection_stream = StreamId::new("proof.client.projection")?;
 
     println!("transit rust-client proof");
     println!("root: {}", root.display());
@@ -296,6 +361,98 @@ fn run_proof(root: &std::path::Path, server: &ServerHandle) -> Result<()> {
             other => bail!("expected merge lineage, got {other:?}"),
         }
         Ok(((), merge_stream.as_str().to_owned()))
+    })?;
+
+    step("create_projection_stream", || {
+        let projection = client
+            .create_root(
+                &projection_stream,
+                LineageMetadata::new(Some("proof".into()), Some("projection-consumer".into())),
+            )
+            .context("create projection stream through rust client")?;
+        ensure!(
+            projection.body().stream_id() == &projection_stream,
+            "unexpected projection stream id"
+        );
+        Ok((
+            (),
+            format!(
+                "{} next {}",
+                projection.body().stream_id().as_str(),
+                projection.body().next_offset().value()
+            ),
+        ))
+    })?;
+
+    step("append_projection_events", || {
+        client
+            .append(
+                &projection_stream,
+                projection_event("ref-1", "Alpha", "active", false)?,
+            )
+            .context("append first projection event")?;
+        client
+            .append(
+                &projection_stream,
+                projection_event("ref-2", "Beta", "pending", false)?,
+            )
+            .context("append second projection event")?;
+        client
+            .append(
+                &projection_stream,
+                projection_event("ref-1", "Alpha", "active", true)?,
+            )
+            .context("append delete projection event")?;
+        Ok(((), projection_stream.as_str().to_owned()))
+    })?;
+
+    let projection_revision = step("read_projection", || {
+        let projection = client
+            .read_projection(
+                ProjectionReadRequest::new(projection_stream.clone()),
+                ReferenceProjectionConsumer,
+            )
+            .context("read projection through rust client")?;
+        ensure!(
+            projection.ack().durability() == "local",
+            "projection read should preserve hosted acknowledgement durability"
+        );
+        ensure!(
+            projection.ack().topology() == transit_core::server::RemoteTopology::SingleNode,
+            "projection read should preserve hosted topology"
+        );
+        ensure!(
+            projection.body().view().len() == 1,
+            "projection read should reduce deleted references out of the view"
+        );
+        ensure!(
+            projection.body().view().contains_key("ref-2"),
+            "projection read should preserve surviving references"
+        );
+        let revision = projection
+            .body()
+            .projection_revision()
+            .context("projection read should surface a revision")?
+            .to_owned();
+        Ok((
+            revision.clone(),
+            format!("{} {} refs", revision, projection.body().view().len()),
+        ))
+    })?;
+
+    step("read_projection_checkpoint_match", || {
+        let projection = client
+            .read_projection(
+                ProjectionReadRequest::new(projection_stream.clone())
+                    .with_checkpoint_id(&projection_revision),
+                ReferenceProjectionConsumer,
+            )
+            .context("read projection with checkpoint through rust client")?;
+        ensure!(
+            projection.body().checkpoint_matches(),
+            "projection read should report checkpoint matches when revision is reused"
+        );
+        Ok(((), projection_revision))
     })?;
 
     println!("status: VERIFIED");

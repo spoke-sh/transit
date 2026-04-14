@@ -10,6 +10,7 @@
 //! needed for append, read, branch, lineage, and tail operations.
 
 mod client;
+mod projection;
 
 pub use transit_core::kernel::{
     LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor, StreamId,
@@ -24,3 +25,4 @@ pub use transit_core::server::{
 };
 
 pub use client::{ClientResult, TransitClient};
+pub use projection::{ProjectionReadConsumer, ProjectionReadOutcome, ProjectionReadRequest};

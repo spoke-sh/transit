@@ -1,35 +1,34 @@
----
-# system-managed
-id: VGnPMhkYT
-status: done
-created_at: 2026-04-14T12:38:34
-updated_at: 2026-04-14T12:47:44
-# authored
-title: Add Projection Read Consumer API To Transit Client
-type: feat
-operator-signal:
-scope: VGnPIhJl2/VGnPLHvGm
-index: 1
-started_at: 2026-04-14T12:42:14
-submitted_at: 2026-04-14T12:47:40
-completed_at: 2026-04-14T12:47:44
----
+# VOYAGE REPORT: Replay-Driven Projection Consumer API
 
-# Add Projection Read Consumer API To Transit Client
+## Voyage Metadata
+- **ID:** VGnPLHvGm
+- **Epic:** VGnPIhJl2
+- **Status:** done
+- **Goal:** -
 
-## Summary
+## Execution Summary
+**Progress:** 1/1 stories complete
 
+## Implementation Narrative
+### Add Projection Read Consumer API To Transit Client
+- **ID:** VGnPMhkYT
+- **Status:** done
+
+#### Summary
 Publish the first generic `transit-client` projection-consumer helper so
 downstream Rust repos can derive current projection views from hosted Transit
 replay without carrying a private projection-read wrapper.
 
-## Acceptance Criteria
-
+#### Acceptance Criteria
 - [x] [SRS-01/AC-01] `transit-client` publishes a generic projection-consumer API that reduces authoritative hosted replay into a current view. <!-- verify: cargo test -p transit-client projection_read_ -- --nocapture, SRS-01:start:end -->
-  proof: `EVIDENCE/ac-1.log`
 - [x] [SRS-02/AC-02] The helper preserves the hosted acknowledgement boundary while surfacing projection revision/output metadata a downstream wrapper can reuse. <!-- verify: cargo test -p transit-client projection_read_ -- --nocapture, SRS-02:start:end -->
-  proof: `EVIDENCE/ac-2.log`
 - [x] [SRS-03/AC-03] A hosted proof or example flow demonstrates a representative reference projection read through the new upstream client surface. <!-- verify: cargo run -q -p transit-client --example proof, SRS-03:start:end -->
-  proof: `EVIDENCE/ac-3.log`
 - [x] [SRS-NFR-01/AC-04] The API remains generic and replay-driven instead of codifying consumer schema or introducing a projection-only server truth path. <!-- verify: manual, SRS-NFR-01:start:SRS-NFR-02:end -->
-  proof: `EVIDENCE/ac-4.log`
+
+#### Verified Evidence
+- [ac-1.log](../../../../stories/VGnPMhkYT/EVIDENCE/ac-1.log)
+- [ac-2.log](../../../../stories/VGnPMhkYT/EVIDENCE/ac-2.log)
+- [ac-3.log](../../../../stories/VGnPMhkYT/EVIDENCE/ac-3.log)
+- [ac-4.log](../../../../stories/VGnPMhkYT/EVIDENCE/ac-4.log)
+
+

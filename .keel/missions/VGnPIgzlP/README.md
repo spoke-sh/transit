@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VGnPIgzlP
-status: active
+status: achieved
 created_at: 2026-04-14T12:38:18
-updated_at: 2026-04-14T12:41:54
+updated_at: 2026-04-14T12:49:19
 # authored
 title: Publish Projection Consumer API For Hosted Downstream Usage
 watch: ~
 activated_at: 2026-04-14T12:41:54
+achieved_at: 2026-04-14T12:49:19
 ---
 
 # Publish Projection Consumer API For Hosted Downstream Usage

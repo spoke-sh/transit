@@ -34,6 +34,9 @@ Run the Rust client proof against a locally started server:
 cargo run -p transit-client --example proof
 ```
 
+That proof now covers both the thin hosted operation surface and the
+replay-driven projection-consumer helper exported by `transit-client`.
+
 For the broader shipped surface, read [Current Capabilities](./current-capabilities.mdx).
 
 If you set `[server].listen_addr` in `transit.toml`, the `streams`, `produce`, and `consume` commands will default to that configured server endpoint.

@@ -1,0 +1,13 @@
+---
+recorded_at: 2026-04-14T12:47:18-07:00
+mode: command
+---
+Ran `cargo run -q -p transit-client --example proof` against the hosted Rust client proof flow. The example exercised a representative projection stream and ended with:
+
+- `PASS create_projection_stream: proof.client.projection next 0`
+- `PASS append_projection_events: proof.client.projection`
+- `PASS read_projection: projection:proof.client.projection@2 1 refs`
+- `PASS read_projection_checkpoint_match: projection:proof.client.projection@2`
+- `status: VERIFIED`
+
+This demonstrates an end-to-end hosted projection read through the new upstream client surface.

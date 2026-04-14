@@ -1,0 +1,11 @@
+---
+recorded_at: 2026-04-14T12:47:18-07:00
+mode: manual
+---
+Reviewed the implementation in `crates/transit-client/src/projection.rs`, `crates/transit-client/src/client.rs`, and `crates/transit-core/src/server.rs`. The new surface stays generic and replay-driven:
+
+- consumers provide their own reducer and view type through `ProjectionReadConsumer`
+- the client derives the current view by replaying ordinary hosted `read(...)` records
+- the server protocol stays unchanged apart from a generic `RemoteAcknowledged::map_body(...)` helper
+
+No projection-specific schema was hardcoded into Transit core, and no projection-only server truth path was introduced.
