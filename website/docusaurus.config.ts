@@ -72,11 +72,6 @@ const config: Config = {
           position: 'left',
         },
         {
-          to: '/docs/reference/foundational-docs',
-          label: 'Reference',
-          position: 'left',
-        },
-        {
           href: 'https://www.spoke.sh',
           label: 'Spoke',
           position: 'right',
@@ -133,12 +128,8 @@ const config: Config = {
               to: '/docs/reference/contracts/architecture',
             },
             {
-              label: 'Constitution',
-              to: '/docs/reference/contracts/constitution',
-            },
-            {
-              label: 'Foundational Docs',
-              to: '/docs/reference/foundational-docs',
+              label: 'System Model',
+              to: '/docs/foundations/system-model',
             },
           ],
         },

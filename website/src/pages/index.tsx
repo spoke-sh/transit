@@ -52,7 +52,7 @@ const tracks: Array<{
     label: 'Yellow Line',
     title: 'Reference Track',
     body: 'Move from the public narrative into foundational contracts when you need the exact repo-level constraints.',
-    href: '/docs/reference/foundational-docs',
+    href: '/docs/foundations/system-model',
     tone: 'routeYellow',
   },
 ];
@@ -79,8 +79,8 @@ const firstStops: Array<{
   },
   {
     label: 'Read the contracts',
-    href: '/docs/reference/foundational-docs',
-    command: '/docs/reference',
+    href: '/docs/foundations/system-model',
+    command: '/docs/foundations',
   },
 ];
 
