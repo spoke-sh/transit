@@ -9,7 +9,7 @@
   --ifm-color-primary-light: #2a67c0;
   --ifm-color-primary-lighter: #3a72c6;
   --ifm-color-primary-lightest: #5e8ed3;
-  --ifm-navbar-height: 4.35rem;
+  --ifm-navbar-height: calc(4.35rem + var(--transit-header-slice-height));
   --ifm-navbar-padding-horizontal: 0rem;
   --ifm-navbar-padding-vertical: 0rem;
   --ifm-background-color: #f8f5ee;
@@ -92,10 +92,10 @@
   --transit-doc-measure: 72ch;
   --transit-doc-measure-wide: 86ch;
   --transit-header-surface-height: 4.35rem;
-  --transit-header-spacer-height: 0rem;
-  --transit-header-rule-height: 0px;
-  --transit-header-clear-height: 0px;
-  --transit-header-echo-height: 0px;
+  --transit-header-spacer-height: 0.72rem;
+  --transit-header-rule-height: 2px;
+  --transit-header-clear-height: 1px;
+  --transit-header-echo-height: 2px;
   --transit-header-slice-height: calc(
     var(--transit-header-spacer-height) + var(--transit-header-rule-height) +
       var(--transit-header-clear-height) + var(--transit-header-echo-height)
@@ -171,7 +171,7 @@ body {
   align-items: center;
   width: 100%;
   min-height: var(--transit-header-surface-height);
-  padding: 0;
+  padding-inline: var(--ifm-navbar-padding-horizontal);
   backdrop-filter: blur(16px);
   background: var(--ifm-navbar-background-color);
   box-shadow: var(--transit-shadow-shell);
