@@ -1,0 +1,15 @@
+Reviewed genericity of the published upstream client surface.
+
+Confirmed the surface remains generic:
+- the crate re-exports hosted Transit kernel and response types without adding
+  workload-specific schema or policy
+- the contract rules keep request correlation, durability, topology, and remote
+  error codes literal
+- the proof example now consumes the upstream surface directly instead of
+  assembling a second repo-local client vocabulary
+
+Files checked:
+- `crates/transit-client/src/lib.rs`
+- `crates/transit-client/README.md`
+- `crates/transit-client/examples/proof.rs`
+- `HOSTED_CONSUMERS.md`

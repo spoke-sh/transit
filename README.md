@@ -130,6 +130,11 @@ The canonical hosted-consumer endpoint and auth contract is documented in
 `request_id`, acknowledgement, durability, topology, and remote error
 envelopes downstream consumers should preserve.
 
+For Rust consumers, the canonical import surface is
+[`crates/transit-client`](crates/transit-client/README.md). Downstream repos
+should use that crate for hosted operations and hosted response/error types
+instead of publishing a second repo-local client boundary.
+
 ## Documentation Map
 
 ### Root Contracts
@@ -154,6 +159,7 @@ envelopes downstream consumers should preserve.
 | [`MATERIALIZATION.md`](MATERIALIZATION.md) | Materialization and stream processing contract |
 | [`INTEGRITY.md`](INTEGRITY.md) | Verifiable lineage and cryptographic integrity |
 | [`HOSTED_CONSUMERS.md`](HOSTED_CONSUMERS.md) | Canonical hosted endpoint grammar and auth posture for downstream consumers |
+| [`crates/transit-client/README.md`](crates/transit-client/README.md) | Canonical Rust import surface for hosted consumers |
 
 ### Focused Guides
 

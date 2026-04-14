@@ -166,7 +166,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Publish Upstream Consumer Client And Direct Cutover Proof](epics/VGj3EvcuK/voyages/VGj3HWSL4/) | planned |
+| [Publish Upstream Consumer Client And Direct Cutover Proof](epics/VGj3EvcuK/voyages/VGj3HWSL4/) | in-progress |
 | [Define Hosted Consumer Endpoint Contract](epics/VGj3EvcuK/voyages/VGj3HXPMa/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)

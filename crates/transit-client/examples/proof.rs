@@ -2,13 +2,12 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail, ensure};
 use tempfile::tempdir;
-use transit_client::TransitClient;
-use transit_core::engine::LocalEngineConfig;
-use transit_core::kernel::{
-    LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamId, StreamLineage,
-    StreamPosition,
+use transit_client::{
+    LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, RemoteTailSessionState,
+    StreamId, StreamLineage, StreamPosition, TransitClient,
 };
-use transit_core::server::{RemoteTailSessionState, ServerConfig, ServerHandle};
+use transit_core::engine::LocalEngineConfig;
+use transit_core::server::{ServerConfig, ServerHandle};
 
 fn main() -> ExitCode {
     match run() {

@@ -192,6 +192,8 @@ Hosted consumers should rely on Transit for:
 - acknowledgement envelopes and durability labels
 - explicit remote error codes
 - stream and lineage operations exposed by the hosted server surface
+- upstream client surfaces such as the Rust [`transit-client`](crates/transit-client/README.md)
+  crate instead of repo-local hosted wrappers
 
 Hosted consumers should keep these concerns outside Transit:
 

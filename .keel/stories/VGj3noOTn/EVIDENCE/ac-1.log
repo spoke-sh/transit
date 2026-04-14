@@ -1,0 +1,16 @@
+Reviewed the upstream hosted consumer client surface and exercised it.
+
+Confirmed the authored surface now names `transit-client` as the canonical Rust
+import boundary and re-exports the client-facing stream, acknowledgement, and
+error vocabulary needed for hosted operations.
+
+Verification:
+- `cargo test -p transit-client`
+- `cargo run -q -p transit-client --example proof`
+
+Files checked:
+- `crates/transit-client/src/lib.rs`
+- `crates/transit-client/README.md`
+- `crates/transit-client/examples/proof.rs`
+- `README.md`
+- `HOSTED_CONSUMERS.md`

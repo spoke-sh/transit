@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VGj3HWSL4
-status: planned
+status: in-progress
 epic: VGj3EvcuK
 created_at: 2026-04-13T18:45:45
 # authored
 title: Publish Upstream Consumer Client And Direct Cutover Proof
 index: 1
 updated_at: 2026-04-13T18:49:17
+started_at: 2026-04-13T19:32:44
 ---
 
 # Publish Upstream Consumer Client And Direct Cutover Proof
@@ -26,10 +27,10 @@ updated_at: 2026-04-13T18:49:17
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/2 stories complete
+**Progress:** 1/2 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Define Downstream Direct Cutover Proof Path](../../../../stories/VGj3no4T3/README.md) | feat | backlog |
-| [Define Upstream Consumer Client Surface](../../../../stories/VGj3noOTn/README.md) | feat | backlog |
+| [Define Upstream Consumer Client Surface](../../../../stories/VGj3noOTn/README.md) | feat | done |
 <!-- END GENERATED -->
