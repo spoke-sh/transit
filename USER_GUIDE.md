@@ -78,6 +78,10 @@ just transit proof controlled-failover --root target/transit-user-guide/controll
 just transit proof chaos-failover --root target/transit-user-guide/chaos-failover
 ```
 
+The warm-cache recovery proof explicitly removes the local server cache and
+rebuilds it from the published remote frontier so you can see the authority
+boundary, not just a successful restart.
+
 ### I want the client path
 
 Use:

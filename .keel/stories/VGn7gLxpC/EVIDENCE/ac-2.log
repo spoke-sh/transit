@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T12:02:23-07:00
+mode: manual
+---
+Made the proof output literal about cache loss and remote rebuild by rendering `restart hydrate after cache loss` plus the `cache rebuild source`, and refreshed the published docs so operators and public readers see the same contract. Verified the published docs with `just docs-build`.

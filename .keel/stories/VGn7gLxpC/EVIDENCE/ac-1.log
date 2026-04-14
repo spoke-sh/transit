@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T12:02:23-07:00
+mode: manual
+---
+Published the warm-cache recovery proof as the hosted restart-from-authority evidence path. Verified the proof behavior with `cargo test -p transit-cli warm_cache_recovery_proof_ -- --nocapture` and `cargo run -q -p transit-cli -- proof warm-cache-recovery --root target/transit-proof/warm-cache-recovery`, which showed both the initial hydrate and the restart hydrate restoring the same four acknowledged records from the published frontier after local cache loss.

@@ -174,7 +174,7 @@
 | Voyage | Status |
 |--------|--------|
 | [Object Store Runtime Bootstrap](epics/VGn6PdlVK/voyages/VGn6xmmDh/) | done |
-| [Hosted Tiered Durability Proof](epics/VGn6PdlVK/voyages/VGn6z2GXx/) | in-progress |
+| [Hosted Tiered Durability Proof](epics/VGn6PdlVK/voyages/VGn6z2GXx/) | done |
 | [Published Cutover Surface](epics/VGn6PdlVK/voyages/VGn6zxceG/) | planned |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)

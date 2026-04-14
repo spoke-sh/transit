@@ -5414,7 +5414,7 @@ fn render_warm_cache_recovery_proof(
         }
     );
     println!(
-        "restart hydrate: bootstrapped {}, restored {} segments, replayed {} records",
+        "restart hydrate after cache loss: bootstrapped {}, restored {} segments, replayed {} records",
         if result.restart_hydrate.bootstrapped {
             "yes"
         } else {
@@ -5431,7 +5431,7 @@ fn render_warm_cache_recovery_proof(
             "no"
         }
     );
-    println!("authoritative source: {}", result.authoritative_source);
+    println!("cache rebuild source: {}", result.authoritative_source);
     println!("local non-claim: {}", result.local_non_claim);
     println!("server api: {}", result.server_api);
     println!("remote api: {}", result.remote_api);

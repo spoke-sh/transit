@@ -16,7 +16,7 @@ Examples below use `transit ...` for brevity. From the repository root, you can 
 |-------|------------------|----------------------|--------------------|
 | local engine | `transit proof local-engine`, `transit status` | append, replay, branch, merge, crash recovery, and log-state inspection | local proof roots are filesystem-backed |
 | hosted operator surface | `transit server run`, `transit streams`, `transit produce`, `transit consume` | shared-engine server semantics over a remote boundary | current remote operator surface is still single-node |
-| storage and recovery | `transit proof tiered-engine`, `transit proof warm-cache-recovery`, `transit storage probe` | tiered publication, cold restore, restart-from-remote, and effective-config verification | `storage probe` verifies the current local/filesystem guarantee, not cloud-provider durability |
+| storage and recovery | `transit proof tiered-engine`, `transit proof warm-cache-recovery`, `transit storage probe` | tiered publication, cold restore, restart-after-cache-loss from remote authority, and effective-config verification | `storage probe` verifies the current local guarantee plus hosted bootstrap posture, not remote-tier or cloud-provider durability |
 | integrity and derived state | `transit proof integrity`, `transit proof materialization`, `transit proof reference-projection` | manifest roots, checkpoints, replay-anchored views, and resume correctness | signed attestation and compact partial proofs are later layers |
 | failover and distributed durability | `transit proof controlled-failover`, `transit proof chaos-failover` | lease handoff, automatic election, quorum acknowledgement, and former-primary fencing | not a multi-primary system |
 
@@ -62,8 +62,8 @@ Current server mode is still explicitly single-node at the protocol surface. The
 Transit currently ships:
 
 - tiered publication and cold restore
-- storage verification for the effective local configuration with `transit storage probe`
-- warm-cache recovery from the authoritative remote tier
+- storage verification for the effective local guarantee and hosted bootstrap posture with `transit storage probe`
+- warm-cache recovery after explicit cache loss from the authoritative remote tier
 - hosted-authority proof coverage for thin-client producers and readers
 
 Useful proof entry points:
@@ -74,7 +74,7 @@ transit proof warm-cache-recovery --root target/transit-docs/warm-cache
 transit --config target/transit-docs/storage-probe.toml storage probe
 ```
 
-`transit storage probe` is intentionally narrow. It verifies the effective local Transit storage configuration for the current runtime shape and reports the explicit guarantee it can actually prove today.
+`transit storage probe` is intentionally narrow. It validates the current runtime bootstrap posture and reports the explicit guarantee it can actually prove today. `transit proof warm-cache-recovery` is the complementary proof that discards the local cache and shows the hosted server can rebuild from the published remote frontier.
 
 ## Integrity And Derived State
 
