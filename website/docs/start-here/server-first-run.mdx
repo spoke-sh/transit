@@ -31,7 +31,7 @@ cargo run -p transit-cli --bin transit -- proof controlled-failover --root targe
 Run the Rust client proof against a locally started server:
 
 ```bash
-just rust-client-proof
+cargo run -p transit-client --example proof
 ```
 
 For the broader shipped surface, read [Current Capabilities](./current-capabilities.mdx).

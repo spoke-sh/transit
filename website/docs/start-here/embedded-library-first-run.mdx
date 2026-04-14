@@ -19,14 +19,13 @@ This path is about four things:
 
 ## Fastest Proof Path
 
-From the repo root:
+From the repo root, run the shared local-engine proof directly:
 
 ```bash
-just screen
+cargo run -p transit-cli --bin transit -- proof local-engine --root target/transit-docs/local
 ```
 
-That is the default human proof path. It builds the workspace and runs the local engine, tiered history, controlled failover, server, integrity, and materialization proofs in one flow.
-That is the default human proof path. It builds the workspace and runs the current proof suite: local engine, tiered engine, warm-cache recovery, controlled failover, automatic failover, networked server, integrity, materialization, reference projection, storage probe, status, and the board screen.
+That gives you the shortest direct proof of local append, replay, and lineage behavior without routing through repo-local helper tasks.
 
 ## If You Want To Narrow The Scope
 

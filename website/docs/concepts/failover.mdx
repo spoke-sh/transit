@@ -24,16 +24,16 @@ Controlled failover is an explicit, operator-driven handoff:
 - the current primary hands off the writable lease explicitly
 - the former primary is fenced after handoff
 
-You can run that proof directly:
+You can run the controlled handoff proof directly:
 
 ```bash
 cargo run -p transit-cli --bin transit -- proof controlled-failover --root target/transit-docs/controlled-failover
 ```
 
-Or run it as part of the default operator path:
+You can run the automatic failover proof directly too:
 
 ```bash
-just screen
+cargo run -p transit-cli --bin transit -- proof chaos-failover --root target/transit-docs/automatic-failover
 ```
 
 ### Promotion Readiness

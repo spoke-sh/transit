@@ -75,7 +75,7 @@ const firstStops: Array<{
   {
     label: 'Run the proof path',
     href: '/docs/start-here/embedded-library-first-run',
-    command: 'just screen',
+    command: 'transit proof local-engine',
   },
   {
     label: 'Read the contracts',

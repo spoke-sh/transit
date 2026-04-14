@@ -21,7 +21,7 @@ Typical signs:
 Start with:
 
 - the root `README.md`
-- `just screen`
+- `cargo run -p transit-cli --bin transit -- proof local-engine --root target/transit-docs/local`
 - the local and tiered proof paths surfaced by the CLI
 - [Current Capabilities](./current-capabilities.mdx)
 - [Embedded / Library First Run](./embedded-library-first-run.mdx)
@@ -38,8 +38,8 @@ Typical signs:
 
 Start with:
 
-- `just screen`
-- `just rust-client-proof`
+- `cargo run -p transit-cli --bin transit -- proof networked-server --root target/transit-docs/networked`
+- `cargo run -p transit-client --example proof`
 - [Current Capabilities](./current-capabilities.mdx)
 - the networked server proof in the CLI output
 - [Server First Run](./server-first-run.mdx)
