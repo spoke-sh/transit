@@ -1,0 +1,14 @@
+Reviewed the hosted consumer acknowledgement, durability, and error contract.
+
+Confirmed the authored contract now defines:
+- successful hosted responses as `RemoteAcknowledged<T>` with `request_id` and
+  `ack { durability, topology }`
+- durability labels as literal hosted contract values
+- remote error responses with `request_id`, `topology`, `code`, and `message`
+- the current canonical remote error codes: `invalid_request`, `not_found`,
+  `internal`
+
+Files checked:
+- `HOSTED_CONSUMERS.md`
+- `README.md`
+- `CONFIGURATION.md`

@@ -1,0 +1,14 @@
+Reviewed replacement posture for hosted acknowledgement and error semantics.
+
+Confirmed the authored contract makes direct replacement posture explicit:
+- downstream wrappers must preserve `request_id`, `ack.durability`,
+  `ack.topology`, and remote error codes literally
+- hosted consumers are told not to invent repo-local acknowledgement or error
+  taxonomies
+- current runtime and proof limits remain explicit, including the present
+  single-node topology and `local` durability proof posture
+
+Files checked:
+- `HOSTED_CONSUMERS.md`
+- `README.md`
+- `CONFIGURATION.md`

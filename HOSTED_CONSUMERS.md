@@ -2,12 +2,14 @@
 
 This document defines the canonical hosted-consumer boundary for `transit`.
 
-It answers two narrow questions:
+It answers three narrow questions:
 
 - how a downstream consumer identifies the authoritative hosted Transit
   endpoint
 - how hosted auth posture is declared without turning Transit into a
   consumer-specific identity system
+- how acknowledgement, durability, and remote error semantics are preserved
+  across the hosted boundary
 
 The contract is intentionally thin. `transit` owns transport, acknowledgement,
 durability vocabulary, and generic access posture. Downstream consumers own
@@ -88,6 +90,99 @@ The current runtime must stay honest about what is and is not implemented.
 Until wire-level enforcement lands, `auth_mode` should be read as declared
 posture plus rollout target, not as an overclaimed security guarantee.
 
+## Acknowledgement Contract
+
+Hosted success responses are correlated and acknowledged explicitly.
+
+At the client boundary, the canonical success shape is:
+
+```text
+RemoteAcknowledged<T> {
+  request_id,
+  ack { durability, topology },
+  body,
+}
+```
+
+This shape is owned upstream by Transit’s shared hosted client/server layer.
+Downstream wrappers should preserve it literally instead of inventing a second
+acknowledgement model.
+
+### Correlation
+
+- every successful hosted response carries a `request_id`
+- the same correlation key also appears on remote error responses
+- downstream wrappers may add local tracing, but they should not discard or
+  rewrite the Transit `request_id`
+
+### Durability Labels
+
+The acknowledgement envelope exposes a literal durability label at the server
+boundary:
+
+- `memory`
+- `local`
+- `replicated`
+- `quorum`
+- `tiered`
+
+Those labels name the durability posture actually claimed by the hosted
+authority for that response. Consumers should treat them as explicit contract
+data, not as values to reinterpret into product-local storage tiers or vague
+"committed" states.
+
+Current runtime and proof coverage must remain explicit:
+
+- the shared hosted contract can name all durability labels
+- the current `transit server run` path still only proves `local` durability in
+  the shipped runtime
+- downstream repos must not claim stronger hosted guarantees than the upstream
+  runtime and proofs actually demonstrate
+
+### Topology
+
+The acknowledgement envelope also carries a topology label.
+
+- the current hosted runtime surfaces `single_node`
+- future topology values must be published upstream before downstream repos rely
+  on them
+
+## Error Contract
+
+Hosted failures that come back from the server use a distinct remote error
+envelope:
+
+```text
+RemoteErrorResponse {
+  request_id,
+  topology,
+  code,
+  message,
+}
+```
+
+The current canonical remote error codes are:
+
+- `invalid_request`
+- `not_found`
+- `internal`
+
+Downstream wrappers should surface the remote error code and message literally.
+They may layer consumer-specific handling on top, but they should not erase the
+Transit code or replace it with a private acknowledgement/error taxonomy.
+
+### Local vs Remote Failure
+
+Hosted consumers should keep two failure categories explicit:
+
+- remote failures returned by Transit, which include `request_id`, topology, a
+  stable remote `code`, and a message
+- local client failures such as transport, protocol, or decode errors before a
+  valid remote envelope is obtained
+
+That split keeps remote substrate semantics distinct from downstream wrapper or
+network issues.
+
 ## Consumer Guidance
 
 Hosted consumers should rely on Transit for:
@@ -104,6 +199,14 @@ Hosted consumers should keep these concerns outside Transit:
 - entitlement policy
 - account or identity business rules
 - application-specific reducer decisions
+
+Hosted consumers should also preserve these upstream semantics literally:
+
+- `request_id` stays the canonical hosted correlation field
+- `ack.durability` stays the canonical hosted durability claim
+- `ack.topology` stays the canonical hosted topology label
+- remote error `code` values stay Transit-defined instead of being renamed into
+  repo-local categories
 
 ## Example Hosted Contract
 
@@ -134,7 +237,9 @@ answer all of these from Transit-owned docs and proofs alone:
 - Which auth posture is declared for the hosted boundary?
 - Which auth guarantees are implemented today, and which are still explicit
   non-claims?
-- Where do `request_id`, acknowledgement, and error semantics come from?
+- What exact acknowledgement envelope should a hosted consumer preserve?
+- What exact remote error envelope and code set should a hosted consumer
+  preserve?
 
 If those answers require downstream repos to invent new protocol meaning,
 Transit has not finished publishing the contract.

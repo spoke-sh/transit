@@ -126,7 +126,9 @@ authority to the hosted server boundary rather than preserving a dual-write
 embedded store.
 
 The canonical hosted-consumer endpoint and auth contract is documented in
-[`HOSTED_CONSUMERS.md`](HOSTED_CONSUMERS.md).
+[`HOSTED_CONSUMERS.md`](HOSTED_CONSUMERS.md), including the literal
+`request_id`, acknowledgement, durability, topology, and remote error
+envelopes downstream consumers should preserve.
 
 ## Documentation Map
 
