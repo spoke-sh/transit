@@ -56,10 +56,6 @@ const config: Config = {
     },
     navbar: {
       title: 'Transit',
-      logo: {
-        alt: 'Transit logo',
-        src: 'img/logo.svg',
-      },
       items: [
         {
           to: '/docs/intro',

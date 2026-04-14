@@ -286,6 +286,11 @@ body {
   font-size: 1.16rem;
   font-weight: 680;
   letter-spacing: -0.03em;
+  color: var(--transit-ink);
+}
+
+.navbar__brand:hover .navbar__title {
+  color: var(--transit-ink);
 }
 
 .navbar__link {
