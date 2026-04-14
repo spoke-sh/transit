@@ -21,6 +21,13 @@ PORT=3010 just docs-dev
 
 These commands use the repository's Nix-supported Node toolchain so the docs workflow stays reproducible in this workspace.
 
+For production publication, the repository-owned
+[`publish-docs.yml`](../.github/workflows/publish-docs.yml) workflow is the
+preferred lane. It publishes the stable Transit site plus the `main` preview
+into the shared `spoke-previews` bucket through the infra-managed OIDC role.
+The checked-in [`publish-docs.sh`](../scripts/publish-docs.sh) script is the
+local repair and CI execution surface for that contract.
+
 ## Build Inputs
 
 The site reads these optional environment variables at build time:
@@ -33,15 +40,21 @@ If they are not set, the site defaults to `https://www.spoke.sh` and
 
 ## Deployment Inputs
 
-The GitHub Actions docs workflow deploy job targets the shared production docs
-lane:
+The shared production docs lane is:
 
 - stable docs at `https://www.spoke.sh/transit/docs`
 - preview docs at `https://www.spoke.sh/previews/transit/<branch>/docs`
 
-The deploy job runs in the repository's `prod` GitHub environment and expects
-these environment or repository variables:
+The publish workflow runs in the repository's `prod` GitHub environment. It
+accepts the same publication inputs Keel uses:
 
-- `TRANSIT_DOCS_AWS_ROLE_ARN`
-- `TRANSIT_DOCS_BUCKET` (optional; defaults to `spoke-previews`)
-- `TRANSIT_DOCS_AWS_REGION` (optional; defaults to `us-east-1`)
+- `AWS_ROLE_TO_ASSUME` (optional when the default `spoke-transit-docs-publisher` role ARN is correct)
+- `DOCS_PREVIEW_BUCKET` (optional; defaults to `spoke-previews`)
+
+The publish script also accepts:
+
+- `DOCS_APP_NAME`
+- `DOCS_SITE_URL`
+- `DOCS_BRANCH`
+- `DOCS_PUBLISH_STABLE`
+- `DOCS_SKIP_SYNC`
