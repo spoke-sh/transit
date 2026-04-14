@@ -2969,15 +2969,8 @@ async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result
     use std::sync::Arc;
     use transit_core::consensus::{ConsensusManager, NodeId, ObjectStoreConsensus};
 
-    let effective_config = config.config();
-    let _object_store_authority = build_loaded_runtime_object_store(config).with_context(|| {
-        format!(
-            "resolve {} object-store authority for transit server run",
-            effective_config.storage.provider.as_str()
-        )
-    })?;
-
     let root = resolve_local_root(args.root, config);
+    let effective_config = config.config();
     let requested_listen_addr = args
         .listen_addr
         .unwrap_or(effective_config.server.listen_addr);
@@ -2988,10 +2981,8 @@ async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result
         .consensus_root
         .or_else(|| effective_config.replication.consensus_root.clone());
 
-    let engine_config = LocalEngineConfig::new(&root, NodeId::new(effective_node_id.clone()));
-    let server_config = ServerConfig::new(engine_config, requested_listen_addr);
-
-    let server = ServerHandle::bind(server_config).context("bind shared-engine server")?;
+    let server =
+        bind_hosted_runtime_server(config, &root, requested_listen_addr, &effective_node_id)?;
 
     // Optional: Initialize distributed consensus
     let mut _heartbeat_loop = None;
@@ -3056,6 +3047,25 @@ async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result
         requested_listen_addr,
         server.shutdown().context("shutdown shared-engine server")?,
     )
+}
+
+fn bind_hosted_runtime_server(
+    config: &LoadedTransitConfig,
+    root: &Path,
+    requested_listen_addr: SocketAddr,
+    effective_node_id: &str,
+) -> Result<ServerHandle> {
+    let effective_config = config.config();
+    let _object_store_authority = build_loaded_runtime_object_store(config).with_context(|| {
+        format!(
+            "resolve {} object-store authority for transit server run",
+            effective_config.storage.provider.as_str()
+        )
+    })?;
+
+    let engine_config = LocalEngineConfig::new(root, NodeId::new(effective_node_id.to_owned()));
+    let server_config = ServerConfig::new(engine_config, requested_listen_addr);
+    ServerHandle::bind(server_config).context("bind shared-engine server")
 }
 
 fn run_streams_list(server_addr: SocketAddr) -> Result<RemoteStreamListResult> {
@@ -6307,6 +6317,70 @@ listen_addr = "127.0.0.1:0"
         assert_eq!(result.durability, "local");
         assert!(object_store_root.is_dir());
         assert!(data_dir.join("streams").is_dir());
+    }
+
+    #[test]
+    fn tiered_configured_hosted_server_keeps_remote_acknowledgements_local_until_remote_authority_participates()
+     {
+        let temp_dir = tempdir().expect("temp dir");
+        let data_dir = temp_dir.path().join("server-data");
+        let cache_dir = temp_dir.path().join("server-cache");
+        let object_store_root = temp_dir.path().join("object-store");
+        let config = load_temp_config(
+            temp_dir.path(),
+            &format!(
+                r#"
+[node]
+id = "hosted-node"
+mode = "server"
+data_dir = "{data_dir}"
+cache_dir = "{cache_dir}"
+
+[storage]
+provider = "filesystem"
+bucket = "{object_store_root}"
+prefix = "hosted/runtime"
+durability = "tiered"
+
+[server]
+listen_addr = "127.0.0.1:0"
+"#,
+                data_dir = data_dir.display(),
+                cache_dir = cache_dir.display(),
+                object_store_root = object_store_root.display(),
+            ),
+        );
+        let requested_listen_addr = "127.0.0.1:0".parse().expect("listen addr");
+        let server = bind_hosted_runtime_server(
+            &config,
+            &resolve_local_root(None, &config),
+            requested_listen_addr,
+            config.config().effective_node_id(),
+        )
+        .expect("bind hosted runtime server");
+        let client = TransitClient::new(server.local_addr());
+        let stream_id = StreamId::new("cli.hosted.tiered").expect("stream id");
+
+        let created = client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("hub.reader".into()),
+                    Some("tiered-config-server".into()),
+                ),
+            )
+            .expect("create root");
+        let append = client
+            .append(&stream_id, br#"{"kind":"order","id":"order-1"}"#)
+            .expect("append");
+        let replay = client.read(&stream_id).expect("read");
+
+        assert_eq!(server.durability().as_str(), "local");
+        assert_eq!(created.ack().durability(), "local");
+        assert_eq!(append.ack().durability(), "local");
+        assert_eq!(replay.ack().durability(), "local");
+
+        server.shutdown().expect("shutdown server");
     }
 
     #[tokio::test]

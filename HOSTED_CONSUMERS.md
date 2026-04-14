@@ -134,8 +134,9 @@ data, not as values to reinterpret into product-local storage tiers or vague
 Current runtime and proof coverage must remain explicit:
 
 - the shared hosted contract can name all durability labels
-- the current `transit server run` path still only proves `local` durability in
-  the shipped runtime
+- a hosted server booted from tiered/object-store config still surfaces
+  `local` acknowledgements until that path actually reaches the remote
+  authority required for a stronger claim
 - downstream repos must not claim stronger hosted guarantees than the upstream
   runtime and proofs actually demonstrate
 

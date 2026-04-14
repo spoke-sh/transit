@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T11:57:34-07:00
+mode: manual
+---
+Made the hosted runtime truthfulness explicit by factoring the tiered-config bootstrap path through `bind_hosted_runtime_server(...)` and adding a targeted test that boots a tiered-configured server, creates a stream through `TransitClient`, and confirms the hosted acknowledgement envelope remains `local` until remote authority participation exists. Verified with `cargo test -p transit-cli server_run_ -- --nocapture`, `cargo test -p transit-cli tiered_configured_hosted_server_keeps_remote_acknowledgements_local_until_remote_authority_participates -- --nocapture`, `cargo test -p transit-client hosted_authority_surfaces_local_acknowledgements_until_tiered_publication_exists -- --nocapture`, and `cargo test -p transit-cli warm_cache_recovery_proof_demonstrates_restart_from_authoritative_remote_tier -- --nocapture`.

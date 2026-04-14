@@ -202,10 +202,11 @@ Storage configuration defines how local and remote persistence interact.
 - `quorum`: record is not acknowledged until the configured peer majority has confirmed receipt
 - `tiered`: record is not acknowledged until the required remote tier state is durable
 
-For hosted consumers, this configured durability becomes the literal
-`ack.durability` label surfaced by the server contract. Downstream wrappers
-should preserve that label instead of collapsing it into product-local
-commit-state vocabulary.
+For hosted consumers, this configured durability is the authored target
+contract. The server must surface `ack.durability` as the guarantee it
+actually reached for that response, not as a stronger label copied from
+`transit.toml`. Downstream wrappers should preserve the literal acknowledgement
+label instead of collapsing it into product-local commit-state vocabulary.
 
 For hosted `tiered` deployments, the configuration contract should be read in
 two groups.

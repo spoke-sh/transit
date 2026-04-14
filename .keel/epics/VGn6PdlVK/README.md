@@ -22,10 +22,10 @@ mission: VGn6FO9e8
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 voyages complete, 2/6 stories done
+**Progress:** 1/3 voyages complete, 3/6 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
 | [Object Store Runtime Bootstrap](voyages/VGn6xmmDh/) | done | 2/2 |
-| [Hosted Tiered Durability Proof](voyages/VGn6z2GXx/) | planned | 0/3 |
+| [Hosted Tiered Durability Proof](voyages/VGn6z2GXx/) | in-progress | 1/3 |
 | [Published Cutover Surface](voyages/VGn6zxceG/) | planned | 0/1 |
 <!-- END GENERATED -->

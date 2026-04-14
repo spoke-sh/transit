@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-14T11:57:34-07:00
+mode: manual
+---
+Aligned the foundational durability contract text so `ack.durability` now means the guarantee actually reached by the hosted runtime rather than a stronger label copied from `transit.toml`, and clarified that tiered/object-store config still surfaces `local` acknowledgements until the remote authority boundary is reached. Verified the synced contract output with `just docs-sync` and `just docs-build`.

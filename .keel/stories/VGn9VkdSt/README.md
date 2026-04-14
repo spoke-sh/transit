@@ -1,15 +1,18 @@
 ---
 # system-managed
 id: VGn9VkdSt
-status: backlog
+status: done
 created_at: 2026-04-14T11:35:35
-updated_at: 2026-04-14T11:35:49
+updated_at: 2026-04-14T11:57:49
 # authored
 title: Keep Hosted Ack Durability Truthful
 type: feat
 operator-signal:
 scope: VGn6PdlVK/VGn6z2GXx
 index: 3
+started_at: 2026-04-14T11:55:25
+submitted_at: 2026-04-14T11:57:47
+completed_at: 2026-04-14T11:57:49
 ---
 
 # Keep Hosted Ack Durability Truthful
@@ -23,5 +26,7 @@ claim.
 
 ## Acceptance Criteria
 
-- [ ] [SRS-01/AC-01] Hosted append or recovery paths never label responses `tiered` unless the runtime has actually reached the authoritative remote tier required by that claim. <!-- verify: manual, SRS-01:start:end -->
-- [ ] [SRS-NFR-01/AC-02] The durability vocabulary used by hosted acknowledgements stays aligned with the proof and probe surfaces. <!-- verify: manual, SRS-NFR-01:start:end -->
+- [x] [SRS-01/AC-01] Hosted append or recovery paths never label responses `tiered` unless the runtime has actually reached the authoritative remote tier required by that claim. <!-- verify: manual, SRS-01:start:end -->
+  proof: `EVIDENCE/ac-1.log`
+- [x] [SRS-NFR-01/AC-02] The durability vocabulary used by hosted acknowledgements stays aligned with the proof and probe surfaces. <!-- verify: manual, SRS-NFR-01:start:end -->
+  proof: `EVIDENCE/ac-2.log`
