@@ -120,6 +120,9 @@ In that shape, object storage is the long-term authority for rolled segments
 and manifests, while `data_dir` and `cache_dir` remain warm working state that
 can be rebuilt from the authoritative remote tier.
 
+The canonical hosted consumer endpoint and auth posture contract that sits on
+top of these values is documented in [`HOSTED_CONSUMERS.md`](HOSTED_CONSUMERS.md).
+
 ## Core Sections
 
 ### `[node]`
@@ -236,6 +239,15 @@ As the hosted authority contract expands, server startup should continue to
 hydrate and publish the same manifests, segments, and lineage descriptors that
 embedded restore already uses. The server owns credentials and operator policy,
 not a separate durability semantic.
+
+For hosted consumers, read these fields with three explicit rules:
+
+- `listen_addr` is the local bind address, not automatically the published
+  consumer target
+- `advertise_addr` is the canonical consumer-facing endpoint when operators
+  publish one
+- `auth_mode` declares the hosted access posture, but `token` and `mtls` remain
+  explicit non-claims until the runtime enforces them on the wire
 
 ### `[replication]`
 

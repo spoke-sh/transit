@@ -125,6 +125,9 @@ and explicit error codes literally, and a Hub-like cutover should move
 authority to the hosted server boundary rather than preserving a dual-write
 embedded store.
 
+The canonical hosted-consumer endpoint and auth contract is documented in
+[`HOSTED_CONSUMERS.md`](HOSTED_CONSUMERS.md).
+
 ## Documentation Map
 
 ### Root Contracts
@@ -148,6 +151,7 @@ embedded store.
 | [`COMMUNICATION.md`](COMMUNICATION.md) | Communication channels and threading contract |
 | [`MATERIALIZATION.md`](MATERIALIZATION.md) | Materialization and stream processing contract |
 | [`INTEGRITY.md`](INTEGRITY.md) | Verifiable lineage and cryptographic integrity |
+| [`HOSTED_CONSUMERS.md`](HOSTED_CONSUMERS.md) | Canonical hosted endpoint grammar and auth posture for downstream consumers |
 
 ### Focused Guides
 

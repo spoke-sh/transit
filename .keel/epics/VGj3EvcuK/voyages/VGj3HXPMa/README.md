@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VGj3HXPMa
-status: planned
+status: in-progress
 epic: VGj3EvcuK
 created_at: 2026-04-13T18:45:45
 # authored
 title: Define Hosted Consumer Endpoint Contract
 index: 2
 updated_at: 2026-04-13T18:49:16
+started_at: 2026-04-13T19:24:44
 ---
 
 # Define Hosted Consumer Endpoint Contract
@@ -26,10 +27,10 @@ updated_at: 2026-04-13T18:49:16
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/2 stories complete
+**Progress:** 1/2 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Define Hosted Endpoint Grammar And Auth Posture](../../../../stories/VGj3nmhSJ/README.md) | feat | backlog |
+| [Define Hosted Endpoint Grammar And Auth Posture](../../../../stories/VGj3nmhSJ/README.md) | feat | done |
 | [Define Consumer Acknowledgement And Error Contract](../../../../stories/VGj3nnHSG/README.md) | feat | backlog |
 <!-- END GENERATED -->

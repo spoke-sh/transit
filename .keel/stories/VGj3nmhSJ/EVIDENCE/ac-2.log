@@ -1,0 +1,12 @@
+Reviewed the authored hosted-consumer auth posture and genericity rules.
+
+Confirmed the contract stays generic:
+- `auth_mode` is defined as hosted access posture, not consumer identity policy
+- `none`, `token`, and `mtls` are described without product-specific semantics
+- current non-claims are explicit: token and mTLS are not yet wire-enforced
+- schema, entitlement, and application policy stay outside Transit core
+
+Files checked:
+- `HOSTED_CONSUMERS.md`
+- `README.md`
+- `CONFIGURATION.md`

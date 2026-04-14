@@ -1,0 +1,12 @@
+Reviewed the authored hosted-consumer contract in `HOSTED_CONSUMERS.md`.
+
+Covered endpoint grammar:
+- canonical hosted endpoint shape is `<host>:<port>`
+- `listen_addr` is bind-only
+- `advertise_addr` is the consumer-facing endpoint when different
+- the hosted authority is the network server boundary, not a local engine root
+
+Files checked:
+- `HOSTED_CONSUMERS.md`
+- `README.md`
+- `CONFIGURATION.md`
