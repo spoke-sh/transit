@@ -122,7 +122,7 @@ Run mixed traces that include:
 
 #### Canonical AI Trace Fixture
 
-The default AI benchmark fixture should reuse the canonical workload model defined in [AI_TRACES.md](./ai-traces.md), [AI_ARTIFACTS.md](./ai-artifacts.md), and the AI guidance in [GUIDE.md](./guide.md).
+The default AI benchmark fixture should reuse the canonical workload model defined in [AI_TRACES.md](./ai-traces.md) and [AI_ARTIFACTS.md](./ai-artifacts.md). Use [USER_GUIDE.md](https://github.com/spoke-sh/transit/blob/main/USER_GUIDE.md) only for repo onboarding and path selection, not as the workload contract.
 
 Minimum fixture shape:
 

@@ -153,7 +153,7 @@ embedded store.
 
 | Document | Purpose |
 |----------|---------|
-| [`GUIDE.md`](GUIDE.md) | Developer guide and mental models |
+| [`USER_GUIDE.md`](USER_GUIDE.md) | First-time repository user guide and onboarding map |
 | [`DRIFT.md`](DRIFT.md) | Drift management and measurement |
 
 ## First Principles

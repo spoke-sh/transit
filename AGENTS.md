@@ -165,7 +165,7 @@ These define the constraints and workflow of this repository:
 | `COMMUNICATION.md` | Communication workload contract |
 | `INTEGRITY.md` | Verifiable lineage and integrity contract |
 | `MATERIALIZATION.md` | Materialization and stream processing contract |
-| `GUIDE.md` | Developer guide and mental models |
+| `USER_GUIDE.md` | First-time repository user guide and onboarding map |
 | `.keel/adrs/` | Binding architecture decisions |
 
 Use this order when interpreting constraints: ADRs → Constitution → Architecture → Configuration → Planning artifacts.

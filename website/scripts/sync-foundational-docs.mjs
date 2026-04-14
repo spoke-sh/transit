@@ -35,12 +35,6 @@ const publishedDocs = [
     description: 'Configuration philosophy and reference.',
   },
   {
-    source: 'GUIDE.md',
-    output: 'guide.md',
-    title: 'Guide',
-    description: 'Developer guide and mental models.',
-  },
-  {
     source: 'DRIFT.md',
     output: 'drift.md',
     title: 'Drift',

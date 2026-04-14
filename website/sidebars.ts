@@ -8,6 +8,7 @@ const sidebars: SidebarsConfig = {
       label: 'Start Here',
       items: [
         'start-here/choose-your-track',
+        'start-here/current-capabilities',
         'start-here/embedded-library-first-run',
         'start-here/server-first-run',
       ],
@@ -19,6 +20,7 @@ const sidebars: SidebarsConfig = {
         'concepts/core-model',
         'concepts/embedded-and-server',
         'concepts/durability-modes',
+        'concepts/failover',
         'concepts/tiered-storage-and-manifests',
       ],
     },
@@ -35,7 +37,6 @@ const sidebars: SidebarsConfig = {
             'reference/contracts/constitution',
             'reference/contracts/architecture',
             'reference/contracts/configuration',
-            'reference/contracts/guide',
             'reference/contracts/drift',
             'reference/contracts/evaluations',
             'reference/contracts/release',

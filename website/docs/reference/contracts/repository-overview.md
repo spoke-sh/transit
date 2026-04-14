@@ -165,7 +165,7 @@ embedded store.
 
 | Document | Purpose |
 |----------|---------|
-| [`GUIDE.md`](./guide.md) | Developer guide and mental models |
+| [`USER_GUIDE.md`](https://github.com/spoke-sh/transit/blob/main/USER_GUIDE.md) | First-time repository user guide and onboarding map |
 | [`DRIFT.md`](./drift.md) | Drift management and measurement |
 
 ## First Principles
