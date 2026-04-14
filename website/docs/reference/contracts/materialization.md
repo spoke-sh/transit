@@ -2,11 +2,10 @@
 title: "Materialization"
 sidebar_label: "Materialization"
 description: "Materialization and stream processing contract."
-custom_edit_url: "https://github.com/spoke-sh/transit/blob/main/MATERIALIZATION.md"
 ---
-# Materialization Contract
+# Materialization
 
-`transit` needs one explicit contract for stream processing and durable derived state.
+`transit` needs one explicit model for stream processing and durable derived state.
 
 This document defines the minimum boundary between `transit-core` and a future
 `transit-materialize` layer.
@@ -130,7 +129,7 @@ Minimum recommended fields:
 - `source_manifest_generation`: manifest generation observed at checkpoint time
 - `source_durability`: durability boundary of the source read path
 - `lineage_ref`: explicit source position such as `stream_id@offset`
-- `lineage_checkpoint_ref`: optional reference to a stronger lineage checkpoint from [INTEGRITY.md](./integrity.md)
+- `lineage_checkpoint_ref`: optional reference to a stronger lineage checkpoint from [Integrity](./integrity.md)
 - `opaque_state_ref`: materializer-owned durable state or blob reference
 - `snapshot_ref`: optional reference to a reusable snapshot artifact
 - `produced_at`: checkpoint timestamp
@@ -339,4 +338,3 @@ This document does not yet standardize:
 - which views should default to replay-through, explicit-derived-merge, or CRDT overlay behavior
 
 Those questions belong in later implementation slices. The current contract now defines the snapshot and merge design center without freezing every runtime detail prematurely.
-

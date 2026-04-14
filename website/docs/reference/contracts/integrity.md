@@ -2,13 +2,12 @@
 title: "Integrity"
 sidebar_label: "Integrity"
 description: "Verifiable lineage and cryptographic integrity contract."
-custom_edit_url: "https://github.com/spoke-sh/transit/blob/main/INTEGRITY.md"
 ---
-# Verifiable Lineage Contract
+# Integrity Model
 
 `transit` should treat integrity as part of the storage model, not as a future bolt-on.
 
-This document defines the first integrity contract for immutable segments, manifests, and lineage checkpoints.
+This document defines the first integrity model for immutable segments, manifests, and lineage checkpoints.
 
 ## Design Center
 
@@ -221,4 +220,3 @@ These structures belong at immutable boundaries. They should not force CRDT meta
 - forcing one digest algorithm into the public API before implementation experience exists
 
 Those are later slices after the local engine, object-store flow, and materialization boundaries are sharper.
-

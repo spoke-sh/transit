@@ -2,13 +2,12 @@
 title: "Communication"
 sidebar_label: "Communication"
 description: "Communication channels and threading contract."
-custom_edit_url: "https://github.com/spoke-sh/transit/blob/main/COMMUNICATION.md"
 ---
-# Communication Contract
+# Communication Model
 
 `transit` needs one explicit communication workload model.
 
-This document defines the minimum contract for channels, native thread branches,
+This document defines the minimum model for channels, native thread branches,
 messages, and optional communication artifacts on top of the shared lineage
 engine.
 
@@ -328,4 +327,3 @@ This document does not yet standardize:
 Those questions belong in later implementation slices. The current contract now
 defines the communication design center without freezing every product detail
 prematurely.
-

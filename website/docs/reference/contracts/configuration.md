@@ -2,7 +2,6 @@
 title: "Configuration"
 sidebar_label: "Configuration"
 description: "Configuration philosophy and reference."
-custom_edit_url: "https://github.com/spoke-sh/transit/blob/main/CONFIGURATION.md"
 ---
 # Configuration Guide
 
@@ -100,8 +99,7 @@ prometheus_addr = "127.0.0.1:9464"
 slow_request_ms = 25
 ```
 
-The checked-in [transit.toml.example](https://github.com/spoke-sh/transit/blob/main/transit.toml.example) matches this local
-filesystem-first shape.
+The example above matches the current local filesystem-first shape.
 
 ## Hosted Tiered Server Example
 
@@ -138,8 +136,7 @@ In that shape, object storage is the long-term authority for rolled segments
 and manifests, while `data_dir` and `cache_dir` remain warm working state that
 can be rebuilt from the authoritative remote tier.
 
-The canonical hosted consumer endpoint and auth posture contract that sits on
-top of these values is documented in [`HOSTED_CONSUMERS.md`](https://github.com/spoke-sh/transit/blob/main/HOSTED_CONSUMERS.md).
+Hosted deployments should preserve the literal server-facing boundary on top of these settings: one `transit-server` endpoint, explicit auth mode, visible `request_id` values, and acknowledgement envelopes that state the durability actually reached.
 
 ## Deployment Profiles
 
@@ -338,4 +335,3 @@ When new behavior is added:
 - keep fast checksums distinct from cryptographic integrity settings so performance and proof claims remain comparable
 
 Configuration should make guarantees clearer, not hide them.
-

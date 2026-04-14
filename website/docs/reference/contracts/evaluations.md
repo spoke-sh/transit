@@ -1,10 +1,9 @@
 ---
-title: "Evaluations"
-sidebar_label: "Evaluations"
-description: "Benchmark and correctness evaluation guide."
-custom_edit_url: "https://github.com/spoke-sh/transit/blob/main/EVALUATIONS.md"
+title: "Proof And Benchmarks"
+sidebar_label: "Proof And Benchmarks"
+description: "How Transit proves correctness, performance, and workload behavior."
 ---
-# Evaluation Guide
+# Proof And Benchmarks
 
 `transit` has to prove three things together:
 
@@ -116,7 +115,7 @@ Run mixed traces that include:
 
 #### Canonical AI Trace Fixture
 
-The default AI benchmark fixture should reuse the canonical workload model defined in [AI_TRACES.md](./ai-traces.md) and [AI_ARTIFACTS.md](./ai-artifacts.md). Use [USER_GUIDE.md](https://github.com/spoke-sh/transit/blob/main/USER_GUIDE.md) only for repo onboarding and path selection, not as the workload contract.
+The default AI benchmark fixture should reuse the [AI Workload Model](./ai-traces.md) and [AI Artifacts](./ai-artifacts.md). The start-here guides are for onboarding, not for workload definition.
 
 Minimum fixture shape:
 
@@ -128,18 +127,18 @@ Minimum fixture shape:
 - optional `merge artifacts` when paths reconcile
 - one `completion checkpoint`
 
-Repository mapping:
+Fixture mapping:
 
-| Canonical entity | Repository contract | Evaluation expectation |
+| Canonical entity | Foundation page | Evaluation expectation |
 |------------------|---------------------|------------------------|
-| Task root | `AI_TRACES.md` task root | baseline append, replay, and tail behavior |
-| Retry branch | `AI_TRACES.md` retry branch | branch-creation cost and replay correctness |
-| Critique branch | `AI_TRACES.md` critique branch | branch fan-out and lineage traversal cost |
-| Tool-call event | `AI_TRACES.md` tool-call event | medium event latency and event ordering |
-| Evaluator decision | `AI_TRACES.md` evaluator decision | metadata-heavy append and replay |
-| Merge artifact | `AI_TRACES.md` merge artifact | explicit reconciliation and lineage inspection |
-| Completion checkpoint | `AI_TRACES.md` completion checkpoint | end-state replay and durable resume semantics |
-| Large payload reference | `AI_ARTIFACTS.md` artifact envelope | large-object reference overhead without giant inline records |
+| Task root | AI Workload Model task root | baseline append, replay, and tail behavior |
+| Retry branch | AI Workload Model retry branch | branch-creation cost and replay correctness |
+| Critique branch | AI Workload Model critique branch | branch fan-out and lineage traversal cost |
+| Tool-call event | AI Workload Model tool-call event | medium event latency and event ordering |
+| Evaluator decision | AI Workload Model evaluator decision | metadata-heavy append and replay |
+| Merge artifact | AI Workload Model merge artifact | explicit reconciliation and lineage inspection |
+| Completion checkpoint | AI Workload Model completion checkpoint | end-state replay and durable resume semantics |
+| Large payload reference | AI Artifacts envelope | large-object reference overhead without giant inline records |
 
 Audit and benchmark expectations:
 
@@ -153,7 +152,7 @@ Audit and benchmark expectations:
 
 This is the signature application-level benchmark.
 
-Use [COMMUNICATION.md](./communication.md) as the canonical contract for this workload.
+Use [Communication](./communication.md) as the canonical model for this workload.
 
 The workload should model:
 
@@ -203,7 +202,7 @@ The benchmark should state whether it is measuring fast corruption detection, cr
 
 ### 9. Materialization And Snapshot Verification
 
-Use [MATERIALIZATION.md](./materialization.md) as the canonical contract for this category.
+Use [Materialization](./materialization.md) as the canonical model for this category.
 
 Measure:
 
@@ -271,4 +270,3 @@ If `transit` is compared against Kafka, Iggy, or another system, the report must
 - whether the comparison includes branch or lineage behavior or only flat append/replay
 
 Otherwise the comparison is marketing, not engineering.
-

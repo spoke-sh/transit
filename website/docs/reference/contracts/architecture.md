@@ -2,7 +2,6 @@
 title: "Architecture"
 sidebar_label: "Architecture"
 description: "Reference architecture and system model."
-custom_edit_url: "https://github.com/spoke-sh/transit/blob/main/ARCHITECTURE.md"
 ---
 # Architecture
 
@@ -281,7 +280,7 @@ Both paths preserve the one-writer-per-stream-head invariant. Multi-primary beha
 
 `transit` should be usable as a storage substrate for stream processing and materialization.
 
-The canonical contract for this boundary now lives in [MATERIALIZATION.md](./materialization.md).
+The detailed materialization model lives in [Materialization](./materialization.md).
 
 The likely boundary is:
 
@@ -366,7 +365,7 @@ This is guidance, not a locked module tree.
 
 `transit` should treat AI and communication systems as reference workloads.
 
-The canonical communication contract now lives in [COMMUNICATION.md](./communication.md).
+The communication model lives in [Communication](./communication.md).
 
 Examples:
 
@@ -388,4 +387,3 @@ These areas are important but should stay explicit future work until designed:
 - compaction or projection layers above immutable history
 - authn/authz and multi-tenant isolation
 - query surfaces beyond ordered log replay and tailing
-

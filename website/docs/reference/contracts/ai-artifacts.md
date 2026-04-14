@@ -2,13 +2,12 @@
 title: "AI Artifacts"
 sidebar_label: "AI Artifacts"
 description: "AI artifact envelope contract."
-custom_edit_url: "https://github.com/spoke-sh/transit/blob/main/AI_ARTIFACTS.md"
 ---
-# AI Artifact Envelope
+# AI Artifacts
 
 `transit` should keep lineage and control metadata in the log while allowing large AI payloads to live in object storage.
 
-This document defines the first artifact-envelope contract for that split.
+This document defines the first artifact-envelope model for that split.
 
 ## Envelope Goal
 
@@ -126,4 +125,3 @@ The full payload can remain lazy-loaded.
 - replication semantics for artifact objects
 
 Those are later slices once the canonical trace contract and benchmark fixtures are further along.
-

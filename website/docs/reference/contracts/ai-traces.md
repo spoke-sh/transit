@@ -1,16 +1,15 @@
 ---
-title: "AI Traces"
-sidebar_label: "AI Traces"
-description: "Canonical AI trace workload contract."
-custom_edit_url: "https://github.com/spoke-sh/transit/blob/main/AI_TRACES.md"
+title: "AI Workload Model"
+sidebar_label: "AI Workload Model"
+description: "Reference lineage-heavy AI workload model for Transit."
 ---
-# AI Trace Contract
+# AI Workload Model
 
 `transit` needs one canonical AI workload model so the storage engine, examples, and benchmarks all target the same lineage-heavy shape.
 
 This document defines that first contract.
 
-For large payload handling and object-store-backed artifact references, see [AI_ARTIFACTS.md](./ai-artifacts.md).
+For large payload handling and object-store-backed artifact references, see [AI Artifacts](./ai-artifacts.md).
 
 ## Design Center
 
@@ -187,5 +186,4 @@ The canonical AI trace model needs a small, consistent metadata set.
 - define benchmark fixture layouts
 - standardize one application schema for every agent framework
 
-The artifact-envelope contract now lives in [AI_ARTIFACTS.md](./ai-artifacts.md). Benchmark fixture layout belongs in the next planning slice.
-
+The artifact envelope lives in [AI Artifacts](./ai-artifacts.md). Benchmark fixture layouts can evolve separately from this core workload model.
