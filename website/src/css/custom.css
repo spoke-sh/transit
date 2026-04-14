@@ -10,6 +10,8 @@
   --ifm-color-primary-lighter: #3a72c6;
   --ifm-color-primary-lightest: #5e8ed3;
   --ifm-navbar-height: 4.35rem;
+  --ifm-navbar-padding-horizontal: 0rem;
+  --ifm-navbar-padding-vertical: 0rem;
   --ifm-background-color: #f8f5ee;
   --ifm-background-surface-color: rgba(255, 255, 252, 0.985);
   --ifm-code-font-size: 88%;
@@ -158,6 +160,10 @@ body {
   box-shadow: none;
 }
 
+.navbar:not(#\#):not(#\#) {
+  padding: 0;
+}
+
 .navbar__surface {
   position: relative;
   z-index: 1;
@@ -165,7 +171,7 @@ body {
   align-items: center;
   width: 100%;
   min-height: var(--transit-header-surface-height);
-  padding-inline: var(--ifm-navbar-padding-horizontal);
+  padding: 0;
   backdrop-filter: blur(16px);
   background: var(--ifm-navbar-background-color);
   box-shadow: var(--transit-shadow-shell);
