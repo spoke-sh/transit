@@ -162,6 +162,13 @@
 | [Object-Store Authority With Warm Cache](epics/VGh59soBt/voyages/VGh5BgrVO/) | done |
 | [Materialized Reference Projection Surface](epics/VGh59soBt/voyages/VGh5CIxcc/) | done |
 
+### [Publish Hosted Consumer Interface For Spoke Cutover](epics/VGj3EvcuK/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Publish Upstream Consumer Client And Direct Cutover Proof](epics/VGj3EvcuK/voyages/VGj3HWSL4/) | planned |
+| [Define Hosted Consumer Endpoint Contract](epics/VGj3EvcuK/voyages/VGj3HXPMa/) | planned |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
