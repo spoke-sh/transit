@@ -1,6 +1,6 @@
 use crate::engine::{
     DurabilityMode, LocalAppendOutcome, LocalDeletedStream, LocalEngine, LocalEngineConfig,
-    LocalLogStreamStatus, LocalRecord, LocalStreamStatus,
+    LocalLogStreamStatus, LocalRecord, LocalRecoveryOutcome, LocalStreamStatus,
 };
 use crate::kernel::{
     LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamPosition,
@@ -63,6 +63,7 @@ pub struct ServerHandle {
     accepted_connections: Arc<AtomicU64>,
     fatal_error: Arc<Mutex<Option<String>>>,
     listener_thread: Option<JoinHandle<()>>,
+    startup_recovery: Vec<LocalRecoveryOutcome>,
 }
 
 impl ServerHandle {
@@ -73,6 +74,9 @@ impl ServerHandle {
                 config.engine().data_dir().display()
             )
         })?;
+        let startup_recovery = engine
+            .recover_all_streams()
+            .context("startup stream recovery")?;
         let listener = TcpListener::bind(config.listen_addr())
             .with_context(|| format!("bind server listener at {}", config.listen_addr()))?;
         listener
@@ -119,6 +123,7 @@ impl ServerHandle {
             accepted_connections,
             fatal_error,
             listener_thread: Some(listener_thread),
+            startup_recovery,
         })
     }
 
@@ -132,6 +137,10 @@ impl ServerHandle {
 
     pub fn durability(&self) -> DurabilityMode {
         self.engine.durability()
+    }
+
+    pub fn startup_recovery(&self) -> &[LocalRecoveryOutcome] {
+        &self.startup_recovery
     }
 
     pub fn engine(&self) -> LocalEngine {

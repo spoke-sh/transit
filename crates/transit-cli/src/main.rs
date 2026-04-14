@@ -3016,6 +3016,26 @@ async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result
         println!("listen requested: {}", requested_listen_addr);
         println!("listen bound: {}", server.local_addr());
         println!("durability: {}", server.durability().as_str());
+
+        let recovery = server.startup_recovery();
+        let recovered_count = recovery
+            .iter()
+            .filter(|outcome| outcome.truncated_bytes() > 0)
+            .count();
+        println!(
+            "startup recovery: {} streams checked, {} recovered",
+            recovery.len(),
+            recovered_count
+        );
+        for outcome in recovery.iter().filter(|o| o.truncated_bytes() > 0) {
+            println!(
+                "  recovered '{}': truncated {} uncommitted bytes, committed offset {}",
+                outcome.stream_id().as_str(),
+                outcome.truncated_bytes(),
+                outcome.committed_next_offset().value()
+            );
+        }
+
         if args.serve_for_ms.is_none() {
             println!("shutdown: waiting for Ctrl-C");
         }

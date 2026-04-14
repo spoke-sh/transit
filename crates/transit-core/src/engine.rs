@@ -1506,6 +1506,38 @@ impl LocalEngine {
         })
     }
 
+    pub fn recover_all_streams(&self) -> Result<Vec<LocalRecoveryOutcome>> {
+        let streams_dir = self.inner.config.data_dir().join(STREAMS_DIR);
+        let mut outcomes = Vec::new();
+
+        for entry in fs::read_dir(&streams_dir)
+            .with_context(|| format!("read streams directory {}", streams_dir.display()))?
+        {
+            let entry =
+                entry.with_context(|| format!("read entry in {}", streams_dir.display()))?;
+            if !entry
+                .file_type()
+                .with_context(|| format!("read file type for {}", entry.path().display()))?
+                .is_dir()
+            {
+                continue;
+            }
+
+            let stream_dir = entry.path();
+            let state: LocalStreamState = read_json(&stream_dir.join(STATE_FILE))
+                .with_context(|| format!("read stream state {}", stream_dir.display()))?;
+            let stream_id = state.descriptor.stream_id.clone();
+
+            let outcome = self
+                .recover_stream(&stream_id)
+                .with_context(|| format!("recover stream '{}'", stream_id.as_str()))?;
+            outcomes.push(outcome);
+        }
+
+        outcomes.sort_by(|a, b| a.stream_id().as_str().cmp(b.stream_id().as_str()));
+        Ok(outcomes)
+    }
+
     pub fn recover_stream(&self, stream_id: &StreamId) -> Result<LocalRecoveryOutcome> {
         let state = self.load_state(stream_id)?;
         let active_path = self.active_segment_path(stream_id);
