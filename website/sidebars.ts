@@ -26,9 +26,8 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Reference',
+      label: 'Foundations',
       items: [
-        'reference/foundational-docs',
         {
           type: 'category',
           label: 'Platform Contracts',
