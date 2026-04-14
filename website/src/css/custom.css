@@ -190,7 +190,7 @@ body {
 
 .navbar__sliceSpacer {
   flex: 0 0 var(--transit-header-spacer-height);
-  background: var(--ifm-background-color);
+  background: #ffffff;
 }
 
 .navbar__sliceRule {
