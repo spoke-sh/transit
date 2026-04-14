@@ -58,6 +58,13 @@
   gap: 1rem;
 }
 
+.actions a,
+.actions a:hover,
+.actions a:focus-visible,
+.actions a span {
+  text-decoration: none;
+}
+
 .primaryAction,
 .secondaryAction {
   display: inline-flex;
@@ -257,7 +264,10 @@
   width: 100%;
   gap: var(--transit-space-3);
   margin: 0;
+  margin-left: 0;
   padding: 0;
+  padding-left: 0;
+  padding-inline-start: 0;
   list-style: none;
 }
 
@@ -286,6 +296,14 @@
     box-shadow 150ms ease,
     border-color 150ms ease,
     background 150ms ease;
+}
+
+.sceneFrame a,
+.sceneFrame a:hover,
+.sceneFrame a:focus-visible,
+.sceneFrame a span,
+.sceneFrame a code {
+  text-decoration: none;
 }
 
 .sceneStepLink:hover {
