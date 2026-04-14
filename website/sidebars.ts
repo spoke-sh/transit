@@ -28,6 +28,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Foundations',
       items: [
+        'foundations/board-model',
         {
           type: 'category',
           label: 'Platform Contracts',
