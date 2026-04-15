@@ -48,7 +48,13 @@ const config: Config = {
     ],
   ],
   themeConfig: {
-    image: 'img/transit-social-card.svg',
+    image: 'img/transit-social.webp',
+    metadata: [
+      {
+        property: 'og:site_name',
+        content: 'Transit',
+      },
+    ],
     colorMode: {
       defaultMode: 'light',
       disableSwitch: true,
