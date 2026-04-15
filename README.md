@@ -1,5 +1,9 @@
 # transit
 
+[![Keel Board](https://img.shields.io/badge/Keel-Board-blue)](./.keel/README.md)
+[![CI](https://github.com/spoke-sh/transit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/spoke-sh/transit/actions/workflows/ci.yml?query=branch%3Amain)
+[![Publish Docs](https://github.com/spoke-sh/transit/actions/workflows/publish-docs.yml/badge.svg?branch=main)](https://github.com/spoke-sh/transit/actions/workflows/publish-docs.yml?query=branch%3Amain)
+
 `transit` is a fresh take on message streaming: a Rust-first, object-storage-native append-only log with native tiered storage, stream lineage, and explicit branch-and-merge semantics.
 
 The project thesis is simple:
