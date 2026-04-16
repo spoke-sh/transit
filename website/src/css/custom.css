@@ -224,8 +224,13 @@ a:focus-visible:not(#\#):not(#\#) {
   box-sizing: border-box;
 }
 
-.navbar-sidebar__brand {
-  height: var(--transit-header-surface-height);
+.navbar-sidebar__brand:not(#\#):not(#\#) {
+  height: calc(
+    var(--transit-header-surface-height) + var(--transit-header-spacer-height)
+  );
+  box-shadow: none;
+  border-bottom: var(--transit-header-rule-height) solid
+    rgba(245, 197, 66, 0.96);
 }
 
 .navbar-sidebar__backdrop {
