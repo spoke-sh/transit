@@ -6,11 +6,16 @@
   padding: 5.4rem 0 4.2rem;
 }
 
+.heroLead {
+  display: grid;
+  gap: var(--transit-space-4);
+}
+
 .heroGrid {
   display: grid;
-  gap: 2.2rem;
+  gap: 2.8rem;
   align-items: center;
-  grid-template-columns: minmax(0, 1.34fr) minmax(280px, 0.82fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.92fr);
 }
 
 .heroCopy {
@@ -35,12 +40,13 @@
   color: var(--transit-route-blue);
 }
 
-.heroCopy h1 {
+.heroLead h1:not(#\#):not(#\#) {
   max-width: none;
   margin: 0;
-  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
-  font-size: clamp(3.15rem, 8.8vw, 5.85rem);
-  line-height: 0.91;
+  font-family: "Geist Variable", Geist, "Segoe UI", sans-serif;
+  font-size: clamp(2.7rem, 5.2vw, 4.6rem);
+  line-height: 0.96;
+  letter-spacing: -0.055em;
   text-wrap: pretty;
 }
 
@@ -84,7 +90,7 @@
     color 150ms ease;
 }
 
-.primaryAction {
+.primaryAction:not(#\#):not(#\#) {
   color: #fffdf8;
   background: var(--transit-route-blue);
   border-color: rgba(255, 255, 255, 0.44) rgba(255, 255, 255, 0.28)
@@ -92,13 +98,13 @@
   box-shadow: var(--transit-shadow-button);
 }
 
-.primaryAction:visited,
-.primaryAction:hover,
-.primaryAction:focus-visible {
+.primaryAction:not(#\#):not(#\#):visited,
+.primaryAction:not(#\#):not(#\#):hover,
+.primaryAction:not(#\#):not(#\#):focus-visible {
   color: #fffdf8;
 }
 
-.secondaryAction {
+.secondaryAction:not(#\#):not(#\#) {
   color: var(--transit-ink);
   background: var(--transit-surface-control);
   border-color: var(--transit-raised-border-top) var(--transit-raised-border-right)
@@ -106,9 +112,9 @@
   box-shadow: var(--transit-shadow-button);
 }
 
-.secondaryAction:visited,
-.secondaryAction:hover,
-.secondaryAction:focus-visible {
+.secondaryAction:not(#\#):not(#\#):visited,
+.secondaryAction:not(#\#):not(#\#):hover,
+.secondaryAction:not(#\#):not(#\#):focus-visible {
   color: var(--transit-ink);
 }
 
@@ -157,7 +163,7 @@
   display: block;
   align-self: center;
   justify-self: center;
-  width: min(100%, 29rem);
+  width: min(100%, 32rem);
 }
 
 .sceneFrame {
@@ -245,33 +251,32 @@
   padding: 1.16rem 1.22rem;
   overflow: auto;
   border-radius: 1.2rem;
-  border: 1px solid rgba(17, 38, 58, 0.12);
-  background:
-    radial-gradient(circle at top right, rgba(19, 87, 183, 0.14), transparent 32%),
-    radial-gradient(circle at left center, rgba(18, 145, 84, 0.16), transparent 38%),
-    linear-gradient(180deg, rgba(252, 255, 253, 0.99), rgba(237, 247, 241, 0.98));
-  color: var(--transit-ink);
+  border: 1px solid rgba(17, 38, 58, 0.14);
+  background-color: #0f2338;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+  color: #e8eef7;
   font-family: var(--ifm-font-family-monospace);
   font-size: 1.08rem;
-  font-weight: 680;
+  font-weight: 620;
   line-height: 1.7;
   letter-spacing: 0.016em;
   text-shadow: none;
   font-variant-ligatures: none;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    0 14px 24px rgba(7, 17, 30, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 14px 24px rgba(7, 17, 30, 0.22);
 }
 
-.sceneSteps {
+.sceneSteps:not(#\#):not(#\#) {
   display: grid;
   width: 100%;
   gap: var(--transit-space-3);
   margin: 0;
-  margin-left: 0;
   padding: 0;
-  padding-left: 0;
-  padding-inline-start: 0;
   list-style: none;
 }
 
@@ -280,7 +285,7 @@
   margin: 0;
 }
 
-.sceneStepLink {
+.sceneStepLink:not(#\#):not(#\#) {
   display: flex;
   justify-content: space-between;
   gap: var(--transit-space-4);
@@ -292,7 +297,7 @@
   border-radius: 1.25rem;
   background: rgba(17, 38, 58, 0.05);
   border: 1px solid rgba(17, 38, 58, 0.12);
-  color: var(--transit-ink-soft);
+  color: var(--transit-ink);
   text-decoration: none;
   box-shadow: var(--transit-shadow-button);
   transition:
@@ -310,8 +315,8 @@
   text-decoration: none;
 }
 
-.sceneStepLink:hover {
-  color: var(--transit-ink-soft);
+.sceneStepLink:not(#\#):not(#\#):hover {
+  color: var(--transit-ink);
   text-decoration: none;
   transform: translateY(-1px);
   background: rgba(17, 38, 58, 0.06);
@@ -402,16 +407,16 @@
   color: var(--transit-ink-soft);
 }
 
-.trackCard {
+.trackCard:not(#\#):not(#\#) {
   display: grid;
   gap: 0.7rem;
   padding: 1.35rem;
-  color: inherit;
+  color: var(--transit-ink);
   text-decoration: none;
 }
 
-.trackCard:hover {
-  color: inherit;
+.trackCard:not(#\#):not(#\#):hover {
+  color: var(--transit-ink);
   text-decoration: none;
   transform: translateY(-1px);
   box-shadow: var(--transit-shadow-card-hover);
@@ -531,12 +536,12 @@
   color: rgba(255, 253, 248, 0.72);
 }
 
-.ctaCard .primaryAction {
+.ctaCard .primaryAction:not(#\#):not(#\#) {
   background: #fffdf8;
   color: var(--transit-route-green-strong);
 }
 
-.ctaCard .secondaryAction {
+.ctaCard .secondaryAction:not(#\#):not(#\#) {
   background: rgba(255, 253, 248, 0.08);
   border-color: rgba(255, 253, 248, 0.18);
   color: #fffdf8;

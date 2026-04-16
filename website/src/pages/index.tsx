@@ -63,24 +63,24 @@ const firstStops: Array<{
   command: string;
 }> = [
   {
-    label: 'Understand the model',
-    href: '/docs/intro',
-    command: '/docs/intro',
+    label: 'Inspect local history',
+    href: '/docs/start-here/embedded-library-first-run',
+    command: 'transit status',
   },
   {
-    label: 'Choose your track',
-    href: '/docs/start-here/choose-your-track',
-    command: '/docs/start-here',
-  },
-  {
-    label: 'Run the proof path',
+    label: 'Run the local proof',
     href: '/docs/start-here/embedded-library-first-run',
     command: 'transit proof local-engine',
   },
   {
-    label: 'Read the contracts',
-    href: '/docs/foundations/system-model',
-    command: '/docs/foundations',
+    label: 'Start the server',
+    href: '/docs/start-here/server-first-run',
+    command: 'transit server run',
+  },
+  {
+    label: 'Verify lineage integrity',
+    href: '/docs/start-here/current-capabilities',
+    command: 'transit verify-lineage',
   },
 ];
 
@@ -94,8 +94,10 @@ export default function Home(): ReactNode {
           <div className="container">
             <div className={styles.heroGrid}>
               <div className={styles.heroCopy}>
-                <p className={styles.eyebrow}>Lineage-Aware Event Rails</p>
-                <h1>Move event history like a rail network, not a dead-end queue.</h1>
+                <div className={styles.heroLead}>
+                  <p className={styles.eyebrow}>Lineage-Aware Event Rails</p>
+                  <h1>Move event history like a rail network, not a dead-end queue.</h1>
+                </div>
                 <p className={styles.lede}>
                   Transit is an append-only event engine with native branches,
                   explicit merges, and tiered storage. It runs embedded in your

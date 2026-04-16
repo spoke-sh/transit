@@ -142,6 +142,11 @@ body {
   letter-spacing: -0.012em;
 }
 
+a:hover:not(#\#):not(#\#),
+a:focus-visible:not(#\#):not(#\#) {
+  text-decoration: none;
+}
+
 .main-wrapper {
   background: transparent;
   padding-top: var(--ifm-navbar-height);
