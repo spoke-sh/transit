@@ -18,7 +18,7 @@ It gives you:
 
 Transit is not a Kafka rebrand. It is built for workloads where the history of a stream is part of the product: AI traces, experiments, communication threads, and derived views. Anywhere you need to show how state arrived at its current value, not just what that value is now.
 
-## The Architecture In One Sentence
+## The Engine In Three Layers
 
 Transit keeps three layers visible instead of collapsing them into one vague "durable log":
 
@@ -28,7 +28,7 @@ Transit keeps three layers visible instead of collapsing them into one vague "du
 
 That same engine can be linked directly into your process or exposed through a daemon. The delivery mode changes. The storage semantics should not.
 
-## Why The Name Fits
+## The Rail Network Model
 
 Think about a rail network instead of a single straight track.
 
@@ -58,7 +58,7 @@ Transit is opinionated about several boundaries that many systems blur:
 - **remote object storage is part of the system design**
 - **derived state is downstream of replay, not a rewrite of source history**
 
-If a page in these docs sounds simpler than those rules, the page is wrong.
+These rules are load-bearing. When a page simplifies for narrative reasons, it does so on top of them. Never around them.
 
 ## What Transit Already Ships
 
