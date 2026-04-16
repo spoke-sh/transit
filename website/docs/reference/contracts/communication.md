@@ -324,6 +324,6 @@ This document does not yet standardize:
 - concrete moderation product behavior beyond explicit override artifacts
 - one universal schema for every communication-level artifact body
 
-Those questions belong in later implementation slices. The current contract now
+Those questions belong in later implementation slices. The current contract
 defines the communication design center without freezing every product detail
 prematurely.

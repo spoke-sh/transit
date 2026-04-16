@@ -40,9 +40,9 @@ The server should preserve:
 - the same lineage semantics
 - the same storage and durability boundaries
 
-That now includes the full failover stack in the shared engine: controlled handoff, automatic leader election, quorum durability, and cluster membership. The one-engine guarantee means these capabilities work identically whether the engine is embedded or behind a server daemon. Multi-primary behavior remains explicitly out of scope.
+That includes the full failover stack in the shared engine: controlled handoff, automatic leader election, quorum durability, and cluster membership. The one-engine guarantee means these capabilities work identically whether the engine is embedded or behind a server daemon. Multi-primary behavior remains explicitly out of scope.
 
-The common hosted operator path is now:
+The common hosted operator path is:
 
 - `transit streams`
 - `transit produce`

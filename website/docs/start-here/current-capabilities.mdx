@@ -43,7 +43,7 @@ transit status --root target/transit-docs/local
 
 ## Server And Operator Surface
 
-Transit now exposes a kcat-style operator path on top of the hosted server boundary:
+Transit exposes a kcat-style operator path on top of the hosted server boundary:
 
 ```bash
 transit streams create --stream-id demo.root --actor docs --reason bootstrap
@@ -55,7 +55,7 @@ transit streams delete --stream-id demo.root --force
 
 The lower-level `transit server ...` namespace still exists for protocol-shaped operations like `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel`.
 
-For Rust consumers, the upstream `transit-client` crate now also includes a
+For Rust consumers, the upstream `transit-client` crate includes a
 generic replay-driven projection-consumer helper. That keeps derived reads on
 the hosted client boundary without inventing a projection-only server truth
 path or forcing downstream repos to publish a private wrapper.
@@ -100,7 +100,7 @@ transit proof reference-projection --root target/transit-docs/reference-projecti
 
 ## Failover And Distributed Durability
 
-The shared engine now supports:
+The shared engine supports:
 
 - controlled failover with explicit lease handoff and former-primary fencing
 - automatic failover through `ElectionMonitor`

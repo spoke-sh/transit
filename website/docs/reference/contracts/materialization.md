@@ -337,4 +337,4 @@ This document does not yet standardize:
 - one universal schema for every derived-state artifact
 - which views should default to replay-through, explicit-derived-merge, or CRDT overlay behavior
 
-Those questions belong in later implementation slices. The current contract now defines the snapshot and merge design center without freezing every runtime detail prematurely.
+Those questions belong in later implementation slices. The current contract defines the snapshot and merge design center without freezing every runtime detail prematurely.

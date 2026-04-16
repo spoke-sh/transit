@@ -28,7 +28,7 @@ That is the hot-path durability boundary.
 
 ## Replicated
 
-`replicated` means the replicated handoff boundary has been published.
+`replicated` means the replicated handoff boundary is published.
 
 That is the readiness boundary for failover. It means the immutable handoff unit exists for clustered restore/catch-up semantics and promotion checks; it does **not** automatically mean every follower has applied it or that later writes on the promoted node are already replicated.
 

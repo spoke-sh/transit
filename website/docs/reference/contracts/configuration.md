@@ -146,7 +146,7 @@ These profiles describe the intended operating shapes and the current fidelity o
 |---------|-----------|------------------|----------------|
 | local embedded proof | `[node].mode = "embedded"`, local filesystem `[storage]`, `[storage].durability = "local"` | `transit proof local-engine`, `transit status` | fully wired |
 | local single-node server | `[node].mode = "server"`, `[server].listen_addr`, local filesystem `[storage]` | `transit server run`, `transit streams`, `transit produce`, `transit consume` | fully wired for the local/filesystem path |
-| hosted tiered server | object-store-backed `[storage]`, explicit namespace, hosted `[server]` endpoint | `transit server run`, `transit storage probe`, tiered-engine and warm-cache proofs | bootstrap now validates authored object-store authority and binds the hosted server path; remote-tier acknowledgement truth remains an explicit contract boundary |
+| hosted tiered server | object-store-backed `[storage]`, explicit namespace, hosted `[server]` endpoint | `transit server run`, `transit storage probe`, tiered-engine and warm-cache proofs | bootstrap validates authored object-store authority and binds the hosted server path; remote-tier acknowledgement truth remains an explicit contract boundary |
 | clustered failover and quorum | `[replication]` plus `quorum` durability and shared consensus root | controlled-failover and chaos-failover proofs | shared-engine behavior is proven; general operator packaging is still evolving |
 
 ## CLI Surface And Config Resolution
@@ -265,7 +265,7 @@ Network-facing settings for daemon mode.
 | `request_body_limit_bytes` | Integer | `8388608` | Maximum request size accepted by the server. |
 | `auth_mode` | String | `"none"` | Planned auth mode: `none`, `token`, `mtls`. |
 
-The current CLI now resolves `transit.toml` plus `TRANSIT_*` overrides at
+The CLI resolves `transit.toml` plus `TRANSIT_*` overrides at
 runtime. Commands that operate on one local engine root default to
 `[node].data_dir` when `--root` is omitted, and `transit server run` defaults
 `--root` plus `--listen-addr` from `[node].data_dir` and `[server].listen_addr`.

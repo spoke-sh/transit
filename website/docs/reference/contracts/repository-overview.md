@@ -142,7 +142,7 @@ Today it contains:
 - **Clients:** Native Rust client library with replay-driven projection-consumer helpers and a feature-complete CLI for operations and proofs.
 - **Verification:** A unified `just screen` path that runs the full suite of human-verifiable missions.
 
-The implementation work now has a real scaffold to grow from instead of needing to reverse-engineer direction later.
+The implementation work has a real scaffold to grow from instead of needing to reverse-engineer direction later.
 
 ## Current Capability Baseline
 
