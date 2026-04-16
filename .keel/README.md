@@ -183,6 +183,12 @@
 |--------|--------|
 | [Replay-Driven Projection Consumer API](epics/VGnPIhJl2/voyages/VGnPLHvGm/) | done |
 
+### [Durable Consumer Cursors For Transit Streams](epics/VGzzXWgvv/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Embedded Cursor Primitive And Engine Storage](epics/VGzzXWgvv/voyages/VGzzmJ8c8/) | in-progress |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
