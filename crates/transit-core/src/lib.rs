@@ -2,6 +2,7 @@ pub mod artifact;
 pub mod bootstrap;
 pub mod config;
 pub mod consensus;
+pub mod cursor;
 pub mod engine;
 pub mod kernel;
 pub mod membership;

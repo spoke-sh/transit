@@ -2595,7 +2595,7 @@ fn sanitize_stream_id(stream_id: &StreamId) -> String {
         .collect()
 }
 
-fn read_json<T>(path: &Path) -> Result<T>
+pub(crate) fn read_json<T>(path: &Path) -> Result<T>
 where
     T: for<'de> Deserialize<'de>,
 {
@@ -2805,7 +2805,7 @@ async fn materialize_remote_segment(
     Ok(restored_descriptor)
 }
 
-fn write_json_durable<T>(path: &Path, value: &T) -> Result<()>
+pub(crate) fn write_json_durable<T>(path: &Path, value: &T) -> Result<()>
 where
     T: Serialize,
 {

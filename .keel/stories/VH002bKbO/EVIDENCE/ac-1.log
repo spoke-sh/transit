@@ -1,0 +1,17 @@
+---
+recorded_at: 2026-04-16T16:27:48.426427508-07:00
+command: cargo test -p transit-core --lib cursor::tests::
+---
+
+running 4 tests
+test cursor::tests::cursor_store_delete_removes_file ... ok
+test cursor::tests::cursor_store_tolerates_ids_with_path_chars ... ok
+test cursor::tests::cursor_store_persists_and_reloads_records_after_restart ... ok
+test cursor::tests::cursor_store_load_all_returns_every_persisted_record_sorted_by_id ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 93 filtered out; finished in 0.01s
+
+
+--- stderr ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-a55f7f5c72bb7daa)
