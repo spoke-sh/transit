@@ -27,12 +27,12 @@ started_at: 2026-04-16T16:21:28
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 2/4 stories complete
+**Progress:** 3/4 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Add Cursor Kernel Types And Store](../../../../stories/VH002aOaB/README.md) | feat | done |
 | [Persist Cursor Records On The Embedded Engine](../../../../stories/VH002bKbO/README.md) | feat | done |
-| [Expose Engine Cursor Lifecycle API](../../../../stories/VH002cJce/README.md) | feat | backlog |
+| [Expose Engine Cursor Lifecycle API](../../../../stories/VH002cJce/README.md) | feat | done |
 | [Prove Restart And Warm-Cache Recovery For Cursors](../../../../stories/VH002dIds/README.md) | feat | backlog |
 <!-- END GENERATED -->

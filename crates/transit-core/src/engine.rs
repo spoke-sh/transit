@@ -1,6 +1,8 @@
 use crate::consensus::{ConsensusHandle, NodeId, StreamLease};
+use crate::cursor::{CursorAck, CursorStore};
 use crate::kernel::{
-    LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage, StreamPosition,
+    Cursor, CursorId, LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId,
+    StreamLineage, StreamPosition,
 };
 use crate::storage::{
     ContentDigest, LineageCheckpoint, ManifestId, ObjectStoreKey, ObjectStoreLocation,
@@ -1011,6 +1013,116 @@ impl LocalEngine {
 
     pub fn list_streams(&self) -> Result<Vec<LocalLogStreamStatus>> {
         Ok(inspect_local_log(self.data_dir())?.streams)
+    }
+
+    fn cursor_store(&self) -> Result<CursorStore> {
+        CursorStore::open(self.data_dir())
+    }
+
+    /// Register a new cursor bound to an existing stream.
+    ///
+    /// Fails when the bound stream does not exist, when a cursor with the
+    /// same id already lives on this engine, or when the requested starting
+    /// position is past the committed frontier.
+    pub fn create_cursor(
+        &self,
+        cursor_id: CursorId,
+        stream_id: StreamId,
+        position: Offset,
+        metadata: LineageMetadata,
+    ) -> Result<Cursor> {
+        let status = self
+            .stream_status(&stream_id)
+            .with_context(|| format!("stream '{}' was not found", stream_id.as_str()))?;
+        ensure!(
+            position.value() <= status.next_offset().value(),
+            "cursor '{}' position {} exceeds committed frontier {} on stream '{}'",
+            cursor_id.as_str(),
+            position.value(),
+            status.next_offset().value(),
+            stream_id.as_str()
+        );
+        let store = self.cursor_store()?;
+        ensure!(
+            !store.exists(&cursor_id),
+            "cursor '{}' already exists",
+            cursor_id.as_str()
+        );
+        let cursor = Cursor::new(
+            cursor_id,
+            stream_id,
+            position,
+            metadata,
+            cursor_timestamp_now(),
+        );
+        store.put(&cursor)?;
+        Ok(cursor)
+    }
+
+    pub fn get_cursor(&self, cursor_id: &CursorId) -> Result<Option<Cursor>> {
+        self.cursor_store()?.get(cursor_id)
+    }
+
+    /// List cursors on this engine, optionally filtered by bound stream.
+    pub fn list_cursors(&self, stream_id: Option<&StreamId>) -> Result<Vec<Cursor>> {
+        let mut cursors = self.cursor_store()?.load_all()?;
+        if let Some(filter) = stream_id {
+            cursors.retain(|cursor| cursor.stream_id == *filter);
+        }
+        Ok(cursors)
+    }
+
+    /// Advance a cursor to `position`.
+    ///
+    /// Refuses to move backward and refuses to move past the committed
+    /// frontier of the bound stream. Idempotent when the requested position
+    /// matches the current position.
+    pub fn advance_cursor(&self, cursor_id: &CursorId, position: Offset) -> Result<CursorAck> {
+        let store = self.cursor_store()?;
+        let existing = store
+            .get(cursor_id)?
+            .with_context(|| format!("cursor '{}' was not found", cursor_id.as_str()))?;
+        ensure!(
+            position.value() >= existing.position.value(),
+            "cursor '{}' cannot move backward: current {} > requested {}",
+            cursor_id.as_str(),
+            existing.position.value(),
+            position.value()
+        );
+        let status = self
+            .stream_status(&existing.stream_id)
+            .with_context(|| format!("stream '{}' was not found", existing.stream_id.as_str()))?;
+        ensure!(
+            position.value() <= status.next_offset().value(),
+            "cursor '{}' position {} exceeds committed frontier {} on stream '{}'",
+            cursor_id.as_str(),
+            position.value(),
+            status.next_offset().value(),
+            existing.stream_id.as_str()
+        );
+        let updated_at = cursor_timestamp_now();
+        let updated = existing.with_position(position, updated_at);
+        store.put(&updated)?;
+        Ok(CursorAck {
+            cursor_id: updated.cursor_id,
+            stream_id: updated.stream_id,
+            position,
+            durability: CommitmentLevel::Local,
+            updated_at,
+        })
+    }
+
+    /// Acknowledge that a consumer has processed records up to `position`.
+    ///
+    /// Equivalent to `advance_cursor` in the first slice; the distinct name
+    /// is preserved so higher layers (CLI, protocol) can expose it as a
+    /// separate operation without changing engine semantics later.
+    pub fn ack_cursor(&self, cursor_id: &CursorId, position: Offset) -> Result<CursorAck> {
+        self.advance_cursor(cursor_id, position)
+    }
+
+    pub fn delete_cursor(&self, cursor_id: &CursorId) -> Result<()> {
+        self.cursor_store()?.delete(cursor_id)
     }
 
     pub fn delete_stream(&self, stream_id: &StreamId) -> Result<LocalDeletedStream> {
@@ -2593,6 +2705,10 @@ fn sanitize_stream_id(stream_id: &StreamId) -> String {
             _ => '_',
         })
         .collect()
+}
+
+fn cursor_timestamp_now() -> i64 {
+    chrono::Utc::now().timestamp()
 }
 
 pub(crate) fn read_json<T>(path: &Path) -> Result<T>
@@ -5457,6 +5573,185 @@ mod tests {
             primary_err.to_string().contains("not the leader"),
             "primary fencing error: {}",
             primary_err
+        );
+    }
+
+    fn cursor_id(value: &str) -> crate::kernel::CursorId {
+        crate::kernel::CursorId::new(value).expect("cursor id")
+    }
+
+    fn open_local_engine_for_cursors(path: &std::path::Path) -> LocalEngine {
+        LocalEngine::open(LocalEngineConfig::new(path, NodeId::new("cursor-node")))
+            .expect("open engine")
+    }
+
+    fn append_records(engine: &LocalEngine, stream: &StreamId, count: usize) {
+        for i in 0..count {
+            engine
+                .append(stream, format!("record-{i}").as_bytes())
+                .expect("append record");
+        }
+    }
+
+    #[test]
+    fn cursor_lifecycle_covers_create_lookup_list_advance_ack_and_delete() {
+        let temp = tempdir().expect("tempdir");
+        let engine = open_local_engine_for_cursors(temp.path());
+        let stream = stream_id("task.root");
+        engine.create_stream(root_descriptor("task.root")).unwrap();
+        append_records(&engine, &stream, 5);
+
+        let consumer = cursor_id("consumer.analytics");
+        let cursor = engine
+            .create_cursor(
+                consumer.clone(),
+                stream.clone(),
+                Offset::new(0),
+                LineageMetadata::new(Some("analytics".into()), Some("initial".into())),
+            )
+            .expect("create cursor");
+        assert_eq!(cursor.position.value(), 0);
+
+        let fetched = engine
+            .get_cursor(&consumer)
+            .expect("get")
+            .expect("cursor present");
+        assert_eq!(fetched, cursor);
+
+        let other = cursor_id("consumer.archive");
+        engine
+            .create_cursor(
+                other.clone(),
+                stream.clone(),
+                Offset::new(0),
+                LineageMetadata::default(),
+            )
+            .expect("create second cursor");
+
+        let all = engine.list_cursors(None).expect("list all");
+        assert_eq!(all.len(), 2);
+        let bound = engine.list_cursors(Some(&stream)).expect("list by stream");
+        assert_eq!(bound.len(), 2);
+
+        let ack = engine
+            .advance_cursor(&consumer, Offset::new(3))
+            .expect("advance");
+        assert_eq!(ack.position.value(), 3);
+        assert_eq!(ack.durability, CommitmentLevel::Local);
+
+        let ack2 = engine.ack_cursor(&consumer, Offset::new(5)).expect("ack");
+        assert_eq!(ack2.position.value(), 5);
+
+        engine.delete_cursor(&other).expect("delete");
+        assert!(engine.get_cursor(&other).expect("get").is_none());
+        let remaining = engine.list_cursors(None).expect("list after delete");
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].cursor_id, consumer);
+    }
+
+    #[test]
+    fn cursor_create_rejects_unknown_stream_duplicate_id_and_frontier_overrun() {
+        let temp = tempdir().expect("tempdir");
+        let engine = open_local_engine_for_cursors(temp.path());
+        let stream = stream_id("task.root");
+        engine.create_stream(root_descriptor("task.root")).unwrap();
+        append_records(&engine, &stream, 2);
+
+        let missing = engine.create_cursor(
+            cursor_id("consumer.ghost"),
+            stream_id("task.does-not-exist"),
+            Offset::new(0),
+            LineageMetadata::default(),
+        );
+        let err = missing.expect_err("unknown stream should error");
+        assert!(
+            err.to_string().contains("was not found"),
+            "unexpected error: {err}"
+        );
+
+        engine
+            .create_cursor(
+                cursor_id("consumer.analytics"),
+                stream.clone(),
+                Offset::new(0),
+                LineageMetadata::default(),
+            )
+            .expect("first create");
+        let duplicate = engine.create_cursor(
+            cursor_id("consumer.analytics"),
+            stream.clone(),
+            Offset::new(0),
+            LineageMetadata::default(),
+        );
+        let dup_err = duplicate.expect_err("duplicate cursor should error");
+        assert!(
+            dup_err.to_string().contains("already exists"),
+            "unexpected error: {dup_err}"
+        );
+
+        let overrun = engine.create_cursor(
+            cursor_id("consumer.future"),
+            stream.clone(),
+            Offset::new(99),
+            LineageMetadata::default(),
+        );
+        let frontier_err = overrun.expect_err("beyond frontier should error");
+        assert!(
+            frontier_err
+                .to_string()
+                .contains("exceeds committed frontier"),
+            "unexpected error: {frontier_err}"
+        );
+    }
+
+    #[test]
+    fn cursor_advance_refuses_backward_moves_and_frontier_overrun() {
+        let temp = tempdir().expect("tempdir");
+        let engine = open_local_engine_for_cursors(temp.path());
+        let stream = stream_id("task.root");
+        engine.create_stream(root_descriptor("task.root")).unwrap();
+        append_records(&engine, &stream, 3);
+
+        let id = cursor_id("consumer.analytics");
+        engine
+            .create_cursor(
+                id.clone(),
+                stream.clone(),
+                Offset::new(0),
+                LineageMetadata::default(),
+            )
+            .expect("create");
+        engine
+            .advance_cursor(&id, Offset::new(2))
+            .expect("forward advance");
+
+        // Idempotent: same position succeeds.
+        let idempotent = engine
+            .advance_cursor(&id, Offset::new(2))
+            .expect("idempotent advance");
+        assert_eq!(idempotent.position.value(), 2);
+
+        let backward = engine.advance_cursor(&id, Offset::new(1));
+        let back_err = backward.expect_err("backward advance should error");
+        assert!(
+            back_err.to_string().contains("cannot move backward"),
+            "unexpected error: {back_err}"
+        );
+
+        let overrun = engine.advance_cursor(&id, Offset::new(99));
+        let overrun_err = overrun.expect_err("beyond frontier should error");
+        assert!(
+            overrun_err
+                .to_string()
+                .contains("exceeds committed frontier"),
+            "unexpected error: {overrun_err}"
+        );
+
+        let missing = engine.advance_cursor(&cursor_id("consumer.unknown"), Offset::new(0));
+        let missing_err = missing.expect_err("missing cursor should error");
+        assert!(
+            missing_err.to_string().contains("was not found"),
+            "unexpected error: {missing_err}"
         );
     }
 }

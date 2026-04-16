@@ -1,13 +1,26 @@
-#![allow(dead_code)] // Wired to the engine lifecycle API in a sibling story.
-
-use crate::engine::{read_json, write_json_durable};
-use crate::kernel::{Cursor, CursorId};
+use crate::engine::{CommitmentLevel, read_json, write_json_durable};
+use crate::kernel::{Cursor, CursorId, Offset, StreamId};
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 pub(crate) const CURSORS_DIR: &str = "cursors";
+
+/// Acknowledgement returned by cursor advance and ack operations.
+///
+/// Mirrors the vocabulary Transit already uses for append acknowledgements:
+/// it reports the committed position, the durability label the underlying
+/// engine reached, and the timestamp at which the position was persisted.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CursorAck {
+    pub cursor_id: CursorId,
+    pub stream_id: StreamId,
+    pub position: Offset,
+    pub durability: CommitmentLevel,
+    pub updated_at: i64,
+}
 
 /// Owns the on-disk cursor directory for one local engine root.
 ///
