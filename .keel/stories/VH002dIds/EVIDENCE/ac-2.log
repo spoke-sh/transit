@@ -1,0 +1,14 @@
+---
+recorded_at: 2026-04-16T16:35:29.844780688-07:00
+command: cargo test -p transit-core --lib engine::tests::cursor_advance_ack_reports_local_commitment_for_local_engine
+---
+
+running 1 test
+test engine::tests::cursor_advance_ack_reports_local_commitment_for_local_engine ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 102 filtered out; finished in 0.03s
+
+
+--- stderr ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-a55f7f5c72bb7daa)

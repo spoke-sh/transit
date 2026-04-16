@@ -5754,4 +5754,134 @@ mod tests {
             "unexpected error: {missing_err}"
         );
     }
+
+    #[test]
+    fn cursor_state_survives_engine_restart_with_distinct_positions_preserved() {
+        let temp = tempdir().expect("tempdir");
+        let stream = stream_id("task.root");
+
+        {
+            let engine = open_local_engine_for_cursors(temp.path());
+            engine.create_stream(root_descriptor("task.root")).unwrap();
+            append_records(&engine, &stream, 10);
+
+            engine
+                .create_cursor(
+                    cursor_id("consumer.fast"),
+                    stream.clone(),
+                    Offset::new(0),
+                    LineageMetadata::new(Some("fast".into()), None),
+                )
+                .expect("create fast");
+            engine
+                .create_cursor(
+                    cursor_id("consumer.slow"),
+                    stream.clone(),
+                    Offset::new(0),
+                    LineageMetadata::new(Some("slow".into()), None),
+                )
+                .expect("create slow");
+
+            engine
+                .advance_cursor(&cursor_id("consumer.fast"), Offset::new(9))
+                .expect("advance fast");
+            engine
+                .advance_cursor(&cursor_id("consumer.slow"), Offset::new(3))
+                .expect("advance slow");
+        }
+
+        // Simulate a process restart: re-open at the same path and rehydrate.
+        let restarted = open_local_engine_for_cursors(temp.path());
+        let cursors = restarted.list_cursors(None).expect("list after restart");
+        assert_eq!(cursors.len(), 2);
+
+        let fast = restarted
+            .get_cursor(&cursor_id("consumer.fast"))
+            .expect("get fast")
+            .expect("fast present");
+        let slow = restarted
+            .get_cursor(&cursor_id("consumer.slow"))
+            .expect("get slow")
+            .expect("slow present");
+
+        assert_eq!(fast.position.value(), 9);
+        assert_eq!(fast.metadata.actor.as_deref(), Some("fast"));
+        assert_eq!(slow.position.value(), 3);
+        assert_eq!(slow.metadata.actor.as_deref(), Some("slow"));
+        assert_eq!(fast.stream_id, stream);
+        assert_eq!(slow.stream_id, stream);
+
+        // Cursors remain usable after restart.
+        let ack = restarted
+            .advance_cursor(&cursor_id("consumer.slow"), Offset::new(6))
+            .expect("advance after restart");
+        assert_eq!(ack.position.value(), 6);
+    }
+
+    #[test]
+    fn cursor_advance_ack_reports_local_commitment_for_local_engine() {
+        let temp = tempdir().expect("tempdir");
+        let engine = open_local_engine_for_cursors(temp.path());
+        let stream = stream_id("task.root");
+        engine.create_stream(root_descriptor("task.root")).unwrap();
+        append_records(&engine, &stream, 4);
+
+        let id = cursor_id("consumer.analytics");
+        engine
+            .create_cursor(
+                id.clone(),
+                stream,
+                Offset::new(0),
+                LineageMetadata::default(),
+            )
+            .expect("create");
+
+        let advance_ack = engine.advance_cursor(&id, Offset::new(2)).expect("advance");
+        assert_eq!(advance_ack.durability, CommitmentLevel::Local);
+        assert_eq!(advance_ack.cursor_id, id);
+        assert_eq!(advance_ack.position.value(), 2);
+
+        let ack_ack = engine.ack_cursor(&id, Offset::new(4)).expect("ack");
+        assert_eq!(ack_ack.durability, CommitmentLevel::Local);
+        assert_eq!(ack_ack.position.value(), 4);
+    }
+
+    #[test]
+    fn cursor_lifecycle_does_not_mutate_stream_history() {
+        let temp = tempdir().expect("tempdir");
+        let engine = open_local_engine_for_cursors(temp.path());
+        let stream = stream_id("task.root");
+        engine.create_stream(root_descriptor("task.root")).unwrap();
+        append_records(&engine, &stream, 4);
+
+        let before = engine.stream_status(&stream).expect("status before");
+        let before_replay = engine.replay(&stream).expect("replay before");
+
+        let id = cursor_id("consumer.analytics");
+        engine
+            .create_cursor(
+                id.clone(),
+                stream.clone(),
+                Offset::new(0),
+                LineageMetadata::default(),
+            )
+            .expect("create cursor");
+        engine
+            .advance_cursor(&id, Offset::new(2))
+            .expect("advance cursor");
+        engine.ack_cursor(&id, Offset::new(4)).expect("ack cursor");
+        engine.delete_cursor(&id).expect("delete cursor");
+
+        let after = engine.stream_status(&stream).expect("status after");
+        let after_replay = engine.replay(&stream).expect("replay after");
+
+        assert_eq!(before.next_offset(), after.next_offset());
+        assert_eq!(before.active_record_count(), after.active_record_count());
+        assert_eq!(before.manifest_generation(), after.manifest_generation());
+        assert_eq!(before_replay.len(), after_replay.len());
+        for (lhs, rhs) in before_replay.iter().zip(after_replay.iter()) {
+            assert_eq!(lhs.position(), rhs.position());
+            assert_eq!(lhs.payload(), rhs.payload());
+        }
+    }
 }

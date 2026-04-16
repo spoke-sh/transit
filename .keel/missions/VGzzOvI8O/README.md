@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VGzzOvI8O
-status: active
+status: achieved
 created_at: 2026-04-16T16:16:58
-updated_at: 2026-04-16T16:21:50
+updated_at: 2026-04-16T16:37:00
 # authored
 title: Ship First-Class Consumer Cursors For Independent Stream Progress
 watch: ~
 activated_at: 2026-04-16T16:21:50
+achieved_at: 2026-04-16T16:37:00
 ---
 
 # Ship First-Class Consumer Cursors For Independent Stream Progress
