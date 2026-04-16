@@ -17,6 +17,7 @@ Transit treats history as a first-class system model, not just as a stream of by
 - A `stream` is one ordered history.
 - A `branch` is a real child history with explicit ancestry.
 - A `merge` is an explicit reconciliation event, not a hidden rewrite.
+- A `cursor` is a durable per-consumer bookmark, separate from history itself so multiple readers can advance independently without mutating what was written.
 
 That matters because Transit is designed for workloads where divergence is normal: agents, communication threads, replayable workflows, and systems that need to inspect how one line of work split and later converged.
 

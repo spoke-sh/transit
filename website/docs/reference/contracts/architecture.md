@@ -152,7 +152,7 @@ The architecture contract is anchored to the slices that exist today.
 
 | Slice | Current shape | Explicit boundary |
 |-------|---------------|-------------------|
-| Embedded engine | durable local append, replay, branch, merge, status inspection, and crash recovery | pre-`1.0` formats are still allowed to evolve |
+| Embedded engine | durable local append, replay, branch, merge, status inspection, crash recovery, and durable consumer cursors | pre-`1.0` formats are still allowed to evolve |
 | Server surface | single-node daemon, framed request/response protocol, logical tail sessions, and kcat-style operator commands | the server must not invent a separate storage model |
 | Storage and recovery | tiered publication, cold restore, warm-cache recovery, and effective-config storage verification | `transit storage probe` verifies the effective local/filesystem guarantee only |
 | Failover and distributed durability | controlled handoff, automatic lease election, quorum acknowledgement, and former-primary fencing | multi-primary and dynamic rebalancing remain out of scope |
@@ -253,6 +253,18 @@ Required semantics:
 - merge policy must be declared, not hidden inside application code
 
 Materializations and other derived views must remain explicit artifacts. They must not silently rewrite ancestor history.
+
+## Consumer Cursors
+
+Transit exposes a first-class cursor primitive for tracking independent reader progress on a single stream:
+
+- a cursor carries an identifier, bound stream, durable position, lineage metadata, and created/updated timestamps
+- cursor state is authoritative on the engine, persisted under `<data_dir>/cursors/`, and survives restart and warm-cache loss
+- advance is monotonic with respect to the committed frontier: backward moves and frontier overruns are rejected with explicit errors
+- advance acknowledgement reports the same durability vocabulary used for appends (`local`, `replicated`, `quorum`, `tiered`)
+- cursor operations never mutate stream history and do not relax the one-writer-per-stream-head model
+
+Cursors are orthogonal to branches. Branches fork history when divergence is meaningful; cursors bookmark reader progress through a single history. Consumer-group rebalancing, partition assignment, and cross-stream fan-in cursors are explicitly out of scope for the current slice. Hosted protocol, CLI, and `transit-client` cursor surfaces are pending; when they ship they must wrap the same engine semantics without introducing a second cursor authority.
 
 ## Consistency Model
 

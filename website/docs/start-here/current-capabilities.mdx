@@ -18,6 +18,7 @@ All examples below invoke the `transit` CLI directly.
 | hosted operator surface | `transit server run`, `transit streams`, `transit produce`, `transit consume`, `transit proof hosted-authority` | shared-engine server semantics over a remote boundary, including the Rust client surface | current remote operator surface is still single-node |
 | storage and recovery | `transit proof tiered-engine`, `transit proof warm-cache-recovery`, `transit storage probe` | tiered publication, cold restore, restart-after-cache-loss from remote authority, and effective-config verification | `storage probe` verifies the current local guarantee plus hosted bootstrap posture, not remote-tier or cloud-provider durability |
 | integrity and derived state | `transit proof integrity`, `transit proof materialization`, `transit proof reference-projection` | manifest roots, checkpoints, replay-anchored views, and resume correctness | signed attestation and compact partial proofs are later layers |
+| independent reader progress | embedded cursor API on `LocalEngine` | durable per-consumer cursors with monotonic advance, local-durability ack, and restart recovery | hosted protocol, CLI, and `transit-client` cursor surfaces are still follow-up work |
 | failover and distributed durability | `transit proof controlled-failover`, `transit proof chaos-failover` | lease handoff, automatic election, quorum acknowledgement, and former-primary fencing | not a multi-primary system |
 
 ## Shared Engine
@@ -97,6 +98,20 @@ transit proof integrity --root target/transit-docs/integrity
 transit proof materialization --root target/transit-docs/materialization
 transit proof reference-projection --root target/transit-docs/reference-projection
 ```
+
+## Independent Reader Progress
+
+Transit ships a first-class cursor primitive on the embedded engine:
+
+- durable per-consumer cursor records with id, bound stream, position, and lineage metadata
+- create, lookup, list, advance, ack, and delete operations on `LocalEngine`
+- monotonic advance clamped to the committed stream frontier, with explicit errors for backward moves and frontier overruns
+- local-durability acknowledgement matching the language Transit already uses for appends
+- restart and warm-cache recovery of cursor state alongside stream manifests
+
+Branches remain for lineage forks. Cursors carry per-reader progress so independent consumers can advance on the same stream without maintaining an external offset store or misusing branches.
+
+Hosted protocol, CLI, and `transit-client` surfaces for cursors are follow-up work; they will expose the same semantics without changing the engine contract.
 
 ## Failover And Distributed Durability
 

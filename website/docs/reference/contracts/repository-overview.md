@@ -148,7 +148,7 @@ The implementation work has a real scaffold to grow from instead of needing to r
 
 | Slice | What ships today | Primary proof path |
 |-------|------------------|--------------------|
-| Local engine | durable append, replay, branch, merge, crash recovery, and `transit status` over a local log root | `just transit proof local-engine --root <path>` |
+| Local engine | durable append, replay, branch, merge, crash recovery, `transit status` over a local log root, and durable consumer cursors for independent reader progress | `just transit proof local-engine --root <path>` |
 | Server and operator surface | `transit server run`, protocol-shaped remote operations, plus `transit streams`, `transit produce`, and `transit consume` | `just rust-client-proof` and `just transit proof networked-server --root <path>` |
 | Storage and recovery | tiered publication, cold restore, warm-cache recovery, and effective-config verification through `transit storage probe` | `just transit proof tiered-engine --root <path>` and `just transit --config <path> storage probe` |
 | Integrity and derived state | manifest-root verification, checkpoint proofing, materialization resume, and reference projection coverage | `just transit proof integrity --root <path>` and `just transit proof materialization --root <path>` |

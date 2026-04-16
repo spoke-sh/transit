@@ -16,7 +16,8 @@ Transit uses a small set of words consistently.
 | `merge` | explicit reconciliation of parent heads under declared lineage metadata | hidden background compaction |
 | `segment` | immutable ordered block of records | a temporary cache chunk |
 | `manifest` | routing sheet that maps lineage and stream history to immutable segments | optional bookkeeping you can ignore |
-| `checkpoint` | proof-bearing anchor tying a head or derived state to immutable history | a mutable cursor with no audit value |
+| `checkpoint` | proof-bearing anchor tying a head or derived state to immutable history | a mutable consumer bookmark |
+| `cursor` | durable per-consumer bookmark tracking progress through a single stream | a fork in history or a second write authority |
 
 ## Records
 
@@ -46,6 +47,14 @@ That matters because:
 - a branch should replay the parent prefix without pretending it is the same stream head
 - lineage inspection and derived-state checkpoints need the full identity, not only the ordinal number
 
+## Cursors
+
+A `cursor` is a durable per-consumer bookmark. It records the next offset a consumer will read on a bound stream and is stored on Transit's authoritative engine.
+
+Multiple independent readers on the same stream each get their own cursor and advance without coordinating, without each reader running its own external offset store, and without misusing branches as progress trackers.
+
+Branches fork history; cursors track reader progress. See [Cursors](./cursors.mdx) for the full lifecycle, durability contract, and non-claims.
+
 ## Segments, Manifests, And Checkpoints
 
 - A `segment` is an immutable ordered block of records.
@@ -69,5 +78,6 @@ Next:
 
 - [Embedded And Server Modes](./embedded-and-server.mdx)
 - [Durability Modes](./durability-modes.mdx)
+- [Cursors](./cursors.mdx)
 - [Failover](./failover.mdx)
 - [Tiered Storage And Manifests](./tiered-storage-and-manifests.mdx)

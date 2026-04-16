@@ -1,0 +1,69 @@
+---
+title: Cursors
+sidebar_position: 6
+description: Learn how Transit tracks independent consumer progress on a single stream with durable cursors.
+---
+
+# Cursors
+
+A `cursor` is a durable record of one consumer's progress through a stream.
+
+Transit carries the cursor on its authoritative engine. Multiple independent readers can advance on the same stream without each client maintaining its own external offset store.
+
+## Quick Reference
+
+| Field | Meaning |
+|-------|---------|
+| `cursor_id` | stable identifier chosen by the consumer |
+| `stream_id` | the bound stream the cursor advances on |
+| `position` | the next offset the consumer will read |
+| `metadata` | lineage metadata (actor, reason, labels) |
+| `created_at`, `updated_at` | timestamps recorded by the engine |
+
+Every advance returns a `CursorAck` carrying the new position and the same durability label Transit already reports for appends.
+
+## Cursors Are Not Branches
+
+A `branch` is a fork in history. It creates a new stream with its own identity, replays a shared parent prefix, and then advances independently.
+
+A `cursor` is a reader's bookmark. It does not fork history, does not create a new stream, and does not mutate any existing records.
+
+Use a branch when history itself should diverge. Use a cursor when multiple readers want independent progress through the same history.
+
+## Lifecycle
+
+Transit exposes the full lifecycle on the embedded engine:
+
+- create a cursor bound to a stream at an initial position
+- look up a cursor by id, or list cursors on the engine or on one stream
+- advance the cursor to a later offset
+- acknowledge that records up to a position have been processed
+- delete a cursor that a consumer no longer needs
+
+Advance is monotonic: it refuses to move backward and refuses to move past the committed frontier of the bound stream. Both guarantees are enforced on the engine, not in the caller.
+
+## Durability
+
+Cursor state is written durably to the local engine directory next to stream manifests. A cursor advance returns the same durability vocabulary Transit already uses for appends:
+
+- `local` means the advance is durable on the local node
+- `replicated`, `quorum`, and `tiered` extend that language for cluster and remote-tier boundaries in future slices
+
+Cursor files survive engine restart and warm-cache loss. After a restart, every cursor is rehydrated with its previous position and metadata before reads are served.
+
+## What Cursors Are Not
+
+- not a consumer-group rebalancing primitive; Transit streams are not partitioned like Kafka topics
+- not a second write authority; cursors cannot mutate stream history
+- not a replacement for checkpoints; checkpoints prove derived state is anchored to immutable history, while cursors track one reader's position
+- not a cross-stream fan-in cursor; cursors bind to a single stream
+
+## Where Cursors Live Today
+
+The embedded engine ships the full cursor primitive. Hosted protocol, CLI, and `transit-client` surfaces for cursors are follow-up work and will expose the same semantics without changing the engine contract.
+
+Next:
+
+- [Core Model](./core-model.mdx)
+- [Durability Modes](./durability-modes.mdx)
+- [Embedded And Server Modes](./embedded-and-server.mdx)
