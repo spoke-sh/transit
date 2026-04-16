@@ -22,8 +22,8 @@ mission: VGzzOvI8O
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/4 stories done
+**Progress:** 0/1 voyages complete, 1/4 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Embedded Cursor Primitive And Engine Storage](voyages/VGzzmJ8c8/) | in-progress | 0/4 |
+| [Embedded Cursor Primitive And Engine Storage](voyages/VGzzmJ8c8/) | in-progress | 1/4 |
 <!-- END GENERATED -->

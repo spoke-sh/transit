@@ -118,6 +118,78 @@ impl LineageMetadata {
     }
 }
 
+/// Stable identifier for a durable consumer cursor.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct CursorId(String);
+
+impl CursorId {
+    pub fn new(value: impl Into<String>) -> Result<Self> {
+        let value = value.into();
+        ensure!(!value.trim().is_empty(), "cursor ids must not be empty");
+        ensure!(
+            value
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '/' | ':')),
+            "cursor ids accept only ascii alphanumerics and '-', '_', '.', '/', ':'"
+        );
+        Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<CursorId> for String {
+    fn from(value: CursorId) -> Self {
+        value.0
+    }
+}
+
+/// Durable record of one consumer's progress through a stream.
+///
+/// A cursor lets independent readers advance on the same stream without each
+/// maintaining its own external offset store. It is append-only lineage
+/// metadata: cursors never mutate stream history, and advance is monotonic
+/// with respect to the committed frontier.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Cursor {
+    pub cursor_id: CursorId,
+    pub stream_id: StreamId,
+    pub position: Offset,
+    pub metadata: LineageMetadata,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+impl Cursor {
+    pub fn new(
+        cursor_id: CursorId,
+        stream_id: StreamId,
+        position: Offset,
+        metadata: LineageMetadata,
+        created_at: i64,
+    ) -> Self {
+        Self {
+            cursor_id,
+            stream_id,
+            position,
+            metadata,
+            created_at,
+            updated_at: created_at,
+        }
+    }
+
+    /// Return a new cursor advanced to `position` with the given update
+    /// timestamp. Callers validate monotonicity and frontier bounds before
+    /// invoking this helper; the kernel type intentionally stays dumb.
+    pub fn with_position(mut self, position: Offset, updated_at: i64) -> Self {
+        self.position = position;
+        self.updated_at = updated_at;
+        self
+    }
+}
+
 /// The point where a child stream diverges from parent history.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BranchPoint {
@@ -272,8 +344,9 @@ impl StreamDescriptor {
 #[cfg(test)]
 mod tests {
     use super::{
-        BRANCH_ANCHOR_REF_LABEL, BRANCH_KIND_LABEL, LineageMetadata, MergePolicy, MergePolicyKind,
-        MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage, StreamPosition,
+        BRANCH_ANCHOR_REF_LABEL, BRANCH_KIND_LABEL, Cursor, CursorId, LineageMetadata, MergePolicy,
+        MergePolicyKind, MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage,
+        StreamPosition,
     };
 
     fn stream_id(value: &str) -> StreamId {
@@ -406,5 +479,62 @@ mod tests {
                 .to_string()
                 .contains("merge results must create a new stream head")
         );
+    }
+
+    #[test]
+    fn cursor_id_validates_non_empty_and_charset() {
+        let id = CursorId::new("consumer.projection-1").expect("valid cursor id");
+        assert_eq!(id.as_str(), "consumer.projection-1");
+
+        let blank = CursorId::new("   ").expect_err("blank cursor id should reject");
+        assert!(blank.to_string().contains("must not be empty"));
+
+        let bad = CursorId::new("bad id!").expect_err("space and punctuation should reject");
+        assert!(
+            bad.to_string().contains("ascii alphanumerics"),
+            "unexpected error: {bad}"
+        );
+    }
+
+    #[test]
+    fn cursor_record_round_trips_through_serde() {
+        let cursor = Cursor::new(
+            CursorId::new("consumer.analytics").expect("cursor id"),
+            StreamId::new("task.root").expect("stream id"),
+            Offset::new(42),
+            LineageMetadata::new(
+                Some("consumer.analytics".into()),
+                Some("derive-daily-view".into()),
+            )
+            .with_label("cohort", "v2"),
+            1_700_000_000,
+        );
+
+        let encoded = serde_json::to_string(&cursor).expect("serialize cursor");
+        let decoded: Cursor = serde_json::from_str(&encoded).expect("deserialize cursor");
+
+        assert_eq!(decoded, cursor);
+        assert_eq!(decoded.created_at, decoded.updated_at);
+        assert_eq!(decoded.position.value(), 42);
+        assert_eq!(decoded.metadata.label("cohort"), Some("v2"));
+    }
+
+    #[test]
+    fn cursor_with_position_bumps_updated_at_and_position() {
+        let cursor = Cursor::new(
+            CursorId::new("consumer.analytics").expect("cursor id"),
+            StreamId::new("task.root").expect("stream id"),
+            Offset::new(0),
+            LineageMetadata::default(),
+            1_700_000_000,
+        );
+
+        let advanced = cursor.clone().with_position(Offset::new(7), 1_700_000_005);
+
+        assert_eq!(advanced.position.value(), 7);
+        assert_eq!(advanced.updated_at, 1_700_000_005);
+        assert_eq!(advanced.created_at, cursor.created_at);
+        assert_eq!(advanced.cursor_id, cursor.cursor_id);
+        assert_eq!(advanced.stream_id, cursor.stream_id);
     }
 }

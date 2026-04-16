@@ -1,0 +1,16 @@
+---
+recorded_at: 2026-04-16T16:25:10.338490869-07:00
+command: cargo test -p transit-core --lib kernel::tests::cursor_
+---
+
+running 3 tests
+test kernel::tests::cursor_with_position_bumps_updated_at_and_position ... ok
+test kernel::tests::cursor_id_validates_non_empty_and_charset ... ok
+test kernel::tests::cursor_record_round_trips_through_serde ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 90 filtered out; finished in 0.00s
+
+
+--- stderr ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-a55f7f5c72bb7daa)
