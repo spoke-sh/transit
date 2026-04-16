@@ -1,14 +1,16 @@
 ---
 # system-managed
 id: VGzzOvI8O
-status: achieved
+status: verified
 created_at: 2026-04-16T16:16:58
-updated_at: 2026-04-16T16:37:00
+updated_at: 2026-04-16T16:40:18
 # authored
 title: Ship First-Class Consumer Cursors For Independent Stream Progress
 watch: ~
 activated_at: 2026-04-16T16:21:50
 achieved_at: 2026-04-16T16:37:00
+verified_at: 2026-04-16T16:40:18
+verification_artifact: .keel/missions/VGzzOvI8O/verification.gif
 ---
 
 # Ship First-Class Consumer Cursors For Independent Stream Progress
