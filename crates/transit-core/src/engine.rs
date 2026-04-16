@@ -2613,9 +2613,10 @@ fn committed_prefix_length(
     }
 
     let mut cursor = 0_usize;
-    let mut expected_offset = state.active_segment_start_offset;
 
-    for index in 0..state.active_record_count {
+    for (index, expected_offset) in
+        (0..state.active_record_count).zip(state.active_segment_start_offset..)
+    {
         let Some(relative_end) = active_bytes[cursor..]
             .iter()
             .position(|byte| *byte == b'\n')
@@ -2642,7 +2643,6 @@ fn committed_prefix_length(
             expected_offset,
             record.offset
         );
-        expected_offset += 1;
         cursor = line_end + 1;
     }
 
