@@ -136,7 +136,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Transit contributors.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Spoke`,
     },
     prism: {
       theme: prismThemes.github,
