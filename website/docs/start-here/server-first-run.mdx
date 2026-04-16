@@ -19,23 +19,22 @@ That means the point of this guide is not only "can it listen on a socket?" It i
 Run the end-to-end server proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- proof networked-server --root target/transit-docs/networked
+transit proof networked-server --root target/transit-docs/networked
 ```
 
 Run the current controlled failover proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- proof controlled-failover --root target/transit-docs/controlled-failover
+transit proof controlled-failover --root target/transit-docs/controlled-failover
 ```
 
-Run the Rust client proof against a locally started server:
+Exercise the hosted thin-client producer and reader path through the CLI:
 
 ```bash
-cargo run -p transit-client --example proof
+transit proof hosted-authority --root target/transit-docs/hosted-authority
 ```
 
-That proof now covers both the thin hosted operation surface and the
-replay-driven projection-consumer helper exported by `transit-client`.
+That proof covers the thin hosted operation surface end to end against a locally started server.
 
 For the broader shipped surface, read [Current Capabilities](./current-capabilities.mdx).
 
@@ -52,13 +51,13 @@ compatibility shim.
 Start a daemon:
 
 ```bash
-cargo run -p transit-cli --bin transit -- server run --root target/transit-docs/server
+transit server run --root target/transit-docs/server
 ```
 
 In another terminal, create a stream:
 
 ```bash
-cargo run -p transit-cli --bin transit -- streams create \
+transit streams create \
   --stream-id demo/main \
   --actor docs \
   --reason "manual walkthrough"
@@ -67,14 +66,14 @@ cargo run -p transit-cli --bin transit -- streams create \
 Produce records:
 
 ```bash
-printf 'hello from transit\nsecond record\n' | cargo run -p transit-cli --bin transit -- produce \
+printf 'hello from transit\nsecond record\n' | transit produce \
   --stream-id demo/main
 ```
 
 Consume the replay:
 
 ```bash
-cargo run -p transit-cli --bin transit -- consume \
+transit consume \
   --stream-id demo/main \
   --from-offset 0 \
   --with-offsets
@@ -83,19 +82,19 @@ cargo run -p transit-cli --bin transit -- consume \
 List hosted streams:
 
 ```bash
-cargo run -p transit-cli --bin transit -- streams list
+transit streams list
 ```
 
 Inspect the local log state behind that daemon:
 
 ```bash
-cargo run -p transit-cli --bin transit -- status --root target/transit-docs/server
+transit status --root target/transit-docs/server
 ```
 
 Inspect lineage through the lower-level server namespace:
 
 ```bash
-cargo run -p transit-cli --bin transit -- server lineage --stream-id demo/main
+transit server lineage --stream-id demo/main
 ```
 
 ## What To Look For

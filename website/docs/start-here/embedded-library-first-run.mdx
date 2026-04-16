@@ -22,7 +22,7 @@ This path is about four things:
 From the repo root, run the shared local-engine proof directly:
 
 ```bash
-cargo run -p transit-cli --bin transit -- proof local-engine --root target/transit-docs/local
+transit proof local-engine --root target/transit-docs/local
 ```
 
 That gives you the shortest direct proof of local append, replay, and lineage behavior without routing through repo-local helper tasks.
@@ -32,43 +32,43 @@ That gives you the shortest direct proof of local append, replay, and lineage be
 Run the embedded proof directly:
 
 ```bash
-cargo run -p transit-cli --bin transit -- proof local-engine --root target/transit-docs/local
+transit proof local-engine --root target/transit-docs/local
 ```
 
 Run the tiered publication/restore proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- proof tiered-engine --root target/transit-docs/tiered
+transit proof tiered-engine --root target/transit-docs/tiered
 ```
 
 Run the controlled failover proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- proof controlled-failover --root target/transit-docs/controlled-failover
+transit proof controlled-failover --root target/transit-docs/controlled-failover
 ```
 
 Run the integrity proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- proof integrity --root target/transit-docs/integrity
+transit proof integrity --root target/transit-docs/integrity
 ```
 
 Run the materialization proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- proof materialization --root target/transit-docs/materialization
+transit proof materialization --root target/transit-docs/materialization
 ```
 
 Run the reference-projection proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- proof reference-projection --root target/transit-docs/reference-projection
+transit proof reference-projection --root target/transit-docs/reference-projection
 ```
 
 Check the local log state after a proof:
 
 ```bash
-cargo run -p transit-cli --bin transit -- status --root target/transit-docs/local
+transit status --root target/transit-docs/local
 ```
 
 ## What To Look For

@@ -21,7 +21,7 @@ Typical signs:
 Start with:
 
 - [System Model](../foundations/system-model.mdx)
-- `cargo run -p transit-cli --bin transit -- proof local-engine --root target/transit-docs/local`
+- `transit proof local-engine --root target/transit-docs/local`
 - the local and tiered proof paths surfaced by the CLI
 - [Current Capabilities](./current-capabilities.mdx)
 - [Embedded / Library First Run](./embedded-library-first-run.mdx)
@@ -38,8 +38,8 @@ Typical signs:
 
 Start with:
 
-- `cargo run -p transit-cli --bin transit -- proof networked-server --root target/transit-docs/networked`
-- `cargo run -p transit-client --example proof`
+- `transit proof networked-server --root target/transit-docs/networked`
+- `transit proof hosted-authority --root target/transit-docs/hosted-authority`
 - [Current Capabilities](./current-capabilities.mdx)
 - the networked server proof in the CLI output
 - [Server First Run](./server-first-run.mdx)
