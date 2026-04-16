@@ -8,9 +8,9 @@
 
 .heroGrid {
   display: grid;
-  gap: 2.8rem;
+  gap: 2.2rem;
   align-items: center;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.95fr);
+  grid-template-columns: minmax(0, 1.34fr) minmax(280px, 0.82fr);
 }
 
 .heroCopy {
@@ -36,11 +36,11 @@
 }
 
 .heroCopy h1 {
-  max-width: 11ch;
+  max-width: none;
   margin: 0;
   font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
-  font-size: clamp(2.4rem, 8vw, 4.6rem);
-  line-height: 0.95;
+  font-size: clamp(3.15rem, 8.8vw, 5.85rem);
+  line-height: 0.91;
   text-wrap: pretty;
 }
 
@@ -157,7 +157,7 @@
   display: block;
   align-self: center;
   justify-self: center;
-  width: min(100%, 32rem);
+  width: min(100%, 29rem);
 }
 
 .sceneFrame {
