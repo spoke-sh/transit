@@ -10,6 +10,135 @@ Transit's integrity contract is specific. Every immutable boundary is covered by
 
 Every value shown below was captured from a live run (`transit proof integrity --root ... --json`). Digests will vary run to run because the integrity proof stamps lineage metadata with fresh timestamps; the *shape* is the part that matters.
 
+## Streams, Branches, And Merges With Data
+
+Before the hashes, here's what the four streams inside `transit proof integrity` actually contain. Every record below is pulled from the real segment files on disk, ASCII payloads decoded for readability.
+
+### A root stream
+
+```
+mission.integrity.server.root
+┌──────────────────────────────────┐
+│ @0   "root-0"                    │
+│ @1   "root-1"                    │◂── head
+└──────────────────────────────────┘
+  lineage: Root
+  actor:   mission
+  reason:  integrity-server-proof
+```
+
+### Two branches off the same parent
+
+A `branch` is a real child stream. Its replay inherits the parent prefix up to the fork, then carries its own records forward. Offsets are scoped to the child stream after the fork, and Transit identifies positions as `stream_id@offset`, so `root@1` and `branch@1` are never the same thing.
+
+```
+                                   branch_point: root@1
+mission.integrity.server.root              │
+┌──────────────────────────────────┐       │
+│ @0   "root-0"                    │       │
+│ @1   "root-1"  ◂──── fork ───────┼───────┤
+└──────────────────────────────────┘       │
+                                           │
+                                ┌──────────┴──────────┐
+                                ▼                     ▼
+  mission.integrity.server.branch          mission.integrity.server.branch-two
+  ┌─────────────────────────────┐          ┌─────────────────────────────────┐
+  │ inherits root@0  "root-0"   │          │ inherits root@0  "root-0"       │
+  │ inherits root@1  "root-1"   │          │ inherits root@1  "root-1"       │
+  │ @2   "branch-0"             │          │ @2   "branch-two-0"             │
+  │ @3   "branch-1"     ◂ head  │          │ @3   "branch-two-1"     ◂ head  │
+  └─────────────────────────────┘          └─────────────────────────────────┘
+    lineage: Branch(parent=root@1)            lineage: Branch(parent=root@1)
+    actor:   mission.classifier               actor:   mission.classifier
+    label:   branch=one                       label:   branch=two
+```
+
+What the manifest records for a branch:
+
+```json
+"lineage": {
+  "Branch": {
+    "branch_point": {
+      "parent": { "stream_id": "mission.integrity.server.root", "offset": 1 },
+      "metadata": {
+        "actor": "mission.classifier",
+        "reason": "integrity-branch",
+        "labels": { "branch": "one" }
+      }
+    }
+  }
+}
+```
+
+Creating a branch never copies ancestor bytes. The parent segments stay sealed and are referenced by the child's manifest.
+
+### A merge of both branches
+
+A `merge` is its own stream. It pins every parent head as `stream_id@offset`, declares an optional merge base, carries a named merge policy, and then rolls its own records on top.
+
+```
+  branch@3                       branch-two@3
+     │                                │
+     │                                │
+     ▼                                ▼
+          ╲                        ╱
+           ╲          base        ╱
+            ╲        root@1      ╱
+             ╲         │        ╱
+              ╲        ▼       ╱
+               ──────▶ ○ ◂─────            policy: Recursive
+                       │                    actor:  mission.judge
+                       ▼                    reason: integrity-merge
+  mission.integrity.server.merge
+  ┌─────────────────────────────┐
+  │ @2   "merge-0"              │
+  │ @3   "merge-1"      ◂ head  │
+  └─────────────────────────────┘
+```
+
+The merge descriptor on disk:
+
+```json
+"lineage": {
+  "Merge": {
+    "merge": {
+      "parents": [
+        { "stream_id": "mission.integrity.server.branch",     "offset": 3 },
+        { "stream_id": "mission.integrity.server.branch-two", "offset": 3 }
+      ],
+      "merge_base": { "stream_id": "mission.integrity.server.root", "offset": 1 },
+      "policy": {
+        "kind": "Recursive",
+        "metadata": { "resolver": "integrity-proof" }
+      },
+      "metadata": {
+        "actor": "mission.judge",
+        "reason": "integrity-merge",
+        "labels": { "decision": "accepted" }
+      }
+    }
+  }
+}
+```
+
+### The whole network on one picture
+
+```
+  root  ●─●
+        │ │
+        │ └──── fork at root@1
+        │         │
+        │         ├──── branch        ●─●        ╲
+        │         │                     │         ╲
+        │         │                     │          ● ● merge
+        │         │                     │         ╱
+        │         └──── branch-two    ●─●        ╱
+        │                                        │
+        └───────────── merge_base ────────────── ┘
+```
+
+Every edge in that picture corresponds to a field Transit actually persists: a `branch_point.parent`, a `merge.parents[]`, a `merge.merge_base`. There are no implicit forks and no implicit merges.
+
 ## The Hashing Chain
 
 Transit hashes at three boundaries, in this order:
@@ -18,16 +147,18 @@ Transit hashes at three boundaries, in this order:
 record bytes  ─►  segment checksum + segment content_digest  ─►  manifest_root  ─►  checkpoint
 ```
 
-The hot append path only advances the first arrow. Cryptographic work happens at segment roll, manifest publish, and checkpoint boundaries — never in the append ack.
+The hot append path only advances the first arrow. Cryptographic work happens at segment roll, manifest publish, and checkpoint boundaries. It never runs inside the append ack.
 
 ## A Single Segment, Byte-For-Byte
 
 A sealed segment is newline-delimited JSON, one record per line, exactly as it lives on disk:
 
 ```json
-{"offset":0,"payload":[114,111,111,116,45,49]}
-{"offset":1,"payload":[114,111,111,116,45,50]}
+{"offset":0,"payload":[114,111,111,116,45,48]}
+{"offset":1,"payload":[114,111,111,116,45,49]}
 ```
+
+Those byte arrays are ASCII — they decode to `"root-0"` and `"root-1"`.
 
 That segment's manifest entry carries two digests computed over the exact bytes above:
 
@@ -94,7 +225,7 @@ The `manifest_root` is the minimum viable remote-restore proof. If the manifest 
 
 ## What A Successful Merge Looks Like
 
-A merge is a real stream with multi-parent lineage recorded in its descriptor. The manifest below is the full artifact — parents, merge base, policy, and the lineage metadata that went in, all sealed under one `manifest_root`:
+A merge is a real stream with multi-parent lineage recorded in its descriptor. The manifest below is the full artifact. Parents, merge base, policy, and the lineage metadata that went in are all sealed under one `manifest_root`:
 
 ```json
 {
@@ -201,7 +332,7 @@ If someone (or bit rot) modifies a segment file after the merge manifest was sea
 }
 ```
 
-`manifest_id` and `manifest_root` come back as `"unknown"` on purpose — the engine won't name a manifest it can't vouch for. The dedicated tamper slice inside `transit proof integrity` reports the same signal:
+`manifest_id` and `manifest_root` come back as `"unknown"` on purpose. The engine will not name a manifest it cannot vouch for. The dedicated tamper slice inside `transit proof integrity` reports the same signal:
 
 ```json
 "tamper": {
@@ -215,7 +346,7 @@ If someone (or bit rot) modifies a segment file after the merge manifest was sea
 }
 ```
 
-The cheap `fnv1a64` checksum fires first because it's what the read path reaches for every time. If someone tampers past the checksum, the `sha256` content digest is the second wall — it covers the same bytes and is what restore-from-remote hydrates against. A manifest cannot be valid with a segment that fails either check.
+The cheap `fnv1a64` checksum fires first because it's what the read path reaches for every time. If someone tampers past the checksum, the `sha256` content digest is the second wall. It covers the same bytes and is what restore-from-remote hydrates against. A manifest cannot be valid with a segment that fails either check.
 
 ## Restore Round-Trip
 
@@ -246,7 +377,7 @@ For the direct lineage check over any stream on a live engine:
 transit verify-lineage --root <data-dir> --stream-id <stream> --json
 ```
 
-Both commands are the same surfaces your CI or on-call would call. The digests on this page are artifacts of one run — your run will print its own, and that's the point.
+Both commands are the same surfaces your CI or on-call would call. The digests on this page are artifacts of one run. Your run will print its own, and that's the point.
 
 Next:
 
