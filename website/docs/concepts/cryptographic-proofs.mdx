@@ -1,0 +1,255 @@
+---
+title: Cryptographic Proofs
+sidebar_position: 9
+description: Concrete examples of the hashes, manifests, checkpoints, and tamper-detection outputs Transit emits for every immutable boundary.
+---
+
+# Cryptographic Proofs
+
+Transit's integrity contract is specific. Every immutable boundary is covered by a hash or checkpoint you can point at. This page walks through real output from `transit proof integrity` so the numbers are the words — not the other way around.
+
+Every value shown below was captured from a live run (`transit proof integrity --root ... --json`). Digests will vary run to run because the integrity proof stamps lineage metadata with fresh timestamps; the *shape* is the part that matters.
+
+## The Hashing Chain
+
+Transit hashes at three boundaries, in this order:
+
+```
+record bytes  ─►  segment checksum + segment content_digest  ─►  manifest_root  ─►  checkpoint
+```
+
+The hot append path only advances the first arrow. Cryptographic work happens at segment roll, manifest publish, and checkpoint boundaries — never in the append ack.
+
+## A Single Segment, Byte-For-Byte
+
+A sealed segment is newline-delimited JSON, one record per line, exactly as it lives on disk:
+
+```json
+{"offset":0,"payload":[114,111,111,116,45,49]}
+{"offset":1,"payload":[114,111,111,116,45,50]}
+```
+
+That segment's manifest entry carries two digests computed over the exact bytes above:
+
+```json
+{
+  "segment_id": "segment-00000000000000000000",
+  "stream_id": "mission.integrity.server.root",
+  "start_offset": 0,
+  "last_offset": 1,
+  "record_count": 2,
+  "byte_length": 94,
+  "checksum": {
+    "algorithm": "fnv1a64",
+    "digest": "586cccd32c496cbb"
+  },
+  "content_digest": {
+    "algorithm": "sha256",
+    "digest": "1551d8bf3497616d8eeae15ef8c727df228a7cb0e162ba9e5340f560185dd4e8"
+  }
+}
+```
+
+Two digests, two jobs:
+
+- **`checksum`** (`fnv1a64` today) is the cheap corruption-detection layer. It's what catches bit rot, truncated writes, and flaky caches on the hot read path.
+- **`content_digest`** (`sha256` today) is the cryptographic identity of the sealed bytes. It's what a restoring node uses to prove the segment it fetched from object storage is the segment the manifest committed to.
+
+These fields are real. Running `sha256sum` directly on the segment file produces the same digest the manifest records.
+
+## The Manifest Root
+
+One stream's manifest binds the descriptor, the ordered segment list, and a top-level root hash:
+
+```json
+{
+  "manifest_id": "manifest-00000000000000000001",
+  "stream_descriptor": {
+    "stream_id": "mission.integrity.server.root",
+    "lineage": { "Root": { "metadata": { "actor": "mission", "reason": "integrity-server-proof" } } }
+  },
+  "generation": 1,
+  "segments": [ /* one entry per sealed segment, each with its own checksum + content_digest */ ],
+  "manifest_root": {
+    "algorithm": "sha256",
+    "digest": "602ebfe523cd2c2eaf81fded50772d1744c65ff4e2b5486c1c5ebf8c4b7de0df"
+  }
+}
+```
+
+The `manifest_root` is the minimum viable remote-restore proof. If the manifest root verifies and every referenced segment digest verifies, a node can trust the immutable history it's about to replay. That's exactly what `LocalEngine::verify_local_lineage` does:
+
+```json
+{
+  "stream_id": "mission.integrity.server.merge",
+  "manifest_id": "manifest-00000000000000000001",
+  "manifest_root": "6c0cab1dbfde9e7e16ac3be47bd1e0a7c333099f2ee390bd3b063bcb9c7fffb6",
+  "verified": true,
+  "segments": [
+    { "segment_id": "segment-00000000000000000000", "start_offset": 2, "last_offset": 3, "verified": true }
+  ],
+  "error": null
+}
+```
+
+## What A Successful Merge Looks Like
+
+A merge is a real stream with multi-parent lineage recorded in its descriptor. The manifest below is the full artifact — parents, merge base, policy, and the lineage metadata that went in, all sealed under one `manifest_root`:
+
+```json
+{
+  "manifest_id": "manifest-00000000000000000001",
+  "stream_descriptor": {
+    "stream_id": "mission.integrity.server.merge",
+    "lineage": {
+      "Merge": {
+        "merge": {
+          "parents": [
+            { "stream_id": "mission.integrity.server.branch",     "offset": 3 },
+            { "stream_id": "mission.integrity.server.branch-two", "offset": 3 }
+          ],
+          "merge_base": { "stream_id": "mission.integrity.server.root", "offset": 1 },
+          "policy": {
+            "kind": "Recursive",
+            "metadata": { "resolver": "integrity-proof" }
+          },
+          "metadata": {
+            "actor": "mission.judge",
+            "reason": "integrity-merge",
+            "labels": { "decision": "accepted" }
+          }
+        }
+      }
+    }
+  },
+  "generation": 1,
+  "segments": [
+    {
+      "segment_id": "segment-00000000000000000000",
+      "start_offset": 2, "last_offset": 3, "record_count": 2, "byte_length": 102,
+      "checksum":       { "algorithm": "fnv1a64", "digest": "9650f3c91ba741cf" },
+      "content_digest": { "algorithm": "sha256",  "digest": "3c57e2f1db8bc644d622657e25d7f71fb212d0a462422d3d25bebf648692b6fe" }
+    }
+  ],
+  "manifest_root": {
+    "algorithm": "sha256",
+    "digest": "6c0cab1dbfde9e7e16ac3be47bd1e0a7c333099f2ee390bd3b063bcb9c7fffb6"
+  }
+}
+```
+
+Each parent head is pinned as `stream_id@offset`, not a bare offset. The `merge_base` is explicit so later lineage tools can show what the merge converged from. The `policy` is declared, not inferred. And the merge itself rolls into its own segment, with its own checksum, its own content digest, and a manifest root that covers all of the above.
+
+Transit then issues a `merge-handoff` checkpoint the moment this merge becomes the new stream head:
+
+```json
+{
+  "stream_id": "mission.integrity.merge",
+  "lineage_kind": "merge",
+  "head_offset": 3,
+  "manifest_root": "e6510fec53c0dd5d20372eaa9bf28889f9025035418420651f5ac2a0532b0c80",
+  "kind": "merge-handoff",
+  "verified": true,
+  "error": null
+}
+```
+
+A branch gets the parallel treatment:
+
+```json
+{
+  "stream_id": "mission.integrity.branch",
+  "lineage_kind": "branch",
+  "head_offset": 3,
+  "manifest_root": "e639dd0b013ebfdbca3af9d23e981506b89c8e85a7ac1f8bc8f89e1959d690eb",
+  "kind": "branch-handoff",
+  "verified": true,
+  "error": null
+}
+```
+
+Same shape, different `lineage_kind`. The checkpoint is the proof that *this* manifest root was accepted as the new head of *this* stream.
+
+## What A Failed Merge Looks Like
+
+There are two distinct failure modes. Both are designed to stay loud.
+
+### 1. The engine refuses to construct the merge
+
+`MergeSpec::new` and `StreamDescriptor::merge` are the throat. They surface three validation errors before any bytes hit disk:
+
+| Trigger | Error |
+|---------|-------|
+| Fewer than two parent heads | `merge specs require at least two parent heads` |
+| Two parent heads from the same stream | `merge specs require parent heads from distinct streams` |
+| Merge result named as one of its own parents | `merge results must create a new stream head` |
+
+None of these can be hashed around. The engine rejects the spec before a segment rolls, so there is no manifest, no checkpoint, and no artifact to replay.
+
+### 2. The merge exists, but its bytes have been tampered with
+
+If someone (or bit rot) modifies a segment file after the merge manifest was sealed, `verify_local_lineage` catches it and refuses to return a manifest root:
+
+```json
+{
+  "stream_id": "mission.integrity.server.merge",
+  "manifest_id": "unknown",
+  "manifest_root": "unknown",
+  "verified": false,
+  "segments": [],
+  "error": "segment checksum mismatch for algorithm fnv1a64"
+}
+```
+
+`manifest_id` and `manifest_root` come back as `"unknown"` on purpose — the engine won't name a manifest it can't vouch for. The dedicated tamper slice inside `transit proof integrity` reports the same signal:
+
+```json
+"tamper": {
+  "data_root": "/tmp/cursor-docs/integrity/tamper",
+  "stream_id": "mission.integrity.tamper",
+  "segment_id": "segment-00000000000000000000",
+  "corrupted_path": ".../segments/segment-00000000000000000000.segment",
+  "verification_api": "LocalEngine::verify_local_lineage",
+  "detected": true,
+  "error": "segment checksum mismatch for algorithm fnv1a64"
+}
+```
+
+The cheap `fnv1a64` checksum fires first because it's what the read path reaches for every time. If someone tampers past the checksum, the `sha256` content digest is the second wall — it covers the same bytes and is what restore-from-remote hydrates against. A manifest cannot be valid with a segment that fails either check.
+
+## Restore Round-Trip
+
+The integrity proof also exercises a full remote round-trip: publish the manifest to object storage, drop local state, restore from the remote manifest, and compare digests. The JSON literally shows the two roots matching:
+
+```json
+{
+  "manifest_generation": 2,
+  "manifest_root": "e719d392072696a879f08b40c7fda54e86d12b16fa5ebc85af9068a3eadff69e",
+  "manifest_roots_match": true,
+  "next_offset": 2
+}
+```
+
+`manifest_roots_match` is not a narrative assertion. It's a byte-for-byte comparison of the pre-publish root against the post-restore root.
+
+## Reproducing This Page
+
+Everything above comes out of one command:
+
+```bash
+transit proof integrity --root target/transit-docs/integrity --json
+```
+
+For the direct lineage check over any stream on a live engine:
+
+```bash
+transit verify-lineage --root <data-dir> --stream-id <stream> --json
+```
+
+Both commands are the same surfaces your CI or on-call would call. The digests on this page are artifacts of one run — your run will print its own, and that's the point.
+
+Next:
+
+- [Core Model](./core-model.mdx)
+- [Tiered Storage And Manifests](./tiered-storage-and-manifests.mdx)
+- [Integrity (contract)](../reference/contracts/integrity.md)
