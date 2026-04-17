@@ -1,12 +1,12 @@
 ---
-title: Current Capabilities
+title: Capabilities
 sidebar_position: 5
-description: A public-facing summary of what Transit can do today and which CLI surfaces prove each capability.
+description: A public-facing summary of what Transit ships and which CLI surfaces prove each capability.
 ---
 
-# Current Capabilities
+# Capabilities
 
-This page is the public-facing summary of what Transit currently ships.
+This page is the public-facing summary of what Transit ships.
 
 All examples below invoke the `transit` CLI directly.
 
@@ -61,7 +61,7 @@ generic replay-driven projection-consumer helper. That keeps derived reads on
 the hosted client boundary without inventing a projection-only server truth
 path or forcing downstream repos to publish a private wrapper.
 
-Current server mode is still explicitly single-node at the protocol surface. The daemon preserves shared-engine semantics instead of introducing a separate storage model, and the common remote commands default to `[server].listen_addr` when you configure it through `transit.toml`.
+Server mode is single-node at the protocol surface. The daemon preserves shared-engine semantics instead of introducing a separate storage model, and the common remote commands default to `[server].listen_addr` when you configure it through `transit.toml`.
 
 ## Storage, Recovery, And Verification
 
@@ -130,9 +130,9 @@ transit proof controlled-failover --root target/transit-docs/controlled-failover
 transit proof chaos-failover --root target/transit-docs/chaos-failover
 ```
 
-## Current Boundaries
+## Boundaries
 
-Transit still does not claim:
+Transit does not claim:
 
 - multi-primary or concurrent multi-writer behavior
 - hidden remote-tier safety behind a `local` acknowledgement

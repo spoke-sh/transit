@@ -79,7 +79,7 @@ const firstStops: Array<{
   },
   {
     label: 'Verify lineage integrity',
-    href: '/docs/start-here/current-capabilities',
+    href: '/docs/start-here/capabilities',
     command: 'transit verify-lineage',
   },
 ];
