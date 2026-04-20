@@ -26,9 +26,12 @@
         };
         isLinux = pkgs.stdenv.isLinux;
         keelPkg = keel.packages.${system}.keel;
+        transitPkg = import ./nix/transit.nix { inherit pkgs; };
       in {
         packages = {
           keel = keelPkg;
+          transit = transitPkg;
+          default = transitPkg;
         };
 
         devShells.default = pkgs.mkShell {
