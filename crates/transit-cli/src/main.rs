@@ -62,12 +62,10 @@ enum Commands {
     Consume(ConsumeArgs),
     /// Run the human-oriented proof workflows.
     Proof(ProofArgs),
-    /// Explicitly verify the cryptographic integrity of local history.
-    VerifyLineage(VerifyLineageArgs),
+    /// Run local verification workflows.
+    Verify(VerifyArgs),
     /// Create a verifiable checkpoint for a stream head.
     Checkpoint(CheckpointArgs),
-    /// Verify an existing lineage checkpoint.
-    VerifyCheckpoint(VerifyCheckpointArgs),
     /// Probe configured storage support and guarantees.
     Storage(StorageArgs),
     /// Run the shared-engine server daemon.
@@ -247,6 +245,20 @@ struct MaterializationProofArgs {
     /// Render proof output as JSON.
     #[arg(long)]
     json: bool,
+}
+
+#[derive(Debug, Args)]
+struct VerifyArgs {
+    #[command(subcommand)]
+    command: VerifyCommands,
+}
+
+#[derive(Debug, Subcommand)]
+enum VerifyCommands {
+    /// Explicitly verify the cryptographic integrity of local history.
+    Lineage(VerifyLineageArgs),
+    /// Verify an existing lineage checkpoint.
+    Checkpoint(VerifyCheckpointArgs),
 }
 
 #[derive(Debug, Args)]
@@ -575,22 +587,24 @@ async fn main() -> Result<()> {
                 args.json,
             )?,
         },
-        Commands::VerifyLineage(args) => render_verify_lineage(
-            run_verify_lineage(resolve_local_root(args.root, &config), &args.stream_id)?,
-            args.json,
-        )?,
+        Commands::Verify(args) => match args.command {
+            VerifyCommands::Lineage(args) => render_verify_lineage(
+                run_verify_lineage(resolve_local_root(args.root, &config), &args.stream_id)?,
+                args.json,
+            )?,
+            VerifyCommands::Checkpoint(args) => render_verify_checkpoint(
+                run_verify_checkpoint(
+                    resolve_local_root(args.root, &config),
+                    &args.checkpoint_path,
+                )?,
+                args.json,
+            )?,
+        },
         Commands::Checkpoint(args) => render_checkpoint(
             run_checkpoint(
                 resolve_local_root(args.root, &config),
                 &args.stream_id,
                 &args.kind,
-            )?,
-            args.json,
-        )?,
-        Commands::VerifyCheckpoint(args) => render_verify_checkpoint(
-            run_verify_checkpoint(
-                resolve_local_root(args.root, &config),
-                &args.checkpoint_path,
             )?,
             args.json,
         )?,
@@ -5889,6 +5903,30 @@ mod tests {
         let cli = Cli::try_parse_from(["transit", "storage", "probe"])
             .expect("parse storage probe command");
         assert!(matches!(cli.command, Commands::Storage(_)));
+
+        let cli = Cli::try_parse_from(["transit", "verify", "lineage", "--stream-id", "task.root"])
+            .expect("parse verify lineage command");
+        assert!(matches!(
+            cli.command,
+            Commands::Verify(VerifyArgs {
+                command: VerifyCommands::Lineage(_)
+            })
+        ));
+
+        let cli = Cli::try_parse_from([
+            "transit",
+            "verify",
+            "checkpoint",
+            "--checkpoint-path",
+            "target/checkpoint.json",
+        ])
+        .expect("parse verify checkpoint command");
+        assert!(matches!(
+            cli.command,
+            Commands::Verify(VerifyArgs {
+                command: VerifyCommands::Checkpoint(_)
+            })
+        ));
     }
 
     #[test]
@@ -5923,6 +5961,29 @@ mod tests {
             error
                 .to_string()
                 .contains("unrecognized subcommand 'local-engine-proof'")
+        );
+
+        let error = Cli::try_parse_from(["transit", "verify-lineage", "--stream-id", "task.root"])
+            .expect_err("old top-level verify-lineage command should be rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("unrecognized subcommand 'verify-lineage'")
+        );
+
+        let error = Cli::try_parse_from([
+            "transit",
+            "verify-checkpoint",
+            "--checkpoint-path",
+            "target/checkpoint.json",
+        ])
+        .expect_err("old top-level verify-checkpoint command should be rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("unrecognized subcommand 'verify-checkpoint'")
         );
     }
 
