@@ -5808,33 +5808,81 @@ fn render_streams_list(result: RemoteStreamListResult, json: bool) -> Result<()>
     println!("topology: {}", result.topology);
     println!("streams: {}", result.stream_count);
 
-    for stream in result.streams {
-        println!();
-        println!("stream: {}", stream.stream_id);
-        println!("lineage: {}", stream.lineage_kind);
-        if stream.parents.is_empty() {
-            println!("parents: none");
-        } else {
-            println!("parents: {}", stream.parents.join(", "));
+    let headers = vec![
+        "stream_id".to_owned(),
+        "lineage".to_owned(),
+        "parents".to_owned(),
+        "merge_base".to_owned(),
+        "records".to_owned(),
+        "head_offset".to_owned(),
+        "active_records".to_owned(),
+        "active_start".to_owned(),
+        "manifest_gen".to_owned(),
+        "rolled_segments".to_owned(),
+    ];
+    let rows = result
+        .streams
+        .into_iter()
+        .map(|stream| {
+            vec![
+                stream.stream_id,
+                stream.lineage_kind,
+                if stream.parents.is_empty() {
+                    "none".to_owned()
+                } else {
+                    stream.parents.join(", ")
+                },
+                stream.merge_base.unwrap_or_else(|| "-".to_owned()),
+                stream.record_count.to_string(),
+                stream
+                    .head_offset
+                    .map(|head_offset| head_offset.to_string())
+                    .unwrap_or_else(|| "empty".to_owned()),
+                stream.active_record_count.to_string(),
+                stream.active_segment_start_offset.to_string(),
+                stream.manifest_generation.to_string(),
+                stream.rolled_segment_count.to_string(),
+            ]
+        })
+        .collect::<Vec<_>>();
+
+    let mut widths = headers
+        .iter()
+        .map(|header| header.len())
+        .collect::<Vec<_>>();
+    for row in &rows {
+        for (width, cell) in widths.iter_mut().zip(row) {
+            *width = (*width).max(cell.len());
         }
-        if let Some(merge_base) = stream.merge_base {
-            println!("merge base: {merge_base}");
-        }
-        println!("records: {}", stream.record_count);
-        match stream.head_offset {
-            Some(head_offset) => println!("head offset: {head_offset}"),
-            None => println!("head offset: empty"),
-        }
-        println!("active records: {}", stream.active_record_count);
-        println!(
-            "active segment start offset: {}",
-            stream.active_segment_start_offset
-        );
-        println!("manifest generation: {}", stream.manifest_generation);
-        println!("rolled segments: {}", stream.rolled_segment_count);
+    }
+
+    println!();
+    println!("{}", render_ascii_table_row(&headers, &widths));
+    println!("{}", render_ascii_table_separator(&widths));
+    for row in &rows {
+        println!("{}", render_ascii_table_row(row, &widths));
     }
 
     Ok(())
+}
+
+fn render_ascii_table_row(cells: &[String], widths: &[usize]) -> String {
+    let padded = cells
+        .iter()
+        .zip(widths)
+        .map(|(cell, width)| format!(" {:<width$} ", cell, width = *width))
+        .collect::<Vec<_>>()
+        .join("|");
+    format!("|{padded}|")
+}
+
+fn render_ascii_table_separator(widths: &[usize]) -> String {
+    let segments = widths
+        .iter()
+        .map(|width| "-".repeat(*width + 2))
+        .collect::<Vec<_>>()
+        .join("|");
+    format!("|{segments}|")
 }
 
 fn render_streams_delete(result: RemoteDeletedStreamResult, json: bool) -> Result<()> {
