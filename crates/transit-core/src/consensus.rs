@@ -7,6 +7,8 @@ use object_store::{ObjectStore, ObjectStoreExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+const UNIX_MILLIS_THRESHOLD: i64 = 1_000_000_000_000;
+
 /// A verifiable distributed lease for a stream head.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StreamLease {
@@ -86,8 +88,8 @@ impl ElectionMonitor {
                 for stream_id in &streams {
                     match self.provider.current_lease(stream_id).await {
                         Ok(Some(lease)) => {
-                            let now = chrono::Utc::now().timestamp();
-                            if now >= lease.expires_at {
+                            let now = current_unix_timestamp_millis();
+                            if now >= normalize_expiration_timestamp(lease.expires_at) {
                                 if let Err(e) = self.trigger.on_election_required(stream_id).await {
                                     eprintln!(
                                         "election trigger failed for {}: {:#}",
@@ -225,7 +227,7 @@ struct ObjectStoreLeaseHandle {
     stream_id: StreamId,
     local_owner: NodeId,
     lease: std::sync::RwLock<StreamLease>,
-    duration: i64,
+    duration_ms: i64,
 }
 
 #[async_trait]
@@ -236,7 +238,7 @@ impl ConsensusHandle for ObjectStoreLeaseHandle {
 
     fn is_expired(&self) -> bool {
         let lease = self.lease.read().unwrap();
-        chrono::Utc::now().timestamp() >= lease.expires_at
+        current_unix_timestamp_millis() >= normalize_expiration_timestamp(lease.expires_at)
     }
 
     fn stream_id(&self) -> &StreamId {
@@ -260,7 +262,7 @@ impl ConsensusHandle for ObjectStoreLeaseHandle {
                 stream_id: lease.stream_id.clone(),
                 owner: lease.owner.clone(),
                 version: lease.version + 1,
-                expires_at: chrono::Utc::now().timestamp() + self.duration,
+                expires_at: current_unix_timestamp_millis() + self.duration_ms,
             }
         };
 
@@ -294,7 +296,7 @@ impl ConsensusHandle for ObjectStoreLeaseHandle {
                 stream_id: lease.stream_id.clone(),
                 owner: next_owner,
                 version: lease.version + 1,
-                expires_at: chrono::Utc::now().timestamp() + self.duration,
+                expires_at: current_unix_timestamp_millis() + self.duration_ms,
             }
         };
 
@@ -320,10 +322,10 @@ impl ConsensusProvider for ObjectStoreConsensus {
 
         let existing = self.current_lease(stream_id).await?;
 
-        let now = chrono::Utc::now().timestamp();
+        let now = current_unix_timestamp_millis();
 
         if let Some(lease) = existing {
-            if now < lease.expires_at && lease.owner != owner {
+            if now < normalize_expiration_timestamp(lease.expires_at) && lease.owner != owner {
                 bail!(
                     "stream '{}' is currently owned by '{}'",
                     stream_id.as_str(),
@@ -336,7 +338,7 @@ impl ConsensusProvider for ObjectStoreConsensus {
             stream_id: stream_id.clone(),
             owner: owner.clone(),
             version: now as u64,
-            expires_at: now + self.lease_duration_secs,
+            expires_at: now + lease_duration_millis(self.lease_duration_secs),
         };
 
         let bytes = serde_json::to_vec(&lease).context("serialize lease")?;
@@ -351,7 +353,7 @@ impl ConsensusProvider for ObjectStoreConsensus {
             stream_id: stream_id.clone(),
             local_owner: owner,
             lease: std::sync::RwLock::new(lease),
-            duration: self.lease_duration_secs,
+            duration_ms: lease_duration_millis(self.lease_duration_secs),
         }))
     }
 
@@ -368,6 +370,22 @@ impl ConsensusProvider for ObjectStoreConsensus {
             Err(e) => bail!("failed to check lease: {e}"),
         }
     }
+}
+
+fn current_unix_timestamp_millis() -> i64 {
+    chrono::Utc::now().timestamp_millis()
+}
+
+fn normalize_expiration_timestamp(expires_at: i64) -> i64 {
+    if expires_at >= UNIX_MILLIS_THRESHOLD {
+        expires_at
+    } else {
+        expires_at.saturating_mul(1000)
+    }
+}
+
+fn lease_duration_millis(duration_secs: i64) -> i64 {
+    duration_secs.saturating_mul(1000)
 }
 
 #[cfg(test)]
@@ -491,7 +509,9 @@ mod tests {
         // 5. Current lease still exists but is expired (checked via timestamp)
         let lease = consensus.current_lease(&stream_id).await.unwrap().unwrap();
         assert_eq!(lease.owner, node_a);
-        assert!(chrono::Utc::now().timestamp() >= lease.expires_at);
+        assert!(
+            current_unix_timestamp_millis() >= normalize_expiration_timestamp(lease.expires_at)
+        );
     }
 
     #[tokio::test]

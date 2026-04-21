@@ -804,6 +804,7 @@ struct LocalEngineInner {
     peer_acks: dashmap::DashMap<StreamId, dashmap::DashMap<crate::membership::NodeId, Offset>>,
     /// Notify when peer acks are updated.
     stream_updates: dashmap::DashMap<StreamId, std::sync::Arc<tokio::sync::Notify>>,
+    stream_append_locks: dashmap::DashMap<StreamId, std::sync::Arc<std::sync::Mutex<()>>>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -840,12 +841,21 @@ impl LocalEngine {
                 leases: dashmap::DashMap::new(),
                 peer_acks: dashmap::DashMap::new(),
                 stream_updates: dashmap::DashMap::new(),
+                stream_append_locks: dashmap::DashMap::new(),
             }),
         })
     }
 
     pub fn data_dir(&self) -> &Path {
         self.inner.config.data_dir()
+    }
+
+    fn stream_append_lock(&self, stream_id: &StreamId) -> std::sync::Arc<std::sync::Mutex<()>> {
+        self.inner
+            .stream_append_locks
+            .entry(stream_id.clone())
+            .or_insert_with(|| std::sync::Arc::new(std::sync::Mutex::new(())))
+            .clone()
     }
 
     pub fn record_peer_ack(
@@ -1216,6 +1226,14 @@ impl LocalEngine {
         stream_id: &StreamId,
         payload: impl AsRef<[u8]>,
     ) -> Result<LocalAppendOutcome> {
+        let stream_append_lock = self.stream_append_lock(stream_id);
+        let _guard = stream_append_lock
+            .lock()
+            .expect("stream append lock should not be poisoned");
+        self.append_locked(stream_id, payload.as_ref())
+    }
+
+    fn append_locked(&self, stream_id: &StreamId, payload: &[u8]) -> Result<LocalAppendOutcome> {
         self.ensure_writable("append to", Some(stream_id))?;
         ensure!(
             self.is_leader(stream_id),
@@ -1226,7 +1244,7 @@ impl LocalEngine {
         let mut state = self.load_state(stream_id)?;
         let record = PersistedRecord {
             offset: state.next_offset,
-            payload: payload.as_ref().to_vec(),
+            payload: payload.to_vec(),
         };
         let encoded = serde_json::to_vec(&record).context("serialize persisted record")?;
 
@@ -1284,10 +1302,14 @@ impl LocalEngine {
             "append batch requires at least one payload"
         );
         let record_count = payloads.len() as u64;
+        let stream_append_lock = self.stream_append_lock(stream_id);
+        let _guard = stream_append_lock
+            .lock()
+            .expect("stream append lock should not be poisoned");
 
         let mut outcomes = payloads
             .into_iter()
-            .map(|payload| self.append(stream_id, payload))
+            .map(|payload| self.append_locked(stream_id, &payload))
             .collect::<Result<Vec<_>>>()?
             .into_iter();
         let first = outcomes
@@ -1752,6 +1774,7 @@ impl LocalEngine {
             write_bytes_durable(&active_path, &active_bytes[..retained_length])?;
         }
 
+        self.repair_committed_segment_overflow(stream_id, &state)?;
         self.read_replay_records(stream_id)?;
 
         Ok(LocalRecoveryOutcome {
@@ -2516,6 +2539,87 @@ impl LocalEngine {
             .collect())
     }
 
+    fn repair_committed_segment_overflow(
+        &self,
+        stream_id: &StreamId,
+        state: &LocalStreamState,
+    ) -> Result<()> {
+        let manifest = self.load_manifest(stream_id)?;
+        if manifest.segments().is_empty() {
+            return Ok(());
+        }
+
+        let active_records = self.read_persisted_active_head(stream_id, state)?;
+        let mut segment_records = manifest
+            .segments()
+            .iter()
+            .map(|descriptor| {
+                let segment_path = descriptor
+                    .storage()
+                    .local_path()
+                    .cloned()
+                    .context("local recovery requires a local segment path")?;
+                read_records(&segment_path)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        for index in (0..manifest.segments().len()).rev() {
+            let descriptor = &manifest.segments()[index];
+            let expected_count = descriptor.record_count() as usize;
+            let persisted = &segment_records[index];
+            if persisted.len() <= expected_count {
+                continue;
+            }
+
+            validate_record_offsets(
+                persisted,
+                descriptor.start_offset().value(),
+                descriptor.start_offset().value() + persisted.len() as u64,
+                &format!("segment '{}'", descriptor.segment_id().as_str()),
+            )?;
+
+            let overflow = &persisted[expected_count..];
+            let following_records = segment_records[index + 1..]
+                .iter()
+                .flat_map(|records| records.iter())
+                .chain(active_records.iter())
+                .take(overflow.len())
+                .cloned()
+                .collect::<Vec<_>>();
+            ensure!(
+                following_records.len() == overflow.len(),
+                "segment '{}' expected {} records but found {}",
+                descriptor.segment_id().as_str(),
+                descriptor.record_count(),
+                persisted.len()
+            );
+            ensure!(
+                following_records == overflow,
+                "segment '{}' overflow does not match later replay history",
+                descriptor.segment_id().as_str()
+            );
+
+            let repaired_records = persisted[..expected_count].to_vec();
+            let repaired_bytes = encode_records(&repaired_records)?;
+            ensure!(
+                repaired_bytes.len() as u64 == descriptor.byte_length(),
+                "segment '{}' expected {} bytes on disk",
+                descriptor.segment_id().as_str(),
+                descriptor.byte_length()
+            );
+
+            let segment_path = descriptor
+                .storage()
+                .local_path()
+                .cloned()
+                .context("local recovery requires a local segment path")?;
+            write_bytes_durable(&segment_path, &repaired_bytes)?;
+            segment_records[index] = repaired_records;
+        }
+
+        Ok(())
+    }
+
     fn read_active_head(
         &self,
         stream_id: &StreamId,
@@ -2529,6 +2633,23 @@ impl LocalEngine {
             state.active_segment_start_offset,
             expected_start_offset
         );
+
+        let persisted = self.read_persisted_active_head(stream_id, state)?;
+
+        Ok(persisted
+            .into_iter()
+            .map(|record| LocalRecord::from_persisted(stream_id.clone(), record))
+            .collect())
+    }
+
+    fn read_persisted_active_head(
+        &self,
+        stream_id: &StreamId,
+        state: &LocalStreamState,
+    ) -> Result<Vec<PersistedRecord>> {
+        if state.active_record_count == 0 {
+            return Ok(Vec::new());
+        }
 
         let active_path = self.active_segment_path(stream_id);
         let mut persisted = read_records(&active_path)?;
@@ -2548,10 +2669,7 @@ impl LocalEngine {
             &format!("active head for '{}'", stream_id.as_str()),
         )?;
 
-        Ok(persisted
-            .into_iter()
-            .map(|record| LocalRecord::from_persisted(stream_id.clone(), record))
-            .collect())
+        Ok(persisted)
     }
 
     fn stream_dir(&self, stream_id: &StreamId) -> PathBuf {
@@ -2612,7 +2730,7 @@ impl LocalStreamState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct PersistedRecord {
     offset: u64,
     payload: Vec<u8>,
@@ -2888,6 +3006,16 @@ fn read_records(path: &Path) -> Result<Vec<PersistedRecord>> {
     }
 
     Ok(records)
+}
+
+fn encode_records(records: &[PersistedRecord]) -> Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    for record in records {
+        let encoded = serde_json::to_vec(record).context("serialize persisted record")?;
+        bytes.extend_from_slice(&encoded);
+        bytes.push(b'\n');
+    }
+    Ok(bytes)
 }
 
 fn validate_record_offsets(
