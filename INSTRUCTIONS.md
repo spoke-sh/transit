@@ -15,7 +15,7 @@ Transit uses Keel as its project management engine. Your job is to move the boar
 5.  **Close**:
     - Record your move in the mission `LOG.md`.
     - **Heartbeat Check**: Use `just keel heartbeat` if you need to inspect the current activity source or confirm the circuit is still energized before the commit boundary.
-    - **Commit**: Execute `git commit`. The installed hooks automatically run `just quality` and `just test`, then append `doctor --status` to the commit message. Resolve any issues if the commit is rejected.
+    - **Commit**: Execute `git commit`. The installed hooks automatically run `just quality`, `just test`, and `keel health`, then append `doctor --status` to the commit message. Resolve any issues if the commit is rejected.
 6.  **Re-orient**: After the commit lands, run `just keel doctor --status` and `just keel flow` to see what the board needs next.
  This is the "plug the cord back in" moment. If the delivery lane has ready work, start the next turn immediately. Only stop to ask the human when you reach a manual lane (design direction, bearing assessment, or human verification).
 
@@ -76,10 +76,10 @@ Apply these checks to **every change** before finalizing work:
    - **CIRCULATORY**: Workflow (Graph integrity, topology)
    - **PACEMAKER**: Heartbeat (derived repository activity and open-loop warning state)
    - **KINETIC**: Delivery (Backlog liquidity, execution capacity)
-3. **Pacemaker Protocol**: The system's heartbeat is derived from Git/worktree activity and inspected with `just keel heartbeat`. A clean repo falls back to the latest commit; a dirty repo uses the freshest changed path it can observe. `doctor` warns when the worktree carries uncommitted energy, and the sealing commit is what clears that warning. The installed pre-commit hook keeps quality checks and tests tied to the commit boundary, and the commit-msg hook appends `doctor --status` to the message body.
+3. **Pacemaker Protocol**: The system's heartbeat is derived from Git/worktree activity and inspected with `just keel heartbeat`. A clean repo falls back to the latest commit; a dirty repo uses the freshest changed path it can observe. `doctor` warns when the worktree carries uncommitted energy, and the sealing commit is what clears that warning. The installed pre-commit hook keeps quality checks, tests, and `keel health` tied to the commit boundary, and the commit-msg hook appends `doctor --status` to the message body.
 4. **Gardening First**: You MUST tend to the garden (fixing `doctor` errors, discharging automated backlog, and resolving structural drift) BEFORE notifying the human operator or requesting input.
 5. **Notification Threshold**: Only request human intervention when you reach a "Manual Lane" that requires design direction or a decision on application behavior (e.g., assessing a Bearing, planning a Voyage, or human verification of a complex Story).
-6. **Automated Guardrails**: You no longer need to run `just quality` or `just test` manually before every commit. The git hooks installed via `just keel hooks install` automatically enforce those checks and append `doctor --status` to the commit message body. If a commit fails, resolve the reported lints or test failures and try again.
+6. **Automated Guardrails**: You no longer need to run `just quality` or `just test` manually before every commit. The git hooks installed via `just keel hooks install` automatically enforce those checks, run `keel health`, and append `doctor --status` to the commit message body. If a commit fails, resolve the reported lints or test failures and try again.
 7. **Lifecycle Before Commit**: Run board-mutating lifecycle commands before the atomic commit when they generate or rewrite `.keel` artifacts (for example `just keel story submit`, `just keel voyage plan`, `just keel voyage done`, `just keel bearing assess`, `just keel bearing lay`). After the transition, inspect `git status` and include the resulting `.keel` churn in the same commit.
 8. **Atomic Commits**: Commit once per logical unit of work. Use [Conventional Commits](https://www.conventionalcommits.org/):
    - `feat:` (new feature)

@@ -119,7 +119,7 @@ When updating `keel`, follow this sequence literally:
 
 1. Update the Nix flake input and lockfile.
 2. Build the new `keel` version through Nix and confirm it runs.
-3. Install the git hooks with `just keel hooks install` so the pre-commit hook enforces `just quality` and `just test`, and the commit-msg hook appends `doctor --status`.
+3. Install the git hooks with `just keel hooks install` so the pre-commit hook enforces `just quality` and `just test`, runs `keel health`, and the commit-msg hook appends `doctor --status`.
 4. Review upstream `~/workspace/spoke-sh/keel/AGENTS.md` and `~/workspace/spoke-sh/keel/INSTRUCTIONS.md`, then reconcile any required local workflow changes in `AGENTS.md`, `INSTRUCTIONS.md`, `Justfile`, or related docs.
 5. Run the human-interaction orientation loop: `just keel heartbeat`, `just keel health --scene`, `just keel mission next --status`, `just keel pulse`, `just keel flow --scene`, and `just keel doctor`.
 6. Fix every structural `doctor` issue before doing anything else. Treat any open-loop energy reported by `just keel heartbeat`, the scene commands, or `just keel doctor` as debt that must be cleared by the sealing commit, then report the `mission next` recommendation to the user.
