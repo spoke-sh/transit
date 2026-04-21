@@ -8,25 +8,25 @@ This repository uses Keel as its project management engine. Your primary respons
 
 ### Core Principles
 1. **Gardening First**: You MUST tend to the garden (fixing `doctor` errors, discharging automated backlog, and resolving structural drift) BEFORE notifying the human operator or requesting input.
-2. **Heartbeat Hygiene**: Monitor the system's pulse via `keel heartbeat` and `keel health --scene`. The pacemaker is derived from repository activity; uncommitted energy in the worktree is tactical debt that should be closed autonomously by landing the sealing commit.
+2. **Heartbeat Hygiene**: Monitor the system's pulse via `just keel heartbeat` and `just keel health --scene`. The pacemaker is derived from repository activity; uncommitted energy in the worktree is tactical debt that should be closed autonomously by landing the sealing commit.
 3. **Notification Discipline**: Ping the human operator ONLY when you need input on design direction or how the application behaves. Resolve technical drift and tactical moves autonomously.
 
 ### Canonical Operating Loop
-Keel's operator rhythm is the `Orient -> Inspect -> Pull -> Ship -> Close` loop surfaced by `keel turn`.
+Keel's operator rhythm is the `Orient -> Inspect -> Pull -> Ship -> Close` loop surfaced by `just keel turn`.
 
-- **Orient**: Inspect charge and board stability with `keel heartbeat`, `keel health --scene`, `keel flow --scene`, and `keel doctor`.
-- **Inspect**: Read current demand with `keel mission next --status`, `keel pulse`, `keel roles`, and `keel next --role <role> --explain` when routing is unclear.
-- **Pull**: Select one role-scoped slice with `keel next --role <role>`.
+- **Orient**: Inspect charge and board stability with `just keel heartbeat`, `just keel health --scene`, `just keel flow --scene`, and `just keel doctor`.
+- **Inspect**: Read current demand with `just keel mission next --status`, `just keel pulse`, `just keel roles`, and `just keel next --role <role> --explain` when routing is unclear.
+- **Pull**: Select one role-scoped slice with `just keel next --role <role>`.
 - **Ship**: Execute the slice, record proof, and advance lifecycle state.
 - **Close**: Land the relevant transition and the sealing commit that clears open-loop energy.
 
 ### Session Start & Human Interaction
 When a human user opens the chat or "pokes" you (e.g., "Wake up", "I'm poking you"), you MUST immediately energize the system and orient yourself by following the **Human Interaction & Pokes** workflow in [INSTRUCTIONS.md](INSTRUCTIONS.md):
-1.  **Heartbeat**: Run `keel heartbeat` to inspect current charge and whether the worktree is carrying uncommitted energy.
-2.  **Pulse**: Run `keel health --scene` to check subsystem stability.
-3.  **Scan**: Run `keel mission next --status` and `keel pulse`.
-4.  **Confirm**: Run `keel flow --scene` to verify whether the LIGHT IS ON or the board is idle waiting for fresh repository activity.
-5.  **Diagnose**: Run `keel doctor` to ensure board integrity before proceeding.
+1.  **Heartbeat**: Run `just keel heartbeat` to inspect current charge and whether the worktree is carrying uncommitted energy.
+2.  **Pulse**: Run `just keel health --scene` to check subsystem stability.
+3.  **Scan**: Run `just keel mission next --status` and `just keel pulse`.
+4.  **Confirm**: Run `just keel flow --scene` to verify whether the LIGHT IS ON or the board is idle waiting for fresh repository activity.
+5.  **Diagnose**: Run `just keel doctor` to ensure board integrity before proceeding.
 
 ### Procedural Instructions
 Follow the formal procedural loops and checklists defined in:
@@ -119,12 +119,12 @@ When updating `keel`, follow this sequence literally:
 
 1. Update the Nix flake input and lockfile.
 2. Build the new `keel` version through Nix and confirm it runs.
-3. Install the git hooks with `keel hooks install` so the pre-commit hook enforces `just quality` and `just test`, runs `keel health`, and the commit-msg hook appends `doctor --status`.
+3. Install the git hooks with `just keel hooks install` so the pre-commit hook enforces `just quality` and `just test`, and the commit-msg hook appends `doctor --status`.
 4. Review upstream `~/workspace/spoke-sh/keel/AGENTS.md` and `~/workspace/spoke-sh/keel/INSTRUCTIONS.md`, then reconcile any required local workflow changes in `AGENTS.md`, `INSTRUCTIONS.md`, `Justfile`, or related docs.
-5. Run the human-interaction orientation loop: `keel heartbeat`, `keel health --scene`, `keel mission next --status`, `keel pulse`, `keel flow --scene`, and `keel doctor`.
-6. Fix every structural `doctor` issue before doing anything else. Treat any open-loop energy reported by `keel heartbeat`, the scene commands, or `keel doctor` as debt that must be cleared by the sealing commit, then report the `mission next` recommendation to the user.
+5. Run the human-interaction orientation loop: `just keel heartbeat`, `just keel health --scene`, `just keel mission next --status`, `just keel pulse`, `just keel flow --scene`, and `just keel doctor`.
+6. Fix every structural `doctor` issue before doing anything else. Treat any open-loop energy reported by `just keel heartbeat`, the scene commands, or `just keel doctor` as debt that must be cleared by the sealing commit, then report the `mission next` recommendation to the user.
 7. Ask the user whether they want to execute the recommended mission work before starting it.
-8. When the upgrade works, the hooks are installed, the upstream workflow reconciliation is landed, and the board is otherwise clean, make the sealing git commit for the maintenance change. Re-run `keel pulse`, `keel doctor --status`, and `keel flow` after that commit before moving on.
+8. When the upgrade works, the hooks are installed, the upstream workflow reconciliation is landed, and the board is otherwise clean, make the sealing git commit for the maintenance change. Re-run `just keel pulse`, `just keel doctor --status`, and `just keel flow` after that commit before moving on.
 
 Do not treat a `keel` upgrade as complete until the flake, hook install, upstream workflow reconciliation, doctor checks, and mission recommendation flow are all clean, with no structural errors and no open-loop energy after the sealing commit.
 
@@ -178,7 +178,7 @@ Use one path for each concern:
 
 - `nix develop` for the repository shell and shared tooling.
 - `just ...` for repo build, test, proof, and helper workflows.
-- `keel ...` for all board and workflow operations.
+- `just keel ...` for all board and workflow operations.
 
 ### `just` Workflow Commands
 
@@ -192,18 +192,18 @@ Use one path for each concern:
 | `just doctest` | Run doc tests |
 | `just coverage` | Produce coverage output |
 
-### `keel` Board Workflow Commands
+### `just keel` Board Workflow Commands
 
-Run `keel --help` for the full command tree. Common commands:
+Run `just keel --help` for the full command tree. Common commands:
 
 | Category | Commands |
 |----------|----------|
-| Orientation | `keel turn` `keel heartbeat` `keel health --scene` `keel flow --scene` `keel doctor` `keel screen --static` |
-| Inspection | `keel mission next [<id>]` `keel pulse` `keel roles` `keel workshop` `keel next --role <role> --explain` |
-| Discovery | `keel bearing new <name>` `keel bearing research <id>` `keel bearing assess <id>` `keel bearing list` |
-| Planning | `keel epic new "<name>" --problem "<problem>"` `keel voyage new "<name>" --epic <epic-id> --goal "<goal>"` |
-| Execution | `keel story new "<title>" [--type <type>] [--epic <epic-id> [--voyage <voyage-id>]]` |
-| Board Ops | `keel mission next [<id>]` `keel next --role manager` `keel next --role operator` `keel flow` `keel doctor` `keel generate` `keel config show` `keel mission show <id>` `keel mission attach <mission-id> --epic <epic-id>` |
+| Orientation | `just keel turn` `just keel heartbeat` `just keel health --scene` `just keel flow --scene` `just keel doctor` `just keel screen --static` |
+| Inspection | `just keel mission next [<id>]` `just keel pulse` `just keel roles` `just keel workshop` `just keel next --role <role> --explain` |
+| Discovery | `just keel bearing new <name>` `just keel bearing research <id>` `just keel bearing assess <id>` `just keel bearing list` |
+| Planning | `just keel epic new "<name>" --problem "<problem>"` `just keel voyage new "<name>" --epic <epic-id> --goal "<goal>"` |
+| Execution | `just keel story new "<title>" [--type <type>] [--epic <epic-id> [--voyage <voyage-id>]]` |
+| Board Ops | `just keel mission next [<id>]` `just keel next --role manager` `just keel next --role operator` `just keel flow` `just keel doctor` `just keel generate` `just keel config show` `just keel mission show <id>` `just keel mission attach <mission-id> --epic <epic-id>` |
 | Lifecycle | Story/voyage/epic transitions in the table below |
 
 ## Story and Milestone State Changes
@@ -212,17 +212,17 @@ Use CLI commands only. Do not move `.keel` files manually.
 
 | Action | Command |
 |--------|---------|
-| Start | `keel story start <id>` |
-| Reflect | `keel story reflect <id>` |
-| Submit | `keel story submit <id>` |
-| Reject | `keel story reject <id> "reason"` |
-| Accept | `keel story accept <id> --role manager` |
-| Ice | `keel story ice <id>` |
-| Thaw | `keel story thaw <id>` |
-| Voyage plan | `keel voyage plan <id>` |
-| Voyage done | `keel voyage done <id>` |
-| Bearing assess | `keel bearing assess <id>` |
-| Bearing lay | `keel bearing lay <id>` |
-| Mission activate | `keel mission activate <id>` |
-| Mission achieve | `keel mission achieve <id>` |
-| Mission verify | `keel mission verify <id>` |
+| Start | `just keel story start <id>` |
+| Reflect | `just keel story reflect <id>` |
+| Submit | `just keel story submit <id>` |
+| Reject | `just keel story reject <id> "reason"` |
+| Accept | `just keel story accept <id> --role manager` |
+| Ice | `just keel story ice <id>` |
+| Thaw | `just keel story thaw <id>` |
+| Voyage plan | `just keel voyage plan <id>` |
+| Voyage done | `just keel voyage done <id>` |
+| Bearing assess | `just keel bearing assess <id>` |
+| Bearing lay | `just keel bearing lay <id>` |
+| Mission activate | `just keel mission activate <id>` |
+| Mission achieve | `just keel mission achieve <id>` |
+| Mission verify | `just keel mission verify <id>` |

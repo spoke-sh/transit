@@ -63,7 +63,7 @@ screen:
         announce "Show transit status"
         just screen-status
         announce "Show board screen"
-        keel screen --static
+        just keel screen --static
     )
 
 # Backward-compatible alias for the old verification recipe name.
@@ -122,6 +122,10 @@ help:
 # Run the transit CLI with arbitrary arguments.
 transit *args:
     cargo run -p transit-cli --bin transit -- {{args}}
+
+# Run the keel CLI with arbitrary arguments.
+keel *args:
+    command keel {{args}}
 
 # Install website dependencies through the repo-supported Node toolchain.
 docs-install:
