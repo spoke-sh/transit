@@ -22,8 +22,8 @@ mission: VHRmIgEqY
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/3 stories done
+**Progress:** 0/1 voyages complete, 1/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Deliver Hosted Transport Robustness Improvements](voyages/VHRmIjGvL/) | in-progress | 0/3 |
+| [Deliver Hosted Transport Robustness Improvements](voyages/VHRmIjGvL/) | in-progress | 1/3 |
 <!-- END GENERATED -->

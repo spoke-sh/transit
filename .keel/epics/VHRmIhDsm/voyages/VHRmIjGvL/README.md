@@ -27,11 +27,11 @@ started_at: 2026-04-21T10:25:39
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/3 stories complete
+**Progress:** 1/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Add Configurable Hosted I/O Timeouts To Server And Client Surfaces](../../../../stories/VHRmM7JKd/README.md) | feat | in-progress |
+| [Add Configurable Hosted I/O Timeouts To Server And Client Surfaces](../../../../stories/VHRmM7JKd/README.md) | feat | done |
 | [Serve Hosted Connections Concurrently Under Producer Consumer Load](../../../../stories/VHRmM8aLE/README.md) | feat | backlog |
 | [Publish Hosted Timeout Proof Coverage And Operator Guidance](../../../../stories/VHRmM9dNP/README.md) | feat | backlog |
 <!-- END GENERATED -->

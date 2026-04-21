@@ -41,6 +41,11 @@ impl ServerConfig {
         }
     }
 
+    pub fn with_connection_io_timeout(mut self, timeout: Duration) -> Self {
+        self.connection_io_timeout = timeout;
+        self
+    }
+
     pub fn engine(&self) -> &LocalEngineConfig {
         &self.engine
     }
@@ -309,6 +314,15 @@ impl RemoteClient {
             io_timeout: Duration::from_millis(DEFAULT_CONNECTION_IO_TIMEOUT_MS),
             request_sequence: Arc::new(AtomicU64::new(1)),
         }
+    }
+
+    pub fn with_io_timeout(mut self, timeout: Duration) -> Self {
+        self.io_timeout = timeout;
+        self
+    }
+
+    pub fn io_timeout(&self) -> Duration {
+        self.io_timeout
     }
 
     pub fn append(
@@ -1779,9 +1793,10 @@ fn unexpected_operation_response(
 #[cfg(test)]
 mod tests {
     use super::{
-        OperationRequest, OperationResponse, ProtocolRequest, ProtocolResponse, RemoteClient,
-        RemoteClientError, RemoteErrorCode, RemoteTailSessionState, RemoteTopology, RequestId,
-        ResponseEnvelope, ServerConfig, ServerHandle, configure_connection_stream,
+        DEFAULT_CONNECTION_IO_TIMEOUT_MS, OperationRequest, OperationResponse, ProtocolRequest,
+        ProtocolResponse, RemoteClient, RemoteClientError, RemoteErrorCode, RemoteTailSessionState,
+        RemoteTopology, RequestId, ResponseEnvelope, ServerConfig, ServerHandle,
+        configure_connection_stream,
     };
     use crate::engine::{DurabilityMode, LocalEngine, LocalEngineConfig};
     use crate::kernel::{
@@ -1825,6 +1840,41 @@ mod tests {
             .expect("read protocol response");
 
         serde_json::from_str(response_line.trim_end()).expect("decode protocol response")
+    }
+
+    #[test]
+    fn hosted_timeout_config_server_preserves_explicit_default_connection_timeout() {
+        let temp_dir = tempdir().expect("temp dir");
+        let config = ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        );
+
+        assert_eq!(
+            config.connection_io_timeout(),
+            Duration::from_millis(DEFAULT_CONNECTION_IO_TIMEOUT_MS)
+        );
+    }
+
+    #[test]
+    fn hosted_timeout_config_server_allows_explicit_connection_timeout_override() {
+        let temp_dir = tempdir().expect("temp dir");
+        let timeout = Duration::from_secs(5);
+        let config = ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        )
+        .with_connection_io_timeout(timeout);
+
+        assert_eq!(config.connection_io_timeout(), timeout);
+
+        let server = ServerHandle::bind(config).expect("bind server");
+        let local_addr = server.local_addr();
+        let stream =
+            TcpStream::connect_timeout(&local_addr, Duration::from_secs(1)).expect("connect");
+        drop(stream);
+
+        server.shutdown().expect("shutdown server");
     }
 
     #[test]

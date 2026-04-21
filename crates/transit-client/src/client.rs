@@ -1,5 +1,6 @@
 use anyhow::Context;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use crate::projection::{
     ProjectionReadConsumer, ProjectionReadOutcome, ProjectionReadRequest, projection_revision_for,
@@ -25,6 +26,15 @@ impl TransitClient {
         Self {
             inner: RemoteClient::new(server_addr),
         }
+    }
+
+    pub fn with_io_timeout(mut self, timeout: Duration) -> Self {
+        self.inner = self.inner.with_io_timeout(timeout);
+        self
+    }
+
+    pub fn io_timeout(&self) -> Duration {
+        self.inner.io_timeout()
     }
 
     pub fn create_root(
@@ -259,6 +269,55 @@ mod tests {
         let client = TransitClient::new(server.local_addr());
 
         (temp_dir, server, client)
+    }
+
+    #[test]
+    fn hosted_timeout_config_client_allows_explicit_timeout_override() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let client = client.with_io_timeout(Duration::from_secs(5));
+
+        assert_eq!(client.io_timeout(), Duration::from_secs(5));
+
+        let stream_id = StreamId::new("client.timeout.override").expect("stream id");
+        let created = client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(Some("client".into()), Some("timeout-config-tests".into())),
+            )
+            .expect("create root");
+
+        assert_eq!(created.ack().durability(), "local");
+        assert_eq!(created.ack().topology(), RemoteTopology::SingleNode);
+
+        let appended = client
+            .append(&stream_id, b"payload")
+            .expect("append with tuned timeout");
+        assert_eq!(appended.ack().durability(), "local");
+        assert_eq!(appended.ack().topology(), RemoteTopology::SingleNode);
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn hosted_timeout_config_client_preserves_remote_error_envelope() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let client = client.with_io_timeout(Duration::from_secs(5));
+        let missing_stream = StreamId::new("client.timeout.missing").expect("stream id");
+
+        let error = client
+            .append(&missing_stream, b"payload")
+            .expect_err("append should fail for missing stream");
+
+        match error {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::NotFound);
+                assert_eq!(error.request_id().as_str(), "req-1");
+                assert!(!error.message().is_empty());
+            }
+            other => panic!("expected remote error envelope, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
