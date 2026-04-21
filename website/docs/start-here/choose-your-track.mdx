@@ -34,12 +34,13 @@ Typical signs:
 
 - you want a remote append/read/tail surface
 - you need client/server separation
+- you need a producer/consumer workload that can raise hosted I/O timeouts without changing record semantics
 - you want the same shared engine semantics exposed through a server boundary
 
 Start with:
 
-- `transit proof networked-server --root target/transit-docs/networked`
-- `transit proof hosted-authority --root target/transit-docs/hosted-authority`
+- `transit proof networked-server --root target/transit-docs/networked --server-connection-io-timeout-ms 5000 --client-io-timeout-ms 5000`
+- `transit proof hosted-authority --root target/transit-docs/hosted-authority --server-connection-io-timeout-ms 5000 --client-io-timeout-ms 5000`
 - [Capabilities](./capabilities.mdx)
 - the networked server proof in the CLI output
 - [Server First Run](./server-first-run.mdx)
@@ -47,6 +48,9 @@ Start with:
 For downstream cutover work, the canonical target is the hosted pair of
 `transit-server` plus `transit-client`. Do not preserve a repo-local hosted
 adapter layer once those upstream surfaces replace it.
+
+Those timeout flags tune transport behavior only. They do not change append,
+replay, batch append, or tail semantics.
 
 ## How To Decide Quickly
 

@@ -41,6 +41,9 @@ transit proof hosted-authority \
 ```
 
 That proof covers the thin hosted operation surface end to end against a locally started server.
+It is also the public proof path for hosted timeout tuning when you want to
+exercise a producer/consumer workload with more than the default 1s transport
+budget. Those flags change transport tolerance, not record semantics.
 The timeout flags are operational tuning only; they do not change append, replay,
 or tail semantics.
 
@@ -125,6 +128,11 @@ If you are evaluating the Rust client boundary instead of the CLI, the matching
 hosted calls are `TransitClient::append_batch(...)` and
 `TransitClient::with_io_timeout(...)`.
 
+If you are stress-testing a producer and consumer against the same hosted
+server, the daemon now serves accepted connections concurrently instead of
+serializing every socket in the listener loop. That makes timeout tuning an
+operational control, not a semantic workaround.
+
 ## What To Look For
 
 You should see that the server surface:
@@ -133,6 +141,8 @@ You should see that the server surface:
 - keeps branch and lineage operations available remotely
 - exposes a higher-level `streams` / `produce` / `consume` path for common operator work
 - exposes a lower-level single-stream batch append path that still replays as individual records
+- lets operators raise hosted connection I/O timeouts explicitly for proof or runtime workloads
+- keeps overlapping producer and consumer traffic on the same hosted protocol surface
 - stays single-node unless a feature explicitly says otherwise
 - does not invent a separate storage model for the daemon
 
