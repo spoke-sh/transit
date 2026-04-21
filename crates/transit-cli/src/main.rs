@@ -321,7 +321,7 @@ enum ServerCommands {
     Run(ServerRunArgs),
     /// Create a root stream through the remote server API.
     CreateRoot(ServerCreateRootArgs),
-    /// Append a record through the remote server API.
+    /// Append one or more records through the remote server API.
     Append(ServerAppendArgs),
     /// Read the full replay for a stream through the remote server API.
     Read(ServerReadArgs),
@@ -367,8 +367,8 @@ struct ServerAppendArgs {
     server_addr: SocketAddr,
     #[arg(long = "stream-id")]
     stream_id: String,
-    #[arg(long = "payload-text")]
-    payload_text: String,
+    #[arg(long = "payload-text", required = true)]
+    payload_text: Vec<String>,
     #[arg(long)]
     json: bool,
 }
@@ -1665,8 +1665,10 @@ struct RemoteAppendResult {
     topology: String,
     stream_id: String,
     position: String,
+    last_position: String,
+    record_count: u64,
     manifest_generation: u64,
-    rolled_segment_id: Option<String>,
+    rolled_segment_ids: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1913,7 +1915,7 @@ fn run_networked_server_proof(root: PathBuf) -> Result<NetworkedServerProofResul
     let initial_append = run_remote_append(ServerAppendArgs {
         server_addr,
         stream_id: "mission.root".into(),
-        payload_text: "root-0".into(),
+        payload_text: vec!["root-0".into()],
         json: false,
     })?;
     let root_replay = run_remote_read(ServerReadArgs {
@@ -1968,7 +1970,7 @@ fn run_networked_server_proof(root: PathBuf) -> Result<NetworkedServerProofResul
     let tail_append = run_remote_append(ServerAppendArgs {
         server_addr,
         stream_id: "mission.root".into(),
-        payload_text: "root-1".into(),
+        payload_text: vec!["root-1".into()],
         json: false,
     })?;
     let tail_poll = run_remote_tail_poll(ServerTailPollArgs {
@@ -2055,7 +2057,11 @@ fn run_hosted_authority_proof(root: PathBuf) -> Result<HostedAuthorityProofResul
                 .with_context(|| {
                     format!("append hosted authority payload for {}", stream_id.as_str())
                 })?;
-            producer_appends.push(summarize_remote_append(server_addr, &stream_id, append));
+            producer_appends.push(summarize_single_remote_append(
+                server_addr,
+                &stream_id,
+                append,
+            ));
         }
         let reader_replay = summarize_remote_read(
             server_addr,
@@ -3158,14 +3164,18 @@ fn run_produce(server_addr: SocketAddr, args: ProduceArgs) -> Result<ProduceResu
         let append = client
             .append(&stream_id, payload.as_bytes())
             .with_context(|| format!("append remotely to {}", stream_id.as_str()))?;
-        appends.push(summarize_remote_append(server_addr, &stream_id, append));
+        appends.push(summarize_single_remote_append(
+            server_addr,
+            &stream_id,
+            append,
+        ));
     }
 
     Ok(ProduceResult {
         server_addr: server_addr.to_string(),
         stream_id: stream_id.as_str().to_owned(),
         append_count: appends.len(),
-        last_position: appends.last().map(|append| append.position.clone()),
+        last_position: appends.last().map(|append| append.last_position.clone()),
         appends,
     })
 }
@@ -3213,7 +3223,7 @@ fn run_remote_append(args: ServerAppendArgs) -> Result<RemoteAppendResult> {
     let client = RemoteClient::new(args.server_addr);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
     let append = client
-        .append(&stream_id, args.payload_text.as_bytes())
+        .append_batch(&stream_id, args.payload_text.iter().map(String::as_bytes))
         .with_context(|| format!("append remotely to {}", stream_id.as_str()))?;
 
     Ok(summarize_remote_append(
@@ -3753,7 +3763,9 @@ fn summarize_remote_stream_status(
 fn summarize_remote_append(
     server_addr: SocketAddr,
     stream_id: &StreamId,
-    response: transit_core::server::RemoteAcknowledged<transit_core::server::RemoteAppendOutcome>,
+    response: transit_core::server::RemoteAcknowledged<
+        transit_core::server::RemoteBatchAppendOutcome,
+    >,
 ) -> RemoteAppendResult {
     RemoteAppendResult {
         server_addr: server_addr.to_string(),
@@ -3761,9 +3773,37 @@ fn summarize_remote_append(
         durability: response.ack().durability().to_owned(),
         topology: render_topology(response.ack().topology()),
         stream_id: stream_id.as_str().to_owned(),
-        position: render_position(response.body().position().clone()),
+        position: render_position(response.body().first_position().clone()),
+        last_position: render_position(response.body().last_position().clone()),
+        record_count: response.body().record_count(),
         manifest_generation: response.body().manifest_generation(),
-        rolled_segment_id: response.body().rolled_segment_id().map(str::to_owned),
+        rolled_segment_ids: response.body().rolled_segment_ids().to_vec(),
+    }
+}
+
+fn summarize_single_remote_append(
+    server_addr: SocketAddr,
+    stream_id: &StreamId,
+    response: transit_core::server::RemoteAcknowledged<transit_core::server::RemoteAppendOutcome>,
+) -> RemoteAppendResult {
+    let position = render_position(response.body().position().clone());
+
+    RemoteAppendResult {
+        server_addr: server_addr.to_string(),
+        request_id: response.request_id().as_str().to_owned(),
+        durability: response.ack().durability().to_owned(),
+        topology: render_topology(response.ack().topology()),
+        stream_id: stream_id.as_str().to_owned(),
+        last_position: position.clone(),
+        position,
+        record_count: 1,
+        manifest_generation: response.body().manifest_generation(),
+        rolled_segment_ids: response
+            .body()
+            .rolled_segment_id()
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
     }
 }
 
@@ -4067,17 +4107,17 @@ fn run_integrity_server_parity(root: &Path) -> Result<IntegrityProofServerParity
         run_remote_append(ServerAppendArgs {
             server_addr,
             stream_id: root_stream_id.into(),
-            payload_text: "root-0".into(),
+            payload_text: vec!["root-0".into()],
             json: false,
         })?;
         let root_second_append = run_remote_append(ServerAppendArgs {
             server_addr,
             stream_id: root_stream_id.into(),
-            payload_text: "root-1".into(),
+            payload_text: vec!["root-1".into()],
             json: false,
         })?;
         ensure!(
-            root_second_append.rolled_segment_id.is_some(),
+            !root_second_append.rolled_segment_ids.is_empty(),
             "integrity server parity expected root segment roll"
         );
 
@@ -4094,17 +4134,17 @@ fn run_integrity_server_parity(root: &Path) -> Result<IntegrityProofServerParity
         run_remote_append(ServerAppendArgs {
             server_addr,
             stream_id: branch_stream_id.into(),
-            payload_text: "branch-0".into(),
+            payload_text: vec!["branch-0".into()],
             json: false,
         })?;
         let branch_second_append = run_remote_append(ServerAppendArgs {
             server_addr,
             stream_id: branch_stream_id.into(),
-            payload_text: "branch-1".into(),
+            payload_text: vec!["branch-1".into()],
             json: false,
         })?;
         ensure!(
-            branch_second_append.rolled_segment_id.is_some(),
+            !branch_second_append.rolled_segment_ids.is_empty(),
             "integrity server parity expected branch segment roll"
         );
 
@@ -4121,17 +4161,17 @@ fn run_integrity_server_parity(root: &Path) -> Result<IntegrityProofServerParity
         run_remote_append(ServerAppendArgs {
             server_addr,
             stream_id: branch_two_stream_id.into(),
-            payload_text: "branch-two-0".into(),
+            payload_text: vec!["branch-two-0".into()],
             json: false,
         })?;
         let branch_two_second_append = run_remote_append(ServerAppendArgs {
             server_addr,
             stream_id: branch_two_stream_id.into(),
-            payload_text: "branch-two-1".into(),
+            payload_text: vec!["branch-two-1".into()],
             json: false,
         })?;
         ensure!(
-            branch_two_second_append.rolled_segment_id.is_some(),
+            !branch_two_second_append.rolled_segment_ids.is_empty(),
             "integrity server parity expected second branch segment roll"
         );
 
@@ -4153,17 +4193,17 @@ fn run_integrity_server_parity(root: &Path) -> Result<IntegrityProofServerParity
         run_remote_append(ServerAppendArgs {
             server_addr,
             stream_id: merge_stream_id.into(),
-            payload_text: "merge-0".into(),
+            payload_text: vec!["merge-0".into()],
             json: false,
         })?;
         let merge_second_append = run_remote_append(ServerAppendArgs {
             server_addr,
             stream_id: merge_stream_id.into(),
-            payload_text: "merge-1".into(),
+            payload_text: vec!["merge-1".into()],
             json: false,
         })?;
         ensure!(
-            merge_second_append.rolled_segment_id.is_some(),
+            !merge_second_append.rolled_segment_ids.is_empty(),
             "integrity server parity expected merge segment roll"
         );
 
@@ -5505,9 +5545,11 @@ fn render_remote_append(result: RemoteAppendResult, json: bool) -> Result<()> {
     println!("durability: {}", result.durability);
     println!("topology: {}", result.topology);
     println!("stream: {}", result.stream_id);
-    println!("position: {}", result.position);
+    println!("first position: {}", result.position);
+    println!("last position: {}", result.last_position);
+    println!("records: {}", result.record_count);
     println!("manifest generation: {}", result.manifest_generation);
-    if let Some(segment_id) = result.rolled_segment_id {
+    for segment_id in result.rolled_segment_ids {
         println!("rolled segment: {segment_id}");
     }
     Ok(())
@@ -6141,7 +6183,7 @@ mod tests {
         let append = run_remote_append(ServerAppendArgs {
             server_addr,
             stream_id: "task.root".into(),
-            payload_text: "first".into(),
+            payload_text: vec!["first".into()],
             json: true,
         })
         .expect("append");
@@ -6246,7 +6288,7 @@ mod tests {
         let append = run_remote_append(ServerAppendArgs {
             server_addr,
             stream_id: "task.root".into(),
-            payload_text: "hello".into(),
+            payload_text: vec!["hello".into()],
             json: true,
         })
         .expect("append");
@@ -6284,6 +6326,99 @@ mod tests {
     }
 
     #[test]
+    fn remote_cli_batch_append_accepts_multiple_payload_values_and_reports_batch_metadata() {
+        let (_temp_dir, server, server_addr) = start_server();
+        run_remote_create_root(ServerCreateRootArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            actor: Some("test".into()),
+            reason: Some("batch".into()),
+            labels: vec!["kind=root".into()],
+            json: true,
+        })
+        .expect("create root stream");
+
+        let append = run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            payload_text: vec!["first".into(), "second".into(), "third".into()],
+            json: true,
+        })
+        .expect("append batch");
+        let read = run_remote_read(ServerReadArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            json: true,
+        })
+        .expect("read");
+
+        assert_eq!(append.position, "task.root@0");
+        assert_eq!(append.last_position, "task.root@2");
+        assert_eq!(append.record_count, 3);
+        assert_eq!(read.record_count, 3);
+        assert_eq!(
+            read.records
+                .iter()
+                .map(|record| record.payload_text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["first", "second", "third"]
+        );
+
+        render_remote_append(append, false).expect("render batch append");
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_cli_batch_append_results_serialize_batch_metadata_for_mission_scripts() {
+        let (_temp_dir, server, server_addr) = start_server();
+        run_remote_create_root(ServerCreateRootArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            actor: Some("proof".into()),
+            reason: Some("batch".into()),
+            labels: vec![],
+            json: true,
+        })
+        .expect("create root stream");
+
+        let append = run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: "task.root".into(),
+            payload_text: vec!["first".into(), "second".into()],
+            json: true,
+        })
+        .expect("append batch");
+        let append_json = serde_json::to_value(&append).expect("serialize append");
+
+        assert_eq!(
+            append_json
+                .get("position")
+                .and_then(serde_json::Value::as_str),
+            Some("task.root@0")
+        );
+        assert_eq!(
+            append_json
+                .get("last_position")
+                .and_then(serde_json::Value::as_str),
+            Some("task.root@1")
+        );
+        assert_eq!(
+            append_json
+                .get("record_count")
+                .and_then(serde_json::Value::as_u64),
+            Some(2)
+        );
+        assert!(
+            append_json
+                .get("rolled_segment_ids")
+                .and_then(serde_json::Value::as_array)
+                .is_some()
+        );
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
     fn remote_cli_results_serialize_cleanly_for_mission_proof_scripts() {
         let (_temp_dir, server, server_addr) = start_server();
         let root = run_remote_create_root(ServerCreateRootArgs {
@@ -6299,7 +6434,7 @@ mod tests {
         let append = run_remote_append(ServerAppendArgs {
             server_addr,
             stream_id: "task.root".into(),
-            payload_text: "proof".into(),
+            payload_text: vec!["proof".into()],
             json: true,
         })
         .expect("append");

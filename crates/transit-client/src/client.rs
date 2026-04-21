@@ -6,10 +6,10 @@ use crate::projection::{
 };
 use transit_core::kernel::{LineageMetadata, MergeSpec, Offset, StreamId, StreamPosition};
 use transit_core::server::{
-    RemoteAcknowledged, RemoteAppendOutcome, RemoteClient, RemoteClientError,
-    RemoteDeletedStreamOutcome, RemoteLineageOutcome, RemoteReadOutcome, RemoteStreamListOutcome,
-    RemoteStreamStatus, RemoteTailBatch, RemoteTailSessionCancelled, RemoteTailSessionOpened,
-    TailSessionId,
+    RemoteAcknowledged, RemoteAppendOutcome, RemoteBatchAppendOutcome, RemoteClient,
+    RemoteClientError, RemoteDeletedStreamOutcome, RemoteLineageOutcome, RemoteReadOutcome,
+    RemoteStreamListOutcome, RemoteStreamStatus, RemoteTailBatch, RemoteTailSessionCancelled,
+    RemoteTailSessionOpened, TailSessionId,
 };
 
 pub type ClientResult<T> = std::result::Result<T, RemoteClientError>;
@@ -52,6 +52,18 @@ impl TransitClient {
         payload: impl AsRef<[u8]>,
     ) -> ClientResult<RemoteAcknowledged<RemoteAppendOutcome>> {
         self.inner.append(stream_id, payload)
+    }
+
+    pub fn append_batch<I, P>(
+        &self,
+        stream_id: &StreamId,
+        payloads: I,
+    ) -> ClientResult<RemoteAcknowledged<RemoteBatchAppendOutcome>>
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<[u8]>,
+    {
+        self.inner.append_batch(stream_id, payloads)
     }
 
     pub fn read(
@@ -569,6 +581,84 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![first_payload.as_slice(), second_payload.as_slice()]
         );
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn batch_append_preserves_acknowledgement_envelope_and_replays_individual_records() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let stream_id = StreamId::new("client.hosted.batch").expect("stream id");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("hub.producer".into()),
+                    Some("hosted-batch-proof".into()),
+                ),
+            )
+            .expect("create root");
+
+        let batch = client
+            .append_batch(
+                &stream_id,
+                [
+                    b"first".as_slice(),
+                    b"second".as_slice(),
+                    b"third".as_slice(),
+                ],
+            )
+            .expect("append batch");
+        let replay = client.read(&stream_id).expect("read");
+
+        assert_eq!(batch.ack().durability(), "local");
+        assert_eq!(batch.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(batch.body().first_position().offset.value(), 0);
+        assert_eq!(batch.body().last_position().offset.value(), 2);
+        assert_eq!(batch.body().record_count(), 3);
+        assert_eq!(
+            replay
+                .body()
+                .records()
+                .iter()
+                .map(|record| record.payload())
+                .collect::<Vec<_>>(),
+            vec![
+                b"first".as_slice(),
+                b"second".as_slice(),
+                b"third".as_slice()
+            ]
+        );
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn batch_append_surfaces_hosted_invalid_request_errors() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let stream_id = StreamId::new("client.hosted.batch-errors").expect("stream id");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("hub.producer".into()),
+                    Some("hosted-batch-proof".into()),
+                ),
+            )
+            .expect("create root");
+
+        let error = client
+            .append_batch(&stream_id, Vec::<Vec<u8>>::new())
+            .expect_err("empty batch should fail");
+        match error {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::InvalidRequest);
+                assert!(error.message().contains("at least one payload"));
+            }
+            other => panic!("expected invalid_request for batch append, got {other:?}"),
+        }
 
         server.shutdown().expect("shutdown server");
     }

@@ -17,11 +17,12 @@ pub use transit_core::kernel::{
     StreamLineage, StreamPosition,
 };
 pub use transit_core::server::{
-    RemoteAcknowledged, RemoteAcknowledgement, RemoteAppendOutcome, RemoteClientError,
-    RemoteDeletedStreamOutcome, RemoteErrorCode, RemoteErrorResponse, RemoteLineageOutcome,
-    RemoteReadOutcome, RemoteRecord, RemoteStreamListOutcome, RemoteStreamStatus,
-    RemoteStreamSummary, RemoteTailBatch, RemoteTailSessionCancelled, RemoteTailSessionOpened,
-    RemoteTailSessionState, RemoteTopology, RequestId, TailSessionId,
+    APPEND_BATCH_MAX_BYTES, APPEND_BATCH_MAX_RECORDS, RemoteAcknowledged, RemoteAcknowledgement,
+    RemoteAppendOutcome, RemoteBatchAppendOutcome, RemoteClientError, RemoteDeletedStreamOutcome,
+    RemoteErrorCode, RemoteErrorResponse, RemoteLineageOutcome, RemoteReadOutcome, RemoteRecord,
+    RemoteStreamListOutcome, RemoteStreamStatus, RemoteStreamSummary, RemoteTailBatch,
+    RemoteTailSessionCancelled, RemoteTailSessionOpened, RemoteTailSessionState, RemoteTopology,
+    RequestId, TailSessionId,
 };
 
 pub use client::{ClientResult, TransitClient};
