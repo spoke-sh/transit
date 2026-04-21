@@ -2389,24 +2389,38 @@ impl LocalEngine {
     }
 
     fn read_replay_records(&self, stream_id: &StreamId) -> Result<Vec<LocalRecord>> {
-        let state = self.load_state(stream_id)?;
-        let mut records = self.read_inherited_records(&state.descriptor)?;
-        let mut expected_next_offset = records
-            .last()
-            .map(|record| record.position.offset.value() + 1)
-            .unwrap_or(0);
+        const ACTIVE_HEAD_RETRY_ATTEMPTS: usize = 32;
 
-        let manifest = self.load_manifest(stream_id)?;
-        for descriptor in manifest.segments() {
-            let segment_records =
-                self.read_committed_segment(stream_id, descriptor, expected_next_offset)?;
-            expected_next_offset = descriptor.last_offset().value() + 1;
-            records.extend(segment_records);
+        let mut last_active_head_error = None;
+        for _ in 0..ACTIVE_HEAD_RETRY_ATTEMPTS {
+            let state = self.load_state(stream_id)?;
+            let mut records = self.read_inherited_records(&state.descriptor)?;
+            let mut expected_next_offset = records
+                .last()
+                .map(|record| record.position.offset.value() + 1)
+                .unwrap_or(0);
+
+            let manifest = self.load_manifest(stream_id)?;
+            for descriptor in manifest.segments() {
+                let segment_records =
+                    self.read_committed_segment(stream_id, descriptor, expected_next_offset)?;
+                expected_next_offset = descriptor.last_offset().value() + 1;
+                records.extend(segment_records);
+            }
+
+            match self.read_active_head(stream_id, &state, expected_next_offset) {
+                Ok(active_records) => {
+                    records.extend(active_records);
+                    return Ok(records);
+                }
+                Err(error) => {
+                    last_active_head_error = Some(error);
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+            }
         }
 
-        let active_records = self.read_active_head(stream_id, &state, expected_next_offset)?;
-        records.extend(active_records);
-        Ok(records)
+        Err(last_active_head_error.expect("active head retries should capture an error"))
     }
 
     fn roll_active_segment_for_replication(
@@ -2517,14 +2531,15 @@ impl LocalEngine {
         );
 
         let active_path = self.active_segment_path(stream_id);
-        let persisted = read_records(&active_path)?;
+        let mut persisted = read_records(&active_path)?;
         ensure!(
-            persisted.len() as u64 == state.active_record_count,
-            "active head for '{}' expected {} records but found {}",
+            persisted.len() as u64 >= state.active_record_count,
+            "active head for '{}' expected at least {} records but found {}",
             stream_id.as_str(),
             state.active_record_count,
             persisted.len()
         );
+        persisted.truncate(state.active_record_count as usize);
 
         validate_record_offsets(
             &persisted,

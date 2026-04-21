@@ -138,6 +138,9 @@ struct StreamsListArgs {
     /// Transit server address. Defaults to configured [server].listen_addr.
     #[arg(long = "server-addr")]
     server_addr: Option<SocketAddr>,
+    /// Client-side per-connection I/O timeout in milliseconds.
+    #[arg(long = "connection-io-timeout-ms")]
+    connection_io_timeout_ms: Option<u64>,
     /// Render list output as JSON.
     #[arg(long)]
     json: bool,
@@ -148,6 +151,9 @@ struct StreamsCreateArgs {
     /// Transit server address. Defaults to configured [server].listen_addr.
     #[arg(long = "server-addr")]
     server_addr: Option<SocketAddr>,
+    /// Client-side per-connection I/O timeout in milliseconds.
+    #[arg(long = "connection-io-timeout-ms")]
+    connection_io_timeout_ms: Option<u64>,
     /// Stream identifier to create.
     #[arg(long = "stream-id")]
     stream_id: String,
@@ -170,6 +176,9 @@ struct StreamsDeleteArgs {
     /// Transit server address. Defaults to configured [server].listen_addr.
     #[arg(long = "server-addr")]
     server_addr: Option<SocketAddr>,
+    /// Client-side per-connection I/O timeout in milliseconds.
+    #[arg(long = "connection-io-timeout-ms")]
+    connection_io_timeout_ms: Option<u64>,
     /// Stream identifier to delete.
     #[arg(long = "stream-id")]
     stream_id: String,
@@ -186,6 +195,9 @@ struct ProduceArgs {
     /// Transit server address. Defaults to configured [server].listen_addr.
     #[arg(long = "server-addr")]
     server_addr: Option<SocketAddr>,
+    /// Client-side per-connection I/O timeout in milliseconds.
+    #[arg(long = "connection-io-timeout-ms")]
+    connection_io_timeout_ms: Option<u64>,
     /// Stream identifier to append to.
     #[arg(long = "stream-id")]
     stream_id: String,
@@ -202,6 +214,9 @@ struct ConsumeArgs {
     /// Transit server address. Defaults to configured [server].listen_addr.
     #[arg(long = "server-addr")]
     server_addr: Option<SocketAddr>,
+    /// Client-side per-connection I/O timeout in milliseconds.
+    #[arg(long = "connection-io-timeout-ms")]
+    connection_io_timeout_ms: Option<u64>,
     /// Stream identifier to read from.
     #[arg(long = "stream-id")]
     stream_id: String,
@@ -540,7 +555,10 @@ async fn main() -> Result<()> {
             StreamsCommands::List(args) => {
                 let json = args.json;
                 render_streams_list(
-                    run_streams_list(resolve_server_addr(args.server_addr, &config))?,
+                    run_streams_list(
+                        resolve_server_addr(args.server_addr, &config),
+                        args.connection_io_timeout_ms,
+                    )?,
                     json,
                 )?
             }
@@ -3267,8 +3285,11 @@ fn bind_hosted_runtime_server(
     ServerHandle::bind(server_config).context("bind shared-engine server")
 }
 
-fn run_streams_list(server_addr: SocketAddr) -> Result<RemoteStreamListResult> {
-    let client = RemoteClient::new(server_addr);
+fn run_streams_list(
+    server_addr: SocketAddr,
+    connection_io_timeout_ms: Option<u64>,
+) -> Result<RemoteStreamListResult> {
+    let client = build_remote_client(server_addr, connection_io_timeout_ms);
     let listed = client
         .list_streams()
         .with_context(|| format!("list remote streams at {server_addr}"))?;
@@ -3292,14 +3313,16 @@ fn run_streams_create(
     server_addr: SocketAddr,
     args: StreamsCreateArgs,
 ) -> Result<RemoteStreamStatusResult> {
-    run_remote_create_root(ServerCreateRootArgs {
-        server_addr,
-        stream_id: args.stream_id,
-        actor: args.actor,
-        reason: args.reason,
-        labels: args.labels,
-        json: args.json,
-    })
+    let client = build_remote_client(server_addr, args.connection_io_timeout_ms);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let created = client
+        .create_root(
+            &stream_id,
+            parse_lineage_metadata(args.actor, args.reason, args.labels)?,
+        )
+        .with_context(|| format!("create remote root {}", stream_id.as_str()))?;
+
+    Ok(summarize_remote_stream_status(server_addr, created))
 }
 
 fn run_streams_delete(
@@ -3312,7 +3335,7 @@ fn run_streams_delete(
         args.stream_id
     );
 
-    let client = RemoteClient::new(server_addr);
+    let client = build_remote_client(server_addr, args.connection_io_timeout_ms);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
     let deleted = client
         .delete_stream(&stream_id)
@@ -3330,7 +3353,7 @@ fn run_streams_delete(
 }
 
 fn run_produce(server_addr: SocketAddr, args: ProduceArgs) -> Result<ProduceResult> {
-    let client = RemoteClient::new(server_addr);
+    let client = build_remote_client(server_addr, args.connection_io_timeout_ms);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
     let payloads = read_produce_payloads(args.payload_text)?;
     ensure!(
@@ -3360,7 +3383,7 @@ fn run_produce(server_addr: SocketAddr, args: ProduceArgs) -> Result<ProduceResu
 }
 
 fn run_consume(server_addr: SocketAddr, args: ConsumeArgs) -> Result<ConsumeResult> {
-    let client = RemoteClient::new(server_addr);
+    let client = build_remote_client(server_addr, args.connection_io_timeout_ms);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
     let read = client
         .tail(&stream_id, Offset::new(args.from_offset))
@@ -6341,13 +6364,14 @@ mod tests {
     fn streams_produce_and_consume_cover_the_kcat_style_remote_flow() {
         let (_temp_dir, server, server_addr) = start_server();
 
-        let listed_before = run_streams_list(server_addr).expect("list streams");
+        let listed_before = run_streams_list(server_addr, None).expect("list streams");
         assert_eq!(listed_before.stream_count, 0);
 
         let created = run_streams_create(
             server_addr,
             StreamsCreateArgs {
                 server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
                 stream_id: "task.root".into(),
                 actor: Some("cli".into()),
                 reason: Some("create".into()),
@@ -6358,7 +6382,7 @@ mod tests {
         .expect("create stream");
         assert_eq!(created.stream_id, "task.root");
 
-        let listed_after = run_streams_list(server_addr).expect("list streams");
+        let listed_after = run_streams_list(server_addr, None).expect("list streams");
         assert_eq!(listed_after.stream_count, 1);
         assert_eq!(listed_after.streams[0].stream_id, "task.root");
         assert_eq!(listed_after.streams[0].lineage_kind, "root");
@@ -6367,6 +6391,7 @@ mod tests {
             server_addr,
             ProduceArgs {
                 server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
                 stream_id: "task.root".into(),
                 payload_text: vec!["first".into(), "second".into()],
                 json: true,
@@ -6380,6 +6405,7 @@ mod tests {
             server_addr,
             ConsumeArgs {
                 server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
                 stream_id: "task.root".into(),
                 from_offset: 1,
                 limit: Some(1),
@@ -6396,6 +6422,7 @@ mod tests {
             server_addr,
             StreamsDeleteArgs {
                 server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
                 stream_id: "task.root".into(),
                 force: true,
                 json: true,

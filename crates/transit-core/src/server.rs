@@ -97,14 +97,12 @@ impl ServerHandle {
         let accepted_connections = Arc::new(AtomicU64::new(0));
         let fatal_error = Arc::new(Mutex::new(None));
         let tail_sessions = Arc::new(Mutex::new(TailSessionRegistry::default()));
-        let request_gate = Arc::new(Mutex::new(()));
 
         let thread_engine = engine.clone();
         let thread_shutdown = Arc::clone(&shutdown_requested);
         let thread_connections = Arc::clone(&accepted_connections);
         let thread_error = Arc::clone(&fatal_error);
         let thread_tail_sessions = Arc::clone(&tail_sessions);
-        let thread_request_gate = Arc::clone(&request_gate);
         let accept_poll_interval = config.accept_poll_interval();
         let connection_io_timeout = config.connection_io_timeout();
         let listener_thread = thread::Builder::new()
@@ -118,7 +116,6 @@ impl ServerHandle {
                         accepted_connections: thread_connections,
                         fatal_error: thread_error,
                         tail_sessions: thread_tail_sessions,
-                        request_gate: thread_request_gate,
                         accept_poll_interval,
                         connection_io_timeout,
                     },
@@ -1178,7 +1175,6 @@ struct AcceptLoopContext {
     accepted_connections: Arc<AtomicU64>,
     fatal_error: Arc<Mutex<Option<String>>>,
     tail_sessions: Arc<Mutex<TailSessionRegistry>>,
-    request_gate: Arc<Mutex<()>>,
     accept_poll_interval: Duration,
     connection_io_timeout: Duration,
 }
@@ -1208,7 +1204,6 @@ fn run_accept_loop(listener: TcpListener, context: AcceptLoopContext) {
                 context.accepted_connections.fetch_add(1, Ordering::AcqRel);
                 let worker_engine = context.engine.clone();
                 let worker_tail_sessions = Arc::clone(&context.tail_sessions);
-                let worker_request_gate = Arc::clone(&context.request_gate);
                 let worker_io_timeout = context.connection_io_timeout;
                 match thread::Builder::new()
                     .name("transit-server-connection".into())
@@ -1217,7 +1212,6 @@ fn run_accept_loop(listener: TcpListener, context: AcceptLoopContext) {
                             stream,
                             &worker_engine,
                             &worker_tail_sessions,
-                            &worker_request_gate,
                             worker_io_timeout,
                         );
                     }) {
@@ -1288,15 +1282,13 @@ fn serve_connection(
     mut stream: TcpStream,
     engine: &LocalEngine,
     tail_sessions: &Arc<Mutex<TailSessionRegistry>>,
-    request_gate: &Arc<Mutex<()>>,
     io_timeout: Duration,
 ) {
     let response = match configure_connection_stream(&stream, io_timeout) {
         Ok(()) => match read_request(&mut stream) {
             Ok(request) => {
-                let _request_guard = request_gate
-                    .lock()
-                    .expect("server request gate mutex poisoned");
+                #[cfg(test)]
+                maybe_pause_request_for_test(&request);
                 handle_request(engine, tail_sessions, request)
             }
             Err(error) => invalid_request_response(RequestId::server_generated("decode"), error),
@@ -1503,6 +1495,80 @@ fn handle_request(
             Err(error) => engine_error_response(request_id, error),
         },
     }
+}
+
+#[cfg(test)]
+#[derive(Debug, Default)]
+struct RequestPauseState {
+    armed: bool,
+    entered: bool,
+    released: bool,
+}
+
+#[cfg(test)]
+fn request_pause_state() -> &'static (std::sync::Mutex<RequestPauseState>, std::sync::Condvar) {
+    static STATE: std::sync::OnceLock<(std::sync::Mutex<RequestPauseState>, std::sync::Condvar)> =
+        std::sync::OnceLock::new();
+    STATE.get_or_init(|| {
+        (
+            std::sync::Mutex::new(RequestPauseState::default()),
+            std::sync::Condvar::new(),
+        )
+    })
+}
+
+#[cfg(test)]
+fn arm_request_pause_for_test() {
+    let (lock, _) = request_pause_state();
+    let mut state = lock.lock().expect("request pause mutex poisoned");
+    *state = RequestPauseState {
+        armed: true,
+        entered: false,
+        released: false,
+    };
+}
+
+#[cfg(test)]
+fn maybe_pause_request_for_test(request: &ProtocolRequest) {
+    if !request.request_id.as_str().starts_with("pause-") {
+        return;
+    }
+
+    let (lock, condvar) = request_pause_state();
+    let mut state = lock.lock().expect("request pause mutex poisoned");
+    if !state.armed || state.entered {
+        return;
+    }
+
+    state.entered = true;
+    condvar.notify_all();
+    while !state.released {
+        state = condvar
+            .wait(state)
+            .expect("request pause mutex poisoned while waiting");
+    }
+    state.armed = false;
+    state.entered = false;
+    state.released = false;
+}
+
+#[cfg(test)]
+fn wait_for_paused_request_for_test() {
+    let (lock, condvar) = request_pause_state();
+    let mut state = lock.lock().expect("request pause mutex poisoned");
+    while !state.entered {
+        state = condvar
+            .wait(state)
+            .expect("request pause mutex poisoned while waiting");
+    }
+}
+
+#[cfg(test)]
+fn release_paused_request_for_test() {
+    let (lock, condvar) = request_pause_state();
+    let mut state = lock.lock().expect("request pause mutex poisoned");
+    state.released = true;
+    condvar.notify_all();
 }
 
 fn map_append_outcome(outcome: LocalAppendOutcome) -> RemoteAppendOutcome {
@@ -1865,7 +1931,8 @@ mod tests {
         DEFAULT_CONNECTION_IO_TIMEOUT_MS, OperationRequest, OperationResponse, ProtocolRequest,
         ProtocolResponse, RemoteClient, RemoteClientError, RemoteClientResult, RemoteErrorCode,
         RemoteTailSessionState, RemoteTopology, RequestId, ResponseEnvelope, ServerConfig,
-        ServerHandle, configure_connection_stream,
+        ServerHandle, arm_request_pause_for_test, configure_connection_stream,
+        release_paused_request_for_test, wait_for_paused_request_for_test,
     };
     use crate::engine::{DurabilityMode, LocalEngine, LocalEngineConfig};
     use crate::kernel::{
@@ -2075,6 +2142,53 @@ mod tests {
         wait_for_accepted_connections(&server, 2);
 
         drop(blocking_stream);
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn hosted_active_request_does_not_block_other_connections() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(
+            ServerConfig::new(
+                LocalEngineConfig::new(
+                    temp_dir.path(),
+                    crate::membership::NodeId::new("test-node"),
+                ),
+                "127.0.0.1:0".parse().expect("listen addr"),
+            )
+            .with_connection_io_timeout(Duration::from_secs(5)),
+        )
+        .expect("bind server");
+        let server_addr = server.local_addr();
+
+        arm_request_pause_for_test();
+        let paused_request = ProtocolRequest {
+            request_id: RequestId::new("pause-list").expect("pause request id"),
+            operation: OperationRequest::ListStreams,
+        };
+        let paused_thread =
+            thread::spawn(move || send_protocol_request(server_addr, paused_request));
+        wait_for_paused_request_for_test();
+
+        let client =
+            RemoteClient::new(server.local_addr()).with_io_timeout(Duration::from_millis(250));
+        let created = client.create_root(
+            &stream_id("task.concurrent.root"),
+            LineageMetadata::new(Some("test".into()), Some("concurrency".into())),
+        );
+
+        release_paused_request_for_test();
+        let paused_response = paused_thread.join().expect("join paused request");
+
+        let created = created.expect("active request should not block other connections");
+        assert_eq!(created.body().stream_id().as_str(), "task.concurrent.root");
+        match paused_response.envelope {
+            ResponseEnvelope::Ack { outcome, .. } => {
+                assert!(matches!(*outcome, OperationResponse::StreamListOk(_)));
+            }
+            other => panic!("expected ack envelope, got {other:?}"),
+        }
+
         server.shutdown().expect("shutdown server");
     }
 
