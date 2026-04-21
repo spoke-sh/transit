@@ -5824,13 +5824,6 @@ fn render_streams_list(result: RemoteStreamListResult, json: bool) -> Result<()>
         return Ok(());
     }
 
-    println!("transit streams list");
-    println!("server: {}", result.server_addr);
-    println!("request: {}", result.request_id);
-    println!("durability: {}", result.durability);
-    println!("topology: {}", result.topology);
-    println!("streams: {}", result.stream_count);
-
     let headers = vec![
         "stream_id".to_owned(),
         "lineage".to_owned(),
@@ -5879,7 +5872,6 @@ fn render_streams_list(result: RemoteStreamListResult, json: bool) -> Result<()>
         }
     }
 
-    println!();
     println!("{}", render_ascii_table_row(&headers, &widths));
     println!("{}", render_ascii_table_separator(&widths));
     for row in &rows {
