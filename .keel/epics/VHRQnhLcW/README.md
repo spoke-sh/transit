@@ -22,8 +22,8 @@ mission: VHRQnhScY
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 2/3 stories done
+**Progress:** 1/1 voyages complete, 3/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Deliver Hosted Batch Append Surface](voyages/VHRR4L3Dx/) | in-progress | 2/3 |
+| [Deliver Hosted Batch Append Surface](voyages/VHRR4L3Dx/) | done | 3/3 |
 <!-- END GENERATED -->

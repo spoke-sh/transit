@@ -7,7 +7,8 @@
 //!
 //! `TransitClient` is the thin operation wrapper. The crate root also
 //! re-exports the kernel input types and the hosted response/error vocabulary
-//! needed for append, read, branch, lineage, and tail operations.
+//! needed for append, batch append, read, branch, lineage, and tail
+//! operations.
 
 mod client;
 mod projection;

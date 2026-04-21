@@ -189,11 +189,11 @@
 |--------|--------|
 | [Embedded Cursor Primitive And Engine Storage](epics/VGzzXWgvv/voyages/VGzzmJ8c8/) | done |
 
-### [Single-Stream Batch Append For Hosted Protocol](epics/VHRQnhLcW/) (active)
+### [Single-Stream Batch Append For Hosted Protocol](epics/VHRQnhLcW/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Deliver Hosted Batch Append Surface](epics/VHRQnhLcW/voyages/VHRR4L3Dx/) | in-progress |
+| [Deliver Hosted Batch Append Surface](epics/VHRQnhLcW/voyages/VHRR4L3Dx/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
