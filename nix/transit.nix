@@ -5,12 +5,11 @@
 pkgs.rustPlatform.buildRustPackage {
   pname = "transit";
   inherit version;
-  src = ../.;
+  src = pkgs.lib.cleanSource ../.;
   cargoLock = {
     lockFile = ../Cargo.lock;
   };
   doCheck = false;
   cargoBuildFlags = [ "-p" "transit-cli" ];
   cargoCheckFlags = [ "-p" "transit-cli" ];
-  sourceRoot = ".";
 }
