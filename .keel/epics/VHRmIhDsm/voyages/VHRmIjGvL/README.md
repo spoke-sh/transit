@@ -1,7 +1,7 @@
 ---
 # system-managed
 id: VHRmIjGvL
-status: in-progress
+status: done
 epic: VHRmIhDsm
 created_at: 2026-04-21T10:20:34
 # authored
@@ -9,6 +9,7 @@ title: Deliver Hosted Transport Robustness Improvements
 index: 1
 updated_at: 2026-04-21T10:25:32
 started_at: 2026-04-21T10:25:39
+completed_at: 2026-04-21T10:43:49
 ---
 
 # Deliver Hosted Transport Robustness Improvements
@@ -22,16 +23,18 @@ started_at: 2026-04-21T10:25:39
 |----------|-------------|
 | [SRS.md](SRS.md) | Requirements and verification criteria |
 | [SDD.md](SDD.md) | Architecture and implementation details |
+| [VOYAGE_REPORT.md](VOYAGE_REPORT.md) | Narrative summary of implementation and evidence |
+| [COMPLIANCE_REPORT.md](COMPLIANCE_REPORT.md) | Traceability matrix and verification proof |
 <!-- END DOCUMENTS -->
 
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 2/3 stories complete
+**Progress:** 3/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Add Configurable Hosted I/O Timeouts To Server And Client Surfaces](../../../../stories/VHRmM7JKd/README.md) | feat | done |
 | [Serve Hosted Connections Concurrently Under Producer Consumer Load](../../../../stories/VHRmM8aLE/README.md) | feat | done |
-| [Publish Hosted Timeout Proof Coverage And Operator Guidance](../../../../stories/VHRmM9dNP/README.md) | feat | backlog |
+| [Publish Hosted Timeout Proof Coverage And Operator Guidance](../../../../stories/VHRmM9dNP/README.md) | feat | done |
 <!-- END GENERATED -->

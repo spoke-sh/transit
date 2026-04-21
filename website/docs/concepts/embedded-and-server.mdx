@@ -39,6 +39,8 @@ The server should preserve:
 - the same append ordering rules
 - the same single-stream batch append semantics, with one batch acknowledgement
   and ordinary per-record replay
+- the same meaning of append, replay, and tail even when hosted connection I/O
+  timeouts are raised for operational robustness
 - the same lineage semantics
 - the same storage and durability boundaries
 
@@ -54,6 +56,8 @@ The lower-level `transit server ...` namespace remains available when you need p
 
 That lower-level namespace also carries the hosted batch append shape for one
 stream through repeated `--payload-text` values on `transit server append`.
+It also carries runtime timeout tuning for the daemon and hosted proofs without
+creating a second semantic world for server deployments.
 
 ## What Transit Tries To Avoid
 

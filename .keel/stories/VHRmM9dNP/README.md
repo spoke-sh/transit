@@ -1,15 +1,18 @@
 ---
 # system-managed
 id: VHRmM9dNP
-status: backlog
+status: done
 created_at: 2026-04-21T10:20:47
-updated_at: 2026-04-21T10:25:32
+updated_at: 2026-04-21T10:43:49
 # authored
 title: Publish Hosted Timeout Proof Coverage And Operator Guidance
 type: feat
 operator-signal:
 scope: VHRmIhDsm/VHRmIjGvL
 index: 3
+started_at: 2026-04-21T10:36:53
+submitted_at: 2026-04-21T10:43:46
+completed_at: 2026-04-21T10:43:49
 ---
 
 # Publish Hosted Timeout Proof Coverage And Operator Guidance
@@ -22,5 +25,5 @@ surface instead of remaining test-only.
 
 ## Acceptance Criteria
 
-- [ ] [SRS-03/AC-01] The CLI/server proof surface can configure the new hosted timeout values explicitly for proof runs. <!-- verify: cargo test -p transit-cli hosted_timeout_proof_ -- --nocapture, SRS-03:start:end -->
-- [ ] [SRS-NFR-03/AC-02] Downstream-facing guidance documents the timeout knobs, their intended use, and the semantics they do not change. <!-- verify: manual, SRS-NFR-03:start:end -->
+- [x] [SRS-03/AC-01] The CLI/server proof surface can configure the new hosted timeout values explicitly for proof runs. <!-- verify: cargo test -p transit-cli hosted_timeout_proof_ -- --nocapture, SRS-03:start:end -->
+- [x] [SRS-NFR-03/AC-02] Downstream-facing guidance documents the timeout knobs, their intended use, and the semantics they do not change. <!-- verify: manual, SRS-NFR-03:start:end -->

@@ -69,6 +69,28 @@ Failure behavior is explicit:
 - successful batch append still commits ordinary per-record offsets, replay, and
   tail behavior; consumers continue to observe individual Transit records
 
+## Hosted I/O Timeouts
+
+Hosted transport defaults remain explicit at 1000ms on both the server and
+client sides. Downstream Rust clients can raise the client-side timeout without
+changing the hosted acknowledgement or error envelopes:
+
+```rust
+use std::time::Duration;
+use transit_client::{StreamId, TransitClient};
+
+let client = TransitClient::new("127.0.0.1:7171".parse()?)
+    .with_io_timeout(Duration::from_secs(5));
+
+let replay = client.read(&StreamId::new("consumer.orders")?)?;
+```
+
+This is transport tuning only:
+
+- `request_id` correlation stays literal
+- `ack.durability` and `ack.topology` stay literal
+- append, replay, batch append, and tail semantics do not change
+
 Projection reads stay replay-driven. `transit-client` publishes the helper, but
 the caller still owns reducer logic and payload meaning:
 

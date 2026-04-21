@@ -34,6 +34,8 @@ use transit_materialize::{
 };
 use transit_server::bind_read_only_replica_from_frontier;
 
+const DEFAULT_HOSTED_IO_TIMEOUT_MS: u64 = 1_000;
+
 #[derive(Debug, Parser)]
 #[command(name = "transit")]
 #[command(about = "Object-storage-native append-only log bootstrap")]
@@ -89,9 +91,9 @@ enum ProofCommands {
     /// Exercise automatic leader election and primary fencing after a simulated failure.
     ChaosFailover(LocalEngineProofArgs),
     /// Exercise the networked single-node server and its transport boundary end to end.
-    NetworkedServer(LocalEngineProofArgs),
+    NetworkedServer(HostedProofArgs),
     /// Exercise thin-client producers and readers against a hosted transit-server authority.
-    HostedAuthority(LocalEngineProofArgs),
+    HostedAuthority(HostedProofArgs),
     /// Exercise server restart and warm-cache recovery from the authoritative remote tier.
     WarmCacheRecovery(LocalEngineProofArgs),
     /// Exercise segment, manifest-root, checkpoint, tamper, and server-parity verification across the integrity proof flow.
@@ -228,6 +230,22 @@ struct LocalEngineProofArgs {
 }
 
 #[derive(Debug, Args)]
+struct HostedProofArgs {
+    /// Filesystem root used for the hosted proof. Defaults to configured [node].data_dir.
+    #[arg(long)]
+    root: Option<PathBuf>,
+    /// Server-side per-connection I/O timeout in milliseconds.
+    #[arg(long = "server-connection-io-timeout-ms")]
+    server_connection_io_timeout_ms: Option<u64>,
+    /// Client-side connection I/O timeout in milliseconds.
+    #[arg(long = "client-io-timeout-ms")]
+    client_io_timeout_ms: Option<u64>,
+    /// Render proof output as JSON.
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Debug, Args)]
 struct IntegrityProofArgs {
     /// Filesystem root used for the local integrity proof. Defaults to configured [node].data_dir.
     #[arg(long)]
@@ -356,6 +374,9 @@ struct ServerRunArgs {
     /// Object store root used for consensus leases.
     #[arg(long = "consensus-root")]
     consensus_root: Option<PathBuf>,
+    /// Server-side per-connection I/O timeout in milliseconds.
+    #[arg(long = "connection-io-timeout-ms")]
+    connection_io_timeout_ms: Option<u64>,
     /// Render server lifecycle output as JSON.
     #[arg(long)]
     json: bool,
@@ -562,14 +583,28 @@ async fn main() -> Result<()> {
                 run_chaos_failover_proof(resolve_local_root(args.root, &config)).await?,
                 args.json,
             )?,
-            ProofCommands::NetworkedServer(args) => render_networked_server_proof(
-                run_networked_server_proof(resolve_local_root(args.root, &config))?,
-                args.json,
-            )?,
-            ProofCommands::HostedAuthority(args) => render_hosted_authority_proof(
-                run_hosted_authority_proof(resolve_local_root(args.root, &config))?,
-                args.json,
-            )?,
+            ProofCommands::NetworkedServer(args) => {
+                let json = args.json;
+                render_networked_server_proof(
+                    run_networked_server_proof(
+                        resolve_local_root(args.root, &config),
+                        args.server_connection_io_timeout_ms,
+                        args.client_io_timeout_ms,
+                    )?,
+                    json,
+                )?
+            }
+            ProofCommands::HostedAuthority(args) => {
+                let json = args.json;
+                render_hosted_authority_proof(
+                    run_hosted_authority_proof(
+                        resolve_local_root(args.root, &config),
+                        args.server_connection_io_timeout_ms,
+                        args.client_io_timeout_ms,
+                    )?,
+                    json,
+                )?
+            }
             ProofCommands::WarmCacheRecovery(args) => render_warm_cache_recovery_proof(
                 run_warm_cache_recovery_proof(resolve_local_root(args.root, &config)).await?,
                 args.json,
@@ -1229,6 +1264,8 @@ struct NetworkedServerProofResult {
     server_addr: String,
     durability: String,
     topology: String,
+    server_connection_io_timeout_ms: u64,
+    client_io_timeout_ms: u64,
     root_stream: RemoteStreamStatusResult,
     initial_append: RemoteAppendResult,
     root_replay: RemoteReadResult,
@@ -1253,6 +1290,8 @@ struct HostedAuthorityProofResult {
     server_addr: String,
     durability: String,
     topology: String,
+    server_connection_io_timeout_ms: u64,
+    client_io_timeout_ms: u64,
     stream_id: String,
     root_stream: RemoteStreamStatusResult,
     producer_appends: Vec<RemoteAppendResult>,
@@ -1652,6 +1691,7 @@ struct ServerRunResult {
     requested_listen_addr: String,
     bound_listen_addr: String,
     durability: String,
+    connection_io_timeout_ms: u64,
     accepted_connections: u64,
     graceful_shutdown: bool,
     server_api: &'static str,
@@ -1891,105 +1931,217 @@ fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
     })
 }
 
-fn run_networked_server_proof(root: PathBuf) -> Result<NetworkedServerProofResult> {
+fn effective_hosted_io_timeout_ms(io_timeout_ms: Option<u64>) -> u64 {
+    io_timeout_ms.unwrap_or(DEFAULT_HOSTED_IO_TIMEOUT_MS)
+}
+
+fn build_remote_client(server_addr: SocketAddr, io_timeout_ms: Option<u64>) -> RemoteClient {
+    match io_timeout_ms {
+        Some(io_timeout_ms) => {
+            RemoteClient::new(server_addr).with_io_timeout(Duration::from_millis(io_timeout_ms))
+        }
+        None => RemoteClient::new(server_addr),
+    }
+}
+
+fn build_transit_client(server_addr: SocketAddr, io_timeout_ms: Option<u64>) -> TransitClient {
+    match io_timeout_ms {
+        Some(io_timeout_ms) => {
+            TransitClient::new(server_addr).with_io_timeout(Duration::from_millis(io_timeout_ms))
+        }
+        None => TransitClient::new(server_addr),
+    }
+}
+
+fn configure_server_connection_timeout(
+    server_config: ServerConfig,
+    connection_io_timeout_ms: Option<u64>,
+) -> ServerConfig {
+    match connection_io_timeout_ms {
+        Some(connection_io_timeout_ms) => server_config
+            .with_connection_io_timeout(Duration::from_millis(connection_io_timeout_ms)),
+        None => server_config,
+    }
+}
+
+fn run_networked_server_proof(
+    root: PathBuf,
+    server_connection_io_timeout_ms: Option<u64>,
+    client_io_timeout_ms: Option<u64>,
+) -> Result<NetworkedServerProofResult> {
     reset_directory(&root)?;
 
     let requested_listen_addr = "127.0.0.1:0"
         .parse::<SocketAddr>()
         .context("parse networked server proof listen addr")?;
-    let server = ServerHandle::bind(ServerConfig::new(
-        LocalEngineConfig::new(&root, NodeId::new("cli-node")).with_segment_max_records(2)?,
-        requested_listen_addr,
+    let server = ServerHandle::bind(configure_server_connection_timeout(
+        ServerConfig::new(
+            LocalEngineConfig::new(&root, NodeId::new("cli-node")).with_segment_max_records(2)?,
+            requested_listen_addr,
+        ),
+        server_connection_io_timeout_ms,
     ))
     .context("bind networked server proof daemon")?;
     let server_addr = server.local_addr();
+    let client = build_remote_client(server_addr, client_io_timeout_ms);
+    let root_stream_id = StreamId::new("mission.root")?;
 
-    let root_stream = run_remote_create_root(ServerCreateRootArgs {
+    let root_stream = summarize_remote_stream_status(
         server_addr,
-        stream_id: "mission.root".into(),
-        actor: Some("mission".into()),
-        reason: Some("networked-server-proof".into()),
-        labels: vec!["kind=root".into()],
-        json: false,
-    })?;
-    let initial_append = run_remote_append(ServerAppendArgs {
+        client.create_root(
+            &root_stream_id,
+            parse_lineage_metadata(
+                Some("mission".into()),
+                Some("networked-server-proof".into()),
+                vec!["kind=root".into()],
+            )?,
+        )?,
+    );
+    let initial_append = summarize_remote_append(
         server_addr,
-        stream_id: "mission.root".into(),
-        payload_text: vec!["root-0".into()],
-        json: false,
-    })?;
-    let root_replay = run_remote_read(ServerReadArgs {
+        &root_stream_id,
+        client.append_batch(&root_stream_id, [b"root-0".as_slice()])?,
+    );
+    let root_replay =
+        summarize_remote_read(server_addr, &root_stream_id, client.read(&root_stream_id)?);
+
+    let branch_stream_id = StreamId::new("mission.branch")?;
+    let branch_stream = summarize_remote_stream_status(
         server_addr,
-        stream_id: "mission.root".into(),
-        json: false,
-    })?;
-    let branch_stream = run_remote_branch(ServerBranchArgs {
+        client.create_branch(
+            &branch_stream_id,
+            StreamPosition::new(root_stream_id.clone(), Offset::new(0)),
+            parse_lineage_metadata(
+                Some("mission.classifier".into()),
+                Some("thread-split".into()),
+                vec!["thread=1".into()],
+            )?,
+        )?,
+    );
+
+    let second_branch_stream_id = StreamId::new("mission.branch-two")?;
+    let second_branch_stream = summarize_remote_stream_status(
         server_addr,
-        stream_id: "mission.branch".into(),
-        parent_stream_id: "mission.root".into(),
-        parent_offset: 0,
-        actor: Some("mission.classifier".into()),
-        reason: Some("thread-split".into()),
-        labels: vec!["thread=1".into()],
-        json: false,
-    })?;
-    let second_branch_stream = run_remote_branch(ServerBranchArgs {
+        client.create_branch(
+            &second_branch_stream_id,
+            StreamPosition::new(root_stream_id.clone(), Offset::new(0)),
+            parse_lineage_metadata(
+                Some("mission.classifier".into()),
+                Some("thread-split-two".into()),
+                vec!["thread=2".into()],
+            )?,
+        )?,
+    );
+
+    let merge_stream_id = StreamId::new("mission.merge")?;
+    let merge_stream = summarize_remote_stream_status(
         server_addr,
-        stream_id: "mission.branch-two".into(),
-        parent_stream_id: "mission.root".into(),
-        parent_offset: 0,
-        actor: Some("mission.classifier".into()),
-        reason: Some("thread-split-two".into()),
-        labels: vec!["thread=2".into()],
-        json: false,
-    })?;
-    let merge_stream = run_remote_merge(ServerMergeArgs {
+        client.create_merge(
+            &merge_stream_id,
+            MergeSpec::new(
+                vec![
+                    StreamPosition::new(branch_stream_id.clone(), Offset::new(0)),
+                    StreamPosition::new(second_branch_stream_id.clone(), Offset::new(0)),
+                ],
+                Some(StreamPosition::new(root_stream_id.clone(), Offset::new(0))),
+                parse_merge_policy("recursive", &["resolver=mission-judge".into()])?,
+                parse_lineage_metadata(
+                    Some("mission.judge".into()),
+                    Some("merge-branches".into()),
+                    vec!["decision=accepted".into()],
+                )?,
+            )?,
+        )?,
+    );
+
+    let merge_lineage = {
+        let lineage = client.inspect_lineage(&merge_stream_id)?;
+        let descriptor = lineage.body().descriptor();
+        RemoteLineageResult {
+            server_addr: server_addr.to_string(),
+            request_id: lineage.request_id().as_str().to_owned(),
+            durability: lineage.ack().durability().to_owned(),
+            topology: render_topology(lineage.ack().topology()),
+            stream_id: descriptor.stream_id.as_str().to_owned(),
+            lineage_kind: match &descriptor.lineage {
+                StreamLineage::Root { .. } => "root".to_owned(),
+                StreamLineage::Branch { .. } => "branch".to_owned(),
+                StreamLineage::Merge { .. } => "merge".to_owned(),
+            },
+            parents: descriptor
+                .parent_stream_ids()
+                .into_iter()
+                .map(|parent| parent.as_str().to_owned())
+                .collect(),
+            next_offset: lineage.body().status().next_offset().value(),
+            manifest_generation: lineage.body().status().manifest_generation(),
+            rolled_segment_count: lineage.body().status().rolled_segment_count(),
+        }
+    };
+
+    let tail_open = {
+        let opened = client.open_tail_session(&root_stream_id, Offset::new(0), 1)?;
+        RemoteTailOpenResult {
+            server_addr: server_addr.to_string(),
+            request_id: opened.request_id().as_str().to_owned(),
+            durability: opened.ack().durability().to_owned(),
+            topology: render_topology(opened.ack().topology()),
+            session_id: opened.body().session_id().as_str().to_owned(),
+            stream_id: opened.body().stream_id().as_str().to_owned(),
+            requested_credit: opened.body().requested_credit(),
+            delivered_credit: opened.body().delivered_credit(),
+            next_offset: opened.body().next_offset().value(),
+            state: render_tail_state(opened.body().state()),
+            max_credit: opened.body().max_credit(),
+            records: summarize_remote_records(opened.body().records()),
+        }
+    };
+
+    let tail_append = summarize_remote_append(
         server_addr,
-        stream_id: "mission.merge".into(),
-        parents: vec!["mission.branch@0".into(), "mission.branch-two@0".into()],
-        merge_base: Some("mission.root@0".into()),
-        policy: "recursive".into(),
-        policy_metadata: vec!["resolver=mission-judge".into()],
-        actor: Some("mission.judge".into()),
-        reason: Some("merge-branches".into()),
-        labels: vec!["decision=accepted".into()],
-        json: false,
-    })?;
-    let merge_lineage = run_remote_lineage(ServerLineageArgs {
-        server_addr,
-        stream_id: "mission.merge".into(),
-        json: false,
-    })?;
-    let tail_open = run_remote_tail_open(ServerTailOpenArgs {
-        server_addr,
-        stream_id: "mission.root".into(),
-        from_offset: 0,
-        credit: 1,
-        json: false,
-    })?;
-    let tail_append = run_remote_append(ServerAppendArgs {
-        server_addr,
-        stream_id: "mission.root".into(),
-        payload_text: vec!["root-1".into()],
-        json: false,
-    })?;
-    let tail_poll = run_remote_tail_poll(ServerTailPollArgs {
-        server_addr,
-        session_id: tail_open.session_id.clone(),
-        credit: 1,
-        json: false,
-    })?;
-    let tail_cancel = run_remote_tail_cancel(ServerTailCancelArgs {
-        server_addr,
-        session_id: tail_open.session_id.clone(),
-        json: false,
-    })?;
+        &root_stream_id,
+        client.append_batch(&root_stream_id, [b"root-1".as_slice()])?,
+    );
+
+    let tail_poll = {
+        let session_id = TailSessionId::new(tail_open.session_id.clone())?;
+        let batch = client.poll_tail_session(&session_id, 1)?;
+        RemoteTailPollResult {
+            server_addr: server_addr.to_string(),
+            request_id: batch.request_id().as_str().to_owned(),
+            durability: batch.ack().durability().to_owned(),
+            topology: render_topology(batch.ack().topology()),
+            session_id: batch.body().session_id().as_str().to_owned(),
+            stream_id: batch.body().stream_id().as_str().to_owned(),
+            requested_credit: batch.body().requested_credit(),
+            delivered_credit: batch.body().delivered_credit(),
+            next_offset: batch.body().next_offset().value(),
+            state: render_tail_state(batch.body().state()),
+            records: summarize_remote_records(batch.body().records()),
+        }
+    };
+
+    let tail_cancel = {
+        let session_id = TailSessionId::new(tail_open.session_id.clone())?;
+        let cancelled = client.cancel_tail_session(&session_id)?;
+        RemoteTailCancelResult {
+            server_addr: server_addr.to_string(),
+            request_id: cancelled.request_id().as_str().to_owned(),
+            durability: cancelled.ack().durability().to_owned(),
+            topology: render_topology(cancelled.ack().topology()),
+            session_id: cancelled.body().session_id().as_str().to_owned(),
+            stream_id: cancelled.body().stream_id().as_str().to_owned(),
+            next_offset: cancelled.body().next_offset().value(),
+            state: render_tail_state(cancelled.body().state()),
+        }
+    };
 
     let shutdown = summarize_server_shutdown(
         requested_listen_addr,
         server
             .shutdown()
             .context("shutdown networked server proof daemon")?,
+        effective_hosted_io_timeout_ms(server_connection_io_timeout_ms),
     )?;
 
     Ok(NetworkedServerProofResult {
@@ -1997,6 +2149,10 @@ fn run_networked_server_proof(root: PathBuf) -> Result<NetworkedServerProofResul
         server_addr: server_addr.to_string(),
         durability: shutdown.durability,
         topology: initial_append.topology.clone(),
+        server_connection_io_timeout_ms: effective_hosted_io_timeout_ms(
+            server_connection_io_timeout_ms,
+        ),
+        client_io_timeout_ms: effective_hosted_io_timeout_ms(client_io_timeout_ms),
         root_stream,
         initial_append,
         root_replay,
@@ -2021,21 +2177,28 @@ fn run_networked_server_proof(root: PathBuf) -> Result<NetworkedServerProofResul
     })
 }
 
-fn run_hosted_authority_proof(root: PathBuf) -> Result<HostedAuthorityProofResult> {
+fn run_hosted_authority_proof(
+    root: PathBuf,
+    server_connection_io_timeout_ms: Option<u64>,
+    client_io_timeout_ms: Option<u64>,
+) -> Result<HostedAuthorityProofResult> {
     reset_directory(&root)?;
 
     let requested_listen_addr = "127.0.0.1:0"
         .parse::<SocketAddr>()
         .context("parse hosted authority proof listen addr")?;
-    let server = ServerHandle::bind(ServerConfig::new(
-        LocalEngineConfig::new(&root, NodeId::new("cli-node")).with_segment_max_records(4)?,
-        requested_listen_addr,
+    let server = ServerHandle::bind(configure_server_connection_timeout(
+        ServerConfig::new(
+            LocalEngineConfig::new(&root, NodeId::new("cli-node")).with_segment_max_records(4)?,
+            requested_listen_addr,
+        ),
+        server_connection_io_timeout_ms,
     ))
     .context("bind hosted authority proof daemon")?;
     let server_addr = server.local_addr();
 
     let proof = (|| -> Result<_> {
-        let client = TransitClient::new(server_addr);
+        let client = build_transit_client(server_addr, client_io_timeout_ms);
         let stream_id = StreamId::new("hosted.consumer.orders")?;
         let root_stream = client
             .create_root(
@@ -2090,6 +2253,7 @@ fn run_hosted_authority_proof(root: PathBuf) -> Result<HostedAuthorityProofResul
         server
             .shutdown()
             .context("shutdown hosted authority proof daemon")?,
+        effective_hosted_io_timeout_ms(server_connection_io_timeout_ms),
     )?;
     let (
         root_stream,
@@ -2108,6 +2272,10 @@ fn run_hosted_authority_proof(root: PathBuf) -> Result<HostedAuthorityProofResul
         server_addr: server_addr.to_string(),
         durability: shutdown.durability,
         topology,
+        server_connection_io_timeout_ms: effective_hosted_io_timeout_ms(
+            server_connection_io_timeout_ms,
+        ),
+        client_io_timeout_ms: effective_hosted_io_timeout_ms(client_io_timeout_ms),
         stream_id: root_stream.stream_id.clone(),
         root_stream,
         producer_appends,
@@ -2235,6 +2403,7 @@ async fn hydrate_server_from_frontier(
         server
             .shutdown()
             .context("shutdown warm cache recovery server")?,
+        DEFAULT_HOSTED_IO_TIMEOUT_MS,
     )?;
 
     Ok(WarmCacheRecoveryHydrationResult {
@@ -3001,8 +3170,13 @@ async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result
         .consensus_root
         .or_else(|| effective_config.replication.consensus_root.clone());
 
-    let server =
-        bind_hosted_runtime_server(config, &root, requested_listen_addr, &effective_node_id)?;
+    let server = bind_hosted_runtime_server(
+        config,
+        &root,
+        requested_listen_addr,
+        &effective_node_id,
+        args.connection_io_timeout_ms,
+    )?;
 
     // Optional: Initialize distributed consensus
     let mut _heartbeat_loop = None;
@@ -3066,6 +3240,7 @@ async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result
     summarize_server_shutdown(
         requested_listen_addr,
         server.shutdown().context("shutdown shared-engine server")?,
+        effective_hosted_io_timeout_ms(args.connection_io_timeout_ms),
     )
 }
 
@@ -3074,6 +3249,7 @@ fn bind_hosted_runtime_server(
     root: &Path,
     requested_listen_addr: SocketAddr,
     effective_node_id: &str,
+    connection_io_timeout_ms: Option<u64>,
 ) -> Result<ServerHandle> {
     let effective_config = config.config();
     let _object_store_authority = build_loaded_runtime_object_store(config).with_context(|| {
@@ -3084,7 +3260,10 @@ fn bind_hosted_runtime_server(
     })?;
 
     let engine_config = LocalEngineConfig::new(root, NodeId::new(effective_node_id.to_owned()));
-    let server_config = ServerConfig::new(engine_config, requested_listen_addr);
+    let server_config = configure_server_connection_timeout(
+        ServerConfig::new(engine_config, requested_listen_addr),
+        connection_io_timeout_ms,
+    );
     ServerHandle::bind(server_config).context("bind shared-engine server")
 }
 
@@ -5186,6 +5365,11 @@ fn render_networked_server_proof(result: NetworkedServerProofResult, json: bool)
     println!("durability: {}", result.durability);
     println!("topology: {}", result.topology);
     println!(
+        "server connection io timeout: {}ms",
+        result.server_connection_io_timeout_ms
+    );
+    println!("client io timeout: {}ms", result.client_io_timeout_ms);
+    println!(
         "root create: {} next {}",
         result.root_stream.stream_id, result.root_stream.next_offset
     );
@@ -5368,6 +5552,11 @@ fn render_hosted_authority_proof(result: HostedAuthorityProofResult, json: bool)
     println!("server: {}", result.server_addr);
     println!("durability: {}", result.durability);
     println!("topology: {}", result.topology);
+    println!(
+        "server connection io timeout: {}ms",
+        result.server_connection_io_timeout_ms
+    );
+    println!("client io timeout: {}ms", result.client_io_timeout_ms);
     println!("authority surface: {}", result.authority_surface);
     println!("consumer boundary: {}", result.consumer_boundary);
     println!(
@@ -5496,12 +5685,14 @@ fn render_warm_cache_recovery_proof(
 fn summarize_server_shutdown(
     requested_listen_addr: SocketAddr,
     outcome: ServerShutdownOutcome,
+    connection_io_timeout_ms: u64,
 ) -> Result<ServerRunResult> {
     Ok(ServerRunResult {
         data_root: outcome.data_dir().to_path_buf(),
         requested_listen_addr: requested_listen_addr.to_string(),
         bound_listen_addr: outcome.local_addr().to_string(),
         durability: outcome.durability().as_str().to_owned(),
+        connection_io_timeout_ms,
         accepted_connections: outcome.accepted_connections(),
         graceful_shutdown: true,
         server_api: "ServerHandle::bind",
@@ -5519,6 +5710,10 @@ fn render_server_run(result: ServerRunResult, json: bool) -> Result<()> {
     println!("listen requested: {}", result.requested_listen_addr);
     println!("listen bound: {}", result.bound_listen_addr);
     println!("durability: {}", result.durability);
+    println!(
+        "connection io timeout: {}ms",
+        result.connection_io_timeout_ms
+    );
     println!("accepted connections: {}", result.accepted_connections);
     println!(
         "graceful shutdown: {}",
@@ -6516,6 +6711,7 @@ listen_addr = "127.0.0.1:0"
                 serve_for_ms: Some(1),
                 node_id: None,
                 consensus_root: None,
+                connection_io_timeout_ms: None,
                 json: true,
             },
             &config,
@@ -6566,6 +6762,7 @@ listen_addr = "127.0.0.1:0"
             &resolve_local_root(None, &config),
             requested_listen_addr,
             config.config().effective_node_id(),
+            None,
         )
         .expect("bind hosted runtime server");
         let client = TransitClient::new(server.local_addr());
@@ -6622,6 +6819,7 @@ listen_addr = "127.0.0.1:0"
                 serve_for_ms: Some(1),
                 node_id: None,
                 consensus_root: None,
+                connection_io_timeout_ms: None,
                 json: true,
             },
             &config,
@@ -7181,11 +7379,17 @@ listen_addr = "127.0.0.1:0"
     #[test]
     fn networked_server_proof_exercises_remote_mission_path_and_transport_boundary() {
         let temp_dir = tempdir().expect("temp dir");
-        let proof = run_networked_server_proof(temp_dir.path().join("networked-server"))
-            .expect("networked server proof");
+        let proof =
+            run_networked_server_proof(temp_dir.path().join("networked-server"), None, None)
+                .expect("networked server proof");
 
         assert_eq!(proof.durability, "local");
         assert_eq!(proof.topology, "single_node");
+        assert_eq!(
+            proof.server_connection_io_timeout_ms,
+            DEFAULT_HOSTED_IO_TIMEOUT_MS
+        );
+        assert_eq!(proof.client_io_timeout_ms, DEFAULT_HOSTED_IO_TIMEOUT_MS);
         assert_eq!(proof.initial_append.position, "mission.root@0");
         assert_eq!(proof.tail_append.position, "mission.root@1");
         assert_eq!(proof.merge_lineage.lineage_kind, "merge");
@@ -7204,13 +7408,34 @@ listen_addr = "127.0.0.1:0"
     }
 
     #[test]
+    fn hosted_timeout_proof_networked_server_records_explicit_timeout_overrides() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_networked_server_proof(
+            temp_dir.path().join("networked-server-timeouts"),
+            Some(5_000),
+            Some(4_000),
+        )
+        .expect("networked server proof");
+
+        assert_eq!(proof.server_connection_io_timeout_ms, 5_000);
+        assert_eq!(proof.client_io_timeout_ms, 4_000);
+        assert!(proof.accepted_connections >= 9);
+    }
+
+    #[test]
     fn hosted_authority_proof_exercises_remote_consumer_workflow() {
         let temp_dir = tempdir().expect("temp dir");
-        let proof = run_hosted_authority_proof(temp_dir.path().join("hosted-authority"))
-            .expect("hosted authority proof");
+        let proof =
+            run_hosted_authority_proof(temp_dir.path().join("hosted-authority"), None, None)
+                .expect("hosted authority proof");
 
         assert_eq!(proof.durability, "local");
         assert_eq!(proof.topology, "single_node");
+        assert_eq!(
+            proof.server_connection_io_timeout_ms,
+            DEFAULT_HOSTED_IO_TIMEOUT_MS
+        );
+        assert_eq!(proof.client_io_timeout_ms, DEFAULT_HOSTED_IO_TIMEOUT_MS);
         assert_eq!(proof.stream_id, "hosted.consumer.orders");
         assert_eq!(proof.root_stream.stream_id, "hosted.consumer.orders");
         assert_eq!(proof.producer_appends.len(), 2);
@@ -7230,10 +7455,26 @@ listen_addr = "127.0.0.1:0"
     }
 
     #[test]
+    fn hosted_timeout_proof_hosted_authority_records_explicit_timeout_overrides() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_hosted_authority_proof(
+            temp_dir.path().join("hosted-authority-timeouts"),
+            Some(5_000),
+            Some(4_000),
+        )
+        .expect("hosted authority proof");
+
+        assert_eq!(proof.server_connection_io_timeout_ms, 5_000);
+        assert_eq!(proof.client_io_timeout_ms, 4_000);
+        assert_eq!(proof.remote_api, "TransitClient");
+    }
+
+    #[test]
     fn hosted_authority_proof_results_serialize_cleanly_for_mission_scripts() {
         let temp_dir = tempdir().expect("temp dir");
-        let proof = run_hosted_authority_proof(temp_dir.path().join("hosted-authority-json"))
-            .expect("hosted authority proof");
+        let proof =
+            run_hosted_authority_proof(temp_dir.path().join("hosted-authority-json"), None, None)
+                .expect("hosted authority proof");
         let proof_json =
             serde_json::to_value(&proof).expect("serialize hosted authority proof result");
 
@@ -7261,6 +7502,18 @@ listen_addr = "127.0.0.1:0"
                 .and_then(|value| value.get("record_count"))
                 .and_then(serde_json::Value::as_u64),
             Some(2)
+        );
+        assert_eq!(
+            proof_json
+                .get("server_connection_io_timeout_ms")
+                .and_then(serde_json::Value::as_u64),
+            Some(DEFAULT_HOSTED_IO_TIMEOUT_MS)
+        );
+        assert_eq!(
+            proof_json
+                .get("client_io_timeout_ms")
+                .and_then(serde_json::Value::as_u64),
+            Some(DEFAULT_HOSTED_IO_TIMEOUT_MS)
         );
         assert!(
             proof_json

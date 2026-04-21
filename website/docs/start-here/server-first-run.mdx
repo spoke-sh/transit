@@ -19,7 +19,10 @@ That means the point of this guide is not only "can it listen on a socket?" It i
 Run the end-to-end server proof:
 
 ```bash
-transit proof networked-server --root target/transit-docs/networked
+transit proof networked-server \
+  --root target/transit-docs/networked \
+  --server-connection-io-timeout-ms 5000 \
+  --client-io-timeout-ms 5000
 ```
 
 Run the current controlled failover proof:
@@ -31,10 +34,15 @@ transit proof controlled-failover --root target/transit-docs/controlled-failover
 Exercise the hosted thin-client producer and reader path through the CLI:
 
 ```bash
-transit proof hosted-authority --root target/transit-docs/hosted-authority
+transit proof hosted-authority \
+  --root target/transit-docs/hosted-authority \
+  --server-connection-io-timeout-ms 5000 \
+  --client-io-timeout-ms 5000
 ```
 
 That proof covers the thin hosted operation surface end to end against a locally started server.
+The timeout flags are operational tuning only; they do not change append, replay,
+or tail semantics.
 
 For the broader shipped surface, read [Capabilities](./capabilities.mdx).
 
@@ -52,7 +60,9 @@ compatibility shim.
 Start a daemon:
 
 ```bash
-transit server run --root target/transit-docs/server
+transit server run \
+  --root target/transit-docs/server \
+  --connection-io-timeout-ms 5000
 ```
 
 In another terminal, create a stream:
@@ -112,7 +122,8 @@ transit server lineage --stream-id demo/main
 ```
 
 If you are evaluating the Rust client boundary instead of the CLI, the matching
-hosted call is `TransitClient::append_batch(...)`.
+hosted calls are `TransitClient::append_batch(...)` and
+`TransitClient::with_io_timeout(...)`.
 
 ## What To Look For
 

@@ -195,11 +195,11 @@
 |--------|--------|
 | [Deliver Hosted Batch Append Surface](epics/VHRQnhLcW/voyages/VHRR4L3Dx/) | done |
 
-### [Configurable Hosted Timeouts And Concurrent Connection Handling](epics/VHRmIhDsm/) (active)
+### [Configurable Hosted Timeouts And Concurrent Connection Handling](epics/VHRmIhDsm/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Deliver Hosted Transport Robustness Improvements](epics/VHRmIhDsm/voyages/VHRmIjGvL/) | in-progress |
+| [Deliver Hosted Transport Robustness Improvements](epics/VHRmIhDsm/voyages/VHRmIjGvL/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
