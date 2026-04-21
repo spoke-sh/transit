@@ -37,6 +37,8 @@ The key point is not just transport. It is preservation.
 The server should preserve:
 
 - the same append ordering rules
+- the same single-stream batch append semantics, with one batch acknowledgement
+  and ordinary per-record replay
 - the same lineage semantics
 - the same storage and durability boundaries
 
@@ -49,6 +51,9 @@ The common hosted operator path is:
 - `transit consume`
 
 The lower-level `transit server ...` namespace remains available when you need protocol-shaped operations such as lineage inspection, explicit branching, or tail-session control.
+
+That lower-level namespace also carries the hosted batch append shape for one
+stream through repeated `--payload-text` values on `transit server append`.
 
 ## What Transit Tries To Avoid
 

@@ -38,7 +38,8 @@ That proof covers the thin hosted operation surface end to end against a locally
 
 For the broader shipped surface, read [Capabilities](./capabilities.mdx).
 
-If you set `[server].listen_addr` in `transit.toml`, the `streams`, `produce`, and `consume` commands will default to that configured server endpoint.
+If you set `[server].listen_addr` in `transit.toml`, the `streams`, `produce`,
+and `consume` commands will default to that configured server endpoint.
 
 If you are evaluating Transit as a downstream cutover target, the canonical
 hosted runtime surface is `transit-server`, and the canonical Rust client
@@ -70,6 +71,19 @@ printf 'hello from transit\nsecond record\n' | transit produce \
   --stream-id demo/main
 ```
 
+Send one hosted batch append request to one stream:
+
+```bash
+transit server append \
+  --stream-id demo/main \
+  --payload-text "third record" \
+  --payload-text "fourth record"
+```
+
+That lower-level path is useful when you want one explicit acknowledgement for
+multiple records on one stream without packing those records into one opaque
+payload.
+
 Consume the replay:
 
 ```bash
@@ -97,6 +111,9 @@ Inspect lineage through the lower-level server namespace:
 transit server lineage --stream-id demo/main
 ```
 
+If you are evaluating the Rust client boundary instead of the CLI, the matching
+hosted call is `TransitClient::append_batch(...)`.
+
 ## What To Look For
 
 You should see that the server surface:
@@ -104,8 +121,13 @@ You should see that the server surface:
 - keeps acknowledgements explicit
 - keeps branch and lineage operations available remotely
 - exposes a higher-level `streams` / `produce` / `consume` path for common operator work
+- exposes a lower-level single-stream batch append path that still replays as individual records
 - stays single-node unless a feature explicitly says otherwise
 - does not invent a separate storage model for the daemon
+
+You should also expect explicit failures for empty or oversized hosted batches.
+The current server contract rejects them with the normal hosted
+`invalid_request` error surface.
 
 And separately, the shared engine ships quorum durability and automatic leader election. The minimal walkthrough here stays focused on the single-node remote operator surface; use the failover proofs when you want the distributed slice itself.
 

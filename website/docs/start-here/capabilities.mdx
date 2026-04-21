@@ -15,7 +15,7 @@ All examples below invoke the `transit` CLI directly.
 | Slice | Primary commands | What it proves today | Important boundary |
 |-------|------------------|----------------------|--------------------|
 | local engine | `transit proof local-engine`, `transit status` | append, replay, branch, merge, crash recovery, and log-state inspection | local proof roots are filesystem-backed |
-| hosted operator surface | `transit server run`, `transit streams`, `transit produce`, `transit consume`, `transit proof hosted-authority` | shared-engine server semantics over a remote boundary, including the Rust client surface | current remote operator surface is still single-node |
+| hosted operator surface | `transit server run`, `transit streams`, `transit produce`, `transit consume`, `transit server append`, `transit proof hosted-authority` | shared-engine server semantics over a remote boundary, including the Rust client surface and single-stream batch append | current remote operator surface is still single-node |
 | storage and recovery | `transit proof tiered-engine`, `transit proof warm-cache-recovery`, `transit storage probe` | tiered publication, cold restore, restart-after-cache-loss from remote authority, and effective-config verification | `storage probe` verifies the current local guarantee plus hosted bootstrap posture, not remote-tier or cloud-provider durability |
 | integrity and derived state | `transit proof integrity`, `transit proof materialization`, `transit proof reference-projection` | manifest roots, checkpoints, replay-anchored views, and resume correctness | signed attestation and compact partial proofs are later layers |
 | independent reader progress | embedded cursor API on `LocalEngine` | durable per-consumer cursors with monotonic advance, local-durability ack, and restart recovery | hosted protocol, CLI, and `transit-client` cursor surfaces are still follow-up work |
@@ -56,12 +56,35 @@ transit streams delete --stream-id demo.root --force
 
 The lower-level `transit server ...` namespace still exists for protocol-shaped operations like `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel`.
 
+It also exposes single-stream batch append directly:
+
+```bash
+transit server append \
+  --stream-id demo.root \
+  --payload-text first \
+  --payload-text second \
+  --payload-text third
+```
+
+That path sends one hosted append-batch request for one stream, returns one
+acknowledgement for the whole batch, and still leaves replay and tail behavior
+record-oriented.
+
 For Rust consumers, the upstream `transit-client` crate includes a
 generic replay-driven projection-consumer helper. That keeps derived reads on
 the hosted client boundary without inventing a projection-only server truth
 path or forcing downstream repos to publish a private wrapper.
 
+The same hosted boundary now includes `TransitClient::append_batch(...)` for
+single-stream batching. It keeps the normal `RemoteAcknowledged<_>` envelope
+instead of inventing a second client-side batching dialect.
+
 Server mode is single-node at the protocol surface. The daemon preserves shared-engine semantics instead of introducing a separate storage model, and the common remote commands default to `[server].listen_addr` when you configure it through `transit.toml`.
+
+The current hosted implementation keeps batch append bounded with explicit
+record-count and total-byte limits. Empty or oversized batches fail through the
+normal hosted `invalid_request` path rather than silently splitting or
+repacking payloads.
 
 ## Storage, Recovery, And Verification
 
