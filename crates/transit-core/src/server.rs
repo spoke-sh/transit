@@ -1,6 +1,6 @@
 use crate::engine::{
-    DurabilityMode, LocalAppendOutcome, LocalDeletedStream, LocalEngine, LocalEngineConfig,
-    LocalLogStreamStatus, LocalRecord, LocalRecoveryOutcome, LocalStreamStatus,
+    DurabilityMode, LocalAppendBatchOutcome, LocalAppendOutcome, LocalDeletedStream, LocalEngine,
+    LocalEngineConfig, LocalLogStreamStatus, LocalRecord, LocalRecoveryOutcome, LocalStreamStatus,
 };
 use crate::kernel::{
     LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamPosition,
@@ -20,6 +20,8 @@ use std::time::Duration;
 const DEFAULT_ACCEPT_POLL_INTERVAL_MS: u64 = 10;
 const DEFAULT_CONNECTION_IO_TIMEOUT_MS: u64 = 1_000;
 const MAX_TAIL_SESSION_CREDIT: u64 = 256;
+pub const APPEND_BATCH_MAX_RECORDS: usize = 256;
+pub const APPEND_BATCH_MAX_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
@@ -324,6 +326,34 @@ impl RemoteClient {
                 outcome: OperationResponse::AppendOk(outcome),
             } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
             other => Err(unexpected_operation_response("append", &other.outcome)),
+        }
+    }
+
+    pub fn append_batch<I, P>(
+        &self,
+        stream_id: &StreamId,
+        payloads: I,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteBatchAppendOutcome>>
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<[u8]>,
+    {
+        match self.send_request(OperationRequest::AppendBatch {
+            stream_id: stream_id.clone(),
+            payloads: payloads
+                .into_iter()
+                .map(|payload| payload.as_ref().to_vec())
+                .collect(),
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::AppendBatchOk(outcome),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
+            other => Err(unexpected_operation_response(
+                "append_batch",
+                &other.outcome,
+            )),
         }
     }
 
@@ -656,6 +686,37 @@ impl RemoteAppendOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteBatchAppendOutcome {
+    first_position: StreamPosition,
+    last_position: StreamPosition,
+    record_count: u64,
+    manifest_generation: u64,
+    rolled_segment_ids: Vec<String>,
+}
+
+impl RemoteBatchAppendOutcome {
+    pub fn first_position(&self) -> &StreamPosition {
+        &self.first_position
+    }
+
+    pub fn last_position(&self) -> &StreamPosition {
+        &self.last_position
+    }
+
+    pub fn record_count(&self) -> u64 {
+        self.record_count
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+
+    pub fn rolled_segment_ids(&self) -> &[String] {
+        &self.rolled_segment_ids
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteReadOutcome {
     stream_id: StreamId,
     records: Vec<RemoteRecord>,
@@ -853,6 +914,10 @@ enum OperationRequest {
         stream_id: StreamId,
         payload: Vec<u8>,
     },
+    AppendBatch {
+        stream_id: StreamId,
+        payloads: Vec<Vec<u8>>,
+    },
     CreateRoot {
         stream_id: StreamId,
         metadata: LineageMetadata,
@@ -916,6 +981,7 @@ enum ResponseEnvelope {
 #[serde(tag = "type", rename_all = "snake_case")]
 enum OperationResponse {
     AppendOk(RemoteAppendOutcome),
+    AppendBatchOk(RemoteBatchAppendOutcome),
     RecordsOk(RemoteReadOutcome),
     TailSessionOpened(RemoteTailSessionOpened),
     TailBatchOk(RemoteTailBatch),
@@ -1224,6 +1290,20 @@ fn handle_request(
             ),
             Err(error) => engine_error_response(request_id, error),
         },
+        OperationRequest::AppendBatch {
+            stream_id,
+            payloads,
+        } => match validate_append_batch(&payloads) {
+            Ok(()) => match engine.append_batch(&stream_id, payloads) {
+                Ok(outcome) => ack_response(
+                    request_id,
+                    engine.durability(),
+                    OperationResponse::AppendBatchOk(map_append_batch_outcome(outcome)),
+                ),
+                Err(error) => engine_error_response(request_id, error),
+            },
+            Err(error) => invalid_request_response(request_id, error),
+        },
         OperationRequest::CreateRoot {
             stream_id,
             metadata,
@@ -1352,6 +1432,20 @@ fn map_append_outcome(outcome: LocalAppendOutcome) -> RemoteAppendOutcome {
     }
 }
 
+fn map_append_batch_outcome(outcome: LocalAppendBatchOutcome) -> RemoteBatchAppendOutcome {
+    RemoteBatchAppendOutcome {
+        first_position: outcome.first_position().clone(),
+        last_position: outcome.last_position().clone(),
+        record_count: outcome.record_count(),
+        manifest_generation: outcome.manifest_generation(),
+        rolled_segment_ids: outcome
+            .rolled_segments()
+            .iter()
+            .map(|segment| segment.segment_id().as_str().to_owned())
+            .collect(),
+    }
+}
+
 fn map_read_outcome(stream_id: StreamId, records: Vec<LocalRecord>) -> RemoteReadOutcome {
     RemoteReadOutcome {
         stream_id,
@@ -1400,6 +1494,26 @@ fn list_streams(engine: &LocalEngine) -> Result<RemoteStreamListOutcome> {
             .map(map_log_stream_summary)
             .collect(),
     })
+}
+
+fn validate_append_batch(payloads: &[Vec<u8>]) -> Result<()> {
+    ensure!(
+        !payloads.is_empty(),
+        "append_batch requires at least one payload"
+    );
+    ensure!(
+        payloads.len() <= APPEND_BATCH_MAX_RECORDS,
+        "append_batch exceeds max record count {}",
+        APPEND_BATCH_MAX_RECORDS
+    );
+
+    let total_bytes = payloads.iter().map(Vec::len).sum::<usize>();
+    ensure!(
+        total_bytes <= APPEND_BATCH_MAX_BYTES,
+        "append_batch exceeds max batch bytes {}",
+        APPEND_BATCH_MAX_BYTES
+    );
+    Ok(())
 }
 
 fn inspect_lineage(engine: &LocalEngine, stream_id: &StreamId) -> Result<RemoteLineageOutcome> {
@@ -2033,6 +2147,166 @@ mod tests {
         assert_eq!(root_read.ack().durability(), "local");
         assert_eq!(branch_read.ack().durability(), "local");
         assert_eq!(root_tail.ack().durability(), "local");
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_batch_append_returns_single_ack_and_individual_records() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node"))
+                .with_segment_max_records(2)
+                .expect("config"),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let root_stream = stream_id("task.root");
+
+        client
+            .create_root(
+                &root_stream,
+                LineageMetadata::new(Some("test".into()), Some("batch-append".into())),
+            )
+            .expect("create root");
+
+        let batch = client
+            .append_batch(
+                &root_stream,
+                [
+                    b"first".as_slice(),
+                    b"second".as_slice(),
+                    b"third".as_slice(),
+                ],
+            )
+            .expect("append batch");
+        let replay = client.read(&root_stream).expect("read root");
+        let tail = client
+            .tail(&root_stream, Offset::new(1))
+            .expect("tail root");
+
+        assert_eq!(batch.ack().durability(), "local");
+        assert_eq!(batch.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(batch.body().first_position().offset.value(), 0);
+        assert_eq!(batch.body().last_position().offset.value(), 2);
+        assert_eq!(batch.body().record_count(), 3);
+        assert_eq!(batch.body().manifest_generation(), 1);
+        assert_eq!(batch.body().rolled_segment_ids().len(), 1);
+
+        let replay_offsets: Vec<u64> = replay
+            .body()
+            .records()
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let replay_payloads: Vec<&[u8]> = replay
+            .body()
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+        let tail_payloads: Vec<&[u8]> = tail
+            .body()
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+
+        assert_eq!(replay_offsets, vec![0, 1, 2]);
+        assert_eq!(
+            replay_payloads,
+            vec![
+                b"first".as_slice(),
+                b"second".as_slice(),
+                b"third".as_slice()
+            ]
+        );
+        assert_eq!(
+            tail_payloads,
+            vec![b"second".as_slice(), b"third".as_slice()]
+        );
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_batch_append_limits_reject_empty_batches() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let root_stream = stream_id("task.root");
+
+        client
+            .create_root(
+                &root_stream,
+                LineageMetadata::new(Some("test".into()), Some("batch-append".into())),
+            )
+            .expect("create root");
+
+        let error = client
+            .append_batch(&root_stream, Vec::<Vec<u8>>::new())
+            .expect_err("empty batch should fail");
+        match error {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::InvalidRequest);
+                assert!(error.message().contains("at least one payload"));
+            }
+            other => panic!("expected invalid_request for empty batch, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_batch_append_limits_reject_oversized_batches() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let root_stream = stream_id("task.root");
+
+        client
+            .create_root(
+                &root_stream,
+                LineageMetadata::new(Some("test".into()), Some("batch-append".into())),
+            )
+            .expect("create root");
+
+        let record_limit_error = client
+            .append_batch(
+                &root_stream,
+                vec![vec![b'x']; super::APPEND_BATCH_MAX_RECORDS + 1],
+            )
+            .expect_err("record limit should fail");
+        match record_limit_error {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::InvalidRequest);
+                assert!(error.message().contains("max record count"));
+            }
+            other => panic!("expected invalid_request for record limit, got {other:?}"),
+        }
+
+        let byte_limit_error = client
+            .append_batch(
+                &root_stream,
+                [vec![b'x'; super::APPEND_BATCH_MAX_BYTES + 1]],
+            )
+            .expect_err("byte limit should fail");
+        match byte_limit_error {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::InvalidRequest);
+                assert!(error.message().contains("max batch bytes"));
+            }
+            other => panic!("expected invalid_request for byte limit, got {other:?}"),
+        }
 
         server.shutdown().expect("shutdown server");
     }

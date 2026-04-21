@@ -27,11 +27,11 @@ started_at: 2026-04-21T08:58:04
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/3 stories complete
+**Progress:** 1/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Add Single-Stream Batch Append To Shared Engine And Hosted Protocol](../../../../stories/VHRRILABF/README.md) | feat | in-progress |
+| [Add Single-Stream Batch Append To Shared Engine And Hosted Protocol](../../../../stories/VHRRILABF/README.md) | feat | done |
 | [Expose Hosted Batch Append Through Rust Client And CLI](../../../../stories/VHRRILIBH/README.md) | feat | backlog |
 | [Publish Proof And Limit Guidance For Hosted Batch Append](../../../../stories/VHRRILqCd/README.md) | feat | backlog |
 <!-- END GENERATED -->

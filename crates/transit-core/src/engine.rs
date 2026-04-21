@@ -191,6 +191,42 @@ impl LocalAppendOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalAppendBatchOutcome {
+    first_position: StreamPosition,
+    last_position: StreamPosition,
+    record_count: u64,
+    durability: DurabilityMode,
+    manifest_generation: u64,
+    rolled_segments: Vec<SegmentDescriptor>,
+}
+
+impl LocalAppendBatchOutcome {
+    pub fn first_position(&self) -> &StreamPosition {
+        &self.first_position
+    }
+
+    pub fn last_position(&self) -> &StreamPosition {
+        &self.last_position
+    }
+
+    pub fn record_count(&self) -> u64 {
+        self.record_count
+    }
+
+    pub fn durability(&self) -> DurabilityMode {
+        self.durability
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+
+    pub fn rolled_segments(&self) -> &[SegmentDescriptor] {
+        &self.rolled_segments
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplicatedAppendOutcome {
     position: StreamPosition,
     commitment: CommitmentLevel,
@@ -1227,6 +1263,60 @@ impl LocalEngine {
             durability: self.inner.config.durability(),
             manifest_generation: state.manifest_generation,
             rolled_segment,
+        })
+    }
+
+    pub fn append_batch<I, P>(
+        &self,
+        stream_id: &StreamId,
+        payloads: I,
+    ) -> Result<LocalAppendBatchOutcome>
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<[u8]>,
+    {
+        let payloads = payloads
+            .into_iter()
+            .map(|payload| payload.as_ref().to_vec())
+            .collect::<Vec<_>>();
+        ensure!(
+            !payloads.is_empty(),
+            "append batch requires at least one payload"
+        );
+        let record_count = payloads.len() as u64;
+
+        let mut outcomes = payloads
+            .into_iter()
+            .map(|payload| self.append(stream_id, payload))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter();
+        let first = outcomes
+            .next()
+            .expect("append batch validated a non-empty payload list");
+        let mut last_position = first.position().clone();
+        let mut manifest_generation = first.manifest_generation();
+        let mut rolled_segments = first
+            .rolled_segment()
+            .cloned()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let first_position = last_position.clone();
+
+        for outcome in outcomes {
+            last_position = outcome.position().clone();
+            manifest_generation = outcome.manifest_generation();
+            if let Some(segment) = outcome.rolled_segment().cloned() {
+                rolled_segments.push(segment);
+            }
+        }
+
+        Ok(LocalAppendBatchOutcome {
+            first_position,
+            last_position,
+            record_count,
+            durability: self.inner.config.durability(),
+            manifest_generation,
+            rolled_segments,
         })
     }
 
@@ -3294,6 +3384,103 @@ mod tests {
         assert_eq!(status.active_record_count(), 0);
         assert_eq!(status.active_segment_start_offset(), Offset::new(2));
         assert_eq!(status.rolled_segment_count(), 1);
+    }
+
+    #[test]
+    fn append_batch_commits_contiguous_records_and_preserves_replay() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(10)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+
+        let batch = engine
+            .append_batch(
+                &stream_id,
+                [
+                    b"first".as_slice(),
+                    b"second".as_slice(),
+                    b"third".as_slice(),
+                ],
+            )
+            .expect("append batch");
+
+        assert_eq!(batch.first_position().offset.value(), 0);
+        assert_eq!(batch.last_position().offset.value(), 2);
+        assert_eq!(batch.record_count(), 3);
+        assert_eq!(batch.durability(), DurabilityMode::Local);
+        assert_eq!(batch.manifest_generation(), 0);
+        assert!(batch.rolled_segments().is_empty());
+
+        let replay = engine.replay(&stream_id).expect("replay");
+        let payloads: Vec<&[u8]> = replay.iter().map(|record| record.payload()).collect();
+        let offsets: Vec<u64> = replay
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let status = engine.stream_status(&stream_id).expect("status");
+
+        assert_eq!(offsets, vec![0, 1, 2]);
+        assert_eq!(
+            payloads,
+            vec![
+                b"first".as_slice(),
+                b"second".as_slice(),
+                b"third".as_slice()
+            ]
+        );
+        assert_eq!(status.next_offset().value(), 3);
+        assert_eq!(status.active_record_count(), 3);
+    }
+
+    #[test]
+    fn append_batch_tracks_multiple_segment_rolls_in_one_batch() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+
+        let batch = engine
+            .append_batch(
+                &stream_id,
+                [
+                    b"first".as_slice(),
+                    b"second".as_slice(),
+                    b"third".as_slice(),
+                    b"fourth".as_slice(),
+                    b"fifth".as_slice(),
+                ],
+            )
+            .expect("append batch");
+
+        assert_eq!(batch.first_position().offset.value(), 0);
+        assert_eq!(batch.last_position().offset.value(), 4);
+        assert_eq!(batch.record_count(), 5);
+        assert_eq!(batch.manifest_generation(), 2);
+        assert_eq!(batch.rolled_segments().len(), 2);
+        assert_eq!(batch.rolled_segments()[0].start_offset().value(), 0);
+        assert_eq!(batch.rolled_segments()[0].last_offset().value(), 1);
+        assert_eq!(batch.rolled_segments()[1].start_offset().value(), 2);
+        assert_eq!(batch.rolled_segments()[1].last_offset().value(), 3);
+
+        let status = engine.stream_status(&stream_id).expect("status");
+        assert_eq!(status.next_offset().value(), 5);
+        assert_eq!(status.active_record_count(), 1);
+        assert_eq!(status.active_segment_start_offset(), Offset::new(4));
+        assert_eq!(status.rolled_segment_count(), 2);
     }
 
     #[test]
