@@ -97,12 +97,14 @@ impl ServerHandle {
         let accepted_connections = Arc::new(AtomicU64::new(0));
         let fatal_error = Arc::new(Mutex::new(None));
         let tail_sessions = Arc::new(Mutex::new(TailSessionRegistry::default()));
+        let request_gate = Arc::new(Mutex::new(()));
 
         let thread_engine = engine.clone();
         let thread_shutdown = Arc::clone(&shutdown_requested);
         let thread_connections = Arc::clone(&accepted_connections);
         let thread_error = Arc::clone(&fatal_error);
         let thread_tail_sessions = Arc::clone(&tail_sessions);
+        let thread_request_gate = Arc::clone(&request_gate);
         let accept_poll_interval = config.accept_poll_interval();
         let connection_io_timeout = config.connection_io_timeout();
         let listener_thread = thread::Builder::new()
@@ -116,6 +118,7 @@ impl ServerHandle {
                         accepted_connections: thread_connections,
                         fatal_error: thread_error,
                         tail_sessions: thread_tail_sessions,
+                        request_gate: thread_request_gate,
                         accept_poll_interval,
                         connection_io_timeout,
                     },
@@ -1175,6 +1178,7 @@ struct AcceptLoopContext {
     accepted_connections: Arc<AtomicU64>,
     fatal_error: Arc<Mutex<Option<String>>>,
     tail_sessions: Arc<Mutex<TailSessionRegistry>>,
+    request_gate: Arc<Mutex<()>>,
     accept_poll_interval: Duration,
     connection_io_timeout: Duration,
 }
@@ -1186,7 +1190,10 @@ struct TailSessionRegistry {
 }
 
 fn run_accept_loop(listener: TcpListener, context: AcceptLoopContext) {
+    let mut connection_workers = Vec::new();
     loop {
+        reap_connection_workers(&context.fatal_error, &mut connection_workers);
+
         if context.shutdown_requested.load(Ordering::Acquire) {
             break;
         }
@@ -1199,25 +1206,81 @@ fn run_accept_loop(listener: TcpListener, context: AcceptLoopContext) {
                 }
 
                 context.accepted_connections.fetch_add(1, Ordering::AcqRel);
-                serve_connection(
-                    stream,
-                    &context.engine,
-                    &context.tail_sessions,
-                    context.connection_io_timeout,
-                );
+                let worker_engine = context.engine.clone();
+                let worker_tail_sessions = Arc::clone(&context.tail_sessions);
+                let worker_request_gate = Arc::clone(&context.request_gate);
+                let worker_io_timeout = context.connection_io_timeout;
+                match thread::Builder::new()
+                    .name("transit-server-connection".into())
+                    .spawn(move || {
+                        serve_connection(
+                            stream,
+                            &worker_engine,
+                            &worker_tail_sessions,
+                            &worker_request_gate,
+                            worker_io_timeout,
+                        );
+                    }) {
+                    Ok(worker) => connection_workers.push(worker),
+                    Err(error) => {
+                        record_fatal_error(
+                            &context.fatal_error,
+                            format!("spawn server connection worker: {error}"),
+                        );
+                        break;
+                    }
+                }
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                 thread::sleep(context.accept_poll_interval);
             }
             Err(error) => {
-                *context
-                    .fatal_error
-                    .lock()
-                    .expect("listener fatal_error mutex poisoned") =
-                    Some(format!("server listener failure: {error}"));
+                record_fatal_error(
+                    &context.fatal_error,
+                    format!("server listener failure: {error}"),
+                );
                 break;
             }
         }
+    }
+
+    join_connection_workers(&context.fatal_error, connection_workers);
+}
+
+fn reap_connection_workers(
+    fatal_error: &Arc<Mutex<Option<String>>>,
+    connection_workers: &mut Vec<JoinHandle<()>>,
+) {
+    let mut active_workers = Vec::with_capacity(connection_workers.len());
+    for worker in connection_workers.drain(..) {
+        if worker.is_finished() {
+            if worker.join().is_err() {
+                record_fatal_error(fatal_error, "server connection worker panicked".to_string());
+            }
+        } else {
+            active_workers.push(worker);
+        }
+    }
+    *connection_workers = active_workers;
+}
+
+fn join_connection_workers(
+    fatal_error: &Arc<Mutex<Option<String>>>,
+    connection_workers: Vec<JoinHandle<()>>,
+) {
+    for worker in connection_workers {
+        if worker.join().is_err() {
+            record_fatal_error(fatal_error, "server connection worker panicked".to_string());
+        }
+    }
+}
+
+fn record_fatal_error(fatal_error: &Arc<Mutex<Option<String>>>, message: String) {
+    let mut slot = fatal_error
+        .lock()
+        .expect("listener fatal_error mutex poisoned");
+    if slot.is_none() {
+        *slot = Some(message);
     }
 }
 
@@ -1225,11 +1288,17 @@ fn serve_connection(
     mut stream: TcpStream,
     engine: &LocalEngine,
     tail_sessions: &Arc<Mutex<TailSessionRegistry>>,
+    request_gate: &Arc<Mutex<()>>,
     io_timeout: Duration,
 ) {
     let response = match configure_connection_stream(&stream, io_timeout) {
         Ok(()) => match read_request(&mut stream) {
-            Ok(request) => handle_request(engine, tail_sessions, request),
+            Ok(request) => {
+                let _request_guard = request_gate
+                    .lock()
+                    .expect("server request gate mutex poisoned");
+                handle_request(engine, tail_sessions, request)
+            }
             Err(error) => invalid_request_response(RequestId::server_generated("decode"), error),
         },
         Err(error) => internal_error_response(
@@ -1794,9 +1863,9 @@ fn unexpected_operation_response(
 mod tests {
     use super::{
         DEFAULT_CONNECTION_IO_TIMEOUT_MS, OperationRequest, OperationResponse, ProtocolRequest,
-        ProtocolResponse, RemoteClient, RemoteClientError, RemoteErrorCode, RemoteTailSessionState,
-        RemoteTopology, RequestId, ResponseEnvelope, ServerConfig, ServerHandle,
-        configure_connection_stream,
+        ProtocolResponse, RemoteClient, RemoteClientError, RemoteClientResult, RemoteErrorCode,
+        RemoteTailSessionState, RemoteTopology, RequestId, ResponseEnvelope, ServerConfig,
+        ServerHandle, configure_connection_stream,
     };
     use crate::engine::{DurabilityMode, LocalEngine, LocalEngineConfig};
     use crate::kernel::{
@@ -1806,6 +1875,7 @@ mod tests {
     use serde_json::Value;
     use std::io::{BufRead, BufReader, Write};
     use std::net::{SocketAddr, TcpStream};
+    use std::thread;
     use std::time::Duration;
     use tempfile::tempdir;
 
@@ -1840,6 +1910,20 @@ mod tests {
             .expect("read protocol response");
 
         serde_json::from_str(response_line.trim_end()).expect("decode protocol response")
+    }
+
+    fn wait_for_accepted_connections(server: &ServerHandle, minimum: u64) {
+        for _ in 0..100 {
+            if server.accepted_connections() >= minimum {
+                return;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        panic!(
+            "server accepted {} connections, expected at least {minimum}",
+            server.accepted_connections()
+        );
     }
 
     #[test]
@@ -1958,6 +2042,43 @@ mod tests {
     }
 
     #[test]
+    fn hosted_concurrent_connection_allows_progress_while_another_connection_is_idle() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(
+            ServerConfig::new(
+                LocalEngineConfig::new(
+                    temp_dir.path(),
+                    crate::membership::NodeId::new("test-node"),
+                ),
+                "127.0.0.1:0".parse().expect("listen addr"),
+            )
+            .with_connection_io_timeout(Duration::from_secs(5)),
+        )
+        .expect("bind server");
+
+        let blocking_stream =
+            TcpStream::connect_timeout(&server.local_addr(), Duration::from_secs(1))
+                .expect("connect blocking stream");
+        wait_for_accepted_connections(&server, 1);
+
+        let client =
+            RemoteClient::new(server.local_addr()).with_io_timeout(Duration::from_millis(250));
+        let created = client
+            .create_root(
+                &stream_id("task.concurrent.root"),
+                LineageMetadata::new(Some("test".into()), Some("concurrency".into())),
+            )
+            .expect("idle connection should not block other requests");
+
+        assert_eq!(created.ack().durability(), "local");
+        assert_eq!(created.ack().topology(), RemoteTopology::SingleNode);
+        wait_for_accepted_connections(&server, 2);
+
+        drop(blocking_stream);
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
     fn remote_protocol_envelope_carries_request_correlation_and_operation_selection() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(ServerConfig::new(
@@ -2000,6 +2121,94 @@ mod tests {
             }
             other => panic!("expected ack envelope, got {other:?}"),
         }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn hosted_producer_consumer_timeout_raised_timeouts_keep_mixed_workload_stable() {
+        let temp_dir = tempdir().expect("temp dir");
+        let timeout = Duration::from_secs(5);
+        let batch_count = 32usize;
+        let batch_size = 16usize;
+        let total_records = batch_count * batch_size;
+        let server = ServerHandle::bind(
+            ServerConfig::new(
+                LocalEngineConfig::new(
+                    temp_dir.path(),
+                    crate::membership::NodeId::new("test-node"),
+                )
+                .with_segment_max_records(16)
+                .expect("config"),
+                "127.0.0.1:0".parse().expect("listen addr"),
+            )
+            .with_connection_io_timeout(timeout),
+        )
+        .expect("bind server");
+        let producer = RemoteClient::new(server.local_addr()).with_io_timeout(timeout);
+        let consumer = RemoteClient::new(server.local_addr()).with_io_timeout(timeout);
+        let stream_id = stream_id("task.concurrent.load");
+
+        producer
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(Some("test".into()), Some("producer-consumer".into())),
+            )
+            .expect("create root");
+
+        let producer_stream = stream_id.clone();
+        let producer_thread = thread::spawn(move || -> RemoteClientResult<()> {
+            for batch_index in 0..batch_count {
+                let payloads = (0..batch_size)
+                    .map(|record_index| {
+                        format!("batch-{batch_index}-record-{record_index}").into_bytes()
+                    })
+                    .collect::<Vec<_>>();
+                producer.append_batch(&producer_stream, &payloads)?;
+            }
+            Ok(())
+        });
+
+        let consumer_stream = stream_id.clone();
+        let consumer_thread = thread::spawn(move || -> RemoteClientResult<()> {
+            let mut next_offset = 0u64;
+            let mut empty_polls = 0usize;
+
+            while next_offset < total_records as u64 {
+                let outcome = consumer.tail(&consumer_stream, Offset::new(next_offset))?;
+                let records = outcome.body().records();
+
+                if records.is_empty() {
+                    empty_polls += 1;
+                    assert!(
+                        empty_polls < 400,
+                        "consumer stalled under mixed producer/consumer load"
+                    );
+                    thread::sleep(Duration::from_millis(5));
+                    continue;
+                }
+
+                empty_polls = 0;
+                for record in records {
+                    assert_eq!(record.position().offset.value(), next_offset);
+                    next_offset += 1;
+                }
+            }
+
+            Ok(())
+        });
+
+        producer_thread
+            .join()
+            .expect("producer thread panicked")
+            .expect("producer workload");
+        consumer_thread
+            .join()
+            .expect("consumer thread panicked")
+            .expect("consumer workload");
+
+        let replayed = server.engine().replay(&stream_id).expect("replay");
+        assert_eq!(replayed.len(), total_records);
 
         server.shutdown().expect("shutdown server");
     }
