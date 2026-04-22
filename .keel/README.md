@@ -213,6 +213,12 @@
 |--------|--------|
 | [Deliver Compressed Rolled Segments And Replay](epics/VHUSaJ0w8/voyages/VHUSdlUHb/) | done |
 
+### [Object-Store-Native Published Manifests And Frontier Discovery](epics/VHUjJj4Gh/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Deliver Immutable Manifest Snapshots With Frontier Pointer](epics/VHUjJj4Gh/voyages/VHUjMQyiY/) | in-progress |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
