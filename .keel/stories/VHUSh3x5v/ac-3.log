@@ -1,0 +1,8 @@
+Story: VHUSh3x5v
+Acceptance: SRS-NFR-01/AC-01
+
+Threaded the authored compression setting into `LocalEngineConfig` and the hosted runtime server bootstrap so the shared-engine compression contract is available in both embedded and hosted entry points without introducing a server-only path.
+
+Evidence:
+- `cargo test -p transit-cli --bin transit server_run_accepts_tiered_config_and_binds_against_authored_object_store_authority`
+

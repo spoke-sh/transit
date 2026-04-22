@@ -3431,7 +3431,8 @@ fn bind_hosted_runtime_server(
         )
     })?;
 
-    let engine_config = LocalEngineConfig::new(root, NodeId::new(effective_node_id.to_owned()));
+    let engine_config = LocalEngineConfig::new(root, NodeId::new(effective_node_id.to_owned()))
+        .with_segment_compression(effective_config.storage.compression);
     let server_config = configure_server_connection_timeout(
         ServerConfig::new(engine_config, requested_listen_addr),
         connection_io_timeout_ms,

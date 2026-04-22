@@ -1,0 +1,8 @@
+Story: VHUSh3x5v
+Acceptance: SRS-01/AC-01
+
+Implemented a typed `SegmentCompression` contract in shared storage/config types, updated `StorageConfig` to use the enum directly, kept authored defaults at `zstd`, and preserved an explicit `none` override path for config files.
+
+Evidence:
+- `cargo test -p transit-core default_config_uses_local_filesystem_layout`
+

@@ -6,7 +6,8 @@ use crate::kernel::{
 };
 use crate::storage::{
     ContentDigest, LineageCheckpoint, ManifestId, ObjectStoreKey, ObjectStoreLocation,
-    SegmentChecksum, SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
+    SegmentChecksum, SegmentCompression, SegmentDescriptor, SegmentId, SegmentManifest,
+    StorageLocation,
 };
 use anyhow::{Context, Result, bail, ensure};
 use bytes::Bytes;
@@ -86,6 +87,7 @@ pub struct LocalEngineConfig {
     data_dir: PathBuf,
     node_id: crate::membership::NodeId,
     segment_max_records: u64,
+    segment_compression: SegmentCompression,
     durability: DurabilityMode,
     access_mode: AccessMode,
     membership: Option<std::sync::Arc<dyn crate::membership::ClusterMembership>>,
@@ -99,6 +101,7 @@ impl LocalEngineConfig {
             data_dir: data_dir.into(),
             node_id,
             segment_max_records: 1_024,
+            segment_compression: SegmentCompression::Zstd,
             durability: DurabilityMode::Local,
             access_mode: AccessMode::ReadWrite,
             membership: None,
@@ -142,12 +145,21 @@ impl LocalEngineConfig {
         Ok(self)
     }
 
+    pub fn with_segment_compression(mut self, segment_compression: SegmentCompression) -> Self {
+        self.segment_compression = segment_compression;
+        self
+    }
+
     pub fn data_dir(&self) -> &Path {
         &self.data_dir
     }
 
     pub fn segment_max_records(&self) -> u64 {
         self.segment_max_records
+    }
+
+    pub fn segment_compression(&self) -> SegmentCompression {
+        self.segment_compression
     }
 
     pub fn durability(&self) -> DurabilityMode {
@@ -2317,6 +2329,8 @@ impl LocalEngine {
             Offset::new(state.active_segment_start_offset),
             Offset::new(state.next_offset - 1),
             state.active_record_count,
+            state.active_byte_length,
+            SegmentCompression::None,
             state.active_byte_length,
             checksum,
             content_digest,

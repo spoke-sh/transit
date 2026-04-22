@@ -1,0 +1,8 @@
+Story: VHUSh3x5v
+Acceptance: SRS-02/AC-01
+
+Extended `SegmentDescriptor` to carry `compression` plus stored and uncompressed byte lengths, updated constructor/test call sites, and added a legacy-descriptor compatibility test that defaults missing metadata to uncompressed storage semantics.
+
+Evidence:
+- `cargo test -p transit-core legacy_segment_descriptor_defaults_to_uncompressed_storage_metadata`
+

@@ -1,3 +1,4 @@
+use crate::storage::SegmentCompression;
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -288,7 +289,7 @@ pub struct StorageConfig {
     pub segment_target_bytes: u64,
     pub flush_bytes: u64,
     pub flush_interval_ms: u64,
-    pub compression: String,
+    pub compression: SegmentCompression,
     pub checksum: String,
     pub local_cache_bytes: u64,
     pub prefetch_window_segments: u64,
@@ -306,7 +307,7 @@ impl Default for StorageConfig {
             segment_target_bytes: 134_217_728,
             flush_bytes: 1_048_576,
             flush_interval_ms: 50,
-            compression: "zstd".to_owned(),
+            compression: SegmentCompression::Zstd,
             checksum: "crc32c".to_owned(),
             local_cache_bytes: 2_147_483_648,
             prefetch_window_segments: 2,
@@ -668,7 +669,7 @@ struct StorageConfigPatch {
     segment_target_bytes: Option<u64>,
     flush_bytes: Option<u64>,
     flush_interval_ms: Option<u64>,
-    compression: Option<String>,
+    compression: Option<SegmentCompression>,
     checksum: Option<String>,
     local_cache_bytes: Option<u64>,
     prefetch_window_segments: Option<u64>,
@@ -731,6 +732,7 @@ mod tests {
         assert_eq!(config.storage.provider, StorageProvider::Filesystem);
         assert_eq!(config.storage.bucket, ".transit/objects");
         assert_eq!(config.storage.durability, StorageDurability::Local);
+        assert_eq!(config.storage.compression, SegmentCompression::Zstd);
         assert_eq!(config.server.listen_addr, "127.0.0.1:7171".parse().unwrap());
     }
 
@@ -749,6 +751,7 @@ data_dir = "var/data"
 [storage]
 bucket = "var/objects"
 durability = "local"
+compression = "none"
 
 [server]
 listen_addr = "127.0.0.1:9090"
@@ -770,6 +773,10 @@ listen_addr = "127.0.0.1:9090"
         assert_eq!(
             loaded.config().storage.provider,
             StorageProvider::Filesystem
+        );
+        assert_eq!(
+            loaded.config().storage.compression,
+            SegmentCompression::None
         );
         assert_eq!(
             loaded.config().server.listen_addr,

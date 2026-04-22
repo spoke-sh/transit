@@ -86,6 +86,23 @@ impl SegmentChecksum {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SegmentCompression {
+    #[default]
+    None,
+    Zstd,
+}
+
+impl SegmentCompression {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Zstd => "zstd",
+        }
+    }
+}
+
 /// Cryptographic digest of an immutable segment or manifest.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentDigest {
@@ -183,6 +200,10 @@ pub struct SegmentDescriptor {
     last_offset: Offset,
     record_count: u64,
     byte_length: u64,
+    #[serde(default)]
+    compression: SegmentCompression,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    uncompressed_byte_length: Option<u64>,
     checksum: SegmentChecksum,
     content_digest: ContentDigest,
     storage: StorageLocation,
@@ -199,6 +220,8 @@ impl SegmentDescriptor {
         last_offset: Offset,
         record_count: u64,
         byte_length: u64,
+        compression: SegmentCompression,
+        uncompressed_byte_length: u64,
         checksum: SegmentChecksum,
         content_digest: ContentDigest,
         storage: StorageLocation,
@@ -219,6 +242,8 @@ impl SegmentDescriptor {
             last_offset,
             record_count,
             byte_length,
+            compression,
+            uncompressed_byte_length: Some(uncompressed_byte_length),
             checksum,
             content_digest,
             storage,
@@ -250,6 +275,14 @@ impl SegmentDescriptor {
         self.byte_length
     }
 
+    pub fn compression(&self) -> SegmentCompression {
+        self.compression
+    }
+
+    pub fn uncompressed_byte_length(&self) -> u64 {
+        self.uncompressed_byte_length.unwrap_or(self.byte_length)
+    }
+
     pub fn checksum(&self) -> &SegmentChecksum {
         &self.checksum
     }
@@ -279,6 +312,8 @@ impl SegmentDescriptor {
             last_offset: self.last_offset,
             record_count: self.record_count,
             byte_length: self.byte_length,
+            compression: self.compression,
+            uncompressed_byte_length: self.uncompressed_byte_length,
             checksum: self.checksum.clone(),
             content_digest: self.content_digest.clone(),
             storage,
@@ -447,7 +482,8 @@ impl SegmentManifest {
 mod tests {
     use super::{
         ContentDigest, ManifestId, MaterializationBoundary, ObjectStoreKey, ObjectStoreLocation,
-        SegmentChecksum, SegmentDescriptor, SegmentId, SegmentManifest, StorageLocation,
+        SegmentChecksum, SegmentCompression, SegmentDescriptor, SegmentId, SegmentManifest,
+        StorageLocation,
     };
     use crate::kernel::{LineageMetadata, Offset, StreamDescriptor, StreamId, StreamPosition};
     use std::path::PathBuf;
@@ -476,6 +512,8 @@ mod tests {
             Offset::new(9),
             10,
             4_096,
+            SegmentCompression::Zstd,
+            8_192,
             SegmentChecksum::new("sha256", "deadbeef").expect("checksum"),
             content_digest("digest-1"),
             StorageLocation::new(
@@ -492,6 +530,9 @@ mod tests {
         assert_eq!(segment.stream_id().as_str(), "task.root");
         assert_eq!(segment.start_offset().value(), 0);
         assert_eq!(segment.last_offset().value(), 9);
+        assert_eq!(segment.compression(), SegmentCompression::Zstd);
+        assert_eq!(segment.byte_length(), 4_096);
+        assert_eq!(segment.uncompressed_byte_length(), 8_192);
         assert_eq!(segment.content_digest().digest(), "digest-1");
         assert_eq!(
             segment
@@ -520,6 +561,8 @@ mod tests {
             Offset::new(0),
             Offset::new(4),
             5,
+            2_048,
+            SegmentCompression::None,
             2_048,
             SegmentChecksum::new("sha256", "feedface").expect("checksum"),
             content_digest("segment-digest"),
@@ -587,6 +630,8 @@ mod tests {
             Offset::new(4),
             1,
             512,
+            SegmentCompression::None,
+            512,
             SegmentChecksum::new("sha256", "beadfeed").expect("checksum"),
             content_digest("digest-2"),
             StorageLocation::new(Some(PathBuf::from("segments/task.root/0002.segment")), None)
@@ -598,5 +643,35 @@ mod tests {
                 .to_string()
                 .contains("segment offsets must be monotonic")
         );
+    }
+
+    #[test]
+    fn legacy_segment_descriptor_defaults_to_uncompressed_storage_metadata() {
+        let legacy = serde_json::json!({
+            "segment_id": "segment-0003",
+            "stream_id": "task.root",
+            "start_offset": 0,
+            "last_offset": 1,
+            "record_count": 2,
+            "byte_length": 256,
+            "checksum": {
+                "algorithm": "sha256",
+                "digest": "abc123"
+            },
+            "content_digest": {
+                "algorithm": "sha256",
+                "digest": "digest-3"
+            },
+            "storage": {
+                "local_path": "segments/task.root/0003.segment"
+            }
+        });
+
+        let segment: SegmentDescriptor =
+            serde_json::from_value(legacy).expect("deserialize legacy segment descriptor");
+
+        assert_eq!(segment.compression(), SegmentCompression::None);
+        assert_eq!(segment.byte_length(), 256);
+        assert_eq!(segment.uncompressed_byte_length(), 256);
     }
 }
