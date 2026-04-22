@@ -41,6 +41,8 @@ The server should preserve:
   and ordinary per-record replay
 - the same opt-in retention semantics, with no implicit default policy and
   whole-segment aging instead of compaction
+- the same immutable segment-compression behavior, with `zstd`-compressed
+  rolled segments decoded back into normal records on replay
 - the same meaning of append, replay, and tail even when hosted connection I/O
   timeouts are raised for operational robustness
 - the same shared-engine semantics while accepted server connections are handled
@@ -64,6 +66,8 @@ It also carries runtime timeout tuning for the daemon and hosted proofs without
 creating a second semantic world for server deployments.
 The transport layer can become more tolerant and more concurrent; the record,
 lineage, and durability model is still the same engine.
+Compression follows the same rule. It is a shared-engine storage choice at the
+sealed-segment boundary, not a second hosted message format.
 
 That one-engine rule also applies to retention:
 

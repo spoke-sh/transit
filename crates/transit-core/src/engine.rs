@@ -2573,8 +2573,29 @@ impl LocalEngine {
                     records.extend(segment_records);
                 }
 
+                let active_state = if state.manifest_generation < manifest.generation() {
+                    ensure!(
+                        state.next_offset == expected_next_offset,
+                        "state for '{}' lagged manifest generation {} -> {} but next offset {} did not match replay frontier {}",
+                        stream_id.as_str(),
+                        state.manifest_generation,
+                        manifest.generation(),
+                        state.next_offset,
+                        expected_next_offset
+                    );
+
+                    let mut active_state = state.clone();
+                    active_state.active_segment_start_offset = expected_next_offset;
+                    active_state.active_record_count = 0;
+                    active_state.active_byte_length = 0;
+                    active_state.manifest_generation = manifest.generation();
+                    active_state
+                } else {
+                    state.clone()
+                };
+
                 let active_records =
-                    self.read_active_head(stream_id, &state, expected_next_offset)?;
+                    self.read_active_head(stream_id, &active_state, expected_next_offset)?;
                 records.extend(active_records);
                 Ok(records)
             })() {

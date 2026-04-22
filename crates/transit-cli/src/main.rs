@@ -84,6 +84,8 @@ struct ProofArgs {
 enum ProofCommands {
     /// Exercise append, replay, lineage, and crash recovery in one local proof.
     LocalEngine(LocalEngineProofArgs),
+    /// Exercise immutable segment compression across local, tiered, and hosted replay paths.
+    Compression(LocalEngineProofArgs),
     /// Exercise per-stream retention, retained-frontier status, and bounded replay behavior.
     Retention(LocalEngineProofArgs),
     /// Exercise publication and cold restore through the shared local engine.
@@ -599,6 +601,10 @@ async fn main() -> Result<()> {
         Commands::Proof(args) => match args.command {
             ProofCommands::LocalEngine(args) => render_local_engine_proof(
                 run_local_engine_proof(resolve_local_root(args.root, &config))?,
+                args.json,
+            )?,
+            ProofCommands::Compression(args) => render_compression_proof(
+                run_compression_proof(resolve_local_root(args.root, &config)).await?,
                 args.json,
             )?,
             ProofCommands::Retention(args) => render_retention_proof(
@@ -1199,6 +1205,55 @@ struct RetentionProofResult {
     semantics: RetentionProofSemanticsResult,
     accepted_connections: u64,
     graceful_shutdown: bool,
+    server_api: &'static str,
+    remote_api: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct CompressionProofLocalResult {
+    stream_id: String,
+    segment_id: String,
+    compression: String,
+    stored_bytes: u64,
+    uncompressed_bytes: u64,
+    record_count: usize,
+    replay_matches: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct CompressionProofTieredResult {
+    manifest_object_key: String,
+    restored_segment_ids: Vec<String>,
+    record_count: usize,
+    replay_matches: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct CompressionProofHostedResult {
+    server_addr: String,
+    stream_id: String,
+    record_count: u64,
+    replay_matches: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct CompressionProofSemanticsResult {
+    storage_boundary: &'static str,
+    payload_non_claim: &'static str,
+    transport_non_claim: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct CompressionProofResult {
+    data_root: PathBuf,
+    durability: String,
+    codec_default: String,
+    local: CompressionProofLocalResult,
+    tiered: CompressionProofTieredResult,
+    hosted: CompressionProofHostedResult,
+    semantics: CompressionProofSemanticsResult,
+    publication_api: &'static str,
+    restore_api: &'static str,
     server_api: &'static str,
     remote_api: &'static str,
 }
@@ -2001,6 +2056,178 @@ fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
         merge_base: merge_spec.merge_base.map(render_position),
         replay_before_recovery_failed,
         recovery: summarize_recovery(&merge_stream, recovery),
+    })
+}
+
+async fn run_compression_proof(root: PathBuf) -> Result<CompressionProofResult> {
+    reset_directory(&root)?;
+
+    let local_root = root.join("local");
+    let restore_root = root.join("restore");
+    let object_store_root = root.join("object-store");
+    let hosted_root = root.join("hosted");
+    fs::create_dir_all(&local_root)
+        .with_context(|| format!("create local root {}", local_root.display()))?;
+    fs::create_dir_all(&restore_root)
+        .with_context(|| format!("create restore root {}", restore_root.display()))?;
+    fs::create_dir_all(&object_store_root)
+        .with_context(|| format!("create object store root {}", object_store_root.display()))?;
+    fs::create_dir_all(&hosted_root)
+        .with_context(|| format!("create hosted root {}", hosted_root.display()))?;
+
+    let payload = vec![b'x'; 8_192];
+    let payloads = vec![
+        payload.clone(),
+        payload.clone(),
+        payload.clone(),
+        payload.clone(),
+    ];
+
+    let publish_config = LocalEngineConfig::new(&local_root, NodeId::new("cli-node"))
+        .with_segment_max_records(2)
+        .context("compression proof config")?;
+    let codec_default = publish_config.segment_compression().as_str().to_owned();
+    let publish_engine = LocalEngine::open(publish_config).context("open compression engine")?;
+    let restore_engine = LocalEngine::open(
+        LocalEngineConfig::new(&restore_root, NodeId::new("cli-node")).as_read_only_replica(),
+    )
+    .context("open compression restore engine")?;
+    let store = LocalFileSystem::new_with_prefix(&object_store_root)
+        .with_context(|| format!("open local object store at {}", object_store_root.display()))?;
+
+    let stream_id = StreamId::new("compression.root")?;
+    publish_engine.create_stream(StreamDescriptor::root(
+        stream_id.clone(),
+        LineageMetadata::new(Some("mission".into()), Some("compression-proof".into())),
+    ))?;
+    for payload in &payloads {
+        publish_engine.append(&stream_id, payload)?;
+    }
+
+    let local_replay = publish_engine.replay(&stream_id)?;
+    let manifest = publish_engine.load_manifest(&stream_id)?;
+    let local_segment = manifest
+        .segments()
+        .first()
+        .context("compression proof expected a rolled segment")?;
+    let local_matches = local_replay.len() == payloads.len()
+        && local_replay
+            .iter()
+            .all(|record| record.payload() == payload.as_slice());
+
+    let publication = publish_engine
+        .publish_rolled_segments(&stream_id, &store, "compression-proof")
+        .await?;
+    let restored = restore_engine
+        .restore_stream_from_remote_manifest(
+            &store,
+            publication.manifest_object_key().expect("manifest key"),
+        )
+        .await?;
+    let restored_records = restore_engine.replay(&stream_id)?;
+    let tiered_matches = restored_records.len() == payloads.len()
+        && restored_records
+            .iter()
+            .all(|record| record.payload() == payload.as_slice());
+
+    let requested_listen_addr: SocketAddr = "127.0.0.1:0".parse().expect("listen addr");
+    let server = ServerHandle::bind(ServerConfig::new(
+        LocalEngineConfig::new(&hosted_root, NodeId::new("cli-node"))
+            .with_segment_max_records(2)
+            .context("compression hosted config")?,
+        requested_listen_addr,
+    ))
+    .context("bind compression proof daemon")?;
+    let server_addr = server.local_addr();
+
+    let hosted = (|| -> Result<CompressionProofHostedResult> {
+        let hosted_stream = StreamId::new("compression.hosted.root")?;
+        run_streams_create(
+            server_addr,
+            StreamsCreateArgs {
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                stream_id: hosted_stream.as_str().to_owned(),
+                actor: Some("mission".into()),
+                reason: Some("compression-proof".into()),
+                labels: vec!["kind=compression".into()],
+                retention_max_age_days: None,
+                retention_max_bytes: None,
+                json: true,
+            },
+        )?;
+        let payload_text = String::from_utf8(payload.clone()).expect("payload text");
+        let expected_payload = payload_text.clone();
+        run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: hosted_stream.as_str().to_owned(),
+            payload_text: vec![
+                payload_text.clone(),
+                payload_text.clone(),
+                payload_text.clone(),
+                payload_text,
+            ],
+            json: true,
+        })?;
+        let hosted_read = run_remote_read(ServerReadArgs {
+            server_addr,
+            stream_id: hosted_stream.as_str().to_owned(),
+            json: true,
+        })?;
+
+        Ok(CompressionProofHostedResult {
+            server_addr: server_addr.to_string(),
+            stream_id: hosted_stream.as_str().to_owned(),
+            record_count: hosted_read.record_count as u64,
+            replay_matches: hosted_read.record_count == 4
+                && hosted_read
+                    .records
+                    .iter()
+                    .all(|record| record.payload_text == expected_payload),
+        })
+    })();
+    let _ = server
+        .shutdown()
+        .context("shutdown compression proof server")?;
+    let hosted = hosted?;
+
+    Ok(CompressionProofResult {
+        data_root: root,
+        durability: publish_engine.durability().as_str().to_owned(),
+        codec_default,
+        local: CompressionProofLocalResult {
+            stream_id: stream_id.as_str().to_owned(),
+            segment_id: local_segment.segment_id().as_str().to_owned(),
+            compression: local_segment.compression().as_str().to_owned(),
+            stored_bytes: local_segment.byte_length(),
+            uncompressed_bytes: local_segment.uncompressed_byte_length(),
+            record_count: local_replay.len(),
+            replay_matches: local_matches,
+        },
+        tiered: CompressionProofTieredResult {
+            manifest_object_key: publication
+                .manifest_object_key()
+                .expect("manifest key")
+                .as_str()
+                .to_owned(),
+            restored_segment_ids: restored
+                .restored_segment_ids()
+                .iter()
+                .map(|segment_id| segment_id.as_str().to_owned())
+                .collect(),
+            record_count: restored_records.len(),
+            replay_matches: tiered_matches,
+        },
+        hosted,
+        semantics: CompressionProofSemanticsResult {
+            storage_boundary: "compression applies only to sealed immutable segments",
+            payload_non_claim: "record payload bytes remain unchanged at replay",
+            transport_non_claim: "hosted request and response envelopes are not compressed by this feature",
+        },
+        publication_api: "LocalEngine::publish_rolled_segments",
+        restore_api: "LocalEngine::restore_stream_from_remote_manifest",
+        server_api: "ServerHandle::bind",
+        remote_api: "run_remote_read",
     })
 }
 
@@ -5006,6 +5233,66 @@ fn render_retention_proof(result: RetentionProofResult, json: bool) -> Result<()
     Ok(())
 }
 
+fn render_compression_proof(result: CompressionProofResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit proof compression");
+    println!("root: {}", result.data_root.display());
+    println!("durability: {}", result.durability);
+    println!("default codec: {}", result.codec_default);
+    println!(
+        "local rolled segment: {} codec {}, stored {} bytes, uncompressed {} bytes",
+        result.local.segment_id,
+        result.local.compression,
+        result.local.stored_bytes,
+        result.local.uncompressed_bytes
+    );
+    println!(
+        "local replay: {} ({} records)",
+        if result.local.replay_matches {
+            "PASS"
+        } else {
+            "FAIL"
+        },
+        result.local.record_count
+    );
+    println!(
+        "tiered restore: {} ({} records, {} restored segments)",
+        if result.tiered.replay_matches {
+            "PASS"
+        } else {
+            "FAIL"
+        },
+        result.tiered.record_count,
+        result.tiered.restored_segment_ids.len()
+    );
+    println!(
+        "hosted replay: {} (server {}, {} records)",
+        if result.hosted.replay_matches {
+            "PASS"
+        } else {
+            "FAIL"
+        },
+        result.hosted.server_addr,
+        result.hosted.record_count
+    );
+    println!("storage boundary: {}", result.semantics.storage_boundary);
+    println!("payload non-claim: {}", result.semantics.payload_non_claim);
+    println!(
+        "transport non-claim: {}",
+        result.semantics.transport_non_claim
+    );
+    println!("publication api: {}", result.publication_api);
+    println!("restore api: {}", result.restore_api);
+    println!("server api: {}", result.server_api);
+    println!("remote api: {}", result.remote_api);
+
+    Ok(())
+}
+
 fn render_integrity_proof(result: IntegrityProofResult, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
@@ -7946,6 +8233,63 @@ listen_addr = "127.0.0.1:0"
                 .get("compaction_non_claim")
                 .and_then(serde_json::Value::as_str),
             Some("retention is not Kafka-style compaction and not selective erasure")
+        );
+    }
+
+    #[tokio::test]
+    async fn compression_proof_exercises_local_tiered_and_hosted_segment_compression() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_compression_proof(temp_dir.path().join("compression"))
+            .await
+            .expect("compression proof");
+
+        assert_eq!(proof.codec_default, "zstd");
+        assert_eq!(proof.local.compression, "zstd");
+        assert!(proof.local.replay_matches);
+        assert!(proof.local.uncompressed_bytes > proof.local.stored_bytes);
+        assert!(proof.tiered.replay_matches);
+        assert_eq!(proof.tiered.record_count, 4);
+        assert!(proof.hosted.replay_matches);
+        assert_eq!(proof.hosted.record_count, 4);
+    }
+
+    #[tokio::test]
+    async fn compression_proof_results_serialize_cleanly_for_mission_scripts() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_compression_proof(temp_dir.path().join("compression-json"))
+            .await
+            .expect("compression proof");
+        let proof_json = serde_json::to_value(&proof).expect("serialize compression proof");
+
+        assert_eq!(
+            proof_json
+                .get("codec_default")
+                .and_then(serde_json::Value::as_str),
+            Some("zstd")
+        );
+        assert_eq!(
+            proof_json["local"]
+                .get("compression")
+                .and_then(serde_json::Value::as_str),
+            Some("zstd")
+        );
+        assert_eq!(
+            proof_json["tiered"]
+                .get("replay_matches")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["hosted"]
+                .get("replay_matches")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["semantics"]
+                .get("transport_non_claim")
+                .and_then(serde_json::Value::as_str),
+            Some("hosted request and response envelopes are not compressed by this feature")
         );
     }
 

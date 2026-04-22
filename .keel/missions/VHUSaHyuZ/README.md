@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VHUSaHyuZ
-status: active
+status: achieved
 created_at: 2026-04-21T21:21:04
-updated_at: 2026-04-21T21:24:19
+updated_at: 2026-04-21T21:50:17
 # authored
 title: Implement Immutable Segment Compression In Transit
 watch: ~
 activated_at: 2026-04-21T21:24:19
+achieved_at: 2026-04-21T21:50:17
 ---
 
 # Implement Immutable Segment Compression In Transit

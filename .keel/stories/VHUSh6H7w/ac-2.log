@@ -1,0 +1,13 @@
+2026-04-21 operator guidance
+
+Updated public guidance and proof paths for immutable segment compression:
+- `Justfile`: `just screen` now runs `transit proof compression`
+- `CONFIGURATION.md`: storage compression now documented as sealed immutable segment compression with active-head exclusion
+- `website/docs/start-here/capabilities.mdx`: added immutable segment compression capability and proof path
+- `website/docs/start-here/server-first-run.mdx`: added compression proof and hosted replay guidance
+- `website/docs/concepts/embedded-and-server.mdx`: clarified shared-engine storage compression semantics
+
+Operator boundary called out explicitly:
+- compression applies to sealed segments only
+- record payload bytes are unchanged on replay
+- hosted request/response envelopes are not compressed by this feature

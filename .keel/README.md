@@ -207,11 +207,11 @@
 |--------|--------|
 | [Deliver Per-Stream Retention Configuration And Visibility](epics/VHUAlZWZG/voyages/VHUApus0L/) | done |
 
-### [Implement Shared-Engine Segment Compression](epics/VHUSaJ0w8/) (active)
+### [Implement Shared-Engine Segment Compression](epics/VHUSaJ0w8/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Deliver Compressed Rolled Segments And Replay](epics/VHUSaJ0w8/voyages/VHUSdlUHb/) | in-progress |
+| [Deliver Compressed Rolled Segments And Replay](epics/VHUSaJ0w8/voyages/VHUSdlUHb/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

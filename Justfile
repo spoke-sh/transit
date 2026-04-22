@@ -22,7 +22,7 @@ screen:
         storage_probe_config="$screen_root/storage-probe.toml"
 
         rm -rf "$screen_root"
-        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/retention" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/reference-projection" "$screen_root/tiered-engine" "$screen_root/warm-cache-recovery" "$screen_root/controlled-failover" "$screen_root/chaos-failover" "$screen_root/networked-server"
+        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/compression" "$screen_root/retention" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/reference-projection" "$screen_root/tiered-engine" "$screen_root/warm-cache-recovery" "$screen_root/controlled-failover" "$screen_root/chaos-failover" "$screen_root/networked-server"
 
         printf '%s\n' \
             '[node]' \
@@ -42,6 +42,8 @@ screen:
         just build
         announce "Prove local engine"
         just transit proof local-engine --root "$screen_root/local-engine"
+        announce "Prove compression"
+        just transit proof compression --root "$screen_root/compression"
         announce "Prove retention"
         just transit proof retention --root "$screen_root/retention"
         announce "Prove tiered engine"

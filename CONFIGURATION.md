@@ -189,7 +189,7 @@ Storage configuration defines how local and remote persistence interact.
 | `segment_target_bytes` | Integer | `134217728` | Target immutable segment size. |
 | `flush_bytes` | Integer | `1048576` | Flush threshold for the active segment. |
 | `flush_interval_ms` | Integer | `50` | Maximum time before the active segment is flushed. |
-| `compression` | String | `"zstd"` | Segment compression codec. |
+| `compression` | String | `"zstd"` | Immutable segment compression codec for sealed rolled segments: `zstd` or `none`. The active head stays uncompressed. |
 | `checksum` | String | `"crc32c"` | Segment checksum algorithm. |
 | `local_cache_bytes` | Integer | `2147483648` | Maximum local cache footprint for remote segments. |
 | `prefetch_window_segments` | Integer | `2` | Number of remote segments to prefetch on sequential replay. |
@@ -235,6 +235,15 @@ Those groups do not define two durability worlds. They describe one shared
 manifest and lineage model with different roles: object storage is the
 authority for acknowledged `tiered` history, and the filesystem stays a warm
 cache plus working set.
+
+`compression` is a storage-layer control:
+
+- it applies only when the active head rolls into an immutable segment
+- the active writable head remains uncompressed for the hot append path
+- replay, restore, and hosted reads transparently decode compressed segments back
+  into ordinary Transit records
+- `byte_length` tracks the stored compressed footprint, while segment metadata also
+  preserves the uncompressed canonical size
 
 `checksum` should stay scoped to fast corruption detection for sealed segments. Future cryptographic digests, manifest roots, and checkpoint signing should be configured separately instead of overloading one field with unrelated guarantees.
 

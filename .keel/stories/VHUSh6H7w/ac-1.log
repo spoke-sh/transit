@@ -1,0 +1,13 @@
+2026-04-21 proof coverage
+
+Command:
+cargo test -p transit-cli --bin transit compression_proof_
+
+Result:
+- test tests::compression_proof_exercises_local_tiered_and_hosted_segment_compression ... ok
+- test tests::compression_proof_results_serialize_cleanly_for_mission_scripts ... ok
+
+Coverage:
+- `transit proof compression` exercises local rolled-segment compression metadata
+- tiered publish and restore replay preserved over compressed immutable segments
+- hosted read replay preserved over compressed rolled history

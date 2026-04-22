@@ -58,6 +58,18 @@ That proof creates a stream with explicit retention, trims old rolled segments,
 and then shows the retained frontier through both `transit server lineage` and
 `transit status`.
 
+Run the compression proof when you want one supported path that demonstrates
+default `zstd` storage for sealed rolled segments, tiered restore, and hosted
+replay over compressed history:
+
+```bash
+transit proof compression --root target/transit-docs/compression
+```
+
+That proof is a storage proof, not a transport proof. It shows that sealed
+segments may be stored compressed while replay and hosted reads still return
+normal Transit records.
+
 For the broader shipped surface, read [Capabilities](./capabilities.mdx).
 
 If you set `[server].listen_addr` in `transit.toml`, the `streams`, `produce`,
@@ -159,6 +171,8 @@ If you are stress-testing a producer and consumer against the same hosted
 server, the daemon now serves accepted connections concurrently instead of
 serializing every socket in the listener loop. That makes timeout tuning an
 operational control, not a semantic workaround.
+The same rule applies to compression: sealed segments may be stored compressed,
+but hosted reads still observe normal Transit records.
 
 ## What To Look For
 
@@ -170,6 +184,7 @@ You should see that the server surface:
 - exposes a lower-level single-stream batch append path that still replays as individual records
 - lets operators raise hosted connection I/O timeouts explicitly for proof or runtime workloads
 - keeps overlapping producer and consumer traffic on the same hosted protocol surface
+- can store rolled history as compressed immutable segments without changing hosted replay behavior
 - stays single-node unless a feature explicitly says otherwise
 - does not invent a separate storage model for the daemon
 

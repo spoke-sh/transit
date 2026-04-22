@@ -22,8 +22,8 @@ mission: VHUSaHyuZ
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 2/3 stories done
+**Progress:** 1/1 voyages complete, 3/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Deliver Compressed Rolled Segments And Replay](voyages/VHUSdlUHb/) | in-progress | 2/3 |
+| [Deliver Compressed Rolled Segments And Replay](voyages/VHUSdlUHb/) | done | 3/3 |
 <!-- END GENERATED -->

@@ -1,7 +1,7 @@
 ---
 # system-managed
 id: VHUSdlUHb
-status: in-progress
+status: done
 epic: VHUSaJ0w8
 created_at: 2026-04-21T21:21:17
 # authored
@@ -9,6 +9,7 @@ title: Deliver Compressed Rolled Segments And Replay
 index: 1
 updated_at: 2026-04-21T21:24:13
 started_at: 2026-04-21T21:24:19
+completed_at: 2026-04-21T21:47:01
 ---
 
 # Deliver Compressed Rolled Segments And Replay
@@ -22,16 +23,18 @@ started_at: 2026-04-21T21:24:19
 |----------|-------------|
 | [SRS.md](SRS.md) | Requirements and verification criteria |
 | [SDD.md](SDD.md) | Architecture and implementation details |
+| [VOYAGE_REPORT.md](VOYAGE_REPORT.md) | Narrative summary of implementation and evidence |
+| [COMPLIANCE_REPORT.md](COMPLIANCE_REPORT.md) | Traceability matrix and verification proof |
 <!-- END DOCUMENTS -->
 
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 2/3 stories complete
+**Progress:** 3/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Add Segment Compression Config And Metadata Contract](../../../../stories/VHUSh3x5v/README.md) | feat | done |
 | [Compress Rolled Segments And Preserve Replay Semantics](../../../../stories/VHUSh597Y/README.md) | feat | done |
-| [Publish Compression Proof Coverage And Operator Guidance](../../../../stories/VHUSh6H7w/README.md) | feat | backlog |
+| [Publish Compression Proof Coverage And Operator Guidance](../../../../stories/VHUSh6H7w/README.md) | feat | done |
 <!-- END GENERATED -->
