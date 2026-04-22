@@ -27,11 +27,11 @@ started_at: 2026-04-21T22:30:10
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Define Published Frontier And Object-Store Authority Contract](../../../../stories/VHUjON8Ch/README.md) | feat | done |
-| [Route Published Manifests And Frontiers Through Object-Store Namespaces](../../../../stories/VHUjOOFDf/README.md) | feat | backlog |
+| [Route Published Manifests And Frontiers Through Object-Store Namespaces](../../../../stories/VHUjOOFDf/README.md) | feat | done |
 | [Publish Proof Coverage And Operator Guidance For Object-Store Authority](../../../../stories/VHUjOPLAi/README.md) | feat | backlog |
 <!-- END GENERATED -->

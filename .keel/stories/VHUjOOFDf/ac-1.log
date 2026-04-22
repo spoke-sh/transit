@@ -1,0 +1,13 @@
+2026-04-21 object-store authority implementation
+
+Command:
+cargo test -p transit-core frontier
+
+Result:
+- 15 frontier-focused engine and server tests passed
+
+Coverage:
+- local rolls write immutable published manifest snapshots and a local frontier pointer
+- remote publication writes and preserves remote frontier semantics
+- frontier state survives reopen and failover checks
+- restore can start from a frontier pointer instead of a manifest key

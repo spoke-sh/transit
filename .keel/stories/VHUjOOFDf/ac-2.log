@@ -1,0 +1,13 @@
+2026-04-21 implementation notes
+
+Implemented:
+- `PublishedFrontier` restore path through `restore_stream_from_remote_frontier(...)`
+- deterministic frontier object keys at `streams/<stream>/frontiers/latest.json`
+- local published authority namespace under `<data_dir>/published/...`
+- local published manifest snapshots and segment artifacts that mirror object-store concepts
+- remote publish ordering: segments, manifest snapshot, frontier pointer
+
+Preserved:
+- local mutable working plane for `active.segment` and `state.json`
+- existing append, replay, lineage, durability, and retention semantics
+- remote replication frontier remains remote-authority state and is not overwritten by local published cache updates
