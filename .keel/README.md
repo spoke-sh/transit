@@ -201,6 +201,12 @@
 |--------|--------|
 | [Deliver Hosted Transport Robustness Improvements](epics/VHRmIhDsm/voyages/VHRmIjGvL/) | done |
 
+### [Add Per-Stream Retention Policies And Retained Frontier Semantics](epics/VHUAlZWZG/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Deliver Per-Stream Retention Configuration And Visibility](epics/VHUAlZWZG/voyages/VHUApus0L/) | in-progress |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
