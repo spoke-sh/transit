@@ -1,0 +1,8 @@
+Story: VHUSh597Y
+Acceptance: SRS-03/AC-01
+
+The shared engine now compresses sealed rolled segments at roll time using the configured codec while leaving the active head as raw append state. Default `LocalEngineConfig` instances therefore produce `zstd`-compressed segment files without changing the append path.
+
+Evidence:
+- `cargo test -p transit-core rolled_segments_store_compressed_bytes_and_replay_original_records`
+

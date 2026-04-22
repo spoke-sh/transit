@@ -1,0 +1,9 @@
+Story: VHUSh597Y
+Acceptance: SRS-NFR-02/AC-01
+
+Checksums and content digests remain bound to the stored segment bytes. Replay and restore validate those stored bytes before decompression, so the integrity contract remains attached to the concrete immutable artifact.
+
+Evidence:
+- `cargo test -p transit-core rolled_segments_store_compressed_bytes_and_replay_original_records`
+- `cargo test -p transit-core restore_reconstructs_local_state_from_remote_manifest_and_segments`
+

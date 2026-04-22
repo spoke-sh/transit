@@ -27,11 +27,11 @@ started_at: 2026-04-21T21:24:19
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Add Segment Compression Config And Metadata Contract](../../../../stories/VHUSh3x5v/README.md) | feat | done |
-| [Compress Rolled Segments And Preserve Replay Semantics](../../../../stories/VHUSh597Y/README.md) | feat | backlog |
+| [Compress Rolled Segments And Preserve Replay Semantics](../../../../stories/VHUSh597Y/README.md) | feat | done |
 | [Publish Compression Proof Coverage And Operator Guidance](../../../../stories/VHUSh6H7w/README.md) | feat | backlog |
 <!-- END GENERATED -->

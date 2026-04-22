@@ -1,0 +1,8 @@
+Story: VHUSh597Y
+Acceptance: SRS-05/AC-01
+
+Stored-byte accounting remains explicit: `byte_length` now reflects the concrete stored segment footprint while `uncompressed_byte_length` preserves the canonical JSONL size, and size-based retention continues to operate over stored bytes.
+
+Evidence:
+- `cargo test -p transit-core size_retention_trims_oldest_rolled_segments_and_surfaces_retained_frontier`
+

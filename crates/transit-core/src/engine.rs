@@ -15,7 +15,7 @@ use object_store::path::Path as ObjectPath;
 use object_store::{ObjectStore, ObjectStoreExt};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -1681,22 +1681,17 @@ impl LocalEngine {
                 .with_context(|| {
                     format!("read remote segment {}", remote_location.key().as_str())
                 })?;
-            validate_segment_checksum(&bytes, descriptor.checksum())?;
-            validate_segment_digest(&bytes, descriptor.content_digest())?;
-            ensure!(
-                bytes.len() as u64 == descriptor.byte_length(),
-                "remote segment '{}' expected {} bytes but found {}",
-                descriptor.segment_id().as_str(),
-                descriptor.byte_length(),
-                bytes.len()
-            );
+            let restored_records = decode_segment_records(
+                &bytes,
+                descriptor,
+                &format!("restored segment '{}'", descriptor.segment_id().as_str()),
+            )?;
 
             let local_path = self.segment_path(&stream_id, descriptor.segment_id());
             write_bytes_durable(&local_path, &bytes)?;
             let restored_storage =
                 StorageLocation::new(Some(local_path.clone()), Some(remote_location.clone()))?;
             let restored_descriptor = descriptor.with_storage(restored_storage);
-            let restored_records = read_records(&local_path)?;
             validate_record_offsets(
                 &restored_records,
                 descriptor.start_offset().value(),
@@ -2319,19 +2314,25 @@ impl LocalEngine {
         })?;
         sync_dir(target.parent().expect("segment path has parent"))?;
 
-        let bytes = fs::read(&target)
+        let uncompressed_bytes = fs::read(&target)
             .with_context(|| format!("read rolled segment {}", target.display()))?;
-        let checksum = SegmentChecksum::new("fnv1a64", fnv1a64_hex(&bytes))?;
-        let content_digest = ContentDigest::new("sha256", sha256_hex(&bytes))?;
+        let compression = self.inner.config.segment_compression();
+        let stored_bytes = compress_segment_bytes(compression, &uncompressed_bytes)
+            .with_context(|| format!("compress rolled segment {}", target.display()))?;
+        if stored_bytes != uncompressed_bytes {
+            write_bytes_durable(&target, &stored_bytes)?;
+        }
+        let checksum = SegmentChecksum::new("fnv1a64", fnv1a64_hex(&stored_bytes))?;
+        let content_digest = ContentDigest::new("sha256", sha256_hex(&stored_bytes))?;
         let descriptor = SegmentDescriptor::new(
             segment_id,
             state.stream_id().clone(),
             Offset::new(state.active_segment_start_offset),
             Offset::new(state.next_offset - 1),
             state.active_record_count,
-            state.active_byte_length,
-            SegmentCompression::None,
-            state.active_byte_length,
+            stored_bytes.len() as u64,
+            compression,
+            uncompressed_bytes.len() as u64,
             checksum,
             content_digest,
             local_storage(target.clone())?,
@@ -2662,7 +2663,11 @@ impl LocalEngine {
             .local_path()
             .cloned()
             .context("local replay requires a local segment path")?;
-        let persisted = read_records(&segment_path)?;
+        let persisted = read_stored_segment_records(
+            &segment_path,
+            descriptor,
+            &format!("segment '{}'", descriptor.segment_id().as_str()),
+        )?;
         ensure!(
             persisted.len() as u64 == descriptor.record_count(),
             "segment '{}' expected {} records but found {}",
@@ -2713,7 +2718,11 @@ impl LocalEngine {
                     .local_path()
                     .cloned()
                     .context("local recovery requires a local segment path")?;
-                read_records(&segment_path)
+                read_stored_segment_records(
+                    &segment_path,
+                    descriptor,
+                    &format!("segment '{}'", descriptor.segment_id().as_str()),
+                )
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -2754,13 +2763,16 @@ impl LocalEngine {
             );
 
             let repaired_records = persisted[..expected_count].to_vec();
-            let repaired_bytes = encode_records(&repaired_records)?;
+            let repaired_bytes =
+                encode_stored_segment_records(&repaired_records, descriptor.compression())?;
             ensure!(
                 repaired_bytes.len() as u64 == descriptor.byte_length(),
                 "segment '{}' expected {} bytes on disk",
                 descriptor.segment_id().as_str(),
                 descriptor.byte_length()
             );
+            validate_segment_checksum(&repaired_bytes, descriptor.checksum())?;
+            validate_segment_digest(&repaired_bytes, descriptor.content_digest())?;
 
             let segment_path = descriptor
                 .storage()
@@ -3163,19 +3175,20 @@ fn committed_prefix_length(
 }
 
 fn read_records(path: &Path) -> Result<Vec<PersistedRecord>> {
-    let file = File::open(path).with_context(|| format!("open {}", path.display()))?;
-    let reader = BufReader::new(file);
+    let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
+    read_records_from_bytes(&bytes, &path.display().to_string())
+}
+
+fn read_records_from_bytes(bytes: &[u8], scope: &str) -> Result<Vec<PersistedRecord>> {
     let mut records = Vec::new();
 
-    for (line_number, line) in reader.lines().enumerate() {
-        let line =
-            line.with_context(|| format!("read line {} from {}", line_number + 1, path.display()))?;
-        if line.trim().is_empty() {
+    for (line_number, line) in bytes.split(|byte| *byte == b'\n').enumerate() {
+        if line.is_empty() {
             continue;
         }
 
-        let record = serde_json::from_str::<PersistedRecord>(&line)
-            .with_context(|| format!("parse line {} from {}", line_number + 1, path.display()))?;
+        let record = serde_json::from_slice::<PersistedRecord>(line)
+            .with_context(|| format!("parse line {} from {}", line_number + 1, scope))?;
         records.push(record);
     }
 
@@ -3190,6 +3203,65 @@ fn encode_records(records: &[PersistedRecord]) -> Result<Vec<u8>> {
         bytes.push(b'\n');
     }
     Ok(bytes)
+}
+
+fn compress_segment_bytes(compression: SegmentCompression, bytes: &[u8]) -> Result<Vec<u8>> {
+    match compression {
+        SegmentCompression::None => Ok(bytes.to_vec()),
+        SegmentCompression::Zstd => zstd::stream::encode_all(std::io::Cursor::new(bytes), 0)
+            .context("compress segment bytes with zstd"),
+    }
+}
+
+fn decompress_segment_bytes(compression: SegmentCompression, bytes: &[u8]) -> Result<Vec<u8>> {
+    match compression {
+        SegmentCompression::None => Ok(bytes.to_vec()),
+        SegmentCompression::Zstd => zstd::stream::decode_all(std::io::Cursor::new(bytes))
+            .context("decompress segment bytes with zstd"),
+    }
+}
+
+fn decode_segment_records(
+    stored_bytes: &[u8],
+    descriptor: &SegmentDescriptor,
+    scope: &str,
+) -> Result<Vec<PersistedRecord>> {
+    validate_segment_checksum(stored_bytes, descriptor.checksum())?;
+    validate_segment_digest(stored_bytes, descriptor.content_digest())?;
+    ensure!(
+        stored_bytes.len() as u64 == descriptor.byte_length(),
+        "{scope} expected {} bytes but found {}",
+        descriptor.byte_length(),
+        stored_bytes.len()
+    );
+
+    let decoded_bytes = decompress_segment_bytes(descriptor.compression(), stored_bytes)
+        .with_context(|| format!("decode stored bytes for {scope}"))?;
+    ensure!(
+        decoded_bytes.len() as u64 == descriptor.uncompressed_byte_length(),
+        "{scope} expected {} uncompressed bytes but found {}",
+        descriptor.uncompressed_byte_length(),
+        decoded_bytes.len()
+    );
+
+    read_records_from_bytes(&decoded_bytes, scope)
+}
+
+fn read_stored_segment_records(
+    path: &Path,
+    descriptor: &SegmentDescriptor,
+    scope: &str,
+) -> Result<Vec<PersistedRecord>> {
+    let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
+    decode_segment_records(&bytes, descriptor, scope)
+}
+
+fn encode_stored_segment_records(
+    records: &[PersistedRecord],
+    compression: SegmentCompression,
+) -> Result<Vec<u8>> {
+    let canonical_bytes = encode_records(records)?;
+    compress_segment_bytes(compression, &canonical_bytes)
 }
 
 fn validate_record_offsets(
@@ -3301,15 +3373,11 @@ async fn materialize_remote_segment(
         .bytes()
         .await
         .with_context(|| format!("read remote segment {}", remote_location.key().as_str()))?;
-    validate_segment_checksum(&bytes, descriptor.checksum())?;
-    validate_segment_digest(&bytes, descriptor.content_digest())?;
-    ensure!(
-        bytes.len() as u64 == descriptor.byte_length(),
-        "remote segment '{}' expected {} bytes but found {}",
-        descriptor.segment_id().as_str(),
-        descriptor.byte_length(),
-        bytes.len()
-    );
+    let restored_records = decode_segment_records(
+        &bytes,
+        descriptor,
+        &format!("restored segment '{}'", descriptor.segment_id().as_str()),
+    )?;
 
     write_bytes_durable(local_path, &bytes)?;
     let restored_storage = StorageLocation::new(
@@ -3317,7 +3385,6 @@ async fn materialize_remote_segment(
         Some(remote_location.clone()),
     )?;
     let restored_descriptor = descriptor.with_storage(restored_storage);
-    let restored_records = read_records(local_path)?;
     validate_record_offsets(
         &restored_records,
         descriptor.start_offset().value(),
@@ -3473,7 +3540,7 @@ fn compute_manifest_root(
 mod tests {
     use super::{
         AccessMode, CommitmentLevel, DurabilityMode, LocalEngine, LocalEngineConfig, NodeId,
-        OwnershipPosture, compute_manifest_root, inspect_local_log, read_json,
+        OwnershipPosture, SegmentCompression, compute_manifest_root, inspect_local_log, read_json,
         retention_timestamp_now, write_json_durable,
     };
     use std::time::Duration;
@@ -4569,10 +4636,42 @@ mod tests {
             .expect("object bytes");
 
         assert_eq!(bytes.len() as u64, segment.byte_length());
+        assert_eq!(segment.compression(), SegmentCompression::Zstd);
+        assert!(segment.uncompressed_byte_length() >= segment.byte_length());
         assert_eq!(
             remote_location.key().as_str(),
             "tiered/streams/task.root/segments/segment-00000000000000000000.segment"
         );
+    }
+
+    #[tokio::test]
+    async fn rolled_segments_store_compressed_bytes_and_replay_original_records() {
+        let temp_dir = tempdir().expect("temp dir");
+        let payload = vec![b'x'; 8_192];
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.compressed.root");
+        engine
+            .create_stream(root_descriptor("task.compressed.root"))
+            .expect("create stream");
+        engine.append(&stream_id, &payload).expect("append first");
+        let rolled = engine.append(&stream_id, &payload).expect("append second");
+        let segment = rolled.rolled_segment().expect("rolled segment");
+        let local_path = segment.storage().local_path().expect("local path");
+        let stored_bytes = std::fs::read(local_path).expect("read stored segment");
+
+        assert_eq!(segment.compression(), SegmentCompression::Zstd);
+        assert_eq!(stored_bytes.len() as u64, segment.byte_length());
+        assert!(segment.uncompressed_byte_length() > segment.byte_length());
+
+        let replayed = engine.replay(&stream_id).expect("replay");
+        assert_eq!(replayed.len(), 2);
+        assert_eq!(replayed[0].payload(), payload.as_slice());
+        assert_eq!(replayed[1].payload(), payload.as_slice());
     }
 
     #[tokio::test]
@@ -4901,6 +5000,12 @@ mod tests {
         assert_eq!(restored_status.next_offset().value(), 4);
         assert_eq!(restored_status.active_record_count(), 0);
         assert_eq!(restored_manifest.segments().len(), 2);
+        assert!(
+            restored_manifest
+                .segments()
+                .iter()
+                .all(|segment| segment.compression() == SegmentCompression::Zstd)
+        );
         assert!(
             restored_manifest.segments().iter().all(|segment| segment
                 .storage()
