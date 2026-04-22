@@ -101,6 +101,8 @@ enum ProofCommands {
     NetworkedServer(HostedProofArgs),
     /// Exercise thin-client producers and readers against a hosted transit-server authority.
     HostedAuthority(HostedProofArgs),
+    /// Exercise hosted cursor, checkpoint, and incremental resume semantics against a hosted transit-server authority.
+    HostedMaterialization(HostedProofArgs),
     /// Exercise server restart and warm-cache recovery from the authoritative remote tier.
     WarmCacheRecovery(LocalEngineProofArgs),
     /// Exercise segment, manifest-root, checkpoint, tamper, and server-parity verification across the integrity proof flow.
@@ -645,6 +647,17 @@ async fn main() -> Result<()> {
                 let json = args.json;
                 render_hosted_authority_proof(
                     run_hosted_authority_proof(
+                        resolve_local_root(args.root, &config),
+                        args.server_connection_io_timeout_ms,
+                        args.client_io_timeout_ms,
+                    )?,
+                    json,
+                )?
+            }
+            ProofCommands::HostedMaterialization(args) => {
+                let json = args.json;
+                render_hosted_materialization_proof(
+                    run_hosted_materialization_proof(
                         resolve_local_root(args.root, &config),
                         args.server_connection_io_timeout_ms,
                         args.client_io_timeout_ms,
@@ -1476,6 +1489,62 @@ struct HostedAuthorityProofResult {
     consumer_boundary: &'static str,
     tiered_non_claim: &'static str,
     embedded_authority_used: bool,
+    accepted_connections: u64,
+    graceful_shutdown: bool,
+    server_api: &'static str,
+    remote_api: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct HostedMaterializationProofCursorResult {
+    cursor_id: String,
+    initial_offset: u64,
+    acknowledged_offset: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct HostedMaterializationProofCheckpointResult {
+    materialization_id: String,
+    stream_id: String,
+    head_offset: u64,
+    manifest_root: String,
+    opaque_state_bytes: usize,
+    produced_at: i64,
+    round_tripped: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct HostedMaterializationProofResumeResult {
+    replay_from_offset: u64,
+    source_next_offset: u64,
+    pending_record_count: u64,
+    pending_records: Vec<RemoteRecordView>,
+    only_new_records_replayed: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct HostedMaterializationProofTamperResult {
+    rejected: bool,
+    error: String,
+}
+
+#[derive(Debug, Serialize)]
+struct HostedMaterializationProofResult {
+    data_root: PathBuf,
+    server_addr: String,
+    durability: String,
+    topology: String,
+    server_connection_io_timeout_ms: u64,
+    client_io_timeout_ms: u64,
+    stream_id: String,
+    cursor: HostedMaterializationProofCursorResult,
+    checkpoint: HostedMaterializationProofCheckpointResult,
+    resume: HostedMaterializationProofResumeResult,
+    tamper: HostedMaterializationProofTamperResult,
+    checkpoint_api: &'static str,
+    resume_api: &'static str,
+    consumer_boundary: &'static str,
+    failure_mode: &'static str,
     accepted_connections: u64,
     graceful_shutdown: bool,
     server_api: &'static str,
@@ -2779,6 +2848,230 @@ fn run_hosted_authority_proof(
         consumer_boundary: "external producers and readers use TransitClient over the server boundary; they do not open LocalEngine as their own authority",
         tiered_non_claim: "tiered durability is not claimed here because this proof never publishes the acknowledged history to the remote tier",
         embedded_authority_used: false,
+        accepted_connections: shutdown.accepted_connections,
+        graceful_shutdown: shutdown.graceful_shutdown,
+        server_api: shutdown.server_api,
+        remote_api: "TransitClient",
+    })
+}
+
+fn run_hosted_materialization_proof(
+    root: PathBuf,
+    server_connection_io_timeout_ms: Option<u64>,
+    client_io_timeout_ms: Option<u64>,
+) -> Result<HostedMaterializationProofResult> {
+    reset_directory(&root)?;
+
+    let requested_listen_addr = "127.0.0.1:0"
+        .parse::<SocketAddr>()
+        .context("parse hosted materialization proof listen addr")?;
+    let server = ServerHandle::bind(configure_server_connection_timeout(
+        ServerConfig::new(
+            LocalEngineConfig::new(&root, NodeId::new("cli-node")).with_segment_max_records(4)?,
+            requested_listen_addr,
+        ),
+        server_connection_io_timeout_ms,
+    ))
+    .context("bind hosted materialization proof daemon")?;
+    let server_addr = server.local_addr();
+
+    let proof = (|| -> Result<_> {
+        let client = build_transit_client(server_addr, client_io_timeout_ms);
+        let stream_id = StreamId::new("hosted.materialization.orders")?;
+        let materialization_id = "consumer.analytics/orders".to_owned();
+        let cursor_id = transit_client::CursorId::new("consumer.analytics/orders")?;
+        let root_stream = client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("consumer.analytics".into()),
+                    Some("hosted-materialization-proof".into()),
+                ),
+            )
+            .context("create hosted materialization root stream through transit client")?;
+        client
+            .append_batch(
+                &stream_id,
+                [
+                    br#"{"order_id":"order-1","status":"created"}"#.as_slice(),
+                    br#"{"order_id":"order-1","status":"packed"}"#.as_slice(),
+                ],
+            )
+            .with_context(|| {
+                format!(
+                    "append initial hosted materialization batch for {}",
+                    stream_id.as_str()
+                )
+            })?;
+
+        let checkpoint = client
+            .materialize_checkpoint(
+                &stream_id,
+                materialization_id.clone(),
+                br#"{"processed_records":2,"view":"orders"}"#.to_vec(),
+            )
+            .context("checkpoint hosted materialization state")?;
+        let checkpoint_body = checkpoint.body().clone();
+        let stored_checkpoint = client
+            .get_materialization_checkpoint(materialization_id.clone(), &stream_id)
+            .context("load persisted hosted materialization checkpoint")?;
+        let checkpoint_round_tripped = stored_checkpoint.body() == &checkpoint_body;
+        ensure!(
+            checkpoint_round_tripped,
+            "hosted materialization proof expected persisted checkpoint to match the created checkpoint"
+        );
+
+        let created_cursor = client
+            .create_cursor(
+                &cursor_id,
+                &stream_id,
+                checkpoint_body.lineage_anchor().head_offset,
+                LineageMetadata::new(
+                    Some("consumer.analytics".into()),
+                    Some("hosted-materialization-progress".into()),
+                ),
+            )
+            .context("create hosted consumer cursor for checkpoint anchor")?;
+
+        client
+            .append_batch(
+                &stream_id,
+                [
+                    br#"{"order_id":"order-1","status":"shipped"}"#.as_slice(),
+                    br#"{"order_id":"order-2","status":"created"}"#.as_slice(),
+                ],
+            )
+            .with_context(|| {
+                format!(
+                    "append resumed hosted materialization batch for {}",
+                    stream_id.as_str()
+                )
+            })?;
+
+        let resumed = client
+            .materialize_resume(&checkpoint_body)
+            .context("resume hosted materialization from checkpoint")?;
+        let pending_records = summarize_remote_records(resumed.pending_records());
+        let only_new_records_replayed = resumed.replay_from().value()
+            == checkpoint_body.lineage_anchor().head_offset.value() + 1
+            && resumed.source_next_offset().value() == 4
+            && resumed.pending_record_count() == 2
+            && pending_records
+                .iter()
+                .map(|record| record.payload_text.as_str())
+                .eq([
+                    r#"{"order_id":"order-1","status":"shipped"}"#,
+                    r#"{"order_id":"order-2","status":"created"}"#,
+                ]);
+        ensure!(
+            only_new_records_replayed,
+            "hosted materialization proof expected resume to replay only post-checkpoint records"
+        );
+
+        let acknowledged_offset = resumed
+            .source_next_offset()
+            .value()
+            .checked_sub(1)
+            .context("hosted materialization proof expected at least one replayed record")?;
+        client
+            .ack_cursor(&cursor_id, Offset::new(acknowledged_offset))
+            .context("ack hosted consumer cursor after resume")?;
+        let acknowledged_cursor = client
+            .get_cursor(&cursor_id)
+            .context("reload hosted consumer cursor after ack")?;
+
+        let anchor = checkpoint_body.lineage_anchor().clone();
+        let tampered = transit_core::materialization::HostedMaterializationCheckpoint::new(
+            checkpoint_body.materialization_id(),
+            transit_core::storage::LineageCheckpoint::new(
+                anchor.stream_id,
+                anchor.head_offset,
+                transit_core::storage::ContentDigest::new("sha256", "tampered-root")
+                    .expect("tampered digest"),
+                anchor.kind,
+            ),
+            checkpoint_body.opaque_state().to_vec(),
+            checkpoint_body.produced_at(),
+        )
+        .context("build tampered hosted materialization checkpoint")?;
+        let tamper_error = match client.resume_materialization_cursor(&tampered) {
+            Err(transit_client::RemoteClientError::Remote(error)) => {
+                ensure!(
+                    error
+                        .message()
+                        .contains("does not match the persisted hosted checkpoint"),
+                    "hosted materialization proof expected tampered checkpoint rejection, found '{}'",
+                    error.message()
+                );
+                error.message().to_owned()
+            }
+            Err(other) => bail!(
+                "hosted materialization proof expected remote tampered-checkpoint rejection, found {other}"
+            ),
+            Ok(_) => bail!("hosted materialization proof expected tampered checkpoint rejection"),
+        };
+
+        Ok((
+            summarize_remote_stream_status(server_addr, root_stream),
+            HostedMaterializationProofCursorResult {
+                cursor_id: cursor_id.as_str().to_owned(),
+                initial_offset: created_cursor.body().position.value(),
+                acknowledged_offset: acknowledged_cursor.body().position.value(),
+            },
+            HostedMaterializationProofCheckpointResult {
+                materialization_id,
+                stream_id: checkpoint_body.source_stream_id().as_str().to_owned(),
+                head_offset: checkpoint_body.lineage_anchor().head_offset.value(),
+                manifest_root: checkpoint_body
+                    .lineage_anchor()
+                    .manifest_root
+                    .digest()
+                    .to_owned(),
+                opaque_state_bytes: checkpoint_body.opaque_state().len(),
+                produced_at: checkpoint_body.produced_at(),
+                round_tripped: checkpoint_round_tripped,
+            },
+            HostedMaterializationProofResumeResult {
+                replay_from_offset: resumed.replay_from().value(),
+                source_next_offset: resumed.source_next_offset().value(),
+                pending_record_count: resumed.pending_record_count(),
+                pending_records,
+                only_new_records_replayed,
+            },
+            HostedMaterializationProofTamperResult {
+                rejected: true,
+                error: tamper_error,
+            },
+        ))
+    })();
+
+    let shutdown = summarize_server_shutdown(
+        requested_listen_addr,
+        server
+            .shutdown()
+            .context("shutdown hosted materialization proof daemon")?,
+        effective_hosted_io_timeout_ms(server_connection_io_timeout_ms),
+    )?;
+    let (root_stream, cursor, checkpoint, resume, tamper) = proof?;
+
+    Ok(HostedMaterializationProofResult {
+        data_root: shutdown.data_root,
+        server_addr: server_addr.to_string(),
+        durability: shutdown.durability,
+        topology: root_stream.topology,
+        server_connection_io_timeout_ms: effective_hosted_io_timeout_ms(
+            server_connection_io_timeout_ms,
+        ),
+        client_io_timeout_ms: effective_hosted_io_timeout_ms(client_io_timeout_ms),
+        stream_id: root_stream.stream_id,
+        cursor,
+        checkpoint,
+        resume,
+        tamper,
+        checkpoint_api: "TransitClient::materialize_checkpoint + TransitClient::get_materialization_checkpoint",
+        resume_api: "TransitClient::materialize_resume + TransitClient::resume_materialization_cursor",
+        consumer_boundary: "external daemon consumers stay on TransitClient and persist hosted cursor plus hosted checkpoint state without opening LocalEngine",
+        failure_mode: "tampered or stale hosted checkpoints fail through the normal remote invalid_request path instead of silently replaying from an unverified anchor",
         accepted_connections: shutdown.accepted_connections,
         graceful_shutdown: shutdown.graceful_shutdown,
         server_api: shutdown.server_api,
@@ -6574,6 +6867,88 @@ fn render_hosted_authority_proof(result: HostedAuthorityProofResult, json: bool)
             "no"
         }
     );
+    println!("accepted connections: {}", result.accepted_connections);
+    println!(
+        "graceful shutdown: {}",
+        if result.graceful_shutdown {
+            "yes"
+        } else {
+            "no"
+        }
+    );
+    println!("server api: {}", result.server_api);
+    println!("remote api: {}", result.remote_api);
+
+    Ok(())
+}
+
+fn render_hosted_materialization_proof(
+    result: HostedMaterializationProofResult,
+    json: bool,
+) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit proof hosted-materialization");
+    println!("root: {}", result.data_root.display());
+    println!("server: {}", result.server_addr);
+    println!("durability: {}", result.durability);
+    println!("topology: {}", result.topology);
+    println!(
+        "server connection io timeout: {}ms",
+        result.server_connection_io_timeout_ms
+    );
+    println!("client io timeout: {}ms", result.client_io_timeout_ms);
+    println!("stream: {}", result.stream_id);
+    println!("checkpoint api: {}", result.checkpoint_api);
+    println!("resume api: {}", result.resume_api);
+    println!("consumer boundary: {}", result.consumer_boundary);
+    println!(
+        "cursor: {} initial {} acknowledged {}",
+        result.cursor.cursor_id, result.cursor.initial_offset, result.cursor.acknowledged_offset
+    );
+    println!(
+        "checkpoint: {} head {} manifest {}",
+        result.checkpoint.materialization_id,
+        result.checkpoint.head_offset,
+        result.checkpoint.manifest_root
+    );
+    println!(
+        "checkpoint round trip: {}",
+        if result.checkpoint.round_tripped {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "resume replay window: {}..{}",
+        result.resume.replay_from_offset, result.resume.source_next_offset
+    );
+    println!(
+        "resume pending records: {}",
+        result.resume.pending_record_count
+    );
+    println!(
+        "resume only new records: {}",
+        if result.resume.only_new_records_replayed {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!("pending payloads:");
+    for record in &result.resume.pending_records {
+        println!("  - {} {}", record.position, record.payload_text);
+    }
+    println!(
+        "tampered checkpoint rejected: {}",
+        if result.tamper.rejected { "yes" } else { "no" }
+    );
+    println!("failure mode: {}", result.failure_mode);
+    println!("tamper rejection: {}", result.tamper.error);
     println!("accepted connections: {}", result.accepted_connections);
     println!(
         "graceful shutdown: {}",

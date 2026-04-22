@@ -22,7 +22,7 @@ screen:
         storage_probe_config="$screen_root/storage-probe.toml"
 
         rm -rf "$screen_root"
-        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/compression" "$screen_root/retention" "$screen_root/object-store-authority" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/reference-projection" "$screen_root/tiered-engine" "$screen_root/warm-cache-recovery" "$screen_root/controlled-failover" "$screen_root/chaos-failover" "$screen_root/networked-server"
+        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/compression" "$screen_root/retention" "$screen_root/object-store-authority" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/hosted-materialization" "$screen_root/reference-projection" "$screen_root/tiered-engine" "$screen_root/warm-cache-recovery" "$screen_root/controlled-failover" "$screen_root/chaos-failover" "$screen_root/networked-server"
 
         printf '%s\n' \
             '[node]' \
@@ -62,6 +62,8 @@ screen:
         just transit proof integrity --root "$screen_root/integrity"
         announce "Prove materialization"
         just transit proof materialization --root "$screen_root/materialization"
+        announce "Prove hosted materialization"
+        just transit proof hosted-materialization --root "$screen_root/hosted-materialization" --server-connection-io-timeout-ms 5000 --client-io-timeout-ms 5000
         announce "Prove reference projection"
         just transit proof reference-projection --root "$screen_root/reference-projection"
         announce "Probe storage"

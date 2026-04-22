@@ -1,0 +1,27 @@
+transit proof hosted-materialization
+root: target/hosted-materialization-proof
+server: 127.0.0.1:45861
+durability: local
+topology: single_node
+server connection io timeout: 5000ms
+client io timeout: 5000ms
+stream: hosted.materialization.orders
+checkpoint api: TransitClient::materialize_checkpoint + TransitClient::get_materialization_checkpoint
+resume api: TransitClient::materialize_resume + TransitClient::resume_materialization_cursor
+consumer boundary: external daemon consumers stay on TransitClient and persist hosted cursor plus hosted checkpoint state without opening LocalEngine
+cursor: consumer.analytics/orders initial 1 acknowledged 3
+checkpoint: consumer.analytics/orders head 1 manifest 5b13b6eaffed211696f0ceaf31106505e6cff50f4fa9419ab2bfea1a4fadfdaf
+checkpoint round trip: PASS
+resume replay window: 2..4
+resume pending records: 2
+resume only new records: PASS
+pending payloads:
+  - hosted.materialization.orders@2 {"order_id":"order-1","status":"shipped"}
+  - hosted.materialization.orders@3 {"order_id":"order-2","status":"created"}
+tampered checkpoint rejected: yes
+failure mode: tampered or stale hosted checkpoints fail through the normal remote invalid_request path instead of silently replaying from an unverified anchor
+tamper rejection: materialization checkpoint 'consumer.analytics/orders' for 'hosted.materialization.orders' does not match the persisted hosted checkpoint
+accepted connections: 11
+graceful shutdown: yes
+server api: ServerHandle::bind
+remote api: TransitClient

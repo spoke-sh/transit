@@ -17,11 +17,11 @@ All examples below invoke the `transit` CLI directly.
 | local engine | `transit proof local-engine`, `transit status` | append, replay, branch, merge, crash recovery, and log-state inspection | local proof roots are filesystem-backed |
 | segment compression | `transit proof compression`, `transit proof tiered-engine` | `zstd`-compressed immutable segments with transparent replay through local, tiered, and hosted paths | compression applies to sealed segments only, not payloads or hosted envelopes |
 | retention lifecycle | `transit proof retention`, `transit status`, `transit streams list`, `transit server lineage` | explicit per-stream retention policy, retained-frontier status, and bounded replay after whole-segment aging | retention is not Kafka-style compaction or selective erasure |
-| hosted operator surface | `transit server run`, `transit streams`, `transit produce`, `transit consume`, `transit server append`, `transit proof hosted-authority` | shared-engine server semantics over a remote boundary, including the Rust client surface, single-stream batch append, explicit transport-timeout tuning, and concurrent producer/consumer handling | current remote operator surface is still single-node |
+| hosted operator surface | `transit server run`, `transit streams`, `transit produce`, `transit consume`, `transit server append`, `transit proof hosted-authority`, `transit proof hosted-materialization` | shared-engine server semantics over a remote boundary, including the Rust client surface, single-stream batch append, hosted materialization checkpoints, explicit transport-timeout tuning, and concurrent producer/consumer handling | current remote operator surface is still single-node |
 | published authority model | `transit proof object-store-authority`, `transit proof tiered-engine`, `transit proof warm-cache-recovery` | mutable working-plane files plus immutable published segment and manifest objects discovered through `frontiers/latest.json` | the active head is not itself a published object-store snapshot |
 | storage and recovery | `transit proof tiered-engine`, `transit proof warm-cache-recovery`, `transit storage probe` | tiered publication, cold restore, restart-after-cache-loss from remote authority, and effective-config verification | `storage probe` verifies the current local guarantee plus hosted bootstrap posture, not remote-tier or cloud-provider durability |
-| integrity and derived state | `transit proof integrity`, `transit proof materialization`, `transit proof reference-projection` | manifest roots, checkpoints, replay-anchored views, and resume correctness | signed attestation and compact partial proofs are later layers |
-| independent reader progress | embedded cursor API on `LocalEngine` | durable per-consumer cursors with monotonic advance, local-durability ack, and restart recovery | hosted protocol, CLI, and `transit-client` cursor surfaces are still follow-up work |
+| integrity and derived state | `transit proof integrity`, `transit proof materialization`, `transit proof hosted-materialization`, `transit proof reference-projection` | manifest roots, checkpoints, hosted checkpoint verification, replay-anchored views, and resume correctness | signed attestation and compact partial proofs are later layers |
+| independent reader progress | embedded cursor API on `LocalEngine`, hosted cursor API on `TransitClient`, `transit proof hosted-materialization` | durable per-consumer cursors with monotonic advance, hosted materialization checkpoints, local-durability ack, and restart recovery | hosted cursors track reader progress; they do not change authoritative stream truth or branch semantics |
 | failover and distributed durability | `transit proof controlled-failover`, `transit proof chaos-failover` | lease handoff, automatic election, quorum acknowledgement, and former-primary fencing | not a multi-primary system |
 
 ## Shared Engine
@@ -150,6 +150,23 @@ single-stream batching. It keeps the normal `RemoteAcknowledged<_>` envelope
 instead of inventing a second client-side batching dialect.
 The Rust client also exposes `TransitClient::with_io_timeout(...)` when a
 hosted workload needs more than the default 1s socket timeout.
+Hosted clients can now also stay on that boundary for materialization:
+
+- `TransitClient::create_cursor(...)`, `ack_cursor(...)`, and `get_cursor(...)`
+  persist external consumer progress without app-owned offset files
+- `TransitClient::materialize_checkpoint(...)` stores opaque reducer state
+  against a Transit-native lineage anchor
+- `TransitClient::materialize_resume(...)` replays only records after the
+  checkpoint anchor and fails if the anchor no longer verifies
+
+The shortest public proof for that slice is:
+
+```bash
+transit proof hosted-materialization \
+  --root target/transit-docs/hosted-materialization \
+  --server-connection-io-timeout-ms 5000 \
+  --client-io-timeout-ms 5000
+```
 
 Server mode is single-node at the protocol surface. The daemon preserves shared-engine semantics instead of introducing a separate storage model, and the common remote commands default to `[server].listen_addr` when you configure it through `transit.toml`.
 
@@ -218,7 +235,16 @@ Transit ships a first-class cursor primitive on the embedded engine:
 
 Branches remain for lineage forks. Cursors carry per-reader progress so independent consumers can advance on the same stream without maintaining an external offset store or misusing branches.
 
-Hosted protocol, CLI, and `transit-client` surfaces for cursors are follow-up work; they will expose the same semantics without changing the engine contract.
+The same semantics are now available across the hosted boundary through
+`TransitClient` and the hosted materialization proof:
+
+- hosted cursor create, lookup, ack, and delete operations
+- hosted checkpoints bound to source-stream lineage instead of raw app offsets
+- hosted incremental resume that replays only post-anchor records
+
+That hosted surface is still client-first. It does not require downstream apps
+to open `LocalEngine` or mirror remote streams just to checkpoint reducer
+progress.
 
 ## Failover And Distributed Durability
 

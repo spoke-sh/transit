@@ -66,6 +66,8 @@ The server should preserve:
   whole-segment aging instead of compaction
 - the same immutable segment-compression behavior, with `zstd`-compressed
   rolled segments decoded back into normal records on replay
+- the same checkpoint-and-resume semantics for derived state, including hosted
+  cursors and hosted materialization checkpoints for external-daemon consumers
 - the same meaning of append, replay, and tail even when hosted connection I/O
   timeouts are raised for operational robustness
 - the same shared-engine semantics while accepted server connections are handled
@@ -93,6 +95,10 @@ The transport layer can become more tolerant and more concurrent; the record,
 lineage, and durability model is still the same engine.
 Compression follows the same rule. It is a shared-engine storage choice at the
 sealed-segment boundary, not a second hosted message format.
+Hosted materialization follows the same rule too: the server exposes cursor,
+checkpoint, and resume primitives over the boundary, but authoritative replay
+still lives in the shared engine and materialized state does not become part of
+stream truth.
 
 That one-engine rule also applies to retention:
 

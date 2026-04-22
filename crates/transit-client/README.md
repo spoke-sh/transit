@@ -26,6 +26,8 @@ This crate publishes three parts of the hosted consumer boundary:
   `RemoteErrorResponse`, `RemoteErrorCode`, and `RemoteTailSessionState`
 - exported hosted batch limits `APPEND_BATCH_MAX_RECORDS` and
   `APPEND_BATCH_MAX_BYTES`
+- hosted cursor and materialization types such as `Cursor`, `CursorId`,
+  `HostedMaterializationCheckpoint`, and `HostedMaterializationResume`
 
 Typical downstream imports should look like:
 
@@ -90,6 +92,79 @@ This is transport tuning only:
 - `request_id` correlation stays literal
 - `ack.durability` and `ack.topology` stay literal
 - append, replay, batch append, and tail semantics do not change
+
+## Hosted Materialization
+
+`transit-client` now exposes the hosted primitives a client-only materializer
+needs when Transit runs as a separate daemon:
+
+- durable hosted consumer cursors
+- hosted materialization checkpoints bound to source-stream lineage
+- hosted resume that replays only records after the checkpoint anchor
+
+Typical hosted materializer flow:
+
+```rust
+use transit_client::{CursorId, LineageMetadata, Offset, StreamId, TransitClient};
+
+let stream_id = StreamId::new("consumer.orders")?;
+let materialization_id = "consumer.analytics/orders";
+let cursor_id = CursorId::new("consumer.analytics/orders")?;
+
+client.create_root(
+    &stream_id,
+    LineageMetadata::new(Some("consumer".into()), Some("bootstrap".into())),
+)?;
+client.append(&stream_id, br#"{"order_id":"order-1","status":"created"}"#)?;
+client.append(&stream_id, br#"{"order_id":"order-1","status":"paid"}"#)?;
+
+let checkpoint = client.materialize_checkpoint(
+    &stream_id,
+    materialization_id,
+    br#"{"processed_records":2}"#.to_vec(),
+)?;
+
+client.create_cursor(
+    &cursor_id,
+    &stream_id,
+    checkpoint.body().lineage_anchor().head_offset,
+    LineageMetadata::new(Some("consumer".into()), Some("progress".into())),
+)?;
+
+client.append(&stream_id, br#"{"order_id":"order-1","status":"shipped"}"#)?;
+
+let resumed = client.materialize_resume(checkpoint.body())?;
+assert_eq!(resumed.replay_from().value(), 2);
+
+for record in resumed.pending_records() {
+    // reduce opaque state from authoritative replay
+    let _ = record;
+}
+
+client.ack_cursor(
+    &cursor_id,
+    Offset::new(resumed.source_next_offset().value() - 1),
+)?;
+```
+
+Hosted checkpoints are verification-bearing, not just saved offsets:
+
+- `materialize_checkpoint(...)` binds opaque state to the current source-stream
+  lineage checkpoint
+- `get_materialization_checkpoint(...)` reloads the persisted hosted checkpoint
+- `materialize_resume(...)` resumes from the stored anchor and returns only the
+  pending records after that anchor
+- `resume_materialization_cursor(...)` exposes the resume window itself when you
+  want the replay cursor without fetching records immediately
+
+Expected failure behavior is explicit:
+
+- if the source stream no longer verifies against the checkpoint anchor, hosted
+  resume fails
+- if the checkpoint payload has been tampered with, hosted resume fails through
+  the normal remote `invalid_request` surface
+- if retained history has advanced past the checkpoint anchor, hosted resume
+  fails instead of silently replaying from an unverifiable position
 
 Projection reads stay replay-driven. `transit-client` publishes the helper, but
 the caller still owns reducer logic and payload meaning:

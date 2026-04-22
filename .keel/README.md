@@ -219,11 +219,11 @@
 |--------|--------|
 | [Deliver Immutable Manifest Snapshots With Frontier Pointer](epics/VHUjJj4Gh/voyages/VHUjMQyiY/) | done |
 
-### [Hosted Materialization Progress And Checkpointing](epics/VHYE3HF6J/) (active)
+### [Hosted Materialization Progress And Checkpointing](epics/VHYE3HF6J/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Deliver Hosted Materialization Cursor And Resume Surface](epics/VHYE3HF6J/voyages/VHYE9AqjG/) | in-progress |
+| [Deliver Hosted Materialization Cursor And Resume Surface](epics/VHYE3HF6J/voyages/VHYE9AqjG/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

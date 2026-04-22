@@ -1,0 +1,28 @@
+Hosted materialization documentation coverage
+
+Files:
+ - crates/transit-client/README.md
+ - website/docs/start-here/capabilities.mdx
+ - website/docs/start-here/server-first-run.mdx
+ - website/docs/concepts/embedded-and-server.mdx
+
+website/docs/concepts/embedded-and-server.mdx:70:  cursors and hosted materialization checkpoints for external-daemon consumers
+website/docs/start-here/server-first-run.mdx:53:transit proof hosted-materialization \
+website/docs/start-here/server-first-run.mdx:54:  --root target/transit-docs/hosted-materialization \
+website/docs/start-here/server-first-run.mdx:186:`TransitClient::create_cursor(...)`, `materialize_checkpoint(...)`, and
+website/docs/start-here/server-first-run.mdx:187:`materialize_resume(...)`.
+crates/transit-client/README.md:102:- hosted materialization checkpoints bound to source-stream lineage
+crates/transit-client/README.md:121:let checkpoint = client.materialize_checkpoint(
+crates/transit-client/README.md:127:client.create_cursor(
+crates/transit-client/README.md:136:let resumed = client.materialize_resume(checkpoint.body())?;
+crates/transit-client/README.md:152:- `materialize_checkpoint(...)` binds opaque state to the current source-stream
+crates/transit-client/README.md:155:- `materialize_resume(...)` resumes from the stored anchor and returns only the
+website/docs/start-here/capabilities.mdx:20:| hosted operator surface | `transit server run`, `transit streams`, `transit produce`, `transit consume`, `transit server append`, `transit proof hosted-authority`, `transit proof hosted-materialization` | shared-engine server semantics over a remote boundary, including the Rust client surface, single-stream batch append, hosted materialization checkpoints, explicit transport-timeout tuning, and concurrent producer/consumer handling | current remote operator surface is still single-node |
+website/docs/start-here/capabilities.mdx:23:| integrity and derived state | `transit proof integrity`, `transit proof materialization`, `transit proof hosted-materialization`, `transit proof reference-projection` | manifest roots, checkpoints, hosted checkpoint verification, replay-anchored views, and resume correctness | signed attestation and compact partial proofs are later layers |
+website/docs/start-here/capabilities.mdx:24:| independent reader progress | embedded cursor API on `LocalEngine`, hosted cursor API on `TransitClient`, `transit proof hosted-materialization` | durable per-consumer cursors with monotonic advance, hosted materialization checkpoints, local-durability ack, and restart recovery | hosted cursors track reader progress; they do not change authoritative stream truth or branch semantics |
+website/docs/start-here/capabilities.mdx:155:- `TransitClient::create_cursor(...)`, `ack_cursor(...)`, and `get_cursor(...)`
+website/docs/start-here/capabilities.mdx:157:- `TransitClient::materialize_checkpoint(...)` stores opaque reducer state
+website/docs/start-here/capabilities.mdx:159:- `TransitClient::materialize_resume(...)` replays only records after the
+website/docs/start-here/capabilities.mdx:165:transit proof hosted-materialization \
+website/docs/start-here/capabilities.mdx:166:  --root target/transit-docs/hosted-materialization \
+website/docs/start-here/capabilities.mdx:239:`TransitClient` and the hosted materialization proof:

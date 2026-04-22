@@ -47,6 +47,22 @@ budget. Those flags change transport tolerance, not record semantics.
 The timeout flags are operational tuning only; they do not change append, replay,
 or tail semantics.
 
+Exercise hosted client-only materialization against the same server boundary:
+
+```bash
+transit proof hosted-materialization \
+  --root target/transit-docs/hosted-materialization \
+  --server-connection-io-timeout-ms 5000 \
+  --client-io-timeout-ms 5000
+```
+
+That proof shows the client-first materialization path:
+
+- hosted cursor progress without app-owned offset files
+- hosted checkpoint persistence bound to source-stream lineage
+- hosted resume that replays only records after the checkpoint anchor
+- tampered checkpoint rejection through the normal hosted error surface
+
 Run the retention proof when you want one supported path that demonstrates
 retention-aware create/list/status behavior and bounded replay:
 
@@ -166,6 +182,9 @@ transit server lineage --stream-id demo/main
 If you are evaluating the Rust client boundary instead of the CLI, the matching
 hosted calls are `TransitClient::append_batch(...)` and
 `TransitClient::with_io_timeout(...)`.
+For hosted client-only materializers, the matching calls are
+`TransitClient::create_cursor(...)`, `materialize_checkpoint(...)`, and
+`materialize_resume(...)`.
 
 If you want per-stream retention on a hosted stream, configure it explicitly at
 create time:
@@ -198,6 +217,7 @@ You should see that the server surface:
 - keeps branch and lineage operations available remotely
 - exposes a higher-level `streams` / `produce` / `consume` path for common operator work
 - exposes a lower-level single-stream batch append path that still replays as individual records
+- exposes hosted cursor and materialization primitives for external-daemon consumers that need checkpointed replay progress
 - lets operators raise hosted connection I/O timeouts explicitly for proof or runtime workloads
 - keeps overlapping producer and consumer traffic on the same hosted protocol surface
 - can store rolled history as compressed immutable segments without changing hosted replay behavior
