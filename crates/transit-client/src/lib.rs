@@ -13,18 +13,23 @@
 mod client;
 mod projection;
 
+pub use transit_core::cursor::CursorAck;
 pub use transit_core::kernel::{
-    LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor, StreamId,
-    StreamLineage, StreamPosition, StreamRetentionPolicy,
+    Cursor, CursorId, LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset,
+    StreamDescriptor, StreamId, StreamLineage, StreamPosition, StreamRetentionPolicy,
+};
+pub use transit_core::materialization::{
+    HostedMaterializationCheckpoint, HostedMaterializationResumeCursor,
 };
 pub use transit_core::server::{
     APPEND_BATCH_MAX_BYTES, APPEND_BATCH_MAX_RECORDS, RemoteAcknowledged, RemoteAcknowledgement,
-    RemoteAppendOutcome, RemoteBatchAppendOutcome, RemoteClientError, RemoteDeletedStreamOutcome,
-    RemoteErrorCode, RemoteErrorResponse, RemoteLineageOutcome, RemoteReadOutcome, RemoteRecord,
+    RemoteAppendOutcome, RemoteBatchAppendOutcome, RemoteClientError, RemoteCursorDeletedOutcome,
+    RemoteDeletedStreamOutcome, RemoteErrorCode, RemoteErrorResponse, RemoteLineageOutcome,
+    RemoteMaterializationCheckpointDeletedOutcome, RemoteReadOutcome, RemoteRecord,
     RemoteStreamListOutcome, RemoteStreamStatus, RemoteStreamSummary, RemoteTailBatch,
     RemoteTailSessionCancelled, RemoteTailSessionOpened, RemoteTailSessionState, RemoteTopology,
     RequestId, TailSessionId,
 };
 
-pub use client::{ClientResult, TransitClient};
+pub use client::{ClientResult, HostedMaterializationResume, TransitClient};
 pub use projection::{ProjectionReadConsumer, ProjectionReadOutcome, ProjectionReadRequest};

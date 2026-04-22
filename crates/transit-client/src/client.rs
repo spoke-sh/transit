@@ -6,16 +6,63 @@ use crate::projection::{
     ProjectionReadConsumer, ProjectionReadOutcome, ProjectionReadRequest, projection_revision_for,
 };
 use transit_core::kernel::{
-    LineageMetadata, MergeSpec, Offset, StreamId, StreamPosition, StreamRetentionPolicy,
+    Cursor, CursorId, LineageMetadata, MergeSpec, Offset, StreamId, StreamPosition,
+    StreamRetentionPolicy,
+};
+use transit_core::materialization::{
+    HostedMaterializationCheckpoint, HostedMaterializationResumeCursor,
 };
 use transit_core::server::{
     RemoteAcknowledged, RemoteAppendOutcome, RemoteBatchAppendOutcome, RemoteClient,
-    RemoteClientError, RemoteDeletedStreamOutcome, RemoteLineageOutcome, RemoteReadOutcome,
-    RemoteStreamListOutcome, RemoteStreamStatus, RemoteTailBatch, RemoteTailSessionCancelled,
-    RemoteTailSessionOpened, TailSessionId,
+    RemoteClientError, RemoteCursorDeletedOutcome, RemoteDeletedStreamOutcome,
+    RemoteLineageOutcome, RemoteMaterializationCheckpointDeletedOutcome, RemoteReadOutcome,
+    RemoteRecord, RemoteStreamListOutcome, RemoteStreamStatus, RemoteTailBatch,
+    RemoteTailSessionCancelled, RemoteTailSessionOpened, TailSessionId,
 };
 
 pub type ClientResult<T> = std::result::Result<T, RemoteClientError>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostedMaterializationResume {
+    cursor: HostedMaterializationResumeCursor,
+    pending_records: Vec<RemoteRecord>,
+}
+
+impl HostedMaterializationResume {
+    pub fn new(
+        cursor: HostedMaterializationResumeCursor,
+        pending_records: Vec<RemoteRecord>,
+    ) -> Self {
+        Self {
+            cursor,
+            pending_records,
+        }
+    }
+
+    pub fn checkpoint(&self) -> &HostedMaterializationCheckpoint {
+        self.cursor.checkpoint()
+    }
+
+    pub fn replay_from(&self) -> Offset {
+        self.cursor.replay_from()
+    }
+
+    pub fn source_next_offset(&self) -> Offset {
+        self.cursor.source_next_offset()
+    }
+
+    pub fn pending_record_count(&self) -> u64 {
+        self.cursor.pending_record_count()
+    }
+
+    pub fn is_caught_up(&self) -> bool {
+        self.cursor.is_caught_up()
+    }
+
+    pub fn pending_records(&self) -> &[RemoteRecord] {
+        &self.pending_records
+    }
+}
 
 /// Thin Rust wrapper over the shared remote protocol client.
 #[derive(Debug, Clone)]
@@ -167,6 +214,102 @@ impl TransitClient {
         stream_id: &StreamId,
     ) -> ClientResult<RemoteAcknowledged<RemoteLineageOutcome>> {
         self.inner.inspect_lineage(stream_id)
+    }
+
+    pub fn create_cursor(
+        &self,
+        cursor_id: &CursorId,
+        stream_id: &StreamId,
+        position: Offset,
+        metadata: LineageMetadata,
+    ) -> ClientResult<RemoteAcknowledged<Cursor>> {
+        self.inner
+            .create_cursor(cursor_id, stream_id, position, metadata)
+    }
+
+    pub fn get_cursor(&self, cursor_id: &CursorId) -> ClientResult<RemoteAcknowledged<Cursor>> {
+        self.inner.get_cursor(cursor_id)
+    }
+
+    pub fn advance_cursor(
+        &self,
+        cursor_id: &CursorId,
+        position: Offset,
+    ) -> ClientResult<RemoteAcknowledged<transit_core::cursor::CursorAck>> {
+        self.inner.advance_cursor(cursor_id, position)
+    }
+
+    pub fn ack_cursor(
+        &self,
+        cursor_id: &CursorId,
+        position: Offset,
+    ) -> ClientResult<RemoteAcknowledged<transit_core::cursor::CursorAck>> {
+        self.inner.ack_cursor(cursor_id, position)
+    }
+
+    pub fn delete_cursor(
+        &self,
+        cursor_id: &CursorId,
+    ) -> ClientResult<RemoteAcknowledged<RemoteCursorDeletedOutcome>> {
+        self.inner.delete_cursor(cursor_id)
+    }
+
+    pub fn materialize_checkpoint(
+        &self,
+        stream_id: &StreamId,
+        materialization_id: impl Into<String>,
+        opaque_state: Vec<u8>,
+    ) -> ClientResult<RemoteAcknowledged<HostedMaterializationCheckpoint>> {
+        self.inner
+            .materialize_checkpoint(stream_id, materialization_id, opaque_state)
+    }
+
+    pub fn get_materialization_checkpoint(
+        &self,
+        materialization_id: impl Into<String>,
+        stream_id: &StreamId,
+    ) -> ClientResult<RemoteAcknowledged<HostedMaterializationCheckpoint>> {
+        self.inner
+            .get_materialization_checkpoint(materialization_id, stream_id)
+    }
+
+    pub fn delete_materialization_checkpoint(
+        &self,
+        materialization_id: impl Into<String>,
+        stream_id: &StreamId,
+    ) -> ClientResult<RemoteAcknowledged<RemoteMaterializationCheckpointDeletedOutcome>> {
+        self.inner
+            .delete_materialization_checkpoint(materialization_id, stream_id)
+    }
+
+    pub fn resume_materialization_cursor(
+        &self,
+        checkpoint: &HostedMaterializationCheckpoint,
+    ) -> ClientResult<RemoteAcknowledged<HostedMaterializationResumeCursor>> {
+        self.inner.resume_materialization(checkpoint)
+    }
+
+    pub fn materialize_resume(
+        &self,
+        checkpoint: &HostedMaterializationCheckpoint,
+    ) -> ClientResult<HostedMaterializationResume> {
+        let resume_cursor = self.resume_materialization_cursor(checkpoint)?;
+        let pending_records = if resume_cursor.body().is_caught_up() {
+            Vec::new()
+        } else {
+            self.inner
+                .tail(
+                    checkpoint.source_stream_id(),
+                    resume_cursor.body().replay_from(),
+                )?
+                .body()
+                .records()
+                .to_vec()
+        };
+        Ok(HostedMaterializationResume::new(
+            resume_cursor.into_body(),
+            pending_records,
+        ))
     }
 
     pub fn tail_open(
@@ -926,6 +1069,156 @@ mod tests {
                 assert!(message.contains("synthetic reducer failure"));
             }
             other => panic!("expected protocol error, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn cursor_lifecycle_is_available_from_transit_client() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let stream_id = StreamId::new("client.materialization.cursor").expect("stream id");
+        let cursor_id = CursorId::new("consumer.analytics").expect("cursor id");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("consumer".into()),
+                    Some("materialization-cursor-tests".into()),
+                ),
+            )
+            .expect("create root");
+        client
+            .append(&stream_id, b"materialize-0")
+            .expect("append record");
+
+        let created = client
+            .create_cursor(
+                &cursor_id,
+                &stream_id,
+                Offset::new(1),
+                LineageMetadata::new(Some("consumer".into()), Some("analytics".into())),
+            )
+            .expect("create cursor");
+        assert_eq!(created.body().cursor_id, cursor_id);
+
+        let loaded = client.get_cursor(&cursor_id).expect("get cursor");
+        assert_eq!(loaded.body(), created.body());
+
+        let acknowledged = client
+            .ack_cursor(&cursor_id, Offset::new(1))
+            .expect("ack cursor");
+        assert_eq!(acknowledged.body().cursor_id, cursor_id);
+        assert_eq!(acknowledged.body().stream_id, stream_id);
+
+        let deleted = client.delete_cursor(&cursor_id).expect("delete cursor");
+        assert_eq!(deleted.body().cursor_id().as_str(), cursor_id.as_str());
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn materialize_resume_replays_only_records_after_checkpoint_anchor() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let stream_id = StreamId::new("client.materialization.resume").expect("stream id");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("consumer".into()),
+                    Some("materialization-resume-tests".into()),
+                ),
+            )
+            .expect("create root");
+        client
+            .append(&stream_id, b"materialize-0")
+            .expect("append first");
+        client
+            .append(&stream_id, b"materialize-1")
+            .expect("append second");
+
+        let checkpoint = client
+            .materialize_checkpoint(
+                &stream_id,
+                "consumer.analytics",
+                br#"{"processed_records":2}"#.to_vec(),
+            )
+            .expect("checkpoint");
+
+        client
+            .append(&stream_id, b"materialize-2")
+            .expect("append third");
+        client
+            .append(&stream_id, b"materialize-3")
+            .expect("append fourth");
+
+        let resumed = client
+            .materialize_resume(checkpoint.body())
+            .expect("resume materialization");
+        assert_eq!(resumed.checkpoint(), checkpoint.body());
+        assert_eq!(resumed.replay_from().value(), 2);
+        assert_eq!(resumed.source_next_offset().value(), 4);
+        assert_eq!(resumed.pending_record_count(), 2);
+        assert_eq!(resumed.pending_records().len(), 2);
+        assert_eq!(resumed.pending_records()[0].position().offset.value(), 2);
+        assert_eq!(resumed.pending_records()[1].position().offset.value(), 3);
+        assert_eq!(resumed.pending_records()[0].payload(), b"materialize-2");
+        assert_eq!(resumed.pending_records()[1].payload(), b"materialize-3");
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn materialization_resume_cursor_rejects_tampered_checkpoint() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let stream_id = StreamId::new("client.materialization.resume.invalid").expect("stream id");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("consumer".into()),
+                    Some("materialization-resume-invalid-tests".into()),
+                ),
+            )
+            .expect("create root");
+        client
+            .append(&stream_id, b"materialize-0")
+            .expect("append first");
+
+        let checkpoint = client
+            .materialize_checkpoint(&stream_id, "consumer.analytics", Vec::new())
+            .expect("checkpoint");
+        let anchor = checkpoint.body().lineage_anchor().clone();
+        let tampered = HostedMaterializationCheckpoint::new(
+            checkpoint.body().materialization_id(),
+            transit_core::storage::LineageCheckpoint::new(
+                anchor.stream_id,
+                anchor.head_offset,
+                transit_core::storage::ContentDigest::new("sha256", "tampered-root")
+                    .expect("digest"),
+                anchor.kind,
+            ),
+            checkpoint.body().opaque_state().to_vec(),
+            checkpoint.body().produced_at(),
+        )
+        .expect("tampered checkpoint");
+
+        let error = client
+            .resume_materialization_cursor(&tampered)
+            .expect_err("tampered checkpoint should reject");
+        match error {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::InvalidRequest);
+                assert!(
+                    error
+                        .message()
+                        .contains("does not match the persisted hosted checkpoint")
+                );
+            }
+            other => panic!("expected remote invalid_request, got {other:?}"),
         }
 
         server.shutdown().expect("shutdown server");

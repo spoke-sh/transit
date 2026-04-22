@@ -4,7 +4,10 @@ use crate::kernel::{
     Cursor, CursorId, LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId,
     StreamLineage, StreamPosition, StreamRetentionPolicy,
 };
-use crate::materialization::{HostedMaterializationCheckpoint, MaterializationCheckpointStore};
+use crate::materialization::{
+    HostedMaterializationCheckpoint, HostedMaterializationResumeCursor,
+    MaterializationCheckpointStore,
+};
 use crate::storage::{
     ContentDigest, LineageCheckpoint, ManifestId, ObjectStoreKey, ObjectStoreLocation,
     PublishedFrontier, SegmentChecksum, SegmentCompression, SegmentDescriptor, SegmentId,
@@ -1244,6 +1247,65 @@ impl LocalEngine {
     ) -> Result<()> {
         self.materialization_checkpoint_store()
             .and_then(|store| store.delete(materialization_id, stream_id))
+    }
+
+    pub fn resume_materialization(
+        &self,
+        checkpoint: &HostedMaterializationCheckpoint,
+    ) -> Result<HostedMaterializationResumeCursor> {
+        let persisted = match self.get_materialization_checkpoint(
+            checkpoint.materialization_id(),
+            checkpoint.source_stream_id(),
+        )? {
+            Some(persisted) => persisted,
+            None => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!(
+                        "materialization checkpoint '{}' for '{}' was not found",
+                        checkpoint.materialization_id(),
+                        checkpoint.source_stream_id().as_str()
+                    ),
+                )
+                .into());
+            }
+        };
+        ensure!(
+            persisted == *checkpoint,
+            "materialization checkpoint '{}' for '{}' does not match the persisted hosted checkpoint",
+            checkpoint.materialization_id(),
+            checkpoint.source_stream_id().as_str()
+        );
+        let status = self.stream_status(checkpoint.source_stream_id())?;
+        ensure!(
+            status.next_offset().value() > checkpoint.lineage_anchor().head_offset.value(),
+            "checkpoint anchor '{}' is ahead of current replay head '{}' for '{}'",
+            checkpoint.lineage_anchor().head_offset.value(),
+            status.next_offset().value().saturating_sub(1),
+            checkpoint.source_stream_id().as_str()
+        );
+        self.verify_local_lineage(checkpoint.source_stream_id())?;
+        let anchor_record = self
+            .tail_from(
+                checkpoint.source_stream_id(),
+                checkpoint.lineage_anchor().head_offset,
+            )?
+            .into_iter()
+            .next();
+        ensure!(
+            anchor_record.as_ref().is_some_and(|record| {
+                record.position().offset == checkpoint.lineage_anchor().head_offset
+            }),
+            "checkpoint anchor '{}' is not present in replay for '{}'",
+            checkpoint.lineage_anchor().head_offset.value(),
+            checkpoint.source_stream_id().as_str()
+        );
+
+        Ok(HostedMaterializationResumeCursor::new(
+            checkpoint.clone(),
+            checkpoint.lineage_anchor().head_offset.increment(),
+            status.next_offset(),
+        ))
     }
 
     pub fn delete_stream(&self, stream_id: &StreamId) -> Result<LocalDeletedStream> {

@@ -1,0 +1,6 @@
+Story VHYEAUq0l AC-3
+
+The downstream workflow stays entirely on the external daemon boundary:
+- resume validation runs through the hosted server protocol
+- replay after validation uses hosted tail semantics
+- downstream consumers do not need LocalEngine or local Transit authority to checkpoint and resume materialization progress

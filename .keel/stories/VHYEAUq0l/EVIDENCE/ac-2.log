@@ -1,0 +1,7 @@
+Story VHYEAUq0l AC-2
+
+TransitClient now exposes the canonical hosted materialization workflow:
+- create/get/ack/delete cursor wrappers
+- create/get/delete hosted materialization checkpoint wrappers
+- resume_materialization_cursor for the raw hosted validation surface
+- materialize_resume for the client-first checkpoint + incremental replay flow

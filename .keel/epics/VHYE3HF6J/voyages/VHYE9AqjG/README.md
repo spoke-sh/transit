@@ -27,11 +27,11 @@ started_at: 2026-04-22T12:52:26
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Add Hosted Materialization Cursor And Checkpoint Protocol Contract](../../../../stories/VHYEATqz5/README.md) | feat | done |
-| [Implement Hosted Materialization Resume Flow In Transit Client](../../../../stories/VHYEAUq0l/README.md) | feat | backlog |
+| [Implement Hosted Materialization Resume Flow In Transit Client](../../../../stories/VHYEAUq0l/README.md) | feat | done |
 | [Publish Hosted Materialization Proof Coverage And Operator Guidance](../../../../stories/VHYEAVyxL/README.md) | feat | backlog |
 <!-- END GENERATED -->

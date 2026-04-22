@@ -1,0 +1,7 @@
+Story VHYEAUq0l AC-1
+
+Implemented hosted resume validation and incremental replay:
+- Added HostedMaterializationResumeCursor to the shared hosted materialization contract.
+- LocalEngine now validates hosted checkpoints against stream status, manifest root, and anchor replay presence.
+- The hosted protocol exposes resume_materialization and rejects tampered checkpoints as invalid requests.
+- Remote and transit-client tests cover post-checkpoint replay windows and tampered checkpoint rejection.

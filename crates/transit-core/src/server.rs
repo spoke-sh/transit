@@ -7,7 +7,7 @@ use crate::kernel::{
     Cursor, CursorId, LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId,
     StreamPosition, StreamRetentionPolicy,
 };
-use crate::materialization::HostedMaterializationCheckpoint;
+use crate::materialization::{HostedMaterializationCheckpoint, HostedMaterializationResumeCursor};
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -759,6 +759,25 @@ impl RemoteClient {
         }
     }
 
+    pub fn resume_materialization(
+        &self,
+        checkpoint: &HostedMaterializationCheckpoint,
+    ) -> RemoteClientResult<RemoteAcknowledged<HostedMaterializationResumeCursor>> {
+        match self.send_request(OperationRequest::ResumeMaterialization {
+            checkpoint: checkpoint.clone(),
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::MaterializationResumeOk(resume),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, resume)),
+            other => Err(unexpected_operation_response(
+                "resume_materialization",
+                &other.outcome,
+            )),
+        }
+    }
+
     fn send_request(&self, operation: OperationRequest) -> RemoteClientResult<SuccessfulResponse> {
         let request_id = self.next_request_id();
         let request = ProtocolRequest {
@@ -1224,6 +1243,9 @@ enum OperationRequest {
         materialization_id: String,
         stream_id: StreamId,
     },
+    ResumeMaterialization {
+        checkpoint: HostedMaterializationCheckpoint,
+    },
     Read {
         stream_id: StreamId,
     },
@@ -1261,6 +1283,7 @@ enum OperationResponse {
     CursorDeletedOk(RemoteCursorDeletedOutcome),
     MaterializationCheckpointOk(HostedMaterializationCheckpoint),
     MaterializationCheckpointDeletedOk(RemoteMaterializationCheckpointDeletedOutcome),
+    MaterializationResumeOk(HostedMaterializationResumeCursor),
     RecordsOk(RemoteReadOutcome),
     TailSessionOpened(RemoteTailSessionOpened),
     TailBatchOk(RemoteTailBatch),
@@ -1883,6 +1906,16 @@ fn handle_request(
                 Err(error) => engine_error_response(request_id, error),
             }
         }
+        OperationRequest::ResumeMaterialization { checkpoint } => {
+            match engine.resume_materialization(&checkpoint) {
+                Ok(resume) => ack_response(
+                    request_id,
+                    engine.durability(),
+                    OperationResponse::MaterializationResumeOk(resume),
+                ),
+                Err(error) => engine_error_response(request_id, error),
+            }
+        }
         OperationRequest::Read { stream_id } => match engine.replay(&stream_id) {
             Ok(records) => ack_response(
                 request_id,
@@ -2325,6 +2358,9 @@ fn is_invalid_request_message(message: &str) -> bool {
         "tail session credit",
         "already exists",
         "cannot delete stream",
+        "checkpoint anchor",
+        "checkpoint manifest root mismatch",
+        "does not match the persisted hosted checkpoint",
         "published frontier",
         "not the leader",
     ]
@@ -2355,6 +2391,7 @@ mod tests {
         CursorId, LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset,
         StreamDescriptor, StreamId, StreamLineage, StreamPosition,
     };
+    use crate::materialization::HostedMaterializationCheckpoint;
     use serde_json::Value;
     use std::io::{BufRead, BufReader, Write};
     use std::net::{SocketAddr, TcpStream};
@@ -3794,6 +3831,120 @@ mod tests {
                 assert!(error.message().contains("consumer.analytics"));
             }
             other => panic!("expected remote not found, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_materialization_resume_reports_post_checkpoint_replay_window() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let stream_id = stream_id("task.materialization.resume");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("test".into()),
+                    Some("materialization-resume-roundtrip".into()),
+                ),
+            )
+            .expect("create root");
+        client
+            .append(&stream_id, b"materialize-0")
+            .expect("append 0");
+        client
+            .append(&stream_id, b"materialize-1")
+            .expect("append 1");
+
+        let checkpoint = client
+            .materialize_checkpoint(
+                &stream_id,
+                "consumer.analytics",
+                br#"{"processed_records":2}"#.to_vec(),
+            )
+            .expect("store checkpoint");
+
+        client
+            .append(&stream_id, b"materialize-2")
+            .expect("append 2");
+        client
+            .append(&stream_id, b"materialize-3")
+            .expect("append 3");
+
+        let resumed = client
+            .resume_materialization(checkpoint.body())
+            .expect("resume materialization");
+        assert_eq!(resumed.body().checkpoint(), checkpoint.body());
+        assert_eq!(resumed.body().replay_from().value(), 2);
+        assert_eq!(resumed.body().source_next_offset().value(), 4);
+        assert_eq!(resumed.body().pending_record_count(), 2);
+        assert!(!resumed.body().is_caught_up());
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_materialization_resume_rejects_tampered_checkpoint_anchor() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let stream_id = stream_id("task.materialization.resume.invalid");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("test".into()),
+                    Some("materialization-resume-invalid".into()),
+                ),
+            )
+            .expect("create root");
+        client
+            .append(&stream_id, b"materialize-0")
+            .expect("append 0");
+
+        let stored = client
+            .materialize_checkpoint(&stream_id, "consumer.analytics", Vec::new())
+            .expect("store checkpoint");
+        let mut tampered = stored.body().clone();
+        let anchor = tampered.lineage_anchor().clone();
+        tampered = HostedMaterializationCheckpoint::new(
+            tampered.materialization_id(),
+            crate::storage::LineageCheckpoint::new(
+                anchor.stream_id,
+                anchor.head_offset,
+                crate::storage::ContentDigest::new("sha256", "tampered-root").expect("digest"),
+                anchor.kind,
+            ),
+            tampered.opaque_state().to_vec(),
+            tampered.produced_at(),
+        )
+        .expect("tampered checkpoint");
+
+        let error = client
+            .resume_materialization(&tampered)
+            .expect_err("tampered checkpoint should reject");
+        match error {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::InvalidRequest);
+                assert!(
+                    error
+                        .message()
+                        .contains("does not match the persisted hosted checkpoint")
+                );
+            }
+            other => panic!("expected remote invalid_request, got {other:?}"),
         }
 
         server.shutdown().expect("shutdown server");

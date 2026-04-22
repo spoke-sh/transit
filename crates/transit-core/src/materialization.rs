@@ -1,5 +1,5 @@
 use crate::engine::{read_json, write_json_durable};
-use crate::kernel::StreamId;
+use crate::kernel::{Offset, StreamId};
 use crate::storage::LineageCheckpoint;
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
@@ -51,6 +51,53 @@ impl HostedMaterializationCheckpoint {
 
     pub fn produced_at(&self) -> i64 {
         self.produced_at
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostedMaterializationResumeCursor {
+    checkpoint: HostedMaterializationCheckpoint,
+    replay_from: Offset,
+    source_next_offset: Offset,
+}
+
+impl HostedMaterializationResumeCursor {
+    pub fn new(
+        checkpoint: HostedMaterializationCheckpoint,
+        replay_from: Offset,
+        source_next_offset: Offset,
+    ) -> Self {
+        Self {
+            checkpoint,
+            replay_from,
+            source_next_offset,
+        }
+    }
+
+    pub fn checkpoint(&self) -> &HostedMaterializationCheckpoint {
+        &self.checkpoint
+    }
+
+    pub fn source_stream_id(&self) -> &StreamId {
+        self.checkpoint.source_stream_id()
+    }
+
+    pub fn replay_from(&self) -> Offset {
+        self.replay_from
+    }
+
+    pub fn source_next_offset(&self) -> Offset {
+        self.source_next_offset
+    }
+
+    pub fn pending_record_count(&self) -> u64 {
+        self.source_next_offset
+            .value()
+            .saturating_sub(self.replay_from.value())
+    }
+
+    pub fn is_caught_up(&self) -> bool {
+        self.pending_record_count() == 0
     }
 }
 
@@ -135,7 +182,6 @@ fn file_key(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kernel::Offset;
     use crate::storage::ContentDigest;
     use tempfile::tempdir;
 
@@ -226,5 +272,22 @@ mod tests {
         )
         .expect_err("invalid materialization id should reject");
         assert!(invalid.to_string().contains("ascii alphanumerics"));
+    }
+
+    #[test]
+    fn hosted_materialization_resume_cursor_reports_pending_window() {
+        let checkpoint = checkpoint("consumer.analytics");
+        let resume = HostedMaterializationResumeCursor::new(
+            checkpoint.clone(),
+            Offset::new(8),
+            Offset::new(11),
+        );
+
+        assert_eq!(resume.checkpoint(), &checkpoint);
+        assert_eq!(resume.source_stream_id().as_str(), "task.root");
+        assert_eq!(resume.replay_from().value(), 8);
+        assert_eq!(resume.source_next_offset().value(), 11);
+        assert_eq!(resume.pending_record_count(), 3);
+        assert!(!resume.is_caught_up());
     }
 }
