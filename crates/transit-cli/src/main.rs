@@ -948,6 +948,7 @@ struct TransitLogStreamStatusResult {
     next_offset: u64,
     active_record_count: u64,
     active_segment_start_offset: u64,
+    retained_start_offset: u64,
     manifest_generation: u64,
     rolled_segment_count: usize,
     published_frontier: Option<PublishedFrontierStatusResult>,
@@ -1034,6 +1035,7 @@ fn summarize_local_log_stream_status(
         next_offset,
         active_record_count: status.active_record_count(),
         active_segment_start_offset: status.active_segment_start_offset().value(),
+        retained_start_offset: status.retained_start_offset().value(),
         manifest_generation: status.manifest_generation(),
         rolled_segment_count: status.rolled_segment_count(),
         published_frontier: status.published_frontier().map(|frontier| {
@@ -1115,6 +1117,7 @@ fn render_status(status: TransitLogStatusResult, json: bool) -> Result<()> {
             "active segment start offset: {}",
             stream.active_segment_start_offset
         );
+        println!("retained start offset: {}", stream.retained_start_offset);
         println!("manifest generation: {}", stream.manifest_generation);
         println!("rolled segments: {}", stream.rolled_segment_count);
 
@@ -1809,6 +1812,7 @@ struct RemoteStreamStatusResult {
     next_offset: u64,
     active_record_count: u64,
     active_segment_start_offset: u64,
+    retained_start_offset: u64,
     manifest_generation: u64,
     rolled_segment_count: usize,
 }
@@ -3982,6 +3986,7 @@ fn summarize_remote_stream_status(
         next_offset: response.body().next_offset().value(),
         active_record_count: response.body().active_record_count(),
         active_segment_start_offset: response.body().active_segment_start_offset().value(),
+        retained_start_offset: response.body().retained_start_offset().value(),
         manifest_generation: response.body().manifest_generation(),
         rolled_segment_count: response.body().rolled_segment_count(),
     }
@@ -5854,6 +5859,7 @@ fn render_remote_stream_status(result: RemoteStreamStatusResult, json: bool) -> 
         "active segment start offset: {}",
         result.active_segment_start_offset
     );
+    println!("retained start offset: {}", result.retained_start_offset);
     println!("manifest generation: {}", result.manifest_generation);
     println!("rolled segments: {}", result.rolled_segment_count);
     Ok(())

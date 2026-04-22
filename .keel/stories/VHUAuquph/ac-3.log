@@ -1,0 +1,13 @@
+Kept retention as shared-engine behavior rather than a hosted-only rule.
+
+Implementation details:
+- trimming runs inside `LocalEngine`
+- replay and prefix logic consume the retained frontier in the shared engine
+- hosted protocol/status surfaces only report the shared-engine result
+
+Focused proof:
+- `cargo test -p transit-core retention`
+- `cargo test -p transit-cli --bin transit remote_cli_helpers_cover_core_server_workflows`
+
+Observed result:
+- embedded and hosted flows observe the same retained frontier semantics

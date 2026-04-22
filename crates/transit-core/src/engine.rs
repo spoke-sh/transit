@@ -471,6 +471,7 @@ pub struct LocalStreamStatus {
     next_offset: Offset,
     active_record_count: u64,
     active_segment_start_offset: Offset,
+    retained_start_offset: Offset,
     retention_policy: Option<StreamRetentionPolicy>,
     manifest_generation: u64,
     rolled_segment_count: usize,
@@ -493,6 +494,10 @@ impl LocalStreamStatus {
         self.active_segment_start_offset
     }
 
+    pub fn retained_start_offset(&self) -> Offset {
+        self.retained_start_offset
+    }
+
     pub fn retention_policy(&self) -> Option<&StreamRetentionPolicy> {
         self.retention_policy.as_ref()
     }
@@ -512,6 +517,7 @@ pub struct LocalLogStreamStatus {
     next_offset: Offset,
     active_record_count: u64,
     active_segment_start_offset: Offset,
+    retained_start_offset: Offset,
     manifest_generation: u64,
     rolled_segment_count: usize,
     published_frontier: Option<LocalPublishedReplicationFrontier>,
@@ -532,6 +538,10 @@ impl LocalLogStreamStatus {
 
     pub fn active_segment_start_offset(&self) -> Offset {
         self.active_segment_start_offset
+    }
+
+    pub fn retained_start_offset(&self) -> Offset {
+        self.retained_start_offset
     }
 
     pub fn manifest_generation(&self) -> u64 {
@@ -1275,7 +1285,10 @@ impl LocalEngine {
 
         let rolled_segment = if state.active_record_count >= self.inner.config.segment_max_records()
         {
-            Some(self.roll_active_segment(&mut state)?)
+            let rolled_segment = self.roll_active_segment(&mut state)?;
+            self.enforce_retention(stream_id)?;
+            state = self.load_state(stream_id)?;
+            Some(rolled_segment)
         } else {
             write_json_durable(&self.state_path(stream_id), &state)?;
             None
@@ -1768,18 +1781,20 @@ impl LocalEngine {
     }
 
     pub fn recover_stream(&self, stream_id: &StreamId) -> Result<LocalRecoveryOutcome> {
-        let state = self.load_state(stream_id)?;
+        let initial_state = self.load_state(stream_id)?;
         let active_path = self.active_segment_path(stream_id);
         let active_bytes =
             fs::read(&active_path).with_context(|| format!("read {}", active_path.display()))?;
-        let retained_length = committed_prefix_length(&active_bytes, &state, stream_id)?;
+        let retained_length = committed_prefix_length(&active_bytes, &initial_state, stream_id)?;
         let truncated_bytes = active_bytes.len().saturating_sub(retained_length) as u64;
 
         if truncated_bytes > 0 {
             write_bytes_durable(&active_path, &active_bytes[..retained_length])?;
         }
 
-        self.repair_committed_segment_overflow(stream_id, &state)?;
+        self.repair_committed_segment_overflow(stream_id, &initial_state)?;
+        self.enforce_retention(stream_id)?;
+        let state = self.load_state(stream_id)?;
         self.read_replay_records(stream_id)?;
 
         Ok(LocalRecoveryOutcome {
@@ -1872,6 +1887,7 @@ impl LocalEngine {
             next_offset: Offset::new(state.next_offset),
             active_record_count: state.active_record_count,
             active_segment_start_offset: Offset::new(state.active_segment_start_offset),
+            retained_start_offset: Offset::new(retained_start_offset(&state, &manifest)),
             retention_policy: state.descriptor.retention_policy.clone(),
             manifest_generation: state.manifest_generation,
             rolled_segment_count: manifest.segments().len(),
@@ -2305,7 +2321,8 @@ impl LocalEngine {
             checksum,
             content_digest,
             local_storage(target.clone())?,
-        )?;
+        )?
+        .with_rolled_at_unix_ms(Some(retention_timestamp_now()));
 
         let manifest = self.load_manifest(state.stream_id())?;
         let mut segments = manifest.segments().to_vec();
@@ -2343,6 +2360,112 @@ impl LocalEngine {
 
     fn load_state(&self, stream_id: &StreamId) -> Result<LocalStreamState> {
         read_json(&self.state_path(stream_id))
+    }
+
+    fn enforce_retention(&self, stream_id: &StreamId) -> Result<()> {
+        let mut state = self.load_state(stream_id)?;
+        let Some(policy) = state.descriptor.retention_policy.clone() else {
+            return Ok(());
+        };
+        let manifest = self.load_manifest(stream_id)?;
+        if manifest.segments().is_empty() {
+            return Ok(());
+        }
+
+        let age_cutoff_ms = policy.max_age_days().map(retention_age_cutoff_ms);
+        let mut retained_bytes = state.active_byte_length
+            + manifest
+                .segments()
+                .iter()
+                .map(SegmentDescriptor::byte_length)
+                .sum::<u64>();
+        let mut trim_count = 0_usize;
+
+        for descriptor in manifest.segments() {
+            let exceeds_age_limit = match age_cutoff_ms {
+                Some(cutoff_ms) => self
+                    .segment_rolled_at_unix_ms(descriptor)?
+                    .is_some_and(|rolled_at_unix_ms| rolled_at_unix_ms <= cutoff_ms),
+                None => false,
+            };
+            let exceeds_size_limit = policy
+                .max_bytes()
+                .is_some_and(|max_bytes| retained_bytes > max_bytes);
+
+            if !(exceeds_age_limit || exceeds_size_limit) {
+                break;
+            }
+
+            retained_bytes = retained_bytes.saturating_sub(descriptor.byte_length());
+            trim_count += 1;
+        }
+
+        if trim_count == 0 {
+            return Ok(());
+        }
+
+        let trimmed_segments = manifest.segments()[..trim_count].to_vec();
+        let retained_segments = manifest.segments()[trim_count..].to_vec();
+        let next_generation = manifest.generation() + 1;
+        let manifest_root = compute_manifest_root(
+            manifest_id(next_generation)?,
+            &state.descriptor,
+            next_generation,
+            &retained_segments,
+            manifest.materialization_boundary().cloned(),
+        )?;
+        let persisted_manifest = SegmentManifest::new(
+            manifest_id(next_generation)?,
+            state.descriptor.clone(),
+            next_generation,
+            retained_segments,
+            manifest_root,
+            local_storage(self.manifest_path(state.stream_id()))?,
+            manifest.materialization_boundary().cloned(),
+        );
+        write_json_durable(&self.manifest_path(stream_id), &persisted_manifest)?;
+
+        for descriptor in &trimmed_segments {
+            self.delete_trimmed_segment(descriptor)?;
+        }
+
+        state.manifest_generation = next_generation;
+        write_json_durable(&self.state_path(stream_id), &state)?;
+
+        Ok(())
+    }
+
+    fn segment_rolled_at_unix_ms(&self, descriptor: &SegmentDescriptor) -> Result<Option<i64>> {
+        if let Some(rolled_at_unix_ms) = descriptor.rolled_at_unix_ms() {
+            return Ok(Some(rolled_at_unix_ms));
+        }
+
+        let Some(path) = descriptor.storage().local_path() else {
+            return Ok(None);
+        };
+        let modified = fs::metadata(path)
+            .with_context(|| format!("read metadata for {}", path.display()))?
+            .modified()
+            .with_context(|| format!("read modified time for {}", path.display()))?;
+        let duration = modified
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default();
+        let millis = duration.as_millis().min(i64::MAX as u128) as i64;
+        Ok(Some(millis))
+    }
+
+    fn delete_trimmed_segment(&self, descriptor: &SegmentDescriptor) -> Result<()> {
+        let Some(path) = descriptor.storage().local_path() else {
+            return Ok(());
+        };
+        if !path.exists() {
+            return Ok(());
+        }
+
+        fs::remove_file(path)
+            .with_context(|| format!("remove retained segment {}", path.display()))?;
+        sync_dir(path.parent().expect("segment path has parent"))?;
+        Ok(())
     }
 
     fn initialize_stream_state(&self, descriptor: StreamDescriptor) -> Result<LocalStreamState> {
@@ -2422,26 +2545,25 @@ impl LocalEngine {
 
         let mut last_active_head_error = None;
         for _ in 0..ACTIVE_HEAD_RETRY_ATTEMPTS {
-            let state = self.load_state(stream_id)?;
-            let mut records = self.read_inherited_records(&state.descriptor)?;
-            let mut expected_next_offset = records
-                .last()
-                .map(|record| record.position.offset.value() + 1)
-                .unwrap_or(0);
+            match (|| -> Result<Vec<LocalRecord>> {
+                let state = self.load_state(stream_id)?;
+                let manifest = self.load_manifest(stream_id)?;
+                let mut records = self.read_inherited_records(&state.descriptor)?;
+                let mut expected_next_offset = retained_start_offset(&state, &manifest);
 
-            let manifest = self.load_manifest(stream_id)?;
-            for descriptor in manifest.segments() {
-                let segment_records =
-                    self.read_committed_segment(stream_id, descriptor, expected_next_offset)?;
-                expected_next_offset = descriptor.last_offset().value() + 1;
-                records.extend(segment_records);
-            }
-
-            match self.read_active_head(stream_id, &state, expected_next_offset) {
-                Ok(active_records) => {
-                    records.extend(active_records);
-                    return Ok(records);
+                for descriptor in manifest.segments() {
+                    let segment_records =
+                        self.read_committed_segment(stream_id, descriptor, expected_next_offset)?;
+                    expected_next_offset = descriptor.last_offset().value() + 1;
+                    records.extend(segment_records);
                 }
+
+                let active_records =
+                    self.read_active_head(stream_id, &state, expected_next_offset)?;
+                records.extend(active_records);
+                Ok(records)
+            })() {
+                Ok(records) => return Ok(records),
                 Err(error) => {
                     last_active_head_error = Some(error);
                     std::thread::sleep(std::time::Duration::from_millis(1));
@@ -2477,14 +2599,26 @@ impl LocalEngine {
 
     fn read_prefix(&self, position: &StreamPosition) -> Result<Vec<LocalRecord>> {
         let mut records = self.read_replay_records(&position.stream_id)?;
-        ensure!(
-            position.offset.value() < records.len() as u64,
-            "lineage position {}:{} is beyond replayable history {}",
-            position.stream_id.as_str(),
-            position.offset.value(),
-            records.len()
-        );
-        records.truncate(position.offset.value() as usize + 1);
+        let retained_start_offset = records
+            .first()
+            .map(|record| record.position.offset.value())
+            .unwrap_or_else(|| {
+                self.stream_status(&position.stream_id)
+                    .map(|status| status.retained_start_offset().value())
+                    .unwrap_or(0)
+            });
+        let Some(position_index) = records
+            .iter()
+            .position(|record| record.position.offset == position.offset)
+        else {
+            bail!(
+                "lineage position {}:{} is outside retained replay history starting at {}",
+                position.stream_id.as_str(),
+                position.offset.value(),
+                retained_start_offset
+            );
+        };
+        records.truncate(position_index + 1);
         Ok(records)
     }
 
@@ -2806,6 +2940,25 @@ fn initial_next_offset_from_descriptor(descriptor: &StreamDescriptor) -> u64 {
     }
 }
 
+fn retained_start_offset(state: &LocalStreamState, manifest: &SegmentManifest) -> u64 {
+    manifest
+        .segments()
+        .first()
+        .map(|descriptor| descriptor.start_offset().value())
+        .unwrap_or(state.active_segment_start_offset)
+}
+
+fn retention_timestamp_now() -> i64 {
+    chrono::Utc::now().timestamp_millis()
+}
+
+fn retention_age_cutoff_ms(max_age_days: u64) -> i64 {
+    const MILLIS_PER_DAY: u64 = 86_400_000;
+
+    let retention_window_ms = max_age_days.saturating_mul(MILLIS_PER_DAY);
+    retention_timestamp_now().saturating_sub(retention_window_ms.min(i64::MAX as u64) as i64)
+}
+
 fn published_frontier_from_manifest_snapshot(
     manifest: &SegmentManifest,
 ) -> Result<LocalPublishedReplicationFrontier> {
@@ -2893,6 +3046,7 @@ pub fn inspect_local_log(root: impl AsRef<Path>) -> Result<LocalLogStatus> {
             next_offset: Offset::new(state.next_offset),
             active_record_count: state.active_record_count,
             active_segment_start_offset: Offset::new(state.active_segment_start_offset),
+            retained_start_offset: Offset::new(retained_start_offset(&state, &manifest)),
             manifest_generation: state.manifest_generation,
             rolled_segment_count: manifest.segments().len(),
             published_frontier: state
@@ -3305,7 +3459,8 @@ fn compute_manifest_root(
 mod tests {
     use super::{
         AccessMode, CommitmentLevel, DurabilityMode, LocalEngine, LocalEngineConfig, NodeId,
-        OwnershipPosture, inspect_local_log,
+        OwnershipPosture, compute_manifest_root, inspect_local_log, read_json,
+        retention_timestamp_now, write_json_durable,
     };
     use std::time::Duration;
 
@@ -3710,6 +3865,76 @@ mod tests {
             streams[0].descriptor().retention_policy(),
             Some(&retention_policy)
         );
+    }
+
+    #[test]
+    fn size_retention_trims_oldest_rolled_segments_and_surfaces_retained_frontier() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        let retention_policy =
+            crate::kernel::StreamRetentionPolicy::new(None, Some(1)).expect("retention");
+
+        engine
+            .create_stream(
+                root_descriptor("task.root").with_retention_policy(Some(retention_policy)),
+            )
+            .expect("create stream");
+        engine.append(&stream_id, b"first").expect("append first");
+        engine.append(&stream_id, b"second").expect("append second");
+        engine.append(&stream_id, b"third").expect("append third");
+
+        let status = engine.stream_status(&stream_id).expect("status");
+        assert_eq!(status.retained_start_offset(), Offset::new(2));
+        assert_eq!(status.active_segment_start_offset(), Offset::new(2));
+        assert_eq!(status.rolled_segment_count(), 0);
+
+        let replayed = engine.replay(&stream_id).expect("replay");
+        assert_eq!(replayed.len(), 1);
+        assert_eq!(replayed[0].position().offset.value(), 2);
+        assert_eq!(replayed[0].payload(), b"third");
+    }
+
+    #[test]
+    fn age_retention_trims_old_segments_on_append_lifecycle() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(1)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        let retention_policy =
+            crate::kernel::StreamRetentionPolicy::new(Some(1), None).expect("retention");
+
+        engine
+            .create_stream(
+                root_descriptor("task.root").with_retention_policy(Some(retention_policy)),
+            )
+            .expect("create stream");
+        engine.append(&stream_id, b"first").expect("append first");
+        rewrite_first_segment_rolled_at(
+            &engine,
+            &stream_id,
+            retention_timestamp_now() - 2 * 86_400_000,
+        );
+
+        engine.append(&stream_id, b"second").expect("append second");
+
+        let status = engine.stream_status(&stream_id).expect("status");
+        assert_eq!(status.retained_start_offset(), Offset::new(1));
+        assert_eq!(status.rolled_segment_count(), 1);
+
+        let replayed = engine.replay(&stream_id).expect("replay");
+        assert_eq!(replayed.len(), 1);
+        assert_eq!(replayed[0].position().offset.value(), 1);
+        assert_eq!(replayed[0].payload(), b"second");
     }
 
     #[test]
@@ -5923,6 +6148,41 @@ mod tests {
 
     fn cursor_id(value: &str) -> crate::kernel::CursorId {
         crate::kernel::CursorId::new(value).expect("cursor id")
+    }
+
+    fn rewrite_first_segment_rolled_at(
+        engine: &LocalEngine,
+        stream_id: &StreamId,
+        rolled_at_unix_ms: i64,
+    ) {
+        let manifest_path = engine.manifest_path(stream_id);
+        let manifest: crate::storage::SegmentManifest =
+            read_json(&manifest_path).expect("read manifest");
+        let mut segments = manifest.segments().to_vec();
+        segments[0] = segments[0]
+            .clone()
+            .with_rolled_at_unix_ms(Some(rolled_at_unix_ms));
+        let manifest_root = compute_manifest_root(
+            manifest.manifest_id().clone(),
+            manifest.stream_descriptor(),
+            manifest.generation(),
+            &segments,
+            manifest.materialization_boundary().cloned(),
+        )
+        .expect("manifest root");
+        let mut rewritten = crate::storage::SegmentManifest::new(
+            manifest.manifest_id().clone(),
+            manifest.stream_descriptor().clone(),
+            manifest.generation(),
+            segments,
+            manifest_root,
+            manifest.storage().clone(),
+            manifest.materialization_boundary().cloned(),
+        );
+        if let Some(version) = manifest.ownership_proof() {
+            rewritten = rewritten.with_ownership_proof(version);
+        }
+        write_json_durable(&manifest_path, &rewritten).expect("write manifest");
     }
 
     fn open_local_engine_for_cursors(path: &std::path::Path) -> LocalEngine {

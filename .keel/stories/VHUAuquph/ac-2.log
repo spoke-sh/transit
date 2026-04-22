@@ -1,0 +1,15 @@
+Exposed the retained frontier through stream status as `retained_start_offset`.
+
+Surface coverage:
+- `LocalStreamStatus`
+- `LocalLogStreamStatus`
+- `RemoteStreamStatus`
+- CLI local status output and hosted stream-status rendering
+
+Focused proof:
+- `cargo test -p transit-core retention`
+- `cargo test -p transit-core remote_stream_listing_reports_descriptors_and_status`
+- `cargo test -p transit-cli --bin transit status_reports_local_log_state_instead_of_bootstrap_state`
+
+Observed result:
+- callers can see where retained replay begins even when offset `0` has been trimmed away

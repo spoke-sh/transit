@@ -1,0 +1,12 @@
+Retention remains coarse-grained lifecycle management rather than compaction.
+
+Implementation guardrails:
+- only whole rolled segments are eligible for deletion
+- active-head bytes and retained records are never rewritten in place
+- replay now starts from the retained frontier but preserved records remain append-only with original offsets
+
+Focused proof:
+- `cargo test -p transit-core retention`
+
+Observed result:
+- retained history remains immutable; retention only advances the earliest replayable offset

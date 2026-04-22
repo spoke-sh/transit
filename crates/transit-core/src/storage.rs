@@ -186,6 +186,8 @@ pub struct SegmentDescriptor {
     checksum: SegmentChecksum,
     content_digest: ContentDigest,
     storage: StorageLocation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    rolled_at_unix_ms: Option<i64>,
 }
 
 impl SegmentDescriptor {
@@ -220,6 +222,7 @@ impl SegmentDescriptor {
             checksum,
             content_digest,
             storage,
+            rolled_at_unix_ms: None,
         })
     }
 
@@ -259,6 +262,15 @@ impl SegmentDescriptor {
         &self.storage
     }
 
+    pub fn rolled_at_unix_ms(&self) -> Option<i64> {
+        self.rolled_at_unix_ms
+    }
+
+    pub fn with_rolled_at_unix_ms(mut self, rolled_at_unix_ms: Option<i64>) -> Self {
+        self.rolled_at_unix_ms = rolled_at_unix_ms;
+        self
+    }
+
     pub fn with_storage(&self, storage: StorageLocation) -> Self {
         Self {
             segment_id: self.segment_id.clone(),
@@ -270,6 +282,7 @@ impl SegmentDescriptor {
             checksum: self.checksum.clone(),
             content_digest: self.content_digest.clone(),
             storage,
+            rolled_at_unix_ms: self.rolled_at_unix_ms,
         }
     }
 }

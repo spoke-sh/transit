@@ -1,0 +1,11 @@
+Implemented retention trimming in the shared engine lifecycle:
+- append-triggered retention after segment roll
+- recovery-triggered retention during shared-engine maintenance
+- trimming only applies to oldest rolled segments; the active segment is never rewritten or partially trimmed
+
+Focused proof:
+- `cargo test -p transit-core retention`
+
+Observed result:
+- size retention can drop fully rolled history while preserving the current active segment
+- age retention can drop aged rolled segments on the next append lifecycle

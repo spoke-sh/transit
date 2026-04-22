@@ -779,6 +779,7 @@ pub struct RemoteStreamStatus {
     next_offset: Offset,
     active_record_count: u64,
     active_segment_start_offset: Offset,
+    retained_start_offset: Offset,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     retention_max_age_days: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -802,6 +803,10 @@ impl RemoteStreamStatus {
 
     pub fn active_segment_start_offset(&self) -> Offset {
         self.active_segment_start_offset
+    }
+
+    pub fn retained_start_offset(&self) -> Offset {
+        self.retained_start_offset
     }
 
     pub fn retention_max_age_days(&self) -> Option<u64> {
@@ -1636,6 +1641,7 @@ fn map_stream_status(status: LocalStreamStatus) -> RemoteStreamStatus {
         next_offset: status.next_offset(),
         active_record_count: status.active_record_count(),
         active_segment_start_offset: status.active_segment_start_offset(),
+        retained_start_offset: status.retained_start_offset(),
         retention_max_age_days: retention_policy.and_then(StreamRetentionPolicy::max_age_days),
         retention_max_bytes: retention_policy.and_then(StreamRetentionPolicy::max_bytes),
         manifest_generation: status.manifest_generation(),
@@ -1652,6 +1658,7 @@ fn map_log_stream_summary(status: LocalLogStreamStatus) -> RemoteStreamSummary {
             next_offset: status.next_offset(),
             active_record_count: status.active_record_count(),
             active_segment_start_offset: status.active_segment_start_offset(),
+            retained_start_offset: status.retained_start_offset(),
             retention_max_age_days: retention_policy.and_then(StreamRetentionPolicy::max_age_days),
             retention_max_bytes: retention_policy.and_then(StreamRetentionPolicy::max_bytes),
             manifest_generation: status.manifest_generation(),
@@ -2402,7 +2409,52 @@ mod tests {
             listed.body().streams()[0].status().retention_max_bytes(),
             Some(10_737_418_240)
         );
+        assert_eq!(
+            listed.body().streams()[0]
+                .status()
+                .retained_start_offset()
+                .value(),
+            0
+        );
         assert_eq!(listed.body().streams()[0].status().next_offset().value(), 1);
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn hosted_retention_surfaces_retained_frontier_after_trimming_old_segments() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node"))
+                .with_segment_max_records(2)
+                .expect("config"),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let stream_id = stream_id("task.root");
+        let retention_policy =
+            crate::kernel::StreamRetentionPolicy::new(None, Some(1)).expect("retention");
+
+        client
+            .create_root_with_retention(
+                &stream_id,
+                LineageMetadata::new(Some("test".into()), Some("retain".into())),
+                Some(retention_policy),
+            )
+            .expect("create root");
+        client.append(&stream_id, b"first").expect("append first");
+        client.append(&stream_id, b"second").expect("append second");
+        client.append(&stream_id, b"third").expect("append third");
+
+        let lineage = client.inspect_lineage(&stream_id).expect("inspect lineage");
+        assert_eq!(lineage.body().status().retained_start_offset().value(), 2);
+        assert_eq!(lineage.body().status().rolled_segment_count(), 0);
+
+        let replayed = client.read(&stream_id).expect("read");
+        assert_eq!(replayed.body().records().len(), 1);
+        assert_eq!(replayed.body().records()[0].position().offset.value(), 2);
+        assert_eq!(replayed.body().records()[0].payload(), b"third");
 
         server.shutdown().expect("shutdown server");
     }
