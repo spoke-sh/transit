@@ -1,0 +1,7 @@
+Story VHYEATqz5 AC-1
+
+Implemented hosted cursor lifecycle primitives on the shared server protocol:
+- OperationRequest and OperationResponse now carry create/get/advance/ack/delete cursor operations.
+- RemoteClient exposes create_cursor, get_cursor, advance_cursor, ack_cursor, and delete_cursor.
+- handle_request routes cursor operations to the existing LocalEngine cursor APIs.
+- Server regression coverage exercises remote cursor create/get/ack/delete and not-found behavior.

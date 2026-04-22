@@ -1,11 +1,13 @@
+use crate::cursor::CursorAck;
 use crate::engine::{
     DurabilityMode, LocalAppendBatchOutcome, LocalAppendOutcome, LocalDeletedStream, LocalEngine,
     LocalEngineConfig, LocalLogStreamStatus, LocalRecord, LocalRecoveryOutcome, LocalStreamStatus,
 };
 use crate::kernel::{
-    LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamPosition,
-    StreamRetentionPolicy,
+    Cursor, CursorId, LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId,
+    StreamPosition, StreamRetentionPolicy,
 };
+use crate::materialization::HostedMaterializationCheckpoint;
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -593,6 +595,170 @@ impl RemoteClient {
         }
     }
 
+    pub fn create_cursor(
+        &self,
+        cursor_id: &CursorId,
+        stream_id: &StreamId,
+        position: Offset,
+        metadata: LineageMetadata,
+    ) -> RemoteClientResult<RemoteAcknowledged<Cursor>> {
+        match self.send_request(OperationRequest::CreateCursor {
+            cursor_id: cursor_id.clone(),
+            stream_id: stream_id.clone(),
+            position,
+            metadata,
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::CursorOk(cursor),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, cursor)),
+            other => Err(unexpected_operation_response(
+                "create_cursor",
+                &other.outcome,
+            )),
+        }
+    }
+
+    pub fn get_cursor(
+        &self,
+        cursor_id: &CursorId,
+    ) -> RemoteClientResult<RemoteAcknowledged<Cursor>> {
+        match self.send_request(OperationRequest::GetCursor {
+            cursor_id: cursor_id.clone(),
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::CursorOk(cursor),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, cursor)),
+            other => Err(unexpected_operation_response("get_cursor", &other.outcome)),
+        }
+    }
+
+    pub fn advance_cursor(
+        &self,
+        cursor_id: &CursorId,
+        position: Offset,
+    ) -> RemoteClientResult<RemoteAcknowledged<CursorAck>> {
+        match self.send_request(OperationRequest::AdvanceCursor {
+            cursor_id: cursor_id.clone(),
+            position,
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::CursorAckOk(cursor_ack),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, cursor_ack)),
+            other => Err(unexpected_operation_response(
+                "advance_cursor",
+                &other.outcome,
+            )),
+        }
+    }
+
+    pub fn ack_cursor(
+        &self,
+        cursor_id: &CursorId,
+        position: Offset,
+    ) -> RemoteClientResult<RemoteAcknowledged<CursorAck>> {
+        match self.send_request(OperationRequest::AckCursor {
+            cursor_id: cursor_id.clone(),
+            position,
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::CursorAckOk(cursor_ack),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, cursor_ack)),
+            other => Err(unexpected_operation_response("ack_cursor", &other.outcome)),
+        }
+    }
+
+    pub fn delete_cursor(
+        &self,
+        cursor_id: &CursorId,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteCursorDeletedOutcome>> {
+        match self.send_request(OperationRequest::DeleteCursor {
+            cursor_id: cursor_id.clone(),
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::CursorDeletedOk(outcome),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
+            other => Err(unexpected_operation_response(
+                "delete_cursor",
+                &other.outcome,
+            )),
+        }
+    }
+
+    pub fn materialize_checkpoint(
+        &self,
+        stream_id: &StreamId,
+        materialization_id: impl Into<String>,
+        opaque_state: Vec<u8>,
+    ) -> RemoteClientResult<RemoteAcknowledged<HostedMaterializationCheckpoint>> {
+        match self.send_request(OperationRequest::MaterializeCheckpoint {
+            stream_id: stream_id.clone(),
+            materialization_id: materialization_id.into(),
+            opaque_state,
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::MaterializationCheckpointOk(checkpoint),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, checkpoint)),
+            other => Err(unexpected_operation_response(
+                "materialize_checkpoint",
+                &other.outcome,
+            )),
+        }
+    }
+
+    pub fn get_materialization_checkpoint(
+        &self,
+        materialization_id: impl Into<String>,
+        stream_id: &StreamId,
+    ) -> RemoteClientResult<RemoteAcknowledged<HostedMaterializationCheckpoint>> {
+        match self.send_request(OperationRequest::GetMaterializationCheckpoint {
+            materialization_id: materialization_id.into(),
+            stream_id: stream_id.clone(),
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::MaterializationCheckpointOk(checkpoint),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, checkpoint)),
+            other => Err(unexpected_operation_response(
+                "get_materialization_checkpoint",
+                &other.outcome,
+            )),
+        }
+    }
+
+    pub fn delete_materialization_checkpoint(
+        &self,
+        materialization_id: impl Into<String>,
+        stream_id: &StreamId,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteMaterializationCheckpointDeletedOutcome>> {
+        match self.send_request(OperationRequest::DeleteMaterializationCheckpoint {
+            materialization_id: materialization_id.into(),
+            stream_id: stream_id.clone(),
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::MaterializationCheckpointDeletedOk(outcome),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
+            other => Err(unexpected_operation_response(
+                "delete_materialization_checkpoint",
+                &other.outcome,
+            )),
+        }
+    }
+
     fn send_request(&self, operation: OperationRequest) -> RemoteClientResult<SuccessfulResponse> {
         let request_id = self.next_request_id();
         let request = ProtocolRequest {
@@ -875,6 +1041,22 @@ impl RemoteDeletedStreamOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteCursorDeletedOutcome {
+    cursor_id: CursorId,
+    stream_id: StreamId,
+}
+
+impl RemoteCursorDeletedOutcome {
+    pub fn cursor_id(&self) -> &CursorId {
+        &self.cursor_id
+    }
+
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteLineageOutcome {
     descriptor: StreamDescriptor,
     status: RemoteStreamStatus,
@@ -887,6 +1069,22 @@ impl RemoteLineageOutcome {
 
     pub fn status(&self) -> &RemoteStreamStatus {
         &self.status
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteMaterializationCheckpointDeletedOutcome {
+    materialization_id: String,
+    stream_id: StreamId,
+}
+
+impl RemoteMaterializationCheckpointDeletedOutcome {
+    pub fn materialization_id(&self) -> &str {
+        &self.materialization_id
+    }
+
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
     }
 }
 
@@ -993,6 +1191,39 @@ enum OperationRequest {
     InspectLineage {
         stream_id: StreamId,
     },
+    CreateCursor {
+        cursor_id: CursorId,
+        stream_id: StreamId,
+        position: Offset,
+        metadata: LineageMetadata,
+    },
+    GetCursor {
+        cursor_id: CursorId,
+    },
+    AdvanceCursor {
+        cursor_id: CursorId,
+        position: Offset,
+    },
+    AckCursor {
+        cursor_id: CursorId,
+        position: Offset,
+    },
+    DeleteCursor {
+        cursor_id: CursorId,
+    },
+    MaterializeCheckpoint {
+        stream_id: StreamId,
+        materialization_id: String,
+        opaque_state: Vec<u8>,
+    },
+    GetMaterializationCheckpoint {
+        materialization_id: String,
+        stream_id: StreamId,
+    },
+    DeleteMaterializationCheckpoint {
+        materialization_id: String,
+        stream_id: StreamId,
+    },
     Read {
         stream_id: StreamId,
     },
@@ -1025,6 +1256,11 @@ enum ResponseEnvelope {
 enum OperationResponse {
     AppendOk(RemoteAppendOutcome),
     AppendBatchOk(RemoteBatchAppendOutcome),
+    CursorOk(Cursor),
+    CursorAckOk(CursorAck),
+    CursorDeletedOk(RemoteCursorDeletedOutcome),
+    MaterializationCheckpointOk(HostedMaterializationCheckpoint),
+    MaterializationCheckpointDeletedOk(RemoteMaterializationCheckpointDeletedOutcome),
     RecordsOk(RemoteReadOutcome),
     TailSessionOpened(RemoteTailSessionOpened),
     TailBatchOk(RemoteTailBatch),
@@ -1507,6 +1743,146 @@ fn handle_request(
             ),
             Err(error) => engine_error_response(request_id, error),
         },
+        OperationRequest::CreateCursor {
+            cursor_id,
+            stream_id,
+            position,
+            metadata,
+        } => match engine.create_cursor(cursor_id, stream_id, position, metadata) {
+            Ok(cursor) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::CursorOk(cursor),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
+        OperationRequest::GetCursor { cursor_id } => match engine.get_cursor(&cursor_id) {
+            Ok(Some(cursor)) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::CursorOk(cursor),
+            ),
+            Ok(None) => error_response(
+                request_id,
+                RemoteErrorCode::NotFound,
+                format!("cursor '{}' was not found", cursor_id.as_str()),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
+        OperationRequest::AdvanceCursor {
+            cursor_id,
+            position,
+        } => match engine.advance_cursor(&cursor_id, position) {
+            Ok(cursor_ack) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::CursorAckOk(cursor_ack),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
+        OperationRequest::AckCursor {
+            cursor_id,
+            position,
+        } => match engine.ack_cursor(&cursor_id, position) {
+            Ok(cursor_ack) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::CursorAckOk(cursor_ack),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
+        OperationRequest::DeleteCursor { cursor_id } => {
+            let existing = match engine.get_cursor(&cursor_id) {
+                Ok(Some(cursor)) => cursor,
+                Ok(None) => {
+                    return error_response(
+                        request_id,
+                        RemoteErrorCode::NotFound,
+                        format!("cursor '{}' was not found", cursor_id.as_str()),
+                    );
+                }
+                Err(error) => return engine_error_response(request_id, error),
+            };
+            match engine.delete_cursor(&cursor_id) {
+                Ok(()) => ack_response(
+                    request_id,
+                    engine.durability(),
+                    OperationResponse::CursorDeletedOk(RemoteCursorDeletedOutcome {
+                        cursor_id,
+                        stream_id: existing.stream_id,
+                    }),
+                ),
+                Err(error) => engine_error_response(request_id, error),
+            }
+        }
+        OperationRequest::MaterializeCheckpoint {
+            stream_id,
+            materialization_id,
+            opaque_state,
+        } => {
+            match engine.checkpoint_materialization(materialization_id, &stream_id, opaque_state) {
+                Ok(checkpoint) => ack_response(
+                    request_id,
+                    engine.durability(),
+                    OperationResponse::MaterializationCheckpointOk(checkpoint),
+                ),
+                Err(error) => engine_error_response(request_id, error),
+            }
+        }
+        OperationRequest::GetMaterializationCheckpoint {
+            materialization_id,
+            stream_id,
+        } => match engine.get_materialization_checkpoint(&materialization_id, &stream_id) {
+            Ok(Some(checkpoint)) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::MaterializationCheckpointOk(checkpoint),
+            ),
+            Ok(None) => error_response(
+                request_id,
+                RemoteErrorCode::NotFound,
+                format!(
+                    "materialization checkpoint '{}' for '{}' was not found",
+                    materialization_id,
+                    stream_id.as_str()
+                ),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
+        OperationRequest::DeleteMaterializationCheckpoint {
+            materialization_id,
+            stream_id,
+        } => {
+            let existing =
+                match engine.get_materialization_checkpoint(&materialization_id, &stream_id) {
+                    Ok(Some(checkpoint)) => checkpoint,
+                    Ok(None) => {
+                        return error_response(
+                            request_id,
+                            RemoteErrorCode::NotFound,
+                            format!(
+                                "materialization checkpoint '{}' for '{}' was not found",
+                                materialization_id,
+                                stream_id.as_str()
+                            ),
+                        );
+                    }
+                    Err(error) => return engine_error_response(request_id, error),
+                };
+            match engine.delete_materialization_checkpoint(&materialization_id, &stream_id) {
+                Ok(()) => ack_response(
+                    request_id,
+                    engine.durability(),
+                    OperationResponse::MaterializationCheckpointDeletedOk(
+                        RemoteMaterializationCheckpointDeletedOutcome {
+                            materialization_id: existing.materialization_id().to_owned(),
+                            stream_id: existing.source_stream_id().clone(),
+                        },
+                    ),
+                ),
+                Err(error) => engine_error_response(request_id, error),
+            }
+        }
         OperationRequest::Read { stream_id } => match engine.replay(&stream_id) {
             Ok(records) => ack_response(
                 request_id,
@@ -1976,8 +2352,8 @@ mod tests {
     };
     use crate::engine::{DurabilityMode, LocalEngine, LocalEngineConfig};
     use crate::kernel::{
-        LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor,
-        StreamId, StreamLineage, StreamPosition,
+        CursorId, LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset,
+        StreamDescriptor, StreamId, StreamLineage, StreamPosition,
     };
     use serde_json::Value;
     use std::io::{BufRead, BufReader, Write};
@@ -3281,6 +3657,144 @@ mod tests {
         assert!(encoded.get("replication").is_none());
         assert!(encoded.get("leader").is_none());
         assert!(encoded.get("quorum").is_none());
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_cursor_lifecycle_round_trips_through_server() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let stream_id = stream_id("task.cursor.root");
+        let cursor_id = CursorId::new("consumer.analytics").expect("cursor id");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(Some("test".into()), Some("cursor-roundtrip".into())),
+            )
+            .expect("create root");
+        client.append(&stream_id, b"cursor-0").expect("append 0");
+        client.append(&stream_id, b"cursor-1").expect("append 1");
+
+        let created = client
+            .create_cursor(
+                &cursor_id,
+                &stream_id,
+                Offset::new(1),
+                LineageMetadata::new(Some("consumer".into()), Some("analytics".into())),
+            )
+            .expect("create cursor");
+        assert_eq!(created.body().cursor_id, cursor_id);
+        assert_eq!(created.body().stream_id, stream_id);
+        assert_eq!(created.body().position.value(), 1);
+
+        let loaded = client.get_cursor(&cursor_id).expect("get cursor");
+        assert_eq!(loaded.body(), created.body());
+
+        let advanced = client
+            .ack_cursor(&cursor_id, Offset::new(2))
+            .expect("ack cursor");
+        assert_eq!(advanced.body().cursor_id, cursor_id);
+        assert_eq!(advanced.body().stream_id, stream_id);
+        assert_eq!(advanced.body().position.value(), 2);
+        assert_eq!(
+            advanced.body().durability,
+            crate::engine::CommitmentLevel::Local
+        );
+
+        let deleted = client.delete_cursor(&cursor_id).expect("delete cursor");
+        assert_eq!(deleted.body().cursor_id().as_str(), cursor_id.as_str());
+        assert_eq!(deleted.body().stream_id().as_str(), stream_id.as_str());
+
+        let missing = client
+            .get_cursor(&cursor_id)
+            .expect_err("deleted cursor should miss");
+        match missing {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::NotFound);
+                assert!(error.message().contains("consumer.analytics"));
+            }
+            other => panic!("expected remote not found, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_materialization_checkpoint_round_trips_through_server() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let stream_id = stream_id("task.materialization.root");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("test".into()),
+                    Some("materialization-checkpoint-roundtrip".into()),
+                ),
+            )
+            .expect("create root");
+        client
+            .append(&stream_id, b"materialize-0")
+            .expect("append first record");
+        client
+            .append(&stream_id, b"materialize-1")
+            .expect("append second record");
+
+        let stored = client
+            .materialize_checkpoint(
+                &stream_id,
+                "consumer.analytics",
+                br#"{"processed_records":2}"#.to_vec(),
+            )
+            .expect("store checkpoint");
+        assert_eq!(stored.body().materialization_id(), "consumer.analytics");
+        assert_eq!(stored.body().source_stream_id(), &stream_id);
+        assert_eq!(stored.body().lineage_anchor().head_offset.value(), 1);
+        assert_eq!(stored.body().opaque_state(), br#"{"processed_records":2}"#);
+
+        let manifest = server
+            .engine()
+            .load_manifest(&stream_id)
+            .expect("load manifest");
+        assert_eq!(
+            stored.body().lineage_anchor().manifest_root.digest(),
+            manifest.manifest_root().digest()
+        );
+
+        let loaded = client
+            .get_materialization_checkpoint("consumer.analytics", &stream_id)
+            .expect("get checkpoint");
+        assert_eq!(loaded.body(), stored.body());
+
+        let deleted = client
+            .delete_materialization_checkpoint("consumer.analytics", &stream_id)
+            .expect("delete checkpoint");
+        assert_eq!(deleted.body().materialization_id(), "consumer.analytics");
+        assert_eq!(deleted.body().stream_id().as_str(), stream_id.as_str());
+
+        let missing = client
+            .get_materialization_checkpoint("consumer.analytics", &stream_id)
+            .expect_err("deleted checkpoint should miss");
+        match missing {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::NotFound);
+                assert!(error.message().contains("consumer.analytics"));
+            }
+            other => panic!("expected remote not found, got {other:?}"),
+        }
 
         server.shutdown().expect("shutdown server");
     }

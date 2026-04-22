@@ -1,0 +1,8 @@
+Story VHYEATqz5 AC-2
+
+Implemented a hosted materialization checkpoint envelope and persistence contract:
+- Added HostedMaterializationCheckpoint in transit-core.
+- Added a durable materialization checkpoint store under the engine data root.
+- LocalEngine now checkpoints, loads, and deletes hosted materialization checkpoints.
+- RemoteClient and the hosted protocol expose create/get/delete checkpoint operations.
+- Server regression coverage verifies checkpoint anchor, manifest-root binding, persisted opaque state, and delete semantics.

@@ -1,0 +1,6 @@
+Story VHYEATqz5 AC-3
+
+Preserved shared-engine semantics for the new hosted contract:
+- Cursor operations reuse the existing LocalEngine cursor invariants.
+- Hosted materialization checkpoints are anchored with LocalEngine::checkpoint and do not mutate append, read, or tail behavior.
+- The new protocol surface persists only derived consumer metadata under the data root.

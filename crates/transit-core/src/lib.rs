@@ -5,6 +5,7 @@ pub mod consensus;
 pub mod cursor;
 pub mod engine;
 pub mod kernel;
+pub mod materialization;
 pub mod membership;
 pub mod object_store_support;
 pub mod server;

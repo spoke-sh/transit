@@ -22,8 +22,8 @@ mission: VHYE0Ytcr
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/3 stories done
+**Progress:** 0/1 voyages complete, 1/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Deliver Hosted Materialization Cursor And Resume Surface](voyages/VHYE9AqjG/) | in-progress | 0/3 |
+| [Deliver Hosted Materialization Cursor And Resume Surface](voyages/VHYE9AqjG/) | in-progress | 1/3 |
 <!-- END GENERATED -->

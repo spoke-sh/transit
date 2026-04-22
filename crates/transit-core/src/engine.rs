@@ -4,6 +4,7 @@ use crate::kernel::{
     Cursor, CursorId, LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId,
     StreamLineage, StreamPosition, StreamRetentionPolicy,
 };
+use crate::materialization::{HostedMaterializationCheckpoint, MaterializationCheckpointStore};
 use crate::storage::{
     ContentDigest, LineageCheckpoint, ManifestId, ObjectStoreKey, ObjectStoreLocation,
     PublishedFrontier, SegmentChecksum, SegmentCompression, SegmentDescriptor, SegmentId,
@@ -1101,6 +1102,10 @@ impl LocalEngine {
         CursorStore::open(self.data_dir())
     }
 
+    fn materialization_checkpoint_store(&self) -> Result<MaterializationCheckpointStore> {
+        MaterializationCheckpointStore::open(self.data_dir())
+    }
+
     /// Register a new cursor bound to an existing stream.
     ///
     /// Fails when the bound stream does not exist, when a cursor with the
@@ -1205,6 +1210,40 @@ impl LocalEngine {
 
     pub fn delete_cursor(&self, cursor_id: &CursorId) -> Result<()> {
         self.cursor_store()?.delete(cursor_id)
+    }
+
+    pub fn checkpoint_materialization(
+        &self,
+        materialization_id: impl Into<String>,
+        stream_id: &StreamId,
+        opaque_state: Vec<u8>,
+    ) -> Result<HostedMaterializationCheckpoint> {
+        let checkpoint = HostedMaterializationCheckpoint::new(
+            materialization_id,
+            self.checkpoint(stream_id, "materialize")?,
+            opaque_state,
+            cursor_timestamp_now(),
+        )?;
+        self.materialization_checkpoint_store()?.put(&checkpoint)?;
+        Ok(checkpoint)
+    }
+
+    pub fn get_materialization_checkpoint(
+        &self,
+        materialization_id: &str,
+        stream_id: &StreamId,
+    ) -> Result<Option<HostedMaterializationCheckpoint>> {
+        self.materialization_checkpoint_store()
+            .and_then(|store| store.get(materialization_id, stream_id))
+    }
+
+    pub fn delete_materialization_checkpoint(
+        &self,
+        materialization_id: &str,
+        stream_id: &StreamId,
+    ) -> Result<()> {
+        self.materialization_checkpoint_store()
+            .and_then(|store| store.delete(materialization_id, stream_id))
     }
 
     pub fn delete_stream(&self, stream_id: &StreamId) -> Result<LocalDeletedStream> {
