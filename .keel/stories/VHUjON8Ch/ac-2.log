@@ -1,0 +1,9 @@
+2026-04-21 planning authority contract
+
+Authored planning artifacts now define:
+- a local mutable working plane for `active.segment` and `state.json`
+- an object-store-native published plane for immutable segments, immutable manifest snapshots, and a mutable frontier pointer
+- one published namespace contract for filesystem and remote object-store backends
+- the frontier object schema needed for latest discovery and retained-frontier inspection
+
+The contract keeps the hot append path outside the published object-store path.

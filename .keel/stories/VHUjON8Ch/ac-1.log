@@ -1,0 +1,11 @@
+2026-04-21 contract evidence
+
+Command:
+cargo test -p transit-core published_frontier_keeps_latest_manifest_discovery_fields_explicit
+
+Result:
+- test storage::tests::published_frontier_keeps_latest_manifest_discovery_fields_explicit ... ok
+
+Coverage:
+- `PublishedFrontier` now captures the latest immutable manifest discovery payload
+- the contract explicitly carries `stream_id`, `manifest_id`, `manifest_generation`, `manifest_root`, `manifest_object_key`, `retained_start_offset`, and `next_offset`

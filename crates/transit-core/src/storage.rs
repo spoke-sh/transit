@@ -478,12 +478,74 @@ impl SegmentManifest {
     }
 }
 
+/// Small mutable pointer to the latest immutable published manifest snapshot.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublishedFrontier {
+    stream_id: StreamId,
+    manifest_id: ManifestId,
+    manifest_generation: u64,
+    manifest_root: ContentDigest,
+    manifest_object_key: ObjectStoreKey,
+    retained_start_offset: Offset,
+    next_offset: Offset,
+}
+
+impl PublishedFrontier {
+    pub fn new(
+        stream_id: StreamId,
+        manifest_id: ManifestId,
+        manifest_generation: u64,
+        manifest_root: ContentDigest,
+        manifest_object_key: ObjectStoreKey,
+        retained_start_offset: Offset,
+        next_offset: Offset,
+    ) -> Self {
+        Self {
+            stream_id,
+            manifest_id,
+            manifest_generation,
+            manifest_root,
+            manifest_object_key,
+            retained_start_offset,
+            next_offset,
+        }
+    }
+
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn manifest_id(&self) -> &ManifestId {
+        &self.manifest_id
+    }
+
+    pub fn manifest_generation(&self) -> u64 {
+        self.manifest_generation
+    }
+
+    pub fn manifest_root(&self) -> &ContentDigest {
+        &self.manifest_root
+    }
+
+    pub fn manifest_object_key(&self) -> &ObjectStoreKey {
+        &self.manifest_object_key
+    }
+
+    pub fn retained_start_offset(&self) -> Offset {
+        self.retained_start_offset
+    }
+
+    pub fn next_offset(&self) -> Offset {
+        self.next_offset
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         ContentDigest, ManifestId, MaterializationBoundary, ObjectStoreKey, ObjectStoreLocation,
-        SegmentChecksum, SegmentCompression, SegmentDescriptor, SegmentId, SegmentManifest,
-        StorageLocation,
+        PublishedFrontier, SegmentChecksum, SegmentCompression, SegmentDescriptor, SegmentId,
+        SegmentManifest, StorageLocation,
     };
     use crate::kernel::{LineageMetadata, Offset, StreamDescriptor, StreamId, StreamPosition};
     use std::path::PathBuf;
@@ -673,5 +735,30 @@ mod tests {
         assert_eq!(segment.compression(), SegmentCompression::None);
         assert_eq!(segment.byte_length(), 256);
         assert_eq!(segment.uncompressed_byte_length(), 256);
+    }
+
+    #[test]
+    fn published_frontier_keeps_latest_manifest_discovery_fields_explicit() {
+        let frontier = PublishedFrontier::new(
+            stream_id("task.root"),
+            ManifestId::new("manifest-00000000000000000007").expect("manifest id"),
+            7,
+            content_digest("root-7"),
+            ObjectStoreKey::new("streams/task.root/manifests/manifest-00000000000000000007.json")
+                .expect("manifest key"),
+            Offset::new(4),
+            Offset::new(10),
+        );
+
+        let encoded = serde_json::to_value(&frontier).expect("serialize frontier");
+
+        assert_eq!(encoded["stream_id"], "task.root");
+        assert_eq!(encoded["manifest_generation"], 7);
+        assert_eq!(encoded["retained_start_offset"], 4);
+        assert_eq!(encoded["next_offset"], 10);
+        assert_eq!(
+            frontier.manifest_object_key().as_str(),
+            "streams/task.root/manifests/manifest-00000000000000000007.json"
+        );
     }
 }
