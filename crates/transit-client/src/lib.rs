@@ -15,7 +15,7 @@ mod projection;
 
 pub use transit_core::kernel::{
     LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor, StreamId,
-    StreamLineage, StreamPosition,
+    StreamLineage, StreamPosition, StreamRetentionPolicy,
 };
 pub use transit_core::server::{
     APPEND_BATCH_MAX_BYTES, APPEND_BATCH_MAX_RECORDS, RemoteAcknowledged, RemoteAcknowledgement,

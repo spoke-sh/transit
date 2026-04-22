@@ -1,0 +1,10 @@
+Added `StreamRetentionPolicy` to the shared kernel and threaded optional retention metadata through
+`StreamDescriptor`, `LocalStreamStatus`, and `RemoteStreamStatus` with `None` as the default.
+
+Focused proof:
+- `cargo test -p transit-core root_descriptor_preserves_retention_policy`
+- `cargo test -p transit-core list_streams_returns_sorted_descriptors`
+
+Observed result:
+- configured streams preserve `max_age_days` and `max_bytes`
+- unconfigured streams continue to report no retention policy

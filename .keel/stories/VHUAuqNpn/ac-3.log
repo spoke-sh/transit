@@ -1,0 +1,10 @@
+Updated `transit streams list` to surface retention metadata in both table and JSON output via
+`retention_age` and `retention_bytes`.
+
+Focused proof:
+- `cargo test -p transit-core remote_stream_listing_reports_descriptors_and_status`
+- `cargo test -p transit-cli --bin transit streams_produce_and_consume_cover_the_kcat_style_remote_flow`
+
+Observed result:
+- listed streams include retention age/bytes when configured
+- unconfigured streams render `none` in human output and `null` in JSON output

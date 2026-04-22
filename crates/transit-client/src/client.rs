@@ -5,7 +5,9 @@ use std::time::Duration;
 use crate::projection::{
     ProjectionReadConsumer, ProjectionReadOutcome, ProjectionReadRequest, projection_revision_for,
 };
-use transit_core::kernel::{LineageMetadata, MergeSpec, Offset, StreamId, StreamPosition};
+use transit_core::kernel::{
+    LineageMetadata, MergeSpec, Offset, StreamId, StreamPosition, StreamRetentionPolicy,
+};
 use transit_core::server::{
     RemoteAcknowledged, RemoteAppendOutcome, RemoteBatchAppendOutcome, RemoteClient,
     RemoteClientError, RemoteDeletedStreamOutcome, RemoteLineageOutcome, RemoteReadOutcome,
@@ -43,6 +45,16 @@ impl TransitClient {
         metadata: LineageMetadata,
     ) -> ClientResult<RemoteAcknowledged<RemoteStreamStatus>> {
         self.inner.create_root(stream_id, metadata)
+    }
+
+    pub fn create_root_with_retention(
+        &self,
+        stream_id: &StreamId,
+        metadata: LineageMetadata,
+        retention_policy: Option<StreamRetentionPolicy>,
+    ) -> ClientResult<RemoteAcknowledged<RemoteStreamStatus>> {
+        self.inner
+            .create_root_with_retention(stream_id, metadata, retention_policy)
     }
 
     pub fn list_streams(&self) -> ClientResult<RemoteAcknowledged<RemoteStreamListOutcome>> {

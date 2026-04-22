@@ -2,7 +2,7 @@ use crate::consensus::{ConsensusHandle, NodeId, StreamLease};
 use crate::cursor::{CursorAck, CursorStore};
 use crate::kernel::{
     Cursor, CursorId, LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId,
-    StreamLineage, StreamPosition,
+    StreamLineage, StreamPosition, StreamRetentionPolicy,
 };
 use crate::storage::{
     ContentDigest, LineageCheckpoint, ManifestId, ObjectStoreKey, ObjectStoreLocation,
@@ -471,6 +471,7 @@ pub struct LocalStreamStatus {
     next_offset: Offset,
     active_record_count: u64,
     active_segment_start_offset: Offset,
+    retention_policy: Option<StreamRetentionPolicy>,
     manifest_generation: u64,
     rolled_segment_count: usize,
 }
@@ -490,6 +491,10 @@ impl LocalStreamStatus {
 
     pub fn active_segment_start_offset(&self) -> Offset {
         self.active_segment_start_offset
+    }
+
+    pub fn retention_policy(&self) -> Option<&StreamRetentionPolicy> {
+        self.retention_policy.as_ref()
     }
 
     pub fn manifest_generation(&self) -> u64 {
@@ -1867,6 +1872,7 @@ impl LocalEngine {
             next_offset: Offset::new(state.next_offset),
             active_record_count: state.active_record_count,
             active_segment_start_offset: Offset::new(state.active_segment_start_offset),
+            retention_policy: state.descriptor.retention_policy.clone(),
             manifest_generation: state.manifest_generation,
             rolled_segment_count: manifest.segments().len(),
         })
@@ -3681,12 +3687,17 @@ mod tests {
                 .expect("config"),
         )
         .expect("engine");
+        let retention_policy =
+            crate::kernel::StreamRetentionPolicy::new(Some(30), Some(10_737_418_240))
+                .expect("retention");
 
         engine
             .create_stream(root_descriptor("task.zeta"))
             .expect("create zeta");
         engine
-            .create_stream(root_descriptor("task.alpha"))
+            .create_stream(
+                root_descriptor("task.alpha").with_retention_policy(Some(retention_policy.clone())),
+            )
             .expect("create alpha");
 
         let streams = engine.list_streams().expect("list streams");
@@ -3695,6 +3706,10 @@ mod tests {
             .map(|status| status.descriptor().stream_id.as_str().to_owned())
             .collect::<Vec<_>>();
         assert_eq!(stream_ids, vec!["task.alpha", "task.zeta"]);
+        assert_eq!(
+            streams[0].descriptor().retention_policy(),
+            Some(&retention_policy)
+        );
     }
 
     #[test]

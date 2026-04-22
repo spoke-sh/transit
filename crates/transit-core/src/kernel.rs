@@ -280,11 +280,55 @@ pub enum StreamLineage {
     Merge { merge: MergeSpec },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StreamRetentionPolicy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max_age_days: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max_bytes: Option<u64>,
+}
+
+impl StreamRetentionPolicy {
+    pub fn new(max_age_days: Option<u64>, max_bytes: Option<u64>) -> Result<Self> {
+        ensure!(
+            max_age_days.is_some() || max_bytes.is_some(),
+            "retention policy requires max_age_days and/or max_bytes"
+        );
+        if let Some(max_age_days) = max_age_days {
+            ensure!(
+                max_age_days > 0,
+                "retention max_age_days must be greater than zero"
+            );
+        }
+        if let Some(max_bytes) = max_bytes {
+            ensure!(
+                max_bytes > 0,
+                "retention max_bytes must be greater than zero"
+            );
+        }
+
+        Ok(Self {
+            max_age_days,
+            max_bytes,
+        })
+    }
+
+    pub fn max_age_days(&self) -> Option<u64> {
+        self.max_age_days
+    }
+
+    pub fn max_bytes(&self) -> Option<u64> {
+        self.max_bytes
+    }
+}
+
 /// Stream descriptor used by the first storage kernel.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StreamDescriptor {
     pub stream_id: StreamId,
     pub lineage: StreamLineage,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retention_policy: Option<StreamRetentionPolicy>,
 }
 
 impl StreamDescriptor {
@@ -292,6 +336,7 @@ impl StreamDescriptor {
         Self {
             stream_id,
             lineage: StreamLineage::Root { metadata },
+            retention_policy: None,
         }
     }
 
@@ -310,6 +355,7 @@ impl StreamDescriptor {
             lineage: StreamLineage::Branch {
                 branch_point: BranchPoint::new(parent, metadata),
             },
+            retention_policy: None,
         })
     }
 
@@ -325,7 +371,20 @@ impl StreamDescriptor {
         Ok(Self {
             stream_id,
             lineage: StreamLineage::Merge { merge },
+            retention_policy: None,
         })
+    }
+
+    pub fn with_retention_policy(
+        mut self,
+        retention_policy: Option<StreamRetentionPolicy>,
+    ) -> Self {
+        self.retention_policy = retention_policy;
+        self
+    }
+
+    pub fn retention_policy(&self) -> Option<&StreamRetentionPolicy> {
+        self.retention_policy.as_ref()
     }
 
     pub fn parent_stream_ids(&self) -> Vec<&StreamId> {
@@ -346,7 +405,7 @@ mod tests {
     use super::{
         BRANCH_ANCHOR_REF_LABEL, BRANCH_KIND_LABEL, Cursor, CursorId, LineageMetadata, MergePolicy,
         MergePolicyKind, MergeSpec, Offset, StreamDescriptor, StreamId, StreamLineage,
-        StreamPosition,
+        StreamPosition, StreamRetentionPolicy,
     };
 
     fn stream_id(value: &str) -> StreamId {
@@ -479,6 +538,19 @@ mod tests {
                 .to_string()
                 .contains("merge results must create a new stream head")
         );
+    }
+
+    #[test]
+    fn root_descriptor_preserves_retention_policy() {
+        let retention_policy =
+            StreamRetentionPolicy::new(Some(30), Some(10_737_418_240)).expect("retention");
+        let descriptor = StreamDescriptor::root(
+            stream_id("task.root"),
+            LineageMetadata::new(Some("operator".into()), Some("retained".into())),
+        )
+        .with_retention_policy(Some(retention_policy.clone()));
+
+        assert_eq!(descriptor.retention_policy(), Some(&retention_policy));
     }
 
     #[test]

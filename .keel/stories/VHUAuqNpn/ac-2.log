@@ -1,0 +1,10 @@
+Extended the explicit stream creation surfaces to accept retention policy inputs:
+- CLI flags: `--retention-max-age-days`, `--retention-max-bytes`
+- Hosted client/server request surface: `create_root_with_retention(...)`
+
+Focused proof:
+- `cargo test -p transit-core remote_stream_listing_reports_descriptors_and_status`
+- `cargo test -p transit-cli --bin transit streams_produce_and_consume_cover_the_kcat_style_remote_flow`
+
+Observed result:
+- retention policy is accepted at stream creation time and propagated through hosted creation flows

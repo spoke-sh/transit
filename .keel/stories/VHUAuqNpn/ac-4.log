@@ -1,0 +1,13 @@
+Preserved the default retention semantics as `none`.
+
+Implementation guardrails:
+- `StreamDescriptor::root/branch/merge` default retention policy to `None`
+- retention is only set when an explicit policy is parsed or passed
+- `parse_retention_policy(...)` returns `None` when both flags are omitted
+
+Focused proof:
+- `cargo test -p transit-core root_descriptor_preserves_retention_policy`
+- `cargo test -p transit-cli --bin transit streams_produce_and_consume_cover_the_kcat_style_remote_flow`
+
+Observed result:
+- no implicit `30 day` retention default is introduced anywhere in the creation or listing path

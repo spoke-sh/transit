@@ -27,11 +27,11 @@ started_at: 2026-04-21T20:15:22
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/3 stories complete
+**Progress:** 1/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Add Per-Stream Retention Metadata And Create-Time Surface](../../../../stories/VHUAuqNpn/README.md) | feat | in-progress |
+| [Add Per-Stream Retention Metadata And Create-Time Surface](../../../../stories/VHUAuqNpn/README.md) | feat | done |
 | [Enforce Retention And Surface Retained Frontier Status](../../../../stories/VHUAuquph/README.md) | feat | backlog |
 | [Publish Retention Proof Coverage And Operator Guidance](../../../../stories/VHUAurAqP/README.md) | feat | backlog |
 <!-- END GENERATED -->

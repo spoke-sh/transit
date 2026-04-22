@@ -16,7 +16,7 @@ use transit_core::engine::{
 };
 use transit_core::kernel::{
     LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset, StreamDescriptor, StreamId,
-    StreamLineage, StreamPosition,
+    StreamLineage, StreamPosition, StreamRetentionPolicy,
 };
 use transit_core::membership::NodeId;
 use transit_core::object_store_support::{
@@ -166,6 +166,12 @@ struct StreamsCreateArgs {
     /// Optional lineage labels in key=value form.
     #[arg(long = "label")]
     labels: Vec<String>,
+    /// Optional retention maximum age in days.
+    #[arg(long = "retention-max-age-days")]
+    retention_max_age_days: Option<u64>,
+    /// Optional retention maximum retained bytes.
+    #[arg(long = "retention-max-bytes")]
+    retention_max_bytes: Option<u64>,
     /// Render create output as JSON.
     #[arg(long)]
     json: bool,
@@ -421,6 +427,10 @@ struct ServerCreateRootArgs {
     reason: Option<String>,
     #[arg(long = "label")]
     labels: Vec<String>,
+    #[arg(long = "retention-max-age-days")]
+    retention_max_age_days: Option<u64>,
+    #[arg(long = "retention-max-bytes")]
+    retention_max_bytes: Option<u64>,
     #[arg(long)]
     json: bool,
 }
@@ -1044,12 +1054,15 @@ fn summarize_remote_stream_summary(
 ) -> RemoteStreamSummaryResult {
     let (lineage_kind, parents, merge_base) = summarize_descriptor_lineage(summary.descriptor());
     let next_offset = summary.status().next_offset().value();
+    let retention_policy = summary.descriptor().retention_policy();
 
     RemoteStreamSummaryResult {
         stream_id: summary.descriptor().stream_id.as_str().to_owned(),
         lineage_kind,
         parents,
         merge_base,
+        retention_age: retention_policy.and_then(StreamRetentionPolicy::max_age_days),
+        retention_bytes: retention_policy.and_then(StreamRetentionPolicy::max_bytes),
         record_count: next_offset,
         head_offset: next_offset.checked_sub(1),
         active_record_count: summary.status().active_record_count(),
@@ -1745,6 +1758,8 @@ struct RemoteStreamSummaryResult {
     lineage_kind: String,
     parents: Vec<String>,
     merge_base: Option<String>,
+    retention_age: Option<u64>,
+    retention_bytes: Option<u64>,
     record_count: u64,
     head_offset: Option<u64>,
     active_record_count: u64,
@@ -1789,6 +1804,8 @@ struct RemoteStreamStatusResult {
     durability: String,
     topology: String,
     stream_id: String,
+    retention_age: Option<u64>,
+    retention_bytes: Option<u64>,
     next_offset: u64,
     active_record_count: u64,
     active_segment_start_offset: u64,
@@ -3315,10 +3332,13 @@ fn run_streams_create(
 ) -> Result<RemoteStreamStatusResult> {
     let client = build_remote_client(server_addr, args.connection_io_timeout_ms);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let retention_policy =
+        parse_retention_policy(args.retention_max_age_days, args.retention_max_bytes)?;
     let created = client
-        .create_root(
+        .create_root_with_retention(
             &stream_id,
             parse_lineage_metadata(args.actor, args.reason, args.labels)?,
+            retention_policy,
         )
         .with_context(|| format!("create remote root {}", stream_id.as_str()))?;
 
@@ -3411,10 +3431,13 @@ fn run_consume(server_addr: SocketAddr, args: ConsumeArgs) -> Result<ConsumeResu
 fn run_remote_create_root(args: ServerCreateRootArgs) -> Result<RemoteStreamStatusResult> {
     let client = RemoteClient::new(args.server_addr);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let retention_policy =
+        parse_retention_policy(args.retention_max_age_days, args.retention_max_bytes)?;
     let created = client
-        .create_root(
+        .create_root_with_retention(
             &stream_id,
             parse_lineage_metadata(args.actor, args.reason, args.labels)?,
+            retention_policy,
         )
         .with_context(|| format!("create remote root {}", stream_id.as_str()))?;
 
@@ -3954,6 +3977,8 @@ fn summarize_remote_stream_status(
         durability: response.ack().durability().to_owned(),
         topology: render_topology(response.ack().topology()),
         stream_id: response.body().stream_id().as_str().to_owned(),
+        retention_age: response.body().retention_max_age_days(),
+        retention_bytes: response.body().retention_max_bytes(),
         next_offset: response.body().next_offset().value(),
         active_record_count: response.body().active_record_count(),
         active_segment_start_offset: response.body().active_segment_start_offset().value(),
@@ -4304,6 +4329,8 @@ fn run_integrity_server_parity(root: &Path) -> Result<IntegrityProofServerParity
             actor: Some("mission".into()),
             reason: Some("integrity-server-proof".into()),
             labels: vec!["kind=integrity-root".into()],
+            retention_max_age_days: None,
+            retention_max_bytes: None,
             json: false,
         })?;
         run_remote_append(ServerAppendArgs {
@@ -5807,6 +5834,20 @@ fn render_remote_stream_status(result: RemoteStreamStatusResult, json: bool) -> 
     println!("durability: {}", result.durability);
     println!("topology: {}", result.topology);
     println!("stream: {}", result.stream_id);
+    println!(
+        "retention age: {}",
+        result
+            .retention_age
+            .map(|retention_age| format!("{retention_age}d"))
+            .unwrap_or_else(|| "none".to_owned())
+    );
+    println!(
+        "retention bytes: {}",
+        result
+            .retention_bytes
+            .map(|retention_bytes| retention_bytes.to_string())
+            .unwrap_or_else(|| "none".to_owned())
+    );
     println!("next offset: {}", result.next_offset);
     println!("active records: {}", result.active_record_count);
     println!(
@@ -5829,6 +5870,8 @@ fn render_streams_list(result: RemoteStreamListResult, json: bool) -> Result<()>
         "lineage".to_owned(),
         "parents".to_owned(),
         "merge_base".to_owned(),
+        "retention_age".to_owned(),
+        "retention_bytes".to_owned(),
         "records".to_owned(),
         "head_offset".to_owned(),
         "active_records".to_owned(),
@@ -5849,6 +5892,14 @@ fn render_streams_list(result: RemoteStreamListResult, json: bool) -> Result<()>
                     stream.parents.join(", ")
                 },
                 stream.merge_base.unwrap_or_else(|| "-".to_owned()),
+                stream
+                    .retention_age
+                    .map(|retention_age| format!("{retention_age}d"))
+                    .unwrap_or_else(|| "none".to_owned()),
+                stream
+                    .retention_bytes
+                    .map(|retention_bytes| retention_bytes.to_string())
+                    .unwrap_or_else(|| "none".to_owned()),
                 stream.record_count.to_string(),
                 stream
                     .head_offset
@@ -5879,6 +5930,19 @@ fn render_streams_list(result: RemoteStreamListResult, json: bool) -> Result<()>
     }
 
     Ok(())
+}
+
+fn parse_retention_policy(
+    retention_max_age_days: Option<u64>,
+    retention_max_bytes: Option<u64>,
+) -> Result<Option<StreamRetentionPolicy>> {
+    match (retention_max_age_days, retention_max_bytes) {
+        (None, None) => Ok(None),
+        (retention_max_age_days, retention_max_bytes) => Ok(Some(StreamRetentionPolicy::new(
+            retention_max_age_days,
+            retention_max_bytes,
+        )?)),
+    }
 }
 
 fn render_ascii_table_row(cells: &[String], widths: &[usize]) -> String {
@@ -6368,16 +6432,25 @@ mod tests {
                 actor: Some("cli".into()),
                 reason: Some("create".into()),
                 labels: vec![],
+                retention_max_age_days: Some(30),
+                retention_max_bytes: Some(10_737_418_240),
                 json: true,
             },
         )
         .expect("create stream");
         assert_eq!(created.stream_id, "task.root");
+        assert_eq!(created.retention_age, Some(30));
+        assert_eq!(created.retention_bytes, Some(10_737_418_240));
 
         let listed_after = run_streams_list(server_addr, None).expect("list streams");
         assert_eq!(listed_after.stream_count, 1);
         assert_eq!(listed_after.streams[0].stream_id, "task.root");
         assert_eq!(listed_after.streams[0].lineage_kind, "root");
+        assert_eq!(listed_after.streams[0].retention_age, Some(30));
+        assert_eq!(
+            listed_after.streams[0].retention_bytes,
+            Some(10_737_418_240)
+        );
 
         let produced = run_produce(
             server_addr,
@@ -6437,6 +6510,8 @@ mod tests {
             actor: Some("test".into()),
             reason: Some("cli".into()),
             labels: vec!["kind=root".into()],
+            retention_max_age_days: None,
+            retention_max_bytes: None,
             json: true,
         })
         .expect("create root stream");
@@ -6544,6 +6619,8 @@ mod tests {
             actor: Some("classifier".into()),
             reason: Some("bootstrap".into()),
             labels: vec!["kind=root".into()],
+            retention_max_age_days: None,
+            retention_max_bytes: None,
             json: true,
         })
         .expect("create root stream");
@@ -6596,6 +6673,8 @@ mod tests {
             actor: Some("test".into()),
             reason: Some("batch".into()),
             labels: vec!["kind=root".into()],
+            retention_max_age_days: None,
+            retention_max_bytes: None,
             json: true,
         })
         .expect("create root stream");
@@ -6639,6 +6718,8 @@ mod tests {
             actor: Some("proof".into()),
             reason: Some("batch".into()),
             labels: vec![],
+            retention_max_age_days: None,
+            retention_max_bytes: None,
             json: true,
         })
         .expect("create root stream");
@@ -6689,6 +6770,8 @@ mod tests {
             actor: Some("proof".into()),
             reason: Some("bootstrap".into()),
             labels: vec![],
+            retention_max_age_days: None,
+            retention_max_bytes: None,
             json: true,
         })
         .expect("create root stream");

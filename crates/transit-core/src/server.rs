@@ -4,6 +4,7 @@ use crate::engine::{
 };
 use crate::kernel::{
     LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId, StreamPosition,
+    StreamRetentionPolicy,
 };
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
@@ -376,9 +377,19 @@ impl RemoteClient {
         stream_id: &StreamId,
         metadata: LineageMetadata,
     ) -> RemoteClientResult<RemoteAcknowledged<RemoteStreamStatus>> {
+        self.create_root_with_retention(stream_id, metadata, None)
+    }
+
+    pub fn create_root_with_retention(
+        &self,
+        stream_id: &StreamId,
+        metadata: LineageMetadata,
+        retention_policy: Option<StreamRetentionPolicy>,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteStreamStatus>> {
         match self.send_request(OperationRequest::CreateRoot {
             stream_id: stream_id.clone(),
             metadata,
+            retention_policy,
         })? {
             SuccessfulResponse {
                 request_id,
@@ -574,7 +585,7 @@ impl RemoteClient {
                 request_id,
                 ack,
                 outcome: OperationResponse::LineageOk(lineage),
-            } => Ok(RemoteAcknowledged::new(request_id, ack, lineage)),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, *lineage)),
             other => Err(unexpected_operation_response(
                 "inspect_lineage",
                 &other.outcome,
@@ -768,6 +779,10 @@ pub struct RemoteStreamStatus {
     next_offset: Offset,
     active_record_count: u64,
     active_segment_start_offset: Offset,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    retention_max_age_days: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    retention_max_bytes: Option<u64>,
     manifest_generation: u64,
     rolled_segment_count: usize,
 }
@@ -787,6 +802,14 @@ impl RemoteStreamStatus {
 
     pub fn active_segment_start_offset(&self) -> Offset {
         self.active_segment_start_offset
+    }
+
+    pub fn retention_max_age_days(&self) -> Option<u64> {
+        self.retention_max_age_days
+    }
+
+    pub fn retention_max_bytes(&self) -> Option<u64> {
+        self.retention_max_bytes
     }
 
     pub fn manifest_generation(&self) -> u64 {
@@ -935,6 +958,7 @@ enum OperationRequest {
     CreateRoot {
         stream_id: StreamId,
         metadata: LineageMetadata,
+        retention_policy: Option<StreamRetentionPolicy>,
     },
     ListStreams,
     DeleteStream {
@@ -1003,7 +1027,7 @@ enum OperationResponse {
     StreamStatusOk(RemoteStreamStatus),
     StreamListOk(RemoteStreamListOutcome),
     DeleteStreamOk(RemoteDeletedStreamOutcome),
-    LineageOk(RemoteLineageOutcome),
+    LineageOk(Box<RemoteLineageOutcome>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1382,7 +1406,10 @@ fn handle_request(
         OperationRequest::CreateRoot {
             stream_id,
             metadata,
-        } => match engine.create_stream(StreamDescriptor::root(stream_id, metadata)) {
+            retention_policy,
+        } => match engine.create_stream(
+            StreamDescriptor::root(stream_id, metadata).with_retention_policy(retention_policy),
+        ) {
             Ok(status) => ack_response(
                 request_id,
                 engine.durability(),
@@ -1471,7 +1498,7 @@ fn handle_request(
             Ok(lineage) => ack_response(
                 request_id,
                 engine.durability(),
-                OperationResponse::LineageOk(lineage),
+                OperationResponse::LineageOk(Box::new(lineage)),
             ),
             Err(error) => engine_error_response(request_id, error),
         },
@@ -1603,17 +1630,21 @@ fn map_read_outcome(stream_id: StreamId, records: Vec<LocalRecord>) -> RemoteRea
 }
 
 fn map_stream_status(status: LocalStreamStatus) -> RemoteStreamStatus {
+    let retention_policy = status.retention_policy();
     RemoteStreamStatus {
         stream_id: status.stream_id().clone(),
         next_offset: status.next_offset(),
         active_record_count: status.active_record_count(),
         active_segment_start_offset: status.active_segment_start_offset(),
+        retention_max_age_days: retention_policy.and_then(StreamRetentionPolicy::max_age_days),
+        retention_max_bytes: retention_policy.and_then(StreamRetentionPolicy::max_bytes),
         manifest_generation: status.manifest_generation(),
         rolled_segment_count: status.rolled_segment_count(),
     }
 }
 
 fn map_log_stream_summary(status: LocalLogStreamStatus) -> RemoteStreamSummary {
+    let retention_policy = status.descriptor().retention_policy();
     RemoteStreamSummary {
         descriptor: status.descriptor().clone(),
         status: RemoteStreamStatus {
@@ -1621,6 +1652,8 @@ fn map_log_stream_summary(status: LocalLogStreamStatus) -> RemoteStreamSummary {
             next_offset: status.next_offset(),
             active_record_count: status.active_record_count(),
             active_segment_start_offset: status.active_segment_start_offset(),
+            retention_max_age_days: retention_policy.and_then(StreamRetentionPolicy::max_age_days),
+            retention_max_bytes: retention_policy.and_then(StreamRetentionPolicy::max_bytes),
             manifest_generation: status.manifest_generation(),
             rolled_segment_count: status.rolled_segment_count(),
         },
@@ -2337,11 +2370,15 @@ mod tests {
         .expect("bind server");
         let client = RemoteClient::new(server.local_addr());
         let stream_id = stream_id("task.root");
+        let retention_policy =
+            crate::kernel::StreamRetentionPolicy::new(Some(30), Some(10_737_418_240))
+                .expect("retention");
 
         client
-            .create_root(
+            .create_root_with_retention(
                 &stream_id,
                 LineageMetadata::new(Some("test".into()), Some("list".into())),
+                Some(retention_policy),
             )
             .expect("create root");
         client.append(&stream_id, b"first").expect("append");
@@ -2353,6 +2390,17 @@ mod tests {
         assert_eq!(
             listed.body().streams()[0].descriptor().stream_id.as_str(),
             "task.root"
+        );
+        assert_eq!(
+            listed.body().streams()[0]
+                .descriptor()
+                .retention_policy()
+                .and_then(crate::kernel::StreamRetentionPolicy::max_age_days),
+            Some(30)
+        );
+        assert_eq!(
+            listed.body().streams()[0].status().retention_max_bytes(),
+            Some(10_737_418_240)
         );
         assert_eq!(listed.body().streams()[0].status().next_offset().value(), 1);
 
