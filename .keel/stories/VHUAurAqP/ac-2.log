@@ -1,0 +1,13 @@
+Published operator guidance in the public MDX docs:
+- `website/docs/start-here/capabilities.mdx`
+- `website/docs/start-here/server-first-run.mdx`
+- `website/docs/concepts/embedded-and-server.mdx`
+
+Guidance added:
+- retention is explicit per stream and defaults to `none`
+- retention trims whole rolled segments only
+- retention is not Kafka-style compaction
+- retention is not selective erasure
+
+Observed result:
+- the public docs now distinguish retention clearly from compaction and privacy erasure

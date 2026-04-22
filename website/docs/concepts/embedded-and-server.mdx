@@ -39,6 +39,8 @@ The server should preserve:
 - the same append ordering rules
 - the same single-stream batch append semantics, with one batch acknowledgement
   and ordinary per-record replay
+- the same opt-in retention semantics, with no implicit default policy and
+  whole-segment aging instead of compaction
 - the same meaning of append, replay, and tail even when hosted connection I/O
   timeouts are raised for operational robustness
 - the same shared-engine semantics while accepted server connections are handled
@@ -62,6 +64,18 @@ It also carries runtime timeout tuning for the daemon and hosted proofs without
 creating a second semantic world for server deployments.
 The transport layer can become more tolerant and more concurrent; the record,
 lineage, and durability model is still the same engine.
+
+That one-engine rule also applies to retention:
+
+- retention is explicit per stream and defaults to `none`
+- only whole rolled segments are eligible to age out
+- the active segment is preserved
+- `retained_start_offset` marks the earliest replayable offset after trimming
+
+Once that retained frontier advances, replay is bounded. That is the intended
+operator signal that old history has aged out of the replay surface. It is not
+Kafka-style compaction, and it does not mean Transit is selectively erasing
+individual subjects inside retained history.
 
 ## What Transit Tries To Avoid
 

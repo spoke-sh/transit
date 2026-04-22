@@ -84,6 +84,8 @@ struct ProofArgs {
 enum ProofCommands {
     /// Exercise append, replay, lineage, and crash recovery in one local proof.
     LocalEngine(LocalEngineProofArgs),
+    /// Exercise per-stream retention, retained-frontier status, and bounded replay behavior.
+    Retention(LocalEngineProofArgs),
     /// Exercise publication and cold restore through the shared local engine.
     TieredEngine(LocalEngineProofArgs),
     /// Exercise readiness, lease handoff, and stale-primary fencing for the bounded failover slice.
@@ -597,6 +599,10 @@ async fn main() -> Result<()> {
         Commands::Proof(args) => match args.command {
             ProofCommands::LocalEngine(args) => render_local_engine_proof(
                 run_local_engine_proof(resolve_local_root(args.root, &config))?,
+                args.json,
+            )?,
+            ProofCommands::Retention(args) => render_retention_proof(
+                run_retention_proof(resolve_local_root(args.root, &config))?,
                 args.json,
             )?,
             ProofCommands::TieredEngine(args) => render_tiered_engine_proof(
@@ -1170,6 +1176,31 @@ struct RecoveryProofSummary {
     truncated_bytes: u64,
     committed_next_offset: u64,
     manifest_generation: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct RetentionProofSemanticsResult {
+    retention_mode: &'static str,
+    retained_frontier: &'static str,
+    compaction_non_claim: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct RetentionProofResult {
+    data_root: PathBuf,
+    server_addr: String,
+    stream_id: String,
+    create_status: RemoteStreamStatusResult,
+    listed_streams: RemoteStreamListResult,
+    lineage: RemoteLineageResult,
+    local_status: TransitLogStreamStatusResult,
+    replay: RemoteReadResult,
+    bounded_replay: bool,
+    semantics: RetentionProofSemanticsResult,
+    accepted_connections: u64,
+    graceful_shutdown: bool,
+    server_api: &'static str,
+    remote_api: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -1826,6 +1857,9 @@ struct RemoteLineageResult {
     stream_id: String,
     lineage_kind: String,
     parents: Vec<String>,
+    retention_age: Option<u64>,
+    retention_bytes: Option<u64>,
+    retained_start_offset: u64,
     next_offset: u64,
     manifest_generation: u64,
     rolled_segment_count: usize,
@@ -1970,6 +2004,102 @@ fn run_local_engine_proof(root: PathBuf) -> Result<LocalEngineProofResult> {
     })
 }
 
+fn run_retention_proof(root: PathBuf) -> Result<RetentionProofResult> {
+    reset_directory(&root)?;
+
+    let requested_listen_addr: SocketAddr = "127.0.0.1:0".parse().expect("listen addr");
+    let server = ServerHandle::bind(configure_server_connection_timeout(
+        ServerConfig::new(
+            LocalEngineConfig::new(&root, NodeId::new("cli-node")).with_segment_max_records(2)?,
+            requested_listen_addr,
+        ),
+        None,
+    ))
+    .context("bind retention proof daemon")?;
+    let server_addr = server.local_addr();
+
+    let proof = (|| -> Result<RetentionProofResult> {
+        let stream_id = StreamId::new("mission.retention.root")?;
+
+        let create_status = run_streams_create(
+            server_addr,
+            StreamsCreateArgs {
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                stream_id: stream_id.as_str().to_owned(),
+                actor: Some("mission".into()),
+                reason: Some("retention-proof".into()),
+                labels: vec!["kind=retention".into()],
+                retention_max_age_days: Some(30),
+                retention_max_bytes: Some(1),
+                json: true,
+            },
+        )?;
+
+        run_remote_append(ServerAppendArgs {
+            server_addr,
+            stream_id: stream_id.as_str().to_owned(),
+            payload_text: vec!["first".into(), "second".into(), "third".into()],
+            json: true,
+        })?;
+
+        let listed_streams = run_streams_list(server_addr, None)?;
+        let lineage = run_remote_lineage(ServerLineageArgs {
+            server_addr,
+            stream_id: stream_id.as_str().to_owned(),
+            json: true,
+        })?;
+        let replay = run_remote_read(ServerReadArgs {
+            server_addr,
+            stream_id: stream_id.as_str().to_owned(),
+            json: true,
+        })?;
+        let mut local_status = run_status(root.clone(), Some(stream_id.as_str()))?.streams;
+        let local_status = local_status
+            .pop()
+            .context("retention proof expected a local stream status")?;
+        let bounded_replay = replay.record_count == 1
+            && replay.head_offset == Some(2)
+            && replay
+                .records
+                .first()
+                .is_some_and(|record| record.position == "mission.retention.root@2");
+
+        Ok(RetentionProofResult {
+            data_root: root.clone(),
+            server_addr: server_addr.to_string(),
+            stream_id: stream_id.as_str().to_owned(),
+            create_status,
+            listed_streams,
+            lineage,
+            local_status,
+            replay,
+            bounded_replay,
+            semantics: RetentionProofSemanticsResult {
+                retention_mode: "whole-segment history aging with no implicit default policy",
+                retained_frontier: "retained_start_offset is the earliest replayable offset after trimming",
+                compaction_non_claim: "retention is not Kafka-style compaction and not selective erasure",
+            },
+            accepted_connections: 0,
+            graceful_shutdown: false,
+            server_api: "ServerHandle::bind",
+            remote_api: "run_streams_create/run_streams_list/run_remote_lineage/run_remote_read",
+        })
+    })();
+
+    let shutdown = summarize_server_shutdown(
+        requested_listen_addr,
+        server
+            .shutdown()
+            .context("shutdown retention proof daemon")?,
+        effective_hosted_io_timeout_ms(None),
+    )?;
+    let mut proof = proof?;
+    proof.accepted_connections = shutdown.accepted_connections;
+    proof.graceful_shutdown = shutdown.graceful_shutdown;
+    Ok(proof)
+}
+
 fn effective_hosted_io_timeout_ms(io_timeout_ms: Option<u64>) -> u64 {
     io_timeout_ms.unwrap_or(DEFAULT_HOSTED_IO_TIMEOUT_MS)
 }
@@ -2112,6 +2242,9 @@ fn run_networked_server_proof(
                 .into_iter()
                 .map(|parent| parent.as_str().to_owned())
                 .collect(),
+            retention_age: lineage.body().status().retention_max_age_days(),
+            retention_bytes: lineage.body().status().retention_max_bytes(),
+            retained_start_offset: lineage.body().status().retained_start_offset().value(),
             next_offset: lineage.body().status().next_offset().value(),
             manifest_generation: lineage.body().status().manifest_generation(),
             rolled_segment_count: lineage.body().status().rolled_segment_count(),
@@ -3604,6 +3737,9 @@ fn run_remote_lineage(args: ServerLineageArgs) -> Result<RemoteLineageResult> {
             .into_iter()
             .map(|parent| parent.as_str().to_owned())
             .collect(),
+        retention_age: lineage.body().status().retention_max_age_days(),
+        retention_bytes: lineage.body().status().retention_max_bytes(),
+        retained_start_offset: lineage.body().status().retained_start_offset().value(),
         next_offset: lineage.body().status().next_offset().value(),
         manifest_generation: lineage.body().status().manifest_generation(),
         rolled_segment_count: lineage.body().status().rolled_segment_count(),
@@ -4808,6 +4944,62 @@ fn render_local_engine_proof(result: LocalEngineProofResult, json: bool) -> Resu
     println!(
         "recovery manifest generation: {}",
         result.recovery.manifest_generation
+    );
+
+    Ok(())
+}
+
+fn render_retention_proof(result: RetentionProofResult, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit proof retention");
+    println!("root: {}", result.data_root.display());
+    println!("server: {}", result.server_addr);
+    println!("stream: {}", result.stream_id);
+    println!(
+        "configured retention: age {} bytes {}",
+        result
+            .create_status
+            .retention_age
+            .map(|retention_age| format!("{retention_age}d"))
+            .unwrap_or_else(|| "none".to_owned()),
+        result
+            .create_status
+            .retention_bytes
+            .map(|retention_bytes| retention_bytes.to_string())
+            .unwrap_or_else(|| "none".to_owned())
+    );
+    println!("listed streams: {}", result.listed_streams.stream_count);
+    println!(
+        "retained frontier: remote {} local {}",
+        result.lineage.retained_start_offset, result.local_status.retained_start_offset
+    );
+    println!(
+        "bounded replay: {} ({} retained records, head {:?})",
+        if result.bounded_replay { "yes" } else { "no" },
+        result.replay.record_count,
+        result.replay.head_offset
+    );
+    println!("retention mode: {}", result.semantics.retention_mode);
+    println!(
+        "retained frontier meaning: {}",
+        result.semantics.retained_frontier
+    );
+    println!(
+        "compaction non-claim: {}",
+        result.semantics.compaction_non_claim
+    );
+    println!("accepted connections: {}", result.accepted_connections);
+    println!(
+        "graceful shutdown: {}",
+        if result.graceful_shutdown {
+            "yes"
+        } else {
+            "no"
+        }
     );
 
     Ok(())
@@ -6057,6 +6249,21 @@ fn render_remote_lineage(result: RemoteLineageResult, json: bool) -> Result<()> 
             println!("  - {parent}");
         }
     }
+    println!(
+        "retention age: {}",
+        result
+            .retention_age
+            .map(|retention_age| format!("{retention_age}d"))
+            .unwrap_or_else(|| "none".to_owned())
+    );
+    println!(
+        "retention bytes: {}",
+        result
+            .retention_bytes
+            .map(|retention_bytes| retention_bytes.to_string())
+            .unwrap_or_else(|| "none".to_owned())
+    );
+    println!("retained start offset: {}", result.retained_start_offset);
     println!("next offset: {}", result.next_offset);
     println!("manifest generation: {}", result.manifest_generation);
     println!("rolled segments: {}", result.rolled_segment_count);
@@ -7677,6 +7884,67 @@ listen_addr = "127.0.0.1:0"
                 .and_then(serde_json::Value::as_str)
                 .expect("tiered non-claim string")
                 .contains("remote tier")
+        );
+    }
+
+    #[test]
+    fn retention_proof_exercises_create_list_status_and_bounded_replay() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof =
+            run_retention_proof(temp_dir.path().join("retention")).expect("retention proof");
+
+        assert_eq!(proof.stream_id, "mission.retention.root");
+        assert_eq!(proof.create_status.retention_age, Some(30));
+        assert_eq!(proof.create_status.retention_bytes, Some(1));
+        assert_eq!(proof.listed_streams.stream_count, 1);
+        assert_eq!(proof.listed_streams.streams[0].retention_age, Some(30));
+        assert_eq!(proof.listed_streams.streams[0].retention_bytes, Some(1));
+        assert_eq!(proof.lineage.retention_age, Some(30));
+        assert_eq!(proof.lineage.retention_bytes, Some(1));
+        assert_eq!(proof.lineage.retained_start_offset, 2);
+        assert_eq!(proof.local_status.retained_start_offset, 2);
+        assert_eq!(proof.replay.record_count, 1);
+        assert_eq!(proof.replay.head_offset, Some(2));
+        assert!(proof.bounded_replay);
+        assert!(proof.graceful_shutdown);
+    }
+
+    #[test]
+    fn retention_proof_results_serialize_cleanly_for_mission_scripts() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof =
+            run_retention_proof(temp_dir.path().join("retention-json")).expect("retention proof");
+        let proof_json = serde_json::to_value(&proof).expect("serialize retention proof result");
+
+        assert_eq!(
+            proof_json
+                .get("stream_id")
+                .and_then(serde_json::Value::as_str),
+            Some("mission.retention.root")
+        );
+        assert_eq!(
+            proof_json["lineage"]
+                .get("retained_start_offset")
+                .and_then(serde_json::Value::as_u64),
+            Some(2)
+        );
+        assert_eq!(
+            proof_json["local_status"]
+                .get("retained_start_offset")
+                .and_then(serde_json::Value::as_u64),
+            Some(2)
+        );
+        assert_eq!(
+            proof_json["replay"]
+                .get("record_count")
+                .and_then(serde_json::Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            proof_json["semantics"]
+                .get("compaction_non_claim")
+                .and_then(serde_json::Value::as_str),
+            Some("retention is not Kafka-style compaction and not selective erasure")
         );
     }
 

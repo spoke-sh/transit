@@ -47,6 +47,17 @@ budget. Those flags change transport tolerance, not record semantics.
 The timeout flags are operational tuning only; they do not change append, replay,
 or tail semantics.
 
+Run the retention proof when you want one supported path that demonstrates
+retention-aware create/list/status behavior and bounded replay:
+
+```bash
+transit proof retention --root target/transit-docs/retention
+```
+
+That proof creates a stream with explicit retention, trims old rolled segments,
+and then shows the retained frontier through both `transit server lineage` and
+`transit status`.
+
 For the broader shipped surface, read [Capabilities](./capabilities.mdx).
 
 If you set `[server].listen_addr` in `transit.toml`, the `streams`, `produce`,
@@ -128,6 +139,22 @@ If you are evaluating the Rust client boundary instead of the CLI, the matching
 hosted calls are `TransitClient::append_batch(...)` and
 `TransitClient::with_io_timeout(...)`.
 
+If you want per-stream retention on a hosted stream, configure it explicitly at
+create time:
+
+```bash
+transit streams create \
+  --stream-id demo/main \
+  --actor docs \
+  --reason "retention walkthrough" \
+  --retention-max-age-days 30 \
+  --retention-max-bytes 10737418240
+```
+
+After old rolled history is trimmed, `transit server lineage` and
+`transit status` surface `retained_start_offset` so you can see where replay now
+begins. That is bounded replay through history aging, not compaction.
+
 If you are stress-testing a producer and consumer against the same hosted
 server, the daemon now serves accepted connections concurrently instead of
 serializing every socket in the listener loop. That makes timeout tuning an
@@ -149,6 +176,10 @@ You should see that the server surface:
 You should also expect explicit failures for empty or oversized hosted batches.
 The current server contract rejects them with the normal hosted
 `invalid_request` error surface.
+
+And if retention is configured, you should expect replay to become bounded over
+time. Once the retained frontier advances, operators need to reason from
+`retained_start_offset` instead of assuming offset `0` is still available.
 
 And separately, the shared engine ships quorum durability and automatic leader election. The minimal walkthrough here stays focused on the single-node remote operator surface; use the failover proofs when you want the distributed slice itself.
 

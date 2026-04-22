@@ -1,0 +1,17 @@
+Added a supported retention proof path and wired it into the default screen flow:
+- `transit proof retention --root <path>`
+- `just screen` now includes the retention proof
+
+The proof exercises:
+- retention-aware stream creation
+- hosted `streams list`
+- retained-frontier status through `transit server lineage`
+- local retained-frontier inspection through `transit status`
+- bounded replay after old rolled segments age out
+
+Focused proof:
+- `cargo test -p transit-cli --bin transit retention_proof`
+- `cargo test -p transit-cli --bin transit remote_cli_helpers_cover_core_server_workflows`
+
+Observed result:
+- the supported proof path now records create/list/status evidence for bounded replay

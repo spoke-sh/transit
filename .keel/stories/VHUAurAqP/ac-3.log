@@ -1,0 +1,15 @@
+Named the retained frontier and bounded replay consequences in the executable proof and the public docs.
+
+Surface updates:
+- `transit proof retention`
+- `transit server lineage`
+- `transit status`
+- public docs for capabilities, server first run, and embedded/server semantics
+
+Focused proof:
+- `cargo test -p transit-cli --bin transit retention_proof`
+- `cargo test -p transit-cli --bin transit remote_cli_helpers_surface_ack_position_and_lineage_details`
+
+Observed result:
+- operators can see `retained_start_offset`
+- guidance now explains that replay becomes bounded once the retained frontier advances

@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VHUAhwLlS
-status: active
+status: achieved
 created_at: 2026-04-21T20:10:03
-updated_at: 2026-04-21T20:15:20
+updated_at: 2026-04-21T20:48:40
 # authored
 title: Add Explicit Per-Stream Retention To Transit
 watch: ~
 activated_at: 2026-04-21T20:15:20
+achieved_at: 2026-04-21T20:48:40
 ---
 
 # Add Explicit Per-Stream Retention To Transit
