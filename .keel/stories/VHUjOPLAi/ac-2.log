@@ -1,0 +1,2 @@
+[docs]
+Updated public MDX docs and CONFIGURATION.md to describe the working-plane versus published-plane split, immutable manifest snapshots, and the mutable frontiers/latest.json discovery boundary.

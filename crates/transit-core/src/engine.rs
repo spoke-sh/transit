@@ -2720,7 +2720,7 @@ impl LocalEngine {
     }
 
     fn read_replay_records(&self, stream_id: &StreamId) -> Result<Vec<LocalRecord>> {
-        const ACTIVE_HEAD_RETRY_ATTEMPTS: usize = 32;
+        const ACTIVE_HEAD_RETRY_ATTEMPTS: usize = 512;
 
         let mut last_active_head_error = None;
         for _ in 0..ACTIVE_HEAD_RETRY_ATTEMPTS {

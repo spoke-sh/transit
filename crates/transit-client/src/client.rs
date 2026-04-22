@@ -220,15 +220,19 @@ mod tests {
 
     fn tail_test_client() -> (tempfile::TempDir, ServerHandle, TransitClient, StreamId) {
         let temp_dir = tempdir().expect("temp dir");
-        let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(
-                temp_dir.path(),
-                transit_core::membership::NodeId::new("test-node"),
-            ),
-            "127.0.0.1:0".parse().expect("listen addr"),
-        ))
+        let server = ServerHandle::bind(
+            ServerConfig::new(
+                LocalEngineConfig::new(
+                    temp_dir.path(),
+                    transit_core::membership::NodeId::new("test-node"),
+                ),
+                "127.0.0.1:0".parse().expect("listen addr"),
+            )
+            .with_connection_io_timeout(Duration::from_secs(5)),
+        )
         .expect("bind server");
-        let client = TransitClient::new(server.local_addr());
+        let client =
+            TransitClient::new(server.local_addr()).with_io_timeout(Duration::from_secs(5));
         let stream_id = StreamId::new("client.tail.root").expect("stream id");
 
         client
@@ -243,17 +247,21 @@ mod tests {
 
     fn lineage_test_client() -> (tempfile::TempDir, ServerHandle, TransitClient, StreamId) {
         let temp_dir = tempdir().expect("temp dir");
-        let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(
-                temp_dir.path(),
-                transit_core::membership::NodeId::new("test-node"),
+        let server = ServerHandle::bind(
+            ServerConfig::new(
+                LocalEngineConfig::new(
+                    temp_dir.path(),
+                    transit_core::membership::NodeId::new("test-node"),
+                )
+                .with_segment_max_records(8)
+                .expect("config"),
+                "127.0.0.1:0".parse().expect("listen addr"),
             )
-            .with_segment_max_records(8)
-            .expect("config"),
-            "127.0.0.1:0".parse().expect("listen addr"),
-        ))
+            .with_connection_io_timeout(Duration::from_secs(5)),
+        )
         .expect("bind server");
-        let client = TransitClient::new(server.local_addr());
+        let client =
+            TransitClient::new(server.local_addr()).with_io_timeout(Duration::from_secs(5));
         let stream_id = StreamId::new("client.lineage.root").expect("stream id");
 
         client
@@ -268,17 +276,21 @@ mod tests {
 
     fn hosted_authority_test_client() -> (tempfile::TempDir, ServerHandle, TransitClient) {
         let temp_dir = tempdir().expect("temp dir");
-        let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(
-                temp_dir.path(),
-                transit_core::membership::NodeId::new("hosted-authority-node"),
+        let server = ServerHandle::bind(
+            ServerConfig::new(
+                LocalEngineConfig::new(
+                    temp_dir.path(),
+                    transit_core::membership::NodeId::new("hosted-authority-node"),
+                )
+                .with_segment_max_records(4)
+                .expect("config"),
+                "127.0.0.1:0".parse().expect("listen addr"),
             )
-            .with_segment_max_records(4)
-            .expect("config"),
-            "127.0.0.1:0".parse().expect("listen addr"),
-        ))
+            .with_connection_io_timeout(Duration::from_secs(5)),
+        )
         .expect("bind server");
-        let client = TransitClient::new(server.local_addr());
+        let client =
+            TransitClient::new(server.local_addr()).with_io_timeout(Duration::from_secs(5));
 
         (temp_dir, server, client)
     }

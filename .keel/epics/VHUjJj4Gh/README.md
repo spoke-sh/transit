@@ -22,8 +22,8 @@ mission: VHUjJi2Fn
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 2/3 stories done
+**Progress:** 1/1 voyages complete, 3/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Deliver Immutable Manifest Snapshots With Frontier Pointer](voyages/VHUjMQyiY/) | in-progress | 2/3 |
+| [Deliver Immutable Manifest Snapshots With Frontier Pointer](voyages/VHUjMQyiY/) | done | 3/3 |
 <!-- END GENERATED -->

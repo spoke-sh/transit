@@ -22,7 +22,7 @@ screen:
         storage_probe_config="$screen_root/storage-probe.toml"
 
         rm -rf "$screen_root"
-        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/compression" "$screen_root/retention" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/reference-projection" "$screen_root/tiered-engine" "$screen_root/warm-cache-recovery" "$screen_root/controlled-failover" "$screen_root/chaos-failover" "$screen_root/networked-server"
+        mkdir -p "$screen_root/object-store" "$screen_root/local-engine" "$screen_root/compression" "$screen_root/retention" "$screen_root/object-store-authority" "$screen_root/integrity" "$screen_root/materialization" "$screen_root/reference-projection" "$screen_root/tiered-engine" "$screen_root/warm-cache-recovery" "$screen_root/controlled-failover" "$screen_root/chaos-failover" "$screen_root/networked-server"
 
         printf '%s\n' \
             '[node]' \
@@ -46,6 +46,8 @@ screen:
         just transit proof compression --root "$screen_root/compression"
         announce "Prove retention"
         just transit proof retention --root "$screen_root/retention"
+        announce "Prove object-store authority"
+        just transit proof object-store-authority --root "$screen_root/object-store-authority"
         announce "Prove tiered engine"
         just transit proof tiered-engine --root "$screen_root/tiered-engine"
         announce "Prove warm-cache recovery"
@@ -55,7 +57,7 @@ screen:
         announce "Prove chaos failover"
         just transit proof chaos-failover --root "$screen_root/chaos-failover"
         announce "Prove networked server"
-        just transit proof networked-server --root "$screen_root/networked-server"
+        just transit proof networked-server --root "$screen_root/networked-server" --server-connection-io-timeout-ms 5000 --client-io-timeout-ms 5000
         announce "Prove integrity proof"
         just transit proof integrity --root "$screen_root/integrity"
         announce "Prove materialization"

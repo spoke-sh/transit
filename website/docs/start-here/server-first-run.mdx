@@ -70,6 +70,22 @@ That proof is a storage proof, not a transport proof. It shows that sealed
 segments may be stored compressed while replay and hosted reads still return
 normal Transit records.
 
+Run the object-store authority proof when you want one supported path that
+demonstrates the mutable working plane, immutable manifest snapshots, and
+`frontiers/latest.json` discovery pointer across both filesystem-backed and
+remote object-store namespaces:
+
+```bash
+transit proof object-store-authority --root target/transit-docs/object-store-authority
+```
+
+That proof shows the split explicitly:
+
+- `active.segment` and `state.json` remain mutable working files
+- published segment objects and manifest snapshots are immutable once written
+- `frontiers/latest.json` is the latest-discovery pointer for published state
+- the same `streams/<id>/segments|manifests|frontiers/latest.json` shape exists locally and in the remote object-store namespace
+
 For the broader shipped surface, read [Capabilities](./capabilities.mdx).
 
 If you set `[server].listen_addr` in `transit.toml`, the `streams`, `produce`,
@@ -185,6 +201,7 @@ You should see that the server surface:
 - lets operators raise hosted connection I/O timeouts explicitly for proof or runtime workloads
 - keeps overlapping producer and consumer traffic on the same hosted protocol surface
 - can store rolled history as compressed immutable segments without changing hosted replay behavior
+- keeps the mutable local working plane separate from immutable published object-store snapshots
 - stays single-node unless a feature explicitly says otherwise
 - does not invent a separate storage model for the daemon
 

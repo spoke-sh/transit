@@ -18,6 +18,7 @@ All examples below invoke the `transit` CLI directly.
 | segment compression | `transit proof compression`, `transit proof tiered-engine` | `zstd`-compressed immutable segments with transparent replay through local, tiered, and hosted paths | compression applies to sealed segments only, not payloads or hosted envelopes |
 | retention lifecycle | `transit proof retention`, `transit status`, `transit streams list`, `transit server lineage` | explicit per-stream retention policy, retained-frontier status, and bounded replay after whole-segment aging | retention is not Kafka-style compaction or selective erasure |
 | hosted operator surface | `transit server run`, `transit streams`, `transit produce`, `transit consume`, `transit server append`, `transit proof hosted-authority` | shared-engine server semantics over a remote boundary, including the Rust client surface, single-stream batch append, explicit transport-timeout tuning, and concurrent producer/consumer handling | current remote operator surface is still single-node |
+| published authority model | `transit proof object-store-authority`, `transit proof tiered-engine`, `transit proof warm-cache-recovery` | mutable working-plane files plus immutable published segment and manifest objects discovered through `frontiers/latest.json` | the active head is not itself a published object-store snapshot |
 | storage and recovery | `transit proof tiered-engine`, `transit proof warm-cache-recovery`, `transit storage probe` | tiered publication, cold restore, restart-after-cache-loss from remote authority, and effective-config verification | `storage probe` verifies the current local guarantee plus hosted bootstrap posture, not remote-tier or cloud-provider durability |
 | integrity and derived state | `transit proof integrity`, `transit proof materialization`, `transit proof reference-projection` | manifest roots, checkpoints, replay-anchored views, and resume correctness | signed attestation and compact partial proofs are later layers |
 | independent reader progress | embedded cursor API on `LocalEngine` | durable per-consumer cursors with monotonic advance, local-durability ack, and restart recovery | hosted protocol, CLI, and `transit-client` cursor surfaces are still follow-up work |
@@ -162,6 +163,7 @@ repacking payloads.
 Transit currently ships:
 
 - tiered publication and cold restore
+- a published authority model with immutable manifest snapshots and one mutable latest-frontier pointer
 - storage verification for the effective local guarantee and hosted bootstrap posture with `transit storage probe`
 - warm-cache recovery after explicit cache loss from the authoritative remote tier
 - hosted-authority proof coverage for thin-client producers and readers
@@ -169,10 +171,19 @@ Transit currently ships:
 Useful proof entry points:
 
 ```bash
+transit proof object-store-authority --root target/transit-docs/object-store-authority
 transit proof tiered-engine --root target/transit-docs/tiered
 transit proof warm-cache-recovery --root target/transit-docs/warm-cache
 transit --config target/transit-docs/storage-probe.toml storage probe
 ```
+
+`transit proof object-store-authority` is the shortest proof for the storage
+authority model itself. It shows:
+
+- `active.segment` and `state.json` as the mutable working plane
+- `published/streams/<id>/segments`, `manifests`, and `frontiers/latest.json` as the local filesystem-backed published namespace
+- the same `streams/<id>/segments|manifests|frontiers/latest.json` shape under a remote object-store prefix
+- restore from the latest frontier pointer without appending to one mutable remote manifest object
 
 `transit storage probe` is intentionally narrow. It validates the current runtime bootstrap posture and reports the explicit guarantee it can actually prove today. `transit proof warm-cache-recovery` is the complementary proof that discards the local cache and shows the hosted server can rebuild from the published remote frontier.
 

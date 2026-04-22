@@ -25,6 +25,7 @@ use transit_core::object_store_support::{
 use transit_core::server::{
     RemoteClient, ServerConfig, ServerHandle, ServerShutdownOutcome, TailSessionId,
 };
+use transit_core::storage::PublishedFrontier;
 use transit_materialize::engine::LocalMaterializationEngine;
 use transit_materialize::prolly::{
     LeafEntry, ObjectStoreProllyStore, ProllyTreeBuilder, SnapshotManifest,
@@ -90,6 +91,8 @@ enum ProofCommands {
     Retention(LocalEngineProofArgs),
     /// Exercise publication and cold restore through the shared local engine.
     TieredEngine(LocalEngineProofArgs),
+    /// Exercise the working-plane versus published-plane split and latest frontier discovery.
+    ObjectStoreAuthority(LocalEngineProofArgs),
     /// Exercise readiness, lease handoff, and stale-primary fencing for the bounded failover slice.
     ControlledFailover(LocalEngineProofArgs),
     /// Exercise automatic leader election and primary fencing after a simulated failure.
@@ -613,6 +616,10 @@ async fn main() -> Result<()> {
             )?,
             ProofCommands::TieredEngine(args) => render_tiered_engine_proof(
                 run_tiered_engine_proof(resolve_local_root(args.root, &config)).await?,
+                args.json,
+            )?,
+            ProofCommands::ObjectStoreAuthority(args) => render_object_store_authority_proof(
+                run_object_store_authority_proof(resolve_local_root(args.root, &config)).await?,
                 args.json,
             )?,
             ProofCommands::ControlledFailover(args) => render_controlled_failover_proof(
@@ -1275,6 +1282,52 @@ struct TieredEngineProofResult {
     publication_api: &'static str,
     restore_api: &'static str,
     replay_after_remote_removal_ok: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct AuthorityWorkingPlaneResult {
+    active_segment_path: PathBuf,
+    state_path: PathBuf,
+    next_offset: u64,
+    active_record_count: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct AuthorityPublishedPlaneResult {
+    backend: &'static str,
+    frontier_object: String,
+    current_manifest_object: String,
+    previous_manifest_object: String,
+    previous_manifest_retained: bool,
+    retained_start_offset: u64,
+    next_offset: u64,
+    published_segment_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct ObjectStoreAuthorityProofSemanticsResult {
+    working_plane: &'static str,
+    published_plane: &'static str,
+    latest_discovery: &'static str,
+    mutable_boundary: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct ObjectStoreAuthorityProofResult {
+    data_root: PathBuf,
+    stream_id: String,
+    working: AuthorityWorkingPlaneResult,
+    local_published: AuthorityPublishedPlaneResult,
+    remote_published: AuthorityPublishedPlaneResult,
+    restored_stream: StreamProofSummary,
+    unpublished_working_records: usize,
+    shared_namespace_shape_verified: bool,
+    replay_matches_latest_published_history: bool,
+    semantics: ObjectStoreAuthorityProofSemanticsResult,
+    publication_api: &'static str,
+    restore_api: &'static str,
+    verified: bool,
+    error: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -2234,25 +2287,27 @@ async fn run_compression_proof(root: PathBuf) -> Result<CompressionProofResult> 
 fn run_retention_proof(root: PathBuf) -> Result<RetentionProofResult> {
     reset_directory(&root)?;
 
+    let proof_io_timeout_ms = Some(5_000);
     let requested_listen_addr: SocketAddr = "127.0.0.1:0".parse().expect("listen addr");
     let server = ServerHandle::bind(configure_server_connection_timeout(
         ServerConfig::new(
             LocalEngineConfig::new(&root, NodeId::new("cli-node")).with_segment_max_records(2)?,
             requested_listen_addr,
         ),
-        None,
+        proof_io_timeout_ms,
     ))
     .context("bind retention proof daemon")?;
     let server_addr = server.local_addr();
 
     let proof = (|| -> Result<RetentionProofResult> {
         let stream_id = StreamId::new("mission.retention.root")?;
+        let client = build_remote_client(server_addr, proof_io_timeout_ms);
 
         let create_status = run_streams_create(
             server_addr,
             StreamsCreateArgs {
                 server_addr: Some(server_addr),
-                connection_io_timeout_ms: None,
+                connection_io_timeout_ms: proof_io_timeout_ms,
                 stream_id: stream_id.as_str().to_owned(),
                 actor: Some("mission".into()),
                 reason: Some("retention-proof".into()),
@@ -2263,24 +2318,52 @@ fn run_retention_proof(root: PathBuf) -> Result<RetentionProofResult> {
             },
         )?;
 
-        run_remote_append(ServerAppendArgs {
-            server_addr,
-            stream_id: stream_id.as_str().to_owned(),
-            payload_text: vec!["first".into(), "second".into(), "third".into()],
-            json: true,
-        })?;
+        client
+            .append_batch(
+                &stream_id,
+                [
+                    b"first".as_slice(),
+                    b"second".as_slice(),
+                    b"third".as_slice(),
+                ],
+            )
+            .with_context(|| format!("append remotely to {}", stream_id.as_str()))?;
 
-        let listed_streams = run_streams_list(server_addr, None)?;
-        let lineage = run_remote_lineage(ServerLineageArgs {
+        let listed_streams = run_streams_list(server_addr, proof_io_timeout_ms)?;
+        let lineage_ack = client
+            .inspect_lineage(&stream_id)
+            .with_context(|| format!("inspect retention lineage for {}", stream_id.as_str()))?;
+        let descriptor = lineage_ack.body().descriptor();
+        let lineage = RemoteLineageResult {
+            server_addr: server_addr.to_string(),
+            request_id: lineage_ack.request_id().as_str().to_owned(),
+            durability: lineage_ack.ack().durability().to_owned(),
+            topology: render_topology(lineage_ack.ack().topology()),
+            stream_id: descriptor.stream_id.as_str().to_owned(),
+            lineage_kind: match &descriptor.lineage {
+                StreamLineage::Root { .. } => "root".to_owned(),
+                StreamLineage::Branch { .. } => "branch".to_owned(),
+                StreamLineage::Merge { .. } => "merge".to_owned(),
+            },
+            parents: descriptor
+                .parent_stream_ids()
+                .into_iter()
+                .map(|parent| parent.as_str().to_owned())
+                .collect(),
+            retention_age: lineage_ack.body().status().retention_max_age_days(),
+            retention_bytes: lineage_ack.body().status().retention_max_bytes(),
+            retained_start_offset: lineage_ack.body().status().retained_start_offset().value(),
+            next_offset: lineage_ack.body().status().next_offset().value(),
+            manifest_generation: lineage_ack.body().status().manifest_generation(),
+            rolled_segment_count: lineage_ack.body().status().rolled_segment_count(),
+        };
+        let replay = summarize_remote_read(
             server_addr,
-            stream_id: stream_id.as_str().to_owned(),
-            json: true,
-        })?;
-        let replay = run_remote_read(ServerReadArgs {
-            server_addr,
-            stream_id: stream_id.as_str().to_owned(),
-            json: true,
-        })?;
+            &stream_id,
+            client
+                .read(&stream_id)
+                .with_context(|| format!("read retention replay for {}", stream_id.as_str()))?,
+        );
         let mut local_status = run_status(root.clone(), Some(stream_id.as_str()))?.streams;
         let local_status = local_status
             .pop()
@@ -2319,7 +2402,7 @@ fn run_retention_proof(root: PathBuf) -> Result<RetentionProofResult> {
         server
             .shutdown()
             .context("shutdown retention proof daemon")?,
-        effective_hosted_io_timeout_ms(None),
+        effective_hosted_io_timeout_ms(proof_io_timeout_ms),
     )?;
     let mut proof = proof?;
     proof.accepted_connections = shutdown.accepted_connections;
@@ -2338,6 +2421,16 @@ fn build_remote_client(server_addr: SocketAddr, io_timeout_ms: Option<u64>) -> R
         }
         None => RemoteClient::new(server_addr),
     }
+}
+
+#[cfg(not(test))]
+fn build_server_namespace_client(server_addr: SocketAddr) -> RemoteClient {
+    RemoteClient::new(server_addr)
+}
+
+#[cfg(test)]
+fn build_server_namespace_client(server_addr: SocketAddr) -> RemoteClient {
+    RemoteClient::new(server_addr).with_io_timeout(Duration::from_secs(5))
 }
 
 fn build_transit_client(server_addr: SocketAddr, io_timeout_ms: Option<u64>) -> TransitClient {
@@ -3794,7 +3887,7 @@ fn run_consume(server_addr: SocketAddr, args: ConsumeArgs) -> Result<ConsumeResu
 }
 
 fn run_remote_create_root(args: ServerCreateRootArgs) -> Result<RemoteStreamStatusResult> {
-    let client = RemoteClient::new(args.server_addr);
+    let client = build_server_namespace_client(args.server_addr);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
     let retention_policy =
         parse_retention_policy(args.retention_max_age_days, args.retention_max_bytes)?;
@@ -3810,7 +3903,7 @@ fn run_remote_create_root(args: ServerCreateRootArgs) -> Result<RemoteStreamStat
 }
 
 fn run_remote_append(args: ServerAppendArgs) -> Result<RemoteAppendResult> {
-    let client = RemoteClient::new(args.server_addr);
+    let client = build_server_namespace_client(args.server_addr);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
     let append = client
         .append_batch(&stream_id, args.payload_text.iter().map(String::as_bytes))
@@ -3824,7 +3917,7 @@ fn run_remote_append(args: ServerAppendArgs) -> Result<RemoteAppendResult> {
 }
 
 fn run_remote_read(args: ServerReadArgs) -> Result<RemoteReadResult> {
-    let client = RemoteClient::new(args.server_addr);
+    let client = build_server_namespace_client(args.server_addr);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
     let read = client
         .read(&stream_id)
@@ -3834,7 +3927,7 @@ fn run_remote_read(args: ServerReadArgs) -> Result<RemoteReadResult> {
 }
 
 fn run_remote_tail_open(args: ServerTailOpenArgs) -> Result<RemoteTailOpenResult> {
-    let client = RemoteClient::new(args.server_addr);
+    let client = build_server_namespace_client(args.server_addr);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
     let opened = client
         .open_tail_session(&stream_id, Offset::new(args.from_offset), args.credit)
@@ -3857,7 +3950,7 @@ fn run_remote_tail_open(args: ServerTailOpenArgs) -> Result<RemoteTailOpenResult
 }
 
 fn run_remote_tail_poll(args: ServerTailPollArgs) -> Result<RemoteTailPollResult> {
-    let client = RemoteClient::new(args.server_addr);
+    let client = build_server_namespace_client(args.server_addr);
     let session_id = parse_tail_session_id_arg(&args.session_id)?;
     let batch = client
         .poll_tail_session(&session_id, args.credit)
@@ -3879,7 +3972,7 @@ fn run_remote_tail_poll(args: ServerTailPollArgs) -> Result<RemoteTailPollResult
 }
 
 fn run_remote_tail_cancel(args: ServerTailCancelArgs) -> Result<RemoteTailCancelResult> {
-    let client = RemoteClient::new(args.server_addr);
+    let client = build_server_namespace_client(args.server_addr);
     let session_id = parse_tail_session_id_arg(&args.session_id)?;
     let cancelled = client
         .cancel_tail_session(&session_id)
@@ -3898,7 +3991,7 @@ fn run_remote_tail_cancel(args: ServerTailCancelArgs) -> Result<RemoteTailCancel
 }
 
 fn run_remote_branch(args: ServerBranchArgs) -> Result<RemoteStreamStatusResult> {
-    let client = RemoteClient::new(args.server_addr);
+    let client = build_server_namespace_client(args.server_addr);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
     let parent = StreamPosition::new(
         parse_stream_id_arg(&args.parent_stream_id)?,
@@ -3916,7 +4009,7 @@ fn run_remote_branch(args: ServerBranchArgs) -> Result<RemoteStreamStatusResult>
 }
 
 fn run_remote_merge(args: ServerMergeArgs) -> Result<RemoteStreamStatusResult> {
-    let client = RemoteClient::new(args.server_addr);
+    let client = build_server_namespace_client(args.server_addr);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
     let parents = args
         .parents
@@ -3942,7 +4035,7 @@ fn run_remote_merge(args: ServerMergeArgs) -> Result<RemoteStreamStatusResult> {
 }
 
 fn run_remote_lineage(args: ServerLineageArgs) -> Result<RemoteLineageResult> {
-    let client = RemoteClient::new(args.server_addr);
+    let client = build_server_namespace_client(args.server_addr);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
     let lineage = client
         .inspect_lineage(&stream_id)
@@ -4063,6 +4156,256 @@ async fn run_tiered_engine_proof(root: PathBuf) -> Result<TieredEngineProofResul
         publication_api: "LocalEngine::append_with_replicated_ack",
         restore_api: "LocalEngine::sync_read_only_replica_from_frontier",
         replay_after_remote_removal_ok,
+    })
+}
+
+async fn run_object_store_authority_proof(
+    root: PathBuf,
+) -> Result<ObjectStoreAuthorityProofResult> {
+    reset_directory(&root)?;
+
+    let authority_root = root.join("authority");
+    let restore_root = root.join("restore");
+    let object_store_root = root.join("object-store");
+    fs::create_dir_all(&object_store_root)
+        .with_context(|| format!("create object store root {}", object_store_root.display()))?;
+
+    let authority = LocalEngine::open(
+        LocalEngineConfig::new(&authority_root, NodeId::new("cli-node"))
+            .with_segment_max_records(2)
+            .context("object-store authority config")?,
+    )
+    .context("open object-store authority engine")?;
+    let restore = LocalEngine::open(
+        LocalEngineConfig::new(&restore_root, NodeId::new("cli-restore")).as_read_only_replica(),
+    )
+    .context("open object-store authority restore engine")?;
+    let store = LocalFileSystem::new_with_prefix(&object_store_root)
+        .with_context(|| format!("open local object store at {}", object_store_root.display()))?;
+    let stream_id = StreamId::new("authority.object-store.root")?;
+
+    authority.create_stream(StreamDescriptor::root(
+        stream_id.clone(),
+        LineageMetadata::new(
+            Some("mission".into()),
+            Some("object-store-authority-proof".into()),
+        ),
+    ))?;
+
+    for payload in ["record-0", "record-1", "record-2", "record-3"] {
+        authority.append(&stream_id, payload.as_bytes())?;
+    }
+    authority
+        .publish_rolled_segments(&stream_id, &store, "authority-proof")
+        .await?;
+    for payload in ["record-4", "record-5"] {
+        authority.append(&stream_id, payload.as_bytes())?;
+    }
+    let publication = authority
+        .publish_rolled_segments(&stream_id, &store, "authority-proof")
+        .await?;
+    authority.append(&stream_id, b"record-6")?;
+
+    let local_status = authority.stream_status(&stream_id)?;
+    let local_frontier_path = authority_root
+        .join("published")
+        .join("streams")
+        .join(stream_id.as_str())
+        .join("frontiers")
+        .join("latest.json");
+    let local_frontier: PublishedFrontier =
+        serde_json::from_slice(&fs::read(&local_frontier_path).with_context(|| {
+            format!(
+                "read local published frontier {}",
+                local_frontier_path.display()
+            )
+        })?)
+        .context("deserialize local published frontier")?;
+    let local_manifests = sorted_file_names(
+        &authority_root
+            .join("published")
+            .join("streams")
+            .join(stream_id.as_str())
+            .join("manifests"),
+    )?;
+    ensure!(
+        local_manifests.len() >= 2,
+        "object-store authority proof expected multiple local manifest snapshots"
+    );
+    let local_segments = sorted_file_names(
+        &authority_root
+            .join("published")
+            .join("streams")
+            .join(stream_id.as_str())
+            .join("segments"),
+    )?;
+
+    let remote_frontier_object = publication
+        .frontier_object_key()
+        .context("object-store authority proof expected remote frontier object key")?
+        .as_str()
+        .to_owned();
+    let remote_frontier_path = object_store_root.join(&remote_frontier_object);
+    let remote_frontier: PublishedFrontier =
+        serde_json::from_slice(&fs::read(&remote_frontier_path).with_context(|| {
+            format!(
+                "read remote published frontier {}",
+                remote_frontier_path.display()
+            )
+        })?)
+        .context("deserialize remote published frontier")?;
+    let remote_manifests = sorted_file_names(
+        &object_store_root
+            .join("authority-proof")
+            .join("streams")
+            .join(stream_id.as_str())
+            .join("manifests"),
+    )?;
+    ensure!(
+        remote_manifests.len() >= 2,
+        "object-store authority proof expected multiple remote manifest snapshots"
+    );
+    let remote_segments = sorted_file_names(
+        &object_store_root
+            .join("authority-proof")
+            .join("streams")
+            .join(stream_id.as_str())
+            .join("segments"),
+    )?;
+
+    restore
+        .restore_stream_from_remote_frontier(
+            &store,
+            publication
+                .frontier_object_key()
+                .context("object-store authority proof expected restore frontier key")?,
+        )
+        .await
+        .context("restore from remote frontier")?;
+    let restored_records = restore
+        .replay(&stream_id)
+        .context("replay restored history")?;
+    let restored_payloads = restored_records
+        .iter()
+        .map(|record| String::from_utf8_lossy(record.payload()).into_owned())
+        .collect::<Vec<_>>();
+    let latest_published_payloads = vec![
+        "record-0".to_owned(),
+        "record-1".to_owned(),
+        "record-2".to_owned(),
+        "record-3".to_owned(),
+        "record-4".to_owned(),
+        "record-5".to_owned(),
+    ];
+    let replay_matches_latest_published_history = restored_payloads == latest_published_payloads;
+
+    let local_frontier_object =
+        path_relative_to(&local_frontier_path, &authority_root.join("published"))?;
+    let local_previous_manifest_object = format!(
+        "streams/{}/manifests/{}",
+        stream_id.as_str(),
+        local_manifests[local_manifests.len() - 2]
+    );
+    let local_current_manifest_object = local_frontier.manifest_object_key().as_str().to_owned();
+    let remote_previous_manifest_object = format!(
+        "authority-proof/streams/{}/manifests/{}",
+        stream_id.as_str(),
+        remote_manifests[remote_manifests.len() - 2]
+    );
+    let remote_current_manifest_object = remote_frontier.manifest_object_key().as_str().to_owned();
+
+    let expected_local_namespace = format!("streams/{}/", stream_id.as_str());
+    let expected_remote_namespace = format!("authority-proof/streams/{}/", stream_id.as_str());
+    let shared_namespace_shape_verified = local_frontier_object
+        == format!("{expected_local_namespace}frontiers/latest.json")
+        && local_current_manifest_object
+            .starts_with(&format!("{expected_local_namespace}manifests/"))
+        && local_previous_manifest_object
+            .starts_with(&format!("{expected_local_namespace}manifests/"))
+        && remote_frontier_object == format!("{expected_remote_namespace}frontiers/latest.json")
+        && remote_current_manifest_object
+            .starts_with(&format!("{expected_remote_namespace}manifests/"))
+        && remote_previous_manifest_object
+            .starts_with(&format!("{expected_remote_namespace}manifests/"));
+
+    let unpublished_working_records = local_status
+        .next_offset()
+        .value()
+        .saturating_sub(remote_frontier.next_offset().value())
+        as usize;
+    let verified = local_status.next_offset().value() == 7
+        && local_status.active_record_count() == 1
+        && local_frontier.next_offset().value() == 6
+        && remote_frontier.next_offset().value() == 6
+        && local_frontier.manifest_object_key().as_str() == local_current_manifest_object.as_str()
+        && remote_frontier.manifest_object_key().as_str()
+            == remote_current_manifest_object.as_str()
+        && restored_records.len() == 6
+        && replay_matches_latest_published_history
+        && shared_namespace_shape_verified
+        && unpublished_working_records == 1;
+    let error = if verified {
+        None
+    } else {
+        Some(
+            "object-store authority proof did not preserve the working-plane split, immutable manifest snapshots, and latest frontier restore behavior".to_owned(),
+        )
+    };
+
+    Ok(ObjectStoreAuthorityProofResult {
+        data_root: root,
+        stream_id: stream_id.as_str().to_owned(),
+        working: AuthorityWorkingPlaneResult {
+            active_segment_path: authority_root
+                .join("streams")
+                .join(stream_id.as_str())
+                .join("active.segment"),
+            state_path: authority_root
+                .join("streams")
+                .join(stream_id.as_str())
+                .join("state.json"),
+            next_offset: local_status.next_offset().value(),
+            active_record_count: local_status.active_record_count(),
+        },
+        local_published: AuthorityPublishedPlaneResult {
+            backend: "filesystem",
+            frontier_object: local_frontier_object,
+            current_manifest_object: local_current_manifest_object,
+            previous_manifest_object: local_previous_manifest_object.clone(),
+            previous_manifest_retained: authority_root
+                .join("published")
+                .join(&local_previous_manifest_object)
+                .exists(),
+            retained_start_offset: local_frontier.retained_start_offset().value(),
+            next_offset: local_frontier.next_offset().value(),
+            published_segment_count: local_segments.len(),
+        },
+        remote_published: AuthorityPublishedPlaneResult {
+            backend: "object_store",
+            frontier_object: remote_frontier_object,
+            current_manifest_object: remote_current_manifest_object,
+            previous_manifest_object: remote_previous_manifest_object.clone(),
+            previous_manifest_retained: object_store_root
+                .join(&remote_previous_manifest_object)
+                .exists(),
+            retained_start_offset: remote_frontier.retained_start_offset().value(),
+            next_offset: remote_frontier.next_offset().value(),
+            published_segment_count: remote_segments.len(),
+        },
+        restored_stream: summarize_stream(&stream_id, &restored_records),
+        unpublished_working_records,
+        shared_namespace_shape_verified,
+        replay_matches_latest_published_history,
+        semantics: ObjectStoreAuthorityProofSemanticsResult {
+            working_plane: "active.segment and state.json remain the mutable working plane for local append progress",
+            published_plane: "sealed segments, immutable manifest snapshots, and frontiers/latest.json form the published authority model for both filesystem-backed and remote object-store namespaces",
+            latest_discovery: "published readers discover the latest acknowledged snapshot through frontiers/latest.json instead of appending to one long-lived manifest object",
+            mutable_boundary: "the frontier pointer is the only mutable published object; manifest snapshots remain immutable once written",
+        },
+        publication_api: "LocalEngine::publish_rolled_segments",
+        restore_api: "LocalEngine::restore_stream_from_remote_frontier",
+        verified,
+        error,
     })
 }
 
@@ -5711,6 +6054,102 @@ fn render_tiered_engine_proof(result: TieredEngineProofResult, json: bool) -> Re
     Ok(())
 }
 
+fn render_object_store_authority_proof(
+    result: ObjectStoreAuthorityProofResult,
+    json: bool,
+) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit proof object-store-authority");
+    println!("root: {}", result.data_root.display());
+    println!("stream: {}", result.stream_id);
+    println!(
+        "working plane: next {} active records {}",
+        result.working.next_offset, result.working.active_record_count
+    );
+    println!(
+        "working files: active {} state {}",
+        result.working.active_segment_path.display(),
+        result.working.state_path.display()
+    );
+    println!(
+        "local published frontier: {} -> {} next {}",
+        result.local_published.frontier_object,
+        result.local_published.current_manifest_object,
+        result.local_published.next_offset
+    );
+    println!(
+        "local previous manifest retained: {} ({})",
+        if result.local_published.previous_manifest_retained {
+            "yes"
+        } else {
+            "no"
+        },
+        result.local_published.previous_manifest_object
+    );
+    println!(
+        "remote published frontier: {} -> {} next {}",
+        result.remote_published.frontier_object,
+        result.remote_published.current_manifest_object,
+        result.remote_published.next_offset
+    );
+    println!(
+        "remote previous manifest retained: {} ({})",
+        if result.remote_published.previous_manifest_retained {
+            "yes"
+        } else {
+            "no"
+        },
+        result.remote_published.previous_manifest_object
+    );
+    println!(
+        "restored replay: {} records, head {:?}",
+        result.restored_stream.record_count, result.restored_stream.head_offset
+    );
+    println!(
+        "unpublished working records: {}",
+        result.unpublished_working_records
+    );
+    println!(
+        "shared namespace shape: {}",
+        if result.shared_namespace_shape_verified {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "replay matches latest published history: {}",
+        if result.replay_matches_latest_published_history {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!("working plane: {}", result.semantics.working_plane);
+    println!("published plane: {}", result.semantics.published_plane);
+    println!("latest discovery: {}", result.semantics.latest_discovery);
+    println!("mutable boundary: {}", result.semantics.mutable_boundary);
+    println!("publication api: {}", result.publication_api);
+    println!("restore api: {}", result.restore_api);
+    println!(
+        "status: {}",
+        if result.verified {
+            "VERIFIED"
+        } else {
+            "FAILED"
+        }
+    );
+    if let Some(error) = result.error {
+        println!("error: {error}");
+    }
+
+    Ok(())
+}
+
 fn render_controlled_failover_proof(
     result: ControlledFailoverProofResult,
     json: bool,
@@ -6450,6 +6889,26 @@ fn render_ascii_table_separator(widths: &[usize]) -> String {
     format!("|{segments}|")
 }
 
+fn sorted_file_names(root: &Path) -> Result<Vec<String>> {
+    let mut names = fs::read_dir(root)
+        .with_context(|| format!("read directory {}", root.display()))?
+        .map(|entry| {
+            let entry = entry.with_context(|| format!("read entry under {}", root.display()))?;
+            Ok(entry.file_name().to_string_lossy().into_owned())
+        })
+        .collect::<Result<Vec<_>>>()?;
+    names.sort();
+    Ok(names)
+}
+
+fn path_relative_to(path: &Path, root: &Path) -> Result<String> {
+    Ok(path
+        .strip_prefix(root)
+        .with_context(|| format!("strip prefix {} from {}", root.display(), path.display()))?
+        .to_string_lossy()
+        .replace('\\', "/"))
+}
+
 fn render_streams_delete(result: RemoteDeletedStreamResult, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
@@ -6706,10 +7165,13 @@ mod tests {
 
     fn start_server() -> (tempfile::TempDir, ServerHandle, SocketAddr) {
         let temp_dir = tempdir().expect("temp dir");
-        let server = ServerHandle::bind(ServerConfig::new(
-            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node")),
-            "127.0.0.1:0".parse().expect("listen addr"),
-        ))
+        let server = ServerHandle::bind(
+            ServerConfig::new(
+                LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node")),
+                "127.0.0.1:0".parse().expect("listen addr"),
+            )
+            .with_connection_io_timeout(Duration::from_secs(5)),
+        )
         .expect("bind server");
         let server_addr = server.local_addr();
         (temp_dir, server, server_addr)
@@ -6763,6 +7225,16 @@ mod tests {
         let cli =
             Cli::try_parse_from(["transit", "proof", "local-engine", "--root", "target/demo"])
                 .expect("parse proof command");
+        assert!(matches!(cli.command, Commands::Proof(_)));
+
+        let cli = Cli::try_parse_from([
+            "transit",
+            "proof",
+            "object-store-authority",
+            "--root",
+            "target/demo",
+        ])
+        .expect("parse object-store authority proof command");
         assert!(matches!(cli.command, Commands::Proof(_)));
 
         let cli = Cli::try_parse_from(["transit", "storage", "probe"])
@@ -8030,17 +8502,17 @@ listen_addr = "127.0.0.1:0"
     #[test]
     fn networked_server_proof_exercises_remote_mission_path_and_transport_boundary() {
         let temp_dir = tempdir().expect("temp dir");
-        let proof =
-            run_networked_server_proof(temp_dir.path().join("networked-server"), None, None)
-                .expect("networked server proof");
+        let proof = run_networked_server_proof(
+            temp_dir.path().join("networked-server"),
+            Some(5_000),
+            Some(5_000),
+        )
+        .expect("networked server proof");
 
         assert_eq!(proof.durability, "local");
         assert_eq!(proof.topology, "single_node");
-        assert_eq!(
-            proof.server_connection_io_timeout_ms,
-            DEFAULT_HOSTED_IO_TIMEOUT_MS
-        );
-        assert_eq!(proof.client_io_timeout_ms, DEFAULT_HOSTED_IO_TIMEOUT_MS);
+        assert_eq!(proof.server_connection_io_timeout_ms, 5_000);
+        assert_eq!(proof.client_io_timeout_ms, 5_000);
         assert_eq!(proof.initial_append.position, "mission.root@0");
         assert_eq!(proof.tail_append.position, "mission.root@1");
         assert_eq!(proof.merge_lineage.lineage_kind, "merge");
@@ -8352,6 +8824,94 @@ listen_addr = "127.0.0.1:0"
         assert_eq!(
             proof_json
                 .get("restored_history_matches")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[tokio::test]
+    async fn object_store_authority_proof_demonstrates_frontier_pointer_and_immutable_snapshots() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof =
+            run_object_store_authority_proof(temp_dir.path().join("object-store-authority"))
+                .await
+                .expect("object-store authority proof");
+
+        assert_eq!(proof.stream_id, "authority.object-store.root");
+        assert_eq!(proof.working.next_offset, 7);
+        assert_eq!(proof.working.active_record_count, 1);
+        assert_eq!(
+            proof.local_published.frontier_object,
+            "streams/authority.object-store.root/frontiers/latest.json"
+        );
+        assert_eq!(proof.local_published.next_offset, 6);
+        assert!(proof.local_published.previous_manifest_retained);
+        assert_eq!(
+            proof.remote_published.frontier_object,
+            "authority-proof/streams/authority.object-store.root/frontiers/latest.json"
+        );
+        assert_eq!(proof.remote_published.next_offset, 6);
+        assert!(proof.remote_published.previous_manifest_retained);
+        assert_eq!(proof.restored_stream.record_count, 6);
+        assert_eq!(proof.restored_stream.head_offset, Some(5));
+        assert_eq!(proof.unpublished_working_records, 1);
+        assert!(proof.shared_namespace_shape_verified);
+        assert!(proof.replay_matches_latest_published_history);
+        assert!(proof.verified);
+        assert!(proof.error.is_none());
+    }
+
+    #[tokio::test]
+    async fn object_store_authority_proof_results_serialize_cleanly_for_mission_scripts() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof =
+            run_object_store_authority_proof(temp_dir.path().join("object-store-authority-json"))
+                .await
+                .expect("object-store authority proof");
+        let proof_json =
+            serde_json::to_value(&proof).expect("serialize object-store authority proof result");
+
+        assert_eq!(
+            proof_json
+                .get("stream_id")
+                .and_then(serde_json::Value::as_str),
+            Some("authority.object-store.root")
+        );
+        assert_eq!(
+            proof_json["working"]
+                .get("next_offset")
+                .and_then(serde_json::Value::as_u64),
+            Some(7)
+        );
+        assert_eq!(
+            proof_json["local_published"]
+                .get("frontier_object")
+                .and_then(serde_json::Value::as_str),
+            Some("streams/authority.object-store.root/frontiers/latest.json")
+        );
+        assert_eq!(
+            proof_json["remote_published"]
+                .get("frontier_object")
+                .and_then(serde_json::Value::as_str),
+            Some("authority-proof/streams/authority.object-store.root/frontiers/latest.json")
+        );
+        assert_eq!(
+            proof_json["semantics"]
+                .get("mutable_boundary")
+                .and_then(serde_json::Value::as_str),
+            Some(
+                "the frontier pointer is the only mutable published object; manifest snapshots remain immutable once written"
+            )
+        );
+        assert_eq!(
+            proof_json
+                .get("shared_namespace_shape_verified")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json
+                .get("verified")
                 .and_then(serde_json::Value::as_bool),
             Some(true)
         );

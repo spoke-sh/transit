@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VHUjJi2Fn
-status: active
+status: achieved
 created_at: 2026-04-21T22:27:31
-updated_at: 2026-04-21T22:30:10
+updated_at: 2026-04-21T23:00:07
 # authored
 title: Unify Published Transit Storage Around Object-Store Authority
 watch: ~
 activated_at: 2026-04-21T22:30:10
+achieved_at: 2026-04-21T23:00:07
 ---
 
 # Unify Published Transit Storage Around Object-Store Authority

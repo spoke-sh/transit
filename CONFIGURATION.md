@@ -132,6 +132,23 @@ In that shape, object storage is the long-term authority for rolled segments
 and manifests, while `data_dir` and `cache_dir` remain warm working state that
 can be rebuilt from the authoritative remote tier.
 
+The published authority model now uses one explicit discovery rule instead of
+implicitly treating a mutable manifest file as the only truth:
+
+- immutable segment objects live under `streams/<id>/segments/...`
+- immutable manifest snapshots live under `streams/<id>/manifests/...`
+- the latest published snapshot is discovered through
+  `streams/<id>/frontiers/latest.json`
+
+That same namespace shape exists on the local filesystem backend under
+`data_dir/published/...` and on remote object-store backends under the
+configured object-store prefix. The mutable working plane remains local:
+
+- `data_dir/streams/<id>/active.segment`
+- `data_dir/streams/<id>/state.json`
+
+The active head is a working file, not a published object-store snapshot.
+
 The canonical hosted consumer endpoint and auth posture contract that sits on
 top of these values is documented in [`HOSTED_CONSUMERS.md`](HOSTED_CONSUMERS.md).
 

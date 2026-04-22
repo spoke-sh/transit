@@ -28,6 +28,29 @@ This is the shortest path to understanding:
 - branch and merge lineage
 - publication and restore
 
+## Working Plane And Published Plane
+
+Transit now makes the storage split explicit instead of leaving it implicit in
+one mutable manifest file.
+
+Working plane:
+
+- local mutable files such as `active.segment` and `state.json`
+- current append progress and restart bookkeeping
+- not the published discovery surface for acknowledged shared history
+
+Published plane:
+
+- immutable segment objects
+- immutable manifest snapshots
+- one mutable `frontiers/latest.json` pointer that tells readers which manifest snapshot is current
+
+On a local filesystem-backed node, that published plane lives under
+`published/streams/<id>/segments`, `manifests`, and `frontiers/latest.json`.
+On a remote object store, the same namespace shape lives under the configured
+prefix. The filesystem backend and remote backends now share the same
+published-storage concepts.
+
 ## Server Mode
 
 Server mode means a daemon exposes those same semantics over the network.
@@ -49,6 +72,8 @@ The server should preserve:
   concurrently
 - the same lineage semantics
 - the same storage and durability boundaries
+- the same working-plane versus published-plane split, with only
+  `frontiers/latest.json` acting as the mutable published discovery boundary
 
 That includes the full failover stack in the shared engine: controlled handoff, automatic leader election, quorum durability, and cluster membership. The one-engine guarantee means these capabilities work identically whether the engine is embedded or behind a server daemon. Multi-primary behavior remains explicitly out of scope.
 

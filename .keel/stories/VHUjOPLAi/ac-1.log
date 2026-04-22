@@ -1,0 +1,2 @@
+[cargo test -p transit-cli --bin transit object_store_authority_proof]
+2 passed; object-store authority proof covers mutable working plane, immutable manifest snapshots, frontier pointer discovery, and restore from latest frontier.

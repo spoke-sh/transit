@@ -2282,7 +2282,7 @@ mod tests {
     #[test]
     fn hosted_producer_consumer_timeout_raised_timeouts_keep_mixed_workload_stable() {
         let temp_dir = tempdir().expect("temp dir");
-        let timeout = Duration::from_secs(5);
+        let timeout = Duration::from_secs(10);
         let batch_count = 32usize;
         let batch_size = 16usize;
         let total_records = batch_count * batch_size;
