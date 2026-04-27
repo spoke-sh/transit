@@ -275,6 +275,14 @@ account, tenant, or provider policy. Downstream applications should attach
 those concerns in their own payloads or control planes while keeping Transit
 lineage and artifact metadata replayable.
 
+For a runnable downstream example that creates a channel root, native thread
+branch, thread reply, backlink, summary, and human override artifact through
+embedded and hosted APIs, run:
+
+```bash
+cargo run -p transit-client --example workloads
+```
+
 ## Thread Lifecycle And Reconciliation
 
 Normal threaded communication does not need a merge for every thread.

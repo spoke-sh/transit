@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-27T14:53:54.959917431-07:00
+mode: manual
+---
+Reviewed AI_TRACES.md, AI_ARTIFACTS.md, COMMUNICATION.md, crates/transit-client/README.md, and the workloads example. Public helper names and examples use the canonical task_id/trace_kind/tool-call/evaluator-decision/checkpoint/merge-artifact and channel/thread/backlink/summary/override vocabulary.

@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-27T14:53:46.637742168-07:00
+mode: manual
+---
+Communication docs now point to cargo run -p transit-client --example workloads, and crates/transit-client/examples/workloads.rs demonstrates channel root metadata, channel message payload bytes, native thread branch metadata, thread reply payload bytes, backlink artifact, summary artifact, and human override artifact.

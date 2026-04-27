@@ -199,3 +199,11 @@ Those helpers construct only ordinary Transit inputs:
 The helpers do not execute models, host evaluators, or define application
 framework schemas. They only preserve canonical trace vocabulary over the
 shared stream, branch, merge, and artifact primitives.
+
+For a runnable downstream example that creates a task root, retry and critique
+branches, tool and evaluator records, a merge artifact, and completion
+checkpoints through embedded and hosted APIs, run:
+
+```bash
+cargo run -p transit-client --example workloads
+```

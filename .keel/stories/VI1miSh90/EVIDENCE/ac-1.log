@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-27T14:53:42.359015590-07:00
+mode: manual
+---
+AI trace docs now point to cargo run -p transit-client --example workloads, and crates/transit-client/examples/workloads.rs demonstrates typed helpers for task root metadata, retry and critique branches, tool-call and evaluator payload events, MergeSpec plus merge artifact envelope, and completion checkpoints.

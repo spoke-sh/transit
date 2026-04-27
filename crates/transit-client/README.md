@@ -28,6 +28,9 @@ This crate publishes three parts of the hosted consumer boundary:
   `APPEND_BATCH_MAX_BYTES`
 - hosted cursor and materialization types such as `Cursor`, `CursorId`,
   `HostedMaterializationCheckpoint`, and `HostedMaterializationResume`
+- typed workload helpers under `workloads::ai` and
+  `workloads::communication` for downstream AI traces and threaded
+  communication flows
 
 Typical downstream imports should look like:
 
@@ -39,6 +42,110 @@ use transit_client::{
     StreamPosition, TailSessionId, TransitClient,
 };
 ```
+
+## Workload Helper Examples
+
+Typed workload helpers produce ordinary Transit inputs: payload bytes,
+`LineageMetadata`, `StreamPosition`-anchored branch inputs, `MergeSpec`, and
+`ArtifactEnvelope` values. They work with embedded `LocalEngine` and hosted
+`TransitClient` APIs because they do not own storage or transport behavior.
+
+Run the complete downstream example with:
+
+```bash
+cargo run -p transit-client --example workloads
+```
+
+The AI trace portion creates a task root, retry and critique branches,
+tool/evaluator events, an explicit merge artifact, and completion checkpoints:
+
+```rust
+use transit_client::{MergePolicyKind, StreamId, TransitClient};
+use transit_client::workloads::ai;
+
+let task_root = StreamId::new("example.ai.task")?;
+let retry_stream = StreamId::new("example.ai.task.retry")?;
+
+client.create_root(
+    &task_root,
+    ai::task_root_metadata("task-0142", "human.alex", "initial-request", 1_774_400_001)?,
+)?;
+
+let tool = ai::ToolCallEvent::new(
+    "task-0142",
+    "agent.planner.v1",
+    "gather-context",
+    "search",
+    "tc-0091",
+    "request",
+    "success",
+    1_774_400_002,
+)?;
+let root_append = client.append(&task_root, tool.payload_bytes()?)?;
+
+let retry = ai::TraceBranch::retry(
+    retry_stream.clone(),
+    root_append.body().position().clone(),
+    "task-0142",
+    "agent.runner",
+    "retry-after-timeout",
+)?;
+client.create_branch(&retry.branch_stream_id, retry.parent, retry.metadata)?;
+
+let merge = ai::TraceMerge::new(
+    StreamId::new("example.ai.task.merge")?,
+    vec![root_append.body().position().clone(), client.append(&retry_stream, b"retry")?.body().position().clone()],
+    Some(root_append.body().position().clone()),
+    "task-0142",
+    "judge.v1",
+    "merge-winning-paths",
+    MergePolicyKind::Recursive,
+    "select retry with critique notes",
+)?;
+```
+
+The communication portion creates a channel root, a native thread branch,
+thread reply payload bytes, backlink and summary artifacts, and a human
+override artifact:
+
+```rust
+use transit_client::{StreamId, TransitClient};
+use transit_client::workloads::communication;
+
+let channel = StreamId::new("example.channel.eng")?;
+let thread = StreamId::new("example.channel.eng.thread.1042")?;
+
+client.create_root(
+    &channel,
+    communication::channel_root_metadata("eng", "system.channel", "channel-created")?,
+)?;
+
+let message = communication::ChannelMessage::new(
+    "eng",
+    "msg-1042",
+    "human.alex",
+    "alex",
+    "inline:Split deployment and model planning.",
+    "user-post",
+    1_774_400_010,
+)?;
+let anchor = client.append(&channel, message.payload_bytes()?)?;
+
+let branch = communication::ThreadBranch::manual(
+    thread.clone(),
+    anchor.body().position().clone(),
+    "eng",
+    "msg-1042",
+    "human.alex",
+    "manual-thread-split",
+)?;
+client.create_branch(&branch.thread_stream_id, branch.parent, branch.metadata)?;
+```
+
+Backlinks, summaries, merge artifacts, and override artifacts are ordinary
+`ArtifactEnvelope` payloads. Applications can append those envelopes to the
+root stream, a thread branch, a merge stream, or a dedicated artifact stream by
+convention.
 
 Batch append stays inside the normal hosted protocol surface:
 
