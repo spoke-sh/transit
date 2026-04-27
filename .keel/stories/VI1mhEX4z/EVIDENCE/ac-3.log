@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-27T14:29:32.058912007-07:00
+mode: manual
+---
+Checkpoint creation is exposed only through explicit checkpoint_materialization/materialize_checkpoint calls and server MaterializeCheckpoint handling; append and append_batch paths remain unchanged and still return append acknowledgements without constructing checkpoints, snapshots, or materializer state.

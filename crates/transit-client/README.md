@@ -179,11 +179,18 @@ Hosted checkpoints are verification-bearing, not just saved offsets:
 
 - `materialize_checkpoint(...)` binds opaque state to the current source-stream
   lineage checkpoint
+- `materialize_checkpoint_with_contract(...)` lets a hosted materializer set
+  `view_kind`, state or state reference, optional snapshot reference, and
+  `materializer_version` while preserving the same acknowledgement envelope
 - `get_materialization_checkpoint(...)` reloads the persisted hosted checkpoint
 - `materialize_resume(...)` resumes from the stored anchor and returns only the
   pending records after that anchor
 - `resume_materialization_cursor(...)` exposes the resume window itself when you
   want the replay cursor without fetching records immediately
+
+The checkpoint body also carries source stream id, source offset, manifest
+generation/root, source durability, lineage reference, produced-at time, and
+materializer version so downstream state can be audited without side metadata.
 
 Expected failure behavior is explicit:
 

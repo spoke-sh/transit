@@ -273,6 +273,28 @@ impl TransitClient {
             .materialize_checkpoint(stream_id, materialization_id, opaque_state)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn materialize_checkpoint_with_contract(
+        &self,
+        stream_id: &StreamId,
+        materialization_id: impl Into<String>,
+        view_kind: impl Into<String>,
+        opaque_state: Vec<u8>,
+        opaque_state_ref: Option<String>,
+        snapshot_ref: Option<String>,
+        materializer_version: impl Into<String>,
+    ) -> ClientResult<RemoteAcknowledged<HostedMaterializationCheckpoint>> {
+        self.inner.materialize_checkpoint_with_contract(
+            stream_id,
+            materialization_id,
+            view_kind,
+            opaque_state,
+            opaque_state_ref,
+            snapshot_ref,
+            materializer_version,
+        )
+    }
+
     pub fn get_materialization_checkpoint(
         &self,
         materialization_id: impl Into<String>,
@@ -1211,12 +1233,28 @@ mod tests {
             .expect("append second");
 
         let checkpoint = client
-            .materialize_checkpoint(
+            .materialize_checkpoint_with_contract(
                 &stream_id,
                 "consumer.analytics",
+                "reference_projection",
                 br#"{"processed_records":2}"#.to_vec(),
+                Some("state://consumer.analytics/2".into()),
+                None,
+                "analytics.v1",
             )
             .expect("checkpoint");
+        assert_eq!(checkpoint.body().view_kind(), "reference_projection");
+        assert_eq!(checkpoint.body().source_stream_id(), &stream_id);
+        assert_eq!(checkpoint.body().source_offset().value(), 1);
+        assert_eq!(
+            checkpoint.body().lineage_ref(),
+            "client.materialization.resume@1"
+        );
+        assert_eq!(
+            checkpoint.body().opaque_state_ref(),
+            Some("state://consumer.analytics/2")
+        );
+        assert_eq!(checkpoint.body().materializer_version(), "analytics.v1");
 
         client
             .append(&stream_id, b"materialize-2")

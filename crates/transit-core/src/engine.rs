@@ -5,6 +5,7 @@ use crate::kernel::{
     StreamLineage, StreamPosition, StreamRetentionPolicy,
 };
 use crate::materialization::{
+    DEFAULT_MATERIALIZATION_VIEW_KIND, DEFAULT_MATERIALIZER_VERSION,
     HostedMaterializationCheckpoint, HostedMaterializationResumeCursor,
     MaterializationCheckpointStore,
 };
@@ -1261,11 +1262,40 @@ impl LocalEngine {
         stream_id: &StreamId,
         opaque_state: Vec<u8>,
     ) -> Result<HostedMaterializationCheckpoint> {
-        let checkpoint = HostedMaterializationCheckpoint::new(
+        self.checkpoint_materialization_with_contract(
             materialization_id,
-            self.checkpoint(stream_id, "materialize")?,
+            stream_id,
+            DEFAULT_MATERIALIZATION_VIEW_KIND,
             opaque_state,
+            None,
+            None,
+            DEFAULT_MATERIALIZER_VERSION,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn checkpoint_materialization_with_contract(
+        &self,
+        materialization_id: impl Into<String>,
+        stream_id: &StreamId,
+        view_kind: impl Into<String>,
+        opaque_state: Vec<u8>,
+        opaque_state_ref: Option<String>,
+        snapshot_ref: Option<String>,
+        materializer_version: impl Into<String>,
+    ) -> Result<HostedMaterializationCheckpoint> {
+        let manifest = self.load_manifest(stream_id)?;
+        let checkpoint = HostedMaterializationCheckpoint::from_contract(
+            materialization_id,
+            view_kind,
+            self.checkpoint(stream_id, "materialize")?,
+            manifest.generation(),
+            self.durability().as_str(),
+            opaque_state,
+            opaque_state_ref,
+            snapshot_ref,
             cursor_timestamp_now(),
+            materializer_version,
         )?;
         self.materialization_checkpoint_store()?.put(&checkpoint)?;
         Ok(checkpoint)
@@ -1293,6 +1323,7 @@ impl LocalEngine {
         &self,
         checkpoint: &HostedMaterializationCheckpoint,
     ) -> Result<HostedMaterializationResumeCursor> {
+        checkpoint.validate_contract()?;
         let persisted = match self.get_materialization_checkpoint(
             checkpoint.materialization_id(),
             checkpoint.source_stream_id(),
@@ -1310,6 +1341,7 @@ impl LocalEngine {
                 .into());
             }
         };
+        persisted.validate_contract()?;
         ensure!(
             persisted == *checkpoint,
             "materialization checkpoint '{}' for '{}' does not match the persisted hosted checkpoint",
@@ -1318,32 +1350,36 @@ impl LocalEngine {
         );
         let status = self.stream_status(checkpoint.source_stream_id())?;
         ensure!(
-            status.next_offset().value() > checkpoint.lineage_anchor().head_offset.value(),
+            checkpoint.source_manifest_generation() <= status.manifest_generation(),
+            "checkpoint manifest generation {} is ahead of current manifest generation {} for '{}'",
+            checkpoint.source_manifest_generation(),
+            status.manifest_generation(),
+            checkpoint.source_stream_id().as_str()
+        );
+        ensure!(
+            status.next_offset().value() > checkpoint.source_offset().value(),
             "checkpoint anchor '{}' is ahead of current replay head '{}' for '{}'",
-            checkpoint.lineage_anchor().head_offset.value(),
+            checkpoint.source_offset().value(),
             status.next_offset().value().saturating_sub(1),
             checkpoint.source_stream_id().as_str()
         );
         self.verify_local_lineage(checkpoint.source_stream_id())?;
         let anchor_record = self
-            .tail_from(
-                checkpoint.source_stream_id(),
-                checkpoint.lineage_anchor().head_offset,
-            )?
+            .tail_from(checkpoint.source_stream_id(), checkpoint.source_offset())?
             .into_iter()
             .next();
         ensure!(
-            anchor_record.as_ref().is_some_and(|record| {
-                record.position().offset == checkpoint.lineage_anchor().head_offset
-            }),
+            anchor_record
+                .as_ref()
+                .is_some_and(|record| { record.position().offset == checkpoint.source_offset() }),
             "checkpoint anchor '{}' is not present in replay for '{}'",
-            checkpoint.lineage_anchor().head_offset.value(),
+            checkpoint.source_offset().value(),
             checkpoint.source_stream_id().as_str()
         );
 
         Ok(HostedMaterializationResumeCursor::new(
             checkpoint.clone(),
-            checkpoint.lineage_anchor().head_offset.increment(),
+            checkpoint.source_offset().increment(),
             status.next_offset(),
         ))
     }

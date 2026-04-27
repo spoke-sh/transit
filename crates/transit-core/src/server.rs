@@ -741,10 +741,36 @@ impl RemoteClient {
         materialization_id: impl Into<String>,
         opaque_state: Vec<u8>,
     ) -> RemoteClientResult<RemoteAcknowledged<HostedMaterializationCheckpoint>> {
+        self.materialize_checkpoint_with_contract(
+            stream_id,
+            materialization_id,
+            crate::materialization::DEFAULT_MATERIALIZATION_VIEW_KIND,
+            opaque_state,
+            None,
+            None,
+            crate::materialization::DEFAULT_MATERIALIZER_VERSION,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn materialize_checkpoint_with_contract(
+        &self,
+        stream_id: &StreamId,
+        materialization_id: impl Into<String>,
+        view_kind: impl Into<String>,
+        opaque_state: Vec<u8>,
+        opaque_state_ref: Option<String>,
+        snapshot_ref: Option<String>,
+        materializer_version: impl Into<String>,
+    ) -> RemoteClientResult<RemoteAcknowledged<HostedMaterializationCheckpoint>> {
         match self.send_request(OperationRequest::MaterializeCheckpoint {
             stream_id: stream_id.clone(),
             materialization_id: materialization_id.into(),
+            view_kind: view_kind.into(),
             opaque_state,
+            opaque_state_ref,
+            snapshot_ref,
+            materializer_version: materializer_version.into(),
         })? {
             SuccessfulResponse {
                 request_id,
@@ -805,7 +831,7 @@ impl RemoteClient {
         checkpoint: &HostedMaterializationCheckpoint,
     ) -> RemoteClientResult<RemoteAcknowledged<HostedMaterializationResumeCursor>> {
         match self.send_request(OperationRequest::ResumeMaterialization {
-            checkpoint: checkpoint.clone(),
+            checkpoint: Box::new(checkpoint.clone()),
         })? {
             SuccessfulResponse {
                 request_id,
@@ -1310,7 +1336,11 @@ enum OperationRequest {
     MaterializeCheckpoint {
         stream_id: StreamId,
         materialization_id: String,
+        view_kind: String,
         opaque_state: Vec<u8>,
+        opaque_state_ref: Option<String>,
+        snapshot_ref: Option<String>,
+        materializer_version: String,
     },
     GetMaterializationCheckpoint {
         materialization_id: String,
@@ -1321,7 +1351,7 @@ enum OperationRequest {
         stream_id: StreamId,
     },
     ResumeMaterialization {
-        checkpoint: HostedMaterializationCheckpoint,
+        checkpoint: Box<HostedMaterializationCheckpoint>,
     },
     Read {
         stream_id: StreamId,
@@ -1929,9 +1959,21 @@ fn handle_request(
         OperationRequest::MaterializeCheckpoint {
             stream_id,
             materialization_id,
+            view_kind,
             opaque_state,
+            opaque_state_ref,
+            snapshot_ref,
+            materializer_version,
         } => {
-            match engine.checkpoint_materialization(materialization_id, &stream_id, opaque_state) {
+            match engine.checkpoint_materialization_with_contract(
+                materialization_id,
+                &stream_id,
+                view_kind,
+                opaque_state,
+                opaque_state_ref,
+                snapshot_ref,
+                materializer_version,
+            ) {
                 Ok(checkpoint) => ack_response(
                     request_id,
                     engine.durability(),
@@ -2520,7 +2562,7 @@ mod tests {
     use crate::engine::{DurabilityMode, LocalEngine, LocalEngineConfig};
     use crate::kernel::{
         CursorId, LineageMetadata, MergePolicy, MergePolicyKind, MergeSpec, Offset,
-        StreamDescriptor, StreamId, StreamLineage, StreamPosition,
+        StreamDescriptor, StreamId, StreamLineage, StreamPosition, StreamRetentionPolicy,
     };
     use crate::materialization::HostedMaterializationCheckpoint;
     use serde_json::Value;
@@ -3953,21 +3995,50 @@ mod tests {
             .expect("append second record");
 
         let stored = client
-            .materialize_checkpoint(
+            .materialize_checkpoint_with_contract(
                 &stream_id,
                 "consumer.analytics",
+                "reference_projection",
                 br#"{"processed_records":2}"#.to_vec(),
+                Some("state://consumer.analytics/2".into()),
+                Some("snapshot://consumer.analytics/2".into()),
+                "analytics.v1",
             )
             .expect("store checkpoint");
         assert_eq!(stored.body().materialization_id(), "consumer.analytics");
+        assert_eq!(stored.body().view_kind(), "reference_projection");
         assert_eq!(stored.body().source_stream_id(), &stream_id);
+        assert_eq!(stored.body().source_offset().value(), 1);
+        assert_eq!(stored.body().lineage_ref(), "task.materialization.root@1");
+        assert_eq!(
+            stored.body().lineage_checkpoint_ref(),
+            Some("materialize:task.materialization.root@1")
+        );
         assert_eq!(stored.body().lineage_anchor().head_offset.value(), 1);
         assert_eq!(stored.body().opaque_state(), br#"{"processed_records":2}"#);
+        assert_eq!(
+            stored.body().opaque_state_ref(),
+            Some("state://consumer.analytics/2")
+        );
+        assert_eq!(
+            stored.body().snapshot_ref(),
+            Some("snapshot://consumer.analytics/2")
+        );
+        assert_eq!(stored.body().materializer_version(), "analytics.v1");
+        assert_eq!(stored.body().source_durability(), "local");
 
         let manifest = server
             .engine()
             .load_manifest(&stream_id)
             .expect("load manifest");
+        assert_eq!(
+            stored.body().source_manifest_generation(),
+            manifest.generation()
+        );
+        assert_eq!(
+            stored.body().source_manifest_root().digest(),
+            manifest.manifest_root().digest()
+        );
         assert_eq!(
             stored.body().lineage_anchor().manifest_root.digest(),
             manifest.manifest_root().digest()
@@ -4105,6 +4176,102 @@ mod tests {
                         .message()
                         .contains("does not match the persisted hosted checkpoint")
                 );
+            }
+            other => panic!("expected remote invalid_request, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_materialization_resume_rejects_missing_checkpoint() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let stream_id = stream_id("task.materialization.resume.missing");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("test".into()),
+                    Some("materialization-resume-missing".into()),
+                ),
+            )
+            .expect("create root");
+        client
+            .append(&stream_id, b"materialize-0")
+            .expect("append 0");
+
+        let stored = client
+            .materialize_checkpoint(&stream_id, "consumer.analytics", Vec::new())
+            .expect("store checkpoint");
+        client
+            .delete_materialization_checkpoint("consumer.analytics", &stream_id)
+            .expect("delete checkpoint");
+
+        let error = client
+            .resume_materialization(stored.body())
+            .expect_err("missing checkpoint should reject resume");
+        match error {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::NotFound);
+                assert!(error.message().contains("was not found"));
+            }
+            other => panic!("expected remote not found, got {other:?}"),
+        }
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn remote_materialization_resume_rejects_stale_retained_checkpoint_anchor() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node"))
+                .with_segment_max_records(2)
+                .expect("config"),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind server");
+        let client = RemoteClient::new(server.local_addr());
+        let stream_id = stream_id("task.materialization.resume.stale");
+        let retention_policy = StreamRetentionPolicy::new(None, Some(1)).expect("retention policy");
+
+        client
+            .create_root_with_retention(
+                &stream_id,
+                LineageMetadata::new(
+                    Some("test".into()),
+                    Some("materialization-resume-stale".into()),
+                ),
+                Some(retention_policy),
+            )
+            .expect("create root");
+        client
+            .append(&stream_id, b"materialize-0")
+            .expect("append 0");
+        client
+            .append(&stream_id, b"materialize-1")
+            .expect("append 1");
+        let stored = client
+            .materialize_checkpoint(&stream_id, "consumer.analytics", Vec::new())
+            .expect("store checkpoint");
+        client
+            .append(&stream_id, b"materialize-2")
+            .expect("append 2 and trim old segment");
+
+        let error = client
+            .resume_materialization(stored.body())
+            .expect_err("stale retained checkpoint should reject resume");
+        match error {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.code(), RemoteErrorCode::InvalidRequest);
+                assert!(error.message().contains("is not present in replay"));
             }
             other => panic!("expected remote invalid_request, got {other:?}"),
         }

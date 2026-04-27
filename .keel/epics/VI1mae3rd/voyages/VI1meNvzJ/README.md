@@ -27,11 +27,11 @@ started_at: 2026-04-27T14:16:14
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Add Range Replay And Tail Pagination To Shared Engine](../../../../stories/VI1mhEI43/README.md) | feat | done |
-| [Align Materialization Checkpoint Envelope With Published Contract](../../../../stories/VI1mhEX4z/README.md) | feat | backlog |
+| [Align Materialization Checkpoint Envelope With Published Contract](../../../../stories/VI1mhEX4z/README.md) | feat | done |
 | [Harden Prolly Snapshot Builder And Diff Primitives](../../../../stories/VI1mhEj51/README.md) | feat | backlog |
 <!-- END GENERATED -->

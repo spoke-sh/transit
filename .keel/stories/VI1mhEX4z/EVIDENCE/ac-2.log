@@ -1,0 +1,29 @@
+---
+recorded_at: 2026-04-27T14:29:28.221062449-07:00
+command: cargo test -p transit-core remote_materialization_resume -- --nocapture && cargo test -p transit-client materialization_resume_cursor_rejects_tampered_checkpoint -- --nocapture
+---
+
+running 4 tests
+test server::tests::remote_materialization_resume_rejects_tampered_checkpoint_anchor ... ok
+test server::tests::remote_materialization_resume_rejects_missing_checkpoint ... ok
+test server::tests::remote_materialization_resume_reports_post_checkpoint_replay_window ... ok
+test server::tests::remote_materialization_resume_rejects_stale_retained_checkpoint_anchor ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 133 filtered out; finished in 0.09s
+
+
+running 1 test
+test client::tests::materialization_resume_cursor_rejects_tampered_checkpoint ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.05s
+
+
+--- stderr ---
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on artifact directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-52d80f2c98a7c405)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_client-0e5a7ac54559c2de)
