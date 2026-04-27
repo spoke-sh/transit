@@ -1,7 +1,7 @@
 ---
 # system-managed
 id: VI1mfwr25
-status: in-progress
+status: done
 epic: VI1mcFKum
 created_at: 2026-04-27T14:07:51
 # authored
@@ -9,6 +9,7 @@ title: Harden Hosted Protocol Auth And Lease Fencing
 index: 1
 updated_at: 2026-04-27T14:11:45
 started_at: 2026-04-27T14:56:52
+completed_at: 2026-04-27T15:19:38
 ---
 
 # Harden Hosted Protocol Auth And Lease Fencing
@@ -22,16 +23,18 @@ started_at: 2026-04-27T14:56:52
 |----------|-------------|
 | [SRS.md](SRS.md) | Requirements and verification criteria |
 | [SDD.md](SDD.md) | Architecture and implementation details |
+| [VOYAGE_REPORT.md](VOYAGE_REPORT.md) | Narrative summary of implementation and evidence |
+| [COMPLIANCE_REPORT.md](COMPLIANCE_REPORT.md) | Traceability matrix and verification proof |
 <!-- END DOCUMENTS -->
 
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 2/3 stories complete
+**Progress:** 3/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Enforce Hosted Auth Posture In Server Protocol](../../../../stories/VI1mjhoAK/README.md) | feat | done |
 | [Replace Object Store Lease Writes With Conditional Fencing](../../../../stories/VI1mjiCB8/README.md) | feat | done |
-| [Define Blockchain-Style Finality And Fork Proof Contract](../../../../stories/VI1mjiIBI/README.md) | docs | backlog |
+| [Define Blockchain-Style Finality And Fork Proof Contract](../../../../stories/VI1mjiIBI/README.md) | docs | done |
 <!-- END GENERATED -->

@@ -38,6 +38,7 @@ Before `1.0`:
 At `1.0` the following should be stable:
 
 - core stream and branch semantics
+- blockchain-style finality/fork proof vocabulary
 - on-disk segment and manifest format
 - baseline wire protocol expectations
 - documented durability modes

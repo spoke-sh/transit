@@ -237,11 +237,11 @@
 |--------|--------|
 | [Publish Typed AI And Communication Event Builders](epics/VI1mbSnsy/voyages/VI1mf8o0n/) | done |
 
-### [Hosted Authority Hardening For Durable External Systems](epics/VI1mcFKum/) (active)
+### [Hosted Authority Hardening For Durable External Systems](epics/VI1mcFKum/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Harden Hosted Protocol Auth And Lease Fencing](epics/VI1mcFKum/voyages/VI1mfwr25/) | in-progress |
+| [Harden Hosted Protocol Auth And Lease Fencing](epics/VI1mcFKum/voyages/VI1mfwr25/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

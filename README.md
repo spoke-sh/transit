@@ -92,6 +92,8 @@ The initial target use cases are direct:
 - stream processing and incremental materialization over branching and merging event histories
 - classifier-driven auto-threading, where a model can fork a new branch when a conversation diverges
 - remote restore and audit flows that can verify immutable history instead of trusting remote storage implicitly
+- blockchain-style audit flows that map records to blocks, branches to forks,
+  checkpoints to finality markers, and explicit artifacts to reorg decisions
 
 That auto-threading path is a core design motivator. A classifier should be able to observe a root stream, identify a new thread boundary, and create a child branch anchored to the triggering record without rewriting history.
 
@@ -138,6 +140,9 @@ Today it contains:
 - **Networked Server:** Single-node daemon bootstrap with a framed request/response protocol and logical tail sessions.
 - **Integrity:** Staged verification from checksums to manifest roots and lineage checkpoints.
 - **Materialization:** Incremental processing with Prolly Tree snapshots and checkpoint-based resume.
+- **Finality/Fork Proofs:** Public blockchain-style proof vocabulary over
+  Transit records, branches, checkpoints, manifests, and explicit selection
+  artifacts.
 - **Clients:** Native Rust client library with replay-driven projection-consumer helpers and a feature-complete CLI for operations and proofs.
 - **Verification:** A unified `just screen` path that runs the full suite of human-verifiable missions.
 
@@ -220,6 +225,7 @@ private hosted client ownership is documented in
 | [`COMMUNICATION.md`](COMMUNICATION.md) | Communication channels and threading contract |
 | [`MATERIALIZATION.md`](MATERIALIZATION.md) | Materialization and stream processing contract |
 | [`INTEGRITY.md`](INTEGRITY.md) | Verifiable lineage and cryptographic integrity |
+| [`FINALITY.md`](FINALITY.md) | Blockchain-style finality and fork proof contract |
 | [`HOSTED_CONSUMERS.md`](HOSTED_CONSUMERS.md) | Canonical hosted endpoint grammar and auth posture for downstream consumers |
 | [`DIRECT_CUTOVER.md`](DIRECT_CUTOVER.md) | Canonical proof path for deleting duplicate local runtime or hosted client ownership |
 | [`crates/transit-client/README.md`](crates/transit-client/README.md) | Canonical Rust import surface for hosted consumers |

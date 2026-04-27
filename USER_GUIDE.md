@@ -115,7 +115,8 @@ Use the root Markdown files when you want:
 
 - canonical architecture and configuration contracts
 - benchmark and release requirements
-- workload contracts such as integrity, materialization, communication, or AI traces
+- workload contracts such as integrity, finality/fork proofs,
+  materialization, communication, or AI traces
 - repo-local operator rules
 
 The reference pages under `website/docs/reference/contracts` are generated from root docs. This file is intentionally not one of those generated public reference pages.

@@ -35,6 +35,7 @@ const sidebars: SidebarsConfig = {
         'reference/contracts/architecture',
         'reference/contracts/configuration',
         'reference/contracts/integrity',
+        'reference/contracts/finality',
         'reference/contracts/materialization',
         'reference/contracts/communication',
         'reference/contracts/ai-traces',

@@ -1,0 +1,7 @@
+---
+recorded_at: 2026-04-27T15:17:54.015836915-07:00
+command: root=$(git rev-parse --show-toplevel) && rg -n "not a complete blockchain consensus runtime|does not provide|applications still own consensus" "$root/FINALITY.md" "$root/website/docs/reference/contracts/finality.md"
+---
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:127:Transit is not a complete blockchain consensus runtime. It does not provide a
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:178:Transit is not a complete blockchain consensus runtime.
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:180:Transit does not provide:

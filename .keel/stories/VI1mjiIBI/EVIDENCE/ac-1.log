@@ -1,0 +1,30 @@
+---
+recorded_at: 2026-04-27T15:17:46.736693676-07:00
+command: root=$(git rev-parse --show-toplevel) && rg -n "Block|Fork|Finality marker|Reorg decision|canonical-selection" "$root/FINALITY.md" "$root/website/docs/reference/contracts/finality.md"
+---
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:2:title: "Finality And Fork Proofs"
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:3:sidebar_label: "Finality And Fork Proofs"
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:4:description: "Blockchain-style finality and fork proof contract over Transit lineage."
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:7:# Finality And Fork Proof Contract
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:16:| Blockchain-style concept | Transit primitive | Contract rule |
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:18:| Block | Record or append batch | Store the block body, block reference, or application envelope as immutable payload bytes. |
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:20:| Block height | Offset plus application metadata | Transit offset is the storage position; application block height remains payload metadata when it differs. |
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:22:| Fork | Branch | A fork is a child stream created from the parent stream at the divergence offset. |
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:24:| Reorg decision | Merge artifact or canonical-selection artifact | Reorg handling must be explicit data that names selected and superseded heads. |
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:25:| Finality marker | Lineage checkpoint | A checkpoint binds a chosen stream head to a manifest root and checkpoint kind. |
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:78:  "stream_id": "chain.main.canonical-selection",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:94:  "checkpoint_ref": "checkpoints/chain.main.canonical-selection/88.json",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:97:      "stream_id": "chain.main.canonical-selection",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:115:canonical-selection artifact when an application chooses one path. Use a
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:1:# Finality And Fork Proof Contract
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:25:| Blockchain-style concept | Transit primitive | Contract rule |
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:27:| Block | Record or append batch | Store the block body, block reference, or application envelope as immutable payload bytes. |
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:29:| Block height | Offset plus application metadata | Transit offset is the storage position; application block height remains payload metadata when it differs. |
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:31:| Fork | Branch | A fork is a child stream created from the parent stream at the divergence offset. |
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:33:| Reorg decision | Merge artifact or canonical-selection artifact | Reorg handling must be explicit data that names selected and superseded heads. |
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:34:| Finality marker | Lineage checkpoint | A checkpoint binds a chosen stream head to a manifest root and checkpoint kind. |
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:94:  "stream_id": "chain.main.canonical-selection",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:110:  "checkpoint_ref": "checkpoints/chain.main.canonical-selection/88.json",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:113:      "stream_id": "chain.main.canonical-selection",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:126:## Fork And Reorg Handling
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:134:- append a canonical-selection artifact that names the selected head,

@@ -1,0 +1,54 @@
+---
+recorded_at: 2026-04-27T15:17:49.544474981-07:00
+command: root=$(git rev-parse --show-toplevel) && rg -n "stream_id|head_offset|manifest_root|parent_heads|checkpoint_kind|application_block" "$root/FINALITY.md" "$root/website/docs/reference/contracts/finality.md"
+---
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:33:- `stream_id`
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:34:- `head_offset`
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:35:- `manifest_root`
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:36:- `parent_heads`
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:37:- `checkpoint_kind`
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:39:- `application_block`
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:42:Root or genesis proofs may use an empty `parent_heads` list. Every other proof
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:51:  "stream_id": "chain.main",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:52:  "head_offset": 12042,
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:53:  "manifest_root": "blake3:5f3d4e9c...",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:54:  "parent_heads": [
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:56:      "stream_id": "chain.main",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:61:  "checkpoint_kind": "finality",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:63:  "application_block": {
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:78:  "stream_id": "chain.main.canonical-selection",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:79:  "head_offset": 88,
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:80:  "manifest_root": "blake3:ad21c0...",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:81:  "parent_heads": [
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:83:      "stream_id": "chain.main.fork-a",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:88:      "stream_id": "chain.main.fork-b",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:93:  "checkpoint_kind": "reorg-selection",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:97:      "stream_id": "chain.main.canonical-selection",
+/home/alex/workspace/spoke-sh/transit/website/docs/reference/contracts/finality.md:102:  "application_block": {
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:47:- `stream_id`: stream whose head is being proven
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:48:- `head_offset`: stream-local offset of the proven head
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:49:- `manifest_root`: manifest root observed at the proof boundary
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:50:- `parent_heads`: ordered parent, fork, or merge heads as `stream_id` plus offset
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:51:- `checkpoint_kind`: checkpoint role, such as `finality`, `fork-choice`,
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:54:- `application_block`: optional block metadata owned by the downstream system
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:58:Root or genesis proofs may use an empty `parent_heads` list. Every other proof
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:67:  "stream_id": "chain.main",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:68:  "head_offset": 12042,
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:69:  "manifest_root": "blake3:5f3d4e9c...",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:70:  "parent_heads": [
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:72:      "stream_id": "chain.main",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:77:  "checkpoint_kind": "finality",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:79:  "application_block": {
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:94:  "stream_id": "chain.main.canonical-selection",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:95:  "head_offset": 88,
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:96:  "manifest_root": "blake3:ad21c0...",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:97:  "parent_heads": [
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:99:      "stream_id": "chain.main.fork-a",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:104:      "stream_id": "chain.main.fork-b",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:109:  "checkpoint_kind": "reorg-selection",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:113:      "stream_id": "chain.main.canonical-selection",
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:118:  "application_block": {
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:165:2. Load the manifest referenced by `manifest_root`.
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:168:4. Verify the lineage checkpoint for `stream_id`, `head_offset`,
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:169:   `manifest_root`, parent heads, and `checkpoint_kind`.
+/home/alex/workspace/spoke-sh/transit/FINALITY.md:172:6. Apply application-owned validation to `application_block` metadata.

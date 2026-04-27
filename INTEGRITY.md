@@ -4,6 +4,11 @@
 
 This document defines the first integrity contract for immutable segments, manifests, and lineage checkpoints.
 
+For blockchain-style downstream systems, [FINALITY.md](FINALITY.md) defines the
+public finality and fork proof contract that maps blocks to records, forks to
+branches, finality to checkpoints, and reorg handling to explicit merge or
+canonical-selection artifacts.
+
 ## Design Center
 
 The contract should preserve four things at once:
@@ -152,6 +157,7 @@ That is enough for:
 - remote restore
 - replay verification
 - audit of branch and merge provenance
+- blockchain-style finality and fork proof envelopes
 - future materialization checkpoints keyed to immutable history
 
 It is not yet a full signed trust system, and that is acceptable for the first integrity slice.

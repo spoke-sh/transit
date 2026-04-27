@@ -115,6 +115,13 @@ The intended first contract has four layers:
 
 This keeps the hot path lean while still making remote restore and lineage inspection explicit.
 
+Blockchain-style finality uses the same primitives. [FINALITY.md](FINALITY.md)
+defines the public contract: blocks are records, forks are branches, finality is
+a lineage checkpoint, and reorg handling is an explicit merge or
+canonical-selection artifact. Transit supplies replayable lineage and proof
+boundaries; applications still own consensus, validation, signing, and fork
+choice.
+
 ## Runtime Modes
 
 ### Embedded Mode
@@ -151,7 +158,7 @@ The architecture contract is anchored to the slices that exist today.
 | Server surface | single-node daemon, framed request/response protocol, logical tail sessions, and kcat-style operator commands | the server must not invent a separate storage model |
 | Storage and recovery | tiered publication, cold restore, warm-cache recovery, and effective-config storage verification | `transit storage probe` verifies the effective local/filesystem guarantee only |
 | Failover and distributed durability | controlled handoff, automatic lease election, quorum acknowledgement, and former-primary fencing | multi-primary and dynamic rebalancing remain out of scope |
-| Integrity and materialization | checksums, digests, manifest roots, checkpoints, Prolly snapshots, and reference projections | compact partial proofs and attestation are later layers |
+| Integrity, finality, and materialization | checksums, digests, manifest roots, checkpoints, blockchain-style proof envelopes, Prolly snapshots, and reference projections | compact partial proofs, attestation, and application consensus are later layers |
 
 ## Storage Architecture
 

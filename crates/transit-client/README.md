@@ -357,12 +357,34 @@ let projection = client.read_projection(
 )?;
 ```
 
+## Blockchain-Style Finality
+
+Downstream systems that model blocks, forks, finality, or reorg decisions
+should use the public [finality/fork proof contract](../../FINALITY.md).
+
+The Rust client exposes the Transit primitives used by that contract:
+
+- records or batches carry application block payloads
+- streams name ordered chain or lane history
+- branches preserve fork candidates without rewriting acknowledged records
+- merges and ordinary artifact records can publish explicit canonical-selection
+  or reorg decisions
+- hosted checkpoints and lineage inspection bind selected heads to manifest
+  roots
+
+Transit does not provide validator membership, transaction execution,
+application fork choice, signing, or a blockchain consensus runtime. Client code
+should preserve application block metadata as payload or artifact data and keep
+those policies outside the Transit storage boundary.
+
 ## Contract Rules
 
 - preserve `request_id` literally across wrapper boundaries
 - preserve `ack.durability` and `ack.topology` literally
 - preserve remote error `code` values literally
 - keep projection reads replay-driven and rebuildable from authoritative history
+- keep finality/fork decisions explicit as checkpoints, merges, or selection
+  artifacts rather than rewriting stream history
 - keep schema, policy, and reducer meaning outside Transit
 - do not re-open embedded local Transit storage as a second authority for the
   same hosted workload
