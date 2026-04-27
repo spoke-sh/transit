@@ -1,0 +1,28 @@
+---
+recorded_at: 2026-04-27T14:21:41.400659474-07:00
+command: cargo test -p transit-core remote_append_read_and_tail_preserve_positions_and_branch_aware_replay_behavior -- --nocapture && cargo test -p transit-client hosted_authority_exposes_bounded_read_pages -- --nocapture
+---
+
+running 1 test
+test server::tests::remote_append_read_and_tail_preserve_positions_and_branch_aware_replay_behavior ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 133 filtered out; finished in 0.11s
+
+
+running 1 test
+test client::tests::hosted_authority_exposes_bounded_read_pages ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.07s
+
+
+--- stderr ---
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on artifact directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-52d80f2c98a7c405)
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_client-0e5a7ac54559c2de)

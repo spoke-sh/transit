@@ -93,6 +93,34 @@ This is transport tuning only:
 - `ack.durability` and `ack.topology` stay literal
 - append, replay, batch append, and tail semantics do not change
 
+## Bounded Reads
+
+Downstream readers that cannot receive a full stream in one response can page
+through the same hosted boundary:
+
+```rust
+use transit_client::{Offset, StreamId, TransitClient};
+
+let stream_id = StreamId::new("consumer.orders")?;
+let mut next = Offset::new(0);
+
+loop {
+    let page = client.read_page(&stream_id, next, 128)?;
+    for record in page.body().records() {
+        // reduce record into downstream state
+    }
+    if !page.body().has_more() {
+        break;
+    }
+    next = page.body().next_offset();
+}
+```
+
+`read_page` and `tail_page` preserve the normal hosted response envelope:
+request id correlation, acknowledgement durability, topology, and remote error
+semantics are unchanged. The page body carries `next_offset` and `has_more` so
+callers can continue without receiving complete stream history.
+
 ## Hosted Materialization
 
 `transit-client` now exposes the hosted primitives a client-only materializer

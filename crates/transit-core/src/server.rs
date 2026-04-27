@@ -1,7 +1,8 @@
 use crate::cursor::CursorAck;
 use crate::engine::{
     DurabilityMode, LocalAppendBatchOutcome, LocalAppendOutcome, LocalDeletedStream, LocalEngine,
-    LocalEngineConfig, LocalLogStreamStatus, LocalRecord, LocalRecoveryOutcome, LocalStreamStatus,
+    LocalEngineConfig, LocalLogStreamStatus, LocalReadPage, LocalRecord, LocalRecoveryOutcome,
+    LocalStreamStatus,
 };
 use crate::kernel::{
     Cursor, CursorId, LineageMetadata, MergeSpec, Offset, StreamDescriptor, StreamId,
@@ -451,6 +452,26 @@ impl RemoteClient {
         }
     }
 
+    pub fn read_page(
+        &self,
+        stream_id: &StreamId,
+        from_offset: Offset,
+        max_records: usize,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteReadPageOutcome>> {
+        match self.send_request(OperationRequest::ReadPage {
+            stream_id: stream_id.clone(),
+            from_offset,
+            max_records,
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::RecordsPageOk(outcome),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
+            other => Err(unexpected_operation_response("read_page", &other.outcome)),
+        }
+    }
+
     pub fn tail(
         &self,
         stream_id: &StreamId,
@@ -466,6 +487,26 @@ impl RemoteClient {
                 outcome: OperationResponse::RecordsOk(outcome),
             } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
             other => Err(unexpected_operation_response("tail", &other.outcome)),
+        }
+    }
+
+    pub fn tail_page(
+        &self,
+        stream_id: &StreamId,
+        from_offset: Offset,
+        max_records: usize,
+    ) -> RemoteClientResult<RemoteAcknowledged<RemoteReadPageOutcome>> {
+        match self.send_request(OperationRequest::TailPage {
+            stream_id: stream_id.clone(),
+            from_offset,
+            max_records,
+        })? {
+            SuccessfulResponse {
+                request_id,
+                ack,
+                outcome: OperationResponse::RecordsPageOk(outcome),
+            } => Ok(RemoteAcknowledged::new(request_id, ack, outcome)),
+            other => Err(unexpected_operation_response("tail_page", &other.outcome)),
         }
     }
 
@@ -943,6 +984,42 @@ impl RemoteReadOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteReadPageOutcome {
+    stream_id: StreamId,
+    from_offset: Offset,
+    max_records: usize,
+    next_offset: Offset,
+    has_more: bool,
+    records: Vec<RemoteRecord>,
+}
+
+impl RemoteReadPageOutcome {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn from_offset(&self) -> Offset {
+        self.from_offset
+    }
+
+    pub fn max_records(&self) -> usize {
+        self.max_records
+    }
+
+    pub fn next_offset(&self) -> Offset {
+        self.next_offset
+    }
+
+    pub fn has_more(&self) -> bool {
+        self.has_more
+    }
+
+    pub fn records(&self) -> &[RemoteRecord] {
+        &self.records
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteRecord {
     position: StreamPosition,
     payload: Vec<u8>,
@@ -1249,9 +1326,19 @@ enum OperationRequest {
     Read {
         stream_id: StreamId,
     },
+    ReadPage {
+        stream_id: StreamId,
+        from_offset: Offset,
+        max_records: usize,
+    },
     Tail {
         stream_id: StreamId,
         from_offset: Offset,
+    },
+    TailPage {
+        stream_id: StreamId,
+        from_offset: Offset,
+        max_records: usize,
     },
 }
 
@@ -1285,6 +1372,7 @@ enum OperationResponse {
     MaterializationCheckpointDeletedOk(RemoteMaterializationCheckpointDeletedOutcome),
     MaterializationResumeOk(HostedMaterializationResumeCursor),
     RecordsOk(RemoteReadOutcome),
+    RecordsPageOk(RemoteReadPageOutcome),
     TailSessionOpened(RemoteTailSessionOpened),
     TailBatchOk(RemoteTailBatch),
     TailSessionCancelled(RemoteTailSessionCancelled),
@@ -1924,6 +2012,18 @@ fn handle_request(
             ),
             Err(error) => engine_error_response(request_id, error),
         },
+        OperationRequest::ReadPage {
+            stream_id,
+            from_offset,
+            max_records,
+        } => match engine.replay_page(&stream_id, from_offset, max_records) {
+            Ok(page) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::RecordsPageOk(map_read_page_outcome(page)),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
         OperationRequest::Tail {
             stream_id,
             from_offset,
@@ -1932,6 +2032,18 @@ fn handle_request(
                 request_id,
                 engine.durability(),
                 OperationResponse::RecordsOk(map_read_outcome(stream_id, records)),
+            ),
+            Err(error) => engine_error_response(request_id, error),
+        },
+        OperationRequest::TailPage {
+            stream_id,
+            from_offset,
+            max_records,
+        } => match engine.tail_page(&stream_id, from_offset, max_records) {
+            Ok(page) => ack_response(
+                request_id,
+                engine.durability(),
+                OperationResponse::RecordsPageOk(map_read_page_outcome(page)),
             ),
             Err(error) => engine_error_response(request_id, error),
         },
@@ -2040,6 +2152,24 @@ fn map_read_outcome(stream_id: StreamId, records: Vec<LocalRecord>) -> RemoteRea
     RemoteReadOutcome {
         stream_id,
         records: records.into_iter().map(map_record).collect(),
+    }
+}
+
+fn map_read_page_outcome(page: LocalReadPage) -> RemoteReadPageOutcome {
+    let stream_id = page.stream_id().clone();
+    let from_offset = page.from_offset();
+    let max_records = page.max_records();
+    let next_offset = page.next_offset();
+    let has_more = page.has_more();
+    let records = page.into_records().into_iter().map(map_record).collect();
+
+    RemoteReadPageOutcome {
+        stream_id,
+        from_offset,
+        max_records,
+        next_offset,
+        has_more,
+        records,
     }
 }
 
@@ -2361,6 +2491,7 @@ fn is_invalid_request_message(message: &str) -> bool {
         "checkpoint anchor",
         "checkpoint manifest root mismatch",
         "does not match the persisted hosted checkpoint",
+        "max record count",
         "published frontier",
         "not the leader",
     ]
@@ -2993,6 +3124,12 @@ mod tests {
         let root_tail = client
             .tail(&root_stream, Offset::new(1))
             .expect("tail root");
+        let branch_page = client
+            .read_page(&branch_stream, Offset::new(1), 2)
+            .expect("read branch page");
+        let root_tail_page = client
+            .tail_page(&root_stream, Offset::new(1), 1)
+            .expect("tail root page");
 
         let root_offsets: Vec<u64> = root_read
             .body()
@@ -3018,6 +3155,18 @@ mod tests {
             .iter()
             .map(|record| record.payload())
             .collect();
+        let branch_page_payloads: Vec<&[u8]> = branch_page
+            .body()
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+        let root_tail_page_payloads: Vec<&[u8]> = root_tail_page
+            .body()
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
 
         assert_eq!(root_offsets, vec![0, 1]);
         assert_eq!(branch_offsets, vec![0, 1, 2]);
@@ -3030,9 +3179,22 @@ mod tests {
             ]
         );
         assert_eq!(tail_payloads, vec![b"second".as_slice()]);
+        assert_eq!(
+            branch_page_payloads,
+            vec![b"second".as_slice(), b"branch-only".as_slice()]
+        );
+        assert_eq!(branch_page.body().from_offset().value(), 1);
+        assert_eq!(branch_page.body().max_records(), 2);
+        assert_eq!(branch_page.body().next_offset().value(), 3);
+        assert!(!branch_page.body().has_more());
+        assert_eq!(root_tail_page_payloads, vec![b"second".as_slice()]);
+        assert_eq!(root_tail_page.body().next_offset().value(), 2);
+        assert!(!root_tail_page.body().has_more());
         assert_eq!(root_read.ack().durability(), "local");
         assert_eq!(branch_read.ack().durability(), "local");
         assert_eq!(root_tail.ack().durability(), "local");
+        assert_eq!(branch_page.ack().durability(), "local");
+        assert_eq!(root_tail_page.ack().durability(), "local");
 
         server.shutdown().expect("shutdown server");
     }

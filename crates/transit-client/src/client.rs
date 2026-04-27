@@ -16,8 +16,8 @@ use transit_core::server::{
     RemoteAcknowledged, RemoteAppendOutcome, RemoteBatchAppendOutcome, RemoteClient,
     RemoteClientError, RemoteCursorDeletedOutcome, RemoteDeletedStreamOutcome,
     RemoteLineageOutcome, RemoteMaterializationCheckpointDeletedOutcome, RemoteReadOutcome,
-    RemoteRecord, RemoteStreamListOutcome, RemoteStreamStatus, RemoteTailBatch,
-    RemoteTailSessionCancelled, RemoteTailSessionOpened, TailSessionId,
+    RemoteReadPageOutcome, RemoteRecord, RemoteStreamListOutcome, RemoteStreamStatus,
+    RemoteTailBatch, RemoteTailSessionCancelled, RemoteTailSessionOpened, TailSessionId,
 };
 
 pub type ClientResult<T> = std::result::Result<T, RemoteClientError>;
@@ -140,6 +140,15 @@ impl TransitClient {
         stream_id: &StreamId,
     ) -> ClientResult<RemoteAcknowledged<RemoteReadOutcome>> {
         self.inner.read(stream_id)
+    }
+
+    pub fn read_page(
+        &self,
+        stream_id: &StreamId,
+        from_offset: Offset,
+        max_records: usize,
+    ) -> ClientResult<RemoteAcknowledged<RemoteReadPageOutcome>> {
+        self.inner.read_page(stream_id, from_offset, max_records)
     }
 
     pub fn read_projection<C>(
@@ -320,6 +329,15 @@ impl TransitClient {
     ) -> ClientResult<RemoteAcknowledged<RemoteTailSessionOpened>> {
         self.inner
             .open_tail_session(stream_id, from_offset, initial_credit)
+    }
+
+    pub fn tail_page(
+        &self,
+        stream_id: &StreamId,
+        from_offset: Offset,
+        max_records: usize,
+    ) -> ClientResult<RemoteAcknowledged<RemoteReadPageOutcome>> {
+        self.inner.tail_page(stream_id, from_offset, max_records)
     }
 
     pub fn poll(
@@ -807,6 +825,59 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![first_payload.as_slice(), second_payload.as_slice()]
         );
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn hosted_authority_exposes_bounded_read_pages() {
+        let (_temp_dir, server, client) = hosted_authority_test_client();
+        let stream_id = StreamId::new("client.hosted.pages").expect("stream id");
+
+        client
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(Some("hub.reader".into()), Some("hosted-page-proof".into())),
+            )
+            .expect("create root");
+        for payload in [
+            b"first".as_slice(),
+            b"second".as_slice(),
+            b"third".as_slice(),
+        ] {
+            client.append(&stream_id, payload).expect("append");
+        }
+
+        let first_page = client
+            .read_page(&stream_id, Offset::new(0), 2)
+            .expect("read page");
+        let tail_page = client
+            .tail_page(&stream_id, first_page.body().next_offset(), 2)
+            .expect("tail page");
+
+        assert_eq!(first_page.ack().durability(), "local");
+        assert_eq!(first_page.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(first_page.body().stream_id(), &stream_id);
+        assert_eq!(first_page.body().from_offset().value(), 0);
+        assert_eq!(first_page.body().max_records(), 2);
+        assert_eq!(first_page.body().next_offset().value(), 2);
+        assert!(first_page.body().has_more());
+        assert_eq!(
+            first_page
+                .body()
+                .records()
+                .iter()
+                .map(|record| record.payload())
+                .collect::<Vec<_>>(),
+            vec![b"first".as_slice(), b"second".as_slice()]
+        );
+
+        assert_eq!(tail_page.ack().durability(), "local");
+        assert_eq!(tail_page.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(tail_page.body().from_offset().value(), 2);
+        assert_eq!(tail_page.body().next_offset().value(), 3);
+        assert!(!tail_page.body().has_more());
+        assert_eq!(tail_page.body().records()[0].payload(), b"third");
 
         server.shutdown().expect("shutdown server");
     }

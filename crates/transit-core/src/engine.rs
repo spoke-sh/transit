@@ -311,6 +311,46 @@ impl LocalRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalReadPage {
+    stream_id: StreamId,
+    from_offset: Offset,
+    max_records: usize,
+    next_offset: Offset,
+    has_more: bool,
+    records: Vec<LocalRecord>,
+}
+
+impl LocalReadPage {
+    pub fn stream_id(&self) -> &StreamId {
+        &self.stream_id
+    }
+
+    pub fn from_offset(&self) -> Offset {
+        self.from_offset
+    }
+
+    pub fn max_records(&self) -> usize {
+        self.max_records
+    }
+
+    pub fn next_offset(&self) -> Offset {
+        self.next_offset
+    }
+
+    pub fn has_more(&self) -> bool {
+        self.has_more
+    }
+
+    pub fn records(&self) -> &[LocalRecord] {
+        &self.records
+    }
+
+    pub fn into_records(self) -> Vec<LocalRecord> {
+        self.records
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalBranchReplayView {
     stream_id: StreamId,
     parent: StreamPosition,
@@ -1989,6 +2029,38 @@ impl LocalEngine {
         self.read_replay_records(stream_id)
     }
 
+    pub fn replay_page(
+        &self,
+        stream_id: &StreamId,
+        from: Offset,
+        max_records: usize,
+    ) -> Result<LocalReadPage> {
+        ensure!(
+            max_records > 0,
+            "max record count must be greater than zero"
+        );
+
+        let fetch_limit = max_records.saturating_add(1);
+        let mut records = self.read_replay_records_page(stream_id, from, fetch_limit)?;
+        let has_more = records.len() > max_records;
+        if has_more {
+            records.truncate(max_records);
+        }
+        let next_offset = records
+            .last()
+            .map(|record| Offset::new(record.position().offset.value().saturating_add(1)))
+            .unwrap_or(from);
+
+        Ok(LocalReadPage {
+            stream_id: stream_id.clone(),
+            from_offset: from,
+            max_records,
+            next_offset,
+            has_more,
+            records,
+        })
+    }
+
     pub fn branch_replay_view(&self, stream_id: &StreamId) -> Result<LocalBranchReplayView> {
         let descriptor = self.stream_descriptor(stream_id)?;
         let StreamLineage::Branch { branch_point } = descriptor.lineage else {
@@ -2019,6 +2091,15 @@ impl LocalEngine {
             .into_iter()
             .filter(|record| record.position.offset.value() >= from.value())
             .collect())
+    }
+
+    pub fn tail_page(
+        &self,
+        stream_id: &StreamId,
+        from: Offset,
+        max_records: usize,
+    ) -> Result<LocalReadPage> {
+        self.replay_page(stream_id, from, max_records)
     }
 
     /// Create a verifiable checkpoint for the current stream head.
@@ -2875,6 +2956,107 @@ impl LocalEngine {
         Err(last_active_head_error.expect("active head retries should capture an error"))
     }
 
+    fn read_replay_records_page(
+        &self,
+        stream_id: &StreamId,
+        from: Offset,
+        max_records: usize,
+    ) -> Result<Vec<LocalRecord>> {
+        const ACTIVE_HEAD_RETRY_ATTEMPTS: usize = 512;
+
+        let mut last_active_head_error = None;
+        for _ in 0..ACTIVE_HEAD_RETRY_ATTEMPTS {
+            match (|| -> Result<Vec<LocalRecord>> {
+                let state = self.load_state(stream_id)?;
+                let manifest = self.load_manifest(stream_id)?;
+                let mut records = Vec::with_capacity(max_records.min(64));
+
+                for record in self.read_inherited_records(&state.descriptor)? {
+                    if !push_replay_page_record(&mut records, record, from, max_records) {
+                        return Ok(records);
+                    }
+                }
+
+                let mut expected_next_offset = retained_start_offset(&state, &manifest);
+
+                for descriptor in manifest.segments() {
+                    ensure!(
+                        descriptor.stream_id() == stream_id,
+                        "segment '{}' belongs to '{}' not '{}'",
+                        descriptor.segment_id().as_str(),
+                        descriptor.stream_id().as_str(),
+                        stream_id.as_str()
+                    );
+                    ensure!(
+                        descriptor.start_offset().value() == expected_next_offset,
+                        "segment '{}' starts at {} but replay expected {}",
+                        descriptor.segment_id().as_str(),
+                        descriptor.start_offset().value(),
+                        expected_next_offset
+                    );
+                    expected_next_offset = descriptor.last_offset().value() + 1;
+
+                    if descriptor.last_offset().value() < from.value() {
+                        continue;
+                    }
+
+                    let segment_records = self.read_committed_segment(
+                        stream_id,
+                        descriptor,
+                        descriptor.start_offset().value(),
+                    )?;
+                    for record in segment_records {
+                        if !push_replay_page_record(&mut records, record, from, max_records) {
+                            return Ok(records);
+                        }
+                    }
+                }
+
+                let active_state = if state.manifest_generation < manifest.generation() {
+                    ensure!(
+                        state.next_offset == expected_next_offset,
+                        "state for '{}' lagged manifest generation {} -> {} but next offset {} did not match replay frontier {}",
+                        stream_id.as_str(),
+                        state.manifest_generation,
+                        manifest.generation(),
+                        state.next_offset,
+                        expected_next_offset
+                    );
+
+                    let mut active_state = state.clone();
+                    active_state.active_segment_start_offset = expected_next_offset;
+                    active_state.active_record_count = 0;
+                    active_state.active_byte_length = 0;
+                    active_state.manifest_generation = manifest.generation();
+                    active_state
+                } else {
+                    state.clone()
+                };
+
+                if active_state.next_offset <= from.value() {
+                    return Ok(records);
+                }
+
+                let active_records =
+                    self.read_active_head(stream_id, &active_state, expected_next_offset)?;
+                for record in active_records {
+                    if !push_replay_page_record(&mut records, record, from, max_records) {
+                        return Ok(records);
+                    }
+                }
+                Ok(records)
+            })() {
+                Ok(records) => return Ok(records),
+                Err(error) => {
+                    last_active_head_error = Some(error);
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+            }
+        }
+
+        Err(last_active_head_error.expect("active head retries should capture an error"))
+    }
+
     fn roll_active_segment_for_replication(
         &self,
         stream_id: &StreamId,
@@ -3311,6 +3493,23 @@ fn initial_next_offset_from_descriptor(descriptor: &StreamDescriptor) -> u64 {
             None => 0,
         },
     }
+}
+
+fn push_replay_page_record(
+    records: &mut Vec<LocalRecord>,
+    record: LocalRecord,
+    from: Offset,
+    max_records: usize,
+) -> bool {
+    if records.len() >= max_records {
+        return false;
+    }
+
+    if record.position().offset.value() >= from.value() {
+        records.push(record);
+    }
+
+    records.len() < max_records
 }
 
 fn retained_start_offset(state: &LocalStreamState, manifest: &SegmentManifest) -> u64 {
@@ -4594,6 +4793,177 @@ mod tests {
                 .expect("empty")
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn replay_page_reads_active_head_with_continuation_metadata() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(8)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+
+        for payload in ["first", "second", "third"] {
+            engine
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        let page = engine
+            .replay_page(&stream_id, Offset::new(1), 1)
+            .expect("page");
+        let payloads: Vec<&[u8]> = page
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+
+        assert_eq!(page.stream_id(), &stream_id);
+        assert_eq!(page.from_offset().value(), 1);
+        assert_eq!(page.max_records(), 1);
+        assert_eq!(page.next_offset().value(), 2);
+        assert!(page.has_more());
+        assert_eq!(payloads, vec![b"second".as_slice()]);
+    }
+
+    #[test]
+    fn replay_page_reads_across_rolled_segments_without_returning_complete_stream() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let stream_id = stream_id("task.root");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+
+        for payload in ["first", "second", "third", "fourth", "fifth"] {
+            engine
+                .append(&stream_id, payload.as_bytes())
+                .expect("append");
+        }
+
+        let first_page = engine
+            .tail_page(&stream_id, Offset::new(1), 2)
+            .expect("first page");
+        let second_page = engine
+            .tail_page(&stream_id, first_page.next_offset(), 2)
+            .expect("second page");
+
+        let first_offsets: Vec<u64> = first_page
+            .records()
+            .iter()
+            .map(|record| record.position().offset.value())
+            .collect();
+        let second_payloads: Vec<&[u8]> = second_page
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+
+        assert_eq!(first_offsets, vec![1, 2]);
+        assert_eq!(first_page.next_offset().value(), 3);
+        assert!(first_page.has_more());
+        assert_eq!(
+            second_payloads,
+            vec![b"fourth".as_slice(), b"fifth".as_slice()]
+        );
+        assert_eq!(second_page.next_offset().value(), 5);
+        assert!(!second_page.has_more());
+    }
+
+    #[test]
+    fn replay_page_reads_branch_inherited_history() {
+        let temp_dir = tempdir().expect("temp dir");
+        let engine = LocalEngine::open(
+            LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                .with_segment_max_records(2)
+                .expect("config"),
+        )
+        .expect("engine");
+        let root_stream = stream_id("task.root");
+        let branch_stream = stream_id("task.branch");
+        engine
+            .create_stream(root_descriptor("task.root"))
+            .expect("create stream");
+        engine.append(&root_stream, b"first").expect("append");
+        engine.append(&root_stream, b"second").expect("append");
+        engine
+            .create_branch(
+                branch_stream.clone(),
+                StreamPosition::new(root_stream.clone(), Offset::new(1)),
+                LineageMetadata::new(Some("test".into()), Some("branch".into())),
+            )
+            .expect("create branch");
+        engine
+            .append(&branch_stream, b"branch-only")
+            .expect("append branch");
+
+        let page = engine
+            .replay_page(&branch_stream, Offset::new(0), 2)
+            .expect("page");
+        let payloads: Vec<&[u8]> = page
+            .records()
+            .iter()
+            .map(|record| record.payload())
+            .collect();
+
+        assert_eq!(payloads, vec![b"first".as_slice(), b"second".as_slice()]);
+        assert_eq!(page.next_offset().value(), 2);
+        assert!(page.has_more());
+
+        let next_page = engine
+            .replay_page(&branch_stream, page.next_offset(), 2)
+            .expect("next page");
+        assert_eq!(next_page.records().len(), 1);
+        assert_eq!(next_page.records()[0].payload(), b"branch-only");
+        assert_eq!(&next_page.records()[0].position().stream_id, &branch_stream);
+        assert!(!next_page.has_more());
+    }
+
+    #[test]
+    fn replay_page_reads_reopened_history_without_full_stream_response() {
+        let temp_dir = tempdir().expect("temp dir");
+        let stream_id = stream_id("task.root");
+        {
+            let engine = LocalEngine::open(
+                LocalEngineConfig::new(temp_dir.path(), NodeId::new("test-node"))
+                    .with_segment_max_records(2)
+                    .expect("config"),
+            )
+            .expect("engine");
+            engine
+                .create_stream(root_descriptor("task.root"))
+                .expect("create stream");
+            for payload in ["first", "second", "third", "fourth"] {
+                engine
+                    .append(&stream_id, payload.as_bytes())
+                    .expect("append");
+            }
+        }
+
+        let reopened = LocalEngine::open(LocalEngineConfig::new(
+            temp_dir.path(),
+            NodeId::new("test-node"),
+        ))
+        .expect("reopen engine");
+        let page = reopened
+            .replay_page(&stream_id, Offset::new(2), 1)
+            .expect("page");
+
+        assert_eq!(page.records().len(), 1);
+        assert_eq!(page.records()[0].payload(), b"third");
+        assert_eq!(page.next_offset().value(), 3);
+        assert!(page.has_more());
     }
 
     #[test]

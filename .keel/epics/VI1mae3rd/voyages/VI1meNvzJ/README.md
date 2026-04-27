@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VI1meNvzJ
-status: planned
+status: in-progress
 epic: VI1mae3rd
 created_at: 2026-04-27T14:07:45
 # authored
 title: Deliver Streaming Replay And Snapshot-Safe Materialization
 index: 1
 updated_at: 2026-04-27T14:11:45
+started_at: 2026-04-27T14:16:14
 ---
 
 # Deliver Streaming Replay And Snapshot-Safe Materialization
@@ -26,11 +27,11 @@ updated_at: 2026-04-27T14:11:45
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/3 stories complete
+**Progress:** 1/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
-| [Add Range Replay And Tail Pagination To Shared Engine](../../../../stories/VI1mhEI43/README.md) | feat | backlog |
+| [Add Range Replay And Tail Pagination To Shared Engine](../../../../stories/VI1mhEI43/README.md) | feat | done |
 | [Align Materialization Checkpoint Envelope With Published Contract](../../../../stories/VI1mhEX4z/README.md) | feat | backlog |
 | [Harden Prolly Snapshot Builder And Diff Primitives](../../../../stories/VI1mhEj51/README.md) | feat | backlog |
 <!-- END GENERATED -->

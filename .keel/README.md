@@ -229,7 +229,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Deliver Streaming Replay And Snapshot-Safe Materialization](epics/VI1mae3rd/voyages/VI1meNvzJ/) | planned |
+| [Deliver Streaming Replay And Snapshot-Safe Materialization](epics/VI1mae3rd/voyages/VI1meNvzJ/) | in-progress |
 
 ### [Typed Workload SDKs For Conversational And Agent Lineage](epics/VI1mbSnsy/) (active)
 

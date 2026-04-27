@@ -25,10 +25,10 @@ pub use transit_core::server::{
     APPEND_BATCH_MAX_BYTES, APPEND_BATCH_MAX_RECORDS, RemoteAcknowledged, RemoteAcknowledgement,
     RemoteAppendOutcome, RemoteBatchAppendOutcome, RemoteClientError, RemoteCursorDeletedOutcome,
     RemoteDeletedStreamOutcome, RemoteErrorCode, RemoteErrorResponse, RemoteLineageOutcome,
-    RemoteMaterializationCheckpointDeletedOutcome, RemoteReadOutcome, RemoteRecord,
-    RemoteStreamListOutcome, RemoteStreamStatus, RemoteStreamSummary, RemoteTailBatch,
-    RemoteTailSessionCancelled, RemoteTailSessionOpened, RemoteTailSessionState, RemoteTopology,
-    RequestId, TailSessionId,
+    RemoteMaterializationCheckpointDeletedOutcome, RemoteReadOutcome, RemoteReadPageOutcome,
+    RemoteRecord, RemoteStreamListOutcome, RemoteStreamStatus, RemoteStreamSummary,
+    RemoteTailBatch, RemoteTailSessionCancelled, RemoteTailSessionOpened, RemoteTailSessionState,
+    RemoteTopology, RequestId, TailSessionId,
 };
 
 pub use client::{ClientResult, HostedMaterializationResume, TransitClient};

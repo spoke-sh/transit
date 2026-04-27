@@ -22,8 +22,8 @@ mission: VI1mZnbqW
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/3 stories done
+**Progress:** 0/1 voyages complete, 1/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Deliver Streaming Replay And Snapshot-Safe Materialization](voyages/VI1meNvzJ/) | planned | 0/3 |
+| [Deliver Streaming Replay And Snapshot-Safe Materialization](voyages/VI1meNvzJ/) | in-progress | 1/3 |
 <!-- END GENERATED -->
