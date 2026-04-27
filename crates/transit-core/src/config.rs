@@ -2,6 +2,7 @@ use crate::storage::SegmentCompression;
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::fmt;
 use std::fs;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -229,6 +230,12 @@ impl TransitConfig {
                 .parse()
                 .with_context(|| format!("parse TRANSIT_LISTEN_ADDR '{listen_addr}'"))?;
         }
+        if let Some(auth_mode) = env_var("TRANSIT_AUTH_MODE")? {
+            self.server.auth_mode = auth_mode;
+        }
+        if let Some(auth_token) = env_var("TRANSIT_AUTH_TOKEN")? {
+            self.server.auth_token = Some(auth_token);
+        }
         if let Some(log_level) = env_var("TRANSIT_LOG")? {
             self.telemetry.log_level = log_level;
         }
@@ -400,13 +407,28 @@ impl StreamsConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServerSettings {
     pub listen_addr: SocketAddr,
     pub advertise_addr: Option<String>,
     pub max_connections: u64,
     pub request_body_limit_bytes: u64,
     pub auth_mode: String,
+    pub auth_token: Option<String>,
+}
+
+impl fmt::Debug for ServerSettings {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let auth_token = self.auth_token.as_ref().map(|_| "<redacted>");
+        f.debug_struct("ServerSettings")
+            .field("listen_addr", &self.listen_addr)
+            .field("advertise_addr", &self.advertise_addr)
+            .field("max_connections", &self.max_connections)
+            .field("request_body_limit_bytes", &self.request_body_limit_bytes)
+            .field("auth_mode", &self.auth_mode)
+            .field("auth_token", &auth_token)
+            .finish()
+    }
 }
 
 impl Default for ServerSettings {
@@ -417,6 +439,7 @@ impl Default for ServerSettings {
             max_connections: 1_024,
             request_body_limit_bytes: 8_388_608,
             auth_mode: "none".to_owned(),
+            auth_token: None,
         }
     }
 }
@@ -437,6 +460,9 @@ impl ServerSettings {
         }
         if let Some(auth_mode) = patch.auth_mode {
             self.auth_mode = auth_mode;
+        }
+        if patch.auth_token.is_some() {
+            self.auth_token = patch.auth_token;
         }
     }
 }
@@ -693,6 +719,7 @@ struct ServerSettingsPatch {
     max_connections: Option<u64>,
     request_body_limit_bytes: Option<u64>,
     auth_mode: Option<String>,
+    auth_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -755,6 +782,8 @@ compression = "none"
 
 [server]
 listen_addr = "127.0.0.1:9090"
+auth_mode = "token"
+auth_token = "test-token"
 "#,
         )
         .expect("write config");
@@ -781,6 +810,11 @@ listen_addr = "127.0.0.1:9090"
         assert_eq!(
             loaded.config().server.listen_addr,
             "127.0.0.1:9090".parse().unwrap()
+        );
+        assert_eq!(loaded.config().server.auth_mode, "token");
+        assert_eq!(
+            loaded.config().server.auth_token.as_deref(),
+            Some("test-token")
         );
     }
 }

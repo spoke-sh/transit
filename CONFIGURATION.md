@@ -30,6 +30,8 @@ in `transit.toml.example`; a local `./transit.toml` is ignored by git.
 - `TRANSIT_OBJECT_ENDPOINT`
 - `TRANSIT_DURABILITY`
 - `TRANSIT_LISTEN_ADDR`
+- `TRANSIT_AUTH_MODE`
+- `TRANSIT_AUTH_TOKEN`
 - `TRANSIT_LOG`
 
 ## Configuration Philosophy
@@ -126,6 +128,8 @@ local_head_min_segments = 2
 listen_addr = "0.0.0.0:7171"
 advertise_addr = "transit.prod.example:7171"
 auth_mode = "token"
+# Prefer TRANSIT_AUTH_TOKEN for production secrets. For local tests only:
+# auth_token = "dev-secret"
 ```
 
 In that shape, object storage is the long-term authority for rolled segments
@@ -286,7 +290,8 @@ Network-facing settings for daemon mode.
 | `advertise_addr` | String | same as `listen_addr` | Address returned to clients or peers. |
 | `max_connections` | Integer | `1024` | Maximum concurrent client connections. |
 | `request_body_limit_bytes` | Integer | `8388608` | Maximum request size accepted by the server. |
-| `auth_mode` | String | `"none"` | Planned auth mode: `none`, `token`, `mtls`. |
+| `auth_mode` | String | `"none"` | Hosted auth mode: `none`, `token`, `mtls`. `token` is enforced by the framed protocol; `mtls` remains a documented non-claim. |
+| `auth_token` | String | unset | Token accepted by `auth_mode = "token"`. Prefer `TRANSIT_AUTH_TOKEN` instead of writing production secrets to disk. |
 
 The current CLI now resolves `transit.toml` plus `TRANSIT_*` overrides at
 runtime. Commands that operate on one local engine root default to
@@ -303,6 +308,10 @@ configuration:
 - `transit server run` validates the authored object-store provider during
   startup and binds the shared hosted server path without rewriting
   `transit.toml` back to `local`
+- `transit server run` enforces `auth_mode = "token"` when `[server].auth_token`
+  or `TRANSIT_AUTH_TOKEN` supplies a non-empty token; framed requests without a
+  matching token receive a hosted `unauthorized` error envelope before shared
+  engine mutation
 - hosted runtime bootstrap acceptance is not the same thing as a truthful
   remote-tier acknowledgement claim; append and recovery paths must still prove
   when `tiered` is actually satisfied
@@ -318,8 +327,9 @@ For hosted consumers, read these fields with three explicit rules:
   consumer target
 - `advertise_addr` is the canonical consumer-facing endpoint when operators
   publish one
-- `auth_mode` declares the hosted access posture, but `token` and `mtls` remain
-  explicit non-claims until the runtime enforces them on the wire
+- `auth_mode = "token"` is enforced in the Transit framed protocol when a token
+  is configured; `auth_mode = "mtls"` remains an explicit non-claim until mTLS
+  is implemented
 
 ### `[replication]`
 

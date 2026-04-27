@@ -69,8 +69,8 @@ The configuration contract currently exposes three posture values:
   No protocol-level auth requirement is declared. Suitable only for trusted
   local development or tightly-contained environments.
 - `token`
-  The hosted authority is expected to require a token-style credential at the
-  server boundary.
+  The hosted authority requires a token credential in the Transit framed
+  request envelope when the server is configured with a token.
 - `mtls`
   The hosted authority is expected to require mutually-authenticated transport
   credentials at the server boundary.
@@ -80,15 +80,28 @@ The configuration contract currently exposes three posture values:
 The current runtime must stay honest about what is and is not implemented.
 
 - `auth_mode` is part of the authored server contract today.
-- The shipped runtime does not yet enforce `token` or `mtls` on the wire.
+- The shipped runtime enforces `token` in the Transit framed protocol when the
+  server has a configured token.
+- The shipped runtime does not yet enforce `mtls` on the wire.
 - Consumers must not infer bearer-header, HTTP, or certificate-exchange
   mechanics beyond what the runtime and proofs explicitly implement.
 - Operators may still use network containment, mesh policy, or front-door
   controls around the server, but those are deployment choices rather than
   proof that Transit has already implemented protocol auth.
 
-Until wire-level enforcement lands, `auth_mode` should be read as declared
+Until mTLS enforcement lands, `auth_mode = "mtls"` should be read as declared
 posture plus rollout target, not as an overclaimed security guarantee.
+
+### Token Credential Placement
+
+Token auth is a Transit protocol field, not an HTTP bearer-header convention.
+Rust clients attach it through the hosted client builder:
+
+```rust
+let client = TransitClient::new(server_addr).with_auth_token(token);
+```
+
+CLI helpers read `TRANSIT_AUTH_TOKEN` when they construct hosted clients.
 
 ## Acknowledgement Contract
 
@@ -164,6 +177,7 @@ RemoteErrorResponse {
 
 The current canonical remote error codes are:
 
+- `unauthorized`
 - `invalid_request`
 - `not_found`
 - `internal`
@@ -222,16 +236,17 @@ hosted client ownership is documented in
 listen_addr = "0.0.0.0:7171"
 advertise_addr = "transit.prod.example:7171"
 auth_mode = "token"
+# Prefer TRANSIT_AUTH_TOKEN for production secrets. For local tests only:
+# auth_token = "dev-secret"
 ```
 
 In that shape:
 
 - operators bind locally on `0.0.0.0:7171`
 - consumers target `transit.prod.example:7171`
-- auth posture declares that the hosted boundary is intended to require token
-  credentials
-- the implementation must still stay explicit about whether that posture is
-  fully enforced or only declared
+- auth posture declares and enforces token credentials in the Transit framed
+  protocol when a token is configured
+- mTLS remains a declared posture only until the runtime implements it
 
 ## Verification Questions
 

@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-27T15:04:11.948834713-07:00
+mode: manual
+---
+Reviewed implementation boundaries: token auth is enforced in transit-core::server before handle_request dispatches to LocalEngine, RemoteErrorCode::Unauthorized preserves request_id/topology/code/message, and no LocalEngine storage, lineage, segment, manifest, or checkpoint semantics are changed. Full verification passed with just quality and just test (213 tests).

@@ -1,0 +1,15 @@
+---
+recorded_at: 2026-04-27T15:04:04.572878615-07:00
+command: cargo test -p transit-core auth
+---
+
+running 2 tests
+test server::tests::none_auth_mode_remains_available_for_local_development ... ok
+test server::tests::token_auth_rejects_unauthenticated_requests_before_shared_engine_mutation ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 142 filtered out; finished in 0.06s
+
+
+--- stderr ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-52d80f2c98a7c405)

@@ -31,6 +31,7 @@ pub const APPEND_BATCH_MAX_BYTES: usize = 1024 * 1024;
 pub struct ServerConfig {
     engine: LocalEngineConfig,
     listen_addr: SocketAddr,
+    auth: ServerAuthConfig,
     accept_poll_interval: Duration,
     connection_io_timeout: Duration,
 }
@@ -40,9 +41,15 @@ impl ServerConfig {
         Self {
             engine,
             listen_addr,
+            auth: ServerAuthConfig::None,
             accept_poll_interval: Duration::from_millis(DEFAULT_ACCEPT_POLL_INTERVAL_MS),
             connection_io_timeout: Duration::from_millis(DEFAULT_CONNECTION_IO_TIMEOUT_MS),
         }
+    }
+
+    pub fn with_token_auth(mut self, token: impl Into<String>) -> Result<Self> {
+        self.auth = ServerAuthConfig::token(token)?;
+        Ok(self)
     }
 
     pub fn with_connection_io_timeout(mut self, timeout: Duration) -> Self {
@@ -64,6 +71,35 @@ impl ServerConfig {
 
     pub fn connection_io_timeout(&self) -> Duration {
         self.connection_io_timeout
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+enum ServerAuthConfig {
+    None,
+    Token { token: String },
+}
+
+impl fmt::Debug for ServerAuthConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::None => f.write_str("None"),
+            Self::Token { .. } => f
+                .debug_struct("Token")
+                .field("token", &"<redacted>")
+                .finish(),
+        }
+    }
+}
+
+impl ServerAuthConfig {
+    fn token(token: impl Into<String>) -> Result<Self> {
+        let token = token.into();
+        ensure!(
+            !token.trim().is_empty(),
+            "token auth requires a non-empty token"
+        );
+        Ok(Self::Token { token })
     }
 }
 
@@ -109,6 +145,7 @@ impl ServerHandle {
         let thread_tail_sessions = Arc::clone(&tail_sessions);
         let accept_poll_interval = config.accept_poll_interval();
         let connection_io_timeout = config.connection_io_timeout();
+        let auth = config.auth.clone();
         let listener_thread = thread::Builder::new()
             .name("transit-server-listener".into())
             .spawn(move || {
@@ -122,6 +159,7 @@ impl ServerHandle {
                         tail_sessions: thread_tail_sessions,
                         accept_poll_interval,
                         connection_io_timeout,
+                        auth,
                     },
                 )
             })
@@ -309,6 +347,7 @@ pub struct RemoteClient {
     server_addr: SocketAddr,
     io_timeout: Duration,
     request_sequence: Arc<AtomicU64>,
+    auth: Option<ProtocolAuth>,
 }
 
 impl RemoteClient {
@@ -317,11 +356,19 @@ impl RemoteClient {
             server_addr,
             io_timeout: Duration::from_millis(DEFAULT_CONNECTION_IO_TIMEOUT_MS),
             request_sequence: Arc::new(AtomicU64::new(1)),
+            auth: None,
         }
     }
 
     pub fn with_io_timeout(mut self, timeout: Duration) -> Self {
         self.io_timeout = timeout;
+        self
+    }
+
+    pub fn with_auth_token(mut self, token: impl Into<String>) -> Self {
+        self.auth = Some(ProtocolAuth::Token {
+            token: token.into(),
+        });
         self
     }
 
@@ -849,6 +896,7 @@ impl RemoteClient {
         let request_id = self.next_request_id();
         let request = ProtocolRequest {
             request_id: request_id.clone(),
+            auth: self.auth.clone(),
             operation,
         };
         let mut stream =
@@ -1248,6 +1296,7 @@ impl RemoteErrorResponse {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RemoteErrorCode {
+    Unauthorized,
     InvalidRequest,
     NotFound,
     Internal,
@@ -1256,6 +1305,7 @@ pub enum RemoteErrorCode {
 impl fmt::Display for RemoteErrorCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unauthorized => write!(f, "unauthorized"),
             Self::InvalidRequest => write!(f, "invalid_request"),
             Self::NotFound => write!(f, "not_found"),
             Self::Internal => write!(f, "internal"),
@@ -1266,7 +1316,26 @@ impl fmt::Display for RemoteErrorCode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct ProtocolRequest {
     request_id: RequestId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    auth: Option<ProtocolAuth>,
     operation: OperationRequest,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ProtocolAuth {
+    Token { token: String },
+}
+
+impl fmt::Debug for ProtocolAuth {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Token { .. } => f
+                .debug_struct("Token")
+                .field("token", &"<redacted>")
+                .finish(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1583,6 +1652,7 @@ struct AcceptLoopContext {
     tail_sessions: Arc<Mutex<TailSessionRegistry>>,
     accept_poll_interval: Duration,
     connection_io_timeout: Duration,
+    auth: ServerAuthConfig,
 }
 
 #[derive(Debug, Default)]
@@ -1611,6 +1681,7 @@ fn run_accept_loop(listener: TcpListener, context: AcceptLoopContext) {
                 let worker_engine = context.engine.clone();
                 let worker_tail_sessions = Arc::clone(&context.tail_sessions);
                 let worker_io_timeout = context.connection_io_timeout;
+                let worker_auth = context.auth.clone();
                 match thread::Builder::new()
                     .name("transit-server-connection".into())
                     .spawn(move || {
@@ -1619,6 +1690,7 @@ fn run_accept_loop(listener: TcpListener, context: AcceptLoopContext) {
                             &worker_engine,
                             &worker_tail_sessions,
                             worker_io_timeout,
+                            &worker_auth,
                         );
                     }) {
                     Ok(worker) => connection_workers.push(worker),
@@ -1689,13 +1761,17 @@ fn serve_connection(
     engine: &LocalEngine,
     tail_sessions: &Arc<Mutex<TailSessionRegistry>>,
     io_timeout: Duration,
+    auth: &ServerAuthConfig,
 ) {
     let response = match configure_connection_stream(&stream, io_timeout) {
         Ok(()) => match read_request(&mut stream) {
             Ok(request) => {
                 #[cfg(test)]
                 maybe_pause_request_for_test(&request);
-                handle_request(engine, tail_sessions, request)
+                match authorize_request(auth, &request) {
+                    Ok(()) => handle_request(engine, tail_sessions, request),
+                    Err(response) => response,
+                }
             }
             Err(error) => invalid_request_response(RequestId::server_generated("decode"), error),
         },
@@ -1713,6 +1789,26 @@ fn configure_connection_stream(stream: &TcpStream, io_timeout: Duration) -> std:
     stream.set_read_timeout(Some(io_timeout))?;
     stream.set_write_timeout(Some(io_timeout))?;
     Ok(())
+}
+
+fn authorize_request(
+    auth: &ServerAuthConfig,
+    request: &ProtocolRequest,
+) -> std::result::Result<(), ProtocolResponse> {
+    match auth {
+        ServerAuthConfig::None => Ok(()),
+        ServerAuthConfig::Token { token } => match &request.auth {
+            Some(ProtocolAuth::Token { token: supplied }) if supplied == token => Ok(()),
+            Some(ProtocolAuth::Token { .. }) => Err(unauthorized_response(
+                request.request_id.clone(),
+                "invalid token for hosted transit server".to_owned(),
+            )),
+            None => Err(unauthorized_response(
+                request.request_id.clone(),
+                "missing token for hosted transit server".to_owned(),
+            )),
+        },
+    }
 }
 
 fn read_request(stream: &mut TcpStream) -> Result<ProtocolRequest> {
@@ -2473,6 +2569,10 @@ fn invalid_request_response(request_id: RequestId, error: anyhow::Error) -> Prot
     )
 }
 
+fn unauthorized_response(request_id: RequestId, message: String) -> ProtocolResponse {
+    error_response(request_id, RemoteErrorCode::Unauthorized, message)
+}
+
 fn internal_error_response(request_id: RequestId, message: String) -> ProtocolResponse {
     error_response(request_id, RemoteErrorCode::Internal, message)
 }
@@ -2553,10 +2653,10 @@ fn unexpected_operation_response(
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_CONNECTION_IO_TIMEOUT_MS, OperationRequest, OperationResponse, ProtocolRequest,
-        ProtocolResponse, RemoteClient, RemoteClientError, RemoteClientResult, RemoteErrorCode,
-        RemoteTailSessionState, RemoteTopology, RequestId, ResponseEnvelope, ServerConfig,
-        ServerHandle, arm_request_pause_for_test, configure_connection_stream,
+        DEFAULT_CONNECTION_IO_TIMEOUT_MS, OperationRequest, OperationResponse, ProtocolAuth,
+        ProtocolRequest, ProtocolResponse, RemoteClient, RemoteClientError, RemoteClientResult,
+        RemoteErrorCode, RemoteTailSessionState, RemoteTopology, RequestId, ResponseEnvelope,
+        ServerConfig, ServerHandle, arm_request_pause_for_test, configure_connection_stream,
         release_paused_request_for_test, wait_for_paused_request_for_test,
     };
     use crate::engine::{DurabilityMode, LocalEngine, LocalEngineConfig};
@@ -2735,6 +2835,122 @@ mod tests {
     }
 
     #[test]
+    fn token_auth_rejects_unauthenticated_requests_before_shared_engine_mutation() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(
+            ServerConfig::new(
+                LocalEngineConfig::new(
+                    temp_dir.path(),
+                    crate::membership::NodeId::new("test-node"),
+                ),
+                "127.0.0.1:0".parse().expect("listen addr"),
+            )
+            .with_token_auth("secret-token")
+            .expect("token auth config"),
+        )
+        .expect("bind token server");
+
+        let unauthenticated = RemoteClient::new(server.local_addr())
+            .with_io_timeout(Duration::from_secs(1))
+            .create_root(
+                &stream_id("auth.missing"),
+                LineageMetadata::new(Some("test".into()), Some("auth-missing".into())),
+            )
+            .expect_err("missing token should be rejected");
+
+        match unauthenticated {
+            RemoteClientError::Remote(error) => {
+                assert_eq!(error.request_id().as_str(), "req-1");
+                assert_eq!(error.topology(), RemoteTopology::SingleNode);
+                assert_eq!(error.code(), RemoteErrorCode::Unauthorized);
+                assert!(error.message().contains("missing token"));
+            }
+            other => panic!("expected remote auth error, got {other:?}"),
+        }
+        assert!(
+            server
+                .engine()
+                .list_streams()
+                .expect("list streams after missing auth")
+                .is_empty()
+        );
+
+        let invalid_request = ProtocolRequest {
+            request_id: RequestId::new("auth-invalid").expect("request id"),
+            auth: Some(ProtocolAuth::Token {
+                token: "wrong-token".into(),
+            }),
+            operation: OperationRequest::CreateRoot {
+                stream_id: stream_id("auth.invalid"),
+                metadata: LineageMetadata::new(Some("test".into()), Some("auth-invalid".into())),
+                retention_policy: None,
+            },
+        };
+        let invalid_response = send_protocol_request(server.local_addr(), invalid_request);
+        assert_eq!(invalid_response.request_id.as_str(), "auth-invalid");
+        match invalid_response.envelope {
+            ResponseEnvelope::Error { error } => {
+                assert_eq!(error.topology, RemoteTopology::SingleNode);
+                assert_eq!(error.code, RemoteErrorCode::Unauthorized);
+                assert!(error.message.contains("invalid token"));
+            }
+            other => panic!("expected auth error envelope, got {other:?}"),
+        }
+        assert!(
+            server
+                .engine()
+                .list_streams()
+                .expect("list streams after invalid auth")
+                .is_empty()
+        );
+
+        let authorized = RemoteClient::new(server.local_addr())
+            .with_io_timeout(Duration::from_secs(1))
+            .with_auth_token("secret-token")
+            .create_root(
+                &stream_id("auth.accepted"),
+                LineageMetadata::new(Some("test".into()), Some("auth-accepted".into())),
+            )
+            .expect("valid token should be accepted");
+
+        assert_eq!(authorized.body().stream_id().as_str(), "auth.accepted");
+        assert_eq!(authorized.ack().topology(), RemoteTopology::SingleNode);
+        assert_eq!(
+            server
+                .engine()
+                .list_streams()
+                .expect("list streams after valid auth")
+                .len(),
+            1
+        );
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn none_auth_mode_remains_available_for_local_development() {
+        let temp_dir = tempdir().expect("temp dir");
+        let server = ServerHandle::bind(ServerConfig::new(
+            LocalEngineConfig::new(temp_dir.path(), crate::membership::NodeId::new("test-node")),
+            "127.0.0.1:0".parse().expect("listen addr"),
+        ))
+        .expect("bind unauthenticated server");
+
+        let created = RemoteClient::new(server.local_addr())
+            .create_root(
+                &stream_id("auth.none"),
+                LineageMetadata::new(Some("test".into()), Some("auth-none".into())),
+            )
+            .expect("none mode should allow local development requests");
+
+        assert_eq!(created.body().stream_id().as_str(), "auth.none");
+        assert_eq!(created.ack().durability(), "local");
+        assert_eq!(created.ack().topology(), RemoteTopology::SingleNode);
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
     fn hosted_concurrent_connection_allows_progress_while_another_connection_is_idle() {
         let temp_dir = tempdir().expect("temp dir");
         let server = ServerHandle::bind(
@@ -2790,6 +3006,7 @@ mod tests {
         arm_request_pause_for_test();
         let paused_request = ProtocolRequest {
             request_id: RequestId::new("pause-list").expect("pause request id"),
+            auth: None,
             operation: OperationRequest::ListStreams,
         };
         let paused_thread =
@@ -2839,6 +3056,7 @@ mod tests {
 
         let request = ProtocolRequest {
             request_id: RequestId::new("req-42").expect("request id"),
+            auth: None,
             operation: OperationRequest::Read {
                 stream_id: root_stream.clone(),
             },

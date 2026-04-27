@@ -178,6 +178,23 @@ Failure behavior is explicit:
 - successful batch append still commits ordinary per-record offsets, replay, and
   tail behavior; consumers continue to observe individual Transit records
 
+## Hosted Token Auth
+
+When the server runs with `auth_mode = "token"`, downstream Rust clients attach
+the Transit protocol credential with `with_auth_token`:
+
+```rust
+use transit_client::{StreamId, TransitClient};
+
+let client = TransitClient::new("127.0.0.1:7171".parse()?)
+    .with_auth_token(std::env::var("TRANSIT_AUTH_TOKEN")?);
+
+let replay = client.read(&StreamId::new("consumer.orders")?)?;
+```
+
+Missing or invalid tokens fail as hosted `unauthorized` remote errors. The
+error still carries the server `request_id`, topology, code, and message.
+
 ## Hosted I/O Timeouts
 
 Hosted transport defaults remain explicit at 1000ms on both the server and

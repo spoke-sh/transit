@@ -241,7 +241,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Harden Hosted Protocol Auth And Lease Fencing](epics/VI1mcFKum/voyages/VI1mfwr25/) | planned |
+| [Harden Hosted Protocol Auth And Lease Fencing](epics/VI1mcFKum/voyages/VI1mfwr25/) | in-progress |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

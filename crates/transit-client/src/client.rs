@@ -82,6 +82,11 @@ impl TransitClient {
         self
     }
 
+    pub fn with_auth_token(mut self, token: impl Into<String>) -> Self {
+        self.inner = self.inner.with_auth_token(token);
+        self
+    }
+
     pub fn io_timeout(&self) -> Duration {
         self.inner.io_timeout()
     }

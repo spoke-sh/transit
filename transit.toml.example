@@ -31,6 +31,8 @@ advertise_addr = "127.0.0.1:7171"
 max_connections = 1024
 request_body_limit_bytes = 8388608
 auth_mode = "none"
+# For auth_mode = "token", prefer TRANSIT_AUTH_TOKEN for production secrets.
+# auth_token = "dev-secret"
 
 [replication]
 mode = "single-node"

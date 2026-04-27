@@ -2488,11 +2488,19 @@ fn effective_hosted_io_timeout_ms(io_timeout_ms: Option<u64>) -> u64 {
 }
 
 fn build_remote_client(server_addr: SocketAddr, io_timeout_ms: Option<u64>) -> RemoteClient {
-    match io_timeout_ms {
+    let client = match io_timeout_ms {
         Some(io_timeout_ms) => {
             RemoteClient::new(server_addr).with_io_timeout(Duration::from_millis(io_timeout_ms))
         }
         None => RemoteClient::new(server_addr),
+    };
+
+    match std::env::var("TRANSIT_AUTH_TOKEN")
+        .ok()
+        .filter(|token| !token.trim().is_empty())
+    {
+        Some(token) => client.with_auth_token(token),
+        None => client,
     }
 }
 
@@ -2507,11 +2515,19 @@ fn build_server_namespace_client(server_addr: SocketAddr) -> RemoteClient {
 }
 
 fn build_transit_client(server_addr: SocketAddr, io_timeout_ms: Option<u64>) -> TransitClient {
-    match io_timeout_ms {
+    let client = match io_timeout_ms {
         Some(io_timeout_ms) => {
             TransitClient::new(server_addr).with_io_timeout(Duration::from_millis(io_timeout_ms))
         }
         None => TransitClient::new(server_addr),
+    };
+
+    match std::env::var("TRANSIT_AUTH_TOKEN")
+        .ok()
+        .filter(|token| !token.trim().is_empty())
+    {
+        Some(token) => client.with_auth_token(token),
+        None => client,
     }
 }
 
@@ -2523,6 +2539,29 @@ fn configure_server_connection_timeout(
         Some(connection_io_timeout_ms) => server_config
             .with_connection_io_timeout(Duration::from_millis(connection_io_timeout_ms)),
         None => server_config,
+    }
+}
+
+fn configure_server_auth(
+    server_config: ServerConfig,
+    auth_mode: &str,
+    auth_token: Option<&str>,
+) -> Result<ServerConfig> {
+    let normalized = auth_mode.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "none" => Ok(server_config),
+        "token" => {
+            let token = auth_token
+                .filter(|token| !token.trim().is_empty())
+                .context(
+                    "server auth_mode token requires [server].auth_token or TRANSIT_AUTH_TOKEN",
+                )?;
+            server_config.with_token_auth(token.to_owned())
+        }
+        "mtls" => bail!(
+            "server auth_mode 'mtls' is declared but not implemented; choose 'none' or 'token'"
+        ),
+        other => bail!("unsupported server auth_mode '{other}'"),
     }
 }
 
@@ -4086,6 +4125,11 @@ fn bind_hosted_runtime_server(
         ServerConfig::new(engine_config, requested_listen_addr),
         connection_io_timeout_ms,
     );
+    let server_config = configure_server_auth(
+        server_config,
+        &effective_config.server.auth_mode,
+        effective_config.server.auth_token.as_deref(),
+    )?;
     ServerHandle::bind(server_config).context("bind shared-engine server")
 }
 
@@ -8320,6 +8364,84 @@ listen_addr = "127.0.0.1:0"
         assert_eq!(created.ack().durability(), "local");
         assert_eq!(append.ack().durability(), "local");
         assert_eq!(replay.ack().durability(), "local");
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn hosted_runtime_server_applies_configured_token_auth() {
+        let temp_dir = tempdir().expect("temp dir");
+        let data_dir = temp_dir.path().join("server-data");
+        let object_store_root = temp_dir.path().join("object-store");
+        let config = load_temp_config(
+            temp_dir.path(),
+            &format!(
+                r#"
+[node]
+id = "hosted-node"
+mode = "server"
+data_dir = "{data_dir}"
+
+[storage]
+provider = "filesystem"
+bucket = "{object_store_root}"
+
+[server]
+listen_addr = "127.0.0.1:0"
+auth_mode = "token"
+auth_token = "cli-secret"
+"#,
+                data_dir = data_dir.display(),
+                object_store_root = object_store_root.display(),
+            ),
+        );
+
+        let server = bind_hosted_runtime_server(
+            &config,
+            &resolve_local_root(None, &config),
+            "127.0.0.1:0".parse().expect("listen addr"),
+            config.config().effective_node_id(),
+            None,
+        )
+        .expect("bind hosted runtime server");
+        let stream_id = StreamId::new("cli.auth.root").expect("stream id");
+
+        let unauthenticated = TransitClient::new(server.local_addr())
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(Some("cli".into()), Some("missing-token".into())),
+            )
+            .expect_err("missing token should be rejected");
+        match unauthenticated {
+            transit_core::server::RemoteClientError::Remote(error) => {
+                assert_eq!(
+                    error.code(),
+                    transit_core::server::RemoteErrorCode::Unauthorized
+                );
+                assert_eq!(
+                    error.topology(),
+                    transit_core::server::RemoteTopology::SingleNode
+                );
+                assert!(error.message().contains("missing token"));
+            }
+            other => panic!("expected remote auth error, got {other:?}"),
+        }
+        assert!(
+            server
+                .engine()
+                .list_streams()
+                .expect("list streams")
+                .is_empty()
+        );
+
+        let created = TransitClient::new(server.local_addr())
+            .with_auth_token("cli-secret")
+            .create_root(
+                &stream_id,
+                LineageMetadata::new(Some("cli".into()), Some("valid-token".into())),
+            )
+            .expect("valid token should be accepted");
+        assert_eq!(created.body().stream_id(), &stream_id);
 
         server.shutdown().expect("shutdown server");
     }
