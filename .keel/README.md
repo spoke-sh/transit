@@ -225,11 +225,11 @@
 |--------|--------|
 | [Deliver Hosted Materialization Cursor And Resume Surface](epics/VHYE3HF6J/voyages/VHYE9AqjG/) | done |
 
-### [Production-Grade Replay And Materialization API](epics/VI1mae3rd/) (active)
+### [Production-Grade Replay And Materialization API](epics/VI1mae3rd/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Deliver Streaming Replay And Snapshot-Safe Materialization](epics/VI1mae3rd/voyages/VI1meNvzJ/) | in-progress |
+| [Deliver Streaming Replay And Snapshot-Safe Materialization](epics/VI1mae3rd/voyages/VI1meNvzJ/) | done |
 
 ### [Typed Workload SDKs For Conversational And Agent Lineage](epics/VI1mbSnsy/) (active)
 
