@@ -10,6 +10,7 @@ pub mod membership;
 pub mod object_store_support;
 pub mod server;
 pub mod storage;
+pub mod workloads;
 
 pub use anyhow::Result;
 pub use async_trait::async_trait;

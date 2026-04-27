@@ -1,0 +1,14 @@
+---
+recorded_at: 2026-04-27T14:46:08.433109493-07:00
+command: cargo test -p transit-core typed_builders_cover_communication_contract_shapes -- --nocapture
+---
+
+running 1 test
+test workloads::communication::tests::typed_builders_cover_communication_contract_shapes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 139 filtered out; finished in 0.00s
+
+
+--- stderr ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-52d80f2c98a7c405)

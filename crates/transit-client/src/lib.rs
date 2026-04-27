@@ -30,6 +30,7 @@ pub use transit_core::server::{
     RemoteTailBatch, RemoteTailSessionCancelled, RemoteTailSessionOpened, RemoteTailSessionState,
     RemoteTopology, RequestId, TailSessionId,
 };
+pub use transit_core::workloads;
 
 pub use client::{ClientResult, HostedMaterializationResume, TransitClient};
 pub use projection::{ProjectionReadConsumer, ProjectionReadOutcome, ProjectionReadRequest};

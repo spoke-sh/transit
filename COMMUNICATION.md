@@ -257,6 +257,24 @@ Recommended override actions:
 
 Overrides remain application-level conventions on top of lineage primitives, but they should still be appended explicitly so replay explains why thread structure changed.
 
+## Rust Helper Surface
+
+The first-party Rust helper surface lives under
+`transit_core::workloads::communication` and is re-exported by
+`transit_client::workloads`.
+
+Those helpers construct only ordinary Transit inputs:
+
+- channel and thread payload bytes for append
+- `LineageMetadata` for channel roots and thread branches
+- `StreamPosition`-anchored thread branch inputs
+- `ArtifactEnvelope` values for backlinks, summaries, classifier evidence, and human overrides
+
+They intentionally do not define application authorization, moderation,
+account, tenant, or provider policy. Downstream applications should attach
+those concerns in their own payloads or control planes while keeping Transit
+lineage and artifact metadata replayable.
+
 ## Thread Lifecycle And Reconciliation
 
 Normal threaded communication does not need a merge for every thread.

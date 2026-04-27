@@ -235,7 +235,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Publish Typed AI And Communication Event Builders](epics/VI1mbSnsy/voyages/VI1mf8o0n/) | planned |
+| [Publish Typed AI And Communication Event Builders](epics/VI1mbSnsy/voyages/VI1mf8o0n/) | in-progress |
 
 ### [Hosted Authority Hardening For Durable External Systems](epics/VI1mcFKum/) (active)
 

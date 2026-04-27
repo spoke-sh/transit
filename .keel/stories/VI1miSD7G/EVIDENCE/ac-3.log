@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-27T14:46:14.750859460-07:00
+mode: manual
+---
+Reviewed helper surface and COMMUNICATION.md update: communication builders emit payload bytes, LineageMetadata, StreamPosition branch inputs, and ArtifactEnvelope values only; they do not add account, authorization, moderation, tenant, session, or provider-policy fields to Transit-owned types.
