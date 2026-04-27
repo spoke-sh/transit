@@ -231,11 +231,11 @@
 |--------|--------|
 | [Deliver Streaming Replay And Snapshot-Safe Materialization](epics/VI1mae3rd/voyages/VI1meNvzJ/) | done |
 
-### [Typed Workload SDKs For Conversational And Agent Lineage](epics/VI1mbSnsy/) (active)
+### [Typed Workload SDKs For Conversational And Agent Lineage](epics/VI1mbSnsy/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Publish Typed AI And Communication Event Builders](epics/VI1mbSnsy/voyages/VI1mf8o0n/) | in-progress |
+| [Publish Typed AI And Communication Event Builders](epics/VI1mbSnsy/voyages/VI1mf8o0n/) | done |
 
 ### [Hosted Authority Hardening For Durable External Systems](epics/VI1mcFKum/) (active)
 
