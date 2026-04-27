@@ -1,0 +1,36 @@
+---
+# system-managed
+id: VI1meNvzJ
+status: planned
+epic: VI1mae3rd
+created_at: 2026-04-27T14:07:45
+# authored
+title: Deliver Streaming Replay And Snapshot-Safe Materialization
+index: 1
+updated_at: 2026-04-27T14:11:45
+---
+
+# Deliver Streaming Replay And Snapshot-Safe Materialization
+
+> Expose range replay, resume-ready checkpoint metadata, and Prolly snapshot correctness so downstream applications can build derived state without side stores or full-history scans.
+
+## Documents
+
+<!-- BEGIN DOCUMENTS -->
+| Document | Description |
+|----------|-------------|
+| [SRS.md](SRS.md) | Requirements and verification criteria |
+| [SDD.md](SDD.md) | Architecture and implementation details |
+<!-- END DOCUMENTS -->
+
+## Stories
+
+<!-- BEGIN GENERATED -->
+**Progress:** 0/3 stories complete
+
+| Title | Type | Status |
+|-------|------|--------|
+| [Add Range Replay And Tail Pagination To Shared Engine](../../../../stories/VI1mhEI43/README.md) | feat | backlog |
+| [Align Materialization Checkpoint Envelope With Published Contract](../../../../stories/VI1mhEX4z/README.md) | feat | backlog |
+| [Harden Prolly Snapshot Builder And Diff Primitives](../../../../stories/VI1mhEj51/README.md) | feat | backlog |
+<!-- END GENERATED -->

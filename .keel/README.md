@@ -225,6 +225,24 @@
 |--------|--------|
 | [Deliver Hosted Materialization Cursor And Resume Surface](epics/VHYE3HF6J/voyages/VHYE9AqjG/) | done |
 
+### [Production-Grade Replay And Materialization API](epics/VI1mae3rd/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Deliver Streaming Replay And Snapshot-Safe Materialization](epics/VI1mae3rd/voyages/VI1meNvzJ/) | planned |
+
+### [Typed Workload SDKs For Conversational And Agent Lineage](epics/VI1mbSnsy/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Publish Typed AI And Communication Event Builders](epics/VI1mbSnsy/voyages/VI1mf8o0n/) | planned |
+
+### [Hosted Authority Hardening For Durable External Systems](epics/VI1mcFKum/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Harden Hosted Protocol Auth And Lease Fencing](epics/VI1mcFKum/voyages/VI1mfwr25/) | planned |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
