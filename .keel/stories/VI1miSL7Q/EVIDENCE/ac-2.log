@@ -1,0 +1,14 @@
+---
+recorded_at: 2026-04-27T14:50:39.680268831-07:00
+command: cargo test -p transit-core ai_trace_helpers_preserve_lineage_and_explicit_merge_metadata -- --nocapture
+---
+
+running 1 test
+test workloads::ai::tests::ai_trace_helpers_preserve_lineage_and_explicit_merge_metadata ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 141 filtered out; finished in 0.18s
+
+
+--- stderr ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_core-52d80f2c98a7c405)

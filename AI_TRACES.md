@@ -182,3 +182,20 @@ The canonical AI trace model needs a small, consistent metadata set.
 - standardize one application schema for every agent framework
 
 The artifact-envelope contract now lives in [AI_ARTIFACTS.md](AI_ARTIFACTS.md). Benchmark fixture layout belongs in the next planning slice.
+
+## Rust Helper Surface
+
+The first-party Rust helper surface lives under
+`transit_core::workloads::ai` and is re-exported by `transit_client::workloads`.
+
+Those helpers construct only ordinary Transit inputs:
+
+- task root `LineageMetadata`
+- retry and critique branch inputs anchored by `StreamPosition`
+- tool-call, evaluator-decision, and checkpoint payload bytes
+- explicit `MergeSpec` values for reconciliation
+- `ArtifactEnvelope` values for merge artifacts
+
+The helpers do not execute models, host evaluators, or define application
+framework schemas. They only preserve canonical trace vocabulary over the
+shared stream, branch, merge, and artifact primitives.

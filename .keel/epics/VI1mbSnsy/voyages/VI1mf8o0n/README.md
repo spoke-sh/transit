@@ -27,11 +27,11 @@ started_at: 2026-04-27T14:40:46
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Add Typed Communication Threading Builders](../../../../stories/VI1miSD7G/README.md) | feat | done |
-| [Add Typed AI Trace Event Builders](../../../../stories/VI1miSL7Q/README.md) | feat | backlog |
+| [Add Typed AI Trace Event Builders](../../../../stories/VI1miSL7Q/README.md) | feat | done |
 | [Publish Downstream Workload Examples And Docs](../../../../stories/VI1miSh90/README.md) | docs | backlog |
 <!-- END GENERATED -->
