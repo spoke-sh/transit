@@ -1877,8 +1877,12 @@ struct MaterializationProofSnapshotResult {
     snapshot_id: String,
     source_stream_id: String,
     source_head_offset: u64,
+    source_lineage_ref: String,
     source_manifest_root: String,
     root_digest: String,
+    snapshot_root_ref: String,
+    parent_snapshot_refs: Vec<String>,
+    verification_expectation: String,
     stored_node_count: usize,
     builder_api: &'static str,
     store_api: &'static str,
@@ -3482,12 +3486,17 @@ async fn run_materialization_proof(root: PathBuf) -> Result<MaterializationProof
     engine
         .verify_checkpoint(&snapshot_checkpoint.lineage_anchor)
         .context("verify snapshot source checkpoint anchor")?;
+    let snapshot_source_manifest = engine
+        .load_manifest(&stream_id)
+        .context("load materialization proof snapshot source manifest")?;
     let snapshot = build_materialization_snapshot(
         &root.join("snapshot-store"),
         &materialization_id,
         &stream_id,
         &snapshot_checkpoint,
         &resumed_state,
+        snapshot_source_manifest.generation(),
+        Vec::new(),
     )
     .await?;
 
@@ -3578,6 +3587,8 @@ async fn run_materialization_proof(root: PathBuf) -> Result<MaterializationProof
         &branch_stream_id,
         &branch_checkpoint,
         &branch_state,
+        branch_manifest.generation(),
+        vec![snapshot.result.snapshot_id.clone()],
     )
     .await?;
     ensure!(
@@ -3823,6 +3834,8 @@ async fn build_materialization_snapshot(
     stream_id: &StreamId,
     checkpoint: &MaterializationCheckpoint,
     state: &MaterializationProofState,
+    source_manifest_generation: u64,
+    parent_snapshot_refs: Vec<String>,
 ) -> Result<MaterializationProofSnapshotArtifacts> {
     ensure!(
         checkpoint.materialization_id == materialization_id,
@@ -3864,10 +3877,27 @@ async fn build_materialization_snapshot(
     let manifest = SnapshotManifest {
         materialization_id: materialization_id.to_owned(),
         snapshot_id: snapshot_id.clone(),
+        snapshot_kind: "prolly_tree".to_owned(),
         source_stream_id: stream_id.clone(),
         source_checkpoint: checkpoint.lineage_anchor.clone(),
+        source_lineage_ref: format!(
+            "{}@{}",
+            stream_id.as_str(),
+            checkpoint.lineage_anchor.head_offset.value()
+        ),
+        source_manifest_generation,
+        source_checkpoint_ref: Some(format!(
+            "{}:{}@{}",
+            checkpoint.lineage_anchor.kind,
+            stream_id.as_str(),
+            checkpoint.lineage_anchor.head_offset.value()
+        )),
+        parent_snapshot_refs,
         root_digest: root_digest.clone(),
+        snapshot_root_ref: format!("prolly:{}", root_digest.digest()),
+        snapshot_stats_ref: None,
         created_at: checkpoint.produced_at,
+        materializer_version: "materialization-proof.v1".to_owned(),
     };
     ensure!(
         manifest.source_checkpoint.stream_id.as_str() == stream_id.as_str(),
@@ -3911,8 +3941,14 @@ async fn build_materialization_snapshot(
             snapshot_id,
             source_stream_id: manifest.source_stream_id.as_str().to_owned(),
             source_head_offset: manifest.source_checkpoint.head_offset.value(),
+            source_lineage_ref: manifest.source_lineage_ref.clone(),
             source_manifest_root: manifest.source_checkpoint.manifest_root.digest().to_owned(),
             root_digest: manifest.root_digest.digest().to_owned(),
+            snapshot_root_ref: manifest.snapshot_root_ref.clone(),
+            parent_snapshot_refs: manifest.parent_snapshot_refs.clone(),
+            verification_expectation:
+                "verify source_checkpoint manifest root before trusting snapshot_root_ref"
+                    .to_owned(),
             stored_node_count,
             builder_api: "ProllyTreeBuilder::build_from_entries",
             store_api: "ObjectStoreProllyStore",

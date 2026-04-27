@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-27T14:36:57.688214040-07:00
+mode: manual
+---
+Updated MATERIALIZATION.md and materialization proof output so snapshot artifacts name the source lineage reference, root digest/root ref, parent snapshot references, and verifier expectations: validate the source checkpoint/manifest root, load the object-store-backed root node by digest, and recompute node digests before trusting snapshot data.

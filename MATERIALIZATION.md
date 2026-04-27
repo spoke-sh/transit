@@ -215,6 +215,7 @@ A reusable snapshot should have a small manifest with fields such as:
 - `source_manifest_generation`
 - `source_checkpoint_ref`
 - `parent_snapshot_refs`
+- `root_digest`
 - `snapshot_root_ref`
 - `snapshot_stats_ref`
 - `created_at`
@@ -226,6 +227,14 @@ The manifest is the stable inspection surface. It should let operators answer:
 - whether it descends from another snapshot on the same branch
 - which checkpoint or manifest generation it trusts
 - where the actual snapshot data lives
+
+For prolly-tree snapshots, `root_digest` is the content digest of the root
+node and `snapshot_root_ref` should name both the snapshot structure and that
+root, for example `prolly:<sha256>`. `parent_snapshot_refs` names parent
+snapshots reused, compared, or merged while producing the artifact. A verifier
+should first validate the source checkpoint and manifest root, then load the
+root node by digest from the object-store-backed node namespace and recompute
+node digests before trusting the snapshot data.
 
 ### Supporting Structures
 

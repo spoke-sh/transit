@@ -1,6 +1,7 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use object_store::ObjectStoreExt;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use transit_core::kernel::StreamId;
 use transit_core::storage::{ContentDigest, LineageCheckpoint};
 
@@ -45,12 +46,19 @@ impl ProllyStore for MemoryProllyStore {
     }
 
     async fn get(&self, digest: &ContentDigest) -> Result<ProllyNode> {
-        self.nodes
+        let node = self
+            .nodes
             .lock()
             .unwrap()
             .get(digest.digest())
             .cloned()
-            .context("not found")
+            .context("not found")?;
+        ensure!(
+            node.digest()? == *digest,
+            "prolly node digest mismatch for {}",
+            digest.digest()
+        );
+        Ok(node)
     }
 }
 
@@ -98,37 +106,61 @@ impl ProllyStore for ObjectStoreProllyStore {
             .bytes()
             .await
             .context("read node bytes")?;
-        serde_json::from_slice(&bytes).context("deserialize node")
+        let node: ProllyNode = serde_json::from_slice(&bytes).context("deserialize node")?;
+        ensure!(
+            node.digest()? == *digest,
+            "prolly node digest mismatch for {}",
+            digest.digest()
+        );
+        Ok(node)
     }
 }
 
 /// One node in a Prolly Tree.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProllyNode {
     Leaf(LeafNode),
     Internal(InternalNode),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LeafNode {
     pub entries: Vec<LeafEntry>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LeafEntry {
     pub key: Vec<u8>,
     pub value: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InternalNode {
     pub entries: Vec<InternalEntry>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InternalEntry {
     pub key: Vec<u8>,
     pub child_digest: ContentDigest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ProllyDiff {
+    Added {
+        key: Vec<u8>,
+        value: Vec<u8>,
+    },
+    Removed {
+        key: Vec<u8>,
+        value: Vec<u8>,
+    },
+    Changed {
+        key: Vec<u8>,
+        before: Vec<u8>,
+        after: Vec<u8>,
+    },
 }
 
 /// Metadata for a reusable materialization snapshot.
@@ -136,10 +168,18 @@ pub struct InternalEntry {
 pub struct SnapshotManifest {
     pub materialization_id: String,
     pub snapshot_id: String,
+    pub snapshot_kind: String,
     pub source_stream_id: StreamId,
     pub source_checkpoint: LineageCheckpoint,
+    pub source_lineage_ref: String,
+    pub source_manifest_generation: u64,
+    pub source_checkpoint_ref: Option<String>,
+    pub parent_snapshot_refs: Vec<String>,
     pub root_digest: ContentDigest,
+    pub snapshot_root_ref: String,
+    pub snapshot_stats_ref: Option<String>,
     pub created_at: i64,
+    pub materializer_version: String,
 }
 
 pub struct ProllyTreeBuilder<'a, S: ProllyStore> {
@@ -156,6 +196,7 @@ impl<'a, S: ProllyStore> ProllyTreeBuilder<'a, S> {
     }
 
     pub async fn build_from_entries(&self, entries: Vec<LeafEntry>) -> Result<ContentDigest> {
+        let entries = canonicalize_entries(entries)?;
         if entries.is_empty() {
             let empty_leaf = ProllyNode::Leaf(LeafNode {
                 entries: Vec::new(),
@@ -170,15 +211,17 @@ impl<'a, S: ProllyStore> ProllyTreeBuilder<'a, S> {
         for entry in entries {
             current_chunk.push(entry);
             if self.should_chunk_leaf(&current_chunk) {
+                let separator_key = current_chunk
+                    .last()
+                    .expect("leaf chunk has at least one entry")
+                    .key
+                    .clone();
                 let node = ProllyNode::Leaf(LeafNode {
                     entries: std::mem::take(&mut current_chunk),
                 });
                 let digest = self.store.put(node).await?;
                 current_layer_digests.push(InternalEntry {
-                    key: current_chunk
-                        .last()
-                        .map(|e| e.key.clone())
-                        .unwrap_or_default(),
+                    key: separator_key,
                     child_digest: digest,
                 });
             }
@@ -204,15 +247,17 @@ impl<'a, S: ProllyStore> ProllyTreeBuilder<'a, S> {
             for entry in current_layer_digests {
                 current_internal_chunk.push(entry);
                 if self.should_chunk_internal(&current_internal_chunk) {
+                    let separator_key = current_internal_chunk
+                        .last()
+                        .expect("internal chunk has at least one entry")
+                        .key
+                        .clone();
                     let node = ProllyNode::Internal(InternalNode {
                         entries: std::mem::take(&mut current_internal_chunk),
                     });
                     let digest = self.store.put(node).await?;
                     next_layer_digests.push(InternalEntry {
-                        key: current_internal_chunk
-                            .last()
-                            .map(|e| e.key.clone())
-                            .unwrap_or_default(),
+                        key: separator_key,
                         child_digest: digest,
                     });
                 }
@@ -235,27 +280,113 @@ impl<'a, S: ProllyStore> ProllyTreeBuilder<'a, S> {
         Ok(current_layer_digests[0].child_digest.clone())
     }
 
-    fn should_chunk_leaf(&self, entries: &[LeafEntry]) -> bool {
-        // Simple content-defined chunking: hash the last entry and check threshold
-        if let Some(last) = entries.last() {
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            use std::hash::Hasher;
-            std::hash::Hash::hash(&last.key, &mut hasher);
-            (hasher.finish() as u32) & self.chunk_threshold == 0
-        } else {
-            false
+    pub async fn lookup(&self, root_digest: &ContentDigest, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        let mut next_digest = root_digest.clone();
+
+        loop {
+            match self.store.get(&next_digest).await? {
+                ProllyNode::Leaf(leaf) => {
+                    return Ok(leaf
+                        .entries
+                        .binary_search_by(|entry| entry.key.as_slice().cmp(key))
+                        .ok()
+                        .map(|index| leaf.entries[index].value.clone()));
+                }
+                ProllyNode::Internal(internal) => {
+                    ensure!(
+                        !internal.entries.is_empty(),
+                        "internal prolly node must contain at least one child"
+                    );
+                    let child = internal
+                        .entries
+                        .iter()
+                        .find(|entry| key <= entry.key.as_slice())
+                        .unwrap_or_else(|| {
+                            internal
+                                .entries
+                                .last()
+                                .expect("internal node is known non-empty")
+                        });
+                    next_digest = child.child_digest.clone();
+                }
+            }
         }
     }
 
-    fn should_chunk_internal(&self, entries: &[InternalEntry]) -> bool {
-        if let Some(last) = entries.last() {
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            use std::hash::Hasher;
-            std::hash::Hash::hash(&last.key, &mut hasher);
-            (hasher.finish() as u32) & self.chunk_threshold == 0
-        } else {
-            false
+    pub async fn diff(
+        &self,
+        before_root: &ContentDigest,
+        after_root: &ContentDigest,
+    ) -> Result<Vec<ProllyDiff>> {
+        let before = self.collect_entries(before_root).await?;
+        let after = self.collect_entries(after_root).await?;
+        let mut changes = Vec::new();
+
+        for (key, before_value) in &before {
+            match after.get(key) {
+                Some(after_value) if after_value != before_value => {
+                    changes.push(ProllyDiff::Changed {
+                        key: key.clone(),
+                        before: before_value.clone(),
+                        after: after_value.clone(),
+                    })
+                }
+                None => changes.push(ProllyDiff::Removed {
+                    key: key.clone(),
+                    value: before_value.clone(),
+                }),
+                _ => {}
+            }
         }
+
+        for (key, after_value) in &after {
+            if !before.contains_key(key) {
+                changes.push(ProllyDiff::Added {
+                    key: key.clone(),
+                    value: after_value.clone(),
+                });
+            }
+        }
+
+        Ok(changes)
+    }
+
+    async fn collect_entries(
+        &self,
+        root_digest: &ContentDigest,
+    ) -> Result<BTreeMap<Vec<u8>, Vec<u8>>> {
+        let mut entries = BTreeMap::new();
+        let mut stack = vec![root_digest.clone()];
+
+        while let Some(digest) = stack.pop() {
+            match self.store.get(&digest).await? {
+                ProllyNode::Leaf(leaf) => {
+                    for entry in leaf.entries {
+                        entries.insert(entry.key, entry.value);
+                    }
+                }
+                ProllyNode::Internal(internal) => {
+                    for entry in internal.entries.into_iter().rev() {
+                        stack.push(entry.child_digest);
+                    }
+                }
+            }
+        }
+
+        Ok(entries)
+    }
+
+    fn should_chunk_leaf(&self, entries: &[LeafEntry]) -> bool {
+        entries
+            .last()
+            .is_some_and(|last| stable_chunk_score(&last.key) & self.chunk_threshold == 0)
+    }
+
+    fn should_chunk_internal(&self, entries: &[InternalEntry]) -> bool {
+        entries.len() > 1
+            && entries
+                .last()
+                .is_some_and(|last| stable_chunk_score(&last.key) & self.chunk_threshold == 0)
     }
 }
 
@@ -264,6 +395,25 @@ impl ProllyNode {
         let encoded = serde_json::to_vec(self).context("serialize prolly node")?;
         ContentDigest::new("sha256", sha256_hex(&encoded))
     }
+}
+
+fn canonicalize_entries(mut entries: Vec<LeafEntry>) -> Result<Vec<LeafEntry>> {
+    entries.sort_by(|left, right| left.key.cmp(&right.key));
+
+    for pair in entries.windows(2) {
+        ensure!(
+            pair[0].key != pair[1].key,
+            "prolly tree entries must not contain duplicate keys"
+        );
+    }
+
+    Ok(entries)
+}
+
+fn stable_chunk_score(bytes: &[u8]) -> u32 {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(bytes);
+    u32::from_be_bytes([digest[0], digest[1], digest[2], digest[3]])
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -276,6 +426,30 @@ fn sha256_hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn entry(key: &str, value: &str) -> LeafEntry {
+        LeafEntry {
+            key: key.as_bytes().to_vec(),
+            value: value.as_bytes().to_vec(),
+        }
+    }
+
+    fn node_max_key(node: &ProllyNode) -> Vec<u8> {
+        match node {
+            ProllyNode::Leaf(leaf) => leaf
+                .entries
+                .last()
+                .expect("leaf node is non-empty")
+                .key
+                .clone(),
+            ProllyNode::Internal(internal) => internal
+                .entries
+                .last()
+                .expect("internal node is non-empty")
+                .key
+                .clone(),
+        }
+    }
 
     #[test]
     fn prolly_node_can_be_digested() {
@@ -292,36 +466,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn prolly_tree_builder_constructs_root_from_entries() {
+    async fn prolly_tree_builder_sorts_entries_and_constructs_root() {
         let store = MemoryProllyStore::new();
         let builder = ProllyTreeBuilder::new(&store);
 
-        let entries = vec![
-            LeafEntry {
-                key: b"a".to_vec(),
-                value: b"1".to_vec(),
-            },
-            LeafEntry {
-                key: b"b".to_vec(),
-                value: b"2".to_vec(),
-            },
-            LeafEntry {
-                key: b"c".to_vec(),
-                value: b"3".to_vec(),
-            },
-        ];
+        let entries = vec![entry("c", "3"), entry("a", "1"), entry("b", "2")];
 
         let root_digest = builder.build_from_entries(entries).await.expect("build");
         let root_node = store.get(&root_digest).await.expect("get root");
 
         match root_node {
-            ProllyNode::Leaf(leaf) => assert_eq!(leaf.entries.len(), 3),
+            ProllyNode::Leaf(leaf) => {
+                assert_eq!(
+                    leaf.entries
+                        .iter()
+                        .map(|entry| entry.key.as_slice())
+                        .collect::<Vec<_>>(),
+                    vec![b"a".as_slice(), b"b".as_slice(), b"c".as_slice()]
+                );
+                assert_eq!(
+                    leaf.entries
+                        .iter()
+                        .map(|entry| entry.value.as_slice())
+                        .collect::<Vec<_>>(),
+                    vec![b"1".as_slice(), b"2".as_slice(), b"3".as_slice()]
+                );
+            }
             _ => panic!("expected leaf root for small dataset"),
         }
     }
 
     #[tokio::test]
-    async fn prolly_tree_builder_forces_multi_layer_construction() {
+    async fn prolly_tree_builder_rejects_duplicate_keys() {
+        let store = MemoryProllyStore::new();
+        let builder = ProllyTreeBuilder::new(&store);
+
+        let err = builder
+            .build_from_entries(vec![entry("a", "1"), entry("a", "2")])
+            .await
+            .expect_err("duplicate keys should be rejected");
+
+        assert!(format!("{err:#}").contains("duplicate keys"));
+    }
+
+    #[tokio::test]
+    async fn prolly_tree_builder_preserves_multi_layer_separator_keys() {
         let store = MemoryProllyStore::new();
         let mut builder = ProllyTreeBuilder::new(&store);
         builder.chunk_threshold = 0x0000_0003; // Force frequent chunking
@@ -341,13 +530,141 @@ mod tests {
             ProllyNode::Internal(internal) => {
                 assert!(internal.entries.len() > 1);
                 assert!(internal.entries.len() < 100);
+                assert!(internal.entries.iter().all(|entry| !entry.key.is_empty()));
+                assert!(
+                    internal
+                        .entries
+                        .windows(2)
+                        .all(|pair| pair[0].key <= pair[1].key)
+                );
+                for entry in internal.entries {
+                    let child = store.get(&entry.child_digest).await.expect("get child");
+                    assert_eq!(entry.key, node_max_key(&child));
+                }
             }
             _ => panic!("expected internal root for forced chunking"),
         }
     }
 
     #[tokio::test]
-    async fn object_store_prolly_store_persists_to_filesystem() {
+    async fn prolly_lookup_and_diff_work_for_single_layer_tree() {
+        let store = MemoryProllyStore::new();
+        let builder = ProllyTreeBuilder::new(&store);
+
+        let before_root = builder
+            .build_from_entries(vec![entry("a", "1"), entry("b", "2")])
+            .await
+            .expect("build before");
+        let after_root = builder
+            .build_from_entries(vec![
+                entry("a", "1"),
+                entry("b", "changed"),
+                entry("c", "3"),
+            ])
+            .await
+            .expect("build after");
+
+        assert_eq!(
+            builder
+                .lookup(&after_root, b"b")
+                .await
+                .expect("lookup changed key"),
+            Some(b"changed".to_vec())
+        );
+        assert_eq!(
+            builder
+                .lookup(&after_root, b"missing")
+                .await
+                .expect("lookup missing key"),
+            None
+        );
+
+        let diff = builder
+            .diff(&before_root, &after_root)
+            .await
+            .expect("diff snapshots");
+        assert_eq!(
+            diff,
+            vec![
+                ProllyDiff::Changed {
+                    key: b"b".to_vec(),
+                    before: b"2".to_vec(),
+                    after: b"changed".to_vec(),
+                },
+                ProllyDiff::Added {
+                    key: b"c".to_vec(),
+                    value: b"3".to_vec(),
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn prolly_lookup_and_diff_work_for_multi_layer_tree() {
+        let store = MemoryProllyStore::new();
+        let mut builder = ProllyTreeBuilder::new(&store);
+        builder.chunk_threshold = 0x0000_0003;
+
+        let before_entries = (0..96)
+            .map(|index| LeafEntry {
+                key: format!("key-{index:03}").into_bytes(),
+                value: format!("value-{index:03}").into_bytes(),
+            })
+            .collect::<Vec<_>>();
+        let mut after_entries = before_entries.clone();
+        after_entries.retain(|entry| entry.key != b"key-010");
+        after_entries
+            .iter_mut()
+            .find(|entry| entry.key == b"key-020")
+            .expect("changed key exists")
+            .value = b"changed".to_vec();
+        after_entries.push(entry("key-999", "new"));
+
+        let before_root = builder
+            .build_from_entries(before_entries)
+            .await
+            .expect("build before");
+        let after_root = builder
+            .build_from_entries(after_entries)
+            .await
+            .expect("build after");
+
+        assert_eq!(
+            builder
+                .lookup(&after_root, b"key-020")
+                .await
+                .expect("lookup changed key"),
+            Some(b"changed".to_vec())
+        );
+        assert_eq!(
+            builder
+                .lookup(&after_root, b"key-010")
+                .await
+                .expect("lookup removed key"),
+            None
+        );
+
+        let diff = builder
+            .diff(&before_root, &after_root)
+            .await
+            .expect("diff snapshots");
+        assert!(diff.contains(&ProllyDiff::Removed {
+            key: b"key-010".to_vec(),
+            value: b"value-010".to_vec(),
+        }));
+        assert!(diff.contains(&ProllyDiff::Changed {
+            key: b"key-020".to_vec(),
+            before: b"value-020".to_vec(),
+            after: b"changed".to_vec(),
+        }));
+        assert!(diff.contains(&ProllyDiff::Added {
+            key: b"key-999".to_vec(),
+            value: b"new".to_vec(),
+        }));
+    }
+
+    #[tokio::test]
+    async fn object_store_backed_prolly_tree_supports_lookup_and_diff() {
         use object_store::local::LocalFileSystem;
         use std::sync::Arc;
         use tempfile::tempdir;
@@ -355,23 +672,43 @@ mod tests {
         let temp = tempdir().expect("temp");
         let local = Arc::new(LocalFileSystem::new_with_prefix(temp.path()).expect("local"));
         let store = ObjectStoreProllyStore::new(local, "snapshots");
+        let builder = ProllyTreeBuilder::new(&store);
 
-        let leaf = ProllyNode::Leaf(LeafNode {
-            entries: vec![LeafEntry {
-                key: b"test-key".to_vec(),
-                value: b"test-value".to_vec(),
-            }],
-        });
+        let before_root = builder
+            .build_from_entries(vec![entry("test-key", "test-value")])
+            .await
+            .expect("build before");
+        let after_root = builder
+            .build_from_entries(vec![
+                entry("other-key", "other-value"),
+                entry("test-key", "updated-value"),
+            ])
+            .await
+            .expect("build after");
 
-        let digest = store.put(leaf.clone()).await.expect("put");
-        let retrieved = store.get(&digest).await.expect("get");
+        assert_eq!(
+            builder
+                .lookup(&after_root, b"test-key")
+                .await
+                .expect("lookup object store key"),
+            Some(b"updated-value".to_vec())
+        );
 
-        match (leaf, retrieved) {
-            (ProllyNode::Leaf(orig), ProllyNode::Leaf(got)) => {
-                assert_eq!(orig.entries.len(), got.entries.len());
-                assert_eq!(orig.entries[0].key, got.entries[0].key);
-            }
-            _ => panic!("node mismatch"),
-        }
+        let diff = builder
+            .diff(&before_root, &after_root)
+            .await
+            .expect("diff object-store snapshots");
+        assert!(diff.contains(&ProllyDiff::Changed {
+            key: b"test-key".to_vec(),
+            before: b"test-value".to_vec(),
+            after: b"updated-value".to_vec(),
+        }));
+        assert!(diff.contains(&ProllyDiff::Added {
+            key: b"other-key".to_vec(),
+            value: b"other-value".to_vec(),
+        }));
+
+        let root_node = store.get(&after_root).await.expect("get persisted root");
+        assert!(matches!(root_node, ProllyNode::Leaf(_)));
     }
 }

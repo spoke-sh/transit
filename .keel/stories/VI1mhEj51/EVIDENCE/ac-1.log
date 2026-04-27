@@ -1,0 +1,16 @@
+---
+recorded_at: 2026-04-27T14:36:52.061395743-07:00
+command: cargo test -p transit-materialize prolly_tree_builder -- --nocapture
+---
+
+running 3 tests
+test prolly::tests::prolly_tree_builder_rejects_duplicate_keys ... ok
+test prolly::tests::prolly_tree_builder_sorts_entries_and_constructs_root ... ok
+test prolly::tests::prolly_tree_builder_preserves_multi_layer_separator_keys ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+
+
+--- stderr ---
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src/lib.rs (/home/alex/.cache/cargo-target/transit/debug/deps/transit_materialize-7462a69d85246270)
