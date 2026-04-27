@@ -3,7 +3,7 @@ pub use crate::membership::NodeId;
 use anyhow::{Context, Result, bail, ensure};
 use async_trait::async_trait;
 use object_store::path::Path as ObjectPath;
-use object_store::{ObjectStore, ObjectStoreExt};
+use object_store::{ObjectStore, ObjectStoreExt, PutMode, PutResult, UpdateVersion};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -16,6 +16,12 @@ pub struct StreamLease {
     pub owner: NodeId,
     pub version: u64,
     pub expires_at: i64,
+}
+
+#[derive(Debug, Clone)]
+struct StoredLease {
+    lease: StreamLease,
+    update_version: Option<UpdateVersion>,
 }
 
 /// Handle for an active stream lease.
@@ -227,6 +233,7 @@ struct ObjectStoreLeaseHandle {
     stream_id: StreamId,
     local_owner: NodeId,
     lease: std::sync::RwLock<StreamLease>,
+    update_version: std::sync::RwLock<Option<UpdateVersion>>,
     duration_ms: i64,
 }
 
@@ -256,8 +263,12 @@ impl ConsensusHandle for ObjectStoreLeaseHandle {
             self.stream_id.as_str()
         );
 
+        let expected = StoredLease {
+            lease: self.lease.read().unwrap().clone(),
+            update_version: self.update_version.read().unwrap().clone(),
+        };
         let next_lease = {
-            let lease = self.lease.read().unwrap();
+            let lease = &expected.lease;
             StreamLease {
                 stream_id: lease.stream_id.clone(),
                 owner: lease.owner.clone(),
@@ -266,13 +277,17 @@ impl ConsensusHandle for ObjectStoreLeaseHandle {
             }
         };
 
-        let bytes = serde_json::to_vec(&next_lease).context("serialize lease")?;
-        self.store
-            .put(&self.path, bytes.into())
-            .await
-            .context("put heartbeat")?;
+        let next_update_version = replace_lease_object(
+            self.store.as_ref(),
+            &self.path,
+            &expected,
+            &next_lease,
+            "heartbeat",
+        )
+        .await?;
 
         *self.lease.write().unwrap() = next_lease;
+        *self.update_version.write().unwrap() = next_update_version;
         Ok(())
     }
 
@@ -283,8 +298,12 @@ impl ConsensusHandle for ObjectStoreLeaseHandle {
             self.stream_id.as_str()
         );
 
+        let expected = StoredLease {
+            lease: self.lease.read().unwrap().clone(),
+            update_version: self.update_version.read().unwrap().clone(),
+        };
         let next_lease = {
-            let lease = self.lease.read().unwrap();
+            let lease = &expected.lease;
             ensure!(
                 lease.owner != next_owner,
                 "stream '{}' is already owned by '{}'",
@@ -300,13 +319,17 @@ impl ConsensusHandle for ObjectStoreLeaseHandle {
             }
         };
 
-        let bytes = serde_json::to_vec(&next_lease).context("serialize handoff lease")?;
-        self.store
-            .put(&self.path, bytes.into())
-            .await
-            .context("put handoff lease")?;
+        let next_update_version = replace_lease_object(
+            self.store.as_ref(),
+            &self.path,
+            &expected,
+            &next_lease,
+            "handoff",
+        )
+        .await?;
 
         *self.lease.write().unwrap() = next_lease.clone();
+        *self.update_version.write().unwrap() = next_update_version;
         Ok(next_lease)
     }
 }
@@ -320,32 +343,40 @@ impl ConsensusProvider for ObjectStoreConsensus {
     ) -> Result<Arc<dyn ConsensusHandle + 'static>> {
         let path = self.lease_path(stream_id);
 
-        let existing = self.current_lease(stream_id).await?;
+        let existing = read_lease_object(self.store.as_ref(), &path).await?;
 
         let now = current_unix_timestamp_millis();
 
-        if let Some(lease) = existing {
-            if now < normalize_expiration_timestamp(lease.expires_at) && lease.owner != owner {
+        if let Some(existing) = existing.as_ref() {
+            if now < normalize_expiration_timestamp(existing.lease.expires_at)
+                && existing.lease.owner != owner
+            {
                 bail!(
                     "stream '{}' is currently owned by '{}'",
                     stream_id.as_str(),
-                    lease.owner.as_str()
+                    existing.lease.owner.as_str()
                 );
             }
         }
 
+        let version = existing
+            .as_ref()
+            .map(|existing| existing.lease.version + 1)
+            .unwrap_or(now as u64);
         let lease = StreamLease {
             stream_id: stream_id.clone(),
             owner: owner.clone(),
-            version: now as u64,
+            version,
             expires_at: now + lease_duration_millis(self.lease_duration_secs),
         };
 
-        let bytes = serde_json::to_vec(&lease).context("serialize lease")?;
-        self.store
-            .put(&path, bytes.into())
-            .await
-            .context("put lease")?;
+        let update_version = match existing.as_ref() {
+            Some(existing) => {
+                replace_lease_object(self.store.as_ref(), &path, existing, &lease, "acquire")
+                    .await?
+            }
+            None => create_lease_object(self.store.as_ref(), &path, &lease).await?,
+        };
 
         Ok(Arc::new(ObjectStoreLeaseHandle {
             store: self.store.clone(),
@@ -353,22 +384,141 @@ impl ConsensusProvider for ObjectStoreConsensus {
             stream_id: stream_id.clone(),
             local_owner: owner,
             lease: std::sync::RwLock::new(lease),
+            update_version: std::sync::RwLock::new(update_version),
             duration_ms: lease_duration_millis(self.lease_duration_secs),
         }))
     }
 
     async fn current_lease(&self, stream_id: &StreamId) -> Result<Option<StreamLease>> {
         let path = self.lease_path(stream_id);
+        Ok(read_lease_object(self.store.as_ref(), &path)
+            .await?
+            .map(|stored| stored.lease))
+    }
+}
 
-        match self.store.get(&path).await {
-            Ok(result) => {
-                let bytes = result.bytes().await.context("read lease bytes")?;
-                let lease: StreamLease = serde_json::from_slice(&bytes).context("parse lease")?;
-                Ok(Some(lease))
-            }
-            Err(object_store::Error::NotFound { .. }) => Ok(None),
-            Err(e) => bail!("failed to check lease: {e}"),
+async fn read_lease_object(
+    store: &dyn ObjectStore,
+    path: &ObjectPath,
+) -> Result<Option<StoredLease>> {
+    match store.get(path).await {
+        Ok(result) => {
+            let update_version = usable_update_version(UpdateVersion {
+                e_tag: result.meta.e_tag.clone(),
+                version: result.meta.version.clone(),
+            });
+            let bytes = result.bytes().await.context("read lease bytes")?;
+            let lease: StreamLease = serde_json::from_slice(&bytes).context("parse lease")?;
+            Ok(Some(StoredLease {
+                lease,
+                update_version,
+            }))
         }
+        Err(object_store::Error::NotFound { .. }) => Ok(None),
+        Err(error) => bail!("failed to check lease: {error}"),
+    }
+}
+
+async fn create_lease_object(
+    store: &dyn ObjectStore,
+    path: &ObjectPath,
+    lease: &StreamLease,
+) -> Result<Option<UpdateVersion>> {
+    let bytes = serde_json::to_vec(lease).context("serialize lease")?;
+    let result = store
+        .put_opts(path, bytes.into(), PutMode::Create.into())
+        .await
+        .with_context(|| format!("create lease object for '{}'", lease.stream_id.as_str()))?;
+    Ok(update_version_from_put(result))
+}
+
+async fn replace_lease_object(
+    store: &dyn ObjectStore,
+    path: &ObjectPath,
+    expected: &StoredLease,
+    next_lease: &StreamLease,
+    operation: &str,
+) -> Result<Option<UpdateVersion>> {
+    let bytes = serde_json::to_vec(next_lease).context("serialize lease")?;
+    let Some(update_version) = expected.update_version.clone() else {
+        return replace_lease_object_with_generation_check(
+            store, path, expected, next_lease, bytes, operation,
+        )
+        .await;
+    };
+    match store
+        .put_opts(
+            path,
+            bytes.clone().into(),
+            PutMode::Update(update_version).into(),
+        )
+        .await
+    {
+        Ok(result) => Ok(update_version_from_put(result)),
+        Err(object_store::Error::Precondition { .. }) => bail!(
+            "{operation} lease generation mismatch for stream '{}'",
+            expected.lease.stream_id.as_str()
+        ),
+        Err(object_store::Error::NotImplemented { .. }) => {
+            replace_lease_object_with_generation_check(
+                store, path, expected, next_lease, bytes, operation,
+            )
+            .await
+        }
+        Err(error) => Err(error)
+            .with_context(|| format!("{operation} lease for '{}'", next_lease.stream_id.as_str())),
+    }
+}
+
+async fn replace_lease_object_with_generation_check(
+    store: &dyn ObjectStore,
+    path: &ObjectPath,
+    expected: &StoredLease,
+    next_lease: &StreamLease,
+    bytes: Vec<u8>,
+    operation: &str,
+) -> Result<Option<UpdateVersion>> {
+    let current = read_lease_object(store, path)
+        .await?
+        .with_context(|| format!("{operation} lease disappeared before generation check"))?;
+    ensure!(
+        lease_generation_matches(&current.lease, &expected.lease),
+        "{operation} lease generation mismatch for stream '{}'",
+        expected.lease.stream_id.as_str()
+    );
+
+    let result = store
+        .put(path, bytes.into())
+        .await
+        .with_context(|| format!("{operation} lease after generation check"))?;
+    let written = read_lease_object(store, path)
+        .await?
+        .with_context(|| format!("{operation} lease disappeared after write"))?;
+    ensure!(
+        lease_generation_matches(&written.lease, next_lease),
+        "{operation} lease write could not prove ownership for stream '{}'",
+        next_lease.stream_id.as_str()
+    );
+    Ok(update_version_from_put(result))
+}
+
+fn lease_generation_matches(left: &StreamLease, right: &StreamLease) -> bool {
+    left.stream_id == right.stream_id
+        && left.owner == right.owner
+        && left.version == right.version
+        && normalize_expiration_timestamp(left.expires_at)
+            == normalize_expiration_timestamp(right.expires_at)
+}
+
+fn update_version_from_put(result: PutResult) -> Option<UpdateVersion> {
+    usable_update_version(result.into())
+}
+
+fn usable_update_version(update_version: UpdateVersion) -> Option<UpdateVersion> {
+    if update_version.e_tag.is_some() || update_version.version.is_some() {
+        Some(update_version)
+    } else {
+        None
     }
 }
 
@@ -392,6 +542,7 @@ fn lease_duration_millis(duration_secs: i64) -> i64 {
 mod tests {
     use super::*;
     use object_store::local::LocalFileSystem;
+    use object_store::memory::InMemory;
     use tempfile::tempdir;
 
     #[tokio::test]
@@ -423,6 +574,65 @@ mod tests {
         let version_before = handle_a.lease().version;
         handle_a.heartbeat().await.expect("a heartbeat");
         assert!(handle_a.lease().version > version_before);
+    }
+
+    #[tokio::test]
+    async fn object_store_consensus_rejects_stale_owner_updates_after_remote_generation_changes() {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let consensus = ObjectStoreConsensus::new(store.clone(), "leases");
+
+        let stream_id = StreamId::new("test.stream").expect("id");
+        let handle_a = consensus
+            .acquire(&stream_id, NodeId::new("node-a"))
+            .await
+            .expect("a acquire");
+        let original = handle_a.lease();
+        let lease_path = ObjectPath::from(format!("leases/{}.lease.json", stream_id.as_str()));
+        let stolen = StreamLease {
+            stream_id: stream_id.clone(),
+            owner: NodeId::new("node-b"),
+            version: original.version + 1,
+            expires_at: current_unix_timestamp_millis() + 30_000,
+        };
+        store
+            .put(&lease_path, serde_json::to_vec(&stolen).unwrap().into())
+            .await
+            .expect("replace remote lease");
+
+        let heartbeat_error = handle_a
+            .heartbeat()
+            .await
+            .expect_err("stale owner heartbeat should be fenced");
+        assert!(
+            heartbeat_error.to_string().contains("generation mismatch"),
+            "heartbeat error: {heartbeat_error:#}"
+        );
+        assert_eq!(
+            consensus
+                .current_lease(&stream_id)
+                .await
+                .expect("current lease")
+                .expect("lease")
+                .owner,
+            NodeId::new("node-b")
+        );
+
+        let handoff_error = handle_a
+            .handoff(NodeId::new("node-c"))
+            .await
+            .expect_err("stale owner handoff should be fenced");
+        assert!(
+            handoff_error.to_string().contains("generation mismatch"),
+            "handoff error: {handoff_error:#}"
+        );
+        assert_eq!(
+            consensus
+                .current_lease(&stream_id)
+                .await
+                .expect("current lease")
+                .expect("lease"),
+            stolen
+        );
     }
 
     #[tokio::test]

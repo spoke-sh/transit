@@ -1737,18 +1737,25 @@ impl LocalEngine {
                     remote_storage,
                 );
 
-                // If we have an active lease, attach the ownership proof (lease version)
-                if let Some(handle) = self.inner.leases.get(stream_id) {
-                    published_manifest =
-                        published_manifest.with_ownership_proof(handle.lease().version);
-                }
+                let local_lease = if let Some(handle) = self.inner.leases.get(stream_id) {
+                    ensure!(
+                        handle.is_leader(),
+                        "manifest publication FENCED: local lease handle is not leader for '{}'",
+                        stream_id.as_str()
+                    );
+                    let lease = handle.lease();
+                    published_manifest = published_manifest.with_ownership_proof(lease.version);
+                    Some(lease)
+                } else {
+                    None
+                };
 
                 let mut encoded =
                     serde_json::to_vec_pretty(&published_manifest).context("serialize manifest")?;
                 encoded.push(b'\n');
 
-                // If we have an ownership proof, verify that the lease hasn't moved before writing
-                if let Some(version) = published_manifest.ownership_proof() {
+                // If we have an ownership proof, verify that the remote lease still matches it before writing.
+                if let Some(local_lease) = local_lease.as_ref() {
                     let lease_path =
                         ObjectPath::from(format!("leases/{}.lease.json", stream_id.as_str()));
                     match store.get(&lease_path).await {
@@ -1757,10 +1764,34 @@ impl LocalEngine {
                             let lease: StreamLease =
                                 serde_json::from_slice(&bytes).context("parse fence lease")?;
                             ensure!(
-                                lease.version == version,
+                                lease.stream_id == local_lease.stream_id,
+                                "manifest publication FENCED: remote lease stream '{}' differs from local stream '{}'",
+                                lease.stream_id.as_str(),
+                                local_lease.stream_id.as_str()
+                            );
+                            ensure!(
+                                lease.owner == local_lease.owner,
+                                "manifest publication FENCED: remote lease owner '{}' differs from local owner '{}'",
+                                lease.owner.as_str(),
+                                local_lease.owner.as_str()
+                            );
+                            ensure!(
+                                lease.version == local_lease.version,
                                 "manifest publication FENCED: remote lease version {} differs from local version {}",
                                 lease.version,
-                                version
+                                local_lease.version
+                            );
+                            ensure!(
+                                normalize_lease_expiration_ms(lease.expires_at)
+                                    == normalize_lease_expiration_ms(local_lease.expires_at),
+                                "manifest publication FENCED: remote lease expiration differs from local proof for '{}'",
+                                stream_id.as_str()
+                            );
+                            ensure!(
+                                retention_timestamp_now()
+                                    < normalize_lease_expiration_ms(lease.expires_at),
+                                "manifest publication FENCED: remote lease for '{}' is expired",
+                                stream_id.as_str()
                             );
                         }
                         Err(object_store::Error::NotFound { .. }) => {
@@ -3568,6 +3599,15 @@ fn retained_start_offset_from_manifest(manifest: &SegmentManifest) -> Offset {
 
 fn retention_timestamp_now() -> i64 {
     chrono::Utc::now().timestamp_millis()
+}
+
+fn normalize_lease_expiration_ms(expires_at: i64) -> i64 {
+    const UNIX_MILLIS_THRESHOLD: i64 = 1_000_000_000_000;
+    if expires_at >= UNIX_MILLIS_THRESHOLD {
+        expires_at
+    } else {
+        expires_at.saturating_mul(1000)
+    }
 }
 
 fn retention_age_cutoff_ms(max_age_days: u64) -> i64 {
@@ -7037,8 +7077,8 @@ mod tests {
         let new_lease = crate::consensus::StreamLease {
             stream_id: stream_id.clone(),
             owner: NodeId::new("node-b"),
-            version: current_version + 1, // Definitely different
-            expires_at: chrono::Utc::now().timestamp() + 30,
+            version: current_version,
+            expires_at: chrono::Utc::now().timestamp_millis() + 30_000,
         };
         store
             .put(&lease_path, serde_json::to_vec(&new_lease).unwrap().into())
@@ -7051,6 +7091,7 @@ mod tests {
             .await
             .expect_err("should be fenced");
         assert!(err.to_string().contains("FENCED"));
+        assert!(err.to_string().contains("owner"));
     }
 
     #[tokio::test]

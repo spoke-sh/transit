@@ -14,7 +14,7 @@ What exists today:
 - bootstrapped Rust workspace with `transit-core` and `transit-cli`
 - Nix flake, Rust toolchain file, `cargo nextest`, and `just screen`
 - effective-config `transit storage probe` coverage for the local/filesystem guarantee
-- shared-engine server daemon bootstrap with provisional remote root creation, append/read/tail, branch/merge, and lineage-inspection operations, framed request correlation, token auth enforcement, explicit acknowledgement/error envelopes, logical tail sessions with credit-based delivery, and the higher-level `streams` / `produce` / `consume` operator path, but no stable wire protocol yet
+- shared-engine server daemon bootstrap with provisional remote root creation, append/read/tail, branch/merge, and lineage-inspection operations, framed request correlation, token auth enforcement, conditional object-store lease fencing, explicit acknowledgement/error envelopes, logical tail sessions with credit-based delivery, and the higher-level `streams` / `produce` / `consume` operator path, but no stable wire protocol yet
 - CLI and Rust client surfaces for those hosted workflows
 - initial networked mission proof path that validates the live single-node server while keeping transport underlays such as WireGuard explicitly out of the application protocol contract
 

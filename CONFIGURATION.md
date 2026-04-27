@@ -344,6 +344,12 @@ Replication and failover settings for clustered deployments.
 | `election_poll_interval_ms` | Integer | `1000` | How often the `ElectionMonitor` checks lease health. |
 | `quorum_size` | Integer | `1` | Number of nodes required for `quorum` durability. |
 
+Object-store consensus writes lease files with provider preconditions where
+available. Backends without native conditional update support must still pass
+Transit's lease-generation check before heartbeat, handoff, or manifest
+publication proceeds; ownership uncertainty rejects the operation instead of
+claiming leadership or stronger durability.
+
 `durability` mode `quorum` depends on these settings to discover peers and calculate the required majority.
 
 ### `[telemetry]`

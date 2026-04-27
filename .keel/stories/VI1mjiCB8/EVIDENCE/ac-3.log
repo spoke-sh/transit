@@ -1,0 +1,227 @@
+---
+recorded_at: 2026-04-27T15:12:28.822551191-07:00
+command: just test
+---
+
+--- stderr ---
+cargo nextest run --workspace
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+────────────
+ Nextest run ID e3f831af-d88b-4a4e-827d-ac45760cb158 with nextest profile: default
+    Starting 214 tests across 5 binaries
+        PASS [   0.030s] (  1/214) transit-cli::bin/transit tests::server_run_surfaces_hosted_provider_validation_errors_clearly
+        PASS [   0.032s] (  2/214) transit-cli::bin/transit tests::cli_rejects_removed_mission_wrapper_old_probe_and_old_top_level_proofs
+        PASS [   0.033s] (  3/214) transit-cli::bin/transit tests::cli_promotes_status_and_proofs_to_their_new_namespaces
+        PASS [   0.034s] (  4/214) transit-client client::tests::hosted_timeout_config_client_preserves_remote_error_envelope
+        PASS [   0.041s] (  5/214) transit-cli::bin/transit tests::server_run_accepts_tiered_config_and_binds_against_authored_object_store_authority
+        PASS [   0.043s] (  6/214) transit-client client::tests::hosted_timeout_config_client_allows_explicit_timeout_override
+        PASS [   0.006s] (  7/214) transit-core artifact::tests::backlink_helper_keeps_subject_and_custom_labels_explicit
+        PASS [   0.051s] (  8/214) transit-client client::tests::batch_append_surfaces_hosted_invalid_request_errors
+        PASS [   0.052s] (  9/214) transit-client client::tests::hosted_authority_appends_and_replays_consumer_records_through_server
+        PASS [   0.053s] ( 10/214) transit-client client::tests::lineage_surfaces_server_acknowledgement_and_error_envelopes
+        PASS [   0.054s] ( 11/214) transit-client client::tests::batch_append_preserves_acknowledgement_envelope_and_replays_individual_records
+        PASS [   0.007s] ( 12/214) transit-core artifact::tests::merge_outcome_helper_preserves_replayable_descriptor_state
+        PASS [   0.007s] ( 13/214) transit-core artifact::tests::summary_helper_preserves_explicit_descriptor_fields
+        PASS [   0.007s] ( 14/214) transit-core bootstrap::tests::mission_status_surfaces_missing_files
+        PASS [   0.007s] ( 15/214) transit-core config::tests::default_config_uses_local_filesystem_layout
+        PASS [   0.008s] ( 16/214) transit-core bootstrap::tests::mission_status_marks_ready_when_required_files_exist
+        PASS [   0.007s] ( 17/214) transit-core config::tests::explicit_config_file_overrides_defaults_and_keeps_unspecified_values
+        PASS [   0.063s] ( 18/214) transit-client client::tests::hosted_authority_surfaces_local_acknowledgements_until_tiered_publication_exists
+        PASS [   0.064s] ( 19/214) transit-client client::tests::projection_read_reduces_authoritative_replay_into_a_current_view
+        PASS [   0.008s] ( 20/214) transit-core consensus::tests::consensus_manager_manages_background_heartbeats
+        PASS [   0.008s] ( 21/214) transit-core consensus::tests::object_store_consensus_rejects_stale_owner_updates_after_remote_generation_changes
+        PASS [   0.009s] ( 22/214) transit-core consensus::tests::object_store_consensus_manages_exclusive_leases
+        PASS [   0.010s] ( 23/214) transit-core consensus::tests::object_store_consensus_supports_explicit_handoff
+        PASS [   0.072s] ( 24/214) transit-cli::bin/transit tests::remote_cli_results_serialize_cleanly_for_mission_proof_scripts
+        PASS [   0.072s] ( 25/214) transit-cli::bin/transit tests::hosted_runtime_server_applies_configured_token_auth
+        PASS [   0.009s] ( 26/214) transit-core consensus::tests::test_election_monitor_triggers_on_expiration
+        PASS [   0.074s] ( 27/214) transit-client client::tests::materialization_resume_cursor_rejects_tampered_checkpoint
+        PASS [   0.012s] ( 28/214) transit-core cursor::tests::cursor_store_delete_removes_file
+        PASS [   0.011s] ( 29/214) transit-core cursor::tests::cursor_store_persists_and_reloads_records_after_restart
+        PASS [   0.012s] ( 30/214) transit-core cursor::tests::cursor_store_tolerates_ids_with_path_chars
+        PASS [   0.082s] ( 31/214) transit-cli::bin/transit tests::remote_cli_batch_append_results_serialize_batch_metadata_for_mission_scripts
+        PASS [   0.020s] ( 32/214) transit-core cursor::tests::cursor_store_load_all_returns_every_persisted_record_sorted_by_id
+        PASS [   0.058s] ( 33/214) transit-client client::tests::projection_read_surfaces_reducer_failures_as_protocol_errors
+        PASS [   0.058s] ( 34/214) transit-client client::tests::tail_open_opens_a_tail_session_with_initial_credit
+        PASS [   0.092s] ( 35/214) transit-cli::bin/transit tests::tiered_configured_hosted_server_keeps_remote_acknowledgements_local_until_remote_authority_participates
+        PASS [   0.093s] ( 36/214) transit-client client::tests::cursor_lifecycle_is_available_from_transit_client
+        PASS [   0.094s] ( 37/214) transit-cli::bin/transit tests::remote_cli_batch_append_accepts_multiple_payload_values_and_reports_batch_metadata
+        PASS [   0.098s] ( 38/214) transit-cli::bin/transit tests::hosted_authority_proof_results_serialize_cleanly_for_mission_scripts
+        PASS [   0.101s] ( 39/214) transit-cli::bin/transit tests::hosted_timeout_proof_hosted_authority_records_explicit_timeout_overrides
+        PASS [   0.100s] ( 40/214) transit-cli::bin/transit tests::hosted_authority_proof_exercises_remote_consumer_workflow
+        PASS [   0.069s] ( 41/214) transit-client client::tests::projection_read_surfaces_revision_and_checkpoint_match_metadata
+        PASS [   0.020s] ( 42/214) transit-core engine::tests::branch_replay_view_rejects_non_branch_streams
+        PASS [   0.105s] ( 43/214) transit-client client::tests::hosted_authority_exposes_bounded_read_pages
+        PASS [   0.068s] ( 44/214) transit-client client::tests::tail_surfaces_server_backpressure_and_missing_session_errors
+        PASS [   0.109s] ( 45/214) transit-cli::bin/transit tests::status_reports_local_log_state_instead_of_bootstrap_state
+        PASS [   0.112s] ( 46/214) transit-cli::bin/transit tests::remote_cli_helpers_surface_ack_position_and_lineage_details
+        PASS [   0.039s] ( 47/214) transit-core engine::tests::append_returns_explicit_stream_positions_for_local_commits
+        PASS [   0.044s] ( 48/214) transit-core engine::tests::append_batch_commits_contiguous_records_and_preserves_replay
+        PASS [   0.009s] ( 49/214) transit-core engine::tests::engine_tracks_peer_acks
+        PASS [   0.121s] ( 50/214) transit-cli::bin/transit tests::streams_produce_and_consume_cover_the_kcat_style_remote_flow
+        PASS [   0.030s] ( 51/214) transit-core engine::tests::delete_stream_removes_independent_streams
+        PASS [   0.030s] ( 52/214) transit-core engine::tests::engine_enforces_leadership_for_appends
+        PASS [   0.040s] ( 53/214) transit-core engine::tests::cursor_create_rejects_unknown_stream_duplicate_id_and_frontier_overrun
+        PASS [   0.008s] ( 54/214) transit-core engine::tests::inspect_local_log_reports_uninitialized_roots
+        PASS [   0.043s] ( 55/214) transit-core engine::tests::delete_stream_rejects_dependent_lineage
+        PASS [   0.146s] ( 56/214) transit-client client::tests::lineage_returns_branch_and_merge_relationships
+        PASS [   0.072s] ( 57/214) transit-core engine::tests::append_rolls_segments_and_persists_manifest_state
+        PASS [   0.065s] ( 58/214) transit-core engine::tests::branch_replay_view_keeps_shared_prefix_and_branch_suffix_explicit
+        PASS [   0.058s] ( 59/214) transit-core engine::tests::cursor_advance_refuses_backward_moves_and_frontier_overrun
+        PASS [   0.075s] ( 60/214) transit-core engine::tests::branch_and_merge_preserve_append_only_lineage_and_monotonic_offsets
+        PASS [   0.118s] ( 61/214) transit-client client::tests::tail_poll_grant_credit_and_cancel_follow_server_session_lifecycle
+        PASS [   0.065s] ( 62/214) transit-core engine::tests::committed_state_is_persisted_under_explicit_local_durability_boundaries
+        PASS [   0.154s] ( 63/214) transit-client client::tests::materialize_resume_replays_only_records_after_checkpoint_anchor
+        PASS [   0.067s] ( 64/214) transit-core engine::tests::cursor_advance_ack_reports_local_commitment_for_local_engine
+        PASS [   0.159s] ( 65/214) transit-cli::bin/transit tests::reference_projection_proof_rebuilds_equivalent_views_from_replay_and_resume
+        PASS [   0.064s] ( 66/214) transit-core engine::tests::cursor_lifecycle_does_not_mutate_stream_history
+        PASS [   0.163s] ( 67/214) transit-cli::bin/transit tests::reference_projection_proof_results_serialize_cleanly_for_mission_scripts
+        PASS [   0.168s] ( 68/214) transit-cli::bin/transit tests::controlled_failover_proof_results_serialize_cleanly_for_mission_scripts
+        PASS [   0.170s] ( 69/214) transit-cli::bin/transit tests::retention_proof_exercises_create_list_status_and_bounded_replay
+        PASS [   0.077s] ( 70/214) transit-core engine::tests::cursor_lifecycle_covers_create_lookup_list_advance_ack_and_delete
+        PASS [   0.173s] ( 71/214) transit-cli::bin/transit tests::retention_proof_results_serialize_cleanly_for_mission_scripts
+        PASS [   0.034s] ( 72/214) transit-core engine::tests::list_streams_returns_sorted_descriptors
+        PASS [   0.007s] ( 73/214) transit-core engine::tests::quorum_mode_is_defined
+        PASS [   0.101s] ( 74/214) transit-core engine::tests::branch_creation_reuses_parent_history_without_copying_segments
+        PASS [   0.192s] ( 75/214) transit-cli::bin/transit tests::controlled_failover_proof_exercises_readiness_handoff_and_fencing
+        PASS [   0.193s] ( 76/214) transit-cli::bin/transit tests::remote_cli_helpers_cover_core_server_workflows
+        PASS [   0.116s] ( 77/214) transit-core engine::tests::checkpoints_bind_to_manifest_roots_and_detect_tampering
+        PASS [   0.075s] ( 78/214) transit-core engine::tests::inspect_local_log_reports_stream_state_for_initialized_logs
+        PASS [   0.139s] ( 79/214) transit-core engine::tests::append_batch_tracks_multiple_segment_rolls_in_one_batch
+        PASS [   0.070s] ( 80/214) transit-core engine::tests::manifest_publication_enforces_distributed_fencing
+        PASS [   0.045s] ( 81/214) transit-core engine::tests::replay_page_reads_active_head_with_continuation_metadata
+        PASS [   0.077s] ( 82/214) transit-core engine::tests::local_roll_writes_published_manifest_snapshot_and_frontier_pointer
+        PASS [   0.123s] ( 83/214) transit-core engine::tests::cursor_state_survives_engine_restart_with_distinct_positions_preserved
+        PASS [   0.225s] ( 84/214) transit-cli::bin/transit tests::materialization_proof_results_serialize_cleanly_for_mission_scripts
+        PASS [   0.154s] ( 85/214) transit-core engine::tests::age_retention_trims_old_segments_on_append_lifecycle
+        PASS [   0.227s] ( 86/214) transit-cli::bin/transit tests::materialization_proof_exercises_checkpoint_and_resume
+        PASS [   0.122s] ( 87/214) transit-core engine::tests::engine_quorum_append_times_out_if_no_acks
+        PASS [   0.075s] ( 88/214) transit-core engine::tests::published_replication_frontier_is_absent_before_publication
+        PASS [   0.126s] ( 89/214) transit-core engine::tests::engine_requires_quorum_to_acknowledge
+        PASS [   0.007s] ( 90/214) transit-core kernel::tests::append_only_constructors_reject_in_place_reconciliation
+        PASS [   0.007s] ( 91/214) transit-core kernel::tests::branch_descriptor_records_parent_position_and_metadata
+        PASS [   0.239s] ( 92/214) transit-cli::bin/transit tests::hosted_timeout_proof_networked_server_records_explicit_timeout_overrides
+        PASS [   0.241s] ( 93/214) transit-cli::bin/transit tests::networked_server_proof_exercises_remote_mission_path_and_transport_boundary
+        PASS [   0.088s] ( 94/214) transit-core engine::tests::publication_updates_manifest_with_remote_locations_for_restore
+        PASS [   0.008s] ( 95/214) transit-core kernel::tests::cursor_id_validates_non_empty_and_charset
+        PASS [   0.008s] ( 96/214) transit-core kernel::tests::cursor_record_round_trips_through_serde
+        PASS [   0.091s] ( 97/214) transit-core engine::tests::promotion_eligibility_reports_lease_leader_as_ineligible
+        PASS [   0.008s] ( 98/214) transit-core kernel::tests::cursor_with_position_bumps_updated_at_and_position
+        PASS [   0.093s] ( 99/214) transit-core engine::tests::publication_keeps_durability_and_publication_boundaries_explicit
+        PASS [   0.008s] (100/214) transit-core kernel::tests::lineage_metadata_helpers_preserve_generic_branch_context
+        PASS [   0.009s] (101/214) transit-core kernel::tests::merge_descriptor_preserves_multi_parent_lineage
+        PASS [   0.093s] (102/214) transit-core engine::tests::published_replication_frontier_survives_engine_reopen
+        PASS [   0.009s] (103/214) transit-core kernel::tests::root_descriptor_preserves_retention_policy
+        PASS [   0.010s] (104/214) transit-core materialization::tests::hosted_materialization_resume_cursor_reports_pending_window
+        PASS [   0.009s] (105/214) transit-core materialization::tests::materialization_checkpoint_rejects_blank_or_invalid_ids
+        PASS [   0.010s] (106/214) transit-core materialization::tests::materialization_checkpoint_contract_rejects_mismatched_source_fields
+        PASS [   0.008s] (107/214) transit-core membership::tests::test_object_store_membership
+        PASS [   0.256s] (108/214) transit-cli::bin/transit tests::warm_cache_recovery_proof_demonstrates_restart_from_authoritative_remote_tier
+        PASS [   0.007s] (109/214) transit-core object_store_support::tests::runtime_object_store_factory_rejects_azure_without_endpoint
+        PASS [   0.008s] (110/214) transit-core membership::tests::test_quorum_calculation
+        PASS [   0.013s] (111/214) transit-core materialization::tests::materialization_checkpoint_store_persists_and_reloads_records
+        PASS [   0.009s] (112/214) transit-core object_store_support::tests::runtime_object_store_factory_rejects_s3_without_region_or_endpoint
+        PASS [   0.015s] (113/214) transit-core materialization::tests::materialization_checkpoint_store_delete_removes_file
+        PASS [   0.098s] (114/214) transit-core engine::tests::publishes_rolled_segments_to_object_store_via_shared_engine_code
+        PASS [   0.260s] (115/214) transit-cli::bin/transit tests::warm_cache_recovery_proof_results_serialize_cleanly_for_mission_scripts
+        PASS [   0.099s] (116/214) transit-core engine::tests::published_replication_frontier_tracks_manifest_root_and_offsets
+        PASS [   0.010s] (117/214) transit-core object_store_support::tests::runtime_object_store_factory_scopes_filesystem_provider_with_prefix
+        PASS [   0.265s] (118/214) transit-cli::bin/transit tests::tiered_engine_proof_exposes_published_frontier
+        PASS [   0.008s] (119/214) transit-core server::tests::hosted_timeout_config_server_preserves_explicit_default_connection_timeout
+        PASS [   0.015s] (120/214) transit-core object_store_support::tests::storage_probe_verifies_local_filesystem_guarantee
+        PASS [   0.016s] (121/214) transit-core object_store_support::tests::storage_probe_reports_tiered_filesystem_posture_without_claiming_remote_ack
+        PASS [   0.277s] (122/214) transit-cli::bin/transit tests::object_store_authority_proof_results_serialize_cleanly_for_mission_scripts
+        PASS [   0.278s] (123/214) transit-cli::bin/transit tests::object_store_authority_proof_demonstrates_frontier_pointer_and_immutable_snapshots
+        PASS [   0.098s] (124/214) transit-core engine::tests::replay_page_reads_branch_inherited_history
+        PASS [   0.021s] (125/214) transit-core server::tests::hosted_timeout_config_server_allows_explicit_connection_timeout_override
+        PASS [   0.169s] (126/214) transit-core engine::tests::handoff_primary_leaves_former_primary_in_lease_follower_posture
+        PASS [   0.175s] (127/214) transit-core engine::tests::handoff_primary_fences_former_primary_writes
+        PASS [   0.030s] (128/214) transit-core server::tests::none_auth_mode_remains_available_for_local_development
+        PASS [   0.144s] (129/214) transit-core engine::tests::merge_creation_records_parent_heads_and_metadata
+        PASS [   0.087s] (130/214) transit-core engine::tests::replicated_ack_publishes_the_handoff_unit_before_returning
+        PASS [   0.042s] (131/214) transit-core server::tests::remote_acknowledgement_semantics_remain_explicit_about_durability_and_non_replication_scope
+        PASS [   0.050s] (132/214) transit-core server::tests::hosted_active_request_does_not_block_other_connections
+        PASS [   0.050s] (133/214) transit-core server::tests::hosted_concurrent_connection_allows_progress_while_another_connection_is_idle
+        PASS [   0.083s] (134/214) transit-core engine::tests::rolled_segments_store_compressed_bytes_and_replay_original_records
+        PASS [   0.178s] (135/214) transit-core engine::tests::handoff_primary_transfers_writable_ownership_to_eligible_follower
+        PASS [   0.152s] (136/214) transit-core engine::tests::published_replication_frontier_survives_new_local_rolls_until_republished
+        PASS [   0.051s] (137/214) transit-core server::tests::remote_batch_append_limits_reject_empty_batches
+        PASS [   0.137s] (138/214) transit-core engine::tests::replay_page_reads_across_rolled_segments_without_returning_complete_stream
+        PASS [   0.113s] (139/214) transit-core engine::tests::replay_stays_local_first_without_remote_hydration
+        PASS [   0.107s] (140/214) transit-core engine::tests::restore_reconstructs_local_state_from_remote_frontier_pointer
+        PASS [   0.171s] (141/214) transit-core engine::tests::promotion_eligibility_reports_caught_up_read_only_follower_as_promotable
+        PASS [   0.093s] (142/214) transit-core engine::tests::size_retention_trims_oldest_rolled_segments_and_surfaces_retained_frontier
+        PASS [   0.008s] (143/214) transit-core server::tests::server_shutdown_is_deterministic_for_tests_and_proof_flows
+        PASS [   0.133s] (144/214) transit-core engine::tests::replay_page_reads_reopened_history_without_full_stream_response
+        PASS [   0.008s] (145/214) transit-core storage::tests::manifest_can_carry_materialization_boundary_without_changing_storage_model
+        PASS [   0.008s] (146/214) transit-core storage::tests::legacy_segment_descriptor_defaults_to_uncompressed_storage_metadata
+        PASS [   0.048s] (147/214) transit-core server::tests::remote_lineage_validation_errors_surface_as_invalid_requests
+        PASS [   0.137s] (148/214) transit-core engine::tests::replay_reads_committed_records_in_manifest_order
+        PASS [   0.019s] (149/214) transit-core server::tests::server_bootstrap_binds_listener_and_accepts_connections
+        PASS [   0.007s] (150/214) transit-core storage::tests::scaffold_rejects_invalid_segment_ranges_or_missing_locations
+        PASS [   0.008s] (151/214) transit-core storage::tests::published_frontier_keeps_latest_manifest_discovery_fields_explicit
+        PASS [   0.009s] (152/214) transit-core storage::tests::segment_descriptor_keeps_local_and_object_store_locations_explicit
+        PASS [   0.166s] (153/214) transit-core engine::tests::read_only_replica_bootstraps_from_published_frontier_and_rejects_writes
+        PASS [   0.008s] (154/214) transit-core workloads::ai::tests::typed_builders_cover_ai_trace_contract_shapes
+        PASS [   0.059s] (155/214) transit-core server::tests::remote_delete_stream_removes_independent_streams
+        PASS [   0.008s] (156/214) transit-core workloads::communication::tests::communication_helpers_reject_missing_required_fields_without_policy_types
+        PASS [   0.008s] (157/214) transit-core workloads::communication::tests::typed_builders_cover_communication_contract_shapes
+        PASS [   0.059s] (158/214) transit-core server::tests::remote_materialization_resume_rejects_tampered_checkpoint_anchor
+        PASS [   0.039s] (159/214) transit-core server::tests::server_remains_a_wrapper_around_shared_engine_storage
+        PASS [   0.048s] (160/214) transit-core server::tests::remote_protocol_envelope_carries_request_correlation_and_operation_selection
+        PASS [   0.126s] (161/214) transit-core engine::tests::verify_local_lineage_detects_tampering
+        PASS [   0.049s] (162/214) transit-core server::tests::remote_stream_listing_reports_descriptors_and_status
+        PASS [   0.080s] (163/214) transit-core server::tests::remote_delete_stream_rejects_dependent_lineage
+        PASS [   0.238s] (164/214) transit-core engine::tests::handoff_primary_rejects_ineligible_promotion_targets
+        PASS [   0.006s] (165/214) transit-materialize prolly::tests::prolly_lookup_and_diff_work_for_single_layer_tree
+        PASS [   0.008s] (166/214) transit-materialize prolly::tests::object_store_backed_prolly_tree_supports_lookup_and_diff
+        PASS [   0.007s] (167/214) transit-materialize prolly::tests::prolly_node_can_be_digested
+        PASS [   0.241s] (168/214) transit-core engine::tests::handoff_primary_rejects_stale_primary_frontier
+        PASS [   0.006s] (169/214) transit-materialize prolly::tests::prolly_tree_builder_rejects_duplicate_keys
+        PASS [   0.079s] (170/214) transit-core server::tests::remote_materialization_resume_rejects_missing_checkpoint
+        PASS [   0.138s] (171/214) transit-core engine::tests::tail_from_reads_across_rolled_segments_and_active_head
+        PASS [   0.009s] (172/214) transit-materialize prolly::tests::prolly_tree_builder_preserves_multi_layer_separator_keys
+        PASS [   0.007s] (173/214) transit-materialize prolly::tests::prolly_tree_builder_sorts_entries_and_constructs_root
+        PASS [   0.028s] (174/214) transit-materialize engine::tests::resume_cursor_rejects_checkpoint_when_stream_falls_behind_anchor
+        PASS [   0.049s] (175/214) transit-core server::tests::token_auth_rejects_unauthenticated_requests_before_shared_engine_mutation
+        PASS [   0.099s] (176/214) transit-core server::tests::remote_cursor_lifecycle_round_trips_through_server
+        PASS [   0.016s] (177/214) transit-materialize prolly::tests::prolly_lookup_and_diff_work_for_multi_layer_tree
+        PASS [   0.059s] (178/214) transit-core server::tests::remote_tail_sessions_are_logical_and_transport_agnostic_across_requests
+        PASS [   0.102s] (179/214) transit-core server::tests::remote_branch_creation_uses_explicit_parent_positions_and_preserves_lineage
+        PASS [   0.040s] (180/214) transit-materialize engine::tests::materializer_can_catch_up_and_checkpoint
+        PASS [   0.040s] (181/214) transit-materialize engine::tests::materializer_can_resume_from_checkpoint_without_reprocessing_old_records
+        PASS [   0.041s] (182/214) transit-materialize engine::tests::reference_projection_views_stay_replaceable_and_anchor_to_lineage
+        PASS [   0.101s] (183/214) transit-core server::tests::remote_materialization_checkpoint_round_trips_through_server
+        PASS [   0.041s] (184/214) transit-materialize engine::tests::resume_verified_uses_explicit_checkpoint_cursor_before_replay
+        PASS [   0.165s] (185/214) transit-core engine::tests::restore_reconstructs_local_state_from_remote_manifest_and_segments
+        PASS [   0.163s] (186/214) transit-core engine::tests::restore_remains_local_first_after_remote_hydration
+        PASS [   0.163s] (187/214) transit-core engine::tests::restored_state_replays_published_history_with_same_manifest_semantics
+        PASS [   0.049s] (188/214) transit-materialize engine::tests::reference_projection_derives_views_from_replay_and_resume_only_new_history
+        PASS [   0.120s] (189/214) transit-core server::tests::remote_batch_append_returns_single_ack_and_individual_records
+        PASS [   0.237s] (190/214) transit-core engine::tests::promotion_eligibility_reports_followers_behind_required_frontier
+        PASS [   0.100s] (191/214) transit-core server::tests::remote_materialization_resume_reports_post_checkpoint_replay_window
+        PASS [   0.061s] (192/214) transit-materialize engine::tests::checkpoint_resume_cursor_reports_pending_branch_records
+        PASS [   0.133s] (193/214) transit-core server::tests::remote_append_read_and_tail_preserve_positions_and_branch_aware_replay_behavior
+        PASS [   0.090s] (194/214) transit-core server::tests::remote_tail_is_snapshot_based_with_explicit_lifecycle_and_durability_boundaries
+        PASS [   0.141s] (195/214) transit-core server::tests::hosted_retention_surfaces_retained_frontier_after_trimming_old_segments
+        PASS [   0.401s] (196/214) transit-cli::bin/transit tests::compression_proof_exercises_local_tiered_and_hosted_segment_compression
+        PASS [   0.089s] (197/214) transit-core server::tests::remote_tail_sessions_have_explicit_lifecycle_and_cancellation
+        PASS [   0.404s] (198/214) transit-cli::bin/transit tests::compression_proof_results_serialize_cleanly_for_mission_scripts
+        PASS [   0.081s] (199/214) transit-core workloads::ai::tests::ai_trace_helpers_preserve_lineage_and_explicit_merge_metadata
+        PASS [   0.111s] (200/214) transit-core server::tests::remote_tail_sessions_apply_explicit_credit_backpressure
+        PASS [   0.249s] (201/214) transit-core engine::tests::read_only_replica_catches_up_when_published_frontier_advances
+        PASS [   0.132s] (202/214) transit-core server::tests::remote_merge_and_lineage_inspection_remain_explicitly_single_node
+        PASS [   0.142s] (203/214) transit-core server::tests::remote_materialization_resume_rejects_stale_retained_checkpoint_anchor
+        PASS [   0.131s] (204/214) transit-core workloads::communication::tests::communication_helpers_work_through_embedded_and_hosted_apis
+        PASS [   0.148s] (205/214) transit-server tests::hydrate_from_object_store_bootstraps_server_when_warm_cache_is_missing
+        PASS [   0.174s] (206/214) transit-server tests::hydrate_from_object_store_preserves_acknowledged_tiered_history_after_cache_loss
+        PASS [   0.671s] (207/214) transit-cli::bin/transit tests::integrity_proof_results_serialize_cleanly_for_mission_scripts
+        PASS [   0.711s] (208/214) transit-cli::bin/transit tests::integrity_proof_exercises_segment_checksum_restore_checkpoint_tamper_and_server_parity_verification
+        PASS [   0.523s] (209/214) transit-core server::tests::remote_batch_append_limits_reject_oversized_batches
+        PASS [   0.642s] (210/214) transit-core engine::tests::recovery_excludes_trailing_uncommitted_bytes_from_active_head
+        PASS [   0.605s] (211/214) transit-core server::tests::remote_client_surfaces_explicit_acknowledgement_and_error_envelopes
+        PASS [   2.011s] (212/214) transit-core consensus::tests::test_lease_expiration_and_current_lease
+        PASS [   2.095s] (213/214) transit-core engine::tests::follower_automatically_acquires_lease_after_primary_failure
+        PASS [   3.756s] (214/214) transit-core server::tests::hosted_producer_consumer_timeout_raised_timeouts_keep_mixed_workload_stable
+────────────
+     Summary [   4.014s] 214 tests run: 214 passed, 0 skipped

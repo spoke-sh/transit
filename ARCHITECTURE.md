@@ -262,7 +262,7 @@ The failover model preserves that invariant through three complementary componen
 
 - **ClusterMembership:** Nodes discover each other and maintain heartbeats to calculate quorum size.
 - **ElectionMonitor:** A background worker that polls for lease expiration and triggers automatic leader election via the `ConsensusProvider`.
-- **ObjectStoreConsensus:** A provider that uses optimistic locking on the remote tier to ensure that only one node can acquire a writable lease at a time.
+- **ObjectStoreConsensus:** A provider that uses object-store create/update preconditions when the backend supports them, and explicit lease-generation checks otherwise, so acquire, heartbeat, and handoff attempts fail closed when ownership has moved.
 
 Failover is supported through two paths:
 

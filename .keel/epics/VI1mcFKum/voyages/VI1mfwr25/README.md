@@ -27,11 +27,11 @@ started_at: 2026-04-27T14:56:52
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Enforce Hosted Auth Posture In Server Protocol](../../../../stories/VI1mjhoAK/README.md) | feat | done |
-| [Replace Object Store Lease Writes With Conditional Fencing](../../../../stories/VI1mjiCB8/README.md) | feat | backlog |
+| [Replace Object Store Lease Writes With Conditional Fencing](../../../../stories/VI1mjiCB8/README.md) | feat | done |
 | [Define Blockchain-Style Finality And Fork Proof Contract](../../../../stories/VI1mjiIBI/README.md) | docs | backlog |
 <!-- END GENERATED -->
