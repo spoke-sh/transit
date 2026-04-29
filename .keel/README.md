@@ -243,6 +243,24 @@
 |--------|--------|
 | [Harden Hosted Protocol Auth And Lease Fencing](epics/VI1mcFKum/voyages/VI1mfwr25/) | done |
 
+### [Prolly Tree Storage Backend for Apache DataFusion](epics/VICkg4FuI/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Implement Core Prolly Storage Traits for DataFusion](epics/VICkg4FuI/voyages/VICkpNoeV/) | planned |
+
+### [Incremental Prolly Tree Updates](epics/VICkg5IvO/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Enhance ProllyTreeBuilder with Point Updates](epics/VICkg5IvO/voyages/VICkpOvfb/) | planned |
+
+### [DataFusion Materializer and Branch Integration](epics/VICkg6QuJ/) (active)
+
+| Voyage | Status |
+|--------|--------|
+| [Build and Verify SQL Materialization Flow](epics/VICkg6QuJ/voyages/VICkpQ4eS/) | planned |
+
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 
 | Voyage | Status |
