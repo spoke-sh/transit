@@ -27,9 +27,11 @@
         isLinux = pkgs.stdenv.isLinux;
         keelPkg = keel.packages.${system}.keel;
         transitPkg = import ./nix/transit.nix { inherit pkgs; };
+        scionPkg = import ./nix/scion.nix { inherit pkgs; };
       in {
         packages = {
           keel = keelPkg;
+          scion = scionPkg;
           transit = transitPkg;
           default = transitPkg;
         };
@@ -43,6 +45,7 @@
             pkgs.just
             pkgs.nodejs_24
             pkgs.pkg-config
+            scionPkg
           ] ++ pkgs.lib.optionals isLinux [
             pkgs.mold
           ];
