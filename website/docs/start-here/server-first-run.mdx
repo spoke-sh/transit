@@ -166,6 +166,10 @@ transit consume \
   --with-offsets
 ```
 
+Omit `--from-offset` when you want `transit consume` to tail live records from
+the current stream head. Pass `--from-offset 0` when you want a bounded replay
+from the beginning.
+
 List hosted streams:
 
 ```bash

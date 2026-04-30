@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T18:48:35.029795667-07:00
+command: git check-ignore .transit/data/streams/foo/state.json
+---
+.transit/data/streams/foo/state.json

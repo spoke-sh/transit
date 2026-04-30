@@ -1,0 +1,10 @@
+---
+recorded_at: 2026-04-29T18:48:35.057807573-07:00
+command: root=$(git rev-parse --show-toplevel) && rg -n 'Omit .*--from-offset' "$root/USER_GUIDE.md" "$root/website/docs/start-here/server-first-run.mdx" && rg -n 'bounded replay' "$root/USER_GUIDE.md" "$root/website/docs/start-here/server-first-run.mdx"
+---
+/home/alex/workspace/spoke-sh/transit/USER_GUIDE.md:68:Omit `--from-offset` when you want `transit consume` to tail live records from
+/home/alex/workspace/spoke-sh/transit/website/docs/start-here/server-first-run.mdx:169:Omit `--from-offset` when you want `transit consume` to tail live records from
+/home/alex/workspace/spoke-sh/transit/website/docs/start-here/server-first-run.mdx:67:retention-aware create/list/status behavior and bounded replay:
+/home/alex/workspace/spoke-sh/transit/website/docs/start-here/server-first-run.mdx:170:the current stream head. Pass `--from-offset 0` when you want a bounded replay
+/home/alex/workspace/spoke-sh/transit/website/docs/start-here/server-first-run.mdx:212:begins. That is bounded replay through history aging, not compaction.
+/home/alex/workspace/spoke-sh/transit/USER_GUIDE.md:69:the current stream head. Pass `--from-offset 0` when you want a bounded replay

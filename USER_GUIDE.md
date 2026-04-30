@@ -65,6 +65,10 @@ just transit consume --stream-id demo.root --from-offset 0 --with-offsets
 just transit streams list
 ```
 
+Omit `--from-offset` when you want `transit consume` to tail live records from
+the current stream head. Pass `--from-offset 0` when you want a bounded replay
+from the beginning.
+
 The explicit `streams create` step lets you author root-stream lineage metadata
 such as actor, reason, labels, and retention policy. For quick operator checks,
 `transit produce` also creates a missing root stream with CLI lineage metadata

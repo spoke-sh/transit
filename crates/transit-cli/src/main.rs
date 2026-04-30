@@ -10,6 +10,7 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+use std::thread;
 use std::time::Duration;
 use transit_client::TransitClient;
 use transit_core::config::{LoadedTransitConfig, load_transit_config};
@@ -42,6 +43,8 @@ use transit_materialize::{
 use transit_server::bind_read_only_replica_from_frontier;
 
 const DEFAULT_HOSTED_IO_TIMEOUT_MS: u64 = 1_000;
+const DEFAULT_CONSUME_TAIL_BATCH_SIZE: usize = 100;
+const DEFAULT_CONSUME_TAIL_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
 #[derive(Debug, Parser)]
 #[command(name = "transit")]
@@ -261,9 +264,9 @@ struct ConsumeArgs {
     /// Stream identifier to read from.
     #[arg(long = "stream-id")]
     stream_id: String,
-    /// Starting offset for consumption.
-    #[arg(long = "from-offset", default_value_t = 0)]
-    from_offset: u64,
+    /// Starting offset for bounded replay. If omitted, consume tails from the current stream head.
+    #[arg(long = "from-offset")]
+    from_offset: Option<u64>,
     /// Optional maximum record count.
     #[arg(long)]
     limit: Option<usize>,
@@ -627,7 +630,11 @@ async fn main() -> Result<()> {
             let with_offsets = args.with_offsets;
             let json = args.json;
             let server_addr = resolve_server_addr(args.server_addr, &config);
-            render_consume(run_consume(server_addr, args)?, with_offsets, json)?
+            if args.from_offset.is_none() && args.limit.is_none() && !json {
+                stream_consume_tail(server_addr, args)?
+            } else {
+                render_consume(run_consume(server_addr, args)?, with_offsets, json)?
+            }
         }
         Commands::Proof(args) => match args.command {
             ProofCommands::LocalEngine(args) => render_local_engine_proof(
@@ -4739,8 +4746,18 @@ fn is_remote_already_exists(error: &RemoteClientError) -> bool {
 fn run_consume(server_addr: SocketAddr, args: ConsumeArgs) -> Result<ConsumeResult> {
     let client = build_remote_client(server_addr, args.connection_io_timeout_ms);
     let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let from_offset = match args.from_offset {
+        Some(from_offset) => from_offset,
+        None => {
+            let limit = args.limit.context(
+                "live consume tail requires --limit when output is collected; omit --json and --limit to stream continuously, or pass --from-offset for bounded replay",
+            )?;
+            return run_consume_tail_collect(server_addr, &client, &stream_id, limit);
+        }
+    };
+
     let read = client
-        .tail(&stream_id, Offset::new(args.from_offset))
+        .tail(&stream_id, Offset::new(from_offset))
         .with_context(|| format!("consume remotely from {}", stream_id.as_str()))?;
     let mut records = summarize_remote_records(read.body().records());
     if let Some(limit) = args.limit {
@@ -4753,13 +4770,118 @@ fn run_consume(server_addr: SocketAddr, args: ConsumeArgs) -> Result<ConsumeResu
         durability: read.ack().durability().to_owned(),
         topology: render_topology(read.ack().topology()),
         stream_id: stream_id.as_str().to_owned(),
-        from_offset: args.from_offset,
+        from_offset,
         record_count: records.len(),
         head_offset: records
             .last()
             .and_then(|record| parse_rendered_position_offset(&record.position)),
         records,
     })
+}
+
+fn run_consume_tail_collect(
+    server_addr: SocketAddr,
+    client: &RemoteClient,
+    stream_id: &StreamId,
+    limit: usize,
+) -> Result<ConsumeResult> {
+    let from_offset = resolve_consume_tail_start_offset(client, stream_id)?;
+    let mut next_offset = from_offset;
+    let mut records = Vec::with_capacity(limit);
+    let mut request_id = String::new();
+    let mut durability = String::new();
+    let mut topology = String::new();
+
+    while records.len() < limit {
+        let read = client
+            .tail(stream_id, Offset::new(next_offset))
+            .with_context(|| format!("tail remotely from {}", stream_id.as_str()))?;
+        request_id = read.request_id().as_str().to_owned();
+        durability = read.ack().durability().to_owned();
+        topology = render_topology(read.ack().topology());
+
+        let remaining = limit - records.len();
+        let mut batch = summarize_remote_records(read.body().records());
+        batch.truncate(remaining);
+        if batch.is_empty() {
+            thread::sleep(DEFAULT_CONSUME_TAIL_POLL_INTERVAL);
+            continue;
+        }
+
+        next_offset = next_offset_after_records(&batch, next_offset)?;
+        records.extend(batch);
+    }
+
+    Ok(ConsumeResult {
+        server_addr: server_addr.to_string(),
+        request_id,
+        durability,
+        topology,
+        stream_id: stream_id.as_str().to_owned(),
+        from_offset,
+        record_count: records.len(),
+        head_offset: records
+            .last()
+            .and_then(|record| parse_rendered_position_offset(&record.position)),
+        records,
+    })
+}
+
+fn stream_consume_tail(server_addr: SocketAddr, args: ConsumeArgs) -> Result<()> {
+    ensure!(
+        !args.json,
+        "--json consume output requires --limit for live tailing or --from-offset for bounded replay"
+    );
+
+    let client = build_remote_client(server_addr, args.connection_io_timeout_ms);
+    let stream_id = parse_stream_id_arg(&args.stream_id)?;
+    let mut next_offset = resolve_consume_tail_start_offset(&client, &stream_id)?;
+    let mut stdout = io::stdout();
+
+    loop {
+        let read = client
+            .tail(&stream_id, Offset::new(next_offset))
+            .with_context(|| format!("tail remotely from {}", stream_id.as_str()))?;
+        let mut records = summarize_remote_records(read.body().records());
+        records.truncate(DEFAULT_CONSUME_TAIL_BATCH_SIZE);
+        if records.is_empty() {
+            thread::sleep(DEFAULT_CONSUME_TAIL_POLL_INTERVAL);
+            continue;
+        }
+
+        for record in &records {
+            render_consume_record(record, args.with_offsets);
+        }
+        stdout.flush().context("flush consume tail output")?;
+
+        next_offset = next_offset_after_records(&records, next_offset)?;
+    }
+}
+
+fn resolve_consume_tail_start_offset(client: &RemoteClient, stream_id: &StreamId) -> Result<u64> {
+    let listed = client
+        .list_streams()
+        .with_context(|| format!("list remote streams before tailing {}", stream_id.as_str()))?;
+    let summary = listed
+        .body()
+        .streams()
+        .iter()
+        .find(|summary| summary.status().stream_id() == stream_id)
+        .with_context(|| {
+            format!(
+                "stream '{}' does not exist; run transit produce or transit streams create first",
+                stream_id.as_str()
+            )
+        })?;
+    Ok(summary.status().next_offset().value())
+}
+
+fn next_offset_after_records(records: &[RemoteRecordView], fallback: u64) -> Result<u64> {
+    records
+        .last()
+        .and_then(|record| parse_rendered_position_offset(&record.position))
+        .map(|offset| offset + 1)
+        .with_context(|| format!("parse tail offset after {}", fallback))
 }
 
 fn run_remote_create_root(args: ServerCreateRootArgs) -> Result<RemoteStreamStatusResult> {
@@ -8002,15 +8124,23 @@ fn render_consume(result: ConsumeResult, with_offsets: bool, json: bool) -> Resu
             println!("head offset: {head_offset}");
         }
         for record in result.records {
-            println!("{} {}", record.position, record.payload_text);
+            render_consume_record(&record, true);
         }
         return Ok(());
     }
 
     for record in result.records {
-        println!("{}", record.payload_text);
+        render_consume_record(&record, false);
     }
     Ok(())
+}
+
+fn render_consume_record(record: &RemoteRecordView, with_offsets: bool) {
+    if with_offsets {
+        println!("{} {}", record.position, record.payload_text);
+    } else {
+        println!("{}", record.payload_text);
+    }
 }
 
 fn render_remote_lineage(result: RemoteLineageResult, json: bool) -> Result<()> {
@@ -8518,7 +8648,7 @@ mod tests {
                 server_addr: Some(server_addr),
                 connection_io_timeout_ms: None,
                 stream_id: "task.root".into(),
-                from_offset: 1,
+                from_offset: Some(1),
                 limit: Some(1),
                 with_offsets: false,
                 json: true,
@@ -8576,7 +8706,7 @@ mod tests {
                 server_addr: Some(server_addr),
                 connection_io_timeout_ms: None,
                 stream_id: "foo".into(),
-                from_offset: 0,
+                from_offset: Some(0),
                 limit: None,
                 with_offsets: true,
                 json: true,
@@ -8587,6 +8717,78 @@ mod tests {
         assert_eq!(consumed.records[0].position, "foo@0");
         assert_eq!(consumed.records[0].payload_text, r#"{"hello":"world"}"#);
         assert_eq!(consumed.head_offset, Some(0));
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn consume_defaults_to_live_tail_from_current_head() {
+        let (_temp_dir, server, server_addr) = start_server();
+
+        run_streams_create(
+            server_addr,
+            StreamsCreateArgs {
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                stream_id: "foo".into(),
+                actor: Some("cli".into()),
+                reason: Some("tail-test".into()),
+                labels: vec![],
+                retention_max_age_days: None,
+                retention_max_bytes: None,
+                json: true,
+            },
+        )
+        .expect("create stream");
+        run_produce(
+            server_addr,
+            ProduceArgs {
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                stream_id: "foo".into(),
+                payload_text: vec!["before".into()],
+                json: true,
+            },
+        )
+        .expect("produce before");
+
+        let consumer = thread::spawn(move || {
+            run_consume(
+                server_addr,
+                ConsumeArgs {
+                    server_addr: Some(server_addr),
+                    connection_io_timeout_ms: None,
+                    stream_id: "foo".into(),
+                    from_offset: None,
+                    limit: Some(1),
+                    with_offsets: true,
+                    json: true,
+                },
+            )
+        });
+
+        thread::sleep(Duration::from_millis(50));
+        run_produce(
+            server_addr,
+            ProduceArgs {
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                stream_id: "foo".into(),
+                payload_text: vec!["after".into()],
+                json: true,
+            },
+        )
+        .expect("produce after");
+
+        let consumed = consumer
+            .join()
+            .expect("consumer thread")
+            .expect("consume tail");
+        assert_eq!(consumed.from_offset, 1);
+        assert_eq!(consumed.record_count, 1);
+        assert_eq!(consumed.records[0].position, "foo@1");
+        assert_eq!(consumed.records[0].payload_text, "after");
+        assert_eq!(consumed.head_offset, Some(1));
 
         server.shutdown().expect("shutdown server");
     }
