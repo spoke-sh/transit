@@ -2,7 +2,7 @@ use anyhow::{Context, Result, bail, ensure};
 use clap::{Args, Parser, Subcommand};
 use object_store::local::LocalFileSystem;
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, IsTerminal, Write};
 use std::net::SocketAddr;
@@ -25,13 +25,14 @@ use transit_core::object_store_support::{
 use transit_core::server::{
     RemoteClient, ServerConfig, ServerHandle, ServerShutdownOutcome, TailSessionId,
 };
-use transit_core::storage::PublishedFrontier;
+use transit_core::storage::{ContentDigest, PublishedFrontier};
 use transit_materialize::engine::LocalMaterializationEngine;
 use transit_materialize::prolly::{
-    LeafEntry, ObjectStoreProllyStore, ProllyTreeBuilder, SnapshotManifest,
+    LeafEntry, ObjectStoreProllyStore, ProllyNode, ProllyStore, ProllyTreeBuilder, SnapshotManifest,
 };
 use transit_materialize::{
-    MaterializationCheckpoint, Reducer, ReferenceProjectionMaterializer, ReferenceProjectionReducer,
+    MaterializationCheckpoint, Reducer, ReferenceProjectionMaterializer,
+    ReferenceProjectionReducer, SqlMaterializer, SqlMaterializerState,
 };
 use transit_server::bind_read_only_replica_from_frontier;
 
@@ -109,6 +110,8 @@ enum ProofCommands {
     Integrity(IntegrityProofArgs),
     /// Exercise checkpoint and resume through the materialization engine.
     Materialization(MaterializationProofArgs),
+    /// Exercise branch-local SQL materialization on Prolly-backed DataFusion state.
+    SqlMaterialization(MaterializationProofArgs),
     /// Exercise checkpoint resume and authoritative replay equivalence for reference projections.
     ReferenceProjection(MaterializationProofArgs),
 }
@@ -675,6 +678,10 @@ async fn main() -> Result<()> {
             )?,
             ProofCommands::Materialization(args) => render_materialization_proof(
                 run_materialization_proof(resolve_local_root(args.root, &config)).await?,
+                args.json,
+            )?,
+            ProofCommands::SqlMaterialization(args) => render_sql_materialization_proof(
+                run_sql_materialization_proof(resolve_local_root(args.root, &config)).await?,
                 args.json,
             )?,
             ProofCommands::ReferenceProjection(args) => render_reference_projection_proof(
@@ -1921,6 +1928,59 @@ struct MaterializationProofResult {
     resume: MaterializationProofResumeResult,
     snapshot: MaterializationProofSnapshotResult,
     branch: MaterializationProofBranchResult,
+    verified: bool,
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct SqlMaterializationProofRow {
+    key: String,
+    value: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct SqlMaterializationProofViewResult {
+    table_name: String,
+    root_digest: String,
+    row_count: usize,
+    rows: Vec<SqlMaterializationProofRow>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct SqlMaterializationProofBranchResult {
+    stream_id: String,
+    parent_stream_id: String,
+    parent_head_offset: u64,
+    lineage_kind: String,
+    materialization_id: String,
+    inherited_row_count: usize,
+    branch_row_count: usize,
+    branch_only_key: String,
+    diverged_from_root: bool,
+    view: SqlMaterializationProofViewResult,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct SqlMaterializationProofSharingResult {
+    root_node_count: usize,
+    branch_node_count: usize,
+    shared_node_count: usize,
+    shared_nodes: Vec<String>,
+    verified: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct SqlMaterializationProofResult {
+    data_root: PathBuf,
+    durability: String,
+    root_stream_id: String,
+    root_materialization_id: String,
+    materialization_api: &'static str,
+    query_api: &'static str,
+    storage_api: &'static str,
+    root: SqlMaterializationProofViewResult,
+    branch: SqlMaterializationProofBranchResult,
+    sharing: SqlMaterializationProofSharingResult,
     verified: bool,
     error: Option<String>,
 }
@@ -3697,6 +3757,288 @@ async fn run_materialization_proof(root: PathBuf) -> Result<MaterializationProof
         verified: true,
         error: None,
     })
+}
+
+const SQL_MATERIALIZATION_PROOF_TABLE: &str = "tasks";
+const SQL_MATERIALIZATION_PROOF_ROOT_ROWS: &[(&str, &str)] = &[
+    ("key-03974979", "root-alpha"),
+    ("key-04183791", "root-beta"),
+    ("key-04445919", "root-gamma"),
+    ("key-07513650", "root-delta"),
+    ("key-09910798", "root-epsilon"),
+];
+const SQL_MATERIALIZATION_PROOF_BRANCH_KEY: &str = "key-04183791a";
+const SQL_MATERIALIZATION_PROOF_BRANCH_VALUE: &str = "branch-only";
+
+async fn run_sql_materialization_proof(root: PathBuf) -> Result<SqlMaterializationProofResult> {
+    reset_directory(&root)?;
+
+    let engine = LocalEngine::open(
+        LocalEngineConfig::new(&root, NodeId::new("cli-node"))
+            .with_segment_max_records(2)
+            .context("SQL materialization proof config")?,
+    )
+    .context("open SQL materialization proof root")?;
+    let root_stream_id = StreamId::new("mission.sql-materialization.root")?;
+    let root_materialization_id = "mission.sql-materialization.tasks".to_owned();
+
+    engine.create_stream(StreamDescriptor::root(
+        root_stream_id.clone(),
+        LineageMetadata::new(
+            Some("mission".into()),
+            Some("sql-materialization-proof".into()),
+        ),
+    ))?;
+
+    let mut durability = String::new();
+    for (index, (key, value)) in SQL_MATERIALIZATION_PROOF_ROOT_ROWS.iter().enumerate() {
+        let payload = sql_materialization_insert_statement(key, value);
+        let ack = engine
+            .append(&root_stream_id, payload.as_bytes())
+            .with_context(|| format!("append root SQL materialization row {key}"))?;
+        if index == 0 {
+            durability = ack.durability().as_str().to_owned();
+        }
+    }
+
+    let sql_store_root = root.join("sql-prolly-store");
+    fs::create_dir_all(&sql_store_root).with_context(|| {
+        format!(
+            "create SQL materialization Prolly store root at {}",
+            sql_store_root.display()
+        )
+    })?;
+    let sql_object_store = std::sync::Arc::new(
+        LocalFileSystem::new_with_prefix(&sql_store_root).with_context(|| {
+            format!(
+                "open SQL materialization Prolly store at {}",
+                sql_store_root.display()
+            )
+        })?,
+    );
+    let sql_store = std::sync::Arc::new(ObjectStoreProllyStore::new(
+        sql_object_store,
+        "sql-materialization",
+    ));
+
+    let root_materializer = LocalMaterializationEngine::new(
+        root_materialization_id.clone(),
+        root_stream_id.clone(),
+        engine.clone(),
+        SqlMaterializer::new(std::sync::Arc::clone(&sql_store)),
+        SqlMaterializerState::default(),
+    );
+    root_materializer
+        .catch_up()
+        .await
+        .context("materialize root SQL stream")?;
+    let root_state = root_materializer.current_state().await;
+    let query_materializer = SqlMaterializer::new(std::sync::Arc::clone(&sql_store));
+    let root_rows = query_materializer
+        .query_key_values(&root_state, "SELECT key, value FROM transit.public.tasks")
+        .await
+        .context("query root SQL materialized view")?;
+    ensure!(
+        root_rows.len() == SQL_MATERIALIZATION_PROOF_ROOT_ROWS.len(),
+        "SQL materialization proof expected {} root rows, found {}",
+        SQL_MATERIALIZATION_PROOF_ROOT_ROWS.len(),
+        root_rows.len()
+    );
+    let root_view =
+        sql_materialization_view(SQL_MATERIALIZATION_PROOF_TABLE, &root_state, root_rows)?;
+
+    let branch_stream_id = StreamId::new("mission.sql-materialization.branch")?;
+    let branch_parent = StreamPosition::new(
+        root_stream_id.clone(),
+        Offset::new(SQL_MATERIALIZATION_PROOF_ROOT_ROWS.len() as u64 - 1),
+    );
+    engine
+        .create_branch(
+            branch_stream_id.clone(),
+            branch_parent.clone(),
+            LineageMetadata::new(
+                Some("mission".into()),
+                Some("sql-materialization-branch-proof".into()),
+            ),
+        )
+        .context("create SQL materialization branch")?;
+    let branch_descriptor = engine
+        .stream_descriptor(&branch_stream_id)
+        .context("load SQL materialization branch descriptor")?;
+    let StreamLineage::Branch { branch_point } = &branch_descriptor.lineage else {
+        bail!("SQL materialization proof branch descriptor did not preserve branch lineage");
+    };
+    ensure!(
+        branch_point.parent.stream_id == root_stream_id,
+        "SQL materialization proof branch parent stream mismatch"
+    );
+    ensure!(
+        branch_point.parent.offset == branch_parent.offset,
+        "SQL materialization proof branch parent offset mismatch"
+    );
+
+    let branch_payload = sql_materialization_insert_statement(
+        SQL_MATERIALIZATION_PROOF_BRANCH_KEY,
+        SQL_MATERIALIZATION_PROOF_BRANCH_VALUE,
+    );
+    engine
+        .append(&branch_stream_id, branch_payload.as_bytes())
+        .context("append branch SQL materialization row")?;
+
+    let branch_materialization_id = "mission.sql-materialization.tasks.branch".to_owned();
+    let branch_materializer = LocalMaterializationEngine::new(
+        branch_materialization_id.clone(),
+        branch_stream_id.clone(),
+        engine.clone(),
+        SqlMaterializer::new(std::sync::Arc::clone(&sql_store)),
+        SqlMaterializerState::default(),
+    );
+    branch_materializer
+        .catch_up()
+        .await
+        .context("materialize branch SQL stream")?;
+    let branch_state = branch_materializer.current_state().await;
+    let branch_rows = query_materializer
+        .query_key_values(&branch_state, "SELECT key, value FROM transit.public.tasks")
+        .await
+        .context("query branch SQL materialized view")?;
+    ensure!(
+        branch_rows.len() == SQL_MATERIALIZATION_PROOF_ROOT_ROWS.len() + 1,
+        "SQL materialization proof expected branch to inherit root rows and add one divergent row"
+    );
+    ensure!(
+        sql_materialization_rows_contain(
+            &branch_rows,
+            SQL_MATERIALIZATION_PROOF_BRANCH_KEY,
+            SQL_MATERIALIZATION_PROOF_BRANCH_VALUE,
+        ),
+        "SQL materialization proof branch view missing divergent row"
+    );
+    ensure!(
+        !root_view
+            .rows
+            .iter()
+            .any(|row| row.key == SQL_MATERIALIZATION_PROOF_BRANCH_KEY),
+        "SQL materialization proof root view unexpectedly contains branch row"
+    );
+    let branch_view =
+        sql_materialization_view(SQL_MATERIALIZATION_PROOF_TABLE, &branch_state, branch_rows)?;
+    let diverged_from_root = branch_view.root_digest != root_view.root_digest;
+    ensure!(
+        diverged_from_root,
+        "SQL materialization proof branch root should diverge from root stream"
+    );
+
+    let root_digest = root_state
+        .table_root(SQL_MATERIALIZATION_PROOF_TABLE)
+        .context("root SQL materialization table root missing")?;
+    let branch_digest = branch_state
+        .table_root(SQL_MATERIALIZATION_PROOF_TABLE)
+        .context("branch SQL materialization table root missing")?;
+    let root_nodes = collect_prolly_node_digests(sql_store.as_ref(), root_digest).await?;
+    let branch_nodes = collect_prolly_node_digests(sql_store.as_ref(), branch_digest).await?;
+    let shared_nodes = root_nodes
+        .intersection(&branch_nodes)
+        .cloned()
+        .collect::<Vec<_>>();
+    let sharing_verified = !shared_nodes.is_empty() && branch_nodes.len() > shared_nodes.len();
+    ensure!(
+        sharing_verified,
+        "SQL materialization proof expected branch and root Prolly trees to share nodes"
+    );
+
+    let branch = SqlMaterializationProofBranchResult {
+        stream_id: branch_stream_id.as_str().to_owned(),
+        parent_stream_id: branch_point.parent.stream_id.as_str().to_owned(),
+        parent_head_offset: branch_point.parent.offset.value(),
+        lineage_kind: "branch".to_owned(),
+        materialization_id: branch_materialization_id,
+        inherited_row_count: SQL_MATERIALIZATION_PROOF_ROOT_ROWS.len(),
+        branch_row_count: branch_view.row_count,
+        branch_only_key: SQL_MATERIALIZATION_PROOF_BRANCH_KEY.to_owned(),
+        diverged_from_root,
+        view: branch_view,
+    };
+    let sharing = SqlMaterializationProofSharingResult {
+        root_node_count: root_nodes.len(),
+        branch_node_count: branch_nodes.len(),
+        shared_node_count: shared_nodes.len(),
+        shared_nodes,
+        verified: sharing_verified,
+    };
+
+    Ok(SqlMaterializationProofResult {
+        data_root: root,
+        durability,
+        root_stream_id: root_stream_id.as_str().to_owned(),
+        root_materialization_id,
+        materialization_api: "LocalMaterializationEngine<SqlMaterializer>::catch_up",
+        query_api: "SqlMaterializer::query_key_values via DataFusion SessionContext",
+        storage_api: "ObjectStoreProllyStore",
+        root: root_view,
+        branch,
+        sharing,
+        verified: true,
+        error: None,
+    })
+}
+
+fn sql_materialization_insert_statement(key: &str, value: &str) -> String {
+    format!(
+        "INSERT INTO {SQL_MATERIALIZATION_PROOF_TABLE} (key, value) VALUES ('{key}', '{value}')"
+    )
+}
+
+fn sql_materialization_view(
+    table_name: &str,
+    state: &SqlMaterializerState,
+    rows: Vec<LeafEntry>,
+) -> Result<SqlMaterializationProofViewResult> {
+    let root_digest = state
+        .table_root(table_name)
+        .with_context(|| format!("SQL materialization table '{table_name}' root missing"))?;
+    let rows = rows
+        .into_iter()
+        .map(|row| SqlMaterializationProofRow {
+            key: String::from_utf8_lossy(&row.key).into_owned(),
+            value: String::from_utf8_lossy(&row.value).into_owned(),
+        })
+        .collect::<Vec<_>>();
+
+    Ok(SqlMaterializationProofViewResult {
+        table_name: table_name.to_owned(),
+        root_digest: root_digest.digest().to_owned(),
+        row_count: rows.len(),
+        rows,
+    })
+}
+
+fn sql_materialization_rows_contain(rows: &[LeafEntry], key: &str, value: &str) -> bool {
+    rows.iter()
+        .any(|row| row.key == key.as_bytes() && row.value == value.as_bytes())
+}
+
+async fn collect_prolly_node_digests<S: ProllyStore>(
+    store: &S,
+    root_digest: &ContentDigest,
+) -> Result<BTreeSet<String>> {
+    let mut seen = BTreeSet::new();
+    let mut stack = vec![root_digest.clone()];
+
+    while let Some(digest) = stack.pop() {
+        if !seen.insert(digest.digest().to_owned()) {
+            continue;
+        }
+
+        match store.get(&digest).await? {
+            ProllyNode::Leaf(_) => {}
+            ProllyNode::Internal(internal) => {
+                stack.extend(internal.entries.into_iter().map(|entry| entry.child_digest));
+            }
+        }
+    }
+
+    Ok(seen)
 }
 
 async fn run_reference_projection_proof(root: PathBuf) -> Result<ReferenceProjectionProofResult> {
@@ -6776,6 +7118,78 @@ fn render_networked_server_proof(result: NetworkedServerProofResult, json: bool)
     Ok(())
 }
 
+fn render_sql_materialization_proof(
+    result: SqlMaterializationProofResult,
+    json: bool,
+) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    println!("transit proof sql-materialization");
+    println!("root: {}", result.data_root.display());
+    println!("durability: {}", result.durability);
+    println!("root stream: {}", result.root_stream_id);
+    println!(
+        "root materialization id: {}",
+        result.root_materialization_id
+    );
+    println!("materialization api: {}", result.materialization_api);
+    println!("query api: {}", result.query_api);
+    println!("storage api: {}", result.storage_api);
+    println!("table: {}", result.root.table_name);
+    println!("root SQL rows: {}", result.root.row_count);
+    println!("root Prolly root: {}", result.root.root_digest);
+    println!("branch stream: {}", result.branch.stream_id);
+    println!("branch parent stream: {}", result.branch.parent_stream_id);
+    println!("branch parent head: {}", result.branch.parent_head_offset);
+    println!("branch lineage kind: {}", result.branch.lineage_kind);
+    println!(
+        "branch materialization id: {}",
+        result.branch.materialization_id
+    );
+    println!(
+        "branch inherited rows: {}",
+        result.branch.inherited_row_count
+    );
+    println!("branch SQL rows: {}", result.branch.branch_row_count);
+    println!("branch-only key: {}", result.branch.branch_only_key);
+    println!("branch Prolly root: {}", result.branch.view.root_digest);
+    println!(
+        "branch diverged: {}",
+        if result.branch.diverged_from_root {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!("root Prolly nodes: {}", result.sharing.root_node_count);
+    println!("branch Prolly nodes: {}", result.sharing.branch_node_count);
+    println!("shared Prolly nodes: {}", result.sharing.shared_node_count);
+    println!(
+        "node sharing: {}",
+        if result.sharing.verified {
+            "PASS"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "status: {}",
+        if result.verified {
+            "VERIFIED"
+        } else {
+            "FAILED"
+        }
+    );
+    if let Some(error) = result.error {
+        println!("error: {error}");
+    }
+
+    Ok(())
+}
+
 fn render_reference_projection_proof(
     result: ReferenceProjectionProofResult,
     json: bool,
@@ -8773,6 +9187,103 @@ listen_addr = "127.0.0.1:0"
         assert_eq!(
             proof_json["branch"]
                 .get("distinct_from_root_snapshot")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json
+                .get("verified")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[tokio::test]
+    async fn sql_materialization_proof_exercises_branch_local_views_and_node_sharing() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_sql_materialization_proof(temp_dir.path().join("sql-materialization"))
+            .await
+            .expect("run SQL materialization proof");
+
+        assert_eq!(proof.durability, "local");
+        assert_eq!(proof.root_stream_id, "mission.sql-materialization.root");
+        assert_eq!(
+            proof.root_materialization_id,
+            "mission.sql-materialization.tasks"
+        );
+        assert_eq!(
+            proof.materialization_api,
+            "LocalMaterializationEngine<SqlMaterializer>::catch_up"
+        );
+        assert_eq!(
+            proof.query_api,
+            "SqlMaterializer::query_key_values via DataFusion SessionContext"
+        );
+        assert_eq!(proof.storage_api, "ObjectStoreProllyStore");
+        assert_eq!(
+            proof.root.row_count,
+            SQL_MATERIALIZATION_PROOF_ROOT_ROWS.len()
+        );
+        assert_eq!(proof.branch.stream_id, "mission.sql-materialization.branch");
+        assert_eq!(
+            proof.branch.parent_stream_id,
+            "mission.sql-materialization.root"
+        );
+        assert_eq!(proof.branch.parent_head_offset, 4);
+        assert_eq!(proof.branch.lineage_kind, "branch");
+        assert_eq!(
+            proof.branch.inherited_row_count,
+            SQL_MATERIALIZATION_PROOF_ROOT_ROWS.len()
+        );
+        assert_eq!(
+            proof.branch.branch_row_count,
+            SQL_MATERIALIZATION_PROOF_ROOT_ROWS.len() + 1
+        );
+        assert!(proof.branch.diverged_from_root);
+        assert_ne!(proof.branch.view.root_digest, proof.root.root_digest);
+        assert!(proof.sharing.root_node_count > 1);
+        assert!(proof.sharing.branch_node_count > proof.sharing.shared_node_count);
+        assert!(proof.sharing.shared_node_count > 0);
+        assert!(proof.sharing.verified);
+        assert!(proof.verified);
+        assert!(proof.error.is_none());
+    }
+
+    #[tokio::test]
+    async fn sql_materialization_proof_results_serialize_cleanly_for_mission_scripts() {
+        let temp_dir = tempdir().expect("temp dir");
+        let proof = run_sql_materialization_proof(temp_dir.path().join("sql-materialization-json"))
+            .await
+            .expect("run SQL materialization proof");
+        let proof_json = serde_json::to_value(&proof).expect("serialize proof");
+
+        assert_eq!(
+            proof_json
+                .get("root_stream_id")
+                .and_then(serde_json::Value::as_str),
+            Some("mission.sql-materialization.root")
+        );
+        assert_eq!(
+            proof_json["root"]
+                .get("row_count")
+                .and_then(serde_json::Value::as_u64),
+            Some(SQL_MATERIALIZATION_PROOF_ROOT_ROWS.len() as u64)
+        );
+        assert_eq!(
+            proof_json["branch"]
+                .get("lineage_kind")
+                .and_then(serde_json::Value::as_str),
+            Some("branch")
+        );
+        assert_eq!(
+            proof_json["branch"]
+                .get("diverged_from_root")
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            proof_json["sharing"]
+                .get("verified")
                 .and_then(serde_json::Value::as_bool),
             Some(true)
         );

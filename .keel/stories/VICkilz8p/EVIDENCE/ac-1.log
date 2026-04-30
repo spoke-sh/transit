@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T18:06:36.369792980-07:00
+mode: manual
+---
+Verified root stream materializes into a SQL view with cargo run -p transit-cli -- proof sql-materialization --root <tmpdir> --json; output reported verified=true and root.row_count=5.

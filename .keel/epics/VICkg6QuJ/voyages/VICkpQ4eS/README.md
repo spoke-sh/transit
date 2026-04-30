@@ -27,11 +27,11 @@ started_at: 2026-04-29T17:57:11
 ## Stories
 
 <!-- BEGIN GENERATED -->
-**Progress:** 1/3 stories complete
+**Progress:** 2/3 stories complete
 
 | Title | Type | Status |
 |-------|------|--------|
 | [Implement SqlMaterializer Using DataFusion And Prolly Trees](../../../../stories/VICkikmD0/README.md) | feat | done |
-| [Create Proof Path For Branch-Local SQL Materialization](../../../../stories/VICkilz8p/README.md) | feat | backlog |
+| [Create Proof Path For Branch-Local SQL Materialization](../../../../stories/VICkilz8p/README.md) | feat | done |
 | [Implement Transit SQL CLI Surface](../../../../stories/VIDbZ2Pqr/README.md) | feat | backlog |
 <!-- END GENERATED -->

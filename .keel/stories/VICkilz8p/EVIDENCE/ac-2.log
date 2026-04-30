@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T18:06:36.419645584-07:00
+mode: manual
+---
+Verified child branch inherits root SQL rows and diverges with cargo test -p transit-cli sql_materialization_proof -- --nocapture and transit proof sql-materialization --json; output reported branch.diverged_from_root=true.

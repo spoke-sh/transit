@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T18:06:36.472900370-07:00
+mode: manual
+---
+Verified Prolly node sharing between root and branch SQL materializations with transit proof sql-materialization --json; output reported sharing.verified=true.

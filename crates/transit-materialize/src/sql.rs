@@ -2,6 +2,7 @@ use crate::Reducer;
 use crate::datafusion::{ProllyCatalog, ProllySchema, ProllyTable};
 use crate::prolly::{ProllyStore, ProllyTreeBuilder};
 use anyhow::{Context, Result, bail, ensure};
+use datafusion::arrow::array::{Array, BinaryArray};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::catalog::{CatalogProvider, SchemaProvider, TableProvider};
 use datafusion::execution::context::SessionContext;
@@ -111,6 +112,15 @@ impl<S: ProllyStore + 'static> SqlMaterializer<S> {
         let context = self.session_context(state)?;
         let frame = context.sql(sql).await.context("plan SQL query")?;
         frame.collect().await.context("execute SQL query")
+    }
+
+    pub async fn query_key_values(
+        &self,
+        state: &SqlMaterializerState,
+        sql: &str,
+    ) -> Result<Vec<crate::prolly::LeafEntry>> {
+        let batches = self.query(state, sql).await?;
+        key_value_rows_from_record_batches(&batches)
     }
 
     fn apply_insert(&self, state: &mut SqlMaterializerState, command: InsertCommand) -> Result<()> {
@@ -287,6 +297,42 @@ fn bytes_from_value(value: &Value) -> Result<Vec<u8>> {
     }
 }
 
+fn key_value_rows_from_record_batches(
+    batches: &[RecordBatch],
+) -> Result<Vec<crate::prolly::LeafEntry>> {
+    let mut rows = Vec::new();
+
+    for batch in batches {
+        ensure!(
+            batch.num_columns() >= 2,
+            "SQL key/value query must return at least two columns"
+        );
+        let keys = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .context("SQL key/value query key column must be Binary")?;
+        let values = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .context("SQL key/value query value column must be Binary")?;
+        ensure!(
+            keys.len() == values.len(),
+            "SQL key/value query returned mismatched key/value lengths"
+        );
+
+        for index in 0..keys.len() {
+            rows.push(crate::prolly::LeafEntry {
+                key: keys.value(index).to_vec(),
+                value: values.value(index).to_vec(),
+            });
+        }
+    }
+
+    Ok(rows)
+}
+
 fn block_on_dedicated_runtime<F, T>(future: F) -> Result<T>
 where
     F: Future<Output = Result<T>> + Send + 'static,
@@ -309,7 +355,6 @@ where
 mod tests {
     use super::*;
     use crate::prolly::MemoryProllyStore;
-    use datafusion::arrow::array::{Array, BinaryArray};
 
     fn binary_values(batch: &RecordBatch, column_index: usize) -> Vec<Vec<u8>> {
         let array = batch
