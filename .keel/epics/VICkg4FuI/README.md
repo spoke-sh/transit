@@ -22,8 +22,8 @@ mission: VICjTdyeB
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 1/3 stories done
+**Progress:** 0/1 voyages complete, 2/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Implement Core Prolly Storage Traits for DataFusion](voyages/VICkpNoeV/) | in-progress | 1/3 |
+| [Implement Core Prolly Storage Traits for DataFusion](voyages/VICkpNoeV/) | in-progress | 2/3 |
 <!-- END GENERATED -->

@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T17:53:01.721998547-07:00
+mode: manual
+---
+Verified ProllySchema table collection behavior with cargo test -p transit-materialize datafusion::tests::prolly_schema_manages_prolly_tables -- --nocapture.

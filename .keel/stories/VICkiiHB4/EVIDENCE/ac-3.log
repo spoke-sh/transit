@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T17:53:11.288741901-07:00
+mode: manual
+---
+Verified DataFusion resolves a Prolly table through a custom catalog with cargo test -p transit-materialize datafusion::tests::datafusion_resolves_prolly_table_through_catalog -- --nocapture.
