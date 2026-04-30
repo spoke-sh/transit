@@ -289,12 +289,23 @@ fn to_datafusion_error(error: anyhow::Error) -> DataFusionError {
 mod tests {
     use super::*;
     use crate::prolly::{MemoryProllyStore, ProllyTreeBuilder};
+    use datafusion::arrow::array::{Array, ArrayRef, BinaryArray};
 
     fn entry(key: &str, value: &str) -> LeafEntry {
         LeafEntry {
             key: key.as_bytes().to_vec(),
             value: value.as_bytes().to_vec(),
         }
+    }
+
+    fn binary_values(column: &ArrayRef) -> Vec<Vec<u8>> {
+        let array = column
+            .as_any()
+            .downcast_ref::<BinaryArray>()
+            .expect("binary column");
+        (0..array.len())
+            .map(|index| array.value(index).to_vec())
+            .collect()
     }
 
     #[test]
@@ -403,5 +414,64 @@ mod tests {
 
         assert_eq!(batches.len(), 1);
         assert_eq!(batches[0].num_rows(), 1);
+    }
+
+    #[tokio::test]
+    async fn datafusion_select_star_reads_prolly_tree() {
+        let store = Arc::new(MemoryProllyStore::new());
+        let builder = ProllyTreeBuilder::new(store.as_ref());
+        let root = builder
+            .build_from_entries(vec![entry("beta", "2"), entry("alpha", "1")])
+            .await
+            .expect("build root");
+        let table = Arc::new(ProllyTable::new(Arc::clone(&store), root));
+        let ctx = datafusion::execution::context::SessionContext::new();
+        ctx.register_table("tasks", table).expect("register table");
+
+        let batches = ctx
+            .sql("SELECT * FROM tasks")
+            .await
+            .expect("plan select")
+            .collect()
+            .await
+            .expect("collect select");
+
+        assert_eq!(batches.len(), 1);
+        assert_eq!(batches[0].num_rows(), 2);
+        assert_eq!(
+            binary_values(batches[0].column(0)),
+            vec![b"alpha".to_vec(), b"beta".to_vec()]
+        );
+        assert_eq!(
+            binary_values(batches[0].column(1)),
+            vec![b"1".to_vec(), b"2".to_vec()]
+        );
+    }
+
+    #[tokio::test]
+    async fn datafusion_query_preserves_prolly_arrow_binary_values() {
+        let store = Arc::new(MemoryProllyStore::new());
+        let builder = ProllyTreeBuilder::new(store.as_ref());
+        let root = builder
+            .build_from_entries(vec![entry("payload", "bytes")])
+            .await
+            .expect("build root");
+        let table = Arc::new(ProllyTable::new(Arc::clone(&store), root));
+        let ctx = datafusion::execution::context::SessionContext::new();
+        ctx.register_table("tasks", table).expect("register table");
+
+        let batches = ctx
+            .sql("SELECT key, value FROM tasks")
+            .await
+            .expect("plan select")
+            .collect()
+            .await
+            .expect("collect select");
+        let batch = &batches[0];
+
+        assert_eq!(batch.schema().field(0).data_type(), &DataType::Binary);
+        assert_eq!(batch.schema().field(1).data_type(), &DataType::Binary);
+        assert_eq!(binary_values(batch.column(0)), vec![b"payload".to_vec()]);
+        assert_eq!(binary_values(batch.column(1)), vec![b"bytes".to_vec()]);
     }
 }

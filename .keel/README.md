@@ -243,11 +243,11 @@
 |--------|--------|
 | [Harden Hosted Protocol Auth And Lease Fencing](epics/VI1mcFKum/voyages/VI1mfwr25/) | done |
 
-### [Prolly Tree Storage Backend for Apache DataFusion](epics/VICkg4FuI/) (active)
+### [Prolly Tree Storage Backend for Apache DataFusion](epics/VICkg4FuI/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Implement Core Prolly Storage Traits for DataFusion](epics/VICkg4FuI/voyages/VICkpNoeV/) | in-progress |
+| [Implement Core Prolly Storage Traits for DataFusion](epics/VICkg4FuI/voyages/VICkpNoeV/) | done |
 
 ### [Incremental Prolly Tree Updates](epics/VICkg5IvO/) (done)
 

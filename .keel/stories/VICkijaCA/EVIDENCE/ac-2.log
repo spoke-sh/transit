@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T17:54:57.301564629-07:00
+mode: manual
+---
+Verified Arrow Binary key/value record types map to Prolly leaf bytes with cargo test -p transit-materialize datafusion::tests::datafusion_query_preserves_prolly_arrow_binary_values -- --nocapture.

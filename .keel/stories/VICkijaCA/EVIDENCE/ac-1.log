@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T17:54:53.794408599-07:00
+mode: manual
+---
+Verified SELECT * through DataFusion with cargo test -p transit-materialize datafusion::tests::datafusion_select_star_reads_prolly_tree -- --nocapture.
