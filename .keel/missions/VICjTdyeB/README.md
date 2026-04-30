@@ -1,13 +1,14 @@
 ---
 # system-managed
 id: VICjTdyeB
-status: active
+status: achieved
 created_at: 2026-04-29T11:04:08
-updated_at: 2026-04-29T11:18:49
+updated_at: 2026-04-29T18:12:35
 # authored
 title: Implement Apache DataFusion Materialization on Prolly Trees
 watch: ~
 activated_at: 2026-04-29T11:18:49
+achieved_at: 2026-04-29T18:12:35
 ---
 
 # Implement Apache DataFusion Materialization on Prolly Trees

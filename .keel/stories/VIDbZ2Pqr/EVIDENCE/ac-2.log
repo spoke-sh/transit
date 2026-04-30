@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T18:10:43.770773384-07:00
+mode: manual
+---
+Verified the command initializes a DataFusion SessionContext with a Prolly-backed transit.public.tasks table via cargo test -p transit-cli sql_command -- --nocapture.

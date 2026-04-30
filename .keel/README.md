@@ -255,11 +255,11 @@
 |--------|--------|
 | [Enhance ProllyTreeBuilder with Point Updates](epics/VICkg5IvO/voyages/VICkpOvfb/) | done |
 
-### [DataFusion Materializer and Branch Integration](epics/VICkg6QuJ/) (active)
+### [DataFusion Materializer and Branch Integration](epics/VICkg6QuJ/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Build and Verify SQL Materialization Flow](epics/VICkg6QuJ/voyages/VICkpQ4eS/) | in-progress |
+| [Build and Verify SQL Materialization Flow](epics/VICkg6QuJ/voyages/VICkpQ4eS/) | done |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

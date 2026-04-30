@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T18:10:43.719284878-07:00
+mode: manual
+---
+Verified transit sql -c command by running cargo run -p transit-cli -- sql --root <tmpdir> --row alpha=1 --row beta=2 -c 'SELECT COUNT(*) AS count FROM transit.public.tasks'.

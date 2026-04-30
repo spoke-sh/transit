@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T18:10:43.819939487-07:00
+mode: manual
+---
+Verified query results use DataFusion pretty formatting; the transit sql command printed a +-------+ table with count=2.

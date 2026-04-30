@@ -1,5 +1,8 @@
 use anyhow::{Context, Result, bail, ensure};
 use clap::{Args, Parser, Subcommand};
+use datafusion::arrow::util::pretty::pretty_format_batches;
+use datafusion::catalog::{SchemaProvider, TableProvider};
+use datafusion::execution::context::SessionContext;
 use object_store::local::LocalFileSystem;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,6 +29,7 @@ use transit_core::server::{
     RemoteClient, ServerConfig, ServerHandle, ServerShutdownOutcome, TailSessionId,
 };
 use transit_core::storage::{ContentDigest, PublishedFrontier};
+use transit_materialize::datafusion::{ProllyCatalog, ProllySchema, ProllyTable};
 use transit_materialize::engine::LocalMaterializationEngine;
 use transit_materialize::prolly::{
     LeafEntry, ObjectStoreProllyStore, ProllyNode, ProllyStore, ProllyTreeBuilder, SnapshotManifest,
@@ -72,6 +76,8 @@ enum Commands {
     Checkpoint(CheckpointArgs),
     /// Probe configured storage support and guarantees.
     Storage(StorageArgs),
+    /// Execute a SQL query against a Prolly-backed DataFusion context.
+    Sql(SqlArgs),
     /// Run the shared-engine server daemon.
     Server(ServerArgs),
 }
@@ -127,6 +133,22 @@ struct StatusArgs {
     /// Render log status as JSON.
     #[arg(long)]
     json: bool,
+}
+
+#[derive(Debug, Args)]
+struct SqlArgs {
+    /// Filesystem root used for the local Prolly-backed SQL context. Defaults to configured [node].data_dir.
+    #[arg(long)]
+    root: Option<PathBuf>,
+    /// SQL query to execute.
+    #[arg(short = 'c', long = "command")]
+    command: String,
+    /// Table name registered under transit.public.
+    #[arg(long, default_value = "tasks")]
+    table: String,
+    /// Seed a key/value row into the Prolly table before running the query.
+    #[arg(long = "row", value_name = "KEY=VALUE")]
+    rows: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -715,6 +737,10 @@ async fn main() -> Result<()> {
                 render_storage_probe(probe_effective_storage(&config).await?, args.json)?
             }
         },
+        Commands::Sql(args) => {
+            let root = resolve_local_root(args.root.clone(), &config);
+            render_sql_query(run_sql_query(root, args).await?)?
+        }
         Commands::Server(args) => match args.command {
             ServerCommands::Run(args) => {
                 let json = args.json;
@@ -1989,6 +2015,18 @@ struct SqlMaterializationProofResult {
 struct MaterializationProofSnapshotArtifacts {
     result: MaterializationProofSnapshotResult,
     manifest: SnapshotManifest,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct SqlQueryResult {
+    data_root: PathBuf,
+    store_root: PathBuf,
+    catalog_name: String,
+    schema_name: String,
+    table_name: String,
+    table_root: String,
+    seeded_rows: usize,
+    output: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -4353,6 +4391,81 @@ fn materialization_snapshot_entries(state: &MaterializationProofState) -> Vec<Le
             value: state.processed_records.to_string().into_bytes(),
         },
     ]
+}
+
+async fn run_sql_query(root: PathBuf, args: SqlArgs) -> Result<SqlQueryResult> {
+    fs::create_dir_all(&root)
+        .with_context(|| format!("create transit SQL root at {}", root.display()))?;
+    let store_root = root.join("sql-cli-store");
+    fs::create_dir_all(&store_root).with_context(|| {
+        format!(
+            "create transit SQL Prolly store root at {}",
+            store_root.display()
+        )
+    })?;
+
+    let object_store = std::sync::Arc::new(
+        LocalFileSystem::new_with_prefix(&store_root).with_context(|| {
+            format!("open transit SQL Prolly store at {}", store_root.display())
+        })?,
+    );
+    let prolly_store = std::sync::Arc::new(ObjectStoreProllyStore::new(object_store, "sql-cli"));
+    let entries = args
+        .rows
+        .iter()
+        .map(|row| sql_cli_row(row))
+        .collect::<Result<Vec<_>>>()?;
+    let seeded_rows = entries.len();
+    let builder = ProllyTreeBuilder::new(prolly_store.as_ref());
+    let table_root = builder
+        .build_from_entries(entries)
+        .await
+        .context("build transit SQL Prolly table")?;
+
+    let table: std::sync::Arc<dyn TableProvider> = std::sync::Arc::new(ProllyTable::new(
+        std::sync::Arc::clone(&prolly_store),
+        table_root.clone(),
+    ));
+    let schema = std::sync::Arc::new(ProllySchema::with_table(args.table.clone(), table));
+    let schema_provider: std::sync::Arc<dyn SchemaProvider> = schema;
+    let catalog: std::sync::Arc<dyn datafusion::catalog::CatalogProvider> =
+        std::sync::Arc::new(ProllyCatalog::with_schema("public", schema_provider));
+    let context = SessionContext::new();
+    context.register_catalog("transit", catalog);
+
+    let batches = context
+        .sql(&args.command)
+        .await
+        .context("plan transit SQL query")?
+        .collect()
+        .await
+        .context("execute transit SQL query")?;
+    let output = pretty_format_batches(&batches)
+        .context("format transit SQL query results")?
+        .to_string();
+
+    Ok(SqlQueryResult {
+        data_root: root,
+        store_root,
+        catalog_name: "transit".to_owned(),
+        schema_name: "public".to_owned(),
+        table_name: args.table,
+        table_root: table_root.digest().to_owned(),
+        seeded_rows,
+        output,
+    })
+}
+
+fn sql_cli_row(row: &str) -> Result<LeafEntry> {
+    let (key, value) = row
+        .split_once('=')
+        .with_context(|| format!("SQL row '{row}' must use KEY=VALUE"))?;
+    ensure!(!key.is_empty(), "SQL row key must not be empty");
+
+    Ok(LeafEntry {
+        key: key.as_bytes().to_vec(),
+        value: value.as_bytes().to_vec(),
+    })
 }
 
 async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result<ServerRunResult> {
@@ -7542,6 +7655,11 @@ fn summarize_server_shutdown(
     })
 }
 
+fn render_sql_query(result: SqlQueryResult) -> Result<()> {
+    println!("{}", result.output);
+    Ok(())
+}
+
 fn render_server_run(result: ServerRunResult, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&result)?);
@@ -8110,6 +8228,15 @@ mod tests {
             .expect("parse storage probe command");
         assert!(matches!(cli.command, Commands::Storage(_)));
 
+        let cli = Cli::try_parse_from([
+            "transit",
+            "sql",
+            "-c",
+            "SELECT COUNT(*) AS count FROM transit.public.tasks",
+        ])
+        .expect("parse sql command");
+        assert!(matches!(cli.command, Commands::Sql(_)));
+
         let cli = Cli::try_parse_from(["transit", "verify", "lineage", "--stream-id", "task.root"])
             .expect("parse verify lineage command");
         assert!(matches!(
@@ -8191,6 +8318,31 @@ mod tests {
                 .to_string()
                 .contains("unrecognized subcommand 'verify-checkpoint'")
         );
+    }
+
+    #[tokio::test]
+    async fn sql_command_initializes_prolly_backend_and_pretty_prints_results() {
+        let temp_dir = tempdir().expect("temp dir");
+        let result = run_sql_query(
+            temp_dir.path().join("sql-command"),
+            SqlArgs {
+                root: None,
+                command: "SELECT COUNT(*) AS count FROM transit.public.tasks".to_owned(),
+                table: "tasks".to_owned(),
+                rows: vec!["alpha=1".to_owned(), "beta=2".to_owned()],
+            },
+        )
+        .await
+        .expect("run sql query");
+
+        assert_eq!(result.catalog_name, "transit");
+        assert_eq!(result.schema_name, "public");
+        assert_eq!(result.table_name, "tasks");
+        assert_eq!(result.seeded_rows, 2);
+        assert!(!result.table_root.is_empty());
+        assert!(result.store_root.is_dir());
+        assert!(result.output.contains("count"));
+        assert!(result.output.contains('2'));
     }
 
     #[test]
