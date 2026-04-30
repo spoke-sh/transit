@@ -22,8 +22,8 @@ mission: VICjTdyeB
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/3 stories done
+**Progress:** 0/1 voyages complete, 1/3 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Build and Verify SQL Materialization Flow](voyages/VICkpQ4eS/) | planned | 0/3 |
+| [Build and Verify SQL Materialization Flow](voyages/VICkpQ4eS/) | in-progress | 1/3 |
 <!-- END GENERATED -->

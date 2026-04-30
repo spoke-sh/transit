@@ -7,11 +7,13 @@ use transit_core::storage::LineageCheckpoint;
 pub mod datafusion;
 pub mod engine;
 pub mod prolly;
+pub mod sql;
 
 pub use engine::{
     LocalMaterializationEngine, ReferenceProjectionMaterializer, ReferenceProjectionReducer,
     ReferenceProjectionState,
 };
+pub use sql::{SqlMaterializer, SqlMaterializerState, SqlReducer};
 
 /// Envelope for a materializer's durable state and its lineage anchor.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

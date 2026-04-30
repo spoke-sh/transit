@@ -259,7 +259,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Build and Verify SQL Materialization Flow](epics/VICkg6QuJ/voyages/VICkpQ4eS/) | planned |
+| [Build and Verify SQL Materialization Flow](epics/VICkg6QuJ/voyages/VICkpQ4eS/) | in-progress |
 
 ### [Research Branch-Aware Materialization And Processing](epics/VDd0u3PFg/) (done)
 

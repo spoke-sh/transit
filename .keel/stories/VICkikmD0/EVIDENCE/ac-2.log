@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T18:01:00.636446505-07:00
+mode: manual
+---
+Verified SqlMaterializer exposes a DataFusion SessionContext with ProllyCatalog registered using cargo test -p transit-materialize sql::tests::sql_materializer_registers_prolly_catalog_for_queries -- --nocapture.

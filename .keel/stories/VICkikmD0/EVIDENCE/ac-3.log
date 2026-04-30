@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T18:01:00.680194203-07:00
+mode: manual
+---
+Verified INSERT materialization applies stream SQL payloads through ProllyTreeBuilder::insert with cargo test -p transit-materialize sql -- --nocapture.

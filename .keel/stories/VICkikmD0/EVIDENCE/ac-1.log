@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T18:01:00.590785293-07:00
+mode: manual
+---
+Verified SqlMaterializer implements transit_materialize::Reducer with cargo test -p transit-materialize sql::tests::sql_materializer_implements_reducer_and_inserts_rows -- --nocapture.
