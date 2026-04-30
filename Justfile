@@ -129,11 +129,11 @@ help:
 
 # Run the transit CLI with arbitrary arguments.
 transit *args:
-    cargo run -p transit-cli --bin transit -- {{args}}
+    cargo run -p transit-cli --bin transit -- "$@"
 
 # Run the keel CLI with arbitrary arguments.
 keel *args:
-    command keel {{args}}
+    command keel "$@"
 
 # Install website dependencies through the repo-supported Node toolchain.
 docs-install:

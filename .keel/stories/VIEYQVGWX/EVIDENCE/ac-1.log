@@ -1,0 +1,15 @@
+---
+recorded_at: 2026-04-29T18:33:37.262819817-07:00
+command: just transit sql --root target/keel-proof/VIEYQVGWX/sql --row alpha=1 --row beta=2 -c 'SELECT * FROM transit.public.tasks'
+---
++------------+-------+
+| key        | value |
++------------+-------+
+| 616c706861 | 31    |
+| 62657461   | 32    |
++------------+-------+
+
+--- stderr ---
+cargo run -p transit-cli --bin transit -- "$@"
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running `/home/alex/.cache/cargo-target/transit/debug/transit sql --root target/keel-proof/VIEYQVGWX/sql --row alpha=1 --row beta=2 -c 'SELECT * FROM transit.public.tasks'`
