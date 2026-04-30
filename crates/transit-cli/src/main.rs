@@ -1,7 +1,13 @@
 use anyhow::{Context, Result, bail, ensure};
 use clap::{Args, Parser, Subcommand};
+use datafusion::arrow::array::{
+    ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray,
+};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::util::pretty::pretty_format_batches;
 use datafusion::catalog::{SchemaProvider, TableProvider};
+use datafusion::datasource::MemTable;
 use datafusion::execution::context::SessionContext;
 use object_store::local::LocalFileSystem;
 use serde::Serialize;
@@ -45,6 +51,11 @@ use transit_server::bind_read_only_replica_from_frontier;
 const DEFAULT_HOSTED_IO_TIMEOUT_MS: u64 = 1_000;
 const DEFAULT_CONSUME_TAIL_BATCH_SIZE: usize = 100;
 const DEFAULT_CONSUME_TAIL_POLL_INTERVAL: Duration = Duration::from_millis(250);
+const SQL_STREAM_ID_COLUMN: &str = "_stream_id";
+const SQL_OFFSET_COLUMN: &str = "_offset";
+const SQL_POSITION_COLUMN: &str = "_position";
+const SQL_PAYLOAD_COLUMN: &str = "_payload";
+const SQL_PAYLOAD_JSON_COLUMN: &str = "_payload_json";
 
 #[derive(Debug, Parser)]
 #[command(name = "transit")]
@@ -4455,13 +4466,19 @@ async fn run_sql_query(root: PathBuf, args: SqlArgs) -> Result<SqlQueryResult> {
             let table_root = builder.build_from_entries(entries).await.with_context(|| {
                 format!("build transit SQL Prolly table for {}", stream_id.as_str())
             })?;
-            register_sql_table(
-                &context,
-                schema.as_ref(),
-                stream_id.as_str(),
-                std::sync::Arc::clone(&prolly_store),
-                table_root.clone(),
-            )?;
+            let record_batch =
+                sql_remote_json_record_batch(stream_id.as_str(), read.body().records())
+                    .with_context(|| {
+                        format!(
+                            "materialize remote stream {} as SQL rows",
+                            stream_id.as_str()
+                        )
+                    })?;
+            let table: std::sync::Arc<dyn TableProvider> = std::sync::Arc::new(MemTable::try_new(
+                record_batch.schema(),
+                vec![vec![record_batch]],
+            )?);
+            register_datafusion_table(&context, schema.as_ref(), stream_id.as_str(), table)?;
             table_roots.insert(
                 stream_id.as_str().to_owned(),
                 table_root.digest().to_owned(),
@@ -4478,7 +4495,7 @@ async fn run_sql_query(root: PathBuf, args: SqlArgs) -> Result<SqlQueryResult> {
             .build_from_entries(entries)
             .await
             .context("build transit SQL Prolly table")?;
-        register_sql_table(
+        register_prolly_sql_table(
             &context,
             schema.as_ref(),
             &args.table,
@@ -4498,8 +4515,9 @@ async fn run_sql_query(root: PathBuf, args: SqlArgs) -> Result<SqlQueryResult> {
         std::sync::Arc::new(ProllyCatalog::with_schema("public", schema_provider));
     context.register_catalog("transit", catalog);
 
+    let sql = rewrite_transit_sql(&args.command, args.server_addr.is_some());
     let batches = context
-        .sql(&args.command)
+        .sql(&sql)
         .await
         .context("plan transit SQL query")?
         .collect()
@@ -4521,7 +4539,7 @@ async fn run_sql_query(root: PathBuf, args: SqlArgs) -> Result<SqlQueryResult> {
     })
 }
 
-fn register_sql_table(
+fn register_prolly_sql_table(
     context: &SessionContext,
     schema: &ProllySchema,
     table_name: &str,
@@ -4530,6 +4548,15 @@ fn register_sql_table(
 ) -> Result<()> {
     let table: std::sync::Arc<dyn TableProvider> =
         std::sync::Arc::new(ProllyTable::new(store, table_root));
+    register_datafusion_table(context, schema, table_name, table)
+}
+
+fn register_datafusion_table(
+    context: &SessionContext,
+    schema: &ProllySchema,
+    table_name: &str,
+    table: std::sync::Arc<dyn TableProvider>,
+) -> Result<()> {
     schema
         .register_table(table_name.to_owned(), std::sync::Arc::clone(&table))
         .with_context(|| format!("register transit SQL table {table_name} in transit.public"))?;
@@ -4556,6 +4583,435 @@ fn sql_remote_record_row(record: &transit_core::server::RemoteRecord) -> LeafEnt
         key: render_position(record.position().clone()).into_bytes(),
         value: record.payload().to_vec(),
     }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum JsonSqlColumnKind {
+    Boolean,
+    Int64,
+    Float64,
+    Utf8,
+}
+
+impl JsonSqlColumnKind {
+    fn data_type(self) -> DataType {
+        match self {
+            Self::Boolean => DataType::Boolean,
+            Self::Int64 => DataType::Int64,
+            Self::Float64 => DataType::Float64,
+            Self::Utf8 => DataType::Utf8,
+        }
+    }
+}
+
+fn sql_remote_json_record_batch(
+    stream_id: &str,
+    records: &[transit_core::server::RemoteRecord],
+) -> Result<RecordBatch> {
+    let mut parsed_payloads = Vec::with_capacity(records.len());
+    let mut source_fields = BTreeSet::new();
+    let mut source_kinds = BTreeMap::new();
+
+    for record in records {
+        let parsed = serde_json::from_slice::<serde_json::Value>(record.payload()).ok();
+        if let Some(serde_json::Value::Object(object)) = parsed.as_ref() {
+            for (name, value) in object {
+                source_fields.insert(name.clone());
+                if let Some(kind) = json_sql_kind_for_value(value) {
+                    let next = source_kinds
+                        .get(name)
+                        .copied()
+                        .map(|current| widen_json_sql_kind(current, kind))
+                        .unwrap_or(kind);
+                    source_kinds.insert(name.clone(), next);
+                }
+            }
+        }
+        parsed_payloads.push(parsed);
+    }
+
+    let output_names = allocate_json_sql_column_names(&source_fields);
+    let mut fields = vec![
+        Field::new(SQL_STREAM_ID_COLUMN, DataType::Utf8, false),
+        Field::new(SQL_OFFSET_COLUMN, DataType::Int64, false),
+        Field::new(SQL_POSITION_COLUMN, DataType::Utf8, false),
+        Field::new(SQL_PAYLOAD_COLUMN, DataType::Binary, false),
+        Field::new(SQL_PAYLOAD_JSON_COLUMN, DataType::Utf8, true),
+    ];
+
+    for source_name in &source_fields {
+        let output_name = output_names
+            .get(source_name)
+            .expect("output column allocated for source field");
+        let kind = source_kinds
+            .get(source_name)
+            .copied()
+            .unwrap_or(JsonSqlColumnKind::Utf8);
+        fields.push(Field::new(output_name, kind.data_type(), true));
+    }
+
+    let stream_ids = StringArray::from(vec![Some(stream_id.to_owned()); records.len()]);
+    let offsets = Int64Array::from(
+        records
+            .iter()
+            .map(|record| {
+                i64::try_from(record.position().offset.value())
+                    .context("SQL record offset exceeds Int64 range")
+                    .map(Some)
+            })
+            .collect::<Result<Vec<_>>>()?,
+    );
+    let positions = StringArray::from(
+        records
+            .iter()
+            .map(|record| Some(render_position(record.position().clone())))
+            .collect::<Vec<_>>(),
+    );
+    let payloads = BinaryArray::from_iter_values(records.iter().map(|record| record.payload()));
+    let payload_json = StringArray::from(
+        parsed_payloads
+            .iter()
+            .map(|payload| payload.as_ref().map(|value| value.to_string()))
+            .collect::<Vec<_>>(),
+    );
+
+    let mut columns: Vec<ArrayRef> = vec![
+        std::sync::Arc::new(stream_ids),
+        std::sync::Arc::new(offsets),
+        std::sync::Arc::new(positions),
+        std::sync::Arc::new(payloads),
+        std::sync::Arc::new(payload_json),
+    ];
+
+    for source_name in &source_fields {
+        let kind = source_kinds
+            .get(source_name)
+            .copied()
+            .unwrap_or(JsonSqlColumnKind::Utf8);
+        columns.push(json_sql_column_array(
+            kind,
+            source_name,
+            parsed_payloads.as_slice(),
+        ));
+    }
+
+    RecordBatch::try_new(std::sync::Arc::new(Schema::new(fields)), columns)
+        .context("build SQL JSON record batch")
+}
+
+fn json_sql_kind_for_value(value: &serde_json::Value) -> Option<JsonSqlColumnKind> {
+    match value {
+        serde_json::Value::Null => None,
+        serde_json::Value::Bool(_) => Some(JsonSqlColumnKind::Boolean),
+        serde_json::Value::Number(number) => {
+            if number.as_i64().is_some()
+                || number
+                    .as_u64()
+                    .and_then(|value| i64::try_from(value).ok())
+                    .is_some()
+            {
+                Some(JsonSqlColumnKind::Int64)
+            } else if number.as_f64().is_some() {
+                Some(JsonSqlColumnKind::Float64)
+            } else {
+                Some(JsonSqlColumnKind::Utf8)
+            }
+        }
+        serde_json::Value::String(_) => Some(JsonSqlColumnKind::Utf8),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => Some(JsonSqlColumnKind::Utf8),
+    }
+}
+
+fn widen_json_sql_kind(current: JsonSqlColumnKind, next: JsonSqlColumnKind) -> JsonSqlColumnKind {
+    match (current, next) {
+        (left, right) if left == right => left,
+        (JsonSqlColumnKind::Int64, JsonSqlColumnKind::Float64)
+        | (JsonSqlColumnKind::Float64, JsonSqlColumnKind::Int64) => JsonSqlColumnKind::Float64,
+        _ => JsonSqlColumnKind::Utf8,
+    }
+}
+
+fn allocate_json_sql_column_names(source_fields: &BTreeSet<String>) -> BTreeMap<String, String> {
+    let mut used = BTreeSet::new();
+    for reserved in [
+        SQL_STREAM_ID_COLUMN,
+        SQL_OFFSET_COLUMN,
+        SQL_POSITION_COLUMN,
+        SQL_PAYLOAD_COLUMN,
+        SQL_PAYLOAD_JSON_COLUMN,
+    ] {
+        used.insert(reserved.to_owned());
+    }
+
+    let mut names = BTreeMap::new();
+    for source_name in source_fields {
+        let mut candidate = if used.contains(source_name) {
+            format!("payload_{source_name}")
+        } else {
+            source_name.clone()
+        };
+        while used.contains(&candidate) {
+            candidate = format!("payload_{candidate}");
+        }
+        used.insert(candidate.clone());
+        names.insert(source_name.clone(), candidate);
+    }
+    names
+}
+
+fn json_sql_column_array(
+    kind: JsonSqlColumnKind,
+    source_name: &str,
+    payloads: &[Option<serde_json::Value>],
+) -> ArrayRef {
+    match kind {
+        JsonSqlColumnKind::Boolean => std::sync::Arc::new(BooleanArray::from(
+            payloads
+                .iter()
+                .map(|payload| {
+                    json_field(payload, source_name).and_then(serde_json::Value::as_bool)
+                })
+                .collect::<Vec<_>>(),
+        )),
+        JsonSqlColumnKind::Int64 => std::sync::Arc::new(Int64Array::from(
+            payloads
+                .iter()
+                .map(|payload| json_field(payload, source_name).and_then(json_value_as_i64))
+                .collect::<Vec<_>>(),
+        )),
+        JsonSqlColumnKind::Float64 => std::sync::Arc::new(Float64Array::from(
+            payloads
+                .iter()
+                .map(|payload| json_field(payload, source_name).and_then(json_value_as_f64))
+                .collect::<Vec<_>>(),
+        )),
+        JsonSqlColumnKind::Utf8 => std::sync::Arc::new(StringArray::from(
+            payloads
+                .iter()
+                .map(|payload| json_field(payload, source_name).and_then(json_value_as_string))
+                .collect::<Vec<_>>(),
+        )),
+    }
+}
+
+fn json_field<'a>(
+    payload: &'a Option<serde_json::Value>,
+    source_name: &str,
+) -> Option<&'a serde_json::Value> {
+    payload.as_ref()?.as_object()?.get(source_name)
+}
+
+fn json_value_as_i64(value: &serde_json::Value) -> Option<i64> {
+    match value {
+        serde_json::Value::Number(number) => number
+            .as_i64()
+            .or_else(|| number.as_u64().and_then(|value| i64::try_from(value).ok())),
+        _ => None,
+    }
+}
+
+fn json_value_as_f64(value: &serde_json::Value) -> Option<f64> {
+    match value {
+        serde_json::Value::Number(number) => number.as_f64(),
+        _ => None,
+    }
+}
+
+fn json_value_as_string(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::Null => None,
+        serde_json::Value::String(value) => Some(value.clone()),
+        other => Some(other.to_string()),
+    }
+}
+
+fn rewrite_transit_sql(sql: &str, hosted_tables: bool) -> String {
+    if hosted_tables {
+        rewrite_last_aggregate_aliases(sql)
+    } else {
+        sql.to_owned()
+    }
+}
+
+fn rewrite_last_aggregate_aliases(sql: &str) -> String {
+    let mut rewritten = String::with_capacity(sql.len());
+    let mut copied_until = 0;
+    let mut index = 0;
+
+    while index < sql.len() {
+        let byte = sql.as_bytes()[index];
+        if matches!(byte, b'\'' | b'"' | b'`') {
+            index = skip_sql_quoted(sql, index, byte);
+            continue;
+        }
+
+        if let Some((open_paren, close_paren)) = last_call_bounds(sql, index) {
+            rewritten.push_str(&sql[copied_until..index]);
+            let argument = &sql[open_paren + 1..close_paren];
+            rewritten.push_str("last_value(");
+            rewritten.push_str(argument);
+            if !contains_top_level_order_by(argument) {
+                rewritten.push_str(" ORDER BY ");
+                rewritten.push_str(SQL_OFFSET_COLUMN);
+            }
+            rewritten.push(')');
+            index = close_paren + 1;
+            copied_until = index;
+            continue;
+        }
+
+        index += sql[index..]
+            .chars()
+            .next()
+            .expect("index is within SQL")
+            .len_utf8();
+    }
+
+    rewritten.push_str(&sql[copied_until..]);
+    rewritten
+}
+
+fn last_call_bounds(sql: &str, index: usize) -> Option<(usize, usize)> {
+    if !sql[index..].get(..4)?.eq_ignore_ascii_case("last") {
+        return None;
+    }
+    if index > 0 {
+        let previous = sql[..index].chars().next_back()?;
+        if previous.is_ascii_alphanumeric() || previous == '_' {
+            return None;
+        }
+    }
+
+    let mut cursor = index + 4;
+    if sql[cursor..]
+        .chars()
+        .next()
+        .is_some_and(|character| character.is_ascii_alphanumeric() || character == '_')
+    {
+        return None;
+    }
+    cursor = skip_sql_whitespace(sql, cursor);
+    if sql.as_bytes().get(cursor) != Some(&b'(') {
+        return None;
+    }
+
+    find_matching_sql_paren(sql, cursor).map(|close| (cursor, close))
+}
+
+fn skip_sql_whitespace(sql: &str, mut index: usize) -> usize {
+    while index < sql.len() {
+        let character = sql[index..].chars().next().expect("index is within SQL");
+        if !character.is_whitespace() {
+            break;
+        }
+        index += character.len_utf8();
+    }
+    index
+}
+
+fn skip_sql_quoted(sql: &str, start: usize, quote: u8) -> usize {
+    let mut index = start + 1;
+    while index < sql.len() {
+        if sql.as_bytes()[index] == quote {
+            let next = index + 1;
+            if sql.as_bytes().get(next) == Some(&quote) {
+                index = next + 1;
+                continue;
+            }
+            return next;
+        }
+        index += sql[index..]
+            .chars()
+            .next()
+            .expect("index is within SQL")
+            .len_utf8();
+    }
+    sql.len()
+}
+
+fn find_matching_sql_paren(sql: &str, open_paren: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut index = open_paren;
+
+    while index < sql.len() {
+        let byte = sql.as_bytes()[index];
+        if matches!(byte, b'\'' | b'"' | b'`') {
+            index = skip_sql_quoted(sql, index, byte);
+            continue;
+        }
+        match byte {
+            b'(' => depth += 1,
+            b')' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += sql[index..]
+            .chars()
+            .next()
+            .expect("index is within SQL")
+            .len_utf8();
+    }
+    None
+}
+
+fn contains_top_level_order_by(sql: &str) -> bool {
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < sql.len() {
+        let byte = sql.as_bytes()[index];
+        if matches!(byte, b'\'' | b'"' | b'`') {
+            index = skip_sql_quoted(sql, index, byte);
+            continue;
+        }
+        match byte {
+            b'(' => depth += 1,
+            b')' => depth = depth.saturating_sub(1),
+            _ if depth == 0 && keyword_at(sql, index, "order") => {
+                let after_order = skip_sql_whitespace(sql, index + "order".len());
+                if keyword_at(sql, after_order, "by") {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+        index += sql[index..]
+            .chars()
+            .next()
+            .expect("index is within SQL")
+            .len_utf8();
+    }
+
+    false
+}
+
+fn keyword_at(sql: &str, index: usize, keyword: &str) -> bool {
+    if !sql
+        .get(index..index + keyword.len())
+        .is_some_and(|candidate| candidate.eq_ignore_ascii_case(keyword))
+    {
+        return false;
+    }
+
+    let before_ok = if index == 0 {
+        true
+    } else {
+        sql[..index]
+            .chars()
+            .next_back()
+            .is_some_and(|character| !character.is_ascii_alphanumeric() && character != '_')
+    };
+    let after = index + keyword.len();
+    let after_ok = sql[after..]
+        .chars()
+        .next()
+        .is_none_or(|character| !character.is_ascii_alphanumeric() && character != '_');
+
+    before_ok && after_ok
 }
 
 async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result<ServerRunResult> {
@@ -8649,6 +9105,109 @@ mod tests {
         assert!(result.output.contains('2'));
 
         server.shutdown().expect("shutdown server");
+    }
+
+    #[tokio::test]
+    async fn sql_command_materializes_hosted_json_payload_fields() {
+        let temp_dir = tempdir().expect("temp dir");
+        let (_server_temp_dir, server, server_addr) = start_server();
+
+        run_produce(
+            server_addr,
+            ProduceArgs {
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                stream_id: "messages".to_owned(),
+                payload_text: vec![
+                    r#"{"hello":"world"}"#.to_owned(),
+                    r#"{"hello":"again"}"#.to_owned(),
+                ],
+                json: true,
+            },
+        )
+        .expect("produce");
+
+        let result = run_sql_query(
+            temp_dir.path().join("sql-json-fields"),
+            SqlArgs {
+                root: None,
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                command: "SELECT _offset, hello FROM messages ORDER BY _offset".to_owned(),
+                table: "messages".to_owned(),
+                rows: vec![],
+            },
+        )
+        .await
+        .expect("run hosted sql query");
+
+        assert_eq!(result.seeded_rows, 2);
+        assert!(result.output.contains("_offset"));
+        assert!(result.output.contains("hello"));
+        assert!(result.output.contains("world"));
+        assert!(result.output.contains("again"));
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[tokio::test]
+    async fn sql_command_last_alias_reads_current_state_by_offset() {
+        let temp_dir = tempdir().expect("temp dir");
+        let (_server_temp_dir, server, server_addr) = start_server();
+
+        run_produce(
+            server_addr,
+            ProduceArgs {
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                stream_id: "accounts".to_owned(),
+                payload_text: vec![
+                    r#"{"id":"1","balance":110}"#.to_owned(),
+                    r#"{"id":"1","balance":120}"#.to_owned(),
+                    r#"{"id":"1","balance":150}"#.to_owned(),
+                ],
+                json: true,
+            },
+        )
+        .expect("produce");
+
+        let result = run_sql_query(
+            temp_dir.path().join("sql-current-state"),
+            SqlArgs {
+                root: None,
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                command: "SELECT id, LAST(balance) AS balance FROM accounts GROUP BY id".to_owned(),
+                table: "accounts".to_owned(),
+                rows: vec![],
+            },
+        )
+        .await
+        .expect("run hosted sql query");
+
+        assert_eq!(result.seeded_rows, 3);
+        assert!(result.output.contains("id"));
+        assert!(result.output.contains("balance"));
+        assert!(result.output.contains('1'));
+        assert!(result.output.contains("150"));
+        assert!(!result.output.contains("110"));
+        assert!(!result.output.contains("120"));
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn transit_sql_last_alias_rewrites_to_offset_ordered_last_value() {
+        assert_eq!(
+            rewrite_last_aggregate_aliases("SELECT id, LAST(balance) FROM accounts GROUP BY id"),
+            "SELECT id, last_value(balance ORDER BY _offset) FROM accounts GROUP BY id"
+        );
+        assert_eq!(
+            rewrite_last_aggregate_aliases(
+                "SELECT LAST(balance ORDER BY event_offset) FROM accounts"
+            ),
+            "SELECT last_value(balance ORDER BY event_offset) FROM accounts"
+        );
     }
 
     #[test]

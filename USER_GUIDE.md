@@ -76,6 +76,15 @@ registered as table names, so quote ids that contain punctuation:
 just transit sql --server-addr 127.0.0.1:7171 -c 'SELECT COUNT(*) AS count FROM "demo.root"'
 ```
 
+Hosted SQL tables expose one row per Transit record. Top-level JSON object
+fields become queryable columns, with Transit metadata available as `_stream_id`,
+`_offset`, `_position`, `_payload`, and `_payload_json`. `LAST(column)` is a
+Transit shorthand for the value at the highest `_offset` in each group:
+
+```bash
+just transit sql --server-addr 127.0.0.1:7171 -c 'SELECT id, LAST(balance) AS balance FROM accounts GROUP BY id'
+```
+
 The explicit `streams create` step lets you author root-stream lineage metadata
 such as actor, reason, labels, and retention policy. For quick operator checks,
 `transit produce` also creates a missing root stream with CLI lineage metadata

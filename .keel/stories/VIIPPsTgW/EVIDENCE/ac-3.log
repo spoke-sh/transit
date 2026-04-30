@@ -1,0 +1,12 @@
+---
+recorded_at: 2026-04-30T10:29:26-07:00
+command: just docs-build
+---
+
+nix shell nixpkgs#nodejs_24 --command npm --prefix website run build
+
+> transit-website@0.0.0 build
+> docusaurus build
+
+[SUCCESS] Generated static files in "build".
+

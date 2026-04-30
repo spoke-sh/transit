@@ -1,0 +1,18 @@
+---
+recorded_at: 2026-04-30T10:29:26-07:00
+command: cargo test -p transit-cli sql_command_last_alias_reads_current_state_by_offset -- --nocapture
+---
+
+running 1 test
+test tests::sql_command_last_alias_reads_current_state_by_offset ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured
+
+Live CLI proof also returned the requested current-state shape:
+
++----+---------+
+| id | balance |
++----+---------+
+| 1  | 150     |
++----+---------+
+

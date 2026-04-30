@@ -179,6 +179,17 @@ transit sql \
   -c 'SELECT COUNT(*) AS count FROM "demo/main"'
 ```
 
+Hosted SQL tables expose one row per Transit record. Top-level JSON object
+fields become queryable columns, with Transit metadata available as `_stream_id`,
+`_offset`, `_position`, `_payload`, and `_payload_json`. `LAST(column)` is a
+Transit shorthand for the value at the highest `_offset` in each group:
+
+```bash
+transit sql \
+  --server-addr 127.0.0.1:7171 \
+  -c 'SELECT id, LAST(balance) AS balance FROM accounts GROUP BY id'
+```
+
 List hosted streams:
 
 ```bash
