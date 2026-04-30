@@ -22,8 +22,8 @@ mission: VICjTdyeB
 ## Voyages
 
 <!-- BEGIN GENERATED -->
-**Progress:** 0/1 voyages complete, 0/2 stories done
+**Progress:** 0/1 voyages complete, 1/2 stories done
 | Voyage | Status | Stories |
 |--------|--------|---------|
-| [Enhance ProllyTreeBuilder with Point Updates](voyages/VICkpOvfb/) | planned | 0/2 |
+| [Enhance ProllyTreeBuilder with Point Updates](voyages/VICkpOvfb/) | in-progress | 1/2 |
 <!-- END GENERATED -->

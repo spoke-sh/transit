@@ -253,7 +253,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Enhance ProllyTreeBuilder with Point Updates](epics/VICkg5IvO/voyages/VICkpOvfb/) | planned |
+| [Enhance ProllyTreeBuilder with Point Updates](epics/VICkg5IvO/voyages/VICkpOvfb/) | in-progress |
 
 ### [DataFusion Materializer and Branch Integration](epics/VICkg6QuJ/) (active)
 

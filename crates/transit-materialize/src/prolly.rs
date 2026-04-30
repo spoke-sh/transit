@@ -187,6 +187,16 @@ pub struct ProllyTreeBuilder<'a, S: ProllyStore> {
     chunk_threshold: u32,
 }
 
+struct InternalPathFrame {
+    node: InternalNode,
+    child_index: usize,
+}
+
+enum LeafPointMutation {
+    Insert { key: Vec<u8>, value: Vec<u8> },
+    Delete { key: Vec<u8> },
+}
+
 impl<'a, S: ProllyStore> ProllyTreeBuilder<'a, S> {
     pub fn new(store: &'a S) -> Self {
         Self {
@@ -278,6 +288,27 @@ impl<'a, S: ProllyStore> ProllyTreeBuilder<'a, S> {
         }
 
         Ok(current_layer_digests[0].child_digest.clone())
+    }
+
+    pub async fn insert(
+        &self,
+        root_digest: &ContentDigest,
+        key: impl Into<Vec<u8>>,
+        value: impl Into<Vec<u8>>,
+    ) -> Result<ContentDigest> {
+        self.point_update(
+            root_digest,
+            LeafPointMutation::Insert {
+                key: key.into(),
+                value: value.into(),
+            },
+        )
+        .await
+    }
+
+    pub async fn delete(&self, root_digest: &ContentDigest, key: &[u8]) -> Result<ContentDigest> {
+        self.point_update(root_digest, LeafPointMutation::Delete { key: key.to_vec() })
+            .await
     }
 
     pub async fn lookup(&self, root_digest: &ContentDigest, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -376,6 +407,179 @@ impl<'a, S: ProllyStore> ProllyTreeBuilder<'a, S> {
         Ok(entries)
     }
 
+    async fn point_update(
+        &self,
+        root_digest: &ContentDigest,
+        mutation: LeafPointMutation,
+    ) -> Result<ContentDigest> {
+        let search_key = match &mutation {
+            LeafPointMutation::Insert { key, .. } => key.as_slice(),
+            LeafPointMutation::Delete { key } => key.as_slice(),
+        };
+        let mut path = Vec::new();
+        let mut next_digest = root_digest.clone();
+
+        let leaf = loop {
+            match self.store.get(&next_digest).await? {
+                ProllyNode::Leaf(leaf) => break leaf,
+                ProllyNode::Internal(internal) => {
+                    ensure!(
+                        !internal.entries.is_empty(),
+                        "internal prolly node must contain at least one child"
+                    );
+                    let child_index = self.child_index_for_key(&internal, search_key);
+                    next_digest = internal.entries[child_index].child_digest.clone();
+                    path.push(InternalPathFrame {
+                        node: internal,
+                        child_index,
+                    });
+                }
+            }
+        };
+
+        let Some(updated_entries) = apply_leaf_mutation(leaf.entries, mutation) else {
+            return Ok(root_digest.clone());
+        };
+
+        let mut replacement_entries = self.store_leaf_chunks(updated_entries).await?;
+        for frame in path.into_iter().rev() {
+            let mut entries = frame.node.entries;
+            entries.splice(
+                frame.child_index..=frame.child_index,
+                replacement_entries.into_iter(),
+            );
+            replacement_entries = self.store_internal_chunks(entries).await?;
+        }
+
+        self.root_from_replacement_entries(replacement_entries)
+            .await
+    }
+
+    fn child_index_for_key(&self, internal: &InternalNode, key: &[u8]) -> usize {
+        internal
+            .entries
+            .iter()
+            .position(|entry| key <= entry.key.as_slice())
+            .unwrap_or_else(|| {
+                internal
+                    .entries
+                    .len()
+                    .checked_sub(1)
+                    .expect("internal node is known non-empty")
+            })
+    }
+
+    async fn store_leaf_chunks(&self, entries: Vec<LeafEntry>) -> Result<Vec<InternalEntry>> {
+        let mut replacements = Vec::new();
+        let mut current_chunk = Vec::new();
+
+        for entry in entries {
+            current_chunk.push(entry);
+            if self.should_chunk_leaf(&current_chunk) {
+                let separator_key = current_chunk
+                    .last()
+                    .expect("leaf chunk has at least one entry")
+                    .key
+                    .clone();
+                let node = ProllyNode::Leaf(LeafNode {
+                    entries: std::mem::take(&mut current_chunk),
+                });
+                let digest = self.store.put(node).await?;
+                replacements.push(InternalEntry {
+                    key: separator_key,
+                    child_digest: digest,
+                });
+            }
+        }
+
+        if !current_chunk.is_empty() {
+            let separator_key = current_chunk
+                .last()
+                .expect("leaf chunk has at least one entry")
+                .key
+                .clone();
+            let node = ProllyNode::Leaf(LeafNode {
+                entries: current_chunk,
+            });
+            let digest = self.store.put(node).await?;
+            replacements.push(InternalEntry {
+                key: separator_key,
+                child_digest: digest,
+            });
+        }
+
+        Ok(replacements)
+    }
+
+    async fn store_internal_chunks(
+        &self,
+        entries: Vec<InternalEntry>,
+    ) -> Result<Vec<InternalEntry>> {
+        let mut replacements = Vec::new();
+        let mut current_chunk = Vec::new();
+
+        for entry in entries {
+            current_chunk.push(entry);
+            if self.should_chunk_internal(&current_chunk) {
+                let separator_key = current_chunk
+                    .last()
+                    .expect("internal chunk has at least one entry")
+                    .key
+                    .clone();
+                let node = ProllyNode::Internal(InternalNode {
+                    entries: std::mem::take(&mut current_chunk),
+                });
+                let digest = self.store.put(node).await?;
+                replacements.push(InternalEntry {
+                    key: separator_key,
+                    child_digest: digest,
+                });
+            }
+        }
+
+        if !current_chunk.is_empty() {
+            let separator_key = current_chunk
+                .last()
+                .expect("internal chunk has at least one entry")
+                .key
+                .clone();
+            let node = ProllyNode::Internal(InternalNode {
+                entries: current_chunk,
+            });
+            let digest = self.store.put(node).await?;
+            replacements.push(InternalEntry {
+                key: separator_key,
+                child_digest: digest,
+            });
+        }
+
+        Ok(replacements)
+    }
+
+    async fn root_from_replacement_entries(
+        &self,
+        mut entries: Vec<InternalEntry>,
+    ) -> Result<ContentDigest> {
+        if entries.is_empty() {
+            return self
+                .store
+                .put(ProllyNode::Leaf(LeafNode {
+                    entries: Vec::new(),
+                }))
+                .await;
+        }
+
+        while entries.len() > 1 {
+            entries = self.store_internal_chunks(entries).await?;
+        }
+
+        Ok(entries
+            .into_iter()
+            .next()
+            .expect("replacement entries are known non-empty")
+            .child_digest)
+    }
+
     fn should_chunk_leaf(&self, entries: &[LeafEntry]) -> bool {
         entries
             .last()
@@ -387,6 +591,32 @@ impl<'a, S: ProllyStore> ProllyTreeBuilder<'a, S> {
             && entries
                 .last()
                 .is_some_and(|last| stable_chunk_score(&last.key) & self.chunk_threshold == 0)
+    }
+}
+
+fn apply_leaf_mutation(
+    mut entries: Vec<LeafEntry>,
+    mutation: LeafPointMutation,
+) -> Option<Vec<LeafEntry>> {
+    match mutation {
+        LeafPointMutation::Insert { key, value } => {
+            match entries.binary_search_by(|entry| entry.key.cmp(&key)) {
+                Ok(index) if entries[index].value == value => None,
+                Ok(index) => {
+                    entries[index].value = value;
+                    Some(entries)
+                }
+                Err(index) => {
+                    entries.insert(index, LeafEntry { key, value });
+                    Some(entries)
+                }
+            }
+        }
+        LeafPointMutation::Delete { key } => {
+            let index = entries.binary_search_by(|entry| entry.key.cmp(&key)).ok()?;
+            entries.remove(index);
+            Some(entries)
+        }
     }
 }
 
@@ -596,6 +826,82 @@ mod tests {
                     value: b"3".to_vec(),
                 },
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn prolly_insert_returns_new_root_without_rewriting_existing_root() {
+        let store = MemoryProllyStore::new();
+        let builder = ProllyTreeBuilder::new(&store);
+
+        let before_root = builder
+            .build_from_entries(vec![entry("a", "1"), entry("c", "3")])
+            .await
+            .expect("build before");
+
+        let after_root = builder
+            .insert(&before_root, b"b".to_vec(), b"2".to_vec())
+            .await
+            .expect("insert key");
+
+        assert_ne!(before_root, after_root);
+        assert_eq!(
+            builder
+                .lookup(&before_root, b"b")
+                .await
+                .expect("lookup before"),
+            None
+        );
+        assert_eq!(
+            builder
+                .lookup(&after_root, b"b")
+                .await
+                .expect("lookup after"),
+            Some(b"2".to_vec())
+        );
+        assert_eq!(
+            builder
+                .lookup(&after_root, b"c")
+                .await
+                .expect("lookup existing"),
+            Some(b"3".to_vec())
+        );
+    }
+
+    #[tokio::test]
+    async fn prolly_delete_returns_new_root_and_preserves_absent_deletes() {
+        let store = MemoryProllyStore::new();
+        let builder = ProllyTreeBuilder::new(&store);
+
+        let before_root = builder
+            .build_from_entries(vec![entry("a", "1"), entry("b", "2"), entry("c", "3")])
+            .await
+            .expect("build before");
+
+        let after_root = builder
+            .delete(&before_root, b"b")
+            .await
+            .expect("delete key");
+        let missing_delete_root = builder
+            .delete(&after_root, b"missing")
+            .await
+            .expect("delete missing key");
+
+        assert_ne!(before_root, after_root);
+        assert_eq!(after_root, missing_delete_root);
+        assert_eq!(
+            builder
+                .lookup(&after_root, b"b")
+                .await
+                .expect("lookup deleted"),
+            None
+        );
+        assert_eq!(
+            builder
+                .lookup(&after_root, b"a")
+                .await
+                .expect("lookup retained"),
+            Some(b"1".to_vec())
         );
     }
 

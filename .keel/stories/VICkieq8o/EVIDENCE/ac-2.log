@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T17:42:31.153814238-07:00
+mode: manual
+---
+Verified delete with cargo test -p transit-materialize prolly_delete_returns_new_root_and_preserves_absent_deletes -- --nocapture.

@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T17:42:26.567041679-07:00
+mode: manual
+---
+Verified insert with cargo test -p transit-materialize prolly_insert_returns_new_root_without_rewriting_existing_root -- --nocapture.
