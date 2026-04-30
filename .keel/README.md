@@ -249,11 +249,11 @@
 |--------|--------|
 | [Implement Core Prolly Storage Traits for DataFusion](epics/VICkg4FuI/voyages/VICkpNoeV/) | planned |
 
-### [Incremental Prolly Tree Updates](epics/VICkg5IvO/) (active)
+### [Incremental Prolly Tree Updates](epics/VICkg5IvO/) (done)
 
 | Voyage | Status |
 |--------|--------|
-| [Enhance ProllyTreeBuilder with Point Updates](epics/VICkg5IvO/voyages/VICkpOvfb/) | in-progress |
+| [Enhance ProllyTreeBuilder with Point Updates](epics/VICkg5IvO/voyages/VICkpOvfb/) | done |
 
 ### [DataFusion Materializer and Branch Integration](epics/VICkg6QuJ/) (active)
 

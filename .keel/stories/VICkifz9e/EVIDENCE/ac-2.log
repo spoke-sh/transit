@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T17:44:49.237437899-07:00
+mode: manual
+---
+Verified logarithmic point update behavior with cargo test -p transit-materialize prolly_point_updates_touch_logarithmic_node_count -- --nocapture; the instrumented store asserts insert/delete touch at most 64 nodes and far less than the full tree.

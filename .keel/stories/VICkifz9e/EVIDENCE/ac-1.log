@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T17:44:44.740948362-07:00
+mode: manual
+---
+Verified multi-layer insert/delete behavior with cargo test -p transit-materialize prolly_insert_and_delete_work_for_multi_layer_tree -- --nocapture.

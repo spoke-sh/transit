@@ -24,6 +24,10 @@ impl MemoryProllyStore {
             nodes: std::sync::Mutex::new(std::collections::HashMap::new()),
         }
     }
+
+    pub fn node_count(&self) -> usize {
+        self.nodes.lock().unwrap().len()
+    }
 }
 
 #[cfg(test)]
@@ -656,11 +660,75 @@ fn sha256_hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn entry(key: &str, value: &str) -> LeafEntry {
         LeafEntry {
             key: key.as_bytes().to_vec(),
             value: value.as_bytes().to_vec(),
+        }
+    }
+
+    struct CountingProllyStore {
+        nodes: Mutex<std::collections::HashMap<String, ProllyNode>>,
+        gets: AtomicUsize,
+        puts: AtomicUsize,
+    }
+
+    impl CountingProllyStore {
+        fn new() -> Self {
+            Self {
+                nodes: Mutex::new(std::collections::HashMap::new()),
+                gets: AtomicUsize::new(0),
+                puts: AtomicUsize::new(0),
+            }
+        }
+
+        fn reset_counts(&self) {
+            self.gets.store(0, Ordering::SeqCst);
+            self.puts.store(0, Ordering::SeqCst);
+        }
+
+        fn counts(&self) -> (usize, usize) {
+            (
+                self.gets.load(Ordering::SeqCst),
+                self.puts.load(Ordering::SeqCst),
+            )
+        }
+
+        fn node_count(&self) -> usize {
+            self.nodes.lock().unwrap().len()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ProllyStore for CountingProllyStore {
+        async fn put(&self, node: ProllyNode) -> Result<ContentDigest> {
+            self.puts.fetch_add(1, Ordering::SeqCst);
+            let digest = node.digest()?;
+            self.nodes
+                .lock()
+                .unwrap()
+                .insert(digest.digest().to_string(), node);
+            Ok(digest)
+        }
+
+        async fn get(&self, digest: &ContentDigest) -> Result<ProllyNode> {
+            self.gets.fetch_add(1, Ordering::SeqCst);
+            let node = self
+                .nodes
+                .lock()
+                .unwrap()
+                .get(digest.digest())
+                .cloned()
+                .context("not found")?;
+            ensure!(
+                node.digest()? == *digest,
+                "prolly node digest mismatch for {}",
+                digest.digest()
+            );
+            Ok(node)
         }
     }
 
@@ -902,6 +970,139 @@ mod tests {
                 .await
                 .expect("lookup retained"),
             Some(b"1".to_vec())
+        );
+    }
+
+    #[tokio::test]
+    async fn prolly_insert_and_delete_work_for_multi_layer_tree() {
+        let store = MemoryProllyStore::new();
+        let mut builder = ProllyTreeBuilder::new(&store);
+        builder.chunk_threshold = 0x0000_0003;
+
+        let entries = (0..256)
+            .map(|index| LeafEntry {
+                key: format!("key-{index:03}").into_bytes(),
+                value: format!("value-{index:03}").into_bytes(),
+            })
+            .collect::<Vec<_>>();
+
+        let root = builder.build_from_entries(entries).await.expect("build");
+        assert!(store.node_count() > 32, "forced tree should be multi-layer");
+        assert!(matches!(
+            store.get(&root).await.expect("get root"),
+            ProllyNode::Internal(_)
+        ));
+
+        let inserted_root = builder
+            .insert(&root, b"key-127a".to_vec(), b"value-inserted".to_vec())
+            .await
+            .expect("insert into multi-layer tree");
+        assert_eq!(
+            builder
+                .lookup(&inserted_root, b"key-127a")
+                .await
+                .expect("lookup inserted"),
+            Some(b"value-inserted".to_vec())
+        );
+        assert_eq!(
+            builder
+                .lookup(&root, b"key-127a")
+                .await
+                .expect("lookup original root"),
+            None
+        );
+
+        let deleted_root = builder
+            .delete(&inserted_root, b"key-128")
+            .await
+            .expect("delete from multi-layer tree");
+        assert_eq!(
+            builder
+                .lookup(&deleted_root, b"key-128")
+                .await
+                .expect("lookup deleted"),
+            None
+        );
+        assert_eq!(
+            builder
+                .lookup(&root, b"key-128")
+                .await
+                .expect("lookup original retained"),
+            Some(b"value-128".to_vec())
+        );
+        assert_eq!(
+            builder
+                .lookup(&deleted_root, b"key-127a")
+                .await
+                .expect("lookup inserted after delete"),
+            Some(b"value-inserted".to_vec())
+        );
+    }
+
+    #[tokio::test]
+    async fn prolly_point_updates_touch_logarithmic_node_count() {
+        let store = CountingProllyStore::new();
+        let mut builder = ProllyTreeBuilder::new(&store);
+        builder.chunk_threshold = 0x0000_0003;
+
+        let entries = (0..2048)
+            .map(|index| LeafEntry {
+                key: format!("key-{index:04}").into_bytes(),
+                value: format!("value-{index:04}").into_bytes(),
+            })
+            .collect::<Vec<_>>();
+
+        let root = builder.build_from_entries(entries).await.expect("build");
+        let total_nodes = store.node_count();
+        assert!(
+            total_nodes > 128,
+            "test setup must build enough nodes to distinguish path updates"
+        );
+
+        store.reset_counts();
+        let inserted_root = builder
+            .insert(&root, b"key-1024a".to_vec(), b"value-inserted".to_vec())
+            .await
+            .expect("insert key");
+        let (insert_gets, insert_puts) = store.counts();
+
+        assert_eq!(
+            builder
+                .lookup(&inserted_root, b"key-1024a")
+                .await
+                .expect("lookup inserted"),
+            Some(b"value-inserted".to_vec())
+        );
+        assert!(
+            insert_gets + insert_puts <= 64,
+            "insert touched too many nodes: gets={insert_gets}, puts={insert_puts}, total_nodes={total_nodes}"
+        );
+        assert!(
+            (insert_gets + insert_puts) * 8 < total_nodes,
+            "insert should touch far less than the full tree: gets={insert_gets}, puts={insert_puts}, total_nodes={total_nodes}"
+        );
+
+        store.reset_counts();
+        let deleted_root = builder
+            .delete(&inserted_root, b"key-1024")
+            .await
+            .expect("delete key");
+        let (delete_gets, delete_puts) = store.counts();
+
+        assert_eq!(
+            builder
+                .lookup(&deleted_root, b"key-1024")
+                .await
+                .expect("lookup deleted"),
+            None
+        );
+        assert!(
+            delete_gets + delete_puts <= 64,
+            "delete touched too many nodes: gets={delete_gets}, puts={delete_puts}, total_nodes={total_nodes}"
+        );
+        assert!(
+            (delete_gets + delete_puts) * 8 < total_nodes,
+            "delete should touch far less than the full tree: gets={delete_gets}, puts={delete_puts}, total_nodes={total_nodes}"
         );
     }
 
