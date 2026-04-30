@@ -247,7 +247,7 @@
 
 | Voyage | Status |
 |--------|--------|
-| [Implement Core Prolly Storage Traits for DataFusion](epics/VICkg4FuI/voyages/VICkpNoeV/) | planned |
+| [Implement Core Prolly Storage Traits for DataFusion](epics/VICkg4FuI/voyages/VICkpNoeV/) | in-progress |
 
 ### [Incremental Prolly Tree Updates](epics/VICkg5IvO/) (done)
 

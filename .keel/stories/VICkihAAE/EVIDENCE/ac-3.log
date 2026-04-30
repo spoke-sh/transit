@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T17:49:40.117374461-07:00
+mode: manual
+---
+Verified TableProvider schema() and scan() return a DataFusion execution plan with cargo test -p transit-materialize datafusion::tests::prolly_table_wraps_root_and_scans_with_table_provider -- --nocapture.

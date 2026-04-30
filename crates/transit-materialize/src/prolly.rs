@@ -315,6 +315,15 @@ impl<'a, S: ProllyStore> ProllyTreeBuilder<'a, S> {
             .await
     }
 
+    pub async fn entries(&self, root_digest: &ContentDigest) -> Result<Vec<LeafEntry>> {
+        Ok(self
+            .collect_entries(root_digest)
+            .await?
+            .into_iter()
+            .map(|(key, value)| LeafEntry { key, value })
+            .collect())
+    }
+
     pub async fn lookup(&self, root_digest: &ContentDigest, key: &[u8]) -> Result<Option<Vec<u8>>> {
         let mut next_digest = root_digest.clone();
 

@@ -1,0 +1,5 @@
+---
+recorded_at: 2026-04-29T17:49:33.643183244-07:00
+mode: manual
+---
+Verified Prolly LeafEntry to Arrow RecordBatch mapping with cargo test -p transit-materialize datafusion::tests::prolly_entries_map_to_arrow_record_batch -- --nocapture.

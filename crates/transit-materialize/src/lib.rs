@@ -4,6 +4,7 @@ use transit_core::engine::{LocalEngine, LocalRecord};
 use transit_core::kernel::{Offset, StreamId};
 use transit_core::storage::LineageCheckpoint;
 
+pub mod datafusion;
 pub mod engine;
 pub mod prolly;
 
