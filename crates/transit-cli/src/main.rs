@@ -26,7 +26,8 @@ use transit_core::object_store_support::{
     StorageProbeResult, build_loaded_runtime_object_store, probe_effective_storage,
 };
 use transit_core::server::{
-    RemoteClient, ServerConfig, ServerHandle, ServerShutdownOutcome, TailSessionId,
+    RemoteClient, RemoteClientError, RemoteErrorCode, ServerConfig, ServerHandle,
+    ServerShutdownOutcome, TailSessionId,
 };
 use transit_core::storage::{ContentDigest, PublishedFrontier};
 use transit_materialize::datafusion::{ProllyCatalog, ProllySchema, ProllyTable};
@@ -238,7 +239,7 @@ struct ProduceArgs {
     /// Client-side per-connection I/O timeout in milliseconds.
     #[arg(long = "connection-io-timeout-ms")]
     connection_io_timeout_ms: Option<u64>,
-    /// Stream identifier to append to.
+    /// Stream identifier to append to. Missing root streams are created with CLI lineage metadata.
     #[arg(long = "stream-id")]
     stream_id: String,
     /// Append one payload. Repeat to send multiple records; if omitted, newline-delimited stdin is used.
@@ -2191,6 +2192,7 @@ struct RemoteTailCancelResult {
 struct ProduceResult {
     server_addr: String,
     stream_id: String,
+    created_stream: bool,
     append_count: usize,
     last_position: Option<String>,
     appends: Vec<RemoteAppendResult>,
@@ -4668,10 +4670,32 @@ fn run_produce(server_addr: SocketAddr, args: ProduceArgs) -> Result<ProduceResu
     );
 
     let mut appends = Vec::with_capacity(payloads.len());
+    let mut created_stream = false;
     for payload in payloads {
-        let append = client
-            .append(&stream_id, payload.as_bytes())
-            .with_context(|| format!("append remotely to {}", stream_id.as_str()))?;
+        let append = match client.append(&stream_id, payload.as_bytes()) {
+            Ok(append) => append,
+            Err(error) if appends.is_empty() && is_remote_not_found(&error) => {
+                match client.create_root(&stream_id, produce_auto_create_metadata()) {
+                    Ok(_) => {
+                        created_stream = true;
+                    }
+                    Err(create_error) if is_remote_already_exists(&create_error) => {}
+                    Err(create_error) => {
+                        return Err(create_error).with_context(|| {
+                            format!("create missing remote root {}", stream_id.as_str())
+                        });
+                    }
+                }
+
+                client
+                    .append(&stream_id, payload.as_bytes())
+                    .with_context(|| format!("append remotely to {}", stream_id.as_str()))?
+            }
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("append remotely to {}", stream_id.as_str()));
+            }
+        };
         appends.push(summarize_single_remote_append(
             server_addr,
             &stream_id,
@@ -4682,10 +4706,34 @@ fn run_produce(server_addr: SocketAddr, args: ProduceArgs) -> Result<ProduceResu
     Ok(ProduceResult {
         server_addr: server_addr.to_string(),
         stream_id: stream_id.as_str().to_owned(),
+        created_stream,
         append_count: appends.len(),
         last_position: appends.last().map(|append| append.last_position.clone()),
         appends,
     })
+}
+
+fn produce_auto_create_metadata() -> LineageMetadata {
+    LineageMetadata::new(
+        Some("transit-cli".to_owned()),
+        Some("auto-create missing root stream for transit produce".to_owned()),
+    )
+}
+
+fn is_remote_not_found(error: &RemoteClientError) -> bool {
+    matches!(
+        error,
+        RemoteClientError::Remote(remote) if remote.code() == RemoteErrorCode::NotFound
+    )
+}
+
+fn is_remote_already_exists(error: &RemoteClientError) -> bool {
+    matches!(
+        error,
+        RemoteClientError::Remote(remote)
+            if remote.code() == RemoteErrorCode::InvalidRequest
+                && remote.message().contains("already exists")
+    )
 }
 
 fn run_consume(server_addr: SocketAddr, args: ConsumeArgs) -> Result<ConsumeResult> {
@@ -7922,6 +7970,9 @@ fn render_produce(result: ProduceResult, json: bool) -> Result<()> {
     println!("transit produce");
     println!("server: {}", result.server_addr);
     println!("stream: {}", result.stream_id);
+    if result.created_stream {
+        println!("created stream: true");
+    }
     println!("appends: {}", result.append_count);
     if let Some(last_position) = result.last_position {
         println!("last position: {last_position}");
@@ -8457,6 +8508,7 @@ mod tests {
             },
         )
         .expect("produce");
+        assert!(!produced.created_stream);
         assert_eq!(produced.append_count, 2);
         assert_eq!(produced.last_position.as_deref(), Some("task.root@1"));
 
@@ -8490,6 +8542,51 @@ mod tests {
         .expect("delete");
         assert_eq!(deleted.stream_id, "task.root");
         assert_eq!(deleted.record_count, 2);
+
+        server.shutdown().expect("shutdown server");
+    }
+
+    #[test]
+    fn produce_auto_creates_missing_root_stream_for_operator_flow() {
+        let (_temp_dir, server, server_addr) = start_server();
+
+        let produced = run_produce(
+            server_addr,
+            ProduceArgs {
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                stream_id: "foo".into(),
+                payload_text: vec![r#"{"hello":"world"}"#.into()],
+                json: true,
+            },
+        )
+        .expect("produce");
+        assert!(produced.created_stream);
+        assert_eq!(produced.append_count, 1);
+        assert_eq!(produced.last_position.as_deref(), Some("foo@0"));
+
+        let listed = run_streams_list(server_addr, None).expect("list streams");
+        assert_eq!(listed.stream_count, 1);
+        assert_eq!(listed.streams[0].stream_id, "foo");
+        assert_eq!(listed.streams[0].lineage_kind, "root");
+
+        let consumed = run_consume(
+            server_addr,
+            ConsumeArgs {
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                stream_id: "foo".into(),
+                from_offset: 0,
+                limit: None,
+                with_offsets: true,
+                json: true,
+            },
+        )
+        .expect("consume");
+        assert_eq!(consumed.record_count, 1);
+        assert_eq!(consumed.records[0].position, "foo@0");
+        assert_eq!(consumed.records[0].payload_text, r#"{"hello":"world"}"#);
+        assert_eq!(consumed.head_offset, Some(0));
 
         server.shutdown().expect("shutdown server");
     }

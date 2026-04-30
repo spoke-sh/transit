@@ -65,6 +65,11 @@ just transit consume --stream-id demo.root --from-offset 0 --with-offsets
 just transit streams list
 ```
 
+The explicit `streams create` step lets you author root-stream lineage metadata
+such as actor, reason, labels, and retention policy. For quick operator checks,
+`transit produce` also creates a missing root stream with CLI lineage metadata
+before appending the first record.
+
 For lower-level protocol-shaped inspection, the `transit server ...` namespace still exists with `create-root`, `append`, `read`, `branch`, `merge`, `lineage`, `tail-open`, `tail-poll`, and `tail-cancel`.
 
 ### I want the current storage and failover slices

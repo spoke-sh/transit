@@ -132,6 +132,11 @@ transit streams create \
   --reason "manual walkthrough"
 ```
 
+That explicit creation step is how you set root-stream actor, reason, labels,
+and retention policy. For quick producer checks, `transit produce` also creates
+a missing root stream with CLI lineage metadata before appending the first
+record.
+
 Produce records:
 
 ```bash

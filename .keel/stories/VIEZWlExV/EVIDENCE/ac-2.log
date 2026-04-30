@@ -1,0 +1,8 @@
+---
+recorded_at: 2026-04-29T18:40:20.828735981-07:00
+command: root=$(git rev-parse --show-toplevel) && rg -n 'explicit .*streams create|transit produce.*creates a missing root stream' "$root/USER_GUIDE.md" && rg -n 'explicit creation step|transit produce.*creates' "$root/website/docs/start-here/server-first-run.mdx"
+---
+68:The explicit `streams create` step lets you author root-stream lineage metadata
+70:`transit produce` also creates a missing root stream with CLI lineage metadata
+135:That explicit creation step is how you set root-stream actor, reason, labels,
+136:and retention policy. For quick producer checks, `transit produce` also creates
