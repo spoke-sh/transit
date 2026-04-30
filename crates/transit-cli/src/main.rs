@@ -144,6 +144,12 @@ struct SqlArgs {
     /// Filesystem root used for the local Prolly-backed SQL context. Defaults to configured [node].data_dir.
     #[arg(long)]
     root: Option<PathBuf>,
+    /// Transit server address used to load hosted stream records as SQL tables.
+    #[arg(long = "server-addr")]
+    server_addr: Option<SocketAddr>,
+    /// Client-side per-connection I/O timeout in milliseconds for hosted SQL table loading.
+    #[arg(long = "connection-io-timeout-ms")]
+    connection_io_timeout_ms: Option<u64>,
     /// SQL query to execute.
     #[arg(short = 'c', long = "command")]
     command: String,
@@ -4419,27 +4425,77 @@ async fn run_sql_query(root: PathBuf, args: SqlArgs) -> Result<SqlQueryResult> {
         })?,
     );
     let prolly_store = std::sync::Arc::new(ObjectStoreProllyStore::new(object_store, "sql-cli"));
-    let entries = args
-        .rows
-        .iter()
-        .map(|row| sql_cli_row(row))
-        .collect::<Result<Vec<_>>>()?;
-    let seeded_rows = entries.len();
+    let context = SessionContext::new();
+    let schema = std::sync::Arc::new(ProllySchema::new());
     let builder = ProllyTreeBuilder::new(prolly_store.as_ref());
-    let table_root = builder
-        .build_from_entries(entries)
-        .await
-        .context("build transit SQL Prolly table")?;
+    let mut seeded_rows = 0;
+    let mut table_roots = BTreeMap::new();
 
-    let table: std::sync::Arc<dyn TableProvider> = std::sync::Arc::new(ProllyTable::new(
-        std::sync::Arc::clone(&prolly_store),
-        table_root.clone(),
-    ));
-    let schema = std::sync::Arc::new(ProllySchema::with_table(args.table.clone(), table));
+    if let Some(server_addr) = args.server_addr {
+        ensure!(
+            args.rows.is_empty(),
+            "--row cannot be combined with --server-addr; hosted SQL tables are loaded from server streams"
+        );
+        let client = build_remote_client(server_addr, args.connection_io_timeout_ms);
+        let listed = client
+            .list_streams()
+            .with_context(|| format!("list remote streams at {server_addr} for SQL"))?;
+        for summary in listed.body().streams() {
+            let stream_id = summary.status().stream_id();
+            let read = client
+                .read(stream_id)
+                .with_context(|| format!("read remote stream {} for SQL", stream_id.as_str()))?;
+            let entries = read
+                .body()
+                .records()
+                .iter()
+                .map(sql_remote_record_row)
+                .collect::<Vec<_>>();
+            seeded_rows += entries.len();
+            let table_root = builder.build_from_entries(entries).await.with_context(|| {
+                format!("build transit SQL Prolly table for {}", stream_id.as_str())
+            })?;
+            register_sql_table(
+                &context,
+                schema.as_ref(),
+                stream_id.as_str(),
+                std::sync::Arc::clone(&prolly_store),
+                table_root.clone(),
+            )?;
+            table_roots.insert(
+                stream_id.as_str().to_owned(),
+                table_root.digest().to_owned(),
+            );
+        }
+    } else {
+        let entries = args
+            .rows
+            .iter()
+            .map(|row| sql_cli_row(row))
+            .collect::<Result<Vec<_>>>()?;
+        seeded_rows = entries.len();
+        let table_root = builder
+            .build_from_entries(entries)
+            .await
+            .context("build transit SQL Prolly table")?;
+        register_sql_table(
+            &context,
+            schema.as_ref(),
+            &args.table,
+            std::sync::Arc::clone(&prolly_store),
+            table_root.clone(),
+        )?;
+        table_roots.insert(args.table.clone(), table_root.digest().to_owned());
+    }
+
+    let table_root = table_roots
+        .get(&args.table)
+        .cloned()
+        .or_else(|| table_roots.values().next().cloned())
+        .unwrap_or_else(|| "empty".to_owned());
     let schema_provider: std::sync::Arc<dyn SchemaProvider> = schema;
     let catalog: std::sync::Arc<dyn datafusion::catalog::CatalogProvider> =
         std::sync::Arc::new(ProllyCatalog::with_schema("public", schema_provider));
-    let context = SessionContext::new();
     context.register_catalog("transit", catalog);
 
     let batches = context
@@ -4459,10 +4515,28 @@ async fn run_sql_query(root: PathBuf, args: SqlArgs) -> Result<SqlQueryResult> {
         catalog_name: "transit".to_owned(),
         schema_name: "public".to_owned(),
         table_name: args.table,
-        table_root: table_root.digest().to_owned(),
+        table_root,
         seeded_rows,
         output,
     })
+}
+
+fn register_sql_table(
+    context: &SessionContext,
+    schema: &ProllySchema,
+    table_name: &str,
+    store: std::sync::Arc<ObjectStoreProllyStore>,
+    table_root: ContentDigest,
+) -> Result<()> {
+    let table: std::sync::Arc<dyn TableProvider> =
+        std::sync::Arc::new(ProllyTable::new(store, table_root));
+    schema
+        .register_table(table_name.to_owned(), std::sync::Arc::clone(&table))
+        .with_context(|| format!("register transit SQL table {table_name} in transit.public"))?;
+    context
+        .register_table(table_name, table)
+        .with_context(|| format!("register transit SQL table {table_name} in default catalog"))?;
+    Ok(())
 }
 
 fn sql_cli_row(row: &str) -> Result<LeafEntry> {
@@ -4475,6 +4549,13 @@ fn sql_cli_row(row: &str) -> Result<LeafEntry> {
         key: key.as_bytes().to_vec(),
         value: value.as_bytes().to_vec(),
     })
+}
+
+fn sql_remote_record_row(record: &transit_core::server::RemoteRecord) -> LeafEntry {
+    LeafEntry {
+        key: render_position(record.position().clone()).into_bytes(),
+        value: record.payload().to_vec(),
+    }
 }
 
 async fn run_server(args: ServerRunArgs, config: &LoadedTransitConfig) -> Result<ServerRunResult> {
@@ -8508,6 +8589,8 @@ mod tests {
             temp_dir.path().join("sql-command"),
             SqlArgs {
                 root: None,
+                server_addr: None,
+                connection_io_timeout_ms: None,
                 command: "SELECT COUNT(*) AS count FROM transit.public.tasks".to_owned(),
                 table: "tasks".to_owned(),
                 rows: vec!["alpha=1".to_owned(), "beta=2".to_owned()],
@@ -8524,6 +8607,48 @@ mod tests {
         assert!(result.store_root.is_dir());
         assert!(result.output.contains("count"));
         assert!(result.output.contains('2'));
+    }
+
+    #[tokio::test]
+    async fn sql_command_loads_hosted_streams_from_server_addr() {
+        let temp_dir = tempdir().expect("temp dir");
+        let (_server_temp_dir, server, server_addr) = start_server();
+
+        run_produce(
+            server_addr,
+            ProduceArgs {
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                stream_id: "foo".to_owned(),
+                payload_text: vec![r#"{"hello":"world"}"#.to_owned(), "second".to_owned()],
+                json: true,
+            },
+        )
+        .expect("produce");
+
+        let result = run_sql_query(
+            temp_dir.path().join("sql-remote"),
+            SqlArgs {
+                root: None,
+                server_addr: Some(server_addr),
+                connection_io_timeout_ms: None,
+                command: "SELECT COUNT(*) AS count FROM foo".to_owned(),
+                table: "foo".to_owned(),
+                rows: vec![],
+            },
+        )
+        .await
+        .expect("run hosted sql query");
+
+        assert_eq!(result.catalog_name, "transit");
+        assert_eq!(result.schema_name, "public");
+        assert_eq!(result.table_name, "foo");
+        assert_eq!(result.seeded_rows, 2);
+        assert!(!result.table_root.is_empty());
+        assert!(result.output.contains("count"));
+        assert!(result.output.contains('2'));
+
+        server.shutdown().expect("shutdown server");
     }
 
     #[test]

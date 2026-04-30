@@ -170,6 +170,15 @@ Omit `--from-offset` when you want `transit consume` to tail live records from
 the current stream head. Pass `--from-offset 0` when you want a bounded replay
 from the beginning.
 
+Query hosted streams through the SQL surface. Stream ids are registered as table
+names, so quote ids that contain punctuation:
+
+```bash
+transit sql \
+  --server-addr 127.0.0.1:7171 \
+  -c 'SELECT COUNT(*) AS count FROM "demo/main"'
+```
+
 List hosted streams:
 
 ```bash

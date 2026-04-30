@@ -69,6 +69,13 @@ Omit `--from-offset` when you want `transit consume` to tail live records from
 the current stream head. Pass `--from-offset 0` when you want a bounded replay
 from the beginning.
 
+You can also query hosted streams through the SQL surface. Stream ids are
+registered as table names, so quote ids that contain punctuation:
+
+```bash
+just transit sql --server-addr 127.0.0.1:7171 -c 'SELECT COUNT(*) AS count FROM "demo.root"'
+```
+
 The explicit `streams create` step lets you author root-stream lineage metadata
 such as actor, reason, labels, and retention policy. For quick operator checks,
 `transit produce` also creates a missing root stream with CLI lineage metadata
