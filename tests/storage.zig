@@ -50,7 +50,7 @@ fn proveLive(init: std.process.Init, url: []const u8, reader: *ursula.Client) !v
     defer select.cancelDiscard();
     try select.concurrent(.timeout, timeout, .{init.io});
     try select.concurrent(.read, longPoll, .{ reader, journal.stream });
-    select.async(.write, delayedAppend, .{ init.io, journal });
+    try select.concurrent(.write, delayedAppend, .{ init.io, journal });
     var done: usize = 0;
     while (done < 2) : (done += 1) switch (try select.await()) {
         .read, .write => |result| try result,

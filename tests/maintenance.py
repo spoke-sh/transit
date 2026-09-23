@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import time
@@ -101,6 +102,20 @@ def run(node, cli):
             assert view["process"]["cancelled"] == 1
             # The HTTP authority never restarted during another process's trim.
             assert authority.poll() is None
+            # A stalled storage peer must not trap maintenance inside a scan.
+            # Observe two deadlines to prove the bounded loop resumes afterward.
+            maintenance_log = Path(logs[-1].name)
+            timeouts = maintenance_log.read_text().count("maintenance: MaintenanceTimeout")
+            store.server.send_signal(signal.SIGSTOP)
+            try:
+                limit = time.monotonic() + 8
+                while maintenance_log.read_text().count("maintenance: MaintenanceTimeout") < timeouts + 2:
+                    assert maintenance.poll() is None
+                    assert time.monotonic() < limit, maintenance_log.read_text()
+                    time.sleep(0.05)
+            finally:
+                store.server.send_signal(signal.SIGCONT)
+            assert request({"inspect": pid}, read=True)["process"] == view["process"]
             for child in (authority, maintenance):
                 child.kill()
                 child.wait(timeout=10)

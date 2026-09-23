@@ -87,7 +87,7 @@ A rolled-back whole-store backup is not an authorized live restore.
 
 Hosted CI runs `just ci`; an opt-in dedicated runner workflow exposes the
 reference and physical-capacity proofs. Local runs supply the current runtime
-evidence. A hosted warm-cache timing and native validation on the other M0
+evidence. A passing hosted end-to-end timing and native validation on the other M0
 platforms still require their own runners/runs.
 
 - [x] Introduce the Transit library, Ursula adapter, and minimum executable

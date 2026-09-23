@@ -128,11 +128,34 @@ def run(node, worker, cli):
             first.send_signal(signal.SIGCONT)
             assert first.wait(timeout=10) != 0
             stop(second)
-            # Slow request cannot monopolize the single authority forever.
-            with socket.create_connection(("127.0.0.1", port), timeout=3) as slow:
-                slow.sendall(b"POST /v1/command HTTP/1.1\r\nHost: local\r\nContent-Length: 100\r\n\r\n{")
-                time.sleep(1)
-                assert view(pid)["process"]["state"] == 307
+            # Incomplete headers and bodies must release the sequential server
+            # at its deadline, including with no spare async worker threads.
+            for partial in (
+                b"POST /v1/command HTTP/1.1\r\nHost:",
+                b"POST /v1/command HTTP/1.1\r\nHost: local\r\nContent-Length: 100\r\n\r\n{",
+            ):
+                with socket.create_connection(("127.0.0.1", port), timeout=3) as slow:
+                    slow.sendall(partial)
+                    time.sleep(1)
+                    assert view(pid)["process"]["state"] == 307
+            # A connected authority that never responds must also release the
+            # protocol client at its own deadline, not the harness timeout.
+            read_path = root / "timeout-read.json"
+            read_path.write_text(json.dumps({"realm": 47, "principal": 0, "sequence": 0,
+                                            "command": {"inspect": pid}}))
+            with socket.socket() as stalled:
+                stalled.bind(("127.0.0.1", 0))
+                stalled.listen()
+                stalled.settimeout(5)
+                caller = start(cli, "view", root_key, read_path,
+                               f"http://127.0.0.1:{stalled.getsockname()[1]}")
+                connection, _ = stalled.accept()
+                with connection:
+                    connection.settimeout(5)
+                    with connection.makefile("rb") as incoming:
+                        assert incoming.readline(8192).startswith(b"POST /v1/view ")
+                        assert caller.wait(timeout=8) != 0
+                        assert "AuthorityTimeout" in Path(logs[-1].name).read_text()
             # Key renewal preserves sequencing; revocation applies to cached reads.
             old_read = signed({"inspect": pid}, principal=1, seed=worker_key)
             command({"grant": {"subject": 1, "public_key": rotated_public, "permissions": 24, "pid": pid}})
@@ -207,6 +230,10 @@ def run(node, worker, cli):
 
 
 if __name__ == "__main__":
+    if hasattr(os, "sched_setaffinity"):
+        # All child services inherit a single CPU. This makes inline async
+        # fallback deterministic even on large developer machines.
+        os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
     binaries = [Path(path).resolve(strict=True) for path in sys.argv[1:]]
     from fixtures import run as fixtures
     fixtures(binaries[2])

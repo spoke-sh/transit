@@ -112,6 +112,14 @@ redirect following. Rate fairness is not promised; the separate maintenance
 process has its own bounded loop. Unauthenticated `GET /health` reveals only
 readiness after storage refresh.
 
+Deadline races require `Io.Select.concurrent` for both the operation and timer.
+Zig's `async` may execute inline when its worker budget is exhausted, preventing
+the caller from observing the timer. Failure to allocate concurrency fails the
+operation instead of running it without a working deadline. On Linux, the
+service proof restricts itself and its children to one CPU and exercises stalled
+request headers/bodies, an authority that never replies, and paused storage
+across successive maintenance deadlines.
+
 ## Transport and time limits
 
 Local proofs use loopback HTTP and a trusted host. Signatures authenticate

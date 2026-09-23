@@ -106,7 +106,8 @@ fn boundedStep(io: std.Io, engine: anytype, config: Config, key: transit.Ed25519
     var select: std.Io.Select(Result) = .init(io, &results);
     defer select.cancelDiscard();
     try select.concurrent(.timeout, timeout, .{ io, config.operation_timeout_ms });
-    select.async(.completed, Task.run, .{ engine, config, key, allocator, maintained });
+    // Both sides must run concurrently even on a single-CPU runtime.
+    try select.concurrent(.completed, Task.run, .{ engine, config, key, allocator, maintained });
     return switch (try select.await()) {
         .completed => |value| value,
         .timeout => error.MaintenanceTimeout,

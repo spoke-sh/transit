@@ -36,7 +36,7 @@ fn boundedFetch(client: *std.http.Client, endpoint: []const u8, payload: []const
     var select: std.Io.Select(Result) = .init(client.io, &values);
     defer select.cancelDiscard();
     try select.concurrent(.timeout, timeout, .{client.io});
-    select.async(.response, fetch, .{ client, endpoint, payload });
+    try select.concurrent(.response, fetch, .{ client, endpoint, payload });
     return switch (try select.await()) {
         .response => |value| value,
         .timeout => error.UnknownRemoteOutcome,

@@ -72,9 +72,17 @@ not a hard size bound. No cache-purge permission or external cache secret is
 needed. The self-hosted reference workflow keeps using its existing local store.
 
 All checks still run via `just ci`. The first cache miss still builds the pinned
-toolchain; a warm GitHub run is needed to measure the actual improvement, including
-cache transfer overhead. Compare the separate restore, preparation, checks, and
-save step timings. Local cached timings are not a hosted-run benchmark.
+toolchain. The [first measured warm run](https://github.com/rupurt/rey/actions/runs/35815675439)
+restored the cache in 1m32s and prepared the shell in eight seconds, with no
+Ursula rebuild. Its service test exposed a deadline bug under limited CPU
+availability, so it is not a passing end-to-end timing. Compare the separate
+restore, preparation, checks, and save step timings on subsequent runs.
+
+On Linux, `just test-service` limits the harness and its child processes to one
+available CPU. This exercises deadline cancellation without spare async workers,
+including slow ingress, stalled protocol responses and maintenance storage I/O.
+The affinity change is confined to the test process tree; compilation and the
+parent shell retain their existing CPU allocation.
 
 ## Planned Zig package workflow
 

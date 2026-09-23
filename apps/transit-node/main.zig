@@ -136,7 +136,9 @@ pub fn main(init: std.process.Init) !void {
         var select: std.Io.Select(Result) = .init(init.io, &results);
         defer select.cancelDiscard();
         try select.concurrent(.timeout, timeout, .{ init.io, config.request_timeout_ms });
-        select.async(.handled, Server.handle, .{ &server, stream });
+        // async may run inline when its worker budget is exhausted, preventing
+        // await from observing the deadline while a request blocks on I/O.
+        try select.concurrent(.handled, Server.handle, .{ &server, stream });
         const result = try select.await();
         switch (result) {
             .handled => |value| value catch {},

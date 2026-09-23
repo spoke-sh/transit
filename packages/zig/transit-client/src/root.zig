@@ -38,7 +38,9 @@ pub const Client = struct {
                 return client.perform(T, route, command);
             }
         };
-        select.async(.response, Task.run, .{ self, path, signed });
+        // async permits inline execution, which would defeat the timeout when
+        // no async worker is available. Fail if concurrency cannot be supplied.
+        try select.concurrent(.response, Task.run, .{ self, path, signed });
         return switch (try select.await()) {
             .response => |result| result,
             .timeout => error.AuthorityTimeout,

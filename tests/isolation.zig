@@ -35,7 +35,7 @@ fn bounded(client: *std.http.Client, check: Check) !Response {
     var select: std.Io.Select(Result) = .init(client.io, &values);
     defer select.cancelDiscard();
     try select.concurrent(.timeout, timeout, .{client.io});
-    select.async(.response, request, .{ client, check });
+    try select.concurrent(.response, request, .{ client, check });
     return switch (try select.await()) {
         .response => |r| r,
         .timeout => error.ProbeTimeout,
