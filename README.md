@@ -42,7 +42,8 @@ deployment architecture; the protocol must remain portable to other runtimes.
 
 **Status:** M1 implementation is in progress. Transit and its pinned Ursula
 adapter implement an experimental signed-request, ownership, and ordered-turn
-profile with a disk-restart proof (`just test-storage`). See the
+profile with disk-restart (`just test-storage`) and signed HTTP worker recovery
+(`just test-service`) proofs. See the
 [implemented profile and limits](contracts/TRANSIT_V1.md). The full retention,
 effect, and Kubernetes/Substrate gates remain open; Station and applications
 are not implemented.
@@ -98,5 +99,5 @@ Start at the [documentation index](docs/README.md).
 
 The foundational docs distinguish established requirements from proposed
 mechanisms and implemented features. The client adapter and local disk recovery
-proof are implemented; deployable services and the reference cluster remain
-implementation work. Technical choices and rationale live in these docs.
+proof and experimental node/worker/CLI are implemented; reference cluster
+conformance remains implementation work. Technical rationale lives in these docs.

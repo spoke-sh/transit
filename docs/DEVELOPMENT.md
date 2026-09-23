@@ -29,15 +29,18 @@ source of tool versions; direnv is optional and is not installed by this shell.
 | `just fmt` | Formats Nix and Zig files |
 | `just build` | Compiles implemented Zig executables |
 | `just test` | Runs Zig unit/protocol tests without a service |
-| `just test-packages` | Checks both libraries independently of root build orchestration |
+| `just test-packages` | Checks each library independently of root build orchestration |
 | `just test-storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
+| `just test-service` | Proves signed HTTP ingress, scoped/revoked reads, worker replacement and authority/storage restart on loopback |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
 
 The root Zig build composes package tests and the storage proof. Integration
 orchestration uses the Nix-provided Python 3, temporary directories, and loopback ports;
 it never uses an existing Ursula deployment. Cluster deployment, frontend, and
-application code remain implementation work. GitHub Actions runs the same local
-checks and storage proof on Linux; a workflow definition is not evidence of a
+application code remain implementation work. The experimental counter service,
+worker, and CLI are described in the [service profile](../contracts/SERVICE_V1.md).
+GitHub Actions runs the same local checks, storage proof, and service proof on
+Linux; a workflow definition is not evidence of a
 remote CI run. The Nix check runs Zig tests and builds a tiny TypeScript page through Vite+ from a clean
 cache, verifying that first-use setup works without downloading another runtime.
 It also checks the Ursula and Kubernetes tool CLIs. These checks verify binary

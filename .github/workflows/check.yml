@@ -16,3 +16,4 @@ jobs:
       - run: nix develop --command just check
       - run: nix develop --command just test-packages
       - run: nix develop --command just test-storage
+      - run: nix develop --command just test-service

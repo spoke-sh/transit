@@ -9,6 +9,12 @@ M1 conformance evidence.
 
 ## Review assessment
 
+`just test-service` exercises actual signed HTTP ingress, PID-scoped reads,
+key rotation/revocation, slow-body deadlines, and paused/replacement workers
+against disk-backed Ursula. Authority and storage restart preserve state and
+revocations. This loopback proof does not establish deployment network isolation;
+see the [service profile](../contracts/SERVICE_V1.md).
+
 Implemented evidence: `just test` exercises request signatures, realm/PID grants,
 key replacement, retry identity, ownership, invalid results, ordered input, and
 retirement. `just test-storage` repeats competing transitions, revocation, lost

@@ -173,6 +173,7 @@ as their first implementations establish the interfaces.
 | --- | --- | --- |
 | `packages/zig/transit/` | `transit` | Process/PID types, protocol/lifetime validation, principal/grant contracts, logical storage contracts, and credential/storage/runtime interfaces; independent of Station, Ursula, and deployment providers |
 | `packages/zig/transit-ursula/` | `transit_ursula` | Ursula persistence/transport, checkpoint, trim, and deletion mapping; depends on Transit and external `ursula-zig` |
+| `packages/zig/transit-client/` | `transit_client` | Signed HTTP client and bounded process views; depends on Transit, with no storage/provider access |
 | `packages/zig/station/` | `station` | GenServer, supervision, registries, request/reply, and application retention/state-view helpers; depends on Transit through its public interfaces |
 | `packages/zig/station-http/` | `station_http` | HTTP request/response contracts, exchange groups, caller helpers, and executor logic; builds on Station and Transit |
 | `packages/zig/runtime-substrate/` | `runtime_substrate` | PID-to-Substrate-Actor binding and lifecycle reconciliation; implements Transit's runtime interfaces without putting provider types in the core protocol |
@@ -198,6 +199,7 @@ utility package before shared code has a concrete owner.
 | Candidate entry point | Composition and role |
 | --- | --- |
 | `apps/transit-node/` | Transit plus adapters; hosts authenticated ingress, policy/control recovery, admission, sequencing, commit, delivery, and retention reconciliation |
+| `apps/transit-worker/` | Implemented fixed M1 counter activation worker using only the protocol client; precedes Station behaviors |
 | `apps/station-worker/` | Station plus workload libraries; runs process activations and their behaviors under Transit authority, without raw authoritative storage credentials |
 | `apps/http-worker/` | HTTP connector executor; performs authorized fetch attempts and publishes capture/outcomes through the protocol boundary |
 | `apps/runtime-controller/` | Transit lifecycle client plus `runtime-substrate`; reconciles durable execution intent with Substrate |

@@ -23,12 +23,12 @@ doctor:
 check:
     nixfmt --check flake.nix nix/*.nix
     nix flake check
-    zig fmt --check build.zig packages/zig tests/*.zig
+    zig fmt --check build.zig packages/zig apps examples tests/*.zig
     zig build test
     python3 -B tests/docs.py
     git diff --check
 
-# Compile the executable storage proof.
+# Compile services, clients, and executable proofs.
 build:
     zig build
 
@@ -40,12 +40,17 @@ test:
 test-storage:
     zig build test-storage
 
+# Exercise signed HTTP ingress and worker recovery against isolated disk Ursula.
+test-service:
+    zig build test-service
+
 # Check each library using its own declared dependencies.
 test-packages:
     cd packages/zig/transit && zig build test
     cd packages/zig/transit-ursula && zig build test
+    cd packages/zig/transit-client && zig build test
 
 # Format the Nix configuration.
 fmt:
     nixfmt flake.nix nix/*.nix
-    zig fmt build.zig packages/zig tests/*.zig
+    zig fmt build.zig packages/zig apps examples tests/*.zig

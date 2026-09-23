@@ -6,6 +6,7 @@
     .dependencies = .{
         .transit = .{ .path = "packages/zig/transit" },
         .transit_ursula = .{ .path = "packages/zig/transit-ursula" },
+        .transit_client = .{ .path = "packages/zig/transit-client" },
     },
-    .paths = .{ "build.zig", "build.zig.zon", "packages", "apps", "tests" },
+    .paths = .{ "build.zig", "build.zig.zon", "packages", "apps", "tests", "examples" },
 }

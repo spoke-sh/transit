@@ -4,7 +4,9 @@ Status: required boundaries and semantics. Credential providers, policy schema,
 execution isolation, and deployment configuration must be selected and proved
 in M1. The [experimental v1 profile](../contracts/TRANSIT_V1.md) now implements
 Ed25519 request verification, scoped grants, key replacement, and durable
-revocation. Network ingress and deployment isolation remain unproved.
+revocation. The [service profile](../contracts/SERVICE_V1.md) proves signed HTTP
+ingress, scoped/revoked bounded reads, and key renewal on loopback. Deployment
+transport and sandbox isolation remain separate gates.
 
 ## Responsibility in the stack
 

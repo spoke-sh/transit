@@ -218,6 +218,7 @@ general dependency pins remain M1 work. Whole-journal deletion is not exposed.
 Finite deadlines are rejected as `UnsupportedDeadline` unless the realm opts
 into bounded authority time; a missing required source gives `ClockUnavailable`.
 Control capacity
-reservation, isolated effect execution, cross-realm delivery, network ingress, and
+reservation, isolated effect execution, cross-realm delivery, and
 Kubernetes/Substrate runtime reconciliation remain unimplemented gates.
-Do not advertise M1 completion or deploy this experiment as a service.
+The [experimental service](SERVICE_V1.md) hosts signed ingress and scoped views
+for the fixed counter workload. Do not advertise full M1 conformance yet.
