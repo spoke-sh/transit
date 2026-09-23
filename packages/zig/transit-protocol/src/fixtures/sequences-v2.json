@@ -1,0 +1,296 @@
+{
+  "version": 2,
+  "realm": 42,
+  "seed_hex": "0707070707070707070707070707070707070707070707070707070707070707",
+  "steps": [
+    {
+      "sequence": 1,
+      "command": {
+        "spawn": {}
+      },
+      "receipt": 1
+    },
+    {
+      "sequence": 1,
+      "command": {
+        "spawn": {}
+      },
+      "receipt": 1
+    },
+    {
+      "sequence": 2,
+      "command": {
+        "send": {
+          "pid": 1,
+          "value": "39"
+        }
+      },
+      "receipt": 2
+    },
+    {
+      "sequence": 3,
+      "command": {
+        "own": {
+          "pid": 1,
+          "expected_generation": 0,
+          "worker": 0
+        }
+      },
+      "receipt": 3
+    },
+    {
+      "sequence": 4,
+      "command": {
+        "turn": {
+          "pid": 1,
+          "generation": 0,
+          "input": 2,
+          "result": "39",
+          "effect": "39",
+          "expected_revision": 0
+        }
+      },
+      "error": "StaleGeneration"
+    },
+    {
+      "sequence": 4,
+      "command": {
+        "turn": {
+          "pid": 1,
+          "generation": 1,
+          "input": 99,
+          "result": "39",
+          "effect": "39",
+          "expected_revision": 0
+        }
+      },
+      "error": "InvalidInput"
+    },
+    {
+      "sequence": 4,
+      "command": {
+        "turn": {
+          "pid": 1,
+          "generation": 1,
+          "input": 2,
+          "result": "38",
+          "effect": "39",
+          "expected_revision": 99
+        }
+      },
+      "error": "StaleState"
+    },
+    {
+      "sequence": 4,
+      "command": {
+        "turn": {
+          "pid": 1,
+          "generation": 1,
+          "input": 2,
+          "result": "39",
+          "effect": "39",
+          "expected_revision": 0
+        }
+      },
+      "receipt": 4
+    },
+    {
+      "sequence": 5,
+      "command": {
+        "dispatch": {
+          "pid": 1,
+          "effect": 4
+        }
+      },
+      "receipt": 5
+    },
+    {
+      "sequence": 6,
+      "command": {
+        "dispatch": {
+          "pid": 1,
+          "effect": 4
+        }
+      },
+      "error": "AttemptAlreadyAuthorized"
+    },
+    {
+      "sequence": 6,
+      "command": {
+        "observe": {
+          "pid": 1,
+          "effect": 4,
+          "attempt": 5,
+          "result": null
+        }
+      },
+      "receipt": 6
+    },
+    {
+      "sequence": 7,
+      "command": {
+        "close_effect": {
+          "pid": 1,
+          "effect": 4,
+          "attempt": 5
+        }
+      },
+      "receipt": 7
+    },
+    {
+      "sequence": 8,
+      "command": {
+        "observe": {
+          "pid": 1,
+          "effect": 4,
+          "attempt": 5,
+          "result": "3130"
+        }
+      },
+      "error": "ReconciliationClosed"
+    },
+    {
+      "sequence": 8,
+      "command": {
+        "terminate": 1
+      },
+      "receipt": 8
+    },
+    {
+      "sequence": 9,
+      "command": {
+        "own": {
+          "pid": 1,
+          "expected_generation": 1,
+          "worker": 0
+        }
+      },
+      "error": "RetiredProcess"
+    },
+    {
+      "sequence": 9,
+      "command": {
+        "send": {
+          "pid": 1,
+          "value": "3939"
+        }
+      },
+      "error": "RetiredProcess"
+    },
+    {
+      "realm": 43,
+      "sequence": 9,
+      "command": {
+        "spawn": {}
+      },
+      "error": "WrongProtocolRealm"
+    },
+    {
+      "sequence": 9,
+      "command": {
+        "spawn": {}
+      },
+      "receipt": 9
+    },
+    {
+      "sequence": 2,
+      "command": {
+        "send": {
+          "pid": 1,
+          "value": "39"
+        }
+      },
+      "receipt": 2
+    },
+    {
+      "sequence": 10,
+      "command": {
+        "own": {
+          "pid": 9,
+          "expected_generation": 0,
+          "worker": 0
+        }
+      },
+      "receipt": 10
+    },
+    {
+      "sequence": 11,
+      "command": {
+        "send": {
+          "pid": 9,
+          "value": "39323233333732303336383534373735383037"
+        }
+      },
+      "receipt": 11
+    },
+    {
+      "sequence": 12,
+      "command": {
+        "send": {
+          "pid": 9,
+          "value": "31"
+        }
+      },
+      "receipt": 12
+    },
+    {
+      "sequence": 13,
+      "command": {
+        "turn": {
+          "pid": 9,
+          "generation": 1,
+          "input": 11,
+          "result": "30",
+          "failed": true,
+          "expected_revision": 0
+        }
+      },
+      "error": "InvalidFailure"
+    },
+    {
+      "sequence": 13,
+      "command": {
+        "turn": {
+          "pid": 9,
+          "generation": 1,
+          "input": 11,
+          "result": "39323233333732303336383534373735383037",
+          "expected_revision": 0
+        }
+      },
+      "receipt": 13
+    },
+    {
+      "sequence": 14,
+      "command": {
+        "turn": {
+          "pid": 9,
+          "generation": 1,
+          "input": 12,
+          "result": "39323233333732303336383534373735383037",
+          "failed": true,
+          "expected_revision": 13
+        }
+      },
+      "receipt": 14
+    },
+    {
+      "sequence": 15,
+      "command": {
+        "own": {
+          "pid": 9,
+          "expected_generation": 2,
+          "worker": 0
+        }
+      },
+      "error": "BlockedProcess"
+    },
+    {
+      "sequence": 15,
+      "command": {
+        "terminate": 9
+      },
+      "receipt": 15
+    }
+  ]
+}

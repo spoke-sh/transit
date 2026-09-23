@@ -4,16 +4,16 @@ const std = @import("std");
 const t = std.testing;
 const transit = @import("transit");
 const adapter = @import("transit_ursula");
-fn reduce(state: i64, input: i64) !transit.Decision {
-    return .{ .state = try std.math.add(i64, state, input), .effect = if (input == 9) 9 else null };
-}
-const Engine = transit.Engine(adapter.Store, reduce);
+
+const Engine = transit.Engine(adapter.Store);
 fn clock(context: *anyopaque) !transit.Time.Sample {
     const now: *u64 = @ptrCast(@alignCast(context));
     return .{ .unix_ms = now.* };
 }
 fn submit(e: *Engine, key: transit.Ed25519.KeyPair, command: transit.Command) !u64 {
-    return e.submit(try transit.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = command }, key));
+    var current = command;
+    if (current == .turn) current.turn.expected_revision = (try e.state.process(current.turn.pid)).revision;
+    return e.submit(try transit.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = current }, key));
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
@@ -34,12 +34,12 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqual(@as(u64, 2), try submit(&e, root, .{ .spawn = .{ .allow_trim = true } }));
         _ = try submit(&e, root, .{ .own = .{ .pid = 2, .worker = 0, .expected_generation = 0 } });
         try t.expectEqual(@as(u64, 4), try submit(&e, root, .{ .spawn = .{ .allow_trim = true, .deadline_ms = 100, .settle_before_ms = 110 } }));
-        _ = try submit(&e, root, .{ .send = .{ .pid = 2, .value = 9 } });
-        _ = try submit(&e, root, .{ .turn = .{ .pid = 2, .generation = 1, .input = 5, .result = 9, .effect = 9 } });
+        _ = try submit(&e, root, .{ .send = .{ .pid = 2, .value = transit.Value.integer(9) } });
+        _ = try submit(&e, root, .{ .turn = .{ .pid = 2, .generation = 1, .input = 5, .result = transit.Value.integer(9), .effect = transit.Value.integer(9) } });
         _ = try submit(&e, root, .{ .dispatch = .{ .pid = 2, .effect = 6 } });
-        _ = try submit(&e, root, .{ .send = .{ .pid = 4, .value = 42 } });
-        while (e.state.position < genesis.admission_ceiling.?) _ = try submit(&e, root, .{ .send = .{ .pid = 2, .value = 1 } });
-        try t.expectError(error.AdmissionClosed, submit(&e, root, .{ .send = .{ .pid = 2, .value = 999 } }));
+        _ = try submit(&e, root, .{ .send = .{ .pid = 4, .value = transit.Value.integer(42) } });
+        while (e.state.position < genesis.admission_ceiling.?) _ = try submit(&e, root, .{ .send = .{ .pid = 2, .value = transit.Value.integer(1) } });
+        try t.expectError(error.AdmissionClosed, submit(&e, root, .{ .send = .{ .pid = 2, .value = transit.Value.integer(999) } }));
         try t.expectEqual(@as(u64, 0), (try e.state.process(2)).cancelled);
     } else if (std.mem.eql(u8, args[2], "control")) {
         // Only the preallocated reserve is released by the harness. The filler
@@ -49,24 +49,24 @@ pub fn main(init: std.process.Init) !void {
         _ = try submit(&e, root, .{ .close_effect = .{ .pid = 2, .effect = 6, .attempt = 7 } });
         while (try e.nextInput(2, e.state.position)) |input| {
             const p = (try e.state.process(2)).*;
-            _ = try submit(&e, root, .{ .turn = .{ .pid = 2, .generation = p.generation, .input = input.position, .result = p.state + 1 } });
+            _ = try submit(&e, root, .{ .turn = .{ .pid = 2, .generation = p.generation, .input = input.position, .result = transit.Value.integer((try p.state.asInteger()) + 1) } });
         }
         _ = try submit(&e, root, .{ .checkpoint = {} });
-        try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+        try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
         try t.expect(e.state.position < genesis.admission_ceiling.? + transit.controlRecordBudget(genesis.admission_ceiling.?));
     } else if (!std.mem.eql(u8, args[2], "recover")) return error.UnknownPhase;
     if (!write) {
         try t.expectError(error.HistoryReclaimed, store.read(0));
-        try t.expectEqual(@as(i64, 256), (try e.state.process(2)).state);
+        try t.expectEqual(@as(i64, 256), try (try e.state.process(2)).state.asInteger());
         try t.expectEqual(@as(u64, 0), (try e.state.process(2)).cancelled);
         try t.expectEqual(.running, (try e.state.process(2)).lifecycle);
         try t.expectEqual(.expired, (try e.state.process(4)).lifecycle);
         try t.expectEqual(@as(u64, 1), (try e.state.process(4)).cancelled);
         try t.expectEqual(.closed_unknown, (try e.state.effect(6)).phase);
         try t.expectEqual(@as(u16, 0), (try e.state.principal(1)).grant.permissions);
-        try t.expectError(error.AdmissionClosed, submit(&e, root, .{ .send = .{ .pid = 2, .value = 1 } }));
+        try t.expectError(error.AdmissionClosed, submit(&e, root, .{ .send = .{ .pid = 2, .value = transit.Value.integer(1) } }));
         // Restarted maintenance is read-only once publication/trim succeeded.
-        try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+        try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
     }
     std.debug.print("capacity {s}: position={d}, reserve-record-bound={d}\n", .{ args[2], e.state.position, transit.controlRecordBudget(genesis.admission_ceiling.?) });
 }

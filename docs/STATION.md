@@ -10,7 +10,8 @@ It makes the protocol convenient to compose in Zig. Producers and consumers can
 be stateful actors implemented by Transit processes, using shared behaviors for
 mailbox handling, recovery, correlation, and supervision.
 
-The planned `station` Zig library depends on Transit and exposes behaviors and
+The planned `station` Zig library uses `transit-client` and the public protocol,
+without importing the kernel implementation. It exposes behaviors and
 composition helpers. Connector libraries and worker executables build on it;
 Station itself stays independent of the selected transport and deployment
 provider. See the [monorepo decomposition](ARCHITECTURE.md#planned-monorepo-decomposition).

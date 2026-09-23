@@ -25,11 +25,12 @@ check:
     nix flake check
     zig fmt --check build.zig packages/zig apps examples tests/*.zig
     zig build test
+    just check-contract
     python3 -B tests/docs.py
     git diff --check
 
 # Run the hosted CI checks within one already-entered development environment.
-ci: check test-packages test-storage test-service
+ci: check test-packages test-storage test-service test-callers
 
 # Compile services, clients, and executable proofs.
 build:
@@ -46,6 +47,10 @@ test-storage:
 # Exercise signed HTTP ingress and worker recovery against isolated disk Ursula.
 test-service:
     zig build test-service
+
+# Exercise independent Zig callers against the same generic authority.
+test-callers:
+    zig build test-callers
 
 # Linux/Docker: fill an owned ext4 image while keeping a physical control reserve.
 test-capacity:
@@ -80,3 +85,11 @@ test-packages:
 fmt:
     nixfmt flake.nix nix/*.nix
     zig fmt build.zig packages/zig apps examples tests/*.zig
+
+# Regenerate the public binding resource from the authoritative Zig wire types.
+generate-contract:
+    zig build contract > contracts/transit-v2.schema.json
+
+# Detect public schema/default/signing changes that were not reviewed together.
+check-contract:
+    zig build contract | python3 -B tests/contract.py

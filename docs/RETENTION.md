@@ -2,14 +2,14 @@
 
 Status: application opt-in and lifetime guarantees are established requirements.
 Policy fields, record names, deadline mechanics, and reclamation algorithms below
-are the target contract. The [experimental v1 profile](../contracts/TRANSIT_V1.md)
+are the target contract. The [experimental v2 profile](../contracts/TRANSIT_V2.md)
 implements explicit checkpoint/trim opt-in for quiescent or explicitly cancelled
 mailboxes, verified publication, and checkpoint-plus-tail recovery. Finite
 time policies, turn settlement permits, reconciliation observation budgets, and
 due-maintenance selection are implemented with a trusted clock interface. The
 disk proof uses controlled time; the Linux service clock reads the synchronized
 kernel's reported error bound. A separate
-[`transit-node --maintain` process](../contracts/SERVICE_V1.md) now commits due
+[`transit-node --maintain` process](../contracts/SERVICE_V2.md) now commits due
 expiry/closure and reconciles opted-in checkpoint/trim operations. Physical
 capacity reservation now has a bounded single-node proof below. A minimal
 immutable-payload catalog also records publication, retirement, and deletion;
@@ -167,7 +167,7 @@ worker's prepared proposal or claimed timestamp is not a durable settlement
 grant. Closure and result acceptance race through conditional append: once
 closure wins, an old prepared result cannot append or reopen the attempt.
 
-The [implemented profile](../contracts/TRANSIT_V1.md#authority-time-and-bounded-settlement)
+The [implemented profile](../contracts/TRANSIT_V2.md#authority-time-and-bounded-settlement)
 uses trusted validation time at the expected journal tail as the authorization
 boundary. Its recorded uncertainty must fit the realm's configured bound.
 Persistence may finish later; an intervening closure or policy operation fences
@@ -296,7 +296,7 @@ prove that cleanup can make progress.
 Genesis may explicitly set `admission_ceiling` between 2 and 65,536 journal
 positions. The default is unset. Once reached, Transit rejects new admissions,
 spawns, grants, activations, running-provider intents, and effect dispatches.
-It can finish already admitted scalar inputs, settle existing outputs/attempts,
+It can finish already admitted inline inputs, settle existing outputs/attempts,
 revoke grants, retire processes, stop provider resources, and checkpoint once.
 Turns cannot introduce new outputs/effects into this reserve. Reads remain
 available. Repeated revocations, repeated unknown provider observations, repeated
@@ -314,7 +314,7 @@ For ceiling `N`, the conservative post-ceiling bound is
 turn per old/newly delivered input, finite attempt observations/closures, bounded
 provider completion/stop and retirement, revocations, payload publication/
 retirement/deletion, and one checkpoint.
-Typed journal entries are capped at 4 KiB and checkpoints at 1 MiB.
+Typed journal entries are capped at 8 KiB and checkpoints at 1 MiB.
 Pending preauthorized payload creation can additionally write at most sixteen
 64 KiB bodies (1 MiB total); those bytes need their own reserved headroom.
 Transport failures and backend housekeeping are not accepted protocol records; physical
@@ -328,10 +328,10 @@ stays in place while Transit revokes a grant, expires an opted-in PID, closes an
 unknown attempt, drains the unlimited PID's accepted backlog, and checkpoints
 and trims. SIGKILL/restart preserves retirement, closure, and closed admissions.
 
-The fixture uses 251 post-ceiling records. A passing run grew WAL allocation by
-167,936 bytes during control recovery; current measurements are emitted by the
+The fixture uses 251 post-ceiling records. The v2 run grew WAL allocation by
+176,128 bytes during control recovery; current measurements are emitted by the
 recipe. The conservative current bound
-is 3,905 records (15,994,880 bytes plus a checkpoint). The 1 GiB physical reserve is
+is 3,905 records (31,989,760 bytes plus a checkpoint). The 1 GiB physical reserve is
 a tested envelope for this configuration/schedule, not a universal filesystem
 or Ursula write-amplification guarantee. The fixture asserts control growth
 stays below 128 MiB and free space remains above the 32 MiB resume threshold.
@@ -351,7 +351,8 @@ The fixture records adapter HTTP methods and stores measurements in the ignored
 
 The initial resource catalog supports sixteen lifetime payload identities, each
 at most 64 KiB, owned by an unlimited-lifetime PID. They are immutable standalone
-bytes; no mailbox/state/effect field can depend on them in this scalar profile.
+bytes; the inline profile defines no protocol-recognized references from mailbox, state
+or effect fields to them.
 Finite owner/body lifetimes are rejected as unsupported rather than inferred.
 General reference admission, large body streams and connector replay dependencies
 need their own later contract.

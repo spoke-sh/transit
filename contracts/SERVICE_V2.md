@@ -1,6 +1,7 @@
 # Experimental Transit service profile
 
-Status: implemented for the fixed M1 counter workload. `just test-service`
+Status: implemented for the generic bounded M1 protocol. Zig applications use
+`transit-client`; the counter is the reference deployment workload. `just test-service`
 owns an isolated disk Ursula, authority, and workers. It exercises signed HTTP
 ingress, scoped reads, key renewal/revocation, paused-worker fencing, slow
 requests, and authority/storage restart. This is not full deployment conformance.
@@ -9,19 +10,19 @@ requests, and authority/storage restart. This is not full deployment conformance
 
 `just build` installs `transit-node`, `transit-worker`, and `rey-cli` under
 `zig-out/bin`. Workers and the CLI use `transit-client`, without an Ursula
-dependency. The authority and worker compile the reviewed
-[counter reducer](../examples/counter.zig): code version 1 performs checked
-integer addition, without I/O, allocation, ambient time, or dynamic plugins.
-Overflow is recorded as a verified handler failure, leaving input pending and
-inspectable while fencing ownership. A worker exits and the runtime controller
-stops replacing it. Operator termination or opted-in expiry provides the
+dependency. The node imports no application code. The reference worker alone compiles the
+[counter handler](../examples/counter.zig), which performs checked addition on
+decimal-text application values without I/O, allocation or ambient time. Overflow
+and malformed application data are reported by that caller; Transit records the failure, leaves input pending and
+fences ownership without recomputing the arithmetic. A worker exits and the
+runtime controller stops replacing it. Operator termination or opted-in expiry provides the
 explicit terminal disposition; no input is silently skipped.
 
 `transit-node CONFIG.json [--bootstrap|--initialize|--maintain]` accepts:
 
 | Field | Meaning |
 | --- | --- |
-| `genesis` | Exact expected [v1 genesis](TRANSIT_V1.md), including root public key |
+| `genesis` | Exact expected [v2 genesis](TRANSIT_V2.md), including root public key |
 | `ursula_url`, `bucket`, `journal` | Private authoritative storage endpoint/location |
 | `listen`, `port` | IPv4 address (default `127.0.0.1`) and port (default 8080) |
 | `request_timeout_ms` | Whole-request deadline, default 2000, maximum 60000 |
@@ -84,14 +85,18 @@ response, not a new sequence. Fixed unit-test keys are fixtures only.
 
 ## API and authorization
 
-`POST /v1/command` accepts the typed `SignedRequest` and returns `{"position":N}`
+`POST /v2/command` accepts the typed `SignedRequest` and returns `{"position":N}`
 after durable acceptance or an authorized duplicate receipt. CAS conflicts
 return 409, permanent protocol rejections 422, and unavailable authority/storage
-503. A transport error does not prove rejection or nonacceptance.
+503. A transport error does not prove rejection or nonacceptance. Error bodies use the
+public `ErrorCode` enum; unknown internal errors become `AuthorityUnavailable`.
+The client exposes recognized rejections through `last_rejection`. Malformed or
+unknown error bodies produce `InvalidAuthorityResponse`, not an invented receipt.
+See the [caller guide](../docs/CLIENT.md) for retry and ownership rules.
 
-`POST /v1/view` accepts a signed request with `sequence:0` and
+`POST /v2/view` accepts a signed request with `sequence:0` and
 `command:{"inspect":PID}`. Zero is reserved for this nonmutating surface; the
-mutation engine rejects it. The response contains the process, next scalar input
+mutation engine rejects it. The response contains the process, next opaque input
 and position, that PID's effect evidence, caller's own sequence, and authority
 position. It exposes no other PID's data.
 
@@ -104,10 +109,10 @@ catalog, subscription, or storage administration routes. Historical signatures
 cannot bypass key replacement or grant revocation.
 
 Authentication/permission failures return 403 with `AccessDenied`, without
-disclosing existence. Malformed JSON returns 400. Bodies are limited to 64 KiB,
+disclosing existence. Malformed JSON returns 400. Bodies are limited to 256 KiB,
 headers to an 8 KiB buffer, and connections to one request. The sequential server
 bounds concurrent work and imposes a deadline including slow bodies and storage
-I/O. Client calls have a five-second deadline, a 64 KiB response buffer, and no
+I/O. Client calls have a five-second deadline, a 256 KiB response buffer, and no
 redirect following. Rate fairness is not promised; the separate maintenance
 process has its own bounded loop. Unauthenticated `GET /health` reveals only
 readiness after storage refresh.

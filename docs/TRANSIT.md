@@ -3,9 +3,9 @@
 Status: foundational requirements established; record names and mechanisms below
 are the target protocol outline. An experimental signed-request/ownership/replay
 slice is implemented; its supported surface and limits are specified in
-[the v1 profile](../contracts/TRANSIT_V1.md), with evidence in the
+[the v2 profile](../contracts/TRANSIT_V2.md), with evidence in the
 [roadmap](ROADMAP.md). General payloads, framework behaviors and migrations are
-not implied by this scalar profile.
+not implied by this bounded inline-value profile.
 
 ## Boundary
 
@@ -185,8 +185,8 @@ and execution caches remain disposable. A protocol checkpoint that replaces a
 reclaimed prefix must itself be durable and validated; it becomes part of the
 authoritative recovery basis with the retained tail.
 
-M1 writes one complete JSON object per conditional append, making its scalar
-turn visible atomically. This does not imply multi-stream transactions. Pending
+M1 writes one complete JSON object per conditional append, making a turn with opaque
+application values visible atomically. This does not imply multi-stream transactions. Pending
 cross-process deliveries form a durable outbox with stable identities; destination
 admission deduplicates retries. See [STREAMS.md](STREAMS.md).
 
@@ -208,8 +208,8 @@ admission deduplicates retries. See [STREAMS.md](STREAMS.md).
   access arbitrary destinations, or obtain connector secrets. Isolate workload
   execution from the trusted admission/commit and effect-dispatch boundaries.
 - Clock, randomness, external observations, and relevant configuration enter
-  reproducible handlers as recorded inputs. Opaque nondeterministic programs can
-  execute as effects with recorded outputs.
+  reproducible handlers as recorded inputs. Application code runs in callers;
+  language choice does not change the protocol or require code in the node.
 
 A client API alone cannot enforce these requirements on arbitrary native code.
 M1 must specify the handler execution boundary and test attempted bypasses.
@@ -225,6 +225,13 @@ correctness. Distinguish recovery by applying recorded committed state from
 re-executing code to reproduce that state. A malicious worker with a valid grant
 must not be described as unable to lie solely because its envelope validates.
 See [the trust model](SECURITY.md#trusted-computing-base-and-provider-boundaries).
+
+In the implemented v2 profile, successful turns carry opaque state bytes and the
+revision of the state used to compute them. The authority checks that revision,
+ordered input, grants, generation and lifetime, then records state and outputs
+atomically. It never invokes a handler. Reported failure must preserve state and
+emit no outputs/effects, but the authority cannot prove that computation failed.
+See the [caller contract](CLIENT.md).
 
 ## Ownership and failure
 

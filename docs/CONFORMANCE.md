@@ -13,7 +13,7 @@ boundary, not every target requirement in the documents below.
 key rotation/revocation, slow-body deadlines, and paused/replacement workers
 against disk-backed Ursula. Authority and storage restart preserve state and
 revocations. This loopback proof does not establish deployment network isolation;
-see the [service profile](../contracts/SERVICE_V1.md).
+see the [service profile](../contracts/SERVICE_V2.md).
 
 `just reference-test` runs the fixed counter via the pinned Substrate gVisor
 runtime on an owned Kind cluster. A controller crash after Actor creation is
@@ -29,10 +29,12 @@ they do not establish arbitrary native-handler determinism or protection against
 privileged administrators. Public ingress TLS and broader runtime support remain
 outside this reference slice.
 
-Verified counter overflow records a blocked head input and fences its owner.
-Unit and signed-service tests reject fabricated failure, preserve the pending
-input across restart, and permit explicit termination. Runtime reconciliation
-uses that durable failure to stop replacement; its cluster test also checks a
+Caller-reported counter overflow records a blocked head input and fences its
+owner. Unit tests reject failure reports that change state or emit outputs;
+signed-service tests preserve pending input across restart and permit explicit
+termination. The counter worker also reports malformed application bytes as a
+blocked failure. Transit does not verify the caller's arithmetic or failure claim.
+Runtime reconciliation uses that durable failure to stop replacement; its cluster test also checks a
 stable generation after shutdown. This bounds retries of the fixed reviewed
 handler; arbitrary plugin execution and general Station restart policies remain
 outside this profile.
@@ -54,10 +56,11 @@ retired payload. This profile rejects finite owners and live dependencies;
 unresolved creation cannot be mistaken for safe deletion or retried blindly.
 
 Implemented evidence: `just test` exercises request signatures, realm/PID grants,
-key replacement, retry identity, ownership, invalid results, ordered input, and
+key replacement, retry identity, ownership, stale state revisions, ordered input, and
 retirement. `just test-storage` repeats competing transitions, revocation, lost
 receipts, and replay across a real Ursula SIGKILL/restart, with a 100-message
-backlog and a 16-record read window. The fixed reducer is trusted and compiled.
+backlog and a 16-record read window. Application logic is absent from the
+authority and its replay path.
 Further SIGKILL boundaries exercise checkpoint publication before trim, retried
 trim, and recovery after prefix removal with new pending input in the tail.
 Effect tests additionally prove intent validation, revocation racing dispatch,
@@ -90,8 +93,10 @@ in this fixture. `just test-service` additionally exercises Linux's synchronized
 clock and a separate maintenance process: opted-in expiry, explicit cancellation
 of unfinished input, checkpoint/trim while ingress remains live, and permanent
 retirement after authority/storage restart. It requires the host clock to report
-an error bound below one second; other platforms exercise explicit retirement
-and cleanup without claiming a supported finite-time source.
+an error bound within two seconds; the fixture explicitly permits that bound
+because a synchronized host can exceed one second between NTP polls. Controlled
+clock tests retain exact rejection boundaries. Other platforms exercise explicit
+retirement and cleanup without claiming a supported finite-time source.
 The [deadline investigation](RETENTION.md#m1-deadline-enforcement-investigation)
 defines the tested acceptance-time and closure contract. A physical
 storage-write cutoff at the earlier work deadline is no longer the target.
@@ -104,6 +109,16 @@ implementation as conformant. The client cursor-model bug and separate upstream
 documentation mismatch are recorded in [URSULA.md](URSULA.md). The corrected
 client proof verifies offset-plus-cursor and record-plus-cursor continuation;
 Transit's journal reads use record positions.
+
+`just test-callers` compiles two Zig programs using only `transit-client` and their
+own application module: decimal accumulation and arbitrary byte concatenation.
+The same node binary accepts both, records opaque state and atomic outputs,
+rejects stale revisions/skipped inputs/unauthorized effects, and recovers through
+authority and disk Ursula restart. A proxy drops successful commit responses;
+retrying the identical pending request returns the original receipt. Replaced
+activations fail locally and at signed ingress. Recovery verification does not
+execute either application. `just check-contract` checks that the committed
+binding schema exactly matches the public types; shared fixtures check signing.
 
 ## Adversarial scenarios
 
@@ -119,7 +134,7 @@ tests as appropriate. A happy-path example alone does not satisfy a row.
 | Two authorities and a restored old worker race to commit | At most one accepted successor per prior commit/generation; authority restart cannot reset fencing | [Transit](TRANSIT.md#ownership-and-failure), M1 |
 | The append succeeds but its acknowledgement is lost | Stable operation identity recovers the same spawn, admission, commit, or dispatch decision; conflicting content is rejected | [Transit](TRANSIT.md), [Streams](STREAMS.md), M1 |
 | Outbox retries reorder a sender's messages or only part of a fan-out arrives | Preserve declared per-sender/destination order, including delayed uncertain admissions; prove terminal delivery outcomes rather than inferring them from timeouts; no cross-process atomicity claim | [Streams](STREAMS.md#commit-and-delivery), M1 |
-| Native code reads an ambient clock, uses a socket, forges state, or never returns | Demonstrate the selected handler-execution boundary and limits; distinguish protocol validation, deterministic re-execution, and application correctness | [Transit](TRANSIT.md#enforcement), M1 |
+| Native code attempts forbidden I/O, submits a stale commit, reports false application state, or never returns | Prove runtime I/O boundaries and stale-commit rejection; authorized state bytes remain a trusted application claim, and protocol legality does not prove computation correct or bounded | [Transit](TRANSIT.md#enforcement), M1 |
 | A handler repeatedly fails on the head message | Bounded retries, visible blocked state or authorized ordered disposition; no silent skipping or endless supervisor replacement | [Station](STATION.md#failure-and-progress), minimal policy M1; helpers M2 |
 | A work cutoff or required-input expiry occurs during suspension or a turn | Only explicitly authorized bounded settlement may continue with a valid recovery basis; final retirement rejects all further execution even when bytes remain | [Retention](RETENTION.md), M1 |
 | A result races reconciliation closure or arrives after recovery/trim | One authoritative winner; closed unknown stays unknown; no late admission, retry, or reopening; existing receipts do not constitute new acceptance | [Connectors](CONNECTORS.md#bounded-reconciliation-contract), kernel proof M1; connector execution M3 |

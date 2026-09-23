@@ -3,10 +3,7 @@ const transit = @import("transit");
 const adapter = @import("transit_ursula");
 const t = std.testing;
 
-fn counter(state: i64, input: i64) !transit.Decision {
-    return .{ .state = try std.math.add(i64, state, input) };
-}
-const Engine = transit.Engine(adapter.Store, counter);
+const Engine = transit.Engine(adapter.Store);
 const Clock = struct {
     now: u64,
     fn read(context: *anyopaque) !transit.Time.Sample {
@@ -15,7 +12,9 @@ const Clock = struct {
     }
 };
 fn submit(e: *Engine, key: transit.Ed25519.KeyPair, principal: u8, command: transit.Command) !u64 {
-    return e.submit(try transit.sign(.{ .realm = e.state.realm, .principal = principal, .sequence = (try e.state.principal(principal)).sequence + 1, .command = command }, key));
+    var current = command;
+    if (current == .turn) current.turn.expected_revision = (try e.state.process(current.turn.pid)).revision;
+    return e.submit(try transit.sign(.{ .realm = e.state.realm, .principal = principal, .sequence = (try e.state.principal(principal)).sequence + 1, .command = current }, key));
 }
 
 pub fn main(init: std.process.Init) !void {
@@ -35,18 +34,18 @@ pub fn main(init: std.process.Init) !void {
         const pid = try submit(&e, root, 0, .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 200, .allow_trim = true } });
         _ = try submit(&e, root, 0, .{ .grant = .{ .subject = 1, .public_key = worker.public_key.toBytes(), .permissions = transit.permission(.execute), .pid = pid } });
         _ = try submit(&e, root, 0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 0 } });
-        const input = try submit(&e, root, 0, .{ .send = .{ .pid = pid, .value = 7 } });
+        const input = try submit(&e, root, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(7) } });
         _ = try submit(&e, worker, 1, .{ .begin_turn = .{ .pid = pid, .generation = 1, .input = input } });
     } else if (std.mem.eql(u8, args[2], "recover")) {
         var e = try Engine.open(&store, genesis);
         clock.now = 110;
         e.clock = .{ .context = &clock, .read = Clock.read };
         const permit = (try e.state.process(1)).turn_permit.?;
-        try t.expectError(error.DeadlineExpired, submit(&e, root, 0, .{ .send = .{ .pid = 1, .value = 9 } }));
+        try t.expectError(error.DeadlineExpired, submit(&e, root, 0, .{ .send = .{ .pid = 1, .value = transit.Value.integer(9) } }));
         _ = try submit(&e, root, 0, .{ .own = .{ .pid = 1, .worker = 1, .expected_generation = 1 } });
-        _ = try submit(&e, worker, 1, .{ .turn = .{ .pid = 1, .generation = 2, .input = permit.input, .permit = permit.id, .result = 7 } });
+        _ = try submit(&e, worker, 1, .{ .turn = .{ .pid = 1, .generation = 2, .input = permit.input, .permit = permit.id, .result = transit.Value.integer(7) } });
         _ = try submit(&e, root, 0, .{ .checkpoint = {} });
-        try store.publishCheckpoint(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+        try store.publishCheckpoint(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
     } else if (std.mem.eql(u8, args[2], "checkpoint")) {
         var e = try Engine.open(&store, genesis);
         clock.now = 201;
@@ -54,12 +53,12 @@ pub fn main(init: std.process.Init) !void {
         try t.expectError(error.DeadlineExpired, submit(&e, root, 0, .{ .own = .{ .pid = 1, .worker = 1, .expected_generation = 2 } }));
         _ = try submit(&e, root, 0, (try e.state.nextMaintenance(try Clock.read(&clock))).?);
         _ = try submit(&e, root, 0, .{ .checkpoint = {} });
-        try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+        try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
     } else if (std.mem.eql(u8, args[2], "trim_recover")) {
         try t.expectError(error.HistoryReclaimed, store.read(0));
         var e = try Engine.open(&store, genesis);
         try t.expectEqual(.expired, (try e.state.process(1)).lifecycle);
-        try t.expectEqual(@as(i64, 7), (try e.state.process(1)).state);
+        try t.expectEqual(@as(i64, 7), try (try e.state.process(1)).state.asInteger());
         try t.expectEqual(@as(u64, 201), e.state.time_floor_ms);
         clock.now = 50;
         e.clock = .{ .context = &clock, .read = Clock.read };

@@ -63,15 +63,15 @@ pub fn loadCheckpoint(self: *Store, genesis: transit.Genesis) !?transit.Checkpoi
     var response = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream, .offset = offset } });
     defer response.deinit();
     try response.head.requireSuccess();
-    var parsed = try std.json.parseFromSlice(transit.Checkpoint, self.journal.client.http.allocator, response.body, .{});
+    var parsed = try std.json.parseFromSlice(*transit.Checkpoint, self.journal.client.http.allocator, response.body, .{});
     defer parsed.deinit();
     try parsed.value.validate(self.journal.client.http.allocator, genesis);
-    return parsed.value;
+    return parsed.value.*;
 }
 
 /// Reconcile an already committed checkpoint intent. Publication is verified
 /// before logical retention moves; every step can be retried after a crash.
-pub fn publishCheckpoint(self: *Store, checkpoint: transit.Checkpoint) !void {
+pub fn publishCheckpoint(self: *Store, checkpoint: *const transit.Checkpoint) !void {
     const allocator = self.journal.client.http.allocator;
     try checkpoint.validate(allocator, checkpoint.genesis);
     if (try self.loadCheckpoint(checkpoint.genesis)) |existing| {
@@ -92,7 +92,7 @@ pub fn publishCheckpoint(self: *Store, checkpoint: transit.Checkpoint) !void {
     if (verified.state.position < checkpoint.state.position or verified.state.history_floor < checkpoint.state.history_floor) return error.StaleCheckpoint;
 }
 
-pub fn maintain(self: *Store, checkpoint: transit.Checkpoint) !void {
+pub fn maintain(self: *Store, checkpoint: *const transit.Checkpoint) !void {
     try checkpoint.validate(self.journal.client.http.allocator, checkpoint.genesis);
     const existing = try self.loadCheckpoint(checkpoint.genesis);
     // A checkpoint covering the committed floor plus its retained tail is a

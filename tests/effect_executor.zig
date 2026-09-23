@@ -76,7 +76,7 @@ pub fn main(init: std.process.Init) !void {
     if (try stdin.interface.takeByte() != '\n') return error.InvalidRelease;
     var http: std.http.Client = .{ .allocator = init.gpa, .io = init.io };
     defer http.deinit();
-    const payload = try std.json.Stringify.valueAlloc(init.gpa, .{ .effect = c.effect, .attempt = attempt, .value = effect.payload }, .{});
+    const payload = try std.json.Stringify.valueAlloc(init.gpa, .{ .effect = c.effect, .attempt = attempt, .value = try effect.payload.asInteger() }, .{});
     defer init.gpa.free(payload);
     const result = boundedFetch(&http, c.endpoint, payload) catch null;
     // No retry of the external operation, including an unknown response. A
@@ -85,6 +85,6 @@ pub fn main(init: std.process.Init) !void {
         .realm = c.realm,
         .principal = c.principal,
         .sequence = view.principal_sequence + 2,
-        .command = .{ .observe = .{ .pid = c.pid, .effect = c.effect, .attempt = attempt, .result = result } },
+        .command = .{ .observe = .{ .pid = c.pid, .effect = c.effect, .attempt = attempt, .result = if (result) |v| transit.Value.integer(v) else null } },
     }, key));
 }

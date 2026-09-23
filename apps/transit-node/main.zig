@@ -2,7 +2,7 @@ const std = @import("std");
 const transit = @import("transit");
 const adapter = @import("transit_ursula");
 const wire = @import("transit_client");
-const Engine = transit.Engine(adapter.Store, @import("counter").reduce);
+const Engine = transit.Engine(adapter.Store);
 const Maintenance = @import("Maintenance.zig");
 const Config = struct {
     genesis: transit.Genesis,
@@ -41,8 +41,8 @@ const Server = struct {
             try self.engine.refresh();
             return self.json(&request, .ok, .{ .ready = true });
         }
-        const is_view = std.mem.eql(u8, request.head.target, "/v1/view");
-        if (request.head.method != .POST or (!is_view and !std.mem.eql(u8, request.head.target, "/v1/command")))
+        const is_view = std.mem.eql(u8, request.head.target, "/v2/view");
+        if (request.head.method != .POST or (!is_view and !std.mem.eql(u8, request.head.target, "/v2/command")))
             return self.json(&request, .not_found, .{ .err = "NotFound" });
         const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch
             return self.json(&request, .bad_request, .{ .err = "InvalidBody" });
@@ -55,15 +55,15 @@ const Server = struct {
                 error.AdmissionClosed, error.ControlCapacity => .service_unavailable,
                 error.ControlAlreadyRecorded => .unprocessable_entity,
                 error.UnknownPayload, error.InvalidPayload, error.PayloadCapacity, error.PayloadPhase, error.PayloadInUse, error.UnsupportedPayloadLifetime => .unprocessable_entity,
-                error.BlockedProcess, error.InvalidFailure => .unprocessable_entity,
+                error.InvalidValue, error.StaleState, error.BlockedProcess, error.InvalidFailure => .unprocessable_entity,
                 error.Unauthorized, error.Forbidden, error.WrongProtocolRealm, error.SignatureVerificationFailed, error.IdentityElement, error.NonCanonical, error.InvalidEncoding => .forbidden,
                 error.Conflict => .conflict,
                 error.RuntimeActivationRequired, error.StaleBinding, error.PendingProviderOperation, error.BindingReplacementUnsupported, error.InvalidBinding, error.ResourceAlreadyBound, error.ProviderOperationClosed, error.ProviderIncarnationMismatch, error.ProviderNotReady, error.AlreadyActivated, error.StaleWorkerIncarnation, error.FreshKeyRequired => .unprocessable_entity,
-                error.InvalidRead, error.ConflictingRetry, error.InvalidSequence, error.SequenceGap, error.RetryHorizonExceeded, error.InvalidGrant, error.UnknownPrincipal, error.UnknownProcess, error.UnknownEffect, error.UnknownOutput, error.InvalidLifetime, error.UnsupportedDeadline, error.UnsupportedWorkload, error.StaleGeneration, error.RetiredProcess, error.InvalidInput, error.MissingInput, error.InvalidResult, error.InvalidTurnPermit, error.MissingTurnPermit, error.TurnAlreadyAuthorized, error.InvalidOutput, error.InvalidOutputs, error.OutputAlreadyResolved, error.RouteBlocked, error.InvalidEffectIntent, error.InvalidEffect, error.InvalidAttempt, error.AttemptAlreadyAuthorized, error.InvalidBudget, error.ReconciliationClosed, error.DeadlineExpired, error.NoDeadline, error.DeadlineNotReached, error.HistoryPinned, error.PendingWork, error.RetentionNotEnabled, error.ProcessCapacity, error.EffectCapacity, error.OutputCapacity, error.Overflow => .unprocessable_entity,
+                error.InvalidRead, error.ConflictingRetry, error.InvalidSequence, error.SequenceGap, error.RetryHorizonExceeded, error.InvalidGrant, error.UnknownPrincipal, error.UnknownProcess, error.UnknownEffect, error.UnknownOutput, error.InvalidLifetime, error.UnsupportedDeadline, error.UnsupportedWorkload, error.StaleGeneration, error.RetiredProcess, error.InvalidInput, error.MissingInput, error.InvalidTurnPermit, error.MissingTurnPermit, error.TurnAlreadyAuthorized, error.InvalidOutput, error.OutputAlreadyResolved, error.RouteBlocked, error.InvalidEffect, error.InvalidAttempt, error.AttemptAlreadyAuthorized, error.InvalidBudget, error.ReconciliationClosed, error.DeadlineExpired, error.NoDeadline, error.DeadlineNotReached, error.HistoryPinned, error.PendingWork, error.RetentionNotEnabled, error.ProcessCapacity, error.EffectCapacity, error.OutputCapacity, error.Overflow => .unprocessable_entity,
                 else => .service_unavailable,
             };
             // Never disclose resource existence on authentication/permission failure.
-            try self.json(&request, status, .{ .err = if (status == .forbidden) "AccessDenied" else @errorName(err) });
+            try self.json(&request, status, .{ .err = if (status == .forbidden) wire.protocol.ErrorCode.AccessDenied else std.meta.stringToEnum(wire.protocol.ErrorCode, @errorName(err)) orelse .AuthorityUnavailable });
         };
     }
 

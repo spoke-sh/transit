@@ -1,9 +1,9 @@
 # Scope
 
 Status: kernel direction and deployment reference established. The bounded
-[M1 profile](../contracts/TRANSIT_V1.md) is implemented, with evidence in the
+[M1 profile](../contracts/TRANSIT_V2.md) is implemented, with evidence in the
 [roadmap](ROADMAP.md). Broader framework, connector and application outcomes
-below remain planned; they are not implied by the scalar M1 workload.
+below remain planned; they are not implied by the bounded M1 workloads.
 
 ## Purpose
 
@@ -24,6 +24,9 @@ The same primitives must support ordinary stateful distributed programs.
   for frontends and frontend tooling. The
   [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition) defines
   package responsibilities and dependency direction without creating them yet.
+- Application code calls the public Transit protocol; the node never runs handlers.
+  Rey's current callers are Zig. Language-neutral contracts allow future clients
+  in other languages without changing kernel execution semantics.
 - Ursula supplies durable streams; `ursula-zig` supplies the Zig client.
 - Strong protocol enforcement: effects and committed state follow valid durable
   sequences. Worker memory and scheduling caches cannot override that history.
@@ -119,7 +122,7 @@ trading history must not submit new orders.
 | --- | --- |
 | How are admissions, ownership, and turn commits serialized and fenced? | Competing-owner and crash tests on the Ursula mapping |
 | How are credentials, realm grants, and revocation bound to each operation? | Impersonation, stale-policy, subscription, and dispatch-race tests |
-| Which execution mechanism enforces deterministic handler inputs and resource limits? | Native-code bypass attempts and reproducible re-execution, separate from state recovery |
+| Which execution mechanism enforces workload I/O and resource limits? | Native-code bypass attempts; recorded-state recovery must not claim deterministic re-execution |
 | How do bootstrap and full-store recovery preserve control authority? | Partial initialization, lost spawn acknowledgement, reserved-capacity and cleanup tests |
 | What wire schema and commit representation implement the kernel protocol? | Valid/invalid traces and cross-language fixtures |
 | What PID encoding and authority scope preserve durable identity? | Spawn, recovery, migration, and permanent-retirement fixtures |

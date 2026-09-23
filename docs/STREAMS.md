@@ -5,7 +5,7 @@ M1 realm-journal mapping has conditional-write, bounded-read and disk recovery
 proofs; broader stream/reference topologies remain planned. The
 [Transit kernel protocol](TRANSIT.md) owns execution semantics; this document
 owns their durable transport requirements.
-The [experimental profile](../contracts/TRANSIT_V1.md#process-outboxes) now proves
+The [experimental profile](../contracts/TRANSIT_V2.md#process-outboxes) now proves
 same-realm outboxes, per-route order, partial fan-out, current delivery grants,
 and checkpoint recovery. Cross-realm delivery is not implemented.
 

@@ -1,5 +1,6 @@
-//! Protocol profile v1. No transport, OS clock, scheduling, or application I/O.
+//! Protocol profile v2. No transport, OS clock, scheduling, or application I/O.
 const std = @import("std");
+pub const Value = protocol.Value;
 pub const protocol = @import("transit_protocol");
 pub const Ed25519 = protocol.Ed25519;
 pub const Time = @import("Time.zig");
@@ -54,7 +55,8 @@ pub const Process = struct {
     owner: ?u8 = null,
     generation: u64 = 0,
     lifecycle: @FieldType(protocol.ProcessView, "lifecycle") = .running,
-    state: i64 = 0,
+    state: Value = .{},
+    revision: u64 = 0,
     failure: @FieldType(protocol.ProcessView, "failure") = null,
     admitted: u64 = 0,
     consumed: u64 = 0,
@@ -67,7 +69,7 @@ pub const Process = struct {
     binding: ?Runtime.Binding = null,
 };
 pub const Record = struct {
-    version: u32 = 1,
+    version: u32 = protocol.version,
     position: u64,
     policy_revision: u64,
     request: Request,
@@ -76,7 +78,7 @@ pub const Record = struct {
 };
 pub const RetryPolicy = enum { unlimited, last_per_principal };
 pub const Genesis = struct {
-    version: u32 = 1,
+    version: u32 = protocol.version,
     realm: u64,
     root_key: [32]u8,
     retry_policy: RetryPolicy = .unlimited,
@@ -85,17 +87,15 @@ pub const Genesis = struct {
 };
 pub const Entry = union(enum) { genesis: Genesis, operation: Record };
 
-/// The v1 experiment uses scalar state/input and one compiled workload version.
-/// The executable supplies the reviewed reducer; Transit owns its sequencing.
-pub const Decision = struct { state: i64, effect: ?i64 = null, outputs: [max_turn_outputs]?Output = @splat(null) };
-pub const Reducer = *const fn (i64, i64) anyerror!Decision;
-
-pub const Message = struct { pid: u64, value: i64 };
+pub const Message = struct { pid: u64, value: Value };
 pub fn messageOf(record: Record) ?Message {
     return record.admission;
 }
 
 pub const State = struct {
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!State {
+        return @import("parse_object.zig").parse(State, allocator, source, options);
+    }
     realm: u64,
     retry_policy: RetryPolicy,
     position: u64 = 1,
@@ -112,7 +112,7 @@ pub const State = struct {
     capacity_checkpoint: bool = false,
 
     pub fn init(genesis: Genesis) !State {
-        if (genesis.version != 1 or genesis.realm == 0 or genesis.realm > max_counter) return error.InvalidGenesis;
+        if (genesis.version != protocol.version or genesis.realm == 0 or genesis.realm > max_counter) return error.InvalidGenesis;
         _ = try Ed25519.PublicKey.fromBytes(genesis.root_key);
         if (genesis.admission_ceiling) |ceiling| if (ceiling < 2 or ceiling > max_admission_ceiling) return error.InvalidCapacity;
         var state: State = .{ .realm = genesis.realm, .retry_policy = genesis.retry_policy, .max_clock_error_ms = genesis.max_clock_error_ms, .admission_ceiling = genesis.admission_ceiling };
@@ -155,15 +155,16 @@ pub const State = struct {
     }
 
     pub fn authenticate(self: *const State, signed: SignedRequest) !void {
+        try protocol.validate(signed.request);
         const request = signed.request;
-        if (request.version != 1 or request.realm != self.realm) return error.WrongProtocolRealm;
+        if (request.version != protocol.version or request.realm != self.realm) return error.WrongProtocolRealm;
         const p = try self.principal(request.principal);
         const public = try Ed25519.PublicKey.fromBytes(p.grant.public_key);
         try Ed25519.Signature.fromBytes(signed.signature).verify(&digest(request), public);
     }
 
     pub fn authorize(self: *const State, request: Request) !void {
-        if (request.version != 1 or request.realm != self.realm) return error.WrongProtocolRealm;
+        if (request.version != protocol.version or request.realm != self.realm) return error.WrongProtocolRealm;
         const p = try self.principal(request.principal);
         const required: Permission = switch (request.command) {
             .grant, .revoke, .own, .terminate, .expire, .checkpoint, .deliver, .runtime_intent, .runtime_observe, .activate => .admin,
@@ -212,9 +213,10 @@ pub const State = struct {
     /// Validate a transition on a copy. The caller publishes it only after CAS.
     /// `input` must be fetched from the journal by the trusted engine, never from
     /// a worker-supplied envelope. State alone does not hold the mailbox backlog.
-    pub fn apply(self: *State, record: Record, input: ?Record, reducer: Reducer) !?Message {
-        if (record.version != 1 or record.position != self.position or self.position >= max_counter) return error.InvalidPosition;
+    pub fn apply(self: *State, record: Record, input: ?Record) !?Message {
+        if (record.version != protocol.version or record.position != self.position or self.position >= max_counter) return error.InvalidPosition;
         const req = record.request;
+        try protocol.validate(req);
         if (try self.duplicate(req) != null) return error.DuplicateRecord;
         if ((try self.principal(req.principal)).revision != record.policy_revision) return error.StalePolicy;
         try self.checkCapacity(req.command);
@@ -276,7 +278,8 @@ pub const State = struct {
                 } else return error.UnknownPrincipal;
             },
             .spawn => |c| {
-                if (c.code != 1) return error.UnsupportedWorkload;
+                if (c.code == 0) return error.UnsupportedWorkload;
+                try c.initial_state.validate();
                 if (c.deadline_ms) |deadline| {
                     const time = try self.trustedTime(record);
                     const settle = c.settle_before_ms orelse return error.InvalidLifetime;
@@ -286,7 +289,7 @@ pub const State = struct {
                 const free = for (&self.processes) |*slot| {
                     if (slot.* == null) break slot;
                 } else return error.ProcessCapacity;
-                free.* = .{ .pid = record.position, .code = c.code, .allow_trim = c.allow_trim, .work_before_ms = c.deadline_ms, .settle_before_ms = c.settle_before_ms };
+                free.* = .{ .pid = record.position, .code = c.code, .state = c.initial_state, .allow_trim = c.allow_trim, .work_before_ms = c.deadline_ms, .settle_before_ms = c.settle_before_ms };
             },
             .own => |c| {
                 const p = try self.process(c.pid);
@@ -407,9 +410,9 @@ pub const State = struct {
                 const body = messageOf(message) orelse return error.InvalidInput;
                 if (body.pid != c.pid or
                     c.input != message.position or c.input <= p.input_cursor or c.input >= record.position or p.consumed >= p.admitted) return error.InvalidInput;
-                const decision = reducer(p.state, body.value) catch |err| {
-                    if (!c.failed) return err;
-                    if (c.result != p.state or c.effect != null) return error.InvalidFailure;
+                if (c.expected_revision != p.revision) return error.StaleState;
+                if (c.failed) {
+                    if (!c.result.eql(p.state) or c.effect != null) return error.InvalidFailure;
                     for (c.outputs) |out| if (out != null) return error.InvalidFailure;
                     // Failed execution never consumes/skips its input. Fence the
                     // activation and leave a durable disposition for operators
@@ -419,11 +422,7 @@ pub const State = struct {
                     p.generation = try std.math.add(u64, p.generation, 1);
                     p.turn_permit = null;
                     break :turn;
-                };
-                if (c.failed) return error.InvalidFailure;
-                if (c.result != decision.state) return error.InvalidResult;
-                if (c.effect != decision.effect) return error.InvalidEffectIntent;
-                if (!std.meta.eql(c.outputs, decision.outputs)) return error.InvalidOutputs;
+                }
                 for (c.outputs, 0..) |slot, index| if (slot) |out| {
                     try self.newWork(p, record);
                     if ((try self.principal(req.principal)).grant.permissions & permission(.publish) == 0) return error.Forbidden;
@@ -441,6 +440,7 @@ pub const State = struct {
                     free.* = .{ .id = record.position, .pid = c.pid, .payload = effect_payload };
                 }
                 p.state = c.result;
+                p.revision = record.position;
                 p.consumed += 1;
                 p.input_cursor = c.input;
                 p.turn_permit = null;
@@ -662,29 +662,32 @@ pub const State = struct {
 };
 
 pub const Checkpoint = struct {
-    version: u32 = 1,
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!Checkpoint {
+        return @import("parse_object.zig").parse(Checkpoint, allocator, source, options);
+    }
+    version: u32 = protocol.version,
     genesis: Genesis,
     state: State,
     checksum: [32]u8,
 
-    fn hash(allocator: std.mem.Allocator, genesis: Genesis, state: State) ![32]u8 {
+    fn hash(allocator: std.mem.Allocator, genesis: Genesis, state: *const State) ![32]u8 {
         const bytes = try std.json.Stringify.valueAlloc(allocator, .{ .genesis = genesis, .state = state }, .{});
         defer allocator.free(bytes);
         var sum: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(bytes, &sum, .{});
         return sum;
     }
-    pub fn create(allocator: std.mem.Allocator, genesis: Genesis, state: State) !Checkpoint {
+    pub fn create(allocator: std.mem.Allocator, genesis: Genesis, state: *const State) !Checkpoint {
         if (state.history_floor == 0) return error.NoCheckpointIntent;
-        return .{ .genesis = genesis, .state = state, .checksum = try hash(allocator, genesis, state) };
+        return .{ .genesis = genesis, .state = state.*, .checksum = try hash(allocator, genesis, state) };
     }
-    pub fn validate(self: Checkpoint, allocator: std.mem.Allocator, genesis: Genesis) !void {
-        if (self.version != 1 or !std.meta.eql(self.genesis, genesis) or
+    pub fn validate(self: *const Checkpoint, allocator: std.mem.Allocator, genesis: Genesis) !void {
+        if (self.version != protocol.version or !std.meta.eql(self.genesis, genesis) or
             self.state.realm != genesis.realm or self.state.retry_policy != genesis.retry_policy or
             self.state.max_clock_error_ms != genesis.max_clock_error_ms or
             self.state.admission_ceiling != genesis.admission_ceiling or
             self.state.position == 0 or self.state.history_floor == 0 or self.state.history_floor > self.state.position) return error.InvalidCheckpoint;
-        if (!std.mem.eql(u8, &self.checksum, &try hash(allocator, self.genesis, self.state))) return error.InvalidCheckpoint;
+        if (!std.mem.eql(u8, &self.checksum, &try hash(allocator, self.genesis, &self.state))) return error.InvalidCheckpoint;
         const root = try self.state.principal(0);
         if (!std.mem.eql(u8, &root.grant.public_key, &genesis.root_key)) return error.GenesisMismatch;
     }
@@ -700,7 +703,7 @@ fn executable(p: *const Process) !void {
 
 /// Store contract: immutable positions, authoritative tail, conditional append.
 /// Read buffers and the state have fixed limits independent of mailbox backlog.
-pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
+pub fn Engine(comptime Store: type) type {
     return struct {
         const Self = @This();
         store: *Store,
@@ -772,7 +775,7 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
                     else => null,
                 };
                 var next = self.state;
-                const admission = try next.apply(r, input, reducer);
+                const admission = try next.apply(r, input);
                 if (!std.meta.eql(admission, r.admission)) return error.InvalidAdmission;
                 self.state = next;
             }
@@ -793,7 +796,7 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
                 else => null,
             };
             var next = self.state;
-            r.admission = try next.apply(r, input, reducer);
+            r.admission = try next.apply(r, input);
             return .{ .record = r, .next = next };
         }
 

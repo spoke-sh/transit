@@ -1,4 +1,4 @@
-# Transit v1 experimental protocol profile
+# Transit v2 experimental protocol profile
 
 Status: implemented and verified bounded M1 profile, not a stable public API.
 The owning requirements remain in [TRANSIT.md](../docs/TRANSIT.md) and
@@ -7,7 +7,7 @@ The owning requirements remain in [TRANSIT.md](../docs/TRANSIT.md) and
 ## Encoding and identity
 
 The journal contains one JSON object per Ursula record. The first is
-`{"genesis":{"version":1,"realm":42,"root_key":[...]}}`; `root_key` is exactly
+`{"genesis":{"version":2,"realm":42,"root_key":[...]}}`; `root_key` is exactly
 32 public-key bytes. A deployment supplies the expected genesis out of band;
 recovery rejects any mismatch. Only explicit bootstrap creates a journal.
 
@@ -22,35 +22,44 @@ Retired process entries are preserved and never reallocated.
 Requests contain these fields in this canonical order:
 
 ```json
-{"version":1,"realm":42,"principal":0,"sequence":1,"command":{"send":{"pid":3,"value":7}}}
+{"version":2,"realm":42,"principal":0,"sequence":1,"command":{"send":{"pid":3,"value":"37"}}}
 ```
 
 The command is a one-key tagged object. The exact types and variants live in
-`packages/zig/transit/src/root.zig`; unknown fields/variants are rejected by the
-typed parser. Realm, journal position, and request sequence are restricted to
-JavaScript's exact integer range. State and input are signed 64-bit integers;
-future TypeScript consumers must use lossless integer parsing for those values.
-This experiment's scalar state is not the final general payload contract.
+[`transit-protocol`](../packages/zig/transit-protocol/src/root.zig); unknown
+fields/variants are rejected by the typed parser. The generated
+[JSON Schema](transit-v2.schema.json) includes field order, defaults, integer
+ranges, routes, permissions and signing metadata for future binding generators.
+Realm, journal position and request sequence are restricted to JavaScript's exact
+integer range; other control integers require lossless handling over their stated
+ranges. State, input, output and effect data are opaque values of at most 256
+bytes, encoded as even-length lowercase hex strings. Empty bytes encode as `""`.
+Application formats and schema versions belong to callers. This is a bounded
+inline profile; general large-payload references are not implemented.
+
+v2 changes requests, signatures, histories, checkpoints and HTTP routes. v1 is
+rejected, including during recovery; there is no automatic migration. Use a fresh
+development realm for v2 and preserve old data separately if it matters.
 
 ## Authentication and authorization
 
 An ingress envelope adds a 64-byte `signature` to `request`. Ed25519 signs
-SHA-256 of `rey.transit.request.v1` followed by a NUL byte and the typed canonical
+SHA-256 of `rey.transit.request.v2` followed by a NUL byte and the typed canonical
 JSON request. The pinned Zig encoder emits all declared fields in declaration
 order; JSON whitespace/object order on ingress is not signed directly. There
 are no floats or arbitrary maps. Cross-language implementations must match the
 golden fixtures before interoperability is claimed. Committed
-[request vectors](../packages/zig/transit/src/fixtures/requests-v1.json) contain
+[request vectors](../packages/zig/transit-protocol/src/fixtures/requests-v2.json) contain
 canonical bytes, SHA-256 digests, Ed25519 signatures and a public test seed.
 Zig checks them in `just test`; Python independently checks JSON encoding and
 hashes, then compares CLI signatures, in `just test-service`. The maximum signed
-64-bit input vector makes lossless integer handling observable.
-The shared [sequence trace](../packages/zig/transit/src/fixtures/sequences-v1.json)
+64-bit sample input is decimal application text inside an opaque byte value.
+The shared [sequence trace](../packages/zig/transit-protocol/src/fixtures/sequences-v2.json)
 covers scoped PIDs, duplicate admission/spawn, stale ownership, invalid input
-order/results, dispatch/closure, permanent retirement, and a blocked overflow
-input. Zig reopens the authority after every accepted or rejected step. Its
-reviewed fixture workload emits an effect for input 9; it is not the deployed
-counter workload or a migration of an existing realm.
+order/state revisions, dispatch/closure, permanent retirement and a caller-reported
+blocked input. Zig reopens the authority after every accepted or rejected step.
+The trace supplies application commits, including an effect for input 9; the
+authority applies recorded state without running a fixture workload.
 
 The deployment's root public key is principal zero. Only root can change grants.
 Other grants bind a public key, permission bits, and optional PID restriction.
@@ -62,8 +71,9 @@ this slice. Private keys and request signatures are not journal records.
 Requests, grants, and ownership transitions share a single realm journal.
 Preparing a transition validates current history; accepting it conditionally
 appends at exactly that tail. A racing revocation or ownership change makes the
-prepared append fail. Historical replay applies recorded decisions and the
-compiled reducer; it does not require retired credentials to become valid again.
+prepared append fail. Historical replay validates protocol transitions and applies recorded application
+state; it neither runs application code nor requires retired credentials to become
+valid again.
 The core accepts no direct effect executor or OS I/O interface.
 
 Each principal submits serially increasing request sequences. The most recent
@@ -76,27 +86,36 @@ admission. Concurrent producers need distinct principals.
 
 ## Execution and limits
 
-The engine accepts one reviewed, compiled reducer at workload version one. The
-counter fixture uses checked addition; the authority recomputes the result from
-the next journal input and rejects skipping or forged results. An arithmetic
-failure is submitted as `turn.failed=true` with the unchanged state and no
-outputs/effects. The authority verifies that the reviewed reducer actually fails;
-a worker cannot claim failure for a valid transition. Acceptance records
+The engine has no application callback or workload dispatch table. A caller reads
+its ordered input and committed state, computes a result, then submits a turn.
+Transit validates current permission, ownership generation, next input position,
+`expected_revision`, lifetime/permit and output/effect authority before one atomic
+append. State revision starts at zero and becomes the successful turn position.
+A spawn supplies opaque `initial_state` and a nonzero application `code` tag; the
+node never interprets that tag as executable code. Runtime workload digests and
+activation evidence remain separate controls.
+
+A failure is an authenticated caller report, submitted as `turn.failed=true` with
+byte-identical state and no outputs/effects. Transit validates that structure,
+not whether application computation truly failed. Acceptance records
 `Process.failure` with the input and record position, fences the activation, and
 leaves the input unconsumed. Admissions, turns and activations then fail with
 `BlockedProcess`; runtime reconciliation stops the Actor rather than replacing
 it indefinitely. Explicit termination or opted-in expiry cancels the outstanding
-input; M1 provides no automatic retry or same-PID reset for a deterministic
-failure. Failure evidence survives replay and checkpointing. This does not
-establish isolation or determinism for arbitrary native code.
+input; M1 provides no automatic retry or same-PID reset for a reported
+failure. Failure evidence survives replay and checkpointing. The sample counter
+uses checked addition in the worker. Application tests establish its arithmetic;
+Transit establishes protocol legality, not honest or deterministic computation.
+Two distinct Zig applications exercise the same unchanged node through
+[`transit-client`](../docs/CLIENT.md).
 
 Mailbox bodies remain in storage. State holds counts and a scan position;
 the Ursula adapter caches at most 16 records. This trades scanning cost for a
 small, provable recovery mechanism. A deployment is currently limited to 16
 principals, 64 lifetime process identities, 128 lifetime effect identities, and
-256 lifetime output identities;
-reaching those quotas fails
-before admission. Scaling those catalogs requires a later persistent index.
+256 lifetime output identities, and 16 standalone payload identities. Typed journal
+entries are bounded by 8 KiB and checkpoints by 1 MiB. Reaching quotas fails
+before admission. Scaling these catalogs requires a later persistent index.
 
 ## Runtime bindings and activation
 
@@ -124,9 +143,9 @@ trusted input, not cryptographic proof of physical placement.
 
 ## Process outboxes
 
-A turn can commit up to four scalar outputs to fixed destination PIDs, alongside
-state and input progress. The authority recomputes that array with the reducer
-and requires the producer's `publish` grant, scoped to the source PID. Each
+A turn can commit up to four opaque outputs to fixed destination PIDs, alongside
+state and input progress. The authority validates the proposed array and requires
+the producer's `publish` grant, scoped to the source PID. Each
 output retains its source, originating turn, array index, payload, and stable
 realm-scoped identity. A committed output does not guarantee destination admission.
 
@@ -151,16 +170,15 @@ refuses the entire source turn before committing any state or outputs.
 
 ## Effect intents and observations
 
-A reducer returns proposed state and an optional scalar effect intent. The turn
-commits both atomically, after recomputation and an additional effect grant
-check. An intent's identity is its originating turn position. `dispatch` records
+A caller proposes state and an optional opaque effect intent. The turn commits
+both atomically after protocol validation and an additional effect grant check. An intent's identity is its originating turn position. `dispatch` records
 one attempt, identified by the dispatch position and authenticated executor.
 Dispatch competes with revocation and termination through the same journal CAS.
 Only the recorded executor, under its current grant, can submit an observation.
 
 An authorized attempt is potentially in flight. A null result records an unknown
 outcome; neither restart nor ownership loss authorizes another attempt. This
-profile has no retry operation. A known scalar result admits exactly one ordered
+profile has no retry operation. A known opaque result admits exactly one ordered
 mailbox input when the caller is live. After termination it updates reconciliation
 evidence only. Termination cancels pending, unattempted intents while preserving
 authorized/unknown attempts. Replay updates these records without invoking I/O.
@@ -280,8 +298,8 @@ Synthetic effect I/O and Kubernetes/Substrate recovery/isolation now have their
 own executable proofs. Basic immutable payload deletion is described below;
 the [roadmap](../docs/ROADMAP.md) records the completed M1 evidence audit.
 Cross-realm delivery is outside this slice.
-The [experimental service](SERVICE_V1.md) hosts signed ingress and scoped views
-for the fixed counter workload. Conformance is limited to the documented
+The [experimental service](SERVICE_V2.md) hosts signed ingress and scoped views
+for application callers, including the reference counter. Conformance is limited to the documented
 profiles, topology and fault schedules; broader guarantees need new evidence.
 
 ## Standalone immutable payloads
@@ -304,8 +322,8 @@ before recording its outcome. Tombstones survive outside the removed stream,
 including checkpoint/trim and a lost DELETE acknowledgement.
 
 This first contract supports standalone bytes and unlimited-lifetime owners.
-Finite owners are rejected with `UnsupportedPayloadLifetime`. No handler state,
-mailbox or effect can depend on these bytes in the scalar profile; a general
+Finite owners are rejected with `UnsupportedPayloadLifetime`. This inline profile has no protocol-recognized references from state, mailbox
+or effect fields to these bytes; a general
 payload read/upload API, reference graph and bounded finite upload reconciliation
 remain outside M1. See [retention](../docs/RETENTION.md#m1-immutable-payload-deletion)
 for recovery rules and the unresolved-creation limit.

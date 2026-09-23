@@ -1,6 +1,7 @@
 """Actual remote sends, paused authorization, bounded closure and no replay I/O."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+from wire_values import encode_command, decode_view
 import os
 from pathlib import Path
 import queue
@@ -72,6 +73,8 @@ def run(node, executor, cli):
             nonlocal sequence
             if not read:
                 sequence += 1
+            revision = request({"inspect": command["turn"]["pid"]}, read=True)["process"]["revision"] if "turn" in command else 0
+            command = encode_command(command, revision)
             path = store.root / "request.json"
             path.write_text(json.dumps({"realm": 52, "principal": 0,
                 "sequence": 0 if read else sequence, "command": command}))
@@ -79,12 +82,12 @@ def run(node, executor, cli):
             for _ in range(30):
                 try:
                     response = store.http.open(urllib.request.Request(
-                        url + ("/v1/view" if read else "/v1/command"), json.dumps(signed).encode(),
+                        url + ("/v2/view" if read else "/v2/command"), json.dumps(signed).encode(),
                         {"Content-Type": "application/json"}), timeout=5)
                 except urllib.error.HTTPError as error:
                     response = error
                 with response:
-                    value = json.load(response)
+                    value = decode_view(json.load(response))
                     if response.status == 409:
                         time.sleep(0.05)
                         continue

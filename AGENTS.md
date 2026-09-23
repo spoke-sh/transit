@@ -116,6 +116,12 @@
 
 ## Implementation conventions
 
+- Keep application computation in callers. Transit authority validates protocol
+  transitions and recovers recorded state; it must not import application handlers.
+  Callers use `transit-client`, whose only protocol dependency is `transit-protocol`.
+  Generate language-neutral resources from those public types, and keep fixtures
+  and generated schema current with `just generate-contract`/`just check-contract`.
+  Use Zig calling programs for conformance; additional language bindings are future work.
 - Keep domain transitions separate from transport, storage, clocks, and external
   effects so a recorded input sequence can be replayed deterministically.
 - Prove the selected handler-execution boundary before claiming deterministic

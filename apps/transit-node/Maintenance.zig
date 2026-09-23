@@ -73,8 +73,8 @@ fn step(engine: anytype, config: Config, key: transit.Ed25519.KeyPair, allocator
     try engine.state.authenticate(signed);
     try engine.state.authorize(checkpoint_request);
     if (engine.state.history_floor > maintained.*) {
-        const checkpoint = try transit.Checkpoint.create(allocator, engine.genesis, engine.state);
-        try engine.store.maintain(checkpoint);
+        const checkpoint = try transit.Checkpoint.create(allocator, engine.genesis, &engine.state);
+        try engine.store.maintain(&checkpoint);
         maintained.* = checkpoint.state.history_floor;
         return .trimmed;
     }

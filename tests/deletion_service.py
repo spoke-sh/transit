@@ -1,5 +1,6 @@
 """Independent maintenance deletes opted-in immutable payloads, keeping evidence."""
 import json
+from wire_values import encode_command, decode_view
 from pathlib import Path
 import subprocess
 import sys
@@ -38,14 +39,14 @@ def run(node, cli, proof):
             limit = time.monotonic() + 20
             while True:
                 try:
-                    response = store.http.open(urllib.request.Request(url + "/v1/view", signed,
+                    response = store.http.open(urllib.request.Request(url + "/v2/view", signed,
                         {"Content-Type": "application/json"}), timeout=5)
                 except urllib.error.HTTPError as error:
                     assert error.code == 409
                     time.sleep(0.05)
                     continue
                 with response:
-                    view = json.load(response)
+                    view = decode_view(json.load(response))
                 payloads = {value["id"]: value for value in view["payloads"] if value}
                 if payloads[2]["phase"] == "deleted":
                     assert payloads[3]["phase"] == "ready"

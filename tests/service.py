@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Real signed HTTP ingress, bounded reads, worker fencing and disk recovery."""
 import json
+from wire_values import encode_command, decode_view
 import os
 from pathlib import Path
 import signal
@@ -53,6 +54,8 @@ def run(node, worker, cli):
         seq = 0
 
         def signed(command, sequence=0, principal=0, seed=root_key, realm=47):
+            revision = view(command["turn"]["pid"])["process"]["revision"] if "turn" in command else 0
+            command = encode_command(command, revision)
             path = root / "request.json"
             path.write_text(json.dumps({"realm": realm, "principal": principal, "sequence": sequence, "command": command}))
             return invoke("sign", seed, path)
@@ -64,17 +67,17 @@ def run(node, worker, cli):
             except urllib.error.HTTPError as error:
                 response = error
             with response:
-                value = json.load(response)
+                value = decode_view(json.load(response))
                 assert response.status == status, (response.status, value, status)
                 return value
 
         def command(value):
             nonlocal seq
             seq += 1
-            return post("/v1/command", signed(value, seq))["position"]
+            return post("/v2/command", signed(value, seq))["position"]
 
         def view(pid, principal=0, seed=root_key, status=200):
-            return post("/v1/view", signed({"inspect": pid}, principal=principal, seed=seed), status)
+            return post("/v2/view", signed({"inspect": pid}, principal=principal, seed=seed), status)
 
         def await_state(pid, expected):
             deadline = time.monotonic() + 30
@@ -95,12 +98,12 @@ def run(node, worker, cli):
             # Signatures and realms are checked before process existence can leak.
             forged = signed({"inspect": pid})
             forged["signature"] = [0] * 64
-            assert post("/v1/view", forged, 403) == {"err": "AccessDenied"}
-            post("/v1/view", signed({"inspect": pid}, realm=48), 403)
+            assert post("/v2/view", forged, 403) == {"err": "AccessDenied"}
+            post("/v2/view", signed({"inspect": pid}, realm=48), 403)
             view(other, 1, worker_key, 403)
-            post("/v1/command", signed({"send": {"pid": pid, "value": 999}}, 1, 1, worker_key), 403)
+            post("/v2/command", signed({"send": {"pid": pid, "value": 999}}, 1, 1, worker_key), 403)
             # Invalid/malformed input never appends or blocks subsequent requests.
-            post("/v1/command", {"sender": "root", "request": {}}, 400)
+            post("/v2/command", {"sender": "root", "request": {}}, 400)
             for value in range(1, 25):
                 command({"send": {"pid": pid, "value": value}})
             initial = view(pid, 1, worker_key)
@@ -113,14 +116,14 @@ def run(node, worker, cli):
             await_state(pid, 300)
             first.send_signal(signal.SIGSTOP)
             # A historical receipt remains valid; it grants no fresh execution.
-            post("/v1/command", stale)
+            post("/v2/command", stale)
             command({"send": {"pid": pid, "value": 7}})
             paused = view(pid, 1, worker_key)
             stale = signed({"turn": {"pid": pid, "generation": 1,
                                       "input": paused["input"]["position"], "result": 307}},
                            paused["principal_sequence"] + 1, 1, worker_key)
             command({"own": {"pid": pid, "expected_generation": 1, "worker": 1}})
-            post("/v1/command", stale, 422)
+            post("/v2/command", stale, 422)
             worker_options["generation"] = 2
             worker_config.write_text(json.dumps(worker_options))
             second = start(worker, worker_config)
@@ -131,8 +134,8 @@ def run(node, worker, cli):
             # Incomplete headers and bodies must release the sequential server
             # at its deadline, including with no spare async worker threads.
             for partial in (
-                b"POST /v1/command HTTP/1.1\r\nHost:",
-                b"POST /v1/command HTTP/1.1\r\nHost: local\r\nContent-Length: 100\r\n\r\n{",
+                b"POST /v2/command HTTP/1.1\r\nHost:",
+                b"POST /v2/command HTTP/1.1\r\nHost: local\r\nContent-Length: 100\r\n\r\n{",
             ):
                 with socket.create_connection(("127.0.0.1", port), timeout=3) as slow:
                     slow.sendall(partial)
@@ -153,13 +156,13 @@ def run(node, worker, cli):
                 with connection:
                     connection.settimeout(5)
                     with connection.makefile("rb") as incoming:
-                        assert incoming.readline(8192).startswith(b"POST /v1/view ")
+                        assert incoming.readline(8192).startswith(b"POST /v2/view ")
                         assert caller.wait(timeout=8) != 0
                         assert "AuthorityTimeout" in Path(logs[-1].name).read_text()
             # Key renewal preserves sequencing; revocation applies to cached reads.
             old_read = signed({"inspect": pid}, principal=1, seed=worker_key)
             command({"grant": {"subject": 1, "public_key": rotated_public, "permissions": 24, "pid": pid}})
-            post("/v1/view", old_read, 403)
+            post("/v2/view", old_read, 403)
             assert view(pid, 1, rotated_key)["process"]["state"] == 307
             command({"revoke": 1})
             view(pid, 1, rotated_key, 403)
@@ -215,6 +218,19 @@ def run(node, worker, cli):
             authority = start(node, config)
             wait_ready(store.http, authority, url + "/health")
             assert view(failed_pid)["process"] == failed
+            # Invalid application bytes are a caller failure, not invalid protocol.
+            # They must block visibly instead of crashing and being replaced forever.
+            malformed_pid = command({"spawn": {}})
+            command({"grant": {"subject": 4, "public_key": worker_public, "permissions": 24, "pid": malformed_pid}})
+            command({"own": {"pid": malformed_pid, "expected_generation": 0, "worker": 4}})
+            malformed_input = command({"send": {"pid": malformed_pid, "value": b"not-a-number".hex()}})
+            failed_config.write_text(json.dumps({"url": url, "realm": 47, "principal": 4,
+                "pid": malformed_pid, "generation": 1, "seed_file": str(worker_key)}))
+            malformed_worker = start(worker, failed_config)
+            assert malformed_worker.wait(timeout=20) != 0
+            malformed = view(malformed_pid)["process"]
+            assert malformed["failure"]["input"] == malformed_input
+            assert malformed["consumed"] == 0 and malformed["owner"] is None
             print("Signed service ingress, scoped/revoked reads, bounded requests, worker fencing and disk recovery passed.")
         except BaseException:
             for log in logs:
@@ -241,6 +257,6 @@ if __name__ == "__main__":
     from maintenance import run as maintenance
     maintenance(binaries[0], binaries[2])
     from effect_io import run as effect_io
-    effect_io(binaries[3], binaries[4], binaries[2])
+    effect_io(binaries[0], binaries[3], binaries[2])
     from deletion_service import run as deletion
-    deletion(binaries[0], binaries[2], binaries[5])
+    deletion(binaries[0], binaries[2], binaries[4])

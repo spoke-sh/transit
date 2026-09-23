@@ -2,12 +2,12 @@ const std = @import("std");
 const t = std.testing;
 const transit = @import("transit");
 const adapter = @import("transit_ursula");
-fn counter(state: i64, input: i64) !transit.Decision {
-    return .{ .state = try std.math.add(i64, state, input) };
-}
-const Engine = transit.Engine(adapter.Store, counter);
+
+const Engine = transit.Engine(adapter.Store);
 fn submit(e: *Engine, key: transit.Ed25519.KeyPair, command: transit.Command) !u64 {
-    return e.submit(try transit.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = command }, key));
+    var current = command;
+    if (current == .turn) current.turn.expected_revision = (try e.state.process(current.turn.pid)).revision;
+    return e.submit(try transit.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = current }, key));
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
@@ -50,7 +50,7 @@ pub fn main(init: std.process.Init) !void {
         try t.expectError(error.RetentionNotEnabled, submit(&e, root, .{ .retire_payload = retain }));
         _ = try submit(&e, root, .{ .retire_payload = remove });
         _ = try submit(&e, root, .{ .checkpoint = {} });
-        try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+        try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
         try store.reclaimPayload((try e.state.payload(remove)).*);
         // SIGKILL after DELETE/confirmed 404, before recording its outcome.
     } else if (std.mem.eql(u8, args[2], "checkpoint")) {
@@ -58,7 +58,7 @@ pub fn main(init: std.process.Init) !void {
         try store.reclaimPayload((try e.state.payload(remove)).*);
         _ = try submit(&e, root, .{ .payload_deleted = remove });
         _ = try submit(&e, root, .{ .checkpoint = {} });
-        try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+        try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
     } else if (std.mem.eql(u8, args[2], "trim_recover") or std.mem.eql(u8, args[2], "service_verify")) {
         try t.expectEqual(.deleted, (try e.state.payload(remove)).phase);
         try t.expect((try e.state.payload(remove)).retired_at != null);

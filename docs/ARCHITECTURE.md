@@ -2,7 +2,7 @@
 
 Status: layering, stack, and reference deployment established. Component layout
 and protocols below describe the target design. Transit and the Ursula adapter
-have an [experimental implementation](../contracts/TRANSIT_V1.md), including
+have an [experimental implementation](../contracts/TRANSIT_V2.md), including
 signed services, a Substrate runtime adapter and a reference recovery harness.
 Station and production connector components remain planned.
 
@@ -123,11 +123,17 @@ on it; the client has no dependency on the kernel implementation. An explicit
 process view excludes internal journal scan positions. Public compatibility
 follows this contract, not the layout of the kernel's state catalog.
 
-The M1 correction in progress moves application computation entirely into Zig
-callers. The authority will validate protocol transitions and recover recorded
-state without importing an application reducer. The public contract and shared
-conformance fixtures will provide the source for future language bindings;
-additional client languages are outside this correction.
+M1 application computation lives entirely in Zig callers. The authority validates
+protocol transitions and recovers recorded opaque state without importing an
+application reducer. `transit-client.Session` supplies receive, prepare and submit
+operations with explicit activation identity and retry material. Two distinct Zig
+applications exercise the same node binary.
+
+The generated [public schema](../contracts/transit-v2.schema.json) and shared
+fixtures derive from `transit-protocol` and provide a resource for future language
+bindings. CI checks schema drift. No second application language or binding
+generator is introduced yet. The [caller guide](CLIENT.md) explains the implemented
+boundary, lifetime rules and bounded byte representation.
 
 ## Enforcement and replay
 
@@ -178,8 +184,8 @@ process lifecycle. A library boundary does not imply a Transit process, pod, or
 independently deployed service. Runtime isolation still follows the protocol
 authority model.
 
-Transit, `transit-ursula`, `transit-client`, and `runtime-substrate` are implemented
-libraries. The node, counter worker, runtime controller and CLI compose them.
+`transit-protocol`, Transit, `transit-ursula`, `transit-client`, and
+`runtime-substrate` are implemented libraries. The node, counter worker, runtime controller and CLI compose them.
 Station and HTTP entries below remain proposals. Supporting interfaces are still
 experimental; a directory in this plan does not imply a deployed component.
 
@@ -187,15 +193,16 @@ experimental; a directory in this plan does not imply a deployed component.
 
 | Proposed package | Exported module | Responsibility and dependencies |
 | --- | --- | --- |
-| `packages/zig/transit/` | `transit` | Process/PID types, protocol/lifetime validation, principal/grant contracts, logical storage contracts, and credential/storage/runtime interfaces; independent of Station, Ursula, and deployment providers |
+| `packages/zig/transit-protocol/` | `transit_protocol` | Public wire types, signatures, opaque values, response views and shared fixtures; source for the generated language-neutral schema; independent of kernel/storage/runtime implementations |
+| `packages/zig/transit/` | `transit` | Depends on the public protocol; process/PID state, protocol/lifetime validation, principal/grant contracts, logical storage contracts, and credential/storage/runtime interfaces; independent of Station, Ursula, and deployment providers |
 | `packages/zig/transit-ursula/` | `transit_ursula` | Ursula persistence/transport, checkpoint, trim, and deletion mapping; depends on Transit and external `ursula-zig` |
-| `packages/zig/transit-client/` | `transit_client` | Signed HTTP client and bounded process views; depends on Transit, with no storage/provider access |
-| `packages/zig/station/` | `station` | GenServer, supervision, registries, request/reply, and application retention/state-view helpers; depends on Transit through its public interfaces |
+| `packages/zig/transit-client/` | `transit_client` | Signed HTTP client and bounded process views; depends only on `transit-protocol`, with no kernel/storage/provider implementation access |
+| `packages/zig/station/` | `station` | GenServer, supervision, registries, request/reply, and application retention/state-view helpers; builds on `transit-client` and the public protocol |
 | `packages/zig/station-http/` | `station_http` | HTTP request/response contracts, exchange groups, caller helpers, and executor logic; builds on Station and Transit |
 | `packages/zig/runtime-substrate/` | `runtime_substrate` | PID-to-Substrate-Actor binding and lifecycle reconciliation; implements Transit's runtime interfaces without putting provider types in the core protocol |
 
-Keep the dependency graph acyclic: Station builds on Transit; concrete adapters
-implement Transit interfaces; connectors build on the framework. Transit core
+Keep the dependency graph acyclic: Station uses the public Transit client;
+concrete adapters implement Transit interfaces; connectors build on the framework. Transit core
 must remain testable without Ursula, Kubernetes, or Station. Station should
 also be testable with a deterministic Transit harness. Real adapter conformance
 and cluster checks remain separate requirements.
@@ -250,6 +257,6 @@ own. Vite+ manages frontend packages separately; shared wire contracts connect
 the languages. See [development](DEVELOPMENT.md#planned-zig-package-workflow).
 
 Create packages, manifests, and source directories only when their implementation
-begins. The four implemented libraries have independent package checks as well
+begins. The five implemented libraries have independent package checks as well
 as root-orchestrated proof executables. Frontend and Station directories remain
 planned.

@@ -38,6 +38,8 @@ distinction explicit when both appear in the same discussion.
 | Process sequence | The process's ordered protocol history, including admitted messages and execution/lifecycle records. It establishes no global order across processes. |
 | Admission | Durable acceptance of a message's identity and place in the target PID's mailbox. It does not mean handling or an external effect has completed. |
 | Turn | Handling one admitted input against committed process state and proposing the next state, outgoing messages, and effect intents. |
+| Application state | Opaque caller-owned bytes recorded by Transit. Protocol acceptance does not prove application computation correct. |
+| State revision | The version of committed application state used as a turn precondition. In M1 it starts at zero and advances to the successful turn position; it is distinct from ownership generation. |
 | Turn commit | The durable boundary that makes a turn's state transition and pending outputs authoritative together. |
 | Settlement | Completion of specifically authorized work within recorded finite limits after the cutoff for starting new work; it cannot grant more work or revive a retired PID. |
 | Worker | A replaceable executor that hosts process or connector work. A worker is distinct from the logical process it executes. |
@@ -89,7 +91,7 @@ cluster scopes, conflict handling, and stable message destinations.
 | Correlation | An identity joining related work, such as a request and its reply. It does not itself establish order or authority. |
 | Durable stream | Persistent ordered records with resumable reading under a documented durability/retention contract. |
 | Immutable payload | A logical storage object with a fixed byte body, content hash and unreused identity. M1 supports standalone payloads with explicit publication and deletion records; application dependencies and finite body lifetimes need a later contract. |
-| Cursor | An opaque transport continuation value returned by Ursula. It is separate from message identity and process sequence position. |
+| Cursor | Ursula's opaque cache/collapse token, independent of the offset or record position that selects a read location. It is not a Transit message identity or execution position. |
 | Authoritative history | Validated durable records, including checkpoints replacing reclaimed prefixes, that determine accepted work, progress, ownership, lifetime, and effect eligibility. |
 | Outbox | Committed pending outputs awaiting delivery. Retried delivery preserves identity and the destination deduplicates admission. |
 | Checkpoint | A durable record of a validated history prefix, state/progress, versions, and required dependencies. It becomes essential recovery evidence if that prefix is reclaimed. |

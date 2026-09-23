@@ -2,12 +2,12 @@ const std = @import("std");
 const transit = @import("transit");
 const adapter = @import("transit_ursula");
 const t = std.testing;
-fn counter(state: i64, input: i64) !transit.Decision {
-    return .{ .state = try std.math.add(i64, state, input) };
-}
-const Engine = transit.Engine(adapter.Store, counter);
+
+const Engine = transit.Engine(adapter.Store);
 fn submit(e: *Engine, key: transit.Ed25519.KeyPair, command: transit.Command) !u64 {
-    return e.submit(try transit.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = command }, key));
+    var current = command;
+    if (current == .turn) current.turn.expected_revision = (try e.state.process(current.turn.pid)).revision;
+    return e.submit(try transit.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = current }, key));
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
@@ -31,10 +31,10 @@ pub fn main(init: std.process.Init) !void {
         _ = try submit(&e, root, .{ .runtime_observe = .{ .pid = 1, .revision = 1, .operation = 3, .incarnation = @splat(4), .outcome = .ready } });
         _ = try submit(&e, root, .{ .activate = .{ .pid = 1, .revision = 1, .expected_generation = 1, .worker = 1, .public_key = fresh.public_key.toBytes(), .worker_incarnation = @splat(5) } });
         _ = try submit(&e, root, .{ .checkpoint = {} });
-        try store.publishCheckpoint(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+        try store.publishCheckpoint(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
     } else if (std.mem.eql(u8, args[2], "checkpoint")) {
         var e = try Engine.open(&store, genesis);
-        try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+        try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
         _ = try submit(&e, root, .{ .terminate = 1 });
         _ = try submit(&e, root, .{ .runtime_intent = .{ .pid = 1, .expected_revision = 1, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3), .desired = .stopped } });
     } else if (std.mem.eql(u8, args[2], "trim_recover")) {

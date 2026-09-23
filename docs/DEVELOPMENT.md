@@ -25,14 +25,16 @@ source of tool versions; direnv is optional and is not installed by this shell.
 | --- | --- |
 | `just` | Lists available recipes |
 | `just doctor` | Prints tool versions, including Ursula and Kubernetes tooling, without contacting a cluster |
-| `just check` | Checks Nix/Zig formatting, the toolchain smoke check, Zig unit tests, local Markdown links, and diff whitespace |
-| `just ci` | Runs foundation, standalone package, disk recovery, and service checks in the same development shell |
+| `just check` | Checks Nix/Zig formatting, the toolchain smoke check, Zig unit tests, generated public-contract drift, local Markdown links, and diff whitespace |
+| `just ci` | Runs foundation, standalone package, disk recovery, service, and independent Zig caller checks in the same development shell |
 | `just fmt` | Formats Nix and Zig files |
 | `just build` | Compiles implemented Zig executables |
 | `just test` | Runs Zig unit/protocol tests without a service |
 | `just test-packages` | Checks each library independently of root build orchestration |
 | `just test-storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
 | `just test-service` | Proves signed HTTP ingress, scoped/revoked reads, worker replacement and authority/storage restart on loopback |
+| `just test-callers` | Runs two Zig applications through the public client against the same node, including dropped commit responses, stale owners and restart recovery |
+| `just generate-contract`, `just check-contract` | Regenerates or checks the language-neutral JSON Schema derived from public Zig types |
 | `just test-capacity` | Linux/Docker proof of real disk pressure, reserved control progress, checkpoint/trim and restart on an owned ext4 image |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
 
@@ -40,7 +42,7 @@ The root Zig build composes package tests and the storage proof. Integration
 orchestration uses the Nix-provided Python 3, temporary directories, and loopback ports;
 it never uses an existing Ursula deployment. Cluster deployment, frontend, and
 application scope follows the roadmap. The experimental counter service,
-worker, and CLI are described in the [service profile](../contracts/SERVICE_V1.md).
+worker, and CLI are described in the [service profile](../contracts/SERVICE_V2.md).
 
 The capacity proof requires Linux Docker with privileged-container support and
 at least 2 GiB of free disk for its temporary regular image file. It uses pinned
@@ -84,12 +86,18 @@ including slow ingress, stalled protocol responses and maintenance storage I/O.
 The affinity change is confined to the test process tree; compilation and the
 parent shell retain their existing CPU allocation.
 
+Protocol v2 is intentionally incompatible with v1 histories and signatures. Start
+a fresh development realm; do not point v2 at an existing v1 journal and expect
+automatic conversion. See the [caller guide](CLIENT.md) for the current public
+client and binding resource.
+
 ## Planned Zig package workflow
 
 Rey will contain multiple Zig library and executable packages following the
 [architecture's decomposition](ARCHITECTURE.md#planned-monorepo-decomposition).
-Transit and `transit-ursula` implement this package structure; the remaining
-packages are a build plan. Run `just test-packages` for their standalone checks.
+`transit-protocol`, Transit, `transit-ursula`, `transit-client` and
+`runtime-substrate` implement this structure; Station and connectors remain
+planned. Run `just test-packages` for their standalone checks.
 
 - Give each implemented package a `build.zig` and `build.zig.zon` declaring its
   own direct dependencies. Reusable libraries expose documented modules and

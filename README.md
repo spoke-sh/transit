@@ -42,11 +42,13 @@ deployment architecture; the protocol must remain portable to other runtimes.
 
 **Status:** Transit has an experimental M1 implementation: signed ingress,
 ordered turns and outboxes, fenced ownership, bounded effect reconciliation,
-opt-in expiry, checkpoint/trim, and immutable-payload deletion. A reviewed counter
-runs on the pinned Kubernetes/Substrate reference with worker-failure recovery
-and sandbox isolation proofs. A separate finite-capacity profile proves control
+opt-in expiry, checkpoint/trim, and immutable-payload deletion. Application code
+runs in Zig callers through [transit-client](docs/CLIENT.md); the node commits and
+recovers opaque state without running handlers. Two distinct callers exercise
+the same node, and a sample counter runs on the pinned Kubernetes/Substrate
+reference with worker-failure recovery and sandbox isolation proofs. A separate finite-capacity profile proves control
 progress using reserved disk space. See the [roadmap evidence](docs/ROADMAP.md)
-and [implemented profile and limits](contracts/TRANSIT_V1.md). Station, the HTTP
+and [implemented profile and limits](contracts/TRANSIT_V2.md). Station, the HTTP
 connector, and applications are not implemented; this is not a stable public API.
 
 ## Development environment
@@ -89,6 +91,7 @@ Start at the [documentation index](docs/README.md).
 | [Security](docs/SECURITY.md) | Authentication, authorization, realms, revocation, and trust boundaries |
 | [Conformance](docs/CONFORMANCE.md) | Adversarial scenarios, implementation gates, and guarantee limits |
 | [Transit — kernel](docs/TRANSIT.md) | Processes, PIDs, lifecycle, sequences, and ownership |
+| [Client](docs/CLIENT.md) | Caller programming model, public schema, retry material, and future bindings |
 | [Streams](docs/STREAMS.md) | Unbounded mailboxes, persistence, delivery, and retention |
 | [Retention](docs/RETENTION.md) | Application contracts, process/mailbox lifetimes, compaction, and reclamation |
 | [Station — framework](docs/STATION.md) | GenServer behaviors, supervision, registries, and composition |

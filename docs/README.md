@@ -13,6 +13,7 @@ these foundational documents.
 | [Security](SECURITY.md) | Signed authority and reference isolation proved within scope | Authentication, authorization, realms, revocation, credentials, and trusted boundaries |
 | [Conformance](CONFORMANCE.md) | Adversarial results and profile limits | Adversarial scenarios, proof ownership, implementation gates, and guarantee limits |
 | [Transit — kernel](TRANSIT.md) | Experimental executable M1 profile | Processes/PIDs, lifecycle, enforced sequences, ownership, and replay |
+| [Client](CLIENT.md) | Implemented Zig client and v2 contract resource | Caller-owned application logic, opaque state, retries, and future language bindings |
 | [Streams](STREAMS.md) | Realm-journal mapping and recovery proved | Unbounded durable mailboxes, delivery, commits, and retention |
 | [Retention](RETENTION.md) | M1 expiry, trim, deletion and capacity proofs | Application opt-in, process/mailbox expiry, compaction, tombstones, and reclamation |
 | [Station — framework](STATION.md) | Proposed behaviors | GenServer, supervision, scoped registries, and request/reply |

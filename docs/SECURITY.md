@@ -1,9 +1,9 @@
 # Identity, authorization, and trust boundaries
 
 Status: required boundaries and semantics, with a bounded M1 implementation.
-The [experimental v1 profile](../contracts/TRANSIT_V1.md) implements
+The [experimental v2 profile](../contracts/TRANSIT_V2.md) implements
 Ed25519 request verification, scoped grants, key replacement, and durable
-revocation. The [service profile](../contracts/SERVICE_V1.md) proves signed HTTP
+revocation. The [service profile](../contracts/SERVICE_V2.md) proves signed HTTP
 ingress, scoped/revoked bounded reads, and key renewal on loopback. Deployment
 transport uses a private trusted cluster network; the pinned Substrate gVisor
 proof denies raw storage/provider access and credential mounts. Public ingress

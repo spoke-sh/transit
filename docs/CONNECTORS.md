@@ -3,12 +3,12 @@
 Status: HTTP over the streaming substrate is the first connector direction.
 Stream-group layout, interpolation syntax, and attempt protocol are proposed.
 No connector is implemented yet.
-The [experimental Transit profile](../contracts/TRANSIT_V1.md#effect-intents-and-observations)
-implements scalar intent, dispatch, and observation records, including unknown
+The [experimental Transit profile](../contracts/TRANSIT_V2.md#effect-intents-and-observations)
+implements opaque intent, dispatch, and observation records, including unknown
 attempts, explicit reconciliation closure, and evidence after caller retirement
 while reconciliation remains open. This proves protocol
-ordering and recovery. `just test-service` also compiles a separate synthetic
-workload and trusted Zig executor that POSTs to a harness-owned loopback endpoint.
+ordering and recovery. `just test-service` proposes synthetic intents to the same generic node and runs
+a trusted Zig executor that POSTs to a harness-owned loopback endpoint.
 It proves successful delivery, a pause after dispatch authorization, a response
 after closure, and a crash after remote acceptance. Restart never resends the
 attempt; checkpoint/trim preserves observed or closed-unknown evidence. Closing

@@ -1,5 +1,6 @@
 """Background expiry and reclamation while an independent authority stays live."""
 import json
+from wire_values import encode_command, decode_view
 import os
 from pathlib import Path
 import signal
@@ -30,7 +31,8 @@ def run(node, cli):
         config = store.root / "node.json"
         genesis = {"realm": 51, "root_key": public, "retry_policy": "last_per_principal"}
         if sys.platform == "linux":
-            genesis["max_clock_error_ms"] = 1000
+            # A synchronized host can report >1s near the end of its NTP poll interval.
+            genesis["max_clock_error_ms"] = 2000
         config.write_text(json.dumps({"genesis": genesis, "ursula_url": store.url,
             "bucket": "transit-maintenance", "journal": "authority", "port": port,
             "maintenance": {"principal": 1, "seed_file": str(maint_key), "interval_ms": 50,
@@ -49,23 +51,25 @@ def run(node, cli):
             nonlocal sequence
             if not read:
                 sequence += 1
+            revision = request({"inspect": command["turn"]["pid"]}, read=True)["process"]["revision"] if "turn" in command else 0
+            command = encode_command(command, revision)
             path = store.root / "request.json"
             path.write_text(json.dumps({"realm": 51, "principal": 0, "sequence": 0 if read else sequence, "command": command}))
             body = subprocess.check_output([str(cli), "sign", str(root), str(path)], timeout=10)
             for _ in range(40):
                 try:
-                    response = store.http.open(urllib.request.Request(url + ("/v1/view" if read else "/v1/command"), body,
+                    response = store.http.open(urllib.request.Request(url + ("/v2/view" if read else "/v2/command"), body,
                         {"Content-Type": "application/json"}), timeout=5)
                 except urllib.error.HTTPError as error:
                     response = error
                 with response:
-                    value = json.load(response)
+                    value = decode_view(json.load(response))
                     if response.status in (409, 503):
                         time.sleep(0.05)
                         continue
                     assert response.status == expected, (response.status, value)
                     return value
-            raise TimeoutError("Maintenance proof authority/clock unavailable")
+            raise TimeoutError(f"Maintenance proof authority/clock unavailable: {value}")
 
         def retained():
             # Read the genesis record through the same record coordinate API.

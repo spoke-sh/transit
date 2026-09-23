@@ -43,7 +43,7 @@ M1; this boundary does not defer them to a later milestone.
 | --- | --- |
 | Durable authority | Select framing, authoritative reads, conditional append/coordination, and recovery of uncertain operations; prove one accepted successor despite competing authorities |
 | Identity and policy | Select credential validation, principal/realm mapping, grant representation, and revocation ordering; prove impersonation and stale-policy rejection |
-| Handler execution | Select the isolation/determinism mechanism and resource limits; state which code is trusted and prove the advertised enforcement |
+| Handler execution | Select runtime I/O isolation and resource limits; keep application computation in callers, prove protocol fencing and recorded-state recovery, and state which code is trusted |
 | Time and dispatch | Define work cutoffs, bounded settlement/reconciliation, clock error bounds, and acceptance/closure ordering; prove late-result rejection without claiming cancellation of possibly in-flight work |
 | Bootstrap and capacity | Define realm/control catalog recovery, idempotent spawn, and reserved control/maintenance capacity under full-store conditions |
 
@@ -53,10 +53,10 @@ does not mark these gates complete.
 
 ### Exit criteria
 
-The supported M1 profile is intentionally small: one realm, reviewed scalar
-workload, bounded catalogs, one-node disk-backed Ursula, and the pinned
-Linux/Kind/Substrate gVisor reference. The [protocol](../contracts/TRANSIT_V1.md),
-[service](../contracts/SERVICE_V1.md), and [runtime](../contracts/RUNTIME_SUBSTRATE_V1.md)
+The supported M1 profile is intentionally small: one realm, bounded opaque
+application values and catalogs, Zig caller workloads, one-node disk-backed
+Ursula, and the pinned Linux/Kind/Substrate gVisor reference. The [protocol](../contracts/TRANSIT_V2.md),
+[service](../contracts/SERVICE_V2.md), and [runtime](../contracts/RUNTIME_SUBSTRATE_V1.md)
 profiles define the exact contracts and limits. Requirements below are satisfied
 within that profile, not for arbitrary native handlers, public ingress or
 multi-node storage.
@@ -64,6 +64,7 @@ multi-node storage.
 | Evidence | What it proves |
 | --- | --- |
 | `just check`, `just test-packages` | Independent package composition; signed requests/current grants; one conditional successor; ordered input, invalid proposals and blocked failures; runtime fencing; bounded clocks, settlement, closure and outboxes; shared valid/invalid JSON traces and bounded view encoding |
+| `just test-callers`, `just check-contract` | Two distinct Zig callers use the same generic node; opaque bytes, state revisions, atomic outputs, denied effects, lost commit responses, ownership replacement and restart recovery; generated schema matches public types |
 | `just test-storage` | Disk WAL SIGKILL/restart; competing authorities, lost receipts and revoked grants; 100 inputs beyond the 16-record window; checkpoint/trim with pending effect/outbox/control evidence; live authority catch-up; immutable payload deletion after a lost receipt; native long-poll/offset continuation |
 | `just test-service` | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
 | `just test-capacity` | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations |

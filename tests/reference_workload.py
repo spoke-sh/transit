@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Deploy the M1 slice on the owned reference cluster and kill real workers."""
 import json
+from wire_values import encode_command, decode_view
 import os
 from pathlib import Path
 import subprocess
@@ -50,13 +51,15 @@ def run():
     sequence = 0
 
     def post(path, command, seq):
+        revision = view(command["turn"]["pid"])["process"]["revision"] if "turn" in command else 0
+        command = encode_command(command, revision)
         request_file = directory / "request.json"
         request_file.write_text(json.dumps({"realm": 49, "principal": 0, "sequence": seq, "command": command}))
         signed = ref.run([cli, "sign", root_key, request_file], capture=True).encode()
         for attempt in range(20):
             try:
                 with http.open(urllib.request.Request(url + path, signed, {"Content-Type": "application/json"}), timeout=8) as response:
-                    return json.load(response)
+                    return decode_view(json.load(response))
             except urllib.error.HTTPError as error:
                 if error.code not in (409, 503):
                     raise RuntimeError((error.code, error.read().decode())) from error
@@ -68,10 +71,10 @@ def run():
     def command(value):
         nonlocal sequence
         sequence += 1
-        return post("/v1/command", value, sequence)["position"]
+        return post("/v2/command", value, sequence)["position"]
 
     def view(pid):
-        return post("/v1/view", {"inspect": pid}, 0)
+        return post("/v2/view", {"inspect": pid}, 0)
 
     def apply(value):
         ref.kube(s, ["apply", "-f", "-"], input=json.dumps(value))
@@ -113,7 +116,7 @@ def run():
                 "spec": {"replicas": 1, "strategy": {"type": "Recreate"}, "selector": {"matchLabels": {"app": app}},
                          "template": {"metadata": {"labels": {"app": app}}, "spec": spec}}}
 
-    config = {"genesis": {"realm": 49, "root_key": root_public, "retry_policy": "last_per_principal", "max_clock_error_ms": 1000}, "ursula_url": f"http://ursula.{namespace}.svc.cluster.local:8080",
+    config = {"genesis": {"realm": 49, "root_key": root_public, "retry_policy": "last_per_principal", "max_clock_error_ms": 2000}, "ursula_url": f"http://ursula.{namespace}.svc.cluster.local:8080",
               "bucket": "rey-reference", "journal": "authority", "listen": "0.0.0.0", "port": 8080, "request_timeout_ms": 3000}
     maintenance_config = dict(config, maintenance={"principal": 3, "seed_file": "/secrets/seed", "interval_ms": 200,
                                                   "operation_timeout_ms": 5000, "checkpoint_every_records": 16})

@@ -1,5 +1,7 @@
 //! Bounded protocol HTTP client. No storage or provider credentials.
 const std = @import("std");
+pub const Session = @import("Session.zig");
+pub const Value = protocol.Value;
 pub const protocol = @import("transit_protocol");
 const transit = protocol;
 pub const max_body = protocol.max_body;
@@ -11,6 +13,8 @@ pub const Client = struct {
     http: std.http.Client,
     url: []const u8,
     timeout_ms: u32 = 5000,
+    /// Last validated wire rejection; reset on every call. One caller per Client.
+    last_rejection: ?protocol.ErrorCode = null,
 
     pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8) Client {
         return .{ .http = .{ .allocator = allocator, .io = io }, .url = url };
@@ -22,6 +26,7 @@ pub const Client = struct {
     /// The caller owns deadlines and retry policy. Never follow redirects with
     /// signed requests; the configured endpoint is the trusted authority.
     pub fn call(self: *Client, comptime T: type, path: []const u8, signed: transit.SignedRequest) !T {
+        self.last_rejection = null;
         const Result = union(enum) { response: anyerror!T, timeout: anyerror!void };
         var results: [2]Result = undefined;
         var select: std.Io.Select(Result) = .init(self.http.io, &results);
@@ -62,11 +67,16 @@ pub const Client = struct {
             .keep_alive = false,
             .response_writer = &writer,
         });
+        if (response.status != .ok) {
+            var failure = std.json.parseFromSlice(protocol.ErrorResponse, allocator, writer.buffered(), .{}) catch return error.InvalidAuthorityResponse;
+            defer failure.deinit();
+            self.last_rejection = failure.value.err;
+        }
         switch (response.status) {
             .ok => {},
             .forbidden => return error.AccessDenied,
             .conflict => return error.Conflict,
-            .unprocessable_entity => return error.Rejected,
+            .bad_request, .unprocessable_entity => return error.Rejected,
             else => return error.AuthorityUnavailable,
         }
         var parsed = try std.json.parseFromSlice(T, allocator, writer.buffered(), .{});
@@ -76,10 +86,10 @@ pub const Client = struct {
 
     pub fn view(self: *Client, request: transit.Request, key: transit.Ed25519.KeyPair) !View {
         if (request.command != .inspect or request.sequence != 0) return error.InvalidRead;
-        return self.call(View, "/v1/view", try transit.sign(request, key));
+        return self.call(View, "/v2/view", try transit.sign(request, key));
     }
     pub fn submit(self: *Client, signed: transit.SignedRequest) !Receipt {
-        return self.call(Receipt, "/v1/command", signed);
+        return self.call(Receipt, "/v2/command", signed);
     }
 };
 
@@ -99,6 +109,7 @@ pub fn readKey(allocator: std.mem.Allocator, io: std.Io, path: []const u8) !tran
 }
 
 fn largestFields(comptime T: type) T {
+    if (T == protocol.Value) return protocol.Value.init(&(@as([protocol.Value.max_bytes]u8, @splat(255)))) catch unreachable;
     return switch (@typeInfo(T)) {
         .int => |info| if (info.signedness == .signed) std.math.minInt(T) else std.math.maxInt(T),
         .bool => false,
@@ -128,4 +139,8 @@ test "a full metadata view fits the bounded HTTP response" {
     const bytes = try std.json.Stringify.valueAlloc(std.testing.allocator, value, .{});
     defer std.testing.allocator.free(bytes);
     try std.testing.expect(bytes.len + 1024 <= max_body);
+}
+
+test {
+    _ = Session;
 }

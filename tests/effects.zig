@@ -3,17 +3,16 @@ const transit = @import("transit");
 const adapter = @import("transit_ursula");
 const t = std.testing;
 
-fn counter(state: i64, input: i64) !transit.Decision {
-    return .{ .state = try std.math.add(i64, state, input), .effect = if (input == 9) 9 else null };
-}
-const Engine = transit.Engine(adapter.Store, counter);
+const Engine = transit.Engine(adapter.Store);
 
 fn submit(e: *Engine, key: transit.Ed25519.KeyPair, principal: u8, command: transit.Command) !u64 {
+    var current = command;
+    if (current == .turn) current.turn.expected_revision = (try e.state.process(current.turn.pid)).revision;
     return e.submit(try transit.sign(.{
         .realm = e.state.realm,
         .principal = principal,
         .sequence = (try e.state.principal(principal)).sequence + 1,
-        .command = command,
+        .command = current,
     }, key));
 }
 
@@ -38,24 +37,24 @@ pub fn main(init: std.process.Init) !void {
                 .pid = pid,
             } });
             _ = try submit(&e, root, 0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 0 } });
-            const input = try submit(&e, root, 0, .{ .send = .{ .pid = pid, .value = 9 } });
-            const effect = try submit(&e, worker, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 9, .effect = 9 } });
+            const input = try submit(&e, root, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(9) } });
+            const effect = try submit(&e, worker, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(9), .effect = transit.Value.integer(9) } });
             const attempt = try submit(&e, root, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } });
             // The executor has authorization but no durable result. Restart must
             // preserve uncertainty, even if the worker actually paused before I/O.
             _ = try submit(&e, root, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = null } });
             _ = try submit(&e, root, 0, .{ .checkpoint = {} });
-            try store.publishCheckpoint(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+            try store.publishCheckpoint(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
         } else if (std.mem.eql(u8, args[2], "recover")) {
             var e = try Engine.open(&store, genesis);
             const effect = (try e.state.effect(5)).*;
             try t.expectEqual(.unknown, effect.phase);
             try t.expectEqual(@as(?u64, 6), effect.attempt);
             try t.expectError(error.AttemptAlreadyAuthorized, submit(&e, root, 0, .{ .dispatch = .{ .pid = 1, .effect = 5 } }));
-            try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+            try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
             try t.expectError(error.HistoryReclaimed, store.read(0));
             if (close_unknown) {
-                const response = try transit.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = 10 } } }, root);
+                const response = try transit.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = transit.Value.integer(10) } } }, root);
                 const pending = try e.prepare(response);
                 var closer = try Engine.open(&store, genesis);
                 const close = try transit.sign(.{ .realm = closer.state.realm, .principal = 0, .sequence = (try closer.state.principal(0)).sequence + 1, .command = .{ .close_effect = .{ .pid = 1, .effect = 5, .attempt = 6 } } }, root);
@@ -64,7 +63,7 @@ pub fn main(init: std.process.Init) !void {
                 e = try Engine.open(&store, genesis);
                 try t.expectEqual(receipt, try e.submit(close));
                 _ = try submit(&e, root, 0, .{ .checkpoint = {} });
-                try store.publishCheckpoint(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+                try store.publishCheckpoint(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
             } else {
                 _ = try submit(&e, root, 0, .{ .terminate = 1 });
             }
@@ -74,32 +73,32 @@ pub fn main(init: std.process.Init) !void {
                 try t.expectEqual(.running, (try e.state.process(1)).lifecycle);
                 try t.expectEqual(.closed_unknown, (try e.state.effect(5)).phase);
                 try t.expect((try e.state.effect(5)).closed_at != null);
-                try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
-                try t.expectError(error.ReconciliationClosed, submit(&e, root, 0, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = 10 } }));
+                try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
+                try t.expectError(error.ReconciliationClosed, submit(&e, root, 0, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = transit.Value.integer(10) } }));
                 try t.expectError(error.AttemptAlreadyAuthorized, submit(&e, root, 0, .{ .dispatch = .{ .pid = 1, .effect = 5 } }));
             } else {
                 try t.expectEqual(.terminated, (try e.state.process(1)).lifecycle);
                 try t.expectEqual(.unknown, (try e.state.effect(5)).phase);
                 try t.expectError(error.RetiredProcess, submit(&e, root, 0, .{ .dispatch = .{ .pid = 1, .effect = 5 } }));
             }
-            try t.expectError(error.InvalidAttempt, submit(&e, worker, 1, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = 10 } }));
+            try t.expectError(error.InvalidAttempt, submit(&e, worker, 1, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = transit.Value.integer(10) } }));
             // Late evidence settles the attempt; it must not revive the caller or
             // deliver to a replacement process with a different PID.
-            if (!close_unknown) _ = try submit(&e, root, 0, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = 10 } });
+            if (!close_unknown) _ = try submit(&e, root, 0, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = transit.Value.integer(10) } });
             _ = try submit(&e, root, 0, .{ .checkpoint = {} });
-            try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
+            try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
         } else if (std.mem.eql(u8, args[2], "trim_recover")) {
             try t.expectError(error.HistoryReclaimed, store.read(0));
             var e = try Engine.open(&store, genesis);
             const p = (try e.state.process(1)).*;
             try t.expectEqual(@as(@TypeOf(p.lifecycle), if (close_unknown) .running else .terminated), p.lifecycle);
-            try t.expectEqual(@as(i64, 9), p.state);
+            try t.expectEqual(@as(i64, 9), try p.state.asInteger());
             try t.expectEqual(@as(u64, 1), p.admitted);
             const effect = (try e.state.effect(5)).*;
             try t.expectEqual(@as(@TypeOf(effect.phase), if (close_unknown) .closed_unknown else .observed), effect.phase);
-            try t.expectEqual(if (close_unknown) @as(?i64, null) else 10, effect.result);
+            try t.expectEqual(if (close_unknown) @as(?i64, null) else 10, if (effect.result) |v| try v.asInteger() else null);
             try t.expectEqual(@as(?transit.Record, null), try e.nextInput(1, e.state.position));
-            try t.expectError(error.ReconciliationClosed, submit(&e, root, 0, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = 99 } }));
+            try t.expectError(error.ReconciliationClosed, submit(&e, root, 0, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = transit.Value.integer(99) } }));
         } else return error.UnknownPhase;
     }
     std.debug.print("effects {s}: passed\n", .{args[2]});
