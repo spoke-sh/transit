@@ -6,88 +6,14 @@ owns an isolated disk Ursula, authority, and workers. It exercises signed HTTP
 ingress, scoped reads, key renewal/revocation, paused-worker fencing, slow
 requests, and authority/storage restart. This is not full deployment conformance.
 
-## Executables
+## Implementations and operation
 
-`just build` installs the platform executables `transit-node`,
-`transit-runtime-controller` and `rey-cli` under `zig-out/bin`.
-`just examples::build` installs `example-counter`
-and `example-byte-log`. These example callers and the CLI use `transit-client`,
-without an Ursula dependency. The node imports no application code.
-`example-counter` compiles the
-[counter handler](../examples/counter/handler.zig), which performs checked addition on
-decimal-text application values without I/O, allocation or ambient time. Overflow
-and malformed application data are reported by that caller; Transit records the
-failure, leaves input pending and fences ownership without recomputing the
-arithmetic. The example exits and runtime reconciliation stops replacing it.
-Operator termination or opted-in expiry provides the explicit terminal
-disposition; no input is silently skipped.
-
-`transit-node CONFIG.json [--bootstrap|--initialize|--maintain]` accepts:
-
-| Field | Meaning |
-| --- | --- |
-| `genesis` | Exact expected [v2 genesis](TRANSIT_V2.md), including root public key |
-| `ursula_url`, `bucket`, `journal` | Private authoritative storage endpoint/location |
-| `listen`, `port` | IPv4 address (default `127.0.0.1`) and port (default 8080) |
-| `request_timeout_ms` | Whole-request deadline, default 2000, maximum 60000 |
-| `maintenance` | Optional settings for the separate `--maintain` process below |
-
-Only explicit `--bootstrap` or `--initialize` creates storage; the latter exits
-after validating initialization. Ordinary startup requires validated
-existing history/checkpoint; an outage is not an empty installation. The node
-needs no root signing seed. Bootstrap configuration is an operator trust input.
-
-`--maintain` runs a separate trusted process without an HTTP listener. Its config
-requires `principal` and `seed_file`, with realm-wide `admin` and `effect` grants.
-It scans at most 64 PIDs, 128 effects and 16 payloads, commits at most one due
-transition per iteration, and reconciles recorded checkpoint/deletion intents.
-Payload deletion requires verified publication, owner retirement and explicit
-opt-in; its tombstone stays in control history. Default interval is
-1000 ms and whole-operation timeout is 5000 ms; both are configurable up to
-60000 ms. Incoming HTTP load cannot occupy this process's execution loop.
-Lost acknowledgements are reconciled from history before the next operation.
-
-History remains unlimited by default. Optional `checkpoint_every_records` (at
-least 2) asks maintenance to checkpoint quiescent opted-in processes after that
-many records since the retained floor. Realm retry policy must permit removal,
-and every PID must have `allow_trim`; pending input still blocks trimming.
-Publication is read back before retention advances. Clock failure blocks timed
-expiry/closure but permits authorized checkpoint/deletion recovery. Maintenance
-credentials and raw storage access stay outside worker sandboxes. The separate
-[capacity proof](../docs/RETENTION.md#m1-bounded-capacity-profile) exercises a
-physically reserved finite realm; enabling the node alone does not provision that
-reserve or promise full-store recovery for an arbitrary storage deployment.
-
-The [counter example](../examples/counter/README.md) supplies the sample workload
-for this service proof. It is not required infrastructure.
-`example-counter CONFIG.json` requires `url`, `realm`, `principal`, `pid`,
-`generation`, and `seed_file`. Its grant needs `execute` and `inspect` scoped to
-the PID. Ownership is granted separately. Workers cannot refresh their own
-generation. They recover input/state and their own principal sequence, then
-retry an uncertain submission using exactly the same signed request. Independent
-writers must not share a principal sequence without coordination.
-
-For runtime-managed cold starts, `example-counter --bootstrap-json CONFIG_JSON`
-accepts public `url`, `realm`, `principal`, and `pid` settings. It generates an
-ephemeral private key in memory and prints only public registration evidence.
-A trusted controller validates that evidence against the current provider
-Actor/worker incarnation, then submits atomic `activate`. The worker pins the
-returned generation once; an old or restored worker cannot adopt a later one.
-No signing seed is embedded in an image, template, argument, or stream.
-
-The CLI supports:
-
-```sh
-zig-out/bin/rey-cli public-key PRIVATE_SEED_FILE
-zig-out/bin/rey-cli sign PRIVATE_SEED_FILE REQUEST.json
-zig-out/bin/rey-cli submit PRIVATE_SEED_FILE REQUEST.json http://127.0.0.1:8080
-zig-out/bin/rey-cli view PRIVATE_SEED_FILE READ.json http://127.0.0.1:8080
-```
-
-Seed files contain 32 cryptographically generated bytes as hex; protect them
-with owner-only permissions or secret mounts. Seeds are not argv values or logs.
-Save a mutation request before submitting; retry that request after a lost
-response, not a new sequence. Fixed unit-test keys are fixtures only.
+[transit-node](../apps/transit-node/README.md) owns server configuration,
+bootstrap, background maintenance, and clock integration.
+[transit-client](../packages/zig/transit-client/README.md) owns Zig caller usage
+and retry lifetimes; [rey-cli](../apps/rey-cli/README.md) owns operator commands.
+The [examples](../examples/README.md) are complete application callers, including
+the reference counter. They are not required platform services.
 
 ## API and authorization
 
@@ -123,14 +49,6 @@ redirect following. Rate fairness is not promised; the separate maintenance
 process has its own bounded loop. Unauthenticated `GET /health` reveals only
 readiness after storage refresh.
 
-Deadline races require `Io.Select.concurrent` for both the operation and timer.
-Zig's `async` may execute inline when its worker budget is exhausted, preventing
-the caller from observing the timer. Failure to allocate concurrency fails the
-operation instead of running it without a working deadline. On Linux, the
-service proof restricts itself and its children to one CPU and exercises stalled
-request headers/bodies, an authority that never replies, and paused storage
-across successive maintenance deadlines.
-
 ## Transport and time limits
 
 Local proofs use loopback HTTP and a trusted host. Signatures authenticate
@@ -140,12 +58,8 @@ authenticated TLS ingress/service boundary. The separate Kubernetes/Substrate
 proof establishes network and credential isolation on its pinned baseline.
 Raw Ursula and provider APIs must remain unreachable by workloads.
 
-Finite lifetimes opt into `genesis.max_clock_error_ms`. On Linux, the node reads
-`adjtimex` in read-only mode, rejects unsynchronized/error status, and records the
-kernel-reported maximum error rounded conservatively to milliseconds. Platform
-C headers supply ABI offsets; clock policy is Zig. Transit checks the configured
-error bound and durable time floor. Other platforms fail finite clock use closed.
-A trusted synchronization service and honest reported UTC error bound remain
-deployment assumptions; reading a clock does not prove them. Controlled-clock
-tests prove the deadline rules. The `--maintain` mode hosts background expiry,
-closure, checkpoint/trim and eligible payload deletion in a separate process.
+Finite lifetimes require realm opt-in to a trusted, bounded-error time source.
+The node's [time integration](../apps/transit-node/README.md#time-and-deadlines)
+describes Linux support and rejection on unsupported/unsynchronized sources.
+The [protocol time contract](TRANSIT_V2.md#authority-time-and-bounded-settlement)
+defines acceptance, uncertainty, and durable time-floor rules.

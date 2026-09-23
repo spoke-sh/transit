@@ -1,20 +1,12 @@
 # Connectors and HTTP exchanges
 
-Status: HTTP over the streaming substrate is the first connector direction.
-Stream-group layout, interpolation syntax, and attempt protocol are proposed.
-No connector is implemented yet.
-The [experimental Transit profile](../contracts/TRANSIT_V2.md#effect-intents-and-observations)
-implements opaque intent, dispatch, and observation records, including unknown
-attempts, explicit reconciliation closure, and evidence after caller retirement
-while reconciliation remains open. This proves protocol
-ordering and recovery. `just test::service` proposes synthetic intents to the same generic node and runs
-a trusted Zig executor that POSTs to a harness-owned loopback endpoint.
-It proves successful delivery, a pause after dispatch authorization, a response
-after closure, and a crash after remote acceptance. Restart never resends the
-attempt; checkpoint/trim preserves observed or closed-unknown evidence. Closing
-before the paused executor sends still allows that already-authorized remote
-request, while Transit rejects its result. This is a test executor with a fixed
-destination and bounded response/deadline, not the planned HTTP connector.
+Status: HTTP is the first planned connector. Stream groups, interpolation,
+and connector attempt policy below remain design work. Transit already has
+opaque intents, dispatch authorization, observations, and bounded closure in its
+[effect contract](../contracts/TRANSIT_V2.md#effect-intents-and-observations).
+The [synthetic executor proof](../tests/README.md#authority-effects-and-outbox-evidence)
+exercises real loopback I/O and its external limits; it is not a general HTTP
+connector implementation.
 
 ## Effect boundary
 

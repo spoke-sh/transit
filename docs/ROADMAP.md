@@ -2,7 +2,7 @@
 
 Status: Transit-first plan. Milestones are ordered by dependency, not calendar
 commitments. The bounded M1 reference profile is implemented and verified;
-checked items are supported by the commands and limits below. M2 is next.
+completed outcomes link to their proof commands and limits. M2 is next.
 
 ## M0 — Foundations
 
@@ -51,125 +51,33 @@ Do not build Station or real external-effect integrations on an unproved gate.
 Track evidence using [CONFORMANCE.md](CONFORMANCE.md); documentation agreement
 does not mark these gates complete.
 
-### Code structure
+### M1 completion and limits
 
-The kernel implementation is `transit-core` (Zig module `transit_core`). Its
-Ursula backend is `transit-backend-ursula`; its Substrate runtime integration is
-`transit-runtime-substrate`. Their package families separate durable storage and
-transport from execution placement and lifecycle. Platform entry points live
-under `apps/`; the M1 counter and byte-log programs are complete
-applications under `examples/`. Conformance harnesses exercise those actual
-binaries, with assertions and faults under `tests/`. This clarifies the M1
-boundaries without adding a framework milestone or changing protocol v2.
+The bounded experimental M1 profile is implemented. Its completed outcomes are:
 
-### Exit criteria
+- Signed ingress and scoped reads, current grants/revocation, ordered opaque
+  state turns, fenced ownership, and durable uncertain-operation recovery.
+- Independent Zig callers against one generic authority, shared public contracts,
+  atomic outboxes, visible blocked failures, and no application code in replay.
+- Authorized synthetic effects with bounded settlement, irreversible unknown
+  closure, and rejected late results without claiming remote cancellation.
+- Opt-in process expiry, checkpoint/trim, immutable-payload deletion, and a
+  separate finite-admission profile with reserved physical control capacity.
+- Kubernetes/Substrate reconciliation, PID-preserving worker recovery, fresh
+  activation, authority/storage restart, and reference sandbox bypass rejection.
 
-The supported M1 profile is intentionally small: one realm, bounded opaque
-application values and catalogs, Zig caller workloads, one-node disk-backed
-Ursula, and the pinned Linux/Kind/Substrate gVisor reference. The [protocol](../contracts/TRANSIT_V2.md),
-[service](../contracts/SERVICE_V2.md), and [runtime](../contracts/RUNTIME_SUBSTRATE_V1.md)
-profiles define the exact contracts and limits. Requirements below are satisfied
-within that profile, not for arbitrary native handlers, public ingress or
-multi-node storage.
+[The test guide](../tests/README.md) owns commands, exact failure schedules,
+measurements, and qualification limits. [The v2 profile](../contracts/TRANSIT_V2.md)
+owns supported protocol bounds; [the component map](ARCHITECTURE.md#planned-monorepo-decomposition)
+links implementation and operating guides.
 
-| Evidence | What it proves |
-| --- | --- |
-| `just check`, `just test::packages` | Independent package composition; signed requests/current grants; one conditional successor; ordered input, invalid proposals and blocked failures; runtime fencing; bounded clocks, settlement, closure and outboxes; shared valid/invalid JSON traces and bounded view encoding |
-| `just test::callers`, `just contract::check` | Runnable counter and byte-log examples use the same generic node; opaque bytes, state revisions, atomic outputs, denied effects, lost commit responses, ownership replacement and restart recovery; generated schema matches public types |
-| `just test::storage` | Disk WAL SIGKILL/restart; competing authorities, lost receipts and revoked grants; 100 inputs beyond the 16-record window; checkpoint/trim with pending effect/outbox/control evidence; live authority catch-up; immutable payload deletion after a lost receipt; native long-poll/offset continuation |
-| `just test::service` | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
-| `just test::capacity` | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations |
-| `just reference::up`, `just reference::images`, `just reference::test` | Real provider setup; controller crash after creation; backlog wakeup, killed worker and fresh activation; Ursula/authority pod restart; opted-in expiry; blocked overflow stops replacement; gVisor egress/credential bypass denials |
-
-The capacity proof uses a finite allocation and a measured physical reserve;
-online expansion and arbitrary write amplification are not promised. Retention
-policies are immutable in M1. Checkpoint/trim requires quiescent or explicitly
-cancelled mailboxes; pending effect/outbox metadata survives in the checkpoint.
-Payload deletion is limited to closed standalone bytes with explicit opt-in and
-an unlimited-lifetime owner. Unsupported finite body/dependency contracts fail
-before admission. Full compaction, live dependency graphs and backup import
-remain later work.
-
-The trusted Linux time source reports synchronization/error bounds; acceptance
-uses a validated sample at the compared journal tail, not physical append time.
-An authorized external send may occur after closure; its result cannot reopen
-Transit. Ursula cursors are cache tokens separate from read positions. The client
-model is fixed and continuation verified; the server documentation mismatch is
-tracked in [Ursula #317](https://github.com/tonbo-io/ursula/issues/317). This profile
-uses verified record positions/offsets and never reuses physical names.
-A rolled-back whole-store backup is not an authorized live restore.
-
-Hosted CI runs `just ci`; an opt-in dedicated runner workflow exposes the
-reference and physical-capacity proofs. Local runs supply the current runtime
-evidence. A passing hosted end-to-end timing and native validation on the other M0
-platforms still require their own runners/runs.
-
-- [x] Introduce the Transit library, Ursula adapter, and minimum executable
-  composition from the [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition),
-  with direct package dependencies and focused/root build checks.
-- [x] Define versioned records and valid/invalid sequence fixtures covering
-  scoped PIDs, lifecycle, admission, activation ownership, turn commits, and
-  effect authorization.
-- [x] Authenticate ingress, workers, and controllers; enforce action/resource
-  grants and current read permissions. Prove forged principal/PID/realm rejection,
-  revoked grants, credential renewal, and authenticated attempt observations.
-- [x] Recover realm genesis, policy state, and the control catalog before
-  application activation. Prove idempotent spawn across lost acknowledgements
-  without depending on the Station registry or recreating missing history.
-- [x] Prove that worker recovery preserves a PID/mailbox and logical termination
-  retires the PID permanently. Define pending-work disposition and prove that
-  spawning a replacement cannot silently inherit accepted messages or effects.
-- [x] Record effective retention policies with unlimited defaults and explicit
-  application opt-in. Define authoritative time, deadline error bounds, policy
-  changes, and quota/admission behavior; reject unsupported lifetime guarantees.
-- [x] Enforce work cutoffs at admission, activation, turn and dispatch
-  authorization; permit only explicitly bounded preauthorized settlement. Prove
-  irreversible final closure and retirement, including
-  uncollected bytes, stale snapshots, delayed expiry workers, clock/failover cases,
-  and storage outages distinguished from expiry. No same-PID empty-mailbox
-  restart is allowed.
-- [x] Record connector reconciliation rights and finite windows/budgets. Prove
-  that result/closure races have one winner, closed attempts reject late results,
-  and unknown closure authorizes neither retry nor caller revival. Preserve the
-  rejection evidence across checkpoint, trim, restart, and old receipts.
-- [x] Pin `ursula-zig` by revision/hash, wire its `ursula` module, and validate
-  create/append/catch-up/live reads against the pinned Ursula server.
-- [x] Configure persistent Ursula storage and reproducible cluster/service
-  lifecycle commands. Record the exact durability and recovery boundary.
-- [x] Pin a Kubernetes/Substrate baseline and deploy the minimal Zig process via
-  a runtime adapter. Prove activation from recorded backlog and recovery after
-  worker loss, using one PID per Substrate Actor across activations. Document
-  scoped provider identity, binding revisions, and platform prerequisites.
-- [x] Recover lost wakeups and interrupted provider operations, including a
-  controller crash after resource creation but before recording its outcome.
-  Reconcile the intended resource without duplicate authorized activations.
-- [x] Implement and prove serialized admission/ownership/commit authority,
-  including authority restart, conflicting writers, and stale-owner rejection.
-- [x] Process an ordered mailbox larger than the worker's read window with
-  bounded RAM; prove duplicate admission and overload behavior. Reserve capacity
-  for control/maintenance progress and inject full-store failures.
-- [x] Commit input progress, state, and pending outputs recoverably; demonstrate
-  crash recovery across delivery and bookkeeping boundaries. Prove source order
-  per destination, partial fan-out, and denied/expired delivery outcomes.
-- [x] Publish and validate a durable recovery checkpoint before trimming history.
-  Recover from checkpoint plus retained tail with pending work/control evidence
-  intact. Prove that a short completed-history window need not expire a live PID.
-- [x] Verify Ursula checkpoint/retention/delete operations and client support;
-  recover interrupted maintenance from recorded intent. Preserve retirement
-  evidence outside deleted payloads and distinguish logical removal from GC.
-- [x] Reject invalid sequences and attempted direct-write/effect bypass. Specify
-  and test the handler isolation boundary, using a synthetic effect executor.
-  Bound failing-handler retries and retain a visible input disposition. Test a
-  worker paused after dispatch authorization without blindly retrying its attempt.
-- [x] Kill and replace a worker, restart Ursula, restore an old activation, and
-  rebuild process state from history without executing effects during replay.
-  Prove stale execution is fenced even before a restored worker cooperates
-  with its resume handshake.
-- [x] Prove workload isolation from Substrate control credentials and raw Ursula
-  read/write/admin APIs on the selected baseline. Provider authentication or
-  bucket/atespace naming alone does not satisfy the security contract.
-- [x] Expose actual build, conformance, deployment, and recovery checks through
-  `just` and CI, with limitations recorded alongside results.
+These results cover a pinned single-node disk backend, one realm, fixed workloads,
+a trusted synthetic executor, and the reference runtime. They do not establish a
+general HTTP connector, arbitrary native computation correctness, multi-node
+storage availability, host/disk-loss recovery, or production scaling. The
+physical-capacity envelope and synchronized-clock requirements are explicitly
+qualified in the proof guide. M2 and later work must preserve M1's guarantees and
+add evidence for each expanded profile.
 
 ## M2 — Station GenServer, supervision, and registries
 

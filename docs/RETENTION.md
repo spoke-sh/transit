@@ -1,20 +1,12 @@
 # Retention and resource lifetimes
 
 Status: application opt-in and lifetime guarantees are established requirements.
-Policy fields, record names, deadline mechanics, and reclamation algorithms below
-are the target contract. The [experimental v2 profile](../contracts/TRANSIT_V2.md)
-implements explicit checkpoint/trim opt-in for quiescent or explicitly cancelled
-mailboxes, verified publication, and checkpoint-plus-tail recovery. Finite
-time policies, turn settlement permits, reconciliation observation budgets, and
-due-maintenance selection are implemented with a trusted clock interface. The
-disk proof uses controlled time; the Linux service clock reads the synchronized
-kernel's reported error bound. A separate
-[`transit-node --maintain` process](../contracts/SERVICE_V2.md) now commits due
-expiry/closure and reconciles opted-in checkpoint/trim operations. Physical
-capacity reservation now has a bounded single-node proof below. A minimal
-immutable-payload catalog also records publication, retirement, and deletion;
-the separate maintenance process reconciles whole-stream deletion. General
-resource dependencies, finite body lifetimes, and compaction remain later work.
+M1 implements a bounded subset: finite execution/settlement, checkpoint/trim,
+immutable payload deletion, and finite admission with a physical reserve proof.
+[Core](../packages/zig/transit-core/README.md), [backend](../packages/zig/transit-backend-ursula/README.md),
+and [maintenance](../apps/transit-node/README.md) own the mechanisms;
+[tests](../tests/README.md) own evidence. General resource dependencies, finite
+body lifetimes, and keyed compaction remain planned.
 
 ## Application contract
 
@@ -152,34 +144,10 @@ replaying a trace does not evaluate it against today's clock. Timer notification
 are scheduling hints, not the sole enforcement mechanism. Clock rollback,
 partitions, and stale ownership must not extend an expired lifetime.
 
-### M1 deadline enforcement investigation
-
-The selected contract permits previously authorized work to settle within a
-bounded window (option 1). There is no requirement that every physical storage
-write finish before the earlier cutoff for starting work. Final settlement
-closure is irreversible: it rejects late results, even if the request originally
-started on time. A historical receipt can still be read under current permission;
-returning that receipt is not accepting a new result.
-
-Keep the upstream Ursula API unchanged. Transit must record the authorized work,
-its finite settlement rights, and closure in the same authority ordering. A
-worker's prepared proposal or claimed timestamp is not a durable settlement
-grant. Closure and result acceptance race through conditional append: once
-closure wins, an old prepared result cannot append or reopen the attempt.
-
-The [implemented profile](../contracts/TRANSIT_V2.md#authority-time-and-bounded-settlement)
-uses trusted validation time at the expected journal tail as the authorization
-boundary. Its recorded uncertainty must fit the realm's configured bound.
-Persistence may finish later; an intervening closure or policy operation fences
-the candidate and forces fresh validation. A result first validated after its
-window is rejected even if a closure controller is delayed. Clock rollback below
-the durable high-water mark fails closed. This is an explicit authorization-time
-contract, not a guarantee that all physical writes stop at the UTC cutoff.
-
-The executable proof uses controlled time. A deployment still needs a trustworthy
-synchronized source and periodic maintenance; ordinary host wall-clock readings
-do not establish a UTC error bound. Reject finite contracts without the required
-realm opt-in and time source. Replay applies recorded time evidence.
+The implemented M1 contract uses trusted authorization time and conditional
+ordering of acceptance versus closure, keeping the upstream Ursula API unchanged.
+See [core deadline enforcement](../packages/zig/transit-core/README.md#deadline-enforcement)
+for the mechanism, clock assumptions, and physical-write timing limit.
 
 ### Bounded connector reconciliation
 
@@ -291,97 +259,15 @@ pending work and maintenance concurrency, and test full-store recovery. If the
 reserve or authority is unavailable, stop new work safely; quotas alone do not
 prove that cleanup can make progress.
 
-### M1 bounded capacity profile
+The implemented [finite admission profile](../packages/zig/transit-core/README.md#finite-admission-and-control-capacity)
+bounds control work after admission closes. Its [physical-capacity proof](../tests/README.md#physical-capacity-profile)
+records reserve sizing and measured limits. Enabling an admission ceiling alone
+does not provision physical capacity or authorize expiry.
 
-Genesis may explicitly set `admission_ceiling` between 2 and 65,536 journal
-positions. The default is unset. Once reached, Transit rejects new admissions,
-spawns, grants, activations, running-provider intents, and effect dispatches.
-It can finish already admitted inline inputs, settle existing outputs/attempts,
-revoke grants, retire processes, stop provider resources, and checkpoint once.
-Turns cannot introduce new outputs/effects into this reserve. Reads remain
-available. Repeated revocations, repeated unknown provider observations, repeated
-stop intents, and further checkpoint intents cannot consume unlimited records.
-
-This is an explicit finite allocation for the experimental realm, not a retention
-deadline. It never expires a PID, cancels input, or authorizes deletion by itself.
-An accepted input whose completion requires a new effect remains pending; only
-explicit termination or its original opted-in expiry can cancel it. Trim and
-restart do not reopen admission. Online expansion/rearming is not implemented;
-do not enable this profile expecting a self-resizing production store.
-
-For ceiling `N`, the conservative post-ceiling bound is
-`2*(N+256+128) + 128*17 + 64*6 + 16 + 16*3 + 1` accepted records: at most a permit and
-turn per old/newly delivered input, finite attempt observations/closures, bounded
-provider completion/stop and retirement, revocations, payload publication/
-retirement/deletion, and one checkpoint.
-Typed journal entries are capped at 8 KiB and checkpoints at 1 MiB.
-Pending preauthorized payload creation can additionally write at most sixteen
-64 KiB bodies (1 MiB total); those bytes need their own reserved headroom.
-Transport failures and backend housekeeping are not accepted protocol records; physical
-provisioning must additionally cover their amplification and temporary files.
-
-`just test::capacity` proves the `N=256` profile against the pinned official
-Ursula image on an owned 2 GiB ext4 filesystem, with a physically allocated
-1 GiB reserve file. It fills only that filesystem, observes real `ENOSPC` and
-Ursula's disk-pressure write rejection, and releases only the reserve. The filler
-stays in place while Transit revokes a grant, expires an opted-in PID, closes an
-unknown attempt, drains the unlimited PID's accepted backlog, and checkpoints
-and trims. SIGKILL/restart preserves retirement, closure, and closed admissions.
-
-The fixture uses 251 post-ceiling records. The v2 run grew WAL allocation by
-176,128 bytes during control recovery; current measurements are emitted by the
-recipe. The conservative current bound
-is 3,905 records (31,989,760 bytes plus a checkpoint). The 1 GiB physical reserve is
-a tested envelope for this configuration/schedule, not a universal filesystem
-or Ursula write-amplification guarantee. The fixture asserts control growth
-stays below 128 MiB and free space remains above the 32 MiB resume threshold.
-Keep one maintenance writer and bounded authority concurrency; unbounded crash
-loops, unrelated disk writers, disk loss, other topologies and larger allocations
-need separate qualification. An absent/exhausted reserve fails closed and needs
-operator capacity recovery; it does not create expiry permission.
-
-Completed maintenance now verifies the existing checkpoint/floor before writing.
-After restart the adapter uses only GET/HEAD for that already completed intent;
-it does not repeatedly publish or trim. Ursula can still change its internal WAL
-during reads/recovery, so raw WAL equality is not a valid no-mutation assertion.
-The fixture records adapter HTTP methods and stores measurements in the ignored
-`.cache/capacity-evidence.json`.
-
-### M1 immutable payload deletion
-
-The initial resource catalog supports sixteen lifetime payload identities, each
-at most 64 KiB, owned by an unlimited-lifetime PID. They are immutable standalone
-bytes; the inline profile defines no protocol-recognized references from mailbox, state
-or effect fields to them.
-Finite owner/body lifetimes are rejected as unsupported rather than inferred.
-General reference admission, large body streams and connector replay dependencies
-need their own later contract.
-
-A declaration records owner PID, publisher principal, length, SHA-256, and
-`allow_delete` (false by default). Its journal position is its logical identity;
-neither logical nor derived physical names are reused. A trusted publisher makes
-one atomic Ursula create with the complete body and `closed=true`, verifies the
-closed stream and hash, then records readiness. Creation and publication are
-trusted control operations, not application handler capabilities. The publisher
-must be serialized and issue no duplicate PUT: a lost receipt or restarted
-publisher may only verify the original attempt. A missing stream stays uncertain;
-it is not recreated. An unresolved creation remains pinned, with bounded catalog
-and payload capacity; maintenance does not poll or discard it indefinitely.
-
-Once the owner is permanently retired, an opted-in, positively published payload
-can enter `retiring`. That durable record removes logical availability before
-physical deletion. Background maintenance checks current grants, verifies the
-stream is closed, issues DELETE, confirms 404, and records `deleted`. A crash
-after DELETE leaves `retiring` in the control journal/checkpoint; a subsequent
-404 completes that same intent. Storage errors are not deletion evidence.
-Creating/default-retention payloads are not eligible, and late publication or a
-new dependency cannot reopen a retired identity. Physical erasure of old WAL,
-snapshots, backups or external copies is not claimed by a DELETE acknowledgement.
-
-`just test::storage` kills/restarts disk Ursula after publication and after DELETE
-but before recording its outcome, including checkpoint/trim of the control
-history. `just test::service` proves automatic background retirement/deletion and
-that default-retention bytes remain readable by the trusted storage verifier.
+The M1 [immutable payload profile](../packages/zig/transit-backend-ursula/README.md#immutable-payload-deletion)
+implements opted-in whole-stream deletion after permanent owner retirement,
+with tombstones in separate control history. General payload dependencies and
+keyed compaction remain future work.
 
 ## Logical storage and background reclamation
 
@@ -395,7 +281,7 @@ A logical stream may span physical segments. Adapter contracts must describe
 append/read, checkpoint publication, retained-boundary advancement, deletion,
 incarnation detection, and observable reclamation capabilities. Reject unsupported
 guarantees; do not silently substitute weaker expiry or durability semantics.
-Ursula is the first adapter, with concrete mappings in [URSULA.md](URSULA.md#retention-adapter).
+Ursula is the first adapter, with concrete mappings in the [backend README](../packages/zig/transit-backend-ursula/README.md#retention-adapter).
 Its cursors and physical stream names do not define Transit's process identity
 or retention policy.
 

@@ -290,7 +290,8 @@ An optional immutable `admission_ceiling` closes new work at a configured journa
 position while allowing bounded control and old-input completion. It is not
 expiry and cannot cancel accepted work. The capacity flag survives checkpoint
 and trim; the one post-ceiling checkpoint cannot be repeated with fresh request
-identities. See the [capacity profile and physical proof](../docs/RETENTION.md#m1-bounded-capacity-profile)
+identities. See the [capacity profile](../packages/zig/transit-core/README.md#finite-admission-and-control-capacity)
+and [physical proof](../tests/README.md#physical-capacity-profile)
 for record/byte bounds, the tested reserve, and deployment limits. Defaults
 remain unlimited. Dynamic capacity expansion is outside this experimental profile.
 
@@ -325,5 +326,5 @@ This first contract supports standalone bytes and unlimited-lifetime owners.
 Finite owners are rejected with `UnsupportedPayloadLifetime`. This inline profile has no protocol-recognized references from state, mailbox
 or effect fields to these bytes; a general
 payload read/upload API, reference graph and bounded finite upload reconciliation
-remain outside M1. See [retention](../docs/RETENTION.md#m1-immutable-payload-deletion)
+remain outside M1. See [payload lifecycle](../packages/zig/transit-backend-ursula/README.md#immutable-payload-deletion)
 for recovery rules and the unresolved-creation limit.

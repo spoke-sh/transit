@@ -84,4 +84,4 @@ and process. Bootstrap generates a fresh private key in memory, prints public
 registration evidence, and waits for the controller's verified activation. No
 signing seed is embedded in the image or template. The counter pins the accepted
 generation and cannot acquire a newer one itself. See
-[reference setup and tests](../../docs/DEVELOPMENT.md#kubernetes-and-substrate).
+[reference setup and tests](../../deploy/reference/README.md#prerequisites-and-lifecycle).

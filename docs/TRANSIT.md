@@ -4,7 +4,7 @@ Status: foundational requirements established; record names and mechanisms below
 are the target protocol outline. An experimental signed-request/ownership/replay
 slice is implemented; its supported surface and limits are specified in
 [the v2 profile](../contracts/TRANSIT_V2.md), with evidence in the
-[roadmap](ROADMAP.md). General payloads, framework behaviors and migrations are
+[test guide](../tests/README.md). General payloads, framework behaviors and migrations are
 not implied by this bounded inline-value profile.
 
 ## Boundary
@@ -19,10 +19,10 @@ It does not know prompts, reasoning loops, goals, agent delegation strategies,
 HTTP semantics, or trading policy. Those compose the protocol through
 [Station, the framework](STATION.md), and [connectors](CONNECTORS.md).
 
-The `transit` Zig library contains protocol types, validation, transition
-logic, and runtime/transport interfaces. Its core stays independent of Ursula,
-Kubernetes, and Station. Separate adapters and executables supply persistence,
-hosting, and configuration; see the
+The [transit-core library](../packages/zig/transit-core/README.md) implements
+validation, transitions, and recovery over shared public protocol types. It stays
+independent of Ursula, Kubernetes, and Station. Adapters and executables supply
+persistence, hosting, and configuration; see the
 [monorepo decomposition](ARCHITECTURE.md#planned-monorepo-decomposition).
 
 ## Processes and identity
@@ -138,13 +138,12 @@ ordering. The protocol must distinguish those two forms of control explicitly.
 
 ## Authoritative operations
 
-M1 serializes spawn, admission, ownership changes, turn commits, dispatch
-authorizations and retention intents in one realm journal. A conditional append
-at the validated record tail is their acceptance point. Its durable
-record binds the operation identity, payload digest, expected prior version,
-relevant policy revision, and resulting version/receipt. A timeout after that
-point is an unknown acknowledgement, not permission to invent a new operation.
-Retry the same identity and resolve the established result.
+An authoritative operation must order identity, payload, expected prior state,
+current policy, and its resulting receipt together. A timeout after acceptance
+leaves an uncertain acknowledgement; retry the same identity and recover the
+recorded result. The [core implementation](../packages/zig/transit-core/README.md#authority-and-recovery)
+uses one conditional realm journal for M1; its exact wire representation belongs
+to the [v2 profile](../contracts/TRANSIT_V2.md).
 
 Spawn is idempotent too: one authorized spawn identity produces one PID and
 initial state. A controller or supervisor recovering a lost reply must not
@@ -185,10 +184,10 @@ and execution caches remain disposable. A protocol checkpoint that replaces a
 reclaimed prefix must itself be durable and validated; it becomes part of the
 authoritative recovery basis with the retained tail.
 
-M1 writes one complete JSON object per conditional append, making a turn with opaque
-application values visible atomically. This does not imply multi-stream transactions. Pending
-cross-process deliveries form a durable outbox with stable identities; destination
-admission deduplicates retries. See [STREAMS.md](STREAMS.md).
+The [implemented turn format](../contracts/TRANSIT_V2.md) makes opaque state and
+outputs atomically visible in one journal record. Pending cross-process delivery
+uses durable outboxes with stable identities and deduplicated admission; this
+provides no general multi-stream transaction. See [STREAMS.md](STREAMS.md).
 
 ## Enforcement
 
@@ -226,12 +225,8 @@ re-executing code to reproduce that state. A malicious worker with a valid grant
 must not be described as unable to lie solely because its envelope validates.
 See [the trust model](SECURITY.md#trusted-computing-base-and-provider-boundaries).
 
-In the implemented v2 profile, successful turns carry opaque state bytes and the
-revision of the state used to compute them. The authority checks that revision,
-ordered input, grants, generation and lifetime, then records state and outputs
-atomically. It never invokes a handler. Reported failure must preserve state and
-emit no outputs/effects, but the authority cannot prove that computation failed.
-See the [caller contract](CLIENT.md).
+The [caller model](CLIENT.md) defines the implemented opaque-state boundary,
+including state revisions and failure reports that leave input pending.
 
 ## Ownership and failure
 

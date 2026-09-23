@@ -7,14 +7,11 @@ Kubernetes log access. The adapter requires its exact source revision; a changed
 or dirty client build fails validation. Substrate, its CLI, and Kubernetes are
 external infrastructure, not a second source of Transit task authority.
 
-`transit-runtime-controller CONFIG.json [--once]` reads a bounded authenticated
-process view and advances at most one step per scan. Configuration supplies the protocol
-URL/realm, controller principal and private seed file, PID, worker principal,
-and provider settings: explicit CLI/kubeconfig/context, runtime-instance UUID,
-atespace, unique Actor name, template name/UID, immutable image digest, authority
-hostname, and egress-policy file. The controller needs `admin` and `inspect`
-scoped to the PID; a root operator first establishes the worker's scoped
-`execute`/`inspect` grant. Provider credentials never enter protocol history.
+The [controller README](../apps/transit-runtime-controller/README.md) owns
+configuration, credentials, scan operation, and scaling limits. The
+[adapter README](../packages/zig/transit-runtime-substrate/README.md) owns the
+provider API/configuration mapping. The contract below defines required ordering
+and validation independently of command-line usage.
 
 The binding records opaque hashes of the scoped resource and template/image
 identity. The adapter validates the template UID and image, requires DATA

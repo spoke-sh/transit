@@ -1,128 +1,10 @@
 # Protocol conformance and implementation gates
 
 Status: adversarial requirements with executable evidence for the bounded M1
-profile. The [roadmap](ROADMAP.md) maps the completion criteria to commands and
-limits. `just check` alone validates tooling/unit tests; storage, service,
-physical-capacity and Kubernetes/Substrate proofs remain separate commands.
-Results apply to their pinned topology, reviewed workload and stated failure
-boundary, not every target requirement in the documents below.
-
-## Review assessment
-
-`just test::service` exercises actual signed HTTP ingress, PID-scoped reads,
-key rotation/revocation, slow-body deadlines, and paused/replacement workers
-against disk-backed Ursula. Authority and storage restart preserve state and
-revocations. This loopback proof does not establish deployment network isolation;
-see the [service profile](../contracts/SERVICE_V2.md).
-
-`just reference::test` runs the fixed counter via the pinned Substrate gVisor
-runtime on an owned Kind cluster. A controller crash after Actor creation is
-reconciled without a duplicate resource; killing the real worker preserves the
-PID/Actor and rotates worker identity and ownership. Ursula and authority pod
-restarts preserve state, and separate maintenance expires an opted-in process.
-The sandbox probe first reaches Transit, then verifies denied raw Ursula
-read/write/admin access, direct IP access, CONNECT tunnelling, and Substrate and
-Kubernetes APIs. Host spoofing reaches only Transit's fixed NotFound handler.
-Known credential/control mounts are absent or inaccessible. These claims cover
-the configured fixed images, private trusted cluster network and pinned runtime;
-they do not establish arbitrary native-handler determinism or protection against
-privileged administrators. Public ingress TLS and broader runtime support remain
-outside this reference slice.
-
-Caller-reported counter overflow records a blocked head input and fences its
-owner. Unit tests reject failure reports that change state or emit outputs;
-signed-service tests preserve pending input across restart and permit explicit
-termination. The counter worker also reports malformed application bytes as a
-blocked failure. Transit does not verify the caller's arithmetic or failure claim.
-Runtime reconciliation uses that durable failure to stop replacement; its cluster test also checks a
-stable generation after shutdown. This bounds retries of the fixed reviewed
-handler; arbitrary plugin execution and general Station restart policies remain
-outside this profile.
-
-The [bounded capacity profile](RETENTION.md#m1-bounded-capacity-profile) has a
-real ext4/ENOSPC proof in `just test::capacity`. Closed admissions survive restart;
-accepted input is preserved, and releasing only a preallocated reserve enables
-revocation, opted-in expiry, unknown closure, backlog completion and checkpoint/
-trim. The recorded bounds and measured amplification apply to the specified
-single-node fixture, not arbitrary disk writers, topologies or unlimited faults.
-
-Immutable standalone payload tests add whole-stream deletion through the pinned
-client. Owner/PID and current grants fence retirement; publication, explicit
-deletion opt-in and permanent owner retirement are prerequisites. Disk restart
-after DELETE but before outcome recording recovers from a tombstone in the
-separate control checkpoint. Background service maintenance completes deletion
-while preserving default-retention bytes. Late publication cannot reopen a
-retired payload. This profile rejects finite owners and live dependencies;
-unresolved creation cannot be mistaken for safe deletion or retried blindly.
-
-Implemented evidence: `just test::unit` exercises request signatures, realm/PID grants,
-key replacement, retry identity, ownership, stale state revisions, ordered input, and
-retirement. `just test::storage` repeats competing transitions, revocation, lost
-receipts, and replay across a real Ursula SIGKILL/restart, with a 100-message
-backlog and a 16-record read window. Application logic is absent from the
-authority and its replay path.
-Further SIGKILL boundaries exercise checkpoint publication before trim, retried
-trim, and recovery after prefix removal with new pending input in the tail.
-Effect tests additionally prove intent validation, revocation racing dispatch,
-authenticated observations, and one mailbox admission per result. Disk restart
-and prefix removal preserve unknown attempts; late evidence after caller
-termination cannot revive application execution. No external I/O is invoked.
-The separate service proof now adds actual I/O through a trusted Zig synthetic
-executor: successful result admission, pause after authorization, late response,
-and executor death after remote acceptance. A fixture records exactly four
-requests across these schedules; fresh executors and checkpoint/trim/restart
-cause no additional sends. Closed attempts reject late outcomes, including when
-the authorized executor starts its request after closure. This demonstrates the
-external limit, not remote cancellation or a general HTTP connector.
-Closure tests exercise both winners of the result/closure race, lost
-acknowledgements, and unauthorized closure. Real disk restart and trim preserve
-closed unknown outcomes and reject late observations even while the caller lives.
-Outbox tests cover ordered routes, partial fan-out, denied/expired destinations,
-revocation racing delivery, and cancellation of undelivered outputs. Disk restart
-and prefix removal preserve pending payloads; a lost delivery receipt cannot
-admit the same output twice. Replay verifies explicit admission metadata so
-denied deliveries cannot masquerade as mailbox messages.
-These are local single-node results, not the Kubernetes/Substrate isolation proof.
-
-The time interface and finite-policy transitions now have executable proofs:
-missing/uncertain time, rollback, delayed maintenance, permit recovery, deadline
-closure, and observation-budget exhaustion. A disk-backed fixture settles a
-preauthorized turn after its work cutoff, then expires its PID and trims history;
-restart preserves both retirement and the time high-water mark. Time is controlled
-in this fixture. `just test::service` additionally exercises Linux's synchronized
-clock and a separate maintenance process: opted-in expiry, explicit cancellation
-of unfinished input, checkpoint/trim while ingress remains live, and permanent
-retirement after authority/storage restart. It requires the host clock to report
-an error bound within two seconds; the fixture explicitly permits that bound
-because a synchronized host can exceed one second between NTP polls. Controlled
-clock tests retain exact rejection boundaries. Other platforms exercise explicit
-retirement and cleanup without claiming a supported finite-time source.
-The [deadline investigation](RETENTION.md#m1-deadline-enforcement-investigation)
-defines the tested acceptance-time and closure contract. A physical
-storage-write cutoff at the earlier work deadline is no longer the target.
-
-The M1 mechanisms above now have concrete implementations and adversarial
-results. Extending them to general behaviors, connectors or another storage/
-runtime profile requires preserving these contracts and adding its own evidence.
-A failed proof requires revising the owning design, not relabeling a weaker
-implementation as conformant. The client cursor-model bug and separate upstream
-documentation mismatch are recorded in [URSULA.md](URSULA.md). The corrected
-client proof verifies offset-plus-cursor and record-plus-cursor continuation;
-Transit's journal reads use record positions.
-
-`just test::callers` launches the actual `example-counter` and `example-byte-log`
-binaries, each importing only `transit-client`. Application-independent Zig
-probes perform rejected proposals and state assertions; Python injects faults.
-The counter is shared with the service and reference proofs. No test driver
-executes a separate copy of application logic.
-The same node binary accepts both, records opaque state and atomic outputs,
-rejects stale revisions/skipped inputs/unauthorized effects, and recovers through
-authority and disk Ursula restart. A proxy drops successful commit responses and
-injects malformed unavailable responses on reads and commit retries;
-retrying the identical pending request returns the original receipt. Replaced
-activations fail locally and at signed ingress. Recovery verification does not
-execute either application. `just contract::check` checks that the committed
-binding schema exactly matches the public types; shared fixtures check signing.
+profile. [tests/README.md](../tests/README.md) maps commands to recorded results,
+failure schedules, and limits. The [roadmap](ROADMAP.md) owns milestone gates.
+Results apply to their pinned topology, reviewed workload, and failure boundary;
+passing a subset does not establish every target guarantee.
 
 ## Adversarial scenarios
 
@@ -166,7 +48,7 @@ unexpected effect execution observable.
 The first slice uses a single security realm, fixed workload code, a minimal
 policy authority, and synthetic effects on the Kubernetes/Substrate reference
 deployment. Multiple principals, conflicting authority instances, worker loss
-and retention deadlines are exercised above; the single-realm topology does
+and retention deadlines are exercised in the linked proof suite; the single-realm topology does
 not remove those obligations when the profile expands.
 
 The contract does not currently promise Byzantine fault tolerance, globally

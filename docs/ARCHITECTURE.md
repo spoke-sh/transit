@@ -1,10 +1,9 @@
 # Architecture
 
-Status: layering, stack, and reference deployment established. Component layout
-and protocols below describe the target design. Transit and the Ursula adapter
-have an [experimental implementation](../contracts/TRANSIT_V2.md), including
-signed services, a Substrate runtime adapter and a reference recovery harness.
-Station and production connector components remain planned.
+Status: experimental M1 kernel, client, storage adapter, and reference runtime
+implemented. Station, production connectors, frontends, and trading applications
+remain planned. Use the [roadmap](ROADMAP.md) for scope and the
+[test guide](../tests/README.md) for proved behavior and limits.
 
 ## Execution model
 
@@ -79,7 +78,6 @@ principal/realm grants alongside ownership and lifecycle. Station helpers and
 provider RBAC cannot replace these checks. Read APIs, projections, transcripts,
 and administrative operations need their own scoped permissions. Revocation
 and replay semantics are defined in [SECURITY.md](SECURITY.md).
-
 ## Source of truth
 
 Validated durable history is authoritative for process creation/termination,
@@ -115,190 +113,86 @@ is one Transit process per Substrate Actor, across many activations. The
 [deployment design](DEPLOYMENT.md) defines that boundary, provider reconciliation,
 and why AX is excluded.
 
-The `transit-core` package is the reusable authority implementation, hosted by
-`transit-node`. It owns protocol state, transition validation, conditional commits
-and recovery. Its only package dependency is `transit-protocol`; the executable
-supplies storage and clock implementations. Application callers use
-`transit-client` and do not import `transit-core`.
+## Caller and enforcement boundary
 
-## Public client boundary
+Application code runs in clients. It receives state and input, computes a
+proposal, and submits it through the public protocol. Core validates identity,
+current grants, ownership, ordering, revision, and lifetime. It commits opaque
+application state without running or verifying the handler's computation.
+[CLIENT.md](CLIENT.md) defines that programming model; [SECURITY.md](SECURITY.md)
+and [CONFORMANCE.md](CONFORMANCE.md) define trust and bypass obligations.
 
-The `transit-protocol` library owns public commands, signatures, response types,
-and provider-neutral binding evidence. Both Transit and `transit-client` depend
-on it; the client has no dependency on the kernel implementation. An explicit
-process view excludes internal journal scan positions. Public compatibility
-follows this contract, not the layout of the kernel's state catalog.
-
-M1 application computation lives entirely in Zig callers. The authority validates
-protocol transitions and recovers recorded opaque state without importing an
-application reducer. `transit-client.Session` supplies receive, prepare and submit
-operations with explicit activation identity and retry material. Two distinct Zig
-applications exercise the same node binary.
-
-The generated [public schema](../contracts/transit-v2.schema.json) and shared
-fixtures derive from `transit-protocol` and provide a resource for future language
-bindings. CI checks schema drift. No second application language or binding
-generator is introduced yet. The [caller guide](CLIENT.md) explains the implemented
-boundary, lifetime rules and bounded byte representation.
-
-## Enforcement and replay
-
-Application handlers operate on explicit state and messages. They propose
-outputs through the kernel API; external I/O is available through connector
-capabilities. Protocol validation, restricted credentials, and runtime isolation
-must jointly prevent bypass. Merely providing a well-behaved SDK is insufficient.
-
-The guarantee is legal protocol execution under authenticated authority. It
-does not prove arbitrary native computation honest or deterministic. M1 must
-demonstrate its chosen handler-execution boundary; reviewed effect executors
-are trusted infrastructure. An already authorized external attempt may outlive
-revocation, so fencing new authorizations is separate from proving remote
-cancellation. The [conformance matrix](CONFORMANCE.md) captures these limits
-and the adversarial scenarios required before claiming support.
-
-Replaying committed history rebuilds state and views using recorded outcomes.
-It does not reissue HTTP requests, model calls, or orders. Resuming unfinished
-live work is a separate recovery operation with explicit ownership and attempt
-rules. Replay is bounded by retained history; checkpoint recovery can preserve
-current state without every historical transition. Snapshots remain tied to
-protocol positions, versions, and compatible dependency lifetimes.
-
-The first slice tests these boundaries on Kubernetes with worker failure. Agent
-Substrate is the reference execution target; a runtime interface keeps pod IDs,
-sandbox formats, and provider APIs out of the kernel protocol.
-
-## Frontend and observation
-
-An eventual TypeScript/Vite+ operator interface can inspect process sequences,
-name registrations, runtime bindings, mailbox lag, supervision, exchange
-transcripts, and failures. Its Zig gateway submits authenticated protocol commands
-and serves derived views with continuation positions. The frontend framework
-and UI milestone remain open.
-
-Measure admission and turn latency, mailbox backlog/age, effect attempts, stale
-owner rejections, recovery time, and resident memory. Correlate PIDs, activation
-references, registry/runtime binding revisions, and message, turn, effect,
-attempt, and stream-group identities across workers. Expose lifetime deadlines,
-policy revisions, retained boundaries, terminal expiry, pinned/reclaimable bytes,
-and background reclamation lag alongside execution metrics.
+Runtime isolation and restricted credentials must prevent direct effects and
+raw journal writes. A well-behaved SDK alone cannot enforce this boundary.
+Trusted connectors execute recorded attempts. Replay restores recorded state
+and outcomes without reissuing effects; recovery of unfinished work requires
+current ownership and explicit attempt policy.
 
 ## Planned monorepo decomposition
 
-Transit and Station name reusable components. Each will expose a Zig library;
-executables will compose libraries with configuration, credentials, and OS
-process lifecycle. A library boundary does not imply a Transit process, pod, or
-independently deployed service. Runtime isolation still follows the protocol
-authority model.
+Library boundaries describe code responsibilities, not processes or pods.
+Executables compose libraries with configuration, credentials, and OS lifecycle.
+The root build orchestrates packages; each library declares its own dependencies
+and checks. See [development](DEVELOPMENT.md#package-workflow).
 
-`transit-protocol`, `transit-core`, `transit-backend-ursula`, `transit-client`, and
-`transit-runtime-substrate` are implemented libraries. The platform executables are
-`transit-node`, `transit-runtime-controller` and `rey-cli`. Runnable counter and
-byte-log applications live under `examples/` and depend only on `transit-client`.
-Station and HTTP entries below remain proposals. Supporting interfaces are still
-experimental; a directory in this plan does not imply a deployed component.
+### Implemented libraries
 
-### Zig libraries
-
-| Proposed package | Exported module | Responsibility and dependencies |
+| Package / module | Owns | Direct package dependencies |
 | --- | --- | --- |
-| `packages/zig/transit-protocol/` | `transit_protocol` | Public wire types, signatures, opaque values, response views and shared fixtures; source for the generated language-neutral schema; independent of kernel/storage/runtime implementations |
-| `packages/zig/transit-core/` | `transit_core` | Depends on the public protocol; process/PID state, protocol/lifetime validation, principal/grant contracts, logical storage contracts, and credential/storage/runtime interfaces; independent of Station, Ursula, and deployment providers |
-| `packages/zig/transit-backend-ursula/` | `transit_backend_ursula` | Ursula persistence/transport, checkpoint, trim, and deletion mapping; depends on Transit and external `ursula-zig` |
-| `packages/zig/transit-client/` | `transit_client` | Signed HTTP client and bounded process views; depends only on `transit-protocol`, with no kernel/storage/provider implementation access |
-| `packages/zig/station/` | `station` | GenServer, supervision, registries, request/reply, and application retention/state-view helpers; builds on `transit-client` and the public protocol |
-| `packages/zig/station-http/` | `station_http` | HTTP request/response contracts, exchange groups, caller helpers, and executor logic; builds on Station and Transit |
-| `packages/zig/transit-runtime-substrate/` | `transit_runtime_substrate` | PID-to-Substrate-Actor binding and lifecycle reconciliation; implements Transit's runtime interfaces without putting provider types in the core protocol |
+| [transit-protocol](../packages/zig/transit-protocol/README.md) / `transit_protocol` | Public types, signatures, opaque values, schema, shared fixtures | None |
+| [transit-core](../packages/zig/transit-core/README.md) / `transit_core` | Protocol state, validation, conditional authority, recovery | transit-protocol |
+| [transit-client](../packages/zig/transit-client/README.md) / `transit_client` | Signed HTTP calls, activation sessions, retry material | transit-protocol |
+| [transit-backend-ursula](../packages/zig/transit-backend-ursula/README.md) / `transit_backend_ursula` | Storage/transport, checkpoint, trim, deletion | transit-core, upstream ursula-zig |
+| [transit-runtime-substrate](../packages/zig/transit-runtime-substrate/README.md) / `transit_runtime_substrate` | Provider identity, template validation, sandbox lifecycle operations | None; invokes pinned external CLI |
 
-Provider integrations use two package families: `transit-backend-*` implements
-durable storage and transport; `transit-runtime-*` implements execution placement
-and lifecycle integration. Their Zig module names use underscores. Ursula and
-Substrate are the current implementations. The names establish boundaries;
-they do not imply dynamic provider selection or additional supported providers.
+The dependency graph stays acyclic. Core must remain testable without providers
+or Station; applications use the public client. `transit-backend-*` names storage
+and transport integrations; `transit-runtime-*` names execution placement and
+lifecycle integrations. Additional implementations must prove the required
+ordering, fencing, recovery, and retention guarantees. Broader interfaces should
+follow a second concrete implementation, not a speculative plugin system.
 
-Transit core defines the required guarantees. Each backend must prove authoritative
-ordering, competing-writer fencing, durable acknowledgement, recovery, and its
-supported retention semantics. Runtime adapters reconcile committed intent with
-provider resources; placement and provider observations cannot independently
-grant execution authority. Broader interfaces should follow evidence from a
-second implementation rather than a speculative plugin system.
+### Implemented executables and examples
 
-Keep the dependency graph acyclic: Station uses the public Transit client;
-concrete adapters implement Transit interfaces; connectors build on the framework. Transit core
-must remain testable without Ursula, Kubernetes, or Station. Station should
-also be testable with a deterministic Transit harness. Real adapter conformance
-and cluster checks remain separate requirements.
-
-Within the HTTP package, keep request construction and transcript types separate
-from dispatch code. Importing a library must not implicitly acquire credentials,
-start a service, or perform an effect. Executable wiring and runtime capabilities
-determine which code can actually dispatch requests.
-
-Workload-specific libraries can be added under `packages/zig/` as applications
-emerge. They compose Station and connector APIs; Transit never imports them.
-Do not duplicate protocol definitions in executable packages or create a generic
-utility package before shared code has a concrete owner.
-
-### Zig executables
-
-| Candidate entry point | Composition and role |
+| Entry point | Role |
 | --- | --- |
-| `apps/transit-node/` | Transit plus adapters; hosts authenticated ingress, policy/control recovery, admission, sequencing, commit, delivery, and retention reconciliation |
-| `apps/station-worker/` | Station plus workload libraries; runs process activations and their behaviors under Transit authority, without raw authoritative storage credentials |
-| `apps/http-worker/` | HTTP connector executor; performs authorized fetch attempts and publishes capture/outcomes through the protocol boundary |
-| `apps/transit-runtime-controller/` | Transit lifecycle client plus `transit-runtime-substrate`; reconciles durable execution intent with Substrate |
-| `apps/rey-cli/` | Protocol client and inspection tooling for processes, registries, runtime bindings, history, and exchange transcripts |
+| [transit-node](../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
+| [transit-runtime-controller](../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
+| [rey-cli](../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |
+| [example-counter](../examples/counter/README.md) | Complete caller, also the reference deployment workload |
+| [example-byte-log](../examples/byte-log/README.md) | Independent caller against the same generic authority |
 
-Entry points own startup, configuration, signal handling, and observability.
-Transit service executables use the `transit-` prefix. `transit-runtime-controller`
-is the executable; `transit-runtime-substrate` is the provider library it currently
-composes. Reusable execution logic belongs in libraries. Process behavior selection
-may initially be compiled into workload-specific worker images; a dynamic plugin
-system is not implied. These are responsibilities to allocate as code lands,
-with final OS process/deployment topology driven by isolation and measured needs.
+Transit service executables use the `transit-` prefix. Examples are applications,
+not required infrastructure. Tests launch their actual binaries; fault injection
+and protocol assertions belong under [tests/](../tests/README.md).
 
-### Runnable examples and tests
+### Planned components
 
-`examples/counter/` builds `example-counter`; `examples/byte-log/` builds
-`example-byte-log`. Each owns its entry point, handler and README. The counter
-also serves as the Kubernetes/Substrate reference workload. No example binary is
-required to run the Transit authority; real applications provide their own callers.
-The service, reference deployment and client proofs share one counter handler.
+- `packages/zig/station`, module `station`: GenServer, supervision, registries,
+  request/reply, and retention helpers over the public client.
+- `packages/zig/station-http`, module `station_http`: exchange contracts, capture,
+  caller helpers, and trusted dispatch over Station/Transit.
+- `apps/station-worker` and `apps/http-worker`: compose behaviors or connector
+  execution with explicitly supplied runtime capabilities.
+- Application libraries and entry points: compose these primitives without
+  adding application policy to core. TypeScript/Vite+ frontends and shared
+  `packages/ts` libraries follow concrete consumers.
 
-`just build` installs platform commands. `just examples::build` explicitly installs
-examples. `just examples::run counter` and `just examples::run byte-log` run them against
-fresh local disk-backed infrastructure. Root Zig build steps mirror these
-boundaries: `apps`, `examples`, and `proofs` for disk conformance executables.
+Keep request/transcript construction separate from effect dispatch. Importing a
+library must not acquire credentials or start work. Workload-specific images can
+compile behavior selection; dynamic plugins are not implied. Add directories
+when implementation starts. Do not duplicate public protocol definitions or
+create a generic utility package without a concrete owner.
 
-Conformance harnesses under `tests/` launch the real example binaries. Fault
-injection and protocol assertions stay there; test probes never replace the
-application entry points or perform their successful turns. See
-[the examples](../examples/README.md).
+## Observation and repository ownership
 
-### Repository layout
+A future operator UI should expose PID/activation identity, runtime and registry
+bindings, backlog, failures, effect attempts, and retention/reclamation status.
+Measure latency, throughput, recovery time, and resident memory before choosing
+scaling or latency targets. Views remain derived and permissioned.
 
-```text
-packages/zig/      Reusable Zig libraries, including Transit and Station
-packages/ts/       Shared frontend libraries when needed
-apps/              Platform and production application entry points
-examples/          Complete runnable applications using the public client
-contracts/         Protocol profiles linking package-owned JSON fixtures
-tests/             Conformance, cluster failure and replay scenarios
-deploy/            Reference deployment configuration
-docs/              Scope, architecture, plans and technical rationale
-nix/               Development-tool packaging
-tasks/             Namespaced just recipes for tests, examples and operations
-flake.nix          Reproducible development shell
-justfile           Common commands and task module declarations
-build.zig          Root orchestration for Zig builds and checks
-build.zig.zon      Root Zig dependency manifest
-```
-
-The root Zig build composes package builds and tests while each package
-declares its own direct dependencies and can be checked in the monorepo on its
-own. Vite+ manages frontend packages separately; shared wire contracts connect
-the languages. See [development](DEVELOPMENT.md#planned-zig-package-workflow).
-
-Create packages, manifests, and source directories only when their implementation
-begins. The five implemented libraries have independent package checks as well
-as root-orchestrated proof executables. Frontend and Station directories remain
-planned.
+`packages/zig/` owns libraries; `apps/` owns platform/application entry points;
+`examples/` owns complete sample callers. Exact versioned specifications live in
+`contracts/`. Tests, deployment, Nix, and task recipes each own their operational
+README. [The documentation index](README.md#where-documentation-lives) explains
+where to put design, implementation details, and validation evidence.

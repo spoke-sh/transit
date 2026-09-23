@@ -67,5 +67,5 @@ revisions/owners and unauthorized effects, and restarts disk Ursula and the node
 The probe never performs a successful application turn.
 
 The counter additionally supplies the workload for `just test::service` and the
-Kubernetes/Substrate reference proof. See the [caller guide](../docs/CLIENT.md)
-and [development commands](../docs/DEVELOPMENT.md).
+Kubernetes/Substrate reference proof. See the [client guide](../packages/zig/transit-client/README.md)
+and [command reference](../tasks/README.md).

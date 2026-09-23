@@ -1,25 +1,10 @@
 # Deployment and runtime boundary
 
 Status: Kubernetes with Agent Substrate is the selected reference architecture
-and recommended execution target. The dev shell supplies `kubectl`, `k9s`, and
-Linux-only `k3s`; see [development](DEVELOPMENT.md#kubernetes-and-substrate).
-The pinned reference harness and runtime adapter are implemented, with the
-bounded M1 evidence and remaining portability work in the [roadmap](ROADMAP.md).
-The experimental kernel now records opaque runtime bindings, operation
-intents/observations, and atomic key/generation activation. Unit and disk proofs
-cover stale binding/worker rejection and retirement across checkpoint/trim;
-the provider proof below separately exercises the real runtime. See the
-[implemented profile](../contracts/TRANSIT_V2.md#runtime-bindings-and-activation).
-The reference workload is [example-counter](../examples/counter/README.md), a
-runnable application using `transit-client`. It is not a required Transit service.
-The [Substrate runtime profile](../contracts/RUNTIME_SUBSTRATE_V1.md) describes the
-implemented reconciler, pinned CLI transport, fresh-key bootstrap, and provider
-identity checks. `just reference::test` exercises controller interruption after
-Actor creation, worker replacement, persistent Ursula/authority restart, and
-background finite-process expiry on the pinned Kind/gVisor baseline. A separate
-test Actor proves denial of raw Ursula and provider API access, including IP,
-Host-header, and CONNECT bypass attempts. The scripts and prerequisites are in
-[development](DEVELOPMENT.md#kubernetes-and-substrate).
+and recommended execution target. The bounded M1 runtime is implemented; broader
+portability remains planned. Use the [reference runbook](../deploy/reference/README.md)
+for setup, the [controller](../apps/transit-runtime-controller/README.md) for
+operation, and the [test guide](../tests/README.md) for proved recovery/isolation.
 
 ## Reference architecture
 
@@ -29,13 +14,10 @@ The `transit-runtime-substrate` adapter translates Transit's committed lifecycle
 intent into those operations and records observations back into the protocol.
 Process execution authority stays in the durable history.
 
-Substrate separates an **Actor**, addressed by `(atespace, name)`, from its
-current Worker/pod. The Actor is the unit of suspension and resumption and can
-move between workers. An atespace is not a Kubernetes namespace; ActorTemplates
-are managed through Substrate's API rather than as Kubernetes objects. See its
-[glossary](https://github.com/agent-substrate/substrate/blob/main/docs/glossary.md).
-This makes a Substrate Actor a useful hosting resource for a Transit process,
-while leaving their identities and authorities distinct.
+The initial mapping hosts one Transit PID per Substrate Actor across worker
+replacements. The [adapter](../packages/zig/transit-runtime-substrate/README.md)
+owns provider naming, templates, snapshot restrictions, and identity validation.
+PID, Actor incarnation, worker/pod, and activation generation remain distinct.
 
 | Boundary | Responsibility |
 | --- | --- |
@@ -47,9 +29,8 @@ while leaving their identities and authorities distinct.
 Rey should use Substrate's placement and sandbox lifecycle machinery. Its own
 controller determines which logical processes need execution and reconciles
 their bindings; it need not duplicate Substrate's worker scheduler. See the
-upstream [architecture](https://github.com/agent-substrate/substrate/blob/main/docs/architecture.md)
-and [resource API](https://github.com/agent-substrate/substrate/blob/main/docs/api-guide.md).
-These are integration references, not evidence of Rey compatibility.
+[runtime contract](../contracts/RUNTIME_SUBSTRATE_V1.md) for the implemented
+provider reconciliation profile.
 
 The initial reference topology should include:
 
@@ -104,7 +85,8 @@ The registry answers which logical process a name denotes. The runtime binding
 answers where that process is hosted. Substrate resolves the current physical
 worker. Message admission continues to address the PID when placement changes.
 
-Proposed binding fields, with exact schemas to be established in M1:
+Binding responsibilities below are provider-neutral; the implemented encoding
+is defined in the [v2 runtime contract](../contracts/TRANSIT_V2.md#runtime-bindings-and-activation):
 
 | Field | Purpose |
 | --- | --- |
@@ -218,9 +200,10 @@ change process execution state.
 Substrate documents an egress policy path; validate it against the selected
 revision and sandbox mode rather than assuming all isolation requirements are
 already satisfied. See [egress traffic](https://github.com/agent-substrate/substrate/blob/main/docs/egress-traffic.md).
-M1 must also establish the deterministic handler boundary described in
-[TRANSIT.md](TRANSIT.md); network isolation alone does not constrain clocks or
-arbitrary native-code state changes.
+The [caller execution boundary](CLIENT.md) keeps application computation outside
+the authority. Network isolation does not establish deterministic native-code
+execution or honest computation; the [proof guide](../tests/README.md) states
+what the reference workload actually demonstrates.
 
 Use a fixed reviewed workload image in M1. Pin code, configuration, and schema
 identity in activation grants. Untrusted native plugins or multiple differently

@@ -1,0 +1,239 @@
+# Validation and M1 evidence
+
+This directory owns conformance harnesses, fault injection, test-only executors,
+and proof results. Application examples live under [examples](../examples/README.md);
+tests launch those real binaries rather than a separate implementation of their
+logic. The [conformance design](../docs/CONFORMANCE.md) owns the required adversarial
+scenarios. Results below describe the recorded bounded M1 proof, not a claim that
+all commands have been rerun on every documentation change.
+
+## Running checks
+
+Enter `nix develop` at the repository root. `just ci` runs the ordinary local
+suite. Capacity and reference proofs have extra prerequisites and are separate.
+
+| Evidence | What it proves |
+| --- | --- |
+| `just check`, `just test::packages` | Independent package composition; signed requests/current grants; one conditional successor; ordered input, invalid proposals and blocked failures; runtime fencing; bounded clocks, settlement, closure and outboxes; shared valid/invalid JSON traces and bounded view encoding |
+| `just test::callers`, `just contract::check` | Runnable counter and byte-log examples use the same generic node; opaque bytes, state revisions, atomic outputs, denied effects, lost commit responses, ownership replacement and restart recovery; generated schema matches public types |
+| `just test::storage` | Disk WAL SIGKILL/restart; competing authorities, lost receipts and revoked grants; 100 inputs beyond the 16-record window; checkpoint/trim with pending effect/outbox/control evidence; live authority catch-up; immutable payload deletion after a lost receipt; native long-poll/offset continuation |
+| `just test::service` | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
+| `just test::capacity` | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations |
+| `just reference::up`, `just reference::images`, `just reference::test` | Real provider setup; controller crash after creation; backlog wakeup, killed worker and fresh activation; Ursula/authority pod restart; opted-in expiry; blocked overflow stops replacement; gVisor egress/credential bypass denials |
+
+The capacity proof uses a finite allocation and a measured physical reserve;
+online expansion and arbitrary write amplification are not promised. Retention
+policies are immutable in M1. Checkpoint/trim requires quiescent or explicitly
+cancelled mailboxes; pending effect/outbox metadata survives in the checkpoint.
+Payload deletion is limited to closed standalone bytes with explicit opt-in and
+an unlimited-lifetime owner. Unsupported finite body/dependency contracts fail
+before admission. Full compaction, live dependency graphs and backup import
+remain later work.
+
+The trusted Linux time source reports synchronization/error bounds; acceptance
+uses a validated sample at the compared journal tail, not physical append time.
+An authorized external send may occur after closure; its result cannot reopen
+Transit. Ursula cursors are cache tokens separate from read positions. The client
+model is fixed and continuation verified; the server documentation mismatch is
+tracked in [Ursula #317](https://github.com/tonbo-io/ursula/issues/317). This profile
+uses verified record positions/offsets and never reuses physical names.
+A rolled-back whole-store backup is not an authorized live restore.
+
+Hosted CI runs `just ci`; an opt-in dedicated runner workflow exposes the
+reference and physical-capacity proofs. Local runs supply the current runtime
+evidence. A passing hosted end-to-end timing and native validation on the other M0
+platforms still require their own runners/runs.
+
+Integration tests use Nix-provided Python, temporary directories, and loopback
+ports with their own disk Ursula; they never use an existing deployment.
+Toolchain smoke checks verify binary execution and first-use Vite+ setup, not
+cluster conformance. See the [command reference](../tasks/README.md) for all tasks.
+
+On Linux, `just test::service` limits the harness and its child processes to one
+available CPU. This exercises deadline cancellation without spare async workers,
+including slow ingress, stalled protocol responses and maintenance storage I/O.
+The affinity change is confined to the test process tree; compilation and the
+parent shell retain their existing CPU allocation.
+
+The synthetic effect harness sets `NO_COLOR=1` for captured child logs so exact
+error checks work under interactive and forced-color builds too. Its rejection
+checks also verify the durable effect state, mailbox counts, and remote sends.
+
+## Service and reference evidence
+
+`just test::service` exercises actual signed HTTP ingress, PID-scoped reads,
+key rotation/revocation, slow-body deadlines, and paused/replacement workers
+against disk-backed Ursula. Authority and storage restart preserve state and
+revocations. This loopback proof does not establish deployment network isolation;
+see the [service profile](../contracts/SERVICE_V2.md).
+
+`just reference::test` runs the fixed counter via the pinned Substrate gVisor
+runtime on an owned Kind cluster. A controller crash after Actor creation is
+reconciled without a duplicate resource; killing the real worker preserves the
+PID/Actor and rotates worker identity and ownership. Ursula and authority pod
+restarts preserve state, and separate maintenance expires an opted-in process.
+The sandbox probe first reaches Transit, then verifies denied raw Ursula
+read/write/admin access, direct IP access, CONNECT tunnelling, and Substrate and
+Kubernetes APIs. Host spoofing reaches only Transit's fixed NotFound handler.
+Known credential/control mounts are absent or inaccessible. These claims cover
+the configured fixed images, private trusted cluster network and pinned runtime;
+they do not establish arbitrary native-handler determinism or protection against
+privileged administrators. Public ingress TLS and broader runtime support remain
+outside this reference slice.
+
+## Failed application turns
+
+Caller-reported counter overflow records a blocked head input and fences its
+owner. Unit tests reject failure reports that change state or emit outputs;
+signed-service tests preserve pending input across restart and permit explicit
+termination. The counter worker also reports malformed application bytes as a
+blocked failure. Transit does not verify the caller's arithmetic or failure claim.
+Runtime reconciliation uses that durable failure to stop replacement; its cluster test also checks a
+stable generation after shutdown. This bounds retries of the fixed reviewed
+handler; arbitrary plugin execution and general Station restart policies remain
+outside this profile.
+
+## Capacity and deletion evidence
+
+The [bounded capacity profile](../packages/zig/transit-core/README.md#finite-admission-and-control-capacity) has a
+real ext4/ENOSPC proof in `just test::capacity`. Closed admissions survive restart;
+accepted input is preserved, and releasing only a preallocated reserve enables
+revocation, opted-in expiry, unknown closure, backlog completion and checkpoint/
+trim. The recorded bounds and measured amplification apply to the specified
+single-node fixture, not arbitrary disk writers, topologies or unlimited faults.
+
+Immutable standalone payload tests add whole-stream deletion through the pinned
+client. Owner/PID and current grants fence retirement; publication, explicit
+deletion opt-in and permanent owner retirement are prerequisites. Disk restart
+after DELETE but before outcome recording recovers from a tombstone in the
+separate control checkpoint. Background service maintenance completes deletion
+while preserving default-retention bytes. Late publication cannot reopen a
+retired payload. This profile rejects finite owners and live dependencies;
+unresolved creation cannot be mistaken for safe deletion or retried blindly.
+
+## Authority, effects, and outbox evidence
+
+Implemented evidence: `just test::unit` exercises request signatures, realm/PID grants,
+key replacement, retry identity, ownership, stale state revisions, ordered input, and
+retirement. `just test::storage` repeats competing transitions, revocation, lost
+receipts, and replay across a real Ursula SIGKILL/restart, with a 100-message
+backlog and a 16-record read window. Application logic is absent from the
+authority and its replay path.
+Further SIGKILL boundaries exercise checkpoint publication before trim, retried
+trim, and recovery after prefix removal with new pending input in the tail.
+Effect tests additionally prove intent validation, revocation racing dispatch,
+authenticated observations, and one mailbox admission per result. Disk restart
+and prefix removal preserve unknown attempts; late evidence after caller
+termination cannot revive application execution. No external I/O is invoked.
+The separate service proof now adds actual I/O through a trusted Zig synthetic
+executor: successful result admission, pause after authorization, late response,
+and executor death after remote acceptance. A fixture records exactly four
+requests across these schedules; fresh executors and checkpoint/trim/restart
+cause no additional sends. Closed attempts reject late outcomes, including when
+the authorized executor starts its request after closure. This demonstrates the
+external limit, not remote cancellation or a general HTTP connector.
+Closure tests exercise both winners of the result/closure race, lost
+acknowledgements, and unauthorized closure. Real disk restart and trim preserve
+closed unknown outcomes and reject late observations even while the caller lives.
+Outbox tests cover ordered routes, partial fan-out, denied/expired destinations,
+revocation racing delivery, and cancellation of undelivered outputs. Disk restart
+and prefix removal preserve pending payloads; a lost delivery receipt cannot
+admit the same output twice. Replay verifies explicit admission metadata so
+denied deliveries cannot masquerade as mailbox messages.
+These are local single-node results, not the Kubernetes/Substrate isolation proof.
+
+## Time and maintenance evidence
+
+The time interface and finite-policy transitions now have executable proofs:
+missing/uncertain time, rollback, delayed maintenance, permit recovery, deadline
+closure, and observation-budget exhaustion. A disk-backed fixture settles a
+preauthorized turn after its work cutoff, then expires its PID and trims history;
+restart preserves both retirement and the time high-water mark. Time is controlled
+in this fixture. `just test::service` additionally exercises Linux's synchronized
+clock and a separate maintenance process: opted-in expiry, explicit cancellation
+of unfinished input, checkpoint/trim while ingress remains live, and permanent
+retirement after authority/storage restart. It requires the host clock to report
+an error bound within two seconds; the fixture explicitly permits that bound
+because a synchronized host can exceed one second between NTP polls. Controlled
+clock tests retain exact rejection boundaries. Other platforms exercise explicit
+retirement and cleanup without claiming a supported finite-time source.
+The [deadline investigation](../packages/zig/transit-core/README.md#deadline-enforcement)
+defines the tested acceptance-time and closure contract. A physical
+storage-write cutoff at the earlier work deadline is no longer the target.
+
+## Extending the proof
+
+The M1 mechanisms above now have concrete implementations and adversarial
+results. Extending them to general behaviors, connectors or another storage/
+runtime profile requires preserving these contracts and adding its own evidence.
+A failed proof requires revising the owning design, not relabeling a weaker
+implementation as conformant. The client cursor-model bug and separate upstream
+documentation mismatch are recorded in the [backend README](../packages/zig/transit-backend-ursula/README.md#client-integration-surface). The corrected
+client proof verifies offset-plus-cursor and record-plus-cursor continuation;
+Transit's journal reads use record positions.
+
+## Independent caller evidence
+
+`just test::callers` launches the actual `example-counter` and `example-byte-log`
+binaries, each importing only `transit-client`. Application-independent Zig
+probes perform rejected proposals and state assertions; Python injects faults.
+The counter is shared with the service and reference proofs. No test driver
+executes a separate copy of application logic.
+The same node binary accepts both, records opaque state and atomic outputs,
+rejects stale revisions/skipped inputs/unauthorized effects, and recovers through
+authority and disk Ursula restart. A proxy drops successful commit responses and
+injects malformed unavailable responses on reads and commit retries;
+retrying the identical pending request returns the original receipt. Replaced
+activations fail locally and at signed ingress. Recovery verification does not
+execute either application. `just contract::check` checks that the committed
+binding schema exactly matches the public types; shared fixtures check signing.
+
+## Physical capacity profile
+
+The capacity proof requires Linux Docker with privileged-container support and
+at least 2 GiB of free disk for its temporary regular image file. It uses pinned
+Nix filesystem tools and the official Ursula image; it formats no host block
+device. Its mount/loop device belongs to the owned container, which is removed
+after the proof. It runs in the opt-in reference CI workflow, not hosted `just ci`.
+
+`just test::capacity` proves the `N=256` profile against the pinned official
+Ursula image on an owned 2 GiB ext4 filesystem, with a physically allocated
+1 GiB reserve file. It fills only that filesystem, observes real `ENOSPC` and
+Ursula's disk-pressure write rejection, and releases only the reserve. The filler
+stays in place while Transit revokes a grant, expires an opted-in PID, closes an
+unknown attempt, drains the unlimited PID's accepted backlog, and checkpoints
+and trims. SIGKILL/restart preserves retirement, closure, and closed admissions.
+
+The fixture uses 251 post-ceiling records. The v2 run grew WAL allocation by
+176,128 bytes during control recovery; current measurements are emitted by the
+recipe. The conservative current bound
+is 3,905 records (31,989,760 bytes plus a checkpoint). The 1 GiB physical reserve is
+a tested envelope for this configuration/schedule, not a universal filesystem
+or Ursula write-amplification guarantee. The fixture asserts control growth
+stays below 128 MiB and free space remains above the 32 MiB resume threshold.
+Keep one maintenance writer and bounded authority concurrency; unbounded crash
+loops, unrelated disk writers, disk loss, other topologies and larger allocations
+need separate qualification. An absent/exhausted reserve fails closed and needs
+operator capacity recovery; it does not create expiry permission.
+
+Completed maintenance now verifies the existing checkpoint/floor before writing.
+After restart the adapter uses only GET/HEAD for that already completed intent;
+it does not repeatedly publish or trim. Ursula can still change its internal WAL
+during reads/recovery, so raw WAL equality is not a valid no-mutation assertion.
+The fixture records adapter HTTP methods and stores measurements in the ignored
+`.cache/capacity-evidence.json`.
+
+The [core capacity contract](../packages/zig/transit-core/README.md#finite-admission-and-control-capacity)
+defines the admission ceiling, permitted drain work, and accepted-record bound.
+
+## Recording new evidence
+
+Record tested pins, topology, failure boundary, authoritative operation point,
+input schedule, and durable outcomes. A workflow definition is not evidence of
+a remote run. The [reference runbook](../deploy/reference/README.md) records its
+runner requirements and owned-resource cleanup. Keep synthetic endpoints, test
+keys, transcripts, and private proof files out of Git.
+
+Benchmarks record compiler/tool versions, hardware, dataset, concurrency,
+durability settings, and p50/p95/p99 latency together with throughput and memory.
+A failed proof requires revising the owning design, not weakening its label.

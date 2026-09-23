@@ -1,9 +1,15 @@
 """Check repository Markdown links and fences without external dependencies."""
 from pathlib import Path
+import os
 import re
 
 root = Path(__file__).resolve().parent.parent
-files = [root / "README.md", root / "AGENTS.md", *sorted((root / "docs").rglob("*.md")), *sorted((root / "contracts").rglob("*.md")), *sorted((root / "examples").rglob("*.md"))]
+files = [root / "README.md", root / "AGENTS.md"]
+for source in ("docs", "contracts", "examples", "packages", "apps", "deploy", "nix", "tasks", "tests"):
+    for directory, children, names in os.walk(root / source):
+        # Check source documentation, not downloaded tools or generated output.
+        children[:] = sorted(name for name in children if not name.startswith(".") and name not in {"node_modules", "zig-out", "zig-pkg", "dist", "coverage"})
+        files.extend(Path(directory) / name for name in sorted(names) if name.endswith(".md"))
 errors = []
 links = 0
 for file in files:

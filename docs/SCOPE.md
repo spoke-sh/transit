@@ -23,7 +23,7 @@ The same primitives must support ordinary stateful distributed programs.
 - One monorepo of reusable Zig libraries and executables; TypeScript and Vite+
   for frontends and frontend tooling. The
   [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition) defines
-  package responsibilities and dependency direction without creating them yet.
+  implemented and planned package responsibilities and dependency direction.
 - Application code calls the public Transit protocol; the node never runs handlers.
   Rey's current callers are Zig. Language-neutral contracts allow future clients
   in other languages without changing kernel execution semantics.
@@ -59,7 +59,8 @@ The same primitives must support ordinary stateful distributed programs.
   Transit while Substrate handles sandbox placement and lifecycle.
 - AX is excluded. Rey owns execution protocol/orchestration authority; adding
   AX's task store and queue would introduce a competing authority.
-- Scope and technical rationale live directly in the foundational Markdown docs.
+- Scope and cross-component rationale live in foundational Markdown docs;
+  implementation details live with their owning components.
 
 ## First outcomes
 
@@ -116,7 +117,11 @@ representations, serialized risk and exposure reservations, explicit freshness
 and pause semantics, and reconciliation of uncertain external orders. Replaying
 trading history must not submit new orders.
 
-## Questions to resolve during implementation
+## Questions for expanding the implementation
+
+The bounded M1 choices have [recorded evidence](../tests/README.md). These
+questions remain review obligations as profiles expand; later framework and
+connector questions are still open.
 
 | Question | Evidence needed |
 | --- | --- |
@@ -134,4 +139,4 @@ trading history must not submit new orders.
 | Which snapshot and code-version rules preserve replay through upgrades? | Replay and migration fixtures |
 | What workload and recovery targets matter? | Measurements from the kernel and connector slices |
 
-Resolve these implementation choices through the kernel and connector milestones.
+Resolve new choices through the corresponding kernel, framework, and connector milestones.
