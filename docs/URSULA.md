@@ -6,6 +6,14 @@ records the overlay revision. [ursula-zig](https://github.com/rupurt/ursula-zig)
 is the selected Zig client, pinned by revision and package hash in
 `packages/zig/transit-ursula/build.zig.zon`.
 
+Container deployments use the [official Ursula image](https://github.com/tonbo-io/ursula/pkgs/container/ursula),
+not a separately built Nix image. The matching `0.5.1` release and immutable
+multi-platform manifest digest are pinned in
+[`deploy/reference/versions.json`](../deploy/reference/versions.json). Update this
+pin deliberately alongside the development overlay and rerun disk recovery
+checks. Supply an explicit disk-backed configuration and persistent volume;
+the upstream image's bundled configuration uses an in-memory WAL.
+
 ## Implemented authority experiment
 
 `just test-storage` uses the pinned client against an isolated Ursula 0.5.1
