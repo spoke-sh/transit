@@ -180,18 +180,20 @@ unknown attempt does not deliver a fabricated failure message, cancel remote
 work, or authorize a retry. The experimental caller must inspect its closure;
 a typed framework notification is later work.
 
-Dispatch records an optional `reconcile_before_ms` and a positive
-`max_observations` budget (default 16). Every newly accepted observation spends
+Dispatch records `reconcile_before_ms` (required for a finite caller) and a
+`max_observations` budget from 1 through 16 (default 16). Every newly accepted observation spends
 one unit; duplicates spend none. The last unknown observation closes the attempt
 as unknown. A deadline closes result authorization independently of a background
 timer. `State.nextMaintenance` rebuilds due expiry/closure commands by scanning
 the bounded catalogs; a controller must sign and commit each command. It does
 not invoke external I/O or invent a remote outcome.
 
-These are protocol tests, not an isolated connector executor. The current
-effect grant combines intent, dispatch, and observation rights; it has PID scope
-but no destination or secret scope. Those distinctions and a synthetic executor
-behind a proved capability boundary remain required before service deployment.
+An unlimited caller may omit the wall-clock bound and close explicitly or exhaust
+the observation budget. That is not a finite reconciliation-time guarantee;
+connectors must choose and record their required finite window before real I/O.
+The test-only synthetic executor has real-I/O/closure proofs, but no production
+connector is installed. The current effect grant combines intent, dispatch and
+observation rights; destination and secret scopes remain connector work.
 
 ## Authority time and bounded settlement
 

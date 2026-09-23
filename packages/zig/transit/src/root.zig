@@ -6,6 +6,7 @@ pub const Runtime = @import("Runtime.zig");
 pub const max_principals = 16;
 pub const max_processes = 64;
 pub const max_effects = 128;
+pub const max_effect_observations = 16;
 pub const max_outputs = 256;
 pub const max_payloads = 16;
 pub const max_payload_bytes = 64 * 1024;
@@ -21,7 +22,7 @@ pub const max_checkpoint_bytes = 1024 * 1024;
 /// provider reconciliation/retirement, revocation, and one final checkpoint.
 pub fn controlRecordBudget(ceiling: u64) u64 {
     return 2 * (ceiling + max_outputs + max_effects) +
-        max_effects * (16 + 1) + max_processes * 6 + max_principals + max_payloads * 3 + 1;
+        max_effects * (max_effect_observations + 1) + max_processes * 6 + max_principals + max_payloads * 3 + 1;
 }
 pub const Permission = enum(u4) { admin, spawn, send, execute, inspect, effect, publish };
 pub const all_permissions: u16 = 0x7f;
@@ -72,7 +73,7 @@ pub const Effect = struct {
     result: ?i64 = null,
     closed_at: ?u64 = null,
     reconcile_before_ms: ?u64 = null,
-    max_observations: u16 = 16,
+    max_observations: u16 = max_effect_observations,
     observations: u16 = 0,
 };
 pub const Output = struct { pid: u64, value: i64 };
@@ -115,7 +116,7 @@ pub const Command = union(enum) {
     begin_turn: struct { pid: u64, generation: u64, input: u64 },
     turn: struct { pid: u64, generation: u64, input: u64, result: i64, failed: bool = false, effect: ?i64 = null, permit: ?u64 = null, outputs: [max_turn_outputs]?Output = @splat(null) },
     deliver: struct { pid: u64, output: u64, courier: u8 },
-    dispatch: struct { pid: u64, effect: u64, reconcile_before_ms: ?u64 = null, max_observations: u16 = 16 },
+    dispatch: struct { pid: u64, effect: u64, reconcile_before_ms: ?u64 = null, max_observations: u16 = max_effect_observations },
     observe: struct { pid: u64, effect: u64, attempt: u64, result: ?i64 },
     close_effect: struct { pid: u64, effect: u64, attempt: u64, reason: enum { abandoned, deadline } = .abandoned },
     terminate: u64,
@@ -561,9 +562,11 @@ pub const State = struct {
             .dispatch => |c| {
                 const e = try self.effect(c.effect);
                 if (e.pid != c.pid) return error.InvalidEffect;
-                try self.newWork(try self.process(c.pid), record);
+                const p = try self.process(c.pid);
+                try self.newWork(p, record);
                 if (e.phase != .pending) return error.AttemptAlreadyAuthorized;
-                if (c.max_observations == 0) return error.InvalidBudget;
+                if (c.max_observations == 0 or c.max_observations > max_effect_observations) return error.InvalidBudget;
+                if (p.work_before_ms != null and c.reconcile_before_ms == null) return error.InvalidLifetime;
                 if (c.reconcile_before_ms) |deadline| {
                     if (deadline > max_counter) return error.InvalidLifetime;
                     try (try self.trustedTime(record)).before(deadline);

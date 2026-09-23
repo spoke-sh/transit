@@ -428,6 +428,28 @@ fn effectCounter(state: i64, input: i64) !transit.Decision {
     return .{ .state = try std.math.add(i64, state, input), .effect = if (input == 9) 9 else null };
 }
 
+test "dispatch bounds observations and requires a finite caller reconciliation deadline" {
+    const EffectEngine = transit.Engine(Memory, effectCounter);
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.max_clock_error_ms = 0;
+    var clock: TestClock = .{ .now = .{ .unix_ms = 10 } };
+    var e = try EffectEngine.bootstrap(&f.store, f.genesis);
+    e.clock = clock.source();
+    const pid = try f.submit(&e, 0, .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 110 } });
+    _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .worker = 0, .expected_generation = 0 } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 9 } });
+    const permit = try f.submit(&e, 0, .{ .begin_turn = .{ .pid = pid, .generation = 1, .input = input } });
+    const effect = try f.submit(&e, 0, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 9, .effect = 9, .permit = permit } });
+    for ([_]u16{ 0, 17, 65535 }) |budget| {
+        try t.expectError(error.InvalidBudget, f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect, .max_observations = budget, .reconcile_before_ms = 120 } }));
+    }
+    try t.expectError(error.InvalidLifetime, f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } }));
+    try t.expectEqual(.pending, (try e.state.effect(effect)).phase);
+    _ = try f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect, .reconcile_before_ms = 120 } });
+    try t.expectEqual(@as(u16, transit.max_effect_observations), (try e.state.effect(effect)).max_observations);
+}
+
 test "only a committed intent permits one attempt and late evidence cannot revive its caller" {
     const EffectEngine = transit.Engine(Memory, effectCounter);
     var f = try Fixture.init();
