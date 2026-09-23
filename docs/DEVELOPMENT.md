@@ -158,12 +158,44 @@ Entering the shell supplies tools without starting a cluster or changing
 kubeconfig. `just doctor` and the toolchain smoke check run only local version
 commands for these tools.
 
-The [reference deployment](DEPLOYMENT.md) targets Kubernetes and Agent Substrate
-from the first executable milestone. Substrate, deployment manifests, and cluster
-lifecycle commands remain M1 work. That milestone will pin and validate the
-reference runtime combination, provide reproducible setup, and expose worker
-failure and protocol conformance checks through `just`. Tool availability alone
-does not establish K3s/Substrate compatibility.
+The [reference deployment](DEPLOYMENT.md) targets Kubernetes and Agent Substrate.
+Its Linux x86_64 recovery harness requires a running Docker daemon, Nix, Git,
+internet access for pinned images and upstream builds, and enough resources for
+a local Substrate installation. It uses pinned Kind Kubernetes with Substrate's
+required certificate feature gates and gVisor. K3s compatibility is not claimed.
+
+```sh
+nix develop
+just reference-up
+just reference-images
+just reference-test
+just reference-down
+```
+
+Setup creates a uniquely named cluster, local registry, and private kubeconfig
+under ignored `.cache/reference/`. It never uses or changes the default context.
+Teardown checks recorded Docker identities before deleting owned resources.
+Run it after a failed setup/test too. Build caches and proof logs remain for
+inspection. Proof directories are private and contain disposable test keys;
+do not publish them. The harness compiles the pinned upstream Substrate tools
+and runtime, builds Rey's static Zig images, and pulls the official Ursula
+release by its [pinned digest](../deploy/reference/versions.json).
+
+The recovery test creates an isolated namespace and disk-backed Ursula volume,
+interrupts the controller after Actor creation, replaces a real worker pod, and
+restarts Ursula. It checks PID/Actor continuity, fresh worker identity and
+ownership generation, ordered state recovery, background expiry, authority
+restart, and permanent termination. A separate gVisor probe checks raw Ursula
+read/write/admin access, IP/Host spoofing, CONNECT tunnelling, provider APIs,
+and absence of control/credential mounts, with a positive Transit reachability
+check first. The probe image is test-only.
+
+The manual [reference CI workflow](../.github/workflows/reference.yml) uses these
+commands and always attempts owned-resource cleanup. It requires a separately
+registered `rey-reference` Linux x86_64 runner with Nix and Docker; repository
+configuration does not provision one. Local execution is the evidence recorded
+here, not a claim that the remote workflow has run. Full-store and remaining M1
+gates are tracked in [conformance](CONFORMANCE.md).
 
 Local unit/protocol tests should remain runnable without a cluster. Passing
 those tests does not establish reference-runtime isolation or recovery behavior;

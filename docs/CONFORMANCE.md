@@ -15,6 +15,20 @@ against disk-backed Ursula. Authority and storage restart preserve state and
 revocations. This loopback proof does not establish deployment network isolation;
 see the [service profile](../contracts/SERVICE_V1.md).
 
+`just reference-test` runs the fixed counter via the pinned Substrate gVisor
+runtime on an owned Kind cluster. A controller crash after Actor creation is
+reconciled without a duplicate resource; killing the real worker preserves the
+PID/Actor and rotates worker identity and ownership. Ursula and authority pod
+restarts preserve state, and separate maintenance expires an opted-in process.
+The sandbox probe first reaches Transit, then verifies denied raw Ursula
+read/write/admin access, direct IP access, CONNECT tunnelling, and Substrate and
+Kubernetes APIs. Host spoofing reaches only Transit's fixed NotFound handler.
+Known credential/control mounts are absent or inaccessible. These claims cover
+the configured fixed images, private trusted cluster network and pinned runtime;
+they do not establish arbitrary native-handler determinism or protection against
+privileged administrators. Public ingress TLS and broader runtime support remain
+outside this reference slice.
+
 Implemented evidence: `just test` exercises request signatures, realm/PID grants,
 key replacement, retry identity, ownership, invalid results, ordered input, and
 retirement. `just test-storage` repeats competing transitions, revocation, lost

@@ -44,6 +44,22 @@ test-storage:
 test-service:
     zig build test-service
 
+# Create an isolated Linux/Docker Kubernetes + Substrate reference cluster.
+reference-up:
+    python3 -B tests/reference.py up
+
+# Build Rey's images and the pinned upstream runtime; use Ursula's official image.
+reference-images:
+    python3 -B tests/reference.py images
+
+# Kill real workers/controllers and restart persistent storage on the owned cluster.
+reference-test:
+    python3 -B tests/reference_workload.py
+
+# Delete only the cluster and registry recorded by reference-up.
+reference-down:
+    python3 -B tests/reference.py down
+
 # Check each library using its own declared dependencies.
 test-packages:
     cd packages/zig/transit && zig build test

@@ -57,6 +57,16 @@ pub const Adapter = struct {
         const containers = try member(parsed.value, "containers");
         if (containers != .array or containers.array.items.len != 1) return error.TemplateMismatch;
         if (!std.mem.eql(u8, try string(try member(containers.array.items[0], "image")), self.config.image)) return error.TemplateMismatch;
+        const volumes = try member(parsed.value, "volumes");
+        if (volumes != .array or volumes.array.items.len != 1) return error.UnsupportedVolumes;
+        const volume = volumes.array.items[0];
+        if (volume != .object or volume.object.count() != 2 or
+            !std.mem.eql(u8, try string(try member(volume, "name")), "runtime-data") or
+            (try member(volume, "durableDir")) != .object) return error.UnsupportedVolumes;
+        const mounts = try member(containers.array.items[0], "volumeMounts");
+        if (mounts != .array or mounts.array.items.len != 1 or
+            !std.mem.eql(u8, try string(try member(mounts.array.items[0], "name")), "runtime-data") or
+            !std.mem.eql(u8, try string(try member(mounts.array.items[0], "mountPath")), "/runtime-data")) return error.UnsupportedVolumes;
         const snapshots = try member(parsed.value, "snapshotsConfig");
         if (!std.mem.eql(u8, try string(try member(snapshots, "onPause")), "SNAPSHOT_CONTENT_SCOPE_DATA") or
             !std.mem.eql(u8, try string(try member(snapshots, "onCommit")), "SNAPSHOT_CONTENT_SCOPE_DATA") or

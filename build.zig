@@ -19,6 +19,15 @@ pub fn build(b: *std.Build) void {
     });
     const services = b.addSystemCommand(&.{ "python3", "-B" });
     const apps_step = b.step("apps", "Install application executables without storage proof binaries");
+    const probe = b.addExecutable(.{ .name = "isolation-probe", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/isolation.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    }) });
+    const install_probe = b.addInstallArtifact(probe, .{});
+    b.step("probe", "Install the adversarial reference sandbox executable").dependOn(&install_probe.step);
+    test_step.dependOn(&probe.step);
     services.addFileArg(b.path("tests/service.py"));
     for ([_][]const u8{ "transit-node", "transit-worker", "rey-cli", "runtime-controller" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{

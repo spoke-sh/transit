@@ -19,6 +19,10 @@ scoped to the PID; a root operator first establishes the worker's scoped
 The binding records opaque hashes of the scoped resource and template/image
 identity. The adapter validates the template UID and image, requires DATA
 snapshots with COLD_BOOT resumption, and rejects a changed Actor incarnation.
+The template must declare one `durableDir` volume named `runtime-data`, mounted
+at `/runtime-data`; Substrate refuses DATA suspension without a durable directory.
+The fixed worker stores no signing keys or authority there. Additional or
+external volume mounts are rejected by this profile's template validation.
 Names belong exclusively to this controller's reference namespace and are never
 reused. An unknown/absent API response is not an empty installation; only the
 pinned CLI's explicit not-found outcome permits creation for a first binding.

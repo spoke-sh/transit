@@ -1,0 +1,26 @@
+name: Reference recovery
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: rey-reference
+  cancel-in-progress: false
+jobs:
+  kubernetes-substrate:
+    # Register a dedicated Linux x86_64 runner with Nix, Git, Docker and enough
+    # resources for Substrate. This privileged infrastructure proof is opt-in.
+    runs-on: [self-hosted, linux, x64, rey-reference]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - run: nix develop --command just reference-up
+      - run: nix develop --command just reference-images
+      - run: nix develop --command just reference-test
+      - if: always()
+        run: |
+          if test -f .cache/reference/state.json; then
+            nix develop --command just reference-down
+          fi
