@@ -26,6 +26,9 @@ The deadline gate remains open: the adapter's conditional append cannot atomical
 test a per-process wall-clock deadline. The current profile rejects finite
 deadlines instead of relying on a pre-append clock sample. M1 must supply an
 enforceable storage/authority boundary before accepting those contracts.
+The [deadline investigation](RETENTION.md#m1-deadline-enforcement-investigation)
+records the stronger selected contract, counterexamples to proxy checks and
+delayed fences, and the bounds a different mechanism would have to prove.
 
 The foundations define a viable direction for a bounded M1 proof. The highest
 risk gaps are the concrete commit/fencing mechanism, authenticated authority,

@@ -133,6 +133,49 @@ replaying a trace does not evaluate it against today's clock. Timer notification
 are scheduling hints, not the sole enforcement mechanism. Clock rollback,
 partitions, and stale ownership must not extend an expired lifetime.
 
+### M1 deadline enforcement investigation
+
+The selected target forbids a new application-state commit at or after the
+process's deadline, even if work began earlier. An authorization issued before
+expiry is not permission to finish a turn afterwards. A commit that became
+durable before expiry may be acknowledged or discovered later; acknowledgement
+time is not commit time. Retirement records, cleanup, and late attempt evidence
+may still be recorded after expiry without advancing application state.
+
+The rejected alternative would reserve permission for a specific turn before
+expiry and let that turn settle later. It would require a separate settlement
+horizon and resource pins; otherwise a paused turn could retain recovery state
+indefinitely. That alternative is not the current lifetime contract.
+
+Keep the upstream Ursula API unchanged. The current investigation distinguishes
+these mechanisms rather than treating them as interchangeable:
+
+| Mechanism | Guarantee and limitation |
+| --- | --- |
+| Expiry record in the authority journal | CAS fences every subsequent turn, but a delayed expiry controller leaves a gap after the wall-clock deadline |
+| Clock check in a worker or trusted proxy | Rejects requests already known to be late; a pause after checking can still produce a late durable append |
+| Early cutoff with a safety margin | Needs proven clock error and a bound on the entire remaining commit path, including scheduling, queues, failover, and persistence; timeouts and latency percentiles do not prove this bound |
+| Ursula stream TTL | Whole-stream lifecycle mechanism, not an atomic Transit PID deadline; the pinned server carries a sampled request time into stream expiry checks |
+| Deadline enforcement in the commit authority | Candidate architectural requirement; must define the authoritative instant, clock uncertainty, and durable ordering without introducing a second execution source of truth |
+
+For a clock sample `C`, maximum clock error `E`, remaining commit-delay bound
+`B`, and deadline `D`, an early admission rule would need `C + E + B < D`.
+With unbounded pauses or storage delay, no finite margin proves this condition.
+Terminating a timed-out client cannot retract a request already accepted by the
+server. Checking again after the append can detect lateness but cannot undo the
+durable transition. A later confirmation record merely moves the boundary that
+still needs enforcement.
+
+The pinned Ursula implementation samples `now_ms` in the
+[HTTP append handler](https://github.com/tonbo-io/ursula/blob/e6d8d70770e1991d2eedf0ce2c3f74ac01f57f43/crates/ursula/src/lib.rs#L2560)
+and passes it to the
+[stream state machine](https://github.com/tonbo-io/ursula/blob/e6d8d70770e1991d2eedf0ce2c3f74ac01f57f43/crates/ursula-stream/src/state_machine/append.rs#L219).
+Neither that sample nor a timestamp in an ordinary record proves a strict
+physical persistence cutoff. Per-process streams or an HTTP proxy alone do not
+close this gap. Finite deadlines therefore remain rejected by the implemented
+adapter profile. This is an unresolved M1 gate, not permission to weaken expiry
+to the time a background controller eventually records it.
+
 Policy changes are authorized, versioned transitions. A shorter lifetime must
 validate existing admissions and dependencies and record any terminal outcome
 under an explicitly accepted change policy. An extension must commit before
