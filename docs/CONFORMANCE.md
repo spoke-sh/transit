@@ -9,13 +9,13 @@ boundary, not every target requirement in the documents below.
 
 ## Review assessment
 
-`just test-service` exercises actual signed HTTP ingress, PID-scoped reads,
+`just test::service` exercises actual signed HTTP ingress, PID-scoped reads,
 key rotation/revocation, slow-body deadlines, and paused/replacement workers
 against disk-backed Ursula. Authority and storage restart preserve state and
 revocations. This loopback proof does not establish deployment network isolation;
 see the [service profile](../contracts/SERVICE_V2.md).
 
-`just reference-test` runs the fixed counter via the pinned Substrate gVisor
+`just reference::test` runs the fixed counter via the pinned Substrate gVisor
 runtime on an owned Kind cluster. A controller crash after Actor creation is
 reconciled without a duplicate resource; killing the real worker preserves the
 PID/Actor and rotates worker identity and ownership. Ursula and authority pod
@@ -40,7 +40,7 @@ handler; arbitrary plugin execution and general Station restart policies remain
 outside this profile.
 
 The [bounded capacity profile](RETENTION.md#m1-bounded-capacity-profile) has a
-real ext4/ENOSPC proof in `just test-capacity`. Closed admissions survive restart;
+real ext4/ENOSPC proof in `just test::capacity`. Closed admissions survive restart;
 accepted input is preserved, and releasing only a preallocated reserve enables
 revocation, opted-in expiry, unknown closure, backlog completion and checkpoint/
 trim. The recorded bounds and measured amplification apply to the specified
@@ -55,9 +55,9 @@ while preserving default-retention bytes. Late publication cannot reopen a
 retired payload. This profile rejects finite owners and live dependencies;
 unresolved creation cannot be mistaken for safe deletion or retried blindly.
 
-Implemented evidence: `just test` exercises request signatures, realm/PID grants,
+Implemented evidence: `just test::unit` exercises request signatures, realm/PID grants,
 key replacement, retry identity, ownership, stale state revisions, ordered input, and
-retirement. `just test-storage` repeats competing transitions, revocation, lost
+retirement. `just test::storage` repeats competing transitions, revocation, lost
 receipts, and replay across a real Ursula SIGKILL/restart, with a 100-message
 backlog and a 16-record read window. Application logic is absent from the
 authority and its replay path.
@@ -89,7 +89,7 @@ missing/uncertain time, rollback, delayed maintenance, permit recovery, deadline
 closure, and observation-budget exhaustion. A disk-backed fixture settles a
 preauthorized turn after its work cutoff, then expires its PID and trims history;
 restart preserves both retirement and the time high-water mark. Time is controlled
-in this fixture. `just test-service` additionally exercises Linux's synchronized
+in this fixture. `just test::service` additionally exercises Linux's synchronized
 clock and a separate maintenance process: opted-in expiry, explicit cancellation
 of unfinished input, checkpoint/trim while ingress remains live, and permanent
 retirement after authority/storage restart. It requires the host clock to report
@@ -110,7 +110,7 @@ documentation mismatch are recorded in [URSULA.md](URSULA.md). The corrected
 client proof verifies offset-plus-cursor and record-plus-cursor continuation;
 Transit's journal reads use record positions.
 
-`just test-callers` launches the actual `example-counter` and `example-byte-log`
+`just test::callers` launches the actual `example-counter` and `example-byte-log`
 binaries, each importing only `transit-client`. Application-independent Zig
 probes perform rejected proposals and state assertions; Python injects faults.
 The counter is shared with the service and reference proofs. No test driver
@@ -121,7 +121,7 @@ authority and disk Ursula restart. A proxy drops successful commit responses and
 injects malformed unavailable responses on reads and commit retries;
 retrying the identical pending request returns the original receipt. Replaced
 activations fail locally and at signed ingress. Recovery verification does not
-execute either application. `just check-contract` checks that the committed
+execute either application. `just contract::check` checks that the committed
 binding schema exactly matches the public types; shared fixtures check signing.
 
 ## Adversarial scenarios

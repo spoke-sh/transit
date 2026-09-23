@@ -7,7 +7,7 @@ A runnable Transit application that appends each input's bytes to committed stat
 Run the complete local demo from the repository root:
 
 ```sh
-nix develop --command just example byte-log
+nix develop --command just examples::run byte-log
 ```
 
 It starts disposable disk-backed infrastructure, sends `hello` and ` world`, runs
@@ -16,7 +16,7 @@ It starts disposable disk-backed infrastructure, sends `hello` and ` world`, run
 
 ## Running against your development authority
 
-Build with `just build-examples`. A trusted operator must create a process with
+Build with `just examples::build`. A trusted operator must create a process with
 empty or application-defined initial bytes, grant the caller PID-scoped
 `execute` and `inspect` (permission bits `24`), and record ownership. The
 [counter provisioning instructions](../counter/README.md#running-against-your-development-authority)
@@ -60,5 +60,5 @@ Optional `publish_to: PID` emits the new state atomically with each successful
 turn. This needs source PID `publish` permission (combined bits `88`); an
 authorized courier/controller delivers the committed output separately.
 
-`just test-callers` runs this binary and the counter against the same generic
+`just test::callers` runs this binary and the counter against the same generic
 node, including binary data, lost responses, ownership replacement and restart.

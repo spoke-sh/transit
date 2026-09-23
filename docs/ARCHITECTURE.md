@@ -264,8 +264,8 @@ also serves as the Kubernetes/Substrate reference workload. No example binary is
 required to run the Transit authority; real applications provide their own callers.
 The service, reference deployment and client proofs share one counter handler.
 
-`just build` installs platform commands. `just build-examples` explicitly installs
-examples. `just example counter` and `just example byte-log` run them against
+`just build` installs platform commands. `just examples::build` explicitly installs
+examples. `just examples::run counter` and `just examples::run byte-log` run them against
 fresh local disk-backed infrastructure. Root Zig build steps mirror these
 boundaries: `apps`, `examples`, and `proofs` for disk conformance executables.
 
@@ -286,8 +286,9 @@ tests/             Conformance, cluster failure and replay scenarios
 deploy/            Reference deployment configuration
 docs/              Scope, architecture, plans and technical rationale
 nix/               Development-tool packaging
+tasks/             Namespaced just recipes for tests, examples and operations
 flake.nix          Reproducible development shell
-justfile           Repository command entry points
+justfile           Common commands and task module declarations
 build.zig          Root orchestration for Zig builds and checks
 build.zig.zon      Root Zig dependency manifest
 ```

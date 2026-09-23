@@ -16,7 +16,7 @@ the upstream image's bundled configuration uses an in-memory WAL.
 
 ## Implemented authority experiment
 
-`just test-storage` uses the pinned client against an isolated Ursula 0.5.1
+`just test::storage` uses the pinned client against an isolated Ursula 0.5.1
 single-node disk WAL. JSON `Stream-Record-Match` compares the current record tail
 and appends one object atomically; a conflicting proposal returns `412`. The
 adapter rejects arrays, malformed objects, and oversized records. It reads at

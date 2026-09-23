@@ -49,7 +49,7 @@ The basic sequence is:
 
 The complete runnable examples are [counter](../examples/counter/README.md) and
 [byte log](../examples/byte-log/README.md), each with its own entry point, handler
-and run instructions. Both use Session. `just test-callers` launches these exact
+and run instructions. Both use Session. `just test::callers` launches these exact
 binaries; fault injection and adversarial assertions remain under `tests/`.
 The counter also supplies the reference deployment workload. Neither example
 is a required platform service. There is no application registry or callback
@@ -98,8 +98,8 @@ accepted journal entries by 8 KiB, and checkpoints by 1 MiB.
 [`transit-v2.schema.json`](../contracts/transit-v2.schema.json) is generated from
 the exact public Zig types. It includes requests, response views, receipts,
 errors, defaults, field order, integer ranges, permission bits, routes and signing
-metadata. Run `just generate-contract` after a public change and review the
-result; `just check-contract` fails on drift. No hand-maintained parallel wire
+metadata. Run `just contract::generate` after a public change and review the
+result; `just contract::check` fails on drift. No hand-maintained parallel wire
 schema is needed.
 
 A future generator can use this resource to emit types and codecs. Interoperable

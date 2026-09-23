@@ -83,13 +83,16 @@ Run the complete [example applications](examples/README.md) against fresh local
 disk-backed infrastructure:
 
 ```sh
-just example counter
-just example byte-log
+just examples::run counter
+just examples::run byte-log
 ```
 
-`just build` builds platform executables; `just build-examples` builds the sample
+`just build` builds platform executables; `just examples::build` builds the sample
 applications. No example binary is required to run the Transit authority.
 See [development](docs/DEVELOPMENT.md) for commands, updates, and verification.
+Tasks are grouped under `reference::`, `test::`, `examples::`, and `contract::`.
+Use `just reference` to list reference tasks or `just --list --list-submodules`
+to browse the complete command tree.
 
 ## Project plan
 

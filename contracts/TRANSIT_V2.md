@@ -51,8 +51,8 @@ are no floats or arbitrary maps. Cross-language implementations must match the
 golden fixtures before interoperability is claimed. Committed
 [request vectors](../packages/zig/transit-protocol/src/fixtures/requests-v2.json) contain
 canonical bytes, SHA-256 digests, Ed25519 signatures and a public test seed.
-Zig checks them in `just test`; Python independently checks JSON encoding and
-hashes, then compares CLI signatures, in `just test-service`. The maximum signed
+Zig checks them in `just test::unit`; Python independently checks JSON encoding and
+hashes, then compares CLI signatures, in `just test::service`. The maximum signed
 64-bit sample input is decimal application text inside an opaque byte value.
 The shared [sequence trace](../packages/zig/transit-protocol/src/fixtures/sequences-v2.json)
 covers scoped PIDs, duplicate admission/spawn, stale ownership, invalid input
@@ -274,7 +274,7 @@ missing required checkpoint stops recovery. A running authority that falls behin
 another maintainer's trim loads a validated newer checkpoint and catches up from
 its retained tail; it never resets a missing range to empty history. Each refresh
 attempt bounds this recovery to one checkpoint reload. Publishing, killing the server,
-resuming trim, and killing it again are exercised by `just test-storage`. An
+resuming trim, and killing it again are exercised by `just test::storage`. An
 unknown effect survives these boundaries; a late observation after caller
 termination cannot revive the PID or advance its application state.
 Another fixture closes an unknown attempt while its caller is still running,

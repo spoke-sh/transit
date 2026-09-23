@@ -14,7 +14,7 @@ The reference workload is [example-counter](../examples/counter/README.md), a
 runnable application using `transit-client`. It is not a required Transit service.
 The [Substrate runtime profile](../contracts/RUNTIME_SUBSTRATE_V1.md) describes the
 implemented reconciler, pinned CLI transport, fresh-key bootstrap, and provider
-identity checks. `just reference-test` exercises controller interruption after
+identity checks. `just reference::test` exercises controller interruption after
 Actor creation, worker replacement, persistent Ursula/authority restart, and
 background finite-process expiry on the pinned Kind/gVisor baseline. A separate
 test Actor proves denial of raw Ursula and provider API access, including IP,

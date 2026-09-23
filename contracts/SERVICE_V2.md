@@ -1,7 +1,7 @@
 # Experimental Transit service profile
 
 Status: implemented for the generic bounded M1 protocol. Zig applications use
-`transit-client`; the counter is the reference deployment workload. `just test-service`
+`transit-client`; the counter is the reference deployment workload. `just test::service`
 owns an isolated disk Ursula, authority, and workers. It exercises signed HTTP
 ingress, scoped reads, key renewal/revocation, paused-worker fencing, slow
 requests, and authority/storage restart. This is not full deployment conformance.
@@ -10,7 +10,7 @@ requests, and authority/storage restart. This is not full deployment conformance
 
 `just build` installs the platform executables `transit-node`,
 `transit-runtime-controller` and `rey-cli` under `zig-out/bin`.
-`just build-examples` installs `example-counter`
+`just examples::build` installs `example-counter`
 and `example-byte-log`. These example callers and the CLI use `transit-client`,
 without an Ursula dependency. The node imports no application code.
 `example-counter` compiles the

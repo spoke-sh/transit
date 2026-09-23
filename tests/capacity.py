@@ -28,7 +28,7 @@ def run(binary):
     tools = {}
     for tool in ("bash", "mount", "umount", "setpriv", "mkfs.ext4"):
         tools[tool] = str(Path(shutil.which(tool) or "missing").resolve(strict=True))
-        assert tools[tool].startswith("/nix/store/"), "Run via just test-capacity for pinned mount tools"
+        assert tools[tool].startswith("/nix/store/"), "Run via just test::capacity for pinned mount tools"
     python = str(Path(sys.executable).resolve(strict=True))
     assert python.startswith("/nix/store/")
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))

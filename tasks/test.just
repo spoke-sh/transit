@@ -1,0 +1,36 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+set working-directory := ".."
+
+[default]
+_default:
+    @just --list test
+
+# Run unit and protocol checks without a service.
+unit:
+    zig build test
+
+# Check each library using its own declared dependencies.
+packages:
+    cd packages/zig/transit-protocol && zig build test
+    cd packages/zig/transit-core && zig build test
+    cd packages/zig/transit-backend-ursula && zig build test
+    cd packages/zig/transit-client && zig build test
+    cd packages/zig/transit-runtime-substrate && zig build test
+
+# Run isolated persistent Ursula tests, including SIGKILL and restart.
+storage:
+    zig build test-storage
+
+# Exercise signed HTTP ingress and worker recovery against isolated disk Ursula.
+service:
+    zig build test-service
+
+# Exercise independent Zig callers against the same generic authority.
+callers:
+    zig build test-callers
+
+# Linux/Docker: fill an owned ext4 image while keeping a physical control reserve.
+capacity:
+    zig build capacity-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-capacity-proof

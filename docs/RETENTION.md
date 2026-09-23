@@ -320,7 +320,7 @@ Pending preauthorized payload creation can additionally write at most sixteen
 Transport failures and backend housekeeping are not accepted protocol records; physical
 provisioning must additionally cover their amplification and temporary files.
 
-`just test-capacity` proves the `N=256` profile against the pinned official
+`just test::capacity` proves the `N=256` profile against the pinned official
 Ursula image on an owned 2 GiB ext4 filesystem, with a physically allocated
 1 GiB reserve file. It fills only that filesystem, observes real `ENOSPC` and
 Ursula's disk-pressure write rejection, and releases only the reserve. The filler
@@ -378,9 +378,9 @@ Creating/default-retention payloads are not eligible, and late publication or a
 new dependency cannot reopen a retired identity. Physical erasure of old WAL,
 snapshots, backups or external copies is not claimed by a DELETE acknowledgement.
 
-`just test-storage` kills/restarts disk Ursula after publication and after DELETE
+`just test::storage` kills/restarts disk Ursula after publication and after DELETE
 but before recording its outcome, including checkpoint/trim of the control
-history. `just test-service` proves automatic background retirement/deletion and
+history. `just test::service` proves automatic background retirement/deletion and
 that default-retention bytes remain readable by the trusted storage verifier.
 
 ## Logical storage and background reclamation

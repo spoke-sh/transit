@@ -129,7 +129,7 @@
   transitions and recovers recorded state; it must not import application handlers.
   Callers use `transit-client`, whose only protocol dependency is `transit-protocol`.
   Generate language-neutral resources from those public types, and keep fixtures
-  and generated schema current with `just generate-contract`/`just check-contract`.
+  and generated schema current with `just contract::generate`/`just contract::check`.
   Use Zig calling programs for conformance; additional language bindings are future work.
 - Keep domain transitions separate from transport, storage, clocks, and external
   effects so a recorded input sequence can be replayed deterministically.
@@ -158,6 +158,10 @@
 ## Tools and validation
 
 - Enter `nix develop`; use `just` as the repository command entry point.
+- Keep common commands in the root `justfile` and grouped recipes in `tasks/`
+  modules. Use `reference::`, `test::`, `examples::`, and `contract::` namespaces.
+  Modules must set the strict shell and repository-root working directory;
+  invoking a bare namespace should list its recipes.
 - Run `just check` for the current foundation checks. It does not claim to test
   application behavior. Run `just doctor` after toolchain changes.
 - Satisfy the M1 design gates in `docs/ROADMAP.md` before expanding framework or

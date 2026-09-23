@@ -16,12 +16,12 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - run: nix develop --command just reference-up
-      - run: nix develop --command just reference-images
-      - run: nix develop --command just reference-test
-      - run: nix develop --command just test-capacity
+      - run: nix develop --command just reference::up
+      - run: nix develop --command just reference::images
+      - run: nix develop --command just reference::test
+      - run: nix develop --command just test::capacity
       - if: always()
         run: |
           if test -f .cache/reference/state.json; then
-            nix develop --command just reference-down
+            nix develop --command just reference::down
           fi

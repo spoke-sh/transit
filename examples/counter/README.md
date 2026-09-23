@@ -7,7 +7,7 @@ A runnable Transit application that adds each input to its committed state.
 Run the complete local demo from the repository root:
 
 ```sh
-nix develop --command just example counter
+nix develop --command just examples::run counter
 ```
 
 It starts disposable disk-backed infrastructure, sends `7` and `5`, invokes
@@ -16,7 +16,7 @@ It starts disposable disk-backed infrastructure, sends `7` and `5`, invokes
 
 ## Running against your development authority
 
-Build with `just build-examples`. A trusted operator must first create a process,
+Build with `just examples::build`. A trusted operator must first create a process,
 grant its caller principal PID-scoped `execute` and `inspect` (permission bits
 `24`), and record ownership. The application receives only that caller's key.
 For a fresh manual setup, root's commands are `spawn`, `grant`, then `own` with
@@ -70,7 +70,7 @@ successful turn. Add the source PID's `publish` grant (combined permission bits
 ## Kubernetes and Substrate
 
 This is the reference deployment's sample workload, not a platform worker daemon.
-`just reference-images` packages it as `example-counter`; the runtime controller
+`just reference::images` packages it as `example-counter`; the runtime controller
 reconciles its PID and current sandbox activation.
 
 The reference template uses:

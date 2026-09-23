@@ -1,7 +1,20 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-# List the available project commands.
-default:
+# Kubernetes and Substrate reference deployment.
+mod reference 'tasks/reference.just'
+
+# Unit, package and integration proofs.
+mod test 'tasks/test.just'
+
+# Build and run complete example applications.
+mod examples 'tasks/examples.just'
+
+# Generate and validate the public protocol contract.
+mod contract 'tasks/contract.just'
+
+# List common commands and task namespaces.
+[default]
+_default:
     @just --list
 
 # Show tool versions and verify the CLIs without contacting a cluster.
@@ -24,81 +37,19 @@ check:
     nixfmt --check flake.nix nix/*.nix
     nix flake check
     zig fmt --check build.zig packages/zig apps examples tests/*.zig
-    zig build test
-    just check-contract
+    just test::unit
+    just contract::check
     python3 -B tests/docs.py
     git diff --check
 
 # Run the hosted CI checks within one already-entered development environment.
-ci: check test-packages test-storage test-service test-callers
+ci: check test::packages test::storage test::service test::callers
 
 # Compile the platform executables: node, runtime controller and CLI.
 build:
     zig build
 
-# Compile complete example applications separately from platform executables.
-build-examples:
-    zig build examples
-
-# Run an example against a fresh, owned local disk Ursula and authority.
-example name:
-    zig build apps examples
-    python3 -B examples/local.py {{quote(name)}}
-
-# Run unit and protocol checks without a service.
-test:
-    zig build test
-
-# Run isolated persistent Ursula tests, including SIGKILL and restart.
-test-storage:
-    zig build test-storage
-
-# Exercise signed HTTP ingress and worker recovery against isolated disk Ursula.
-test-service:
-    zig build test-service
-
-# Exercise independent Zig callers against the same generic authority.
-test-callers:
-    zig build test-callers
-
-# Linux/Docker: fill an owned ext4 image while keeping a physical control reserve.
-test-capacity:
-    zig build capacity-proof
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-capacity-proof
-
-# Create an isolated Linux/Docker Kubernetes + Substrate reference cluster.
-reference-up:
-    python3 -B tests/reference.py up
-
-# Build Rey's images and the pinned upstream runtime; use Ursula's official image.
-reference-images:
-    python3 -B tests/reference.py images
-
-# Kill real workers/controllers and restart persistent storage on the owned cluster.
-reference-test:
-    python3 -B tests/reference_workload.py
-
-# Delete only the cluster and registry recorded by reference-up.
-reference-down:
-    python3 -B tests/reference.py down
-
-# Check each library using its own declared dependencies.
-test-packages:
-    cd packages/zig/transit-protocol && zig build test
-    cd packages/zig/transit-core && zig build test
-    cd packages/zig/transit-backend-ursula && zig build test
-    cd packages/zig/transit-client && zig build test
-    cd packages/zig/transit-runtime-substrate && zig build test
-
-# Format the Nix configuration.
+# Format Nix and Zig source.
 fmt:
     nixfmt flake.nix nix/*.nix
     zig fmt build.zig packages/zig apps examples tests/*.zig
-
-# Regenerate the public binding resource from the authoritative Zig wire types.
-generate-contract:
-    zig build contract > contracts/transit-v2.schema.json
-
-# Detect public schema/default/signing changes that were not reviewed together.
-check-contract:
-    zig build contract | python3 -B tests/contract.py

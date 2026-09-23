@@ -7,7 +7,7 @@ The [experimental Transit profile](../contracts/TRANSIT_V2.md#effect-intents-and
 implements opaque intent, dispatch, and observation records, including unknown
 attempts, explicit reconciliation closure, and evidence after caller retirement
 while reconciliation remains open. This proves protocol
-ordering and recovery. `just test-service` proposes synthetic intents to the same generic node and runs
+ordering and recovery. `just test::service` proposes synthetic intents to the same generic node and runs
 a trusted Zig executor that POSTs to a harness-owned loopback endpoint.
 It proves successful delivery, a pause after dispatch authorization, a response
 after closure, and a crash after remote acceptance. Restart never resends the

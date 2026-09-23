@@ -13,8 +13,8 @@ From the repository root:
 
 ```sh
 nix develop
-just example counter
-just example byte-log
+just examples::run counter
+just examples::run byte-log
 ```
 
 Each command builds the platform and example binaries, then [local.py](local.py)
@@ -30,13 +30,13 @@ To use an existing development authority, build the examples and supply the
 configuration described in their READMEs:
 
 ```sh
-just build-examples
+just examples::build
 zig-out/bin/example-counter counter.json
 zig-out/bin/example-byte-log byte-log.json
 ```
 
 `just build` installs platform commands (`transit-node`, `transit-runtime-controller`,
-`rey-cli`). `just build-examples` installs the two example applications. The root
+`rey-cli`). `just examples::build` installs the two example applications. The root
 Zig build supplies their sole library dependency, `transit-client`; no example
 imports `transit-core`, Ursula or a deployment provider.
 
@@ -58,7 +58,7 @@ remains future work.
 
 ## How the examples are tested
 
-`just test-callers` launches these same binaries. Fault orchestration and protocol
+`just test::callers` launches these same binaries. Fault orchestration and protocol
 assertions live under [tests](../tests/callers.py), with an application-independent
 [Zig probe](../tests/client_probe.zig). The proof drops commit responses and injects
 malformed unavailable replies, checks identical retries and receipts, verifies
@@ -66,6 +66,6 @@ atomic output delivery, rejects stale
 revisions/owners and unauthorized effects, and restarts disk Ursula and the node.
 The probe never performs a successful application turn.
 
-The counter additionally supplies the workload for `just test-service` and the
+The counter additionally supplies the workload for `just test::service` and the
 Kubernetes/Substrate reference proof. See the [caller guide](../docs/CLIENT.md)
 and [development commands](../docs/DEVELOPMENT.md).

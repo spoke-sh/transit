@@ -21,6 +21,25 @@ nix develop --command just check
 An existing `.envrc` can use `use flake` if you prefer direnv. Nix remains the
 source of tool versions; direnv is optional and is not installed by this shell.
 
+## Task interface
+
+The root [justfile](../justfile) keeps common commands: `build`, `check`, `ci`,
+`fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
+[reference](../tasks/reference.just), [test](../tasks/test.just),
+[examples](../tasks/examples.just), and [contract](../tasks/contract.just).
+Use double colons, for example `just reference::up` or `just examples::run counter`.
+
+`just` lists common commands and namespaces. `just reference` or
+`just --list reference` lists that namespace's recipes; bare module commands only
+list tasks. In particular, `just test` now lists the test recipes; use
+`just test::unit` to run unit tests. `just --list --list-submodules` shows the full
+tree. The old flat task names have been replaced by the commands below.
+
+Each module explicitly sets the strict Bash shell and repository-root working
+directory. Recipes work from repository subdirectories after entering the dev
+shell. `just ci` composes the same checks as before through module dependencies;
+reference deployment and physical-capacity tests remain explicit commands.
+
 | Command | What it does today |
 | --- | --- |
 | `just` | Lists available recipes |
@@ -29,15 +48,16 @@ source of tool versions; direnv is optional and is not installed by this shell.
 | `just ci` | Runs foundation, standalone package, disk recovery, service, and independent Zig caller checks in the same development shell |
 | `just fmt` | Formats Nix and Zig files |
 | `just build` | Installs platform executables: node, runtime controller and CLI |
-| `just build-examples` | Installs `example-counter` and `example-byte-log` |
-| `just example counter`, `just example byte-log` | Provisions disposable disk Ursula and an authority, runs the real example, and verifies its committed state |
-| `just test` | Runs Zig unit/protocol tests without a service |
-| `just test-packages` | Checks each library independently of root build orchestration |
-| `just test-storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
-| `just test-service` | Proves signed HTTP ingress, scoped/revoked reads, worker replacement and authority/storage restart on loopback |
-| `just test-callers` | Runs the actual counter and byte-log example binaries through the public client against the same node, including dropped commit responses, stale owners and restart recovery |
-| `just generate-contract`, `just check-contract` | Regenerates or checks the language-neutral JSON Schema derived from public Zig types |
-| `just test-capacity` | Linux/Docker proof of real disk pressure, reserved control progress, checkpoint/trim and restart on an owned ext4 image |
+| `just examples::build` | Installs `example-counter` and `example-byte-log` |
+| `just examples::run counter`, `just examples::run byte-log` | Provisions disposable disk Ursula and an authority, runs the real example, and verifies its committed state |
+| `just test::unit` | Runs Zig unit/protocol tests without a service |
+| `just test::packages` | Checks each library independently of root build orchestration |
+| `just test::storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
+| `just test::service` | Proves signed HTTP ingress, scoped/revoked reads, worker replacement and authority/storage restart on loopback |
+| `just test::callers` | Runs the actual counter and byte-log example binaries through the public client against the same node, including dropped commit responses, stale owners and restart recovery |
+| `just contract::generate`, `just contract::check` | Regenerates or checks the language-neutral JSON Schema derived from public Zig types |
+| `just test::capacity` | Linux/Docker proof of real disk pressure, reserved control progress, checkpoint/trim and restart on an owned ext4 image |
+| `just reference::up`, `just reference::images`, `just reference::test`, `just reference::down` | Sets up, builds, tests and removes the owned Kubernetes/Substrate reference deployment |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
 
 The root Zig build composes package tests and the storage proof. Integration
@@ -84,7 +104,7 @@ Ursula rebuild. Its service test exposed a deadline bug under limited CPU
 availability, so it is not a passing end-to-end timing. Compare the separate
 restore, preparation, checks, and save step timings on subsequent runs.
 
-On Linux, `just test-service` limits the harness and its child processes to one
+On Linux, `just test::service` limits the harness and its child processes to one
 available CPU. This exercises deadline cancellation without spare async workers,
 including slow ingress, stalled protocol responses and maintenance storage I/O.
 The affinity change is confined to the test process tree; compilation and the
@@ -101,7 +121,7 @@ Rey will contain multiple Zig library and executable packages following the
 [architecture's decomposition](ARCHITECTURE.md#planned-monorepo-decomposition).
 `transit-protocol`, `transit-core`, `transit-backend-ursula`, `transit-client` and
 `transit-runtime-substrate` implement this structure; Station and connectors remain
-planned. Run `just test-packages` for their standalone checks.
+planned. Run `just test::packages` for their standalone checks.
 
 - Give each implemented package a `build.zig` and `build.zig.zon` declaring its
   own direct dependencies. Reusable libraries expose documented modules and
@@ -138,9 +158,9 @@ nix develop --command ursula --help
 nix develop --command ursulactl --version
 ```
 
-Entering the shell does not start a server. `just test-storage` owns a temporary
-disk-backed service and exercises four startup/crash phases. `just reference-up`,
-`reference-images`, `reference-test` and `reference-down` own the separate
+Entering the shell does not start a server. `just test::storage` owns a temporary
+disk-backed service and exercises four startup/crash phases. `just reference::up`,
+`just reference::images`, `just reference::test` and `just reference::down` own the separate
 Kubernetes/Substrate reference lifecycle described below.
 
 ### Zig client dependency
@@ -152,7 +172,7 @@ The upstream client exports the `ursula` module;
 see its
 [build integration](https://github.com/rupurt/ursula-zig/blob/2d507829429d4199f411df02df9cc937bf624144/docs/usage.md).
 The adapter now pins that revision and its Zig package hash; `just build` and
-`just test-storage` compile and exercise the consuming backend. The Git URL avoids
+`just test::storage` compile and exercise the consuming backend. The Git URL avoids
 a tarball-root handling failure observed in this pinned compiler's build fetch.
 
 The reviewed client revision `2d507829429d4199f411df02df9cc937bf624144` declares
@@ -228,10 +248,10 @@ required certificate feature gates and gVisor. K3s compatibility is not claimed.
 
 ```sh
 nix develop
-just reference-up
-just reference-images
-just reference-test
-just reference-down
+just reference::up
+just reference::images
+just reference::test
+just reference::down
 ```
 
 Setup creates a uniquely named cluster, local registry, and private kubeconfig
