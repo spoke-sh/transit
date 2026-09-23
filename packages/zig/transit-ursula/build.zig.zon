@@ -6,8 +6,8 @@
     .dependencies = .{
         .transit = .{ .path = "../transit" },
         .ursula_zig = .{
-            .url = "git+https://github.com/rupurt/ursula-zig#8cfd68b275022c2de8572bce3608157b95ba13d7",
-            .hash = "ursula_zig-0.0.0-rb5hFAT4AQCpHcyMANX9krtSZ3y4C6r6jJbB0dsuvwY3",
+            .url = "git+https://github.com/rupurt/ursula-zig#2d507829429d4199f411df02df9cc937bf624144",
+            .hash = "ursula_zig-0.0.0-rb5hFJsaAgDo2SoUt3p32weNLReXIqRxQjSonL1Ytq5q",
         },
     },
     .paths = .{ "build.zig", "build.zig.zon", "src" },

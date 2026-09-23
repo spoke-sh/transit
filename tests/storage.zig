@@ -15,17 +15,37 @@ fn longPoll(client: *ursula.Client, stream: ursula.Stream) anyerror!void {
     const meta = try response.head.metadata();
     try check.expectEqual(@as(?u64, 1), meta.record_next);
     const cursor = meta.cursor orelse return error.MissingLiveCursor;
+    const offset = meta.next_offset orelse return error.MissingOffset;
+    const journal: adapter.Journal = .{ .client = client, .stream = stream };
+    try check.expect(try journal.append(1, "{\"continued\":true}"));
+
+    // Position selects the unread data; the cursor is an independent cache token.
+    // Both values borrow response storage, which remains alive for these reads.
     var resumed = try client.send(.{ .read = .{ .stream = stream, .options = .{
-        .position = .{ .cursor = cursor },
+        .position = .{ .offset = offset },
+        .cursor = cursor,
+        .live = .long_poll,
         .max_bytes = adapter.max_record_bytes,
     } } });
     defer resumed.deinit();
     try resumed.head.requireSuccess();
-    // Pinned 0.5.1's cursor is not a continuation coordinate despite its docs:
-    // cursor-only requests default to the beginning and repeat this record.
-    try check.expectEqualStrings(response.body, resumed.body);
+    try check.expectEqualStrings("{\"continued\":true}\n", resumed.body);
+    const resumed_meta = try resumed.head.metadata();
+
+    var by_record = try client.send(.{ .read = .{ .stream = stream, .options = .{
+        .position = .{ .record = meta.record_next.? },
+        .cursor = cursor,
+        .live = .long_poll,
+        .max_records = 1,
+    } } });
+    defer by_record.deinit();
+    try by_record.head.requireSuccess();
+    try check.expectEqualStrings("{\"continued\":true}\n", by_record.body);
+    try check.expectEqual(@as(?u64, 2), (try by_record.head.metadata()).record_next);
+
     var continued = try client.send(.{ .read = .{ .stream = stream, .options = .{
-        .position = .{ .offset = meta.next_offset orelse return error.MissingOffset },
+        .position = .{ .offset = resumed_meta.next_offset orelse return error.MissingOffset },
+        .cursor = resumed_meta.cursor orelse return error.MissingLiveCursor,
         .max_bytes = adapter.max_record_bytes,
     } } });
     defer continued.deinit();

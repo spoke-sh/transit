@@ -138,22 +138,34 @@ library. The `transit-ursula` package owns the `ursula_zig` dependency in
 its `build.zig.zon`, pinned to an immutable revision URL and Zig package hash.
 The upstream client exports the `ursula` module;
 see its
-[build integration](https://github.com/rupurt/ursula-zig/blob/8cfd68b275022c2de8572bce3608157b95ba13d7/docs/usage.md).
+[build integration](https://github.com/rupurt/ursula-zig/blob/2d507829429d4199f411df02df9cc937bf624144/docs/usage.md).
 The adapter now pins that revision and its Zig package hash; `just build` and
 `just test-storage` compile and exercise the consuming backend. The Git URL avoids
 a tarball-root handling failure observed in this pinned compiler's build fetch.
 
-The reviewed client revision `8cfd68b275022c2de8572bce3608157b95ba13d7` declares
+The reviewed client revision `2d507829429d4199f411df02df9cc937bf624144` declares
 Zig `0.17.0-dev.2251+1175a3e99` as its minimum version, matching Rey's pinned
 compiler. Its Zig and Ursula overlay revisions also match Rey's current pins.
-These are metadata checks; M1 must build the consuming backend and verify it
-against the server. See the client
-[package metadata](https://github.com/rupurt/ursula-zig/blob/8cfd68b275022c2de8572bce3608157b95ba13d7/build.zig.zon)
-and [toolchain pins](https://github.com/rupurt/ursula-zig/blob/8cfd68b275022c2de8572bce3608157b95ba13d7/flake.lock).
+`just ci` builds the consuming packages and runs disk-backed integration and
+recovery checks against that server. See the client
+[package metadata](https://github.com/rupurt/ursula-zig/blob/2d507829429d4199f411df02df9cc937bf624144/build.zig.zon)
+and [toolchain pins](https://github.com/rupurt/ursula-zig/blob/2d507829429d4199f411df02df9cc937bf624144/flake.lock).
+
+This revision includes [the cursor API fix](https://github.com/rupurt/ursula-zig/pull/1):
+set the continuation offset or record position in `ReadOptions.position` and
+echo the independent cache token in `ReadOptions.cursor`. `Position.cursor` was
+removed. The storage proof exercises both position types with the cursor; the
+journal adapter's existing record-position reads need no API migration.
 
 Updating `ursula-overlay` changes the server tools; update the Zig source
 dependency separately. Check client/compiler/server compatibility and rerun the
-backend integration and recovery checks as they become available.
+backend integration and recovery checks with `just ci`.
+
+During this dependency update, the pinned Zig reused a stale build configuration
+that still selected the old client despite the new manifest and fetched package.
+Clearing the affected build root's ignored `.zig-cache/` forced resolution of
+the new pin. If compilation still references an old package hash after an update,
+clear that local cache and rerun `just ci`.
 
 ## Vite+
 

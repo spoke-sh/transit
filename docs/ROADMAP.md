@@ -81,8 +81,10 @@ remain later work.
 The trusted Linux time source reports synchronization/error bounds; acceptance
 uses a validated sample at the compared journal tail, not physical append time.
 An authorized external send may occur after closure; its result cannot reopen
-Transit. The native Ursula cursor-only behavior disagrees with its docs, so this
-profile uses verified record positions/offsets and never reuses physical names.
+Transit. Ursula cursors are cache tokens separate from read positions. The client
+model is fixed and continuation verified; the server documentation mismatch is
+tracked in [Ursula #317](https://github.com/tonbo-io/ursula/issues/317). This profile
+uses verified record positions/offsets and never reuses physical names.
 A rolled-back whole-store backup is not an authorized live restore.
 
 Hosted CI runs `just ci`; an opt-in dedicated runner workflow exposes the

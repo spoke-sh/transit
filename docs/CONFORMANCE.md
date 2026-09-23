@@ -100,8 +100,10 @@ The M1 mechanisms above now have concrete implementations and adversarial
 results. Extending them to general behaviors, connectors or another storage/
 runtime profile requires preserving these contracts and adding its own evidence.
 A failed proof requires revising the owning design, not relabeling a weaker
-implementation as conformant. The cursor-only live-read failure is recorded in
-[URSULA.md](URSULA.md); Transit uses verified record positions instead.
+implementation as conformant. The client cursor-model bug and separate upstream
+documentation mismatch are recorded in [URSULA.md](URSULA.md). The corrected
+client proof verifies offset-plus-cursor and record-plus-cursor continuation;
+Transit's journal reads use record positions.
 
 ## Adversarial scenarios
 

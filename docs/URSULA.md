@@ -73,7 +73,7 @@ Transit defines logical stream identity, lifetime, and retained-boundary
 semantics independently of this adapter. Native Ursula retention mechanisms
 must implement the accepted [application contract](RETENTION.md), not silently
 weaken it or bypass process expiry and checkpoint validation.
-See the client [architecture](https://github.com/rupurt/ursula-zig/blob/8cfd68b275022c2de8572bce3608157b95ba13d7/docs/architecture.md)
+See the client [architecture](https://github.com/rupurt/ursula-zig/blob/2d507829429d4199f411df02df9cc937bf624144/docs/architecture.md)
 and [dependency setup](DEVELOPMENT.md#zig-client-dependency).
 
 Keep Ursula nodes private behind Rey's trusted protocol boundary. Authenticate
@@ -104,15 +104,24 @@ Rey should own its stream catalog/naming scheme. This storage catalog is separat
 from Station's registered-name-to-PID registry. See
 [API overview](https://ursula.tonbo.io/docs/api/overview/).
 
-Treat `Stream-Next-Offset` as an opaque continuation value. The pinned 0.5.1
-long-poll proof wakes on an append and resumes correctly using that offset.
-It also exposes a documentation mismatch: a cursor-only request rereads the
-record instead of continuing. The
-[pinned renderer](https://github.com/tonbo-io/ursula/blob/v0.5.1/crates/ursula/src/render.rs)
-emits a numeric cursor; do not rely on the documented cursor/epoch bundle or
-claim stream-incarnation detection from it. The selected client also restricts
-`max_records` to record-coordinate requests; byte-offset reads use `max_bytes`.
-Transit uses explicit record positions and unreused physical identities.
+Treat `Stream-Next-Offset` as an opaque continuation position and `Stream-Cursor`
+as a separate cache token. Echo the cursor unchanged alongside the next offset
+or record position; it is not a checkpoint or stream-incarnation identifier.
+The pinned client exposes these as `ReadOptions.position` and `ReadOptions.cursor`.
+Its former `Position.cursor` API treated the cursor as a position and could not
+send both together; [ursula-zig PR #1](https://github.com/rupurt/ursula-zig/pull/1)
+fixes that model. Rey's disk-backed proof wakes on an append, then checks that
+offset-plus-cursor and record-plus-cursor long polls return only the next record.
+
+Direct HTTP checks independent of the client, including the official 0.5.1 image,
+also confirmed a server documentation mismatch: cursor-only catch-up requests
+reread from the earliest retained data, while cursor-only live requests return `400` because
+they lack a start position. Recreating the same stream path does not make an
+old cursor detect a new incarnation. The guide's cursor-as-position and
+cursor/epoch claims are tracked in [Ursula #317](https://github.com/tonbo-io/ursula/issues/317).
+Transit uses explicit record positions and unreused physical identities. The
+selected client restricts `max_records` to record-coordinate requests;
+byte-offset reads use `max_bytes`.
 
 `offset=-1` starts at the earliest retained data, not necessarily the original
 beginning. Handle trimmed positions (`410 Gone`) through explicit restore policy.
@@ -123,7 +132,7 @@ The client leaves retries, live-read reconnects, deadlines, and redirects to its
 caller. Rey must inspect HTTP status and response metadata before advancing
 producer or consumer state. Follow redirects only to configured trusted
 endpoints, preserving the method, body, and append identity. See the upstream
-[usage and lifetime rules](https://github.com/rupurt/ursula-zig/blob/8cfd68b275022c2de8572bce3608157b95ba13d7/docs/usage.md).
+[usage and lifetime rules](https://github.com/rupurt/ursula-zig/blob/2d507829429d4199f411df02df9cc937bf624144/docs/usage.md).
 
 Rey integration tests must cover partial responses, cancellation, bounded
 buffering, reconnects, and leader redirects. Use the library's SSE decoder and
