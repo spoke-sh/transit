@@ -101,10 +101,16 @@ def run(node, executor, cli):
         def start(binary, *args):
             log = (store.root / f"effect-child-{len(logs)}.log").open("w+")
             logs.append(log)
+            # Zig's build runner can propagate forced color even into redirected
+            # logs. These exact error checks require unstyled child diagnostics.
             child = subprocess.Popen([str(binary), *map(str, args)], stdin=subprocess.PIPE,
-                stdout=log, stderr=subprocess.STDOUT)
+                stdout=log, stderr=subprocess.STDOUT, env=dict(os.environ, NO_COLOR="1"))
             children.append(child)
             return child, log
+
+        def expect_error(log, name):
+            output = Path(log.name).read_text()
+            assert f"error: {name}" in output.splitlines(), (name, output)
 
         def stop(child):
             if child.poll() is None:
@@ -166,7 +172,7 @@ def run(node, executor, cli):
                 release.set()
                 assert (child.wait(timeout=10) == 0) == (scenario == "success")
                 if scenario in ("pause_before_send", "late_response"):
-                    assert "error: Rejected" in Path(log.name).read_text()
+                    expect_error(log, "Rejected")
                 view = request({"inspect": pid}, read=True)
                 assert view["process"]["admitted"] == (2 if scenario == "success" else 1)
                 assert view["process"]["state"] == 7
@@ -175,7 +181,7 @@ def run(node, executor, cli):
                 # A fresh executor cannot turn a historical dispatch into a send.
                 duplicate, duplicate_log = start(executor, options)
                 assert duplicate.wait(timeout=10) != 0
-                assert "AttemptAlreadyAuthorized" in Path(duplicate_log.name).read_text()
+                expect_error(duplicate_log, "AttemptAlreadyAuthorized")
                 assert len(sent) == before_sends + 1
                 command({"terminate": pid})
                 cases.append((pid, options, effect_view(pid)))
@@ -196,7 +202,7 @@ def run(node, executor, cli):
                 assert effect_view(pid) == expected
                 duplicate, log = start(executor, options)
                 assert duplicate.wait(timeout=10) != 0
-                assert "AttemptAlreadyAuthorized" in Path(log.name).read_text()
+                expect_error(log, "AttemptAlreadyAuthorized")
             assert len(sent) == 4  # Replay/trim/restart made no remote calls.
             print("Synthetic I/O: paused dispatch, late result rejection, unknown closure and replay without redispatch passed.")
         except BaseException:

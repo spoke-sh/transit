@@ -110,6 +110,10 @@ including slow ingress, stalled protocol responses and maintenance storage I/O.
 The affinity change is confined to the test process tree; compilation and the
 parent shell retain their existing CPU allocation.
 
+The synthetic effect harness sets `NO_COLOR=1` for captured child logs so exact
+error checks work under interactive and forced-color builds too. Its rejection
+checks also verify the durable effect state, mailbox counts, and remote sends.
+
 Protocol v2 is intentionally incompatible with v1 histories and signatures. Start
 a fresh development realm; do not point v2 at an existing v1 journal and expect
 automatic conversion. See the [caller guide](CLIENT.md) for the current public
