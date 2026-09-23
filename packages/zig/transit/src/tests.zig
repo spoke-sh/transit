@@ -171,6 +171,40 @@ test "checkpoint administration requires a current realm-wide grant" {
     try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .checkpoint = {} }));
 }
 
+test "capacity backpressure preserves accepted work and bounded control across trim" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.admission_ceiling = 8;
+    f.genesis.retry_policy = .last_per_principal;
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute), .pid = pid } });
+    _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 1 } });
+    for (0..4) |_| _ = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 1 } });
+    try t.expectError(error.AdmissionClosed, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 100 } }));
+    try t.expectError(error.AdmissionClosed, f.submit(&e, 0, .{ .spawn = .{} }));
+    try t.expectEqual(@as(u64, 4), (try e.state.process(pid)).admitted);
+    try t.expectEqual(@as(u64, 0), (try e.state.process(pid)).cancelled);
+    // Existing work can drain; starting new effects or outputs cannot consume
+    // the control reserve or recursively create an unbounded backlog.
+    try t.expectError(error.AdmissionClosed, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = 4, .result = 1, .effect = 1 } }));
+    for (4..8) |input| {
+        _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = @intCast(input - 3) } });
+    }
+    _ = try f.submit(&e, 0, .{ .revoke = 1 });
+    try t.expectError(error.ControlAlreadyRecorded, f.submit(&e, 0, .{ .revoke = 1 }));
+    _ = try f.submit(&e, 0, .{ .checkpoint = {} });
+    try t.expectEqual(.running, (try e.state.process(pid)).lifecycle);
+    try t.expectEqual(@as(i64, 4), (try e.state.process(pid)).state);
+    var recovered = try Engine.open(&f.store, f.genesis);
+    try t.expectError(error.AdmissionClosed, f.submit(&recovered, 0, .{ .send = .{ .pid = pid, .value = 1 } }));
+    try t.expectError(error.ControlAlreadyRecorded, f.submit(&recovered, 0, .{ .checkpoint = {} }));
+    // Explicit application/operator termination remains available. Capacity
+    // itself never chooses to retire this unlimited-lifetime process.
+    _ = try f.submit(&recovered, 0, .{ .terminate = pid });
+    try t.expect(recovered.state.position < 8 + transit.controlRecordBudget(8));
+}
+
 test "a verified handler failure blocks recovery without consuming the head" {
     var f = try Fixture.init();
     defer f.store.deinit();

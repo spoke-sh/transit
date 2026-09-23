@@ -260,14 +260,22 @@ termination cannot revive the PID or advance its application state.
 Another fixture closes an unknown attempt while its caller is still running,
 then proves that late results remain rejected after checkpoint, trim, and restart.
 
-This first reclamation profile refuses to trim a live pending mailbox. Keeping
-pending input in separate retained segments, physical capacity reservation, and
-general dependency pins remain M1 work. Whole-journal deletion is not exposed.
+This first reclamation profile refuses to trim a live pending mailbox. Separate
+pending-input segments and general dependency pins are not implemented.
+Whole-journal deletion is not exposed.
 
 Finite deadlines are rejected as `UnsupportedDeadline` unless the realm opts
 into bounded authority time; a missing required source gives `ClockUnavailable`.
-Control capacity
-reservation, isolated effect execution, cross-realm delivery, and
-Kubernetes/Substrate runtime reconciliation remain unimplemented gates.
+An optional immutable `admission_ceiling` closes new work at a configured journal
+position while allowing bounded control and old-input completion. It is not
+expiry and cannot cancel accepted work. The capacity flag survives checkpoint
+and trim; the one post-ceiling checkpoint cannot be repeated with fresh request
+identities. See the [capacity profile and physical proof](../docs/RETENTION.md#m1-bounded-capacity-profile)
+for record/byte bounds, the tested reserve, and deployment limits. Defaults
+remain unlimited. Dynamic capacity expansion is outside this experimental profile.
+
+Synthetic effect I/O and Kubernetes/Substrate recovery/isolation now have their
+own executable proofs. General resource deletion and the final M1 evidence audit
+remain open; cross-realm delivery is outside this slice.
 The [experimental service](SERVICE_V1.md) hosts signed ingress and scoped views
 for the fixed counter workload. Do not advertise full M1 conformance yet.

@@ -9,6 +9,18 @@ pub const max_effects = 128;
 pub const max_outputs = 256;
 pub const max_turn_outputs = 4;
 pub const max_counter = (1 << 53) - 1;
+pub const max_admission_ceiling = 65536;
+pub const max_entry_bytes = 4096;
+pub const max_checkpoint_bytes = 1024 * 1024;
+
+/// Conservative accepted-record bound after admission closes. Each previously
+/// admitted input needs at most a permit and a turn; existing outputs/results
+/// can add at most one input each. Other terms bound observations/closure,
+/// provider reconciliation/retirement, revocation, and one final checkpoint.
+pub fn controlRecordBudget(ceiling: u64) u64 {
+    return 2 * (ceiling + max_outputs + max_effects) +
+        max_effects * (16 + 1) + max_processes * 6 + max_principals + 1;
+}
 pub const Permission = enum(u4) { admin, spawn, send, execute, inspect, effect, publish };
 pub const all_permissions: u16 = 0x7f;
 pub fn permission(p: Permission) u16 {
@@ -117,6 +129,7 @@ pub const Genesis = struct {
     root_key: [32]u8,
     retry_policy: RetryPolicy = .unlimited,
     max_clock_error_ms: ?u32 = null,
+    admission_ceiling: ?u64 = null,
 };
 pub const Entry = union(enum) { genesis: Genesis, operation: Record };
 
@@ -158,11 +171,14 @@ pub const State = struct {
     output_count: u64 = 0,
     max_clock_error_ms: ?u32 = null,
     time_floor_ms: u64 = 0,
+    admission_ceiling: ?u64 = null,
+    capacity_checkpoint: bool = false,
 
     pub fn init(genesis: Genesis) !State {
         if (genesis.version != 1 or genesis.realm == 0 or genesis.realm > max_counter) return error.InvalidGenesis;
         _ = try Ed25519.PublicKey.fromBytes(genesis.root_key);
-        var state: State = .{ .realm = genesis.realm, .retry_policy = genesis.retry_policy, .max_clock_error_ms = genesis.max_clock_error_ms };
+        if (genesis.admission_ceiling) |ceiling| if (ceiling < 2 or ceiling > max_admission_ceiling) return error.InvalidCapacity;
+        var state: State = .{ .realm = genesis.realm, .retry_policy = genesis.retry_policy, .max_clock_error_ms = genesis.max_clock_error_ms, .admission_ceiling = genesis.admission_ceiling };
         state.principals[0] = .{ .grant = .{ .subject = 0, .public_key = genesis.root_key, .permissions = all_permissions }, .revision = 0 };
         return state;
     }
@@ -251,6 +267,7 @@ pub const State = struct {
         const req = record.request;
         if (try self.duplicate(req) != null) return error.DuplicateRecord;
         if ((try self.principal(req.principal)).revision != record.policy_revision) return error.StalePolicy;
+        try self.checkCapacity(req.command);
         if (record.time) |time| {
             const bound = self.max_clock_error_ms orelse return error.UnsupportedDeadline;
             if (time.error_ms > bound or time.unix_ms > max_counter) return error.UntrustedTime;
@@ -557,6 +574,9 @@ pub const State = struct {
                     if (p.admitted != p.consumed + p.cancelled) return error.PendingWork;
                 };
                 self.history_floor = record.position + 1;
+                if (self.admission_ceiling) |ceiling| if (record.position >= ceiling) {
+                    self.capacity_checkpoint = true;
+                };
             },
         }
         const caller = &self.principals[req.principal].?;
@@ -565,6 +585,39 @@ pub const State = struct {
         caller.receipt = record.position;
         self.position += 1;
         return admission;
+    }
+
+    /// Closing admissions is resource backpressure, never expiry or permission
+    /// to discard work. Defaults stay unlimited. This bounded M1 profile has no
+    /// automatic reopening, even after trim; its provisioned realm is finite.
+    fn checkCapacity(self: *State, command: Command) !void {
+        const ceiling = self.admission_ceiling orelse return;
+        if (self.position < ceiling) return;
+        if (self.position >= ceiling + controlRecordBudget(ceiling)) return error.ControlCapacity;
+        switch (command) {
+            .begin_turn, .observe, .close_effect, .terminate, .expire, .deliver => {},
+            .turn => |c| {
+                if (c.effect != null) return error.AdmissionClosed;
+                for (c.outputs) |output_value| if (output_value != null) return error.AdmissionClosed;
+            },
+            .revoke => |subject| {
+                const p = try self.principal(subject);
+                if (p.grant.permissions == 0) return error.ControlAlreadyRecorded;
+            },
+            .runtime_intent => |c| {
+                if (c.desired != .stopped) return error.AdmissionClosed;
+                const p = try self.process(c.pid);
+                const binding = p.binding orelse return error.InvalidBinding;
+                if (binding.desired == .stopped) return error.ControlAlreadyRecorded;
+            },
+            .runtime_observe => |c| {
+                const p = try self.process(c.pid);
+                const binding = p.binding orelse return error.InvalidBinding;
+                if (c.outcome == .unknown and binding.phase == .unknown) return error.ControlAlreadyRecorded;
+            },
+            .checkpoint => if (self.capacity_checkpoint) return error.ControlAlreadyRecorded,
+            else => return error.AdmissionClosed,
+        }
     }
 
     fn trustedTime(self: *const State, record: Record) !Time.Sample {
@@ -645,6 +698,7 @@ pub const Checkpoint = struct {
         if (self.version != 1 or !std.meta.eql(self.genesis, genesis) or
             self.state.realm != genesis.realm or self.state.retry_policy != genesis.retry_policy or
             self.state.max_clock_error_ms != genesis.max_clock_error_ms or
+            self.state.admission_ceiling != genesis.admission_ceiling or
             self.state.position == 0 or self.state.history_floor == 0 or self.state.history_floor > self.state.position) return error.InvalidCheckpoint;
         if (!std.mem.eql(u8, &self.checksum, &try hash(allocator, self.genesis, self.state))) return error.InvalidCheckpoint;
         const root = try self.state.principal(0);

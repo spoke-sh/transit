@@ -37,6 +37,13 @@ stable generation after shutdown. This bounds retries of the fixed reviewed
 handler; arbitrary plugin execution and general Station restart policies remain
 outside this profile.
 
+The [bounded capacity profile](RETENTION.md#m1-bounded-capacity-profile) has a
+real ext4/ENOSPC proof in `just test-capacity`. Closed admissions survive restart;
+accepted input is preserved, and releasing only a preallocated reserve enables
+revocation, opted-in expiry, unknown closure, backlog completion and checkpoint/
+trim. The recorded bounds and measured amplification apply to the specified
+single-node fixture, not arbitrary disk writers, topologies or unlimited faults.
+
 Implemented evidence: `just test` exercises request signatures, realm/PID grants,
 key replacement, retry identity, ownership, invalid results, ordered input, and
 retirement. `just test-storage` repeats competing transitions, revocation, lost

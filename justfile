@@ -47,6 +47,11 @@ test-storage:
 test-service:
     zig build test-service
 
+# Linux/Docker: fill an owned ext4 image while keeping a physical control reserve.
+test-capacity:
+    zig build capacity-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-capacity-proof
+
 # Create an isolated Linux/Docker Kubernetes + Substrate reference cluster.
 reference-up:
     python3 -B tests/reference.py up

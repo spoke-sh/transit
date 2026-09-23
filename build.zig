@@ -108,4 +108,15 @@ pub fn build(b: *std.Build) void {
     integration.has_side_effects = true;
     integration.stdio = .inherit;
     b.step("test-storage", "Prove conditional writes and disk recovery against Ursula").dependOn(&integration.step);
+    const capacity = b.addExecutable(.{ .name = "transit-capacity-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/capacity.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "transit", .module = transit.module("transit") },
+            .{ .name = "transit_ursula", .module = adapter.module("transit_ursula") },
+        },
+    }) });
+    b.step("capacity-proof", "Install the physical storage pressure proof driver").dependOn(&b.addInstallArtifact(capacity, .{}).step);
+    test_step.dependOn(&capacity.step);
 }

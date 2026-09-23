@@ -33,13 +33,20 @@ source of tool versions; direnv is optional and is not installed by this shell.
 | `just test-packages` | Checks each library independently of root build orchestration |
 | `just test-storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
 | `just test-service` | Proves signed HTTP ingress, scoped/revoked reads, worker replacement and authority/storage restart on loopback |
+| `just test-capacity` | Linux/Docker proof of real disk pressure, reserved control progress, checkpoint/trim and restart on an owned ext4 image |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
 
 The root Zig build composes package tests and the storage proof. Integration
 orchestration uses the Nix-provided Python 3, temporary directories, and loopback ports;
 it never uses an existing Ursula deployment. Cluster deployment, frontend, and
-application code remain implementation work. The experimental counter service,
+application scope follows the roadmap. The experimental counter service,
 worker, and CLI are described in the [service profile](../contracts/SERVICE_V1.md).
+
+The capacity proof requires Linux Docker with privileged-container support and
+at least 2 GiB of free disk for its temporary regular image file. It uses pinned
+Nix filesystem tools and the official Ursula image; it formats no host block
+device. Its mount/loop device belongs to the owned container, which is removed
+after the proof. It runs in the opt-in reference CI workflow, not hosted `just ci`.
 GitHub Actions runs the same local checks, storage proof, and service proof on
 Linux; a workflow definition is not evidence of a
 remote CI run. The Nix check runs Zig tests and builds a tiny TypeScript page through Vite+ from a clean

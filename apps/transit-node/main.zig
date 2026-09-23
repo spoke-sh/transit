@@ -47,6 +47,8 @@ const Server = struct {
         defer parsed.deinit();
         self.execute(&request, parsed.value, is_view) catch |err| {
             const status: std.http.Status = switch (err) {
+                error.AdmissionClosed, error.ControlCapacity => .service_unavailable,
+                error.ControlAlreadyRecorded => .unprocessable_entity,
                 error.BlockedProcess, error.InvalidFailure => .unprocessable_entity,
                 error.Unauthorized, error.Forbidden, error.WrongProtocolRealm, error.SignatureVerificationFailed, error.IdentityElement, error.NonCanonical, error.InvalidEncoding => .forbidden,
                 error.Conflict => .conflict,

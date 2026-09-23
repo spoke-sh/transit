@@ -11,7 +11,8 @@ disk proof uses controlled time; the Linux service clock reads the synchronized
 kernel's reported error bound. A separate
 [`transit-node --maintain` process](../contracts/SERVICE_V1.md) now commits due
 expiry/closure and reconciles opted-in checkpoint/trim operations. Physical
-capacity reservation and general resource deletion remain open M1 gates.
+capacity reservation now has a bounded single-node proof below; general resource
+deletion remains an open M1 gate.
 
 ## Application contract
 
@@ -287,6 +288,58 @@ deadlock. M1 must quantify the reserve and per-operation amplification, cap
 pending work and maintenance concurrency, and test full-store recovery. If the
 reserve or authority is unavailable, stop new work safely; quotas alone do not
 prove that cleanup can make progress.
+
+### M1 bounded capacity profile
+
+Genesis may explicitly set `admission_ceiling` between 2 and 65,536 journal
+positions. The default is unset. Once reached, Transit rejects new admissions,
+spawns, grants, activations, running-provider intents, and effect dispatches.
+It can finish already admitted scalar inputs, settle existing outputs/attempts,
+revoke grants, retire processes, stop provider resources, and checkpoint once.
+Turns cannot introduce new outputs/effects into this reserve. Reads remain
+available. Repeated revocations, repeated unknown provider observations, repeated
+stop intents, and further checkpoint intents cannot consume unlimited records.
+
+This is an explicit finite allocation for the experimental realm, not a retention
+deadline. It never expires a PID, cancels input, or authorizes deletion by itself.
+An accepted input whose completion requires a new effect remains pending; only
+explicit termination or its original opted-in expiry can cancel it. Trim and
+restart do not reopen admission. Online expansion/rearming is not implemented;
+do not enable this profile expecting a self-resizing production store.
+
+For ceiling `N`, the conservative post-ceiling bound is
+`2*(N+256+128) + 128*17 + 64*6 + 16 + 1` accepted records: at most a permit and
+turn per old/newly delivered input, finite attempt observations/closures, bounded
+provider completion/stop and retirement, revocations, and one checkpoint.
+Typed journal entries are capped at 4 KiB and checkpoints at 1 MiB. Transport
+failures and backend housekeeping are not accepted protocol records; physical
+provisioning must additionally cover their amplification and temporary files.
+
+`just test-capacity` proves the `N=256` profile against the pinned official
+Ursula image on an owned 2 GiB ext4 filesystem, with a physically allocated
+1 GiB reserve file. It fills only that filesystem, observes real `ENOSPC` and
+Ursula's disk-pressure write rejection, and releases only the reserve. The filler
+stays in place while Transit revokes a grant, expires an opted-in PID, closes an
+unknown attempt, drains the unlimited PID's accepted backlog, and checkpoints
+and trims. SIGKILL/restart preserves retirement, closure, and closed admissions.
+
+The first passing run used 251 post-ceiling records; WAL allocation grew by
+167,936 bytes during control recovery, versus the conservative 3,857-record
+logical bound (15,798,272 bytes plus a checkpoint). The 1 GiB physical reserve is
+a tested envelope for this configuration/schedule, not a universal filesystem
+or Ursula write-amplification guarantee. The fixture asserts control growth
+stays below 128 MiB and free space remains above the 32 MiB resume threshold.
+Keep one maintenance writer and bounded authority concurrency; unbounded crash
+loops, unrelated disk writers, disk loss, other topologies and larger allocations
+need separate qualification. An absent/exhausted reserve fails closed and needs
+operator capacity recovery; it does not create expiry permission.
+
+Completed maintenance now verifies the existing checkpoint/floor before writing.
+After restart the adapter uses only GET/HEAD for that already completed intent;
+it does not repeatedly publish or trim. Ursula can still change its internal WAL
+during reads/recovery, so raw WAL equality is not a valid no-mutation assertion.
+The fixture records adapter HTTP methods and stores measurements in the ignored
+`.cache/capacity-evidence.json`.
 
 ## Logical storage and background reclamation
 

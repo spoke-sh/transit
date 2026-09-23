@@ -17,6 +17,7 @@ pub fn append(self: *Store, expected: u64, entry: transit.Entry) !bool {
     const allocator = self.journal.client.http.allocator;
     const bytes = try std.json.Stringify.valueAlloc(allocator, entry, .{});
     defer allocator.free(bytes);
+    if (bytes.len > transit.max_entry_bytes) return error.RecordTooLarge;
     return self.journal.append(expected, bytes);
 }
 
@@ -73,8 +74,12 @@ pub fn loadCheckpoint(self: *Store, genesis: transit.Genesis) !?transit.Checkpoi
 pub fn publishCheckpoint(self: *Store, checkpoint: transit.Checkpoint) !void {
     const allocator = self.journal.client.http.allocator;
     try checkpoint.validate(allocator, checkpoint.genesis);
+    if (try self.loadCheckpoint(checkpoint.genesis)) |existing| {
+        if (existing.state.position >= checkpoint.state.position and existing.state.history_floor >= checkpoint.state.history_floor) return;
+    }
     const bytes = try std.json.Stringify.valueAlloc(allocator, checkpoint, .{});
     defer allocator.free(bytes);
+    if (bytes.len > transit.max_checkpoint_bytes) return error.CheckpointTooLarge;
     var published = try self.journal.client.send(.{ .publish_snapshot = .{
         .stream = self.journal.stream,
         .at = .{ .record = checkpoint.state.position },
@@ -88,7 +93,20 @@ pub fn publishCheckpoint(self: *Store, checkpoint: transit.Checkpoint) !void {
 }
 
 pub fn maintain(self: *Store, checkpoint: transit.Checkpoint) !void {
-    try self.publishCheckpoint(checkpoint);
+    try checkpoint.validate(self.journal.client.http.allocator, checkpoint.genesis);
+    const existing = try self.loadCheckpoint(checkpoint.genesis);
+    // A checkpoint covering the committed floor plus its retained tail is a
+    // complete recovery basis. Restart must not republish the same maintenance
+    // intent at ever-newer tails and consume reserved disk indefinitely.
+    if (existing == null or existing.?.state.history_floor < checkpoint.state.history_floor)
+        try self.publishCheckpoint(checkpoint);
+    var head = try self.journal.client.send(.{ .head = .{ .stream = self.journal.stream } });
+    defer head.deinit();
+    try head.head.requireSuccess();
+    if (((try head.head.metadata()).record_first orelse return error.MissingRecordCoordinate) >= checkpoint.state.history_floor) {
+        self.cache_len = 0;
+        return;
+    }
     var trimmed = try self.journal.client.send(.{ .advance_retention = .{ .stream = self.journal.stream, .at = .{ .record = checkpoint.state.history_floor } } });
     defer trimmed.deinit();
     try trimmed.head.requireSuccess();

@@ -19,6 +19,7 @@ jobs:
       - run: nix develop --command just reference-up
       - run: nix develop --command just reference-images
       - run: nix develop --command just reference-test
+      - run: nix develop --command just test-capacity
       - if: always()
         run: |
           if test -f .cache/reference/state.json; then

@@ -57,7 +57,7 @@ fn step(engine: anytype, config: Config, key: transit.Ed25519.KeyPair, allocator
     if (config.checkpoint_every_records) |interval| {
         if (engine.state.position - engine.state.history_floor >= interval) {
             _ = engine.submit(signed) catch |err| switch (err) {
-                error.PendingWork, error.HistoryPinned, error.RetentionNotEnabled => return .idle,
+                error.PendingWork, error.HistoryPinned, error.RetentionNotEnabled, error.ControlAlreadyRecorded => return .idle,
                 else => return err,
             };
             return .checkpointed;
