@@ -5,7 +5,7 @@
     .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
     .dependencies = .{
         .transit_protocol = .{ .path = "packages/zig/transit-protocol" },
-        .transit = .{ .path = "packages/zig/transit" },
+        .transit_core = .{ .path = "packages/zig/transit-core" },
         .transit_ursula = .{ .path = "packages/zig/transit-ursula" },
         .transit_client = .{ .path = "packages/zig/transit-client" },
         .runtime_substrate = .{ .path = "packages/zig/runtime-substrate" },

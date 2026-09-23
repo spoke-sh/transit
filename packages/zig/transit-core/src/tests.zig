@@ -1,17 +1,17 @@
 const std = @import("std");
 const t = std.testing;
-const transit = @import("root.zig");
+const core = @import("root.zig");
 
 const Memory = struct {
-    entries: std.ArrayList(transit.Entry) = .empty,
+    entries: std.ArrayList(core.Entry) = .empty,
     fail_ack: bool = false,
     pub fn tail(self: *Memory) !u64 {
         return self.entries.items.len;
     }
-    pub fn read(self: *Memory, at: u64) !?transit.Entry {
+    pub fn read(self: *Memory, at: u64) !?core.Entry {
         return if (at < self.entries.items.len) self.entries.items[@intCast(at)] else null;
     }
-    pub fn append(self: *Memory, expected: u64, entry: transit.Entry) !bool {
+    pub fn append(self: *Memory, expected: u64, entry: core.Entry) !bool {
         if (expected != self.entries.items.len) return false;
         try self.entries.append(t.allocator, entry);
         if (self.fail_ack) {
@@ -25,39 +25,39 @@ const Memory = struct {
     }
 };
 
-const Engine = transit.Engine(Memory);
+const Engine = core.Engine(Memory);
 const TestClock = struct {
-    now: transit.Time.Sample,
-    fn read(context: *anyopaque) !transit.Time.Sample {
+    now: core.Time.Sample,
+    fn read(context: *anyopaque) !core.Time.Sample {
         const self: *TestClock = @ptrCast(@alignCast(context));
         return self.now;
     }
-    fn source(self: *TestClock) transit.Time.Source {
+    fn source(self: *TestClock) core.Time.Source {
         return .{ .context = self, .read = read };
     }
 };
 const Fixture = struct {
     store: Memory = .{},
-    root: transit.Ed25519.KeyPair,
-    worker: transit.Ed25519.KeyPair,
-    genesis: transit.Genesis,
+    root: core.Ed25519.KeyPair,
+    worker: core.Ed25519.KeyPair,
+    genesis: core.Genesis,
 
     fn init() !Fixture {
-        const root = try transit.Ed25519.KeyPair.generateDeterministic(@splat(7));
-        return .{ .root = root, .worker = try transit.Ed25519.KeyPair.generateDeterministic(@splat(8)), .genesis = .{ .realm = 42, .root_key = root.public_key.toBytes() } };
+        const root = try core.Ed25519.KeyPair.generateDeterministic(@splat(7));
+        return .{ .root = root, .worker = try core.Ed25519.KeyPair.generateDeterministic(@splat(8)), .genesis = .{ .realm = 42, .root_key = root.public_key.toBytes() } };
     }
-    fn request(self: *Fixture, engine: anytype, caller: u8, command: transit.Command) !transit.SignedRequest {
+    fn request(self: *Fixture, engine: anytype, caller: u8, command: core.Command) !core.SignedRequest {
         var current = command;
         if (current == .turn) current.turn.expected_revision = (try engine.state.process(current.turn.pid)).revision;
-        return transit.sign(.{ .realm = 42, .principal = caller, .sequence = (try engine.state.principal(caller)).sequence + 1, .command = current }, if (caller == 0) self.root else self.worker);
+        return core.sign(.{ .realm = 42, .principal = caller, .sequence = (try engine.state.principal(caller)).sequence + 1, .command = current }, if (caller == 0) self.root else self.worker);
     }
-    fn submit(self: *Fixture, engine: anytype, caller: u8, command: transit.Command) !u64 {
+    fn submit(self: *Fixture, engine: anytype, caller: u8, command: core.Command) !u64 {
         var current = command;
         if (current == .turn) current.turn.expected_revision = (try engine.state.process(current.turn.pid)).revision;
         return engine.submit(try self.request(engine, caller, current));
     }
     fn setup(self: *Fixture, engine: anytype) !u64 {
-        _ = try self.submit(engine, 0, .{ .grant = .{ .subject = 1, .public_key = self.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.inspect) } });
+        _ = try self.submit(engine, 0, .{ .grant = .{ .subject = 1, .public_key = self.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.inspect) } });
         const pid = try self.submit(engine, 0, .{ .spawn = .{} });
         _ = try self.submit(engine, 0, .{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 1 } });
         return pid;
@@ -72,25 +72,25 @@ test "shared valid and invalid sequence fixture survives recovery after every st
         steps: []const struct {
             realm: u64 = 42,
             sequence: u64,
-            command: transit.Command,
+            command: core.Command,
             receipt: ?u64 = null,
             @"error": ?[]const u8 = null,
         },
     };
-    var trace = try std.json.parseFromSlice(Trace, t.allocator, transit.protocol.fixtures.sequences, .{});
+    var trace = try std.json.parseFromSlice(Trace, t.allocator, core.protocol.fixtures.sequences, .{});
     defer trace.deinit();
     try t.expectEqual(@as(u32, 2), trace.value.version);
     var seed: [32]u8 = undefined;
     _ = try std.fmt.hexToBytes(&seed, trace.value.seed_hex);
-    const key = try transit.Ed25519.KeyPair.generateDeterministic(seed);
-    const genesis: transit.Genesis = .{ .realm = trace.value.realm, .root_key = key.public_key.toBytes() };
-    const TraceEngine = transit.Engine(Memory);
+    const key = try core.Ed25519.KeyPair.generateDeterministic(seed);
+    const genesis: core.Genesis = .{ .realm = trace.value.realm, .root_key = key.public_key.toBytes() };
+    const TraceEngine = core.Engine(Memory);
     var store: Memory = .{};
     defer store.deinit();
     var engine = try TraceEngine.bootstrap(&store, genesis);
     for (trace.value.steps) |step| {
         const before = store.entries.items.len;
-        const signed = try transit.sign(.{ .realm = step.realm, .principal = 0, .sequence = step.sequence, .command = step.command }, key);
+        const signed = try core.sign(.{ .realm = step.realm, .principal = 0, .sequence = step.sequence, .command = step.command }, key);
         if (engine.submit(signed)) |receipt| {
             try t.expect(step.@"error" == null);
             try t.expectEqual(step.receipt.?, receipt);
@@ -122,9 +122,9 @@ test "checkpoint administration requires a current realm-wide grant" {
     f.genesis.retry_policy = .last_per_principal;
     var e = try Engine.bootstrap(&f.store, f.genesis);
     const pid = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.admin), .pid = pid } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.admin), .pid = pid } });
     try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .checkpoint = {} }));
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.admin) } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.admin) } });
     _ = try f.submit(&e, 1, .{ .checkpoint = {} });
     _ = try f.submit(&e, 0, .{ .revoke = 1 });
     try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .checkpoint = {} }));
@@ -137,18 +137,18 @@ test "capacity backpressure preserves accepted work and bounded control across t
     f.genesis.retry_policy = .last_per_principal;
     var e = try Engine.bootstrap(&f.store, f.genesis);
     const pid = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute), .pid = pid } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute), .pid = pid } });
     _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 1 } });
-    for (0..4) |_| _ = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(1) } });
-    try t.expectError(error.AdmissionClosed, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(100) } }));
+    for (0..4) |_| _ = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(1) } });
+    try t.expectError(error.AdmissionClosed, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(100) } }));
     try t.expectError(error.AdmissionClosed, f.submit(&e, 0, .{ .spawn = .{} }));
     try t.expectEqual(@as(u64, 4), (try e.state.process(pid)).admitted);
     try t.expectEqual(@as(u64, 0), (try e.state.process(pid)).cancelled);
     // Existing work can drain; starting new effects or outputs cannot consume
     // the control reserve or recursively create an unbounded backlog.
-    try t.expectError(error.AdmissionClosed, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = 4, .result = transit.Value.integer(1), .effect = transit.Value.integer(1) } }));
+    try t.expectError(error.AdmissionClosed, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = 4, .result = core.Value.integer(1), .effect = core.Value.integer(1) } }));
     for (4..8) |input| {
-        _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(@intCast(input - 3)) } });
+        _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(@intCast(input - 3)) } });
     }
     _ = try f.submit(&e, 0, .{ .revoke = 1 });
     try t.expectError(error.ControlAlreadyRecorded, f.submit(&e, 0, .{ .revoke = 1 }));
@@ -156,12 +156,12 @@ test "capacity backpressure preserves accepted work and bounded control across t
     try t.expectEqual(.running, (try e.state.process(pid)).lifecycle);
     try t.expectEqual(@as(i64, 4), try (try e.state.process(pid)).state.asInteger());
     var recovered = try Engine.open(&f.store, f.genesis);
-    try t.expectError(error.AdmissionClosed, f.submit(&recovered, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(1) } }));
+    try t.expectError(error.AdmissionClosed, f.submit(&recovered, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(1) } }));
     try t.expectError(error.ControlAlreadyRecorded, f.submit(&recovered, 0, .{ .checkpoint = {} }));
     // Explicit application/operator termination remains available. Capacity
     // itself never chooses to retire this unlimited-lifetime process.
     _ = try f.submit(&recovered, 0, .{ .terminate = pid });
-    try t.expect(recovered.state.position < 8 + transit.controlRecordBudget(8));
+    try t.expect(recovered.state.position < 8 + core.controlRecordBudget(8));
 }
 
 test "payload deletion requires publication, owner retirement, opt-in and current grants" {
@@ -171,10 +171,10 @@ test "payload deletion requires publication, owner retirement, opt-in and curren
     const pid = try f.submit(&e, 0, .{ .spawn = .{} });
     const retained = try f.submit(&e, 0, .{ .declare_payload = .{ .pid = pid, .sha256 = @splat(1), .bytes = 1 } });
     const removed = try f.submit(&e, 0, .{ .declare_payload = .{ .pid = pid, .sha256 = @splat(2), .bytes = 1, .allow_delete = true } });
-    const ref: transit.PayloadRef = .{ .pid = pid, .payload = removed };
+    const ref: core.PayloadRef = .{ .pid = pid, .payload = removed };
     try t.expectError(error.PayloadInUse, f.submit(&e, 0, .{ .retire_payload = ref }));
     try t.expectError(error.PayloadPhase, f.submit(&e, 0, .{ .payload_deleted = ref }));
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.admin), .pid = pid } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.admin), .pid = pid } });
     try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .payload_ready = ref }));
     _ = try f.submit(&e, 0, .{ .terminate = pid });
     try t.expectError(error.PayloadPhase, f.submit(&e, 0, .{ .retire_payload = ref }));
@@ -211,15 +211,15 @@ test "an authenticated handler failure blocks recovery without consuming the hea
     f.genesis.retry_policy = .last_per_principal;
     var e = try Engine.bootstrap(&f.store, f.genesis);
     const pid = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute), .pid = pid } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute), .pid = pid } });
     _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 1 } });
-    const first = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(std.math.maxInt(i64)) } });
-    const bad = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(1) } });
-    try t.expectError(error.InvalidFailure, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = transit.Value.integer(0), .failed = true } }));
-    try t.expectError(error.InvalidFailure, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = .{}, .failed = true, .effect = transit.Value.integer(1) } }));
-    try t.expectError(error.InvalidFailure, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = .{}, .failed = true, .outputs = .{ .{ .pid = pid, .value = transit.Value.integer(1) }, null, null, null } } }));
-    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = transit.Value.integer(std.math.maxInt(i64)) } });
-    const failure = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = bad, .result = transit.Value.integer(std.math.maxInt(i64)), .failed = true } });
+    const first = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(std.math.maxInt(i64)) } });
+    const bad = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(1) } });
+    try t.expectError(error.InvalidFailure, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = core.Value.integer(0), .failed = true } }));
+    try t.expectError(error.InvalidFailure, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = .{}, .failed = true, .effect = core.Value.integer(1) } }));
+    try t.expectError(error.InvalidFailure, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = .{}, .failed = true, .outputs = .{ .{ .pid = pid, .value = core.Value.integer(1) }, null, null, null } } }));
+    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = core.Value.integer(std.math.maxInt(i64)) } });
+    const failure = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = bad, .result = core.Value.integer(std.math.maxInt(i64)), .failed = true } });
     var recovered = try Engine.open(&f.store, f.genesis);
     const p = (try recovered.state.process(pid)).*;
     try t.expectEqual(bad, p.failure.?.input);
@@ -246,7 +246,7 @@ test "lost spawn acknowledgement resolves to the same PID and conflicting retry 
     try t.expectEqual(@as(u64, 2), try f.store.tail());
     var changed = spawn.request;
     changed.command.spawn.code = 0;
-    try t.expectError(error.ConflictingRetry, recovered.submit(try transit.sign(changed, f.root)));
+    try t.expectError(error.ConflictingRetry, recovered.submit(try core.sign(changed, f.root)));
     _ = try f.submit(&recovered, 0, .{ .inspect = 1 });
     try t.expectEqual(@as(u64, 1), try recovered.submit(spawn));
 }
@@ -268,9 +268,9 @@ test "two prepared successors cannot both commit and revoked policy fences a pre
     defer f.store.deinit();
     var a = try Engine.bootstrap(&f.store, f.genesis);
     const pid = try f.setup(&a);
-    const input = try f.submit(&a, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(4) } });
+    const input = try f.submit(&a, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(4) } });
     var b = try Engine.open(&f.store, f.genesis);
-    const turn = try f.request(&a, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(4) } });
+    const turn = try f.request(&a, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(4) } });
     const prepared = try a.prepare(turn);
     _ = try f.submit(&b, 0, .{ .revoke = 1 });
     try t.expectError(error.Conflict, a.commit(prepared));
@@ -284,13 +284,13 @@ test "replacement ownership fences stale worker proposals while preserving the P
     defer f.store.deinit();
     var e = try Engine.bootstrap(&f.store, f.genesis);
     const pid = try f.setup(&e);
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(5) } });
-    const old = try f.request(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(5) } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(5) } });
+    const old = try f.request(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(5) } });
     _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 1 } });
     try t.expectError(error.StaleGeneration, e.submit(old));
     var new = old.request;
     new.command.turn.generation = 2;
-    _ = try e.submit(try transit.sign(new, f.worker));
+    _ = try e.submit(try core.sign(new, f.worker));
     var restored = try Engine.open(&f.store, f.genesis);
     try t.expectEqual(@as(i64, 5), try (try restored.state.process(pid)).state.asInteger());
     try t.expectEqual(@as(u64, 2), (try restored.state.process(pid)).generation);
@@ -311,12 +311,12 @@ test "authentication binds the complete request, realm, principal and current ke
     forged = valid;
     forged.request.realm = 99;
     try t.expectError(error.WrongProtocolRealm, e.submit(forged));
-    const forbidden = try f.request(&e, 1, .{ .send = .{ .pid = pid, .value = transit.Value.integer(1) } });
+    const forbidden = try f.request(&e, 1, .{ .send = .{ .pid = pid, .value = core.Value.integer(1) } });
     try t.expectError(error.Forbidden, e.submit(forbidden));
-    const key = try transit.Ed25519.KeyPair.generateDeterministic(@splat(9));
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = key.public_key.toBytes(), .permissions = transit.permission(.inspect) } });
+    const key = try core.Ed25519.KeyPair.generateDeterministic(@splat(9));
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
     try t.expectError(error.SignatureVerificationFailed, e.submit(valid));
-    _ = try e.submit(try transit.sign(valid.request, key));
+    _ = try e.submit(try core.sign(valid.request, key));
 }
 
 test "mailbox order rejects skipping and stale state revisions; backlog is not retained in State" {
@@ -324,16 +324,16 @@ test "mailbox order rejects skipping and stale state revisions; backlog is not r
     defer f.store.deinit();
     var e = try Engine.bootstrap(&f.store, f.genesis);
     const pid = try f.setup(&e);
-    const first = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(3) } });
-    const second = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(7) } });
-    try t.expectError(error.InvalidInput, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = second, .result = transit.Value.integer(7) } }));
-    var stale = (try f.request(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = transit.Value.integer(900) } })).request;
+    const first = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(3) } });
+    const second = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(7) } });
+    try t.expectError(error.InvalidInput, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = second, .result = core.Value.integer(7) } }));
+    var stale = (try f.request(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = core.Value.integer(900) } })).request;
     stale.command.turn.expected_revision = 99;
-    try t.expectError(error.StaleState, e.submit(try transit.sign(stale, f.worker)));
-    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = transit.Value.integer(3) } });
-    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = second, .result = transit.Value.integer(10) } });
+    try t.expectError(error.StaleState, e.submit(try core.sign(stale, f.worker)));
+    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = core.Value.integer(3) } });
+    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = second, .result = core.Value.integer(10) } });
     for (0..100) |_| {
-        _ = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(1) } });
+        _ = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(1) } });
     }
     var recovered = try Engine.open(&f.store, f.genesis);
     try t.expectEqual(@as(i64, 10), try (try recovered.state.process(pid)).state.asInteger());
@@ -351,7 +351,7 @@ test "retired PID cannot be reactivated and unsupported finite contracts fail be
     const pid = try f.setup(&e);
     _ = try f.submit(&e, 0, .{ .terminate = pid });
     try t.expectError(error.RetiredProcess, f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 1 } }));
-    try t.expectError(error.RetiredProcess, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(1) } }));
+    try t.expectError(error.RetiredProcess, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(1) } }));
     try t.expect((try f.submit(&e, 0, .{ .spawn = .{} })) != pid);
 }
 
@@ -360,10 +360,10 @@ test "reported failure preserves the pending input" {
     defer f.store.deinit();
     var e = try Engine.bootstrap(&f.store, f.genesis);
     const pid = try f.setup(&e);
-    const a = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(std.math.maxInt(i64)) } });
-    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = a, .result = transit.Value.integer(std.math.maxInt(i64)) } });
-    const b = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(1) } });
-    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = b, .result = transit.Value.integer(std.math.maxInt(i64)), .failed = true } });
+    const a = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(std.math.maxInt(i64)) } });
+    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = a, .result = core.Value.integer(std.math.maxInt(i64)) } });
+    const b = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(1) } });
+    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = b, .result = core.Value.integer(std.math.maxInt(i64)), .failed = true } });
     try t.expectEqual(@as(u64, 1), (try e.state.process(pid)).consumed);
     _ = try f.submit(&e, 0, .{ .terminate = pid });
     try t.expectEqual(@as(u64, 1), (try e.state.process(pid)).consumed);
@@ -381,14 +381,14 @@ test "checkpoint requires explicit retention opt-in and its content is verified"
     e = try Engine.bootstrap(&f.store, f.genesis);
     _ = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
     _ = try f.submit(&e, 0, .{ .checkpoint = {} });
-    var checkpoint = try transit.Checkpoint.create(t.allocator, f.genesis, &e.state);
+    var checkpoint = try core.Checkpoint.create(t.allocator, f.genesis, &e.state);
     try checkpoint.validate(t.allocator, f.genesis);
-    checkpoint.state.processes[0].?.state = transit.Value.integer(999);
+    checkpoint.state.processes[0].?.state = core.Value.integer(999);
     try t.expectError(error.InvalidCheckpoint, checkpoint.validate(t.allocator, f.genesis));
 }
 
 test "dispatch bounds observations and requires a finite caller reconciliation deadline" {
-    const EffectEngine = transit.Engine(Memory);
+    const EffectEngine = core.Engine(Memory);
     var f = try Fixture.init();
     defer f.store.deinit();
     f.genesis.max_clock_error_ms = 0;
@@ -397,39 +397,39 @@ test "dispatch bounds observations and requires a finite caller reconciliation d
     e.clock = clock.source();
     const pid = try f.submit(&e, 0, .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 110 } });
     _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .worker = 0, .expected_generation = 0 } });
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(9) } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } });
     const permit = try f.submit(&e, 0, .{ .begin_turn = .{ .pid = pid, .generation = 1, .input = input } });
-    const effect = try f.submit(&e, 0, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(9), .effect = transit.Value.integer(9), .permit = permit } });
+    const effect = try f.submit(&e, 0, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(9), .effect = core.Value.integer(9), .permit = permit } });
     for ([_]u16{ 0, 17, 65535 }) |budget| {
         try t.expectError(error.InvalidBudget, f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect, .max_observations = budget, .reconcile_before_ms = 120 } }));
     }
     try t.expectError(error.InvalidLifetime, f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } }));
     try t.expectEqual(.pending, (try e.state.effect(effect)).phase);
     _ = try f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect, .reconcile_before_ms = 120 } });
-    try t.expectEqual(@as(u16, transit.max_effect_observations), (try e.state.effect(effect)).max_observations);
+    try t.expectEqual(@as(u16, core.max_effect_observations), (try e.state.effect(effect)).max_observations);
 }
 
 test "only a committed intent permits one attempt and late evidence cannot revive its caller" {
-    const EffectEngine = transit.Engine(Memory);
+    const EffectEngine = core.Engine(Memory);
     var f = try Fixture.init();
     defer f.store.deinit();
     var e = try EffectEngine.bootstrap(&f.store, f.genesis);
     const pid = try f.setup(&e);
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute), .pid = pid } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute), .pid = pid } });
     try t.expectError(error.UnknownEffect, f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = 99 } }));
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(9) } });
-    try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(9), .effect = transit.Value.integer(9) } }));
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect), .pid = pid } });
-    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(9), .effect = transit.Value.integer(9) } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } });
+    try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(9), .effect = core.Value.integer(9) } }));
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.effect), .pid = pid } });
+    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(9), .effect = core.Value.integer(9) } });
     const attempt = try f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } });
     var recovered = try EffectEngine.open(&f.store, f.genesis);
     try t.expectEqual(.authorized, (try recovered.state.effect(effect)).phase);
     try t.expectError(error.AttemptAlreadyAuthorized, f.submit(&recovered, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } }));
-    try t.expectError(error.InvalidAttempt, f.submit(&recovered, 1, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = transit.Value.integer(1) } }));
+    try t.expectError(error.InvalidAttempt, f.submit(&recovered, 1, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = core.Value.integer(1) } }));
     _ = try f.submit(&recovered, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = null } });
     try t.expectEqual(.unknown, (try recovered.state.effect(effect)).phase);
     _ = try f.submit(&recovered, 0, .{ .terminate = pid });
-    _ = try f.submit(&recovered, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = transit.Value.integer(3) } });
+    _ = try f.submit(&recovered, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = core.Value.integer(3) } });
     try t.expectEqual(.terminated, (try recovered.state.process(pid)).lifecycle);
     try t.expectEqual(@as(u64, 1), (try recovered.state.process(pid)).admitted);
     try t.expectEqual(@as(i64, 9), try (try recovered.state.process(pid)).state.asInteger());
@@ -437,35 +437,35 @@ test "only a committed intent permits one attempt and late evidence cannot reviv
 }
 
 test "authenticated effect outcome becomes exactly one ordered mailbox input" {
-    const EffectEngine = transit.Engine(Memory);
+    const EffectEngine = core.Engine(Memory);
     var f = try Fixture.init();
     defer f.store.deinit();
     var e = try EffectEngine.bootstrap(&f.store, f.genesis);
     const pid = try f.setup(&e);
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect) } });
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(9) } });
-    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(9), .effect = transit.Value.integer(9) } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.effect) } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } });
+    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(9), .effect = core.Value.integer(9) } });
     const attempt = try f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } });
-    const outcome = try f.request(&e, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = transit.Value.integer(2) } });
+    const outcome = try f.request(&e, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = core.Value.integer(2) } });
     const position = try e.submit(outcome);
     try t.expectEqual(position, try e.submit(outcome));
     try t.expectEqual(@as(u64, 2), (try e.state.process(pid)).admitted);
     const message = (try e.nextInput(pid, e.state.position)).?;
     try t.expectEqual(position, message.position);
-    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = position, .result = transit.Value.integer(11) } });
+    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = position, .result = core.Value.integer(11) } });
     var replay = try EffectEngine.open(&f.store, f.genesis);
     try t.expectEqual(@as(i64, 11), try (try replay.state.process(pid)).state.asInteger());
 }
 
 test "revocation fences prepared dispatch; termination cancels only unattempted intents" {
-    const EffectEngine = transit.Engine(Memory);
+    const EffectEngine = core.Engine(Memory);
     var f = try Fixture.init();
     defer f.store.deinit();
     var e = try EffectEngine.bootstrap(&f.store, f.genesis);
     const pid = try f.setup(&e);
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect) } });
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(9) } });
-    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(9), .effect = transit.Value.integer(9) } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.effect) } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } });
+    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(9), .effect = core.Value.integer(9) } });
     const request = try f.request(&e, 1, .{ .dispatch = .{ .pid = pid, .effect = effect } });
     const prepared = try e.prepare(request);
     var competing = try EffectEngine.open(&f.store, f.genesis);
@@ -480,17 +480,17 @@ test "revocation fences prepared dispatch; termination cancels only unattempted 
 }
 
 test "result and unknown closure have one winner despite lost acknowledgements" {
-    const EffectEngine = transit.Engine(Memory);
+    const EffectEngine = core.Engine(Memory);
     for ([_]bool{ false, true }) |close_wins| {
         var f = try Fixture.init();
         defer f.store.deinit();
         var e = try EffectEngine.bootstrap(&f.store, f.genesis);
         const pid = try f.setup(&e);
-        _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect), .pid = pid } });
-        const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(9) } });
-        const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(9), .effect = transit.Value.integer(9) } });
+        _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.effect), .pid = pid } });
+        const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } });
+        const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(9), .effect = core.Value.integer(9) } });
         const attempt = try f.submit(&e, 1, .{ .dispatch = .{ .pid = pid, .effect = effect } });
-        const response = try f.request(&e, 1, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = transit.Value.integer(2) } });
+        const response = try f.request(&e, 1, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = core.Value.integer(2) } });
         const close = try f.request(&e, 0, .{ .close_effect = .{ .pid = pid, .effect = effect, .attempt = attempt } });
         var competing = try EffectEngine.open(&f.store, f.genesis);
         const winner = if (close_wins) close else response;
@@ -514,34 +514,34 @@ test "result and unknown closure have one winner despite lost acknowledgements" 
 }
 
 test "closure needs executor or controller authority and cannot overwrite a result" {
-    const EffectEngine = transit.Engine(Memory);
+    const EffectEngine = core.Engine(Memory);
     var f = try Fixture.init();
     defer f.store.deinit();
     var e = try EffectEngine.bootstrap(&f.store, f.genesis);
     const pid = try f.setup(&e);
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect), .pid = pid } });
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(9) } });
-    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(9), .effect = transit.Value.integer(9) } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.effect), .pid = pid } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } });
+    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(9), .effect = core.Value.integer(9) } });
     const attempt = try f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } });
-    const close: transit.Command = .{ .close_effect = .{ .pid = pid, .effect = effect, .attempt = attempt } };
+    const close: core.Command = .{ .close_effect = .{ .pid = pid, .effect = effect, .attempt = attempt } };
     try t.expectError(error.Forbidden, f.submit(&e, 1, close));
     try t.expectError(error.InvalidAttempt, f.submit(&e, 0, .{ .close_effect = .{ .pid = pid, .effect = effect, .attempt = attempt + 1 } }));
-    _ = try f.submit(&e, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = transit.Value.integer(2) } });
+    _ = try f.submit(&e, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = core.Value.integer(2) } });
     try t.expectError(error.ReconciliationClosed, f.submit(&e, 0, close));
     try t.expectEqual(@as(?i64, 2), if ((try e.state.effect(effect)).result) |v| try v.asInteger() else null);
 }
 
 test "revoking an executor fences its prepared closure but a controller can finish cleanup" {
-    const EffectEngine = transit.Engine(Memory);
+    const EffectEngine = core.Engine(Memory);
     var f = try Fixture.init();
     defer f.store.deinit();
     var e = try EffectEngine.bootstrap(&f.store, f.genesis);
     const pid = try f.setup(&e);
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect), .pid = pid } });
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(9) } });
-    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(9), .effect = transit.Value.integer(9) } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.effect), .pid = pid } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } });
+    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(9), .effect = core.Value.integer(9) } });
     const attempt = try f.submit(&e, 1, .{ .dispatch = .{ .pid = pid, .effect = effect } });
-    const command: transit.Command = .{ .close_effect = .{ .pid = pid, .effect = effect, .attempt = attempt } };
+    const command: core.Command = .{ .close_effect = .{ .pid = pid, .effect = effect, .attempt = attempt } };
     const request = try f.request(&e, 1, command);
     const prepared = try e.prepare(request);
     var controller = try EffectEngine.open(&f.store, f.genesis);
@@ -562,20 +562,20 @@ test "finite process settles only its recorded turn and expires permanently" {
     var e = try Engine.bootstrap(&f.store, f.genesis);
     e.clock = clock.source();
     const pid = try f.submit(&e, 0, .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 200 } });
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute), .pid = pid } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute), .pid = pid } });
     _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 0 } });
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(7) } });
-    try t.expectError(error.MissingTurnPermit, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(7) } }));
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(7) } });
+    try t.expectError(error.MissingTurnPermit, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(7) } }));
     const permit = try f.submit(&e, 1, .{ .begin_turn = .{ .pid = pid, .generation = 1, .input = input } });
     clock.now.unix_ms = 110;
-    try t.expectError(error.DeadlineExpired, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(9) } }));
+    try t.expectError(error.DeadlineExpired, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } }));
     try t.expectError(error.DeadlineExpired, f.submit(&e, 1, .{ .begin_turn = .{ .pid = pid, .generation = 1, .input = input } }));
     // Recovery transfers ownership, not the original work/settlement lifetime.
     var recovered = try Engine.open(&f.store, f.genesis);
     recovered.clock = clock.source();
     _ = try f.submit(&recovered, 0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 1 } });
-    try t.expectError(error.StaleGeneration, f.submit(&recovered, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(7), .permit = permit } }));
-    _ = try f.submit(&recovered, 1, .{ .turn = .{ .pid = pid, .generation = 2, .input = input, .result = transit.Value.integer(7), .permit = permit } });
+    try t.expectError(error.StaleGeneration, f.submit(&recovered, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(7), .permit = permit } }));
+    _ = try f.submit(&recovered, 1, .{ .turn = .{ .pid = pid, .generation = 2, .input = input, .result = core.Value.integer(7), .permit = permit } });
     try t.expectEqual(@as(i64, 7), try (try recovered.state.process(pid)).state.asInteger());
     try t.expectError(error.DeadlineExpired, f.submit(&recovered, 0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 2 } }));
     try t.expectError(error.DeadlineNotReached, f.submit(&recovered, 0, .{ .expire = pid }));
@@ -583,8 +583,8 @@ test "finite process settles only its recorded turn and expires permanently" {
     _ = try f.submit(&recovered, 0, (try recovered.state.nextMaintenance(clock.now)).?);
     var replay = try Engine.open(&f.store, f.genesis);
     try t.expectEqual(.expired, (try replay.state.process(pid)).lifecycle);
-    try t.expectEqual(@as(?transit.Command, null), try replay.state.nextMaintenance(clock.now));
-    try t.expectError(error.RetiredProcess, f.submit(&replay, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(1) } }));
+    try t.expectEqual(@as(?core.Command, null), try replay.state.nextMaintenance(clock.now));
+    try t.expectError(error.RetiredProcess, f.submit(&replay, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(1) } }));
 }
 
 test "uncertain time, missing clock, and rollback cannot authorize finite work" {
@@ -592,7 +592,7 @@ test "uncertain time, missing clock, and rollback cannot authorize finite work" 
     defer f.store.deinit();
     f.genesis.max_clock_error_ms = 5;
     var e = try Engine.bootstrap(&f.store, f.genesis);
-    const spawn: transit.Command = .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 200 } };
+    const spawn: core.Command = .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 200 } };
     try t.expectError(error.ClockUnavailable, f.submit(&e, 0, spawn));
     var clock: TestClock = .{ .now = .{ .unix_ms = 96, .error_ms = 5 } };
     e.clock = clock.source();
@@ -604,7 +604,7 @@ test "uncertain time, missing clock, and rollback cannot authorize finite work" 
     clock.now.unix_ms = 79;
     var recovered = try Engine.open(&f.store, f.genesis);
     recovered.clock = clock.source();
-    try t.expectError(error.ClockRollback, f.submit(&recovered, 0, .{ .send = .{ .pid = 1, .value = transit.Value.integer(1) } }));
+    try t.expectError(error.ClockRollback, f.submit(&recovered, 0, .{ .send = .{ .pid = 1, .value = core.Value.integer(1) } }));
     // Revocation and reads must remain available during clock failure.
     _ = try f.submit(&recovered, 0, .{ .inspect = 1 });
     clock.now.unix_ms = 90;
@@ -612,7 +612,7 @@ test "uncertain time, missing clock, and rollback cannot authorize finite work" 
 }
 
 test "reconciliation budgets survive restart and a missed timer cannot accept a late result" {
-    const EffectEngine = transit.Engine(Memory);
+    const EffectEngine = core.Engine(Memory);
     var f = try Fixture.init();
     defer f.store.deinit();
     f.genesis.max_clock_error_ms = 0;
@@ -620,13 +620,13 @@ test "reconciliation budgets survive restart and a missed timer cannot accept a 
     var e = try EffectEngine.bootstrap(&f.store, f.genesis);
     e.clock = clock.source();
     const pid = try f.setup(&e);
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect), .pid = pid } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.effect), .pid = pid } });
     for ([_]bool{ true, false }) |exhaust_budget| {
-        const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(9) } });
+        const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } });
         const result = (try (try e.state.process(pid)).state.asInteger()) + 9;
-        const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(result), .effect = transit.Value.integer(9) } });
+        const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(result), .effect = core.Value.integer(9) } });
         const attempt = try f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect, .reconcile_before_ms = 100, .max_observations = 2 } });
-        const observe: transit.Command = .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = null } };
+        const observe: core.Command = .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = null } };
         _ = try f.submit(&e, 0, observe);
         e = try EffectEngine.open(&f.store, f.genesis);
         e.clock = clock.source();
@@ -656,7 +656,7 @@ test "acceptance uses trusted validation time while durable closure fences delay
     // The authority validated this operation before the work cutoff. This is
     // deliberately not a guarantee of physical persistence before that cutoff.
     const pid = try e.commit(prepared);
-    try t.expectError(error.DeadlineExpired, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(1) } }));
+    try t.expectError(error.DeadlineExpired, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(1) } }));
     var recovered = try Engine.open(&f.store, f.genesis);
     recovered.clock = clock.source();
     clock.now.unix_ms = 200;
@@ -673,10 +673,10 @@ test "an unfinished permit cannot outlive settlement or skip expired input" {
     e.clock = clock.source();
     const pid = try f.submit(&e, 0, .{ .spawn = .{ .deadline_ms = 20, .settle_before_ms = 30 } });
     _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .worker = 0, .expected_generation = 0 } });
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(1) } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(1) } });
     const permit = try f.submit(&e, 0, .{ .begin_turn = .{ .pid = pid, .generation = 1, .input = input } });
     clock.now.unix_ms = 30;
-    try t.expectError(error.DeadlineExpired, f.submit(&e, 0, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .permit = permit, .result = transit.Value.integer(1) } }));
+    try t.expectError(error.DeadlineExpired, f.submit(&e, 0, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .permit = permit, .result = core.Value.integer(1) } }));
     _ = try f.submit(&e, 0, (try e.state.nextMaintenance(clock.now)).?);
     var recovered = try Engine.open(&f.store, f.genesis);
     const p = (try recovered.state.process(pid)).*;
@@ -687,10 +687,10 @@ test "an unfinished permit cannot outlive settlement or skip expired input" {
     try t.expect(p.turn_permit == null);
 }
 
-const Fanout = struct { state: i64, outputs: [transit.max_turn_outputs]?transit.Output = @splat(null) };
+const Fanout = struct { state: i64, outputs: [core.max_turn_outputs]?core.Output = @splat(null) };
 fn fanout(state: i64, input: i64) !Fanout {
     var decision: Fanout = .{ .state = try std.math.add(i64, state, input) };
-    if (input == 99) decision.outputs = .{ .{ .pid = 1, .value = transit.Value.integer(1) }, .{ .pid = 1, .value = transit.Value.integer(2) }, .{ .pid = 2, .value = transit.Value.integer(3) }, null };
+    if (input == 99) decision.outputs = .{ .{ .pid = 1, .value = core.Value.integer(1) }, .{ .pid = 1, .value = core.Value.integer(2) }, .{ .pid = 2, .value = core.Value.integer(3) }, null };
     return decision;
 }
 
@@ -699,17 +699,17 @@ test "provider observations cannot grant ownership; activation rotates keys atom
     defer f.store.deinit();
     var e = try Engine.bootstrap(&f.store, f.genesis);
     const pid = try f.setup(&e);
-    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.inspect), .pid = pid } });
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(7) } });
-    const stale = try f.request(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = transit.Value.integer(7) } });
-    var intent: transit.Runtime.Intent = .{ .pid = pid, .expected_revision = 0, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) };
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.inspect), .pid = pid } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(7) } });
+    const stale = try f.request(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(7) } });
+    var intent: core.Runtime.Intent = .{ .pid = pid, .expected_revision = 0, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) };
     const operation = try f.submit(&e, 0, .{ .runtime_intent = intent });
     try t.expectError(error.StaleGeneration, e.submit(stale));
     try t.expectError(error.RuntimeActivationRequired, f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 2, .worker = 1 } }));
-    const replacement = try transit.Ed25519.KeyPair.generateDeterministic(@splat(10));
-    var activation: transit.Runtime.Activate = .{ .pid = pid, .revision = 1, .expected_generation = 2, .worker = 1, .public_key = replacement.public_key.toBytes(), .worker_incarnation = @splat(4) };
+    const replacement = try core.Ed25519.KeyPair.generateDeterministic(@splat(10));
+    var activation: core.Runtime.Activate = .{ .pid = pid, .revision = 1, .expected_generation = 2, .worker = 1, .public_key = replacement.public_key.toBytes(), .worker_incarnation = @splat(4) };
     try t.expectError(error.ProviderNotReady, f.submit(&e, 0, .{ .activate = activation }));
-    const observation: transit.Runtime.Observation = .{ .pid = pid, .revision = 1, .operation = operation, .incarnation = @splat(5), .outcome = .ready };
+    const observation: core.Runtime.Observation = .{ .pid = pid, .revision = 1, .operation = operation, .incarnation = @splat(5), .outcome = .ready };
     _ = try f.submit(&e, 0, .{ .runtime_observe = observation });
     try t.expectEqual(@as(?u8, null), (try e.state.process(pid)).owner);
     // Replaying an already recorded provider outcome does not authorize a worker.
@@ -718,7 +718,7 @@ test "provider observations cannot grant ownership; activation rotates keys atom
     _ = try f.submit(&recovered, 0, .{ .activate = activation });
     try t.expectError(error.SignatureVerificationFailed, recovered.submit(stale));
     f.worker = replacement;
-    _ = try f.submit(&recovered, 1, .{ .turn = .{ .pid = pid, .generation = 3, .input = input, .result = transit.Value.integer(7) } });
+    _ = try f.submit(&recovered, 1, .{ .turn = .{ .pid = pid, .generation = 3, .input = input, .result = core.Value.integer(7) } });
     intent.expected_revision = 1;
     const second_op = try f.submit(&recovered, 0, .{ .runtime_intent = intent });
     try t.expectError(error.StaleBinding, f.submit(&recovered, 0, .{ .runtime_observe = observation }));
@@ -734,7 +734,7 @@ test "provider observations cannot grant ownership; activation rotates keys atom
     try t.expectError(error.StaleWorkerIncarnation, f.submit(&recovered, 0, .{ .activate = activation }));
     activation.worker_incarnation = @splat(7);
     try t.expectError(error.FreshKeyRequired, f.submit(&recovered, 0, .{ .activate = activation }));
-    activation.public_key = (try transit.Ed25519.KeyPair.generateDeterministic(@splat(11))).public_key.toBytes();
+    activation.public_key = (try core.Ed25519.KeyPair.generateDeterministic(@splat(11))).public_key.toBytes();
     const prepared = try recovered.prepare(try f.request(&recovered, 0, .{ .activate = activation }));
     var terminator = try Engine.open(&f.store, f.genesis);
     _ = try f.submit(&terminator, 0, .{ .terminate = pid });
@@ -749,13 +749,13 @@ test "provider observations cannot grant ownership; activation rotates keys atom
 fn seedOutbox(f: *Fixture, e: anytype) !void {
     for (0..3) |_| _ = try f.submit(e, 0, .{ .spawn = .{ .allow_trim = true } });
     _ = try f.submit(e, 0, .{ .own = .{ .pid = 3, .worker = 0, .expected_generation = 0 } });
-    const input = try f.submit(e, 0, .{ .send = .{ .pid = 3, .value = transit.Value.integer(99) } });
-    _ = try f.submit(e, 0, .{ .turn = .{ .pid = 3, .generation = 1, .input = input, .result = transit.Value.integer(99), .outputs = (try fanout(0, 99)).outputs } });
-    _ = try f.submit(e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.send) } });
+    const input = try f.submit(e, 0, .{ .send = .{ .pid = 3, .value = core.Value.integer(99) } });
+    _ = try f.submit(e, 0, .{ .turn = .{ .pid = 3, .generation = 1, .input = input, .result = core.Value.integer(99), .outputs = (try fanout(0, 99)).outputs } });
+    _ = try f.submit(e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.send) } });
 }
 
 test "outbox preserves each route's order, partial fanout, and uncertain admission receipts" {
-    const OutboxEngine = transit.Engine(Memory);
+    const OutboxEngine = core.Engine(Memory);
     var f = try Fixture.init();
     defer f.store.deinit();
     var e = try OutboxEngine.bootstrap(&f.store, f.genesis);
@@ -777,7 +777,7 @@ test "outbox preserves each route's order, partial fanout, and uncertain admissi
 }
 
 test "revocation fences delivery; denied records are not mailbox inputs" {
-    const OutboxEngine = transit.Engine(Memory);
+    const OutboxEngine = core.Engine(Memory);
     var f = try Fixture.init();
     defer f.store.deinit();
     var e = try OutboxEngine.bootstrap(&f.store, f.genesis);
@@ -790,7 +790,7 @@ test "revocation fences delivery; denied records are not mailbox inputs" {
     _ = try f.submit(&controller, 0, .{ .deliver = .{ .pid = 1, .output = 1, .courier = 1 } });
     try t.expectEqual(.denied, (try controller.state.output(1)).phase);
     try t.expectEqual(@as(u64, 0), (try controller.state.process(1)).admitted);
-    _ = try f.submit(&controller, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.send) } });
+    _ = try f.submit(&controller, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.send) } });
     const accepted = try f.submit(&controller, 0, .{ .deliver = .{ .pid = 1, .output = 2, .courier = 1 } });
     try t.expectEqual(accepted, (try controller.nextInput(1, controller.state.position)).?.position);
     try t.expectError(error.OutputAlreadyResolved, f.submit(&controller, 0, .{ .deliver = .{ .pid = 1, .output = 1, .courier = 1 } }));
@@ -807,13 +807,13 @@ test "replay rejects forged mailbox admission metadata" {
     defer f.store.deinit();
     var e = try Engine.bootstrap(&f.store, f.genesis);
     const pid = try f.setup(&e);
-    const at = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = transit.Value.integer(1) } });
-    f.store.entries.items[@intCast(at)].operation.admission.?.value = transit.Value.integer(999);
+    const at = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(1) } });
+    f.store.entries.items[@intCast(at)].operation.admission.?.value = core.Value.integer(999);
     try t.expectError(error.InvalidAdmission, Engine.open(&f.store, f.genesis));
 }
 
 test "expired delivery is terminal without waiting for expiry maintenance" {
-    const OutboxEngine = transit.Engine(Memory);
+    const OutboxEngine = core.Engine(Memory);
     var f = try Fixture.init();
     defer f.store.deinit();
     f.genesis.max_clock_error_ms = 0;
@@ -823,8 +823,8 @@ test "expired delivery is terminal without waiting for expiry maintenance" {
     _ = try f.submit(&e, 0, .{ .spawn = .{ .deadline_ms = 20, .settle_before_ms = 30 } });
     for (0..2) |_| _ = try f.submit(&e, 0, .{ .spawn = .{} });
     _ = try f.submit(&e, 0, .{ .own = .{ .pid = 3, .worker = 0, .expected_generation = 0 } });
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = 3, .value = transit.Value.integer(99) } });
-    _ = try f.submit(&e, 0, .{ .turn = .{ .pid = 3, .generation = 1, .input = input, .result = transit.Value.integer(99), .outputs = (try fanout(0, 99)).outputs } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = 3, .value = core.Value.integer(99) } });
+    _ = try f.submit(&e, 0, .{ .turn = .{ .pid = 3, .generation = 1, .input = input, .result = core.Value.integer(99), .outputs = (try fanout(0, 99)).outputs } });
     clock.now.unix_ms = 20;
     _ = try f.submit(&e, 0, .{ .deliver = .{ .pid = 1, .output = 1, .courier = 0 } });
     try t.expectEqual(.expired, (try e.state.output(1)).phase);
@@ -837,11 +837,11 @@ test "application bytes and code identity do not require application execution" 
     var f = try Fixture.init();
     defer f.store.deinit();
     var e = try Engine.bootstrap(&f.store, f.genesis);
-    const original = try transit.Value.init("arbitrary initial state");
-    const next = try transit.Value.init(&.{ 0, 255, 42 });
+    const original = try core.Value.init("arbitrary initial state");
+    const next = try core.Value.init(&.{ 0, 255, 42 });
     const pid = try f.submit(&e, 0, .{ .spawn = .{ .code = 99, .initial_state = original } });
     _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .worker = 0, .expected_generation = 0 } });
-    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = try transit.Value.init("application-defined command") } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = try core.Value.init("application-defined command") } });
     const at = try f.submit(&e, 0, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = next } });
     var replay = try Engine.open(&f.store, f.genesis);
     const process = try replay.state.process(pid);
@@ -860,7 +860,7 @@ test "v1 history and requests are never silently reinterpreted" {
     old.version = 1;
     try t.expectError(error.InvalidGenesis, Engine.bootstrap(&f.store, old));
     var e = try Engine.bootstrap(&f.store, f.genesis);
-    try t.expectError(error.WrongProtocolRealm, e.submit(try transit.sign(.{ .version = 1, .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } }, f.root)));
+    try t.expectError(error.WrongProtocolRealm, e.submit(try core.sign(.{ .version = 1, .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } }, f.root)));
 }
 
 test "checkpoint parser preserves opaque state and rejects ambiguous or incomplete objects" {
@@ -868,27 +868,27 @@ test "checkpoint parser preserves opaque state and rejects ambiguous or incomple
     defer f.store.deinit();
     f.genesis.retry_policy = .last_per_principal;
     var e = try Engine.bootstrap(&f.store, f.genesis);
-    const value = try transit.Value.init(&.{ 0, 255, 34, 10 });
+    const value = try core.Value.init(&.{ 0, 255, 34, 10 });
     const pid = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true, .initial_state = value } });
     _ = try f.submit(&e, 0, .{ .checkpoint = {} });
-    const checkpoint = try transit.Checkpoint.create(t.allocator, f.genesis, &e.state);
+    const checkpoint = try core.Checkpoint.create(t.allocator, f.genesis, &e.state);
     const bytes = try std.json.Stringify.valueAlloc(t.allocator, &checkpoint, .{});
     defer t.allocator.free(bytes);
-    var parsed = try std.json.parseFromSlice(*transit.Checkpoint, t.allocator, bytes, .{});
+    var parsed = try std.json.parseFromSlice(*core.Checkpoint, t.allocator, bytes, .{});
     var owned = parsed.value.*;
     parsed.deinit();
     try owned.validate(t.allocator, f.genesis);
     try t.expect(value.eql((try owned.state.process(pid)).state));
-    try t.expectError(error.DuplicateField, std.json.parseFromSlice(*transit.Checkpoint, t.allocator, "{\"version\":2,\"version\":2}", .{}));
-    try t.expectError(error.UnknownField, std.json.parseFromSlice(*transit.Checkpoint, t.allocator, "{\"unexpected\":0}", .{}));
-    try t.expectError(error.MissingField, std.json.parseFromSlice(*transit.Checkpoint, t.allocator, "{\"version\":2}", .{}));
-    try t.expectError(error.DuplicateField, std.json.parseFromSlice(*transit.State, t.allocator, "{\"realm\":42,\"realm\":42}", .{}));
-    try t.expectError(error.UnknownField, std.json.parseFromSlice(*transit.State, t.allocator, "{\"unexpected\":0}", .{}));
-    try t.expectError(error.MissingField, std.json.parseFromSlice(*transit.State, t.allocator, "{\"realm\":42}", .{}));
+    try t.expectError(error.DuplicateField, std.json.parseFromSlice(*core.Checkpoint, t.allocator, "{\"version\":2,\"version\":2}", .{}));
+    try t.expectError(error.UnknownField, std.json.parseFromSlice(*core.Checkpoint, t.allocator, "{\"unexpected\":0}", .{}));
+    try t.expectError(error.MissingField, std.json.parseFromSlice(*core.Checkpoint, t.allocator, "{\"version\":2}", .{}));
+    try t.expectError(error.DuplicateField, std.json.parseFromSlice(*core.State, t.allocator, "{\"realm\":42,\"realm\":42}", .{}));
+    try t.expectError(error.UnknownField, std.json.parseFromSlice(*core.State, t.allocator, "{\"unexpected\":0}", .{}));
+    try t.expectError(error.MissingField, std.json.parseFromSlice(*core.State, t.allocator, "{\"realm\":42}", .{}));
 }
 
 fn largestCheckpointFields(comptime T: type) T {
-    if (T == transit.Value) return transit.Value.init(&(@as([transit.Value.max_bytes]u8, @splat(255)))) catch unreachable;
+    if (T == core.Value) return core.Value.init(&(@as([core.Value.max_bytes]u8, @splat(255)))) catch unreachable;
     return switch (@typeInfo(T)) {
         .int => std.math.maxInt(T),
         .bool => false,
@@ -913,12 +913,12 @@ fn largestCheckpointFields(comptime T: type) T {
 test "all lifetime catalogs with maximum inline values fit the checkpoint bound" {
     // Deliberately wider than legal counters, with every optional field and slot
     // present. This protects reserved control capacity from schema growth.
-    const value = largestCheckpointFields(transit.Checkpoint);
+    const value = largestCheckpointFields(core.Checkpoint);
     const bytes = try std.json.Stringify.valueAlloc(t.allocator, &value, .{});
     defer t.allocator.free(bytes);
-    try t.expect(bytes.len + 1024 <= transit.max_checkpoint_bytes);
-    var parsed = try std.json.parseFromSlice(*transit.Checkpoint, t.allocator, bytes, .{});
+    try t.expect(bytes.len + 1024 <= core.max_checkpoint_bytes);
+    var parsed = try std.json.parseFromSlice(*core.Checkpoint, t.allocator, bytes, .{});
     defer parsed.deinit();
     try t.expectEqual(value.state.position, parsed.value.state.position);
-    try t.expect(value.state.effects[transit.max_effects - 1].?.payload.eql(parsed.value.state.effects[transit.max_effects - 1].?.payload));
+    try t.expect(value.state.effects[core.max_effects - 1].?.payload.eql(parsed.value.state.effects[core.max_effects - 1].?.payload));
 }

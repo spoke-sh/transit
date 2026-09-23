@@ -17,9 +17,12 @@ capabilities. Detailed contracts live in the linked design documents.
 | Agent Substrate | The recommended sandbox execution target on Kubernetes. It manages runtime infrastructure and lifecycle; Transit's durable history governs process execution. See [DEPLOYMENT.md](DEPLOYMENT.md). |
 
 Use **Transit** and **Station** in prose, with **kernel** and **framework** as
-their roles. Use lowercase `transit` and `station` for the planned Zig package
-and module names. Supporting package paths and executable names in the
-[decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition) are proposals.
+their roles. The kernel implementation library lives in `packages/zig/transit-core`
+and exports the `transit_core` Zig module. `transit-protocol` owns public wire
+contracts; `transit-client` is the application entry point. The planned Station
+library exports `station`. See the
+[decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition) for implemented
+and proposed packages.
 
 "Durable streams" or "streaming substrate" refers to message transport and
 persistence. **Agent Substrate** names the external execution project. Keep the

@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
     const tests = b.addTest(.{ .root_module = adapter.module("transit_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
     test_step.dependOn(&b.addRunArtifact(tests).step);
-    const transit = b.dependency("transit", .{ .target = target, .optimize = optimize });
+    const core = b.dependency("transit_core", .{ .target = target, .optimize = optimize });
     const protocol = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize });
     const exporter = b.addExecutable(.{ .name = "transit-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-protocol/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }} }) });
     b.step("contract", "Export public contract JSON Schema to stdout").dependOn(&b.addRunArtifact(exporter).step);
@@ -46,7 +46,7 @@ pub fn build(b: *std.Build) void {
             },
         }) });
         if (std.mem.eql(u8, name, "transit-worker")) app.root_module.addImport("counter", counter);
-        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit", transit.module("transit"));
+        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_core", core.module("transit_core"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_ursula", adapter.module("transit_ursula"));
         if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
         if (std.mem.eql(u8, name, "rey-cli")) cli_artifact = app;
@@ -71,7 +71,7 @@ pub fn build(b: *std.Build) void {
     services.addArtifactArg(executor);
     test_step.dependOn(&executor.step);
     b.step("test-service", "Prove signed ingress and worker recovery over HTTP").dependOn(&services.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = transit.module("transit") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = core.module("transit_core") })).step);
     const integration = b.addSystemCommand(&.{ "python3", "-B" });
     integration.addFileArg(b.path("tests/storage.py"));
     for ([_][]const u8{ "storage", "kernel", "effects", "lifetime", "outbox", "runtime", "deletion" }) |name| {
@@ -82,7 +82,7 @@ pub fn build(b: *std.Build) void {
                 .target = target,
                 .optimize = optimize,
                 .imports = &.{
-                    .{ .name = "transit", .module = transit.module("transit") },
+                    .{ .name = "transit_core", .module = core.module("transit_core") },
                     .{ .name = "transit_ursula", .module = adapter.module("transit_ursula") },
                 },
             }),
@@ -112,7 +112,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "transit", .module = transit.module("transit") },
+            .{ .name = "transit_core", .module = core.module("transit_core") },
             .{ .name = "transit_ursula", .module = adapter.module("transit_ursula") },
         },
     }) });

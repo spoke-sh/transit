@@ -1,11 +1,11 @@
 //! Transit store contract over Ursula JSON record coordinates.
 const std = @import("std");
-const transit = @import("transit");
+const core = @import("transit_core");
 const adapter = @import("root.zig");
 const Store = @This();
 
 journal: adapter.Journal,
-cache: [adapter.read_window]transit.Entry = undefined,
+cache: [adapter.read_window]core.Entry = undefined,
 cache_start: u64 = 0,
 cache_len: usize = 0,
 
@@ -13,15 +13,15 @@ pub fn tail(self: *Store) !u64 {
     return self.journal.tail();
 }
 
-pub fn append(self: *Store, expected: u64, entry: transit.Entry) !bool {
+pub fn append(self: *Store, expected: u64, entry: core.Entry) !bool {
     const allocator = self.journal.client.http.allocator;
     const bytes = try std.json.Stringify.valueAlloc(allocator, entry, .{});
     defer allocator.free(bytes);
-    if (bytes.len > transit.max_entry_bytes) return error.RecordTooLarge;
+    if (bytes.len > core.max_entry_bytes) return error.RecordTooLarge;
     return self.journal.append(expected, bytes);
 }
 
-pub fn read(self: *Store, at: u64) !?transit.Entry {
+pub fn read(self: *Store, at: u64) !?core.Entry {
     if (at >= self.cache_start and at - self.cache_start < self.cache_len) return self.cache[@intCast(at - self.cache_start)];
     var response = try self.journal.read(at);
     defer response.deinit();
@@ -36,7 +36,7 @@ pub fn read(self: *Store, at: u64) !?transit.Entry {
             break;
         }
         if (line.len > adapter.max_record_bytes or self.cache_len == adapter.read_window) return error.RecordTooLarge;
-        var parsed = try std.json.parseFromSlice(transit.Entry, self.journal.client.http.allocator, line, .{});
+        var parsed = try std.json.parseFromSlice(core.Entry, self.journal.client.http.allocator, line, .{});
         defer parsed.deinit();
         const position = at + self.cache_len;
         if (parsed.value == .genesis) {
@@ -52,7 +52,7 @@ pub fn read(self: *Store, at: u64) !?transit.Entry {
     return if (self.cache_len == 0) null else self.cache[0];
 }
 
-pub fn loadCheckpoint(self: *Store, genesis: transit.Genesis) !?transit.Checkpoint {
+pub fn loadCheckpoint(self: *Store, genesis: core.Genesis) !?core.Checkpoint {
     var latest = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream } });
     defer latest.deinit();
     if (latest.head.status == .not_found) return null;
@@ -63,7 +63,7 @@ pub fn loadCheckpoint(self: *Store, genesis: transit.Genesis) !?transit.Checkpoi
     var response = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream, .offset = offset } });
     defer response.deinit();
     try response.head.requireSuccess();
-    var parsed = try std.json.parseFromSlice(*transit.Checkpoint, self.journal.client.http.allocator, response.body, .{});
+    var parsed = try std.json.parseFromSlice(*core.Checkpoint, self.journal.client.http.allocator, response.body, .{});
     defer parsed.deinit();
     try parsed.value.validate(self.journal.client.http.allocator, genesis);
     return parsed.value.*;
@@ -71,7 +71,7 @@ pub fn loadCheckpoint(self: *Store, genesis: transit.Genesis) !?transit.Checkpoi
 
 /// Reconcile an already committed checkpoint intent. Publication is verified
 /// before logical retention moves; every step can be retried after a crash.
-pub fn publishCheckpoint(self: *Store, checkpoint: *const transit.Checkpoint) !void {
+pub fn publishCheckpoint(self: *Store, checkpoint: *const core.Checkpoint) !void {
     const allocator = self.journal.client.http.allocator;
     try checkpoint.validate(allocator, checkpoint.genesis);
     if (try self.loadCheckpoint(checkpoint.genesis)) |existing| {
@@ -79,7 +79,7 @@ pub fn publishCheckpoint(self: *Store, checkpoint: *const transit.Checkpoint) !v
     }
     const bytes = try std.json.Stringify.valueAlloc(allocator, checkpoint, .{});
     defer allocator.free(bytes);
-    if (bytes.len > transit.max_checkpoint_bytes) return error.CheckpointTooLarge;
+    if (bytes.len > core.max_checkpoint_bytes) return error.CheckpointTooLarge;
     var published = try self.journal.client.send(.{ .publish_snapshot = .{
         .stream = self.journal.stream,
         .at = .{ .record = checkpoint.state.position },
@@ -92,7 +92,7 @@ pub fn publishCheckpoint(self: *Store, checkpoint: *const transit.Checkpoint) !v
     if (verified.state.position < checkpoint.state.position or verified.state.history_floor < checkpoint.state.history_floor) return error.StaleCheckpoint;
 }
 
-pub fn maintain(self: *Store, checkpoint: *const transit.Checkpoint) !void {
+pub fn maintain(self: *Store, checkpoint: *const core.Checkpoint) !void {
     try checkpoint.validate(self.journal.client.http.allocator, checkpoint.genesis);
     const existing = try self.loadCheckpoint(checkpoint.genesis);
     // A checkpoint covering the committed floor plus its retained tail is a
@@ -131,7 +131,7 @@ fn payloadStream(self: *Store, id: u64, buffer: *[45]u8) adapter.ursula.Stream {
 /// Only the trusted publisher which freshly committed the declaration may
 /// call this once. Lost receipts/restart use verifyPayload, never repeat PUT.
 /// The immutable body and closed flag are installed in a single storage call.
-pub fn createPayloadOnce(self: *Store, value: transit.Payload, body: []const u8) !void {
+pub fn createPayloadOnce(self: *Store, value: core.Payload, body: []const u8) !void {
     if (value.phase != .creating) return error.PayloadPhase;
     try validatePayload(value, body);
     var name: [45]u8 = undefined;
@@ -144,8 +144,8 @@ pub fn createPayloadOnce(self: *Store, value: transit.Payload, body: []const u8)
     try self.verifyPayload(value);
 }
 
-fn validatePayload(value: transit.Payload, body: []const u8) !void {
-    if (value.bytes == 0 or value.bytes > transit.max_payload_bytes or body.len != value.bytes) return error.InvalidPayload;
+fn validatePayload(value: core.Payload, body: []const u8) !void {
+    if (value.bytes == 0 or value.bytes > core.max_payload_bytes or body.len != value.bytes) return error.InvalidPayload;
     var hash: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(body, &hash, .{});
     if (!std.mem.eql(u8, &value.sha256, &hash)) return error.PayloadIntegrity;
@@ -153,7 +153,7 @@ fn validatePayload(value: transit.Payload, body: []const u8) !void {
 
 /// Read-only recovery of an uncertain single creation attempt. A missing stream
 /// stays uncertain; it is never recreated, published as empty, or called deleted.
-pub fn verifyPayload(self: *Store, value: transit.Payload) !void {
+pub fn verifyPayload(self: *Store, value: core.Payload) !void {
     if (value.phase != .creating and value.phase != .ready) return error.PayloadUnavailable;
     var name: [45]u8 = undefined;
     const stream = self.payloadStream(value.id, &name);
@@ -161,7 +161,7 @@ pub fn verifyPayload(self: *Store, value: transit.Payload) !void {
     defer head.deinit();
     try head.head.requireSuccess();
     if (!((try head.head.metadata()).closed orelse false)) return error.PayloadNotClosed;
-    var body = try self.journal.client.send(.{ .read = .{ .stream = stream, .options = .{ .max_bytes = transit.max_payload_bytes + 1 } } });
+    var body = try self.journal.client.send(.{ .read = .{ .stream = stream, .options = .{ .max_bytes = core.max_payload_bytes + 1 } } });
     defer body.deinit();
     try body.head.requireSuccess();
     if (!((try body.head.metadata()).up_to_date orelse false)) return error.PayloadIntegrity;
@@ -171,7 +171,7 @@ pub fn verifyPayload(self: *Store, value: transit.Payload) !void {
 /// The caller must obtain this retirement intent from current authenticated
 /// history. Its tombstone remains in the separate authority journal/checkpoint.
 /// Missing is success only for this already-authorized deletion, not for reads.
-pub fn reclaimPayload(self: *Store, value: transit.Payload) !void {
+pub fn reclaimPayload(self: *Store, value: core.Payload) !void {
     if (value.phase != .retiring or !value.allow_delete or value.retired_at == null) return error.PayloadPhase;
     var name: [45]u8 = undefined;
     const stream = self.payloadStream(value.id, &name);

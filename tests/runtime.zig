@@ -1,21 +1,21 @@
 const std = @import("std");
-const transit = @import("transit");
+const core = @import("transit_core");
 const adapter = @import("transit_ursula");
 const t = std.testing;
 
-const Engine = transit.Engine(adapter.Store);
-fn submit(e: *Engine, key: transit.Ed25519.KeyPair, command: transit.Command) !u64 {
+const Engine = core.Engine(adapter.Store);
+fn submit(e: *Engine, key: core.Ed25519.KeyPair, command: core.Command) !u64 {
     var current = command;
     if (current == .turn) current.turn.expected_revision = (try e.state.process(current.turn.pid)).revision;
-    return e.submit(try transit.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = current }, key));
+    return e.submit(try core.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = current }, key));
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 3) return error.ExpectedUrlAndPhase;
-    const root = try transit.Ed25519.KeyPair.generateDeterministic(@splat(7));
-    const worker = try transit.Ed25519.KeyPair.generateDeterministic(@splat(8));
-    const fresh = try transit.Ed25519.KeyPair.generateDeterministic(@splat(9));
-    const genesis: transit.Genesis = .{ .realm = 48, .root_key = root.public_key.toBytes(), .retry_policy = .last_per_principal };
+    const root = try core.Ed25519.KeyPair.generateDeterministic(@splat(7));
+    const worker = try core.Ed25519.KeyPair.generateDeterministic(@splat(8));
+    const fresh = try core.Ed25519.KeyPair.generateDeterministic(@splat(9));
+    const genesis: core.Genesis = .{ .realm = 48, .root_key = root.public_key.toBytes(), .retry_policy = .last_per_principal };
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 2 * 1024 * 1024 });
     defer client.deinit();
     var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-proof", .name = "runtime" } } };
@@ -23,7 +23,7 @@ pub fn main(init: std.process.Init) !void {
         try store.journal.create();
         var e = try Engine.bootstrap(&store, genesis);
         _ = try submit(&e, root, .{ .spawn = .{ .allow_trim = true } });
-        _ = try submit(&e, root, .{ .grant = .{ .subject = 1, .public_key = worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.inspect), .pid = 1 } });
+        _ = try submit(&e, root, .{ .grant = .{ .subject = 1, .public_key = worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.inspect), .pid = 1 } });
         _ = try submit(&e, root, .{ .runtime_intent = .{ .pid = 1, .expected_revision = 0, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) } });
     } else if (std.mem.eql(u8, args[2], "recover")) {
         var e = try Engine.open(&store, genesis);
@@ -31,10 +31,10 @@ pub fn main(init: std.process.Init) !void {
         _ = try submit(&e, root, .{ .runtime_observe = .{ .pid = 1, .revision = 1, .operation = 3, .incarnation = @splat(4), .outcome = .ready } });
         _ = try submit(&e, root, .{ .activate = .{ .pid = 1, .revision = 1, .expected_generation = 1, .worker = 1, .public_key = fresh.public_key.toBytes(), .worker_incarnation = @splat(5) } });
         _ = try submit(&e, root, .{ .checkpoint = {} });
-        try store.publishCheckpoint(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
+        try store.publishCheckpoint(&(try core.Checkpoint.create(init.gpa, genesis, &e.state)));
     } else if (std.mem.eql(u8, args[2], "checkpoint")) {
         var e = try Engine.open(&store, genesis);
-        try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
+        try store.maintain(&(try core.Checkpoint.create(init.gpa, genesis, &e.state)));
         _ = try submit(&e, root, .{ .terminate = 1 });
         _ = try submit(&e, root, .{ .runtime_intent = .{ .pid = 1, .expected_revision = 1, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3), .desired = .stopped } });
     } else if (std.mem.eql(u8, args[2], "trim_recover")) {

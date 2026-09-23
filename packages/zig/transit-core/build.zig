@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const protocol = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize });
-    const module = b.addModule("transit", .{
+    const module = b.addModule("transit_core", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,

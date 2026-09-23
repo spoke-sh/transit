@@ -1,11 +1,11 @@
 const std = @import("std");
-const transit = @import("transit");
+const core = @import("transit_core");
 const adapter = @import("transit_ursula");
 const wire = @import("transit_client");
-const Engine = transit.Engine(adapter.Store);
+const Engine = core.Engine(adapter.Store);
 const Maintenance = @import("Maintenance.zig");
 const Config = struct {
-    genesis: transit.Genesis,
+    genesis: core.Genesis,
     ursula_url: []const u8,
     bucket: []const u8,
     journal: []const u8,
@@ -14,7 +14,7 @@ const Config = struct {
     request_timeout_ms: u32 = 2000,
     maintenance: ?Maintenance.Config = null,
 };
-fn processView(p: transit.Process) wire.protocol.ProcessView {
+fn processView(p: core.Process) wire.protocol.ProcessView {
     var view: wire.protocol.ProcessView = undefined;
     inline for (@typeInfo(wire.protocol.ProcessView).@"struct".field_names) |name| @field(view, name) = @field(p, name);
     return view;
@@ -47,7 +47,7 @@ const Server = struct {
         const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch
             return self.json(&request, .bad_request, .{ .err = "InvalidBody" });
         defer self.allocator.free(bytes);
-        var parsed = std.json.parseFromSlice(transit.SignedRequest, self.allocator, bytes, .{}) catch
+        var parsed = std.json.parseFromSlice(core.SignedRequest, self.allocator, bytes, .{}) catch
             return self.json(&request, .bad_request, .{ .err = "InvalidRequest" });
         defer parsed.deinit();
         self.execute(&request, parsed.value, is_view) catch |err| {
@@ -67,7 +67,7 @@ const Server = struct {
         };
     }
 
-    fn execute(self: *Server, request: *std.http.Server.Request, signed: transit.SignedRequest, is_view: bool) !void {
+    fn execute(self: *Server, request: *std.http.Server.Request, signed: core.SignedRequest, is_view: bool) !void {
         const e = self.engine;
         try e.refresh();
         e.state.authenticate(signed) catch return error.Unauthorized;
@@ -80,7 +80,7 @@ const Server = struct {
                 .position = e.state.position,
                 .principal_sequence = (try e.state.principal(signed.request.principal)).sequence,
                 .process = processView((try e.state.process(pid)).*),
-                .input = if (input) |r| .{ .position = r.position, .value = transit.messageOf(r).?.value } else null,
+                .input = if (input) |r| .{ .position = r.position, .value = core.messageOf(r).?.value } else null,
             };
             var index: usize = 0;
             for (e.state.effects) |slot| if (slot) |effect| {

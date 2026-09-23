@@ -2,9 +2,9 @@
 //! The operator must supply an honest synchronization service; this reads its
 //! reported error bound, not a proof of UTC accuracy on a compromised host.
 const builtin = @import("builtin");
-const transit = @import("transit");
+const core = @import("transit_core");
 const c = if (builtin.os.tag == .linux) @import("clock_c") else struct {};
-pub fn read(_: *anyopaque) !transit.Time.Sample {
+pub fn read(_: *anyopaque) !core.Time.Sample {
     if (builtin.os.tag != .linux) return error.ClockUnavailable;
     var buffer: [c.rey_timex_size]u8 align(c.rey_timex_align) = @splat(0);
     const status = c.adjtimex(@ptrCast(&buffer)); // modes=0: read only

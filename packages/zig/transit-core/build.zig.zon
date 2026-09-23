@@ -1,6 +1,6 @@
 .{
-    .name = .transit,
-    .fingerprint = 0x09eaea8350758da1,
+    .name = .transit_core,
+    .fingerprint = 0x0c9b707570778d2c,
     .version = "0.0.0",
     .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
     .dependencies = .{ .transit_protocol = .{ .path = "../transit-protocol" } },

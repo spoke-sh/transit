@@ -1,7 +1,7 @@
 //! Bounded, restartable maintenance in a separate trusted process. HTTP request
 //! load cannot starve this scan, and scans never create authority by themselves.
 const std = @import("std");
-const transit = @import("transit");
+const core = @import("transit_core");
 const wire = @import("transit_client");
 
 pub const Config = struct {
@@ -13,7 +13,7 @@ pub const Config = struct {
 };
 const Outcome = enum { idle, transition, checkpointed, trimmed };
 
-fn step(engine: anytype, config: Config, key: transit.Ed25519.KeyPair, allocator: std.mem.Allocator, maintained: *u64) !Outcome {
+fn step(engine: anytype, config: Config, key: core.Ed25519.KeyPair, allocator: std.mem.Allocator, maintained: *u64) !Outcome {
     try engine.refresh();
     var time_error: ?anyerror = null;
     if (engine.clock) |source| {
@@ -28,7 +28,7 @@ fn step(engine: anytype, config: Config, key: transit.Ed25519.KeyPair, allocator
             };
         };
         if (due) |command| {
-            _ = try engine.submit(try transit.sign(.{
+            _ = try engine.submit(try core.sign(.{
                 .realm = engine.state.realm,
                 .principal = config.principal,
                 .sequence = (try engine.state.principal(config.principal)).sequence + 1,
@@ -40,15 +40,15 @@ fn step(engine: anytype, config: Config, key: transit.Ed25519.KeyPair, allocator
     // Resource retirement is independent of clock health. Only immutable,
     // positively published standalone payloads can enter deletion in M1.
     for (engine.state.payloads) |slot| if (slot) |payload| {
-        const ref: transit.PayloadRef = .{ .pid = payload.pid, .payload = payload.id };
-        const command: transit.Command = if (payload.phase == .ready and payload.allow_delete and
+        const ref: core.PayloadRef = .{ .pid = payload.pid, .payload = payload.id };
+        const command: core.Command = if (payload.phase == .ready and payload.allow_delete and
             (try engine.state.process(payload.pid)).lifecycle != .running)
             .{ .retire_payload = ref }
         else if (payload.phase == .retiring)
             .{ .payload_deleted = ref }
         else
             continue;
-        const signed = try transit.sign(.{
+        const signed = try core.sign(.{
             .realm = engine.state.realm,
             .principal = config.principal,
             .sequence = (try engine.state.principal(config.principal)).sequence + 1,
@@ -63,17 +63,17 @@ fn step(engine: anytype, config: Config, key: transit.Ed25519.KeyPair, allocator
     };
     // A committed checkpoint intent survives every publication/trim crash.
     // Revalidate current rights before using the privileged storage adapter.
-    const checkpoint_request: transit.Request = .{
+    const checkpoint_request: core.Request = .{
         .realm = engine.state.realm,
         .principal = config.principal,
         .sequence = (try engine.state.principal(config.principal)).sequence + 1,
         .command = .{ .checkpoint = {} },
     };
-    const signed = try transit.sign(checkpoint_request, key);
+    const signed = try core.sign(checkpoint_request, key);
     try engine.state.authenticate(signed);
     try engine.state.authorize(checkpoint_request);
     if (engine.state.history_floor > maintained.*) {
-        const checkpoint = try transit.Checkpoint.create(allocator, engine.genesis, &engine.state);
+        const checkpoint = try core.Checkpoint.create(allocator, engine.genesis, &engine.state);
         try engine.store.maintain(&checkpoint);
         maintained.* = checkpoint.state.history_floor;
         return .trimmed;
@@ -95,9 +95,9 @@ fn timeout(io: std.Io, milliseconds: u32) anyerror!void {
     try io.sleep(.fromMilliseconds(milliseconds), .awake);
 }
 
-fn boundedStep(io: std.Io, engine: anytype, config: Config, key: transit.Ed25519.KeyPair, allocator: std.mem.Allocator, maintained: *u64) !Outcome {
+fn boundedStep(io: std.Io, engine: anytype, config: Config, key: core.Ed25519.KeyPair, allocator: std.mem.Allocator, maintained: *u64) !Outcome {
     const Task = struct {
-        fn run(e: @TypeOf(engine), c: Config, k: transit.Ed25519.KeyPair, a: std.mem.Allocator, m: *u64) anyerror!Outcome {
+        fn run(e: @TypeOf(engine), c: Config, k: core.Ed25519.KeyPair, a: std.mem.Allocator, m: *u64) anyerror!Outcome {
             return step(e, c, k, a, m);
         }
     };

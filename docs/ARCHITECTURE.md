@@ -115,6 +115,12 @@ is one Transit process per Substrate Actor, across many activations. The
 [deployment design](DEPLOYMENT.md) defines that boundary, provider reconciliation,
 and why AX is excluded.
 
+The `transit-core` package is the reusable authority implementation, hosted by
+`transit-node`. It owns protocol state, transition validation, conditional commits
+and recovery. Its only package dependency is `transit-protocol`; the executable
+supplies storage and clock implementations. Application callers use
+`transit-client` and do not import `transit-core`.
+
 ## Public client boundary
 
 The `transit-protocol` library owns public commands, signatures, response types,
@@ -184,7 +190,7 @@ process lifecycle. A library boundary does not imply a Transit process, pod, or
 independently deployed service. Runtime isolation still follows the protocol
 authority model.
 
-`transit-protocol`, Transit, `transit-ursula`, `transit-client`, and
+`transit-protocol`, `transit-core`, `transit-ursula`, `transit-client`, and
 `runtime-substrate` are implemented libraries. The node, counter worker, runtime controller and CLI compose them.
 Station and HTTP entries below remain proposals. Supporting interfaces are still
 experimental; a directory in this plan does not imply a deployed component.
@@ -194,7 +200,7 @@ experimental; a directory in this plan does not imply a deployed component.
 | Proposed package | Exported module | Responsibility and dependencies |
 | --- | --- | --- |
 | `packages/zig/transit-protocol/` | `transit_protocol` | Public wire types, signatures, opaque values, response views and shared fixtures; source for the generated language-neutral schema; independent of kernel/storage/runtime implementations |
-| `packages/zig/transit/` | `transit` | Depends on the public protocol; process/PID state, protocol/lifetime validation, principal/grant contracts, logical storage contracts, and credential/storage/runtime interfaces; independent of Station, Ursula, and deployment providers |
+| `packages/zig/transit-core/` | `transit_core` | Depends on the public protocol; process/PID state, protocol/lifetime validation, principal/grant contracts, logical storage contracts, and credential/storage/runtime interfaces; independent of Station, Ursula, and deployment providers |
 | `packages/zig/transit-ursula/` | `transit_ursula` | Ursula persistence/transport, checkpoint, trim, and deletion mapping; depends on Transit and external `ursula-zig` |
 | `packages/zig/transit-client/` | `transit_client` | Signed HTTP client and bounded process views; depends only on `transit-protocol`, with no kernel/storage/provider implementation access |
 | `packages/zig/station/` | `station` | GenServer, supervision, registries, request/reply, and application retention/state-view helpers; builds on `transit-client` and the public protocol |

@@ -92,7 +92,7 @@
 - Keep dependencies small and explicit. Add directories when they contain real
   work; the layout in the architecture document is a plan.
 - Follow the library/executable decomposition in `docs/ARCHITECTURE.md`.
-  Transit core must not depend on Station, Ursula, or a deployment provider;
+  The `transit-core` library must not depend on Station, Ursula, or a deployment provider;
   adapters and executable entry points compose those dependencies. Package
   boundaries alone do not enforce runtime capabilities or isolation.
   Logical stream identity, retained boundaries, and lifecycle semantics belong

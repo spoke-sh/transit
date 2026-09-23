@@ -95,7 +95,7 @@ client and binding resource.
 
 Rey will contain multiple Zig library and executable packages following the
 [architecture's decomposition](ARCHITECTURE.md#planned-monorepo-decomposition).
-`transit-protocol`, Transit, `transit-ursula`, `transit-client` and
+`transit-protocol`, `transit-core`, `transit-ursula`, `transit-client` and
 `runtime-substrate` implement this structure; Station and connectors remain
 planned. Run `just test-packages` for their standalone checks.
 

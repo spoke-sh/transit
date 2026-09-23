@@ -4,7 +4,7 @@
     .version = "0.0.0",
     .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
     .dependencies = .{
-        .transit = .{ .path = "../transit" },
+        .transit_core = .{ .path = "../transit-core" },
         .ursula_zig = .{
             .url = "git+https://github.com/rupurt/ursula-zig#2d507829429d4199f411df02df9cc937bf624144",
             .hash = "ursula_zig-0.0.0-rb5hFJsaAgDo2SoUt3p32weNLReXIqRxQjSonL1Ytq5q",

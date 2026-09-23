@@ -1,19 +1,19 @@
 const std = @import("std");
 const t = std.testing;
-const transit = @import("transit");
+const core = @import("transit_core");
 const adapter = @import("transit_ursula");
 
-const Engine = transit.Engine(adapter.Store);
-fn submit(e: *Engine, key: transit.Ed25519.KeyPair, command: transit.Command) !u64 {
+const Engine = core.Engine(adapter.Store);
+fn submit(e: *Engine, key: core.Ed25519.KeyPair, command: core.Command) !u64 {
     var current = command;
     if (current == .turn) current.turn.expected_revision = (try e.state.process(current.turn.pid)).revision;
-    return e.submit(try transit.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = current }, key));
+    return e.submit(try core.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = current }, key));
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 3) return error.ExpectedUrlAndPhase;
-    const root = try transit.Ed25519.KeyPair.generateDeterministic(@splat(21));
-    const genesis: transit.Genesis = .{ .realm = 54, .root_key = root.public_key.toBytes(), .retry_policy = .last_per_principal };
+    const root = try core.Ed25519.KeyPair.generateDeterministic(@splat(21));
+    const genesis: core.Genesis = .{ .realm = 54, .root_key = root.public_key.toBytes(), .retry_policy = .last_per_principal };
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 2 * 1024 * 1024 });
     defer client.deinit();
     var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-deletion", .name = "authority" } } };
@@ -21,8 +21,8 @@ pub fn main(init: std.process.Init) !void {
     const write = service or std.mem.eql(u8, args[2], "write");
     if (write) try store.journal.create();
     var e = if (write) try Engine.bootstrap(&store, genesis) else try Engine.open(&store, genesis);
-    const remove: transit.PayloadRef = .{ .pid = 1, .payload = 2 };
-    const retain: transit.PayloadRef = .{ .pid = 1, .payload = 3 };
+    const remove: core.PayloadRef = .{ .pid = 1, .payload = 2 };
+    const retain: core.PayloadRef = .{ .pid = 1, .payload = 3 };
     if (write) {
         const body = "immutable synthetic bytes; no application dependencies";
         var hash: [32]u8 = undefined;
@@ -50,7 +50,7 @@ pub fn main(init: std.process.Init) !void {
         try t.expectError(error.RetentionNotEnabled, submit(&e, root, .{ .retire_payload = retain }));
         _ = try submit(&e, root, .{ .retire_payload = remove });
         _ = try submit(&e, root, .{ .checkpoint = {} });
-        try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
+        try store.maintain(&(try core.Checkpoint.create(init.gpa, genesis, &e.state)));
         try store.reclaimPayload((try e.state.payload(remove)).*);
         // SIGKILL after DELETE/confirmed 404, before recording its outcome.
     } else if (std.mem.eql(u8, args[2], "checkpoint")) {
@@ -58,7 +58,7 @@ pub fn main(init: std.process.Init) !void {
         try store.reclaimPayload((try e.state.payload(remove)).*);
         _ = try submit(&e, root, .{ .payload_deleted = remove });
         _ = try submit(&e, root, .{ .checkpoint = {} });
-        try store.maintain(&(try transit.Checkpoint.create(init.gpa, genesis, &e.state)));
+        try store.maintain(&(try core.Checkpoint.create(init.gpa, genesis, &e.state)));
     } else if (std.mem.eql(u8, args[2], "trim_recover") or std.mem.eql(u8, args[2], "service_verify")) {
         try t.expectEqual(.deleted, (try e.state.payload(remove)).phase);
         try t.expect((try e.state.payload(remove)).retired_at != null);
