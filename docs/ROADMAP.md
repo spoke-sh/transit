@@ -1,7 +1,7 @@
 # Roadmap
 
 Status: Transit-first plan. Milestones are ordered by dependency, not calendar
-commitments. No kernel or deployment functionality is implemented yet.
+commitments. M1 implementation is in progress; checked items require evidence.
 
 ## M0 — Foundations
 
@@ -51,6 +51,10 @@ Track evidence using [CONFORMANCE.md](CONFORMANCE.md); documentation agreement
 does not mark these gates complete.
 
 ### Exit criteria
+
+Initial evidence: `just test-storage` proves JSON conditional append, bounded
+paging, and single-node disk-WAL recovery after SIGKILL. These storage checks
+do not yet satisfy the broader protocol and deployment gates below.
 
 - [ ] Introduce the Transit library, Ursula adapter, and minimum executable
   composition from the [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition),

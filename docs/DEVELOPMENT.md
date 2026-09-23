@@ -25,13 +25,17 @@ source of tool versions; direnv is optional and is not installed by this shell.
 | --- | --- |
 | `just` | Lists available recipes |
 | `just doctor` | Prints tool versions, including Ursula and Kubernetes tooling, without contacting a cluster |
-| `just check` | Checks Nix formatting, builds the toolchain smoke check, and checks diff whitespace |
-| `just fmt` | Formats the Nix files |
+| `just check` | Checks Nix/Zig formatting, the toolchain smoke check, Zig unit tests, and diff whitespace |
+| `just fmt` | Formats Nix and Zig files |
+| `just build` | Compiles implemented Zig executables |
+| `just test` | Runs Zig unit/protocol tests without a service |
+| `just test-storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
 
-There is no frontend manifest, Zig build, Transit/application test suite, cluster
-deployment, or CI workflow yet. Add commands when milestones supply actual code.
-The current `just check` is a foundation check, not an application test. Its Nix
+The root Zig build composes package tests and the storage proof. Integration
+orchestration requires Python 3 and uses temporary directories and loopback ports;
+it never uses an existing Ursula deployment. Cluster deployment, frontend, and
+CI remain implementation work. The Nix
 check runs Zig tests and builds a tiny TypeScript page through Vite+ from a clean
 cache, verifying that first-use setup works without downloading another runtime.
 It also checks the Ursula and Kubernetes tool CLIs. These checks verify binary
@@ -90,7 +94,9 @@ its `build.zig.zon`, pinned to an immutable revision URL and Zig package hash
 when M1 adds the backend build. The upstream client exports the `ursula` module;
 see its
 [build integration](https://github.com/rupurt/ursula-zig/blob/8cfd68b275022c2de8572bce3608157b95ba13d7/docs/usage.md).
-There is no client dependency pin or backend build in Rey yet.
+The adapter now pins that revision and its Zig package hash; `just build` and
+`just test-storage` compile and exercise the consuming backend. The Git URL avoids
+a tarball-root handling failure observed in this pinned compiler's build fetch.
 
 The reviewed client revision `8cfd68b275022c2de8572bce3608157b95ba13d7` declares
 Zig `0.17.0-dev.2251+1175a3e99` as its minimum version, matching Rey's pinned

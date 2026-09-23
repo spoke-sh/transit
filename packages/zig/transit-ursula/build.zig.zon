@@ -1,0 +1,13 @@
+.{
+    .name = .transit_ursula,
+    .fingerprint = 0x590ce12e541c23e5,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
+    .dependencies = .{
+        .ursula_zig = .{
+            .url = "git+https://github.com/rupurt/ursula-zig#8cfd68b275022c2de8572bce3608157b95ba13d7",
+            .hash = "ursula_zig-0.0.0-rb5hFAT4AQCpHcyMANX9krtSZ3y4C6r6jJbB0dsuvwY3",
+        },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

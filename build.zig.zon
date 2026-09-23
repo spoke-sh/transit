@@ -1,0 +1,10 @@
+.{
+    .name = .rey,
+    .fingerprint = 0x9967335649a437f1,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
+    .dependencies = .{
+        .transit_ursula = .{ .path = "packages/zig/transit-ursula" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "packages", "apps", "tests" },
+}

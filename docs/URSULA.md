@@ -3,8 +3,35 @@
 Status: Ursula 0.5.1 and its matching `ursulactl` CLI are pinned in the dev shell
 through [ursula-overlay](https://github.com/rupurt/ursula-overlay). `flake.lock`
 records the overlay revision. [ursula-zig](https://github.com/rupurt/ursula-zig)
-is the selected Zig client. Pinning and wiring the client and configuring a
-disk-backed service remain in M1.
+is the selected Zig client, pinned by revision and package hash in
+`packages/zig/transit-ursula/build.zig.zon`.
+
+## Implemented authority experiment
+
+`just test-storage` uses the pinned client against an isolated Ursula 0.5.1
+single-node disk WAL. JSON `Stream-Record-Match` compares the current record tail
+and appends one object atomically; a conflicting proposal returns `412`. The
+adapter rejects arrays, malformed objects, and oversized records. It reads at
+most 16 records per page and does not silently recreate missing history.
+
+The test discards an append receipt, rejects its retry at the original position,
+and verifies history after SIGKILL/restart. This proves the storage primitive on
+this topology, not Transit authorization, multi-node availability, or host/disk
+loss tolerance. Protocol operation identities must still resolve uncertain writes
+by reading the accepted record; a transport success alone is not that resolution.
+
+Use `ursula server --config FILE` without `--preset default`. The explicit default
+preset selects the in-memory runtime for a peerless node even when the config
+sets a disk WAL. The initial crash experiment reproduced data loss with that
+combination; removing the preset selects the Raft/disk path. See
+[the pinned startup implementation](https://github.com/tonbo-io/ursula/blob/v0.5.1/crates/ursula/src/server.rs).
+
+The initial Transit authority will use one realm journal for policy and process
+operations. Conditional append orders both without cross-stream transactions.
+Catch-up reads are bounded historical reads; a fresh `HEAD` supplies a required
+tail, and mutation acceptance always uses record-tail comparison. Current-policy
+read authorization will need its own conditional barrier before disclosure.
+Redirects currently fail closed; multi-node routing remains unproved.
 
 The transport notes below were researched against upstream v0.5.0 docs on
 2026-09-21; retention and security mappings also reference v0.5.1 source

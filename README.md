@@ -37,10 +37,10 @@ using [ursula-zig](https://github.com/rupurt/ursula-zig) from Zig. Kubernetes wi
 [Agent Substrate](https://github.com/agent-substrate/substrate) is the reference
 deployment architecture; the protocol must remain portable to other runtimes.
 
-**Status:** foundations and planning. The dev shell works; no kernel, framework,
-connectors, deployment manifests, or frontend application exist yet. The first
-executable milestone proves process sequencing and recovery after worker failure
-on Kubernetes, building toward the Substrate reference architecture.
+**Status:** M1 implementation has begun. The Zig workspace and pinned Ursula
+adapter include a conditional-append and disk-restart proof (`just test-storage`).
+Transit execution and the Kubernetes/Substrate recovery milestone remain in
+progress; Station, connectors, and frontend applications are not implemented.
 
 ## Development environment
 

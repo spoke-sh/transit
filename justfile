@@ -18,12 +18,27 @@ doctor:
     k9s version --short
     if [[ "$(uname -s)" == "Linux" ]]; then k3s --version; fi
 
-# Validate the foundation; application checks will be added with application code.
+# Validate tooling and the implemented Zig packages.
 check:
     nixfmt --check flake.nix nix/*.nix
     nix flake check
+    zig fmt --check build.zig packages/zig tests/*.zig
+    zig build test
     git diff --check
+
+# Compile the executable storage proof.
+build:
+    zig build
+
+# Run unit and protocol checks without a service.
+test:
+    zig build test
+
+# Run isolated persistent Ursula tests, including SIGKILL and restart.
+test-storage:
+    zig build test-storage
 
 # Format the Nix configuration.
 fmt:
     nixfmt flake.nix nix/*.nix
+    zig fmt build.zig packages/zig tests/*.zig

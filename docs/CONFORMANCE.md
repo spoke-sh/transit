@@ -2,7 +2,10 @@
 
 Status: adversarial review requirements, not passed checks. Documentation review
 establishes owners and testable contracts; it cannot prove runtime guarantees.
-Current `just check` validates development tooling only.
+`just check` validates tooling and implemented unit tests. `just test-storage`
+exercises the initial conditional-append and disk-restart experiment described
+in [URSULA.md](URSULA.md#implemented-authority-experiment). This is not complete
+M1 conformance evidence.
 
 ## Review assessment
 
