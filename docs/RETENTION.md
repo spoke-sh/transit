@@ -302,4 +302,4 @@ collection can run after process expiry without prolonging its execution rights.
 M1 proves the lifetime contract, deadline fencing, durable recovery basis, and
 basic trim/delete recovery. M2 makes those semantics explicit in suspension and
 supervision. Later milestones add connector dependency handling and broader
-compaction/retention operations; see [ROADMAP.md](ROADMAP.md).
+compaction/retention operations; see [roadmap](roadmap/README.md).

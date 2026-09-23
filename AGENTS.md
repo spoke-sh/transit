@@ -22,7 +22,7 @@ Follow the contracts for the area you change:
 | Kubernetes, provider bindings, recovery | [Deployment](docs/DEPLOYMENT.md), [runtime contract](contracts/RUNTIME_SUBSTRATE_V1.md) |
 
 Read [conformance](docs/CONFORMANCE.md) for adversarial obligations and tie work
-to a [roadmap milestone](docs/ROADMAP.md). Preserve the proved M1 gates before
+to a [roadmap milestone](docs/roadmap/README.md). Preserve the proved M1 gates before
 expanding framework or real-effect integrations.
 
 ## Implementation rules

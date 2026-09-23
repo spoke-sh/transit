@@ -174,4 +174,4 @@ without adding trading concepts to the kernel.
 
 Start with GenServer, a minimal supervisor, and scoped name registration. Broader
 behaviors, distributed supervision strategies, and upgrades should grow from
-demonstrated use cases and the conformance requirements in [ROADMAP.md](ROADMAP.md).
+demonstrated use cases and the conformance requirements in the [roadmap](roadmap/README.md).

@@ -297,7 +297,7 @@ remain unlimited. Dynamic capacity expansion is outside this experimental profil
 
 Synthetic effect I/O and Kubernetes/Substrate recovery/isolation now have their
 own executable proofs. Basic immutable payload deletion is described below;
-the [roadmap](../docs/ROADMAP.md) records the completed M1 evidence audit.
+the [M1 milestone](../docs/roadmap/M1.md#m1-completion-and-limits) records the completed evidence audit.
 Cross-realm delivery is outside this slice.
 The [experimental service](SERVICE_V2.md) hosts signed ingress and scoped views
 for application callers, including the reference counter. Conformance is limited to the documented

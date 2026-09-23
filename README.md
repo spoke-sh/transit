@@ -18,7 +18,7 @@ remain independent of those providers.
 turns, recovery, bounded effect reconciliation, and opt-in retention. Application
 code runs in callers; the node validates the protocol and stores opaque state.
 Station, the HTTP connector, and trading applications remain planned. See the
-[roadmap](docs/ROADMAP.md) and [proof coverage and limits](tests/README.md).
+[roadmap](docs/roadmap/README.md) and [proof coverage and limits](tests/README.md).
 
 ## Get started
 

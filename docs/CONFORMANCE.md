@@ -2,7 +2,7 @@
 
 Status: adversarial requirements with executable evidence for the bounded M1
 profile. [tests/README.md](../tests/README.md) maps commands to recorded results,
-failure schedules, and limits. The [roadmap](ROADMAP.md) owns milestone gates.
+failure schedules, and limits. The [roadmap](roadmap/README.md) owns milestone gates.
 Results apply to their pinned topology, reviewed workload, and failure boundary;
 passing a subset does not establish every target guarantee.
 
@@ -56,4 +56,4 @@ ordered messages, cross-process transactions, exactly-once remote effects,
 arbitrary native-code determinism, timely scheduling before expiry, or instant
 physical erasure. Add such guarantees only with an explicit scope change and
 supporting proof. Milestone ordering and the remaining design gates live in
-[ROADMAP.md](ROADMAP.md).
+[roadmap](roadmap/README.md).

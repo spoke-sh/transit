@@ -2,7 +2,7 @@
 
 Status: kernel direction and deployment reference established. The bounded
 [M1 profile](../contracts/TRANSIT_V2.md) is implemented, with evidence in the
-[roadmap](ROADMAP.md). Broader framework, connector and application outcomes
+[roadmap](roadmap/README.md). Broader framework, connector and application outcomes
 below remain planned; they are not implied by the bounded M1 workloads.
 
 ## Purpose
@@ -73,13 +73,13 @@ first slice also proves opted-in expiry, safe checkpoint/trim boundaries, and
 refusal to revive a process whose mailbox recovery lifetime has ended.
 Authentication, grant/revocation enforcement, and recovery of the control catalog
 are part of that same slice. Its concrete authority, execution-isolation, time,
-and capacity mechanisms must pass the [M1 design gates](ROADMAP.md#design-gates-before-expanding-the-slice).
+and capacity mechanisms must pass the [M1 design gates](roadmap/M1.md#design-gates-before-expanding-the-slice).
 
 Then add GenServer behavior, supervision, and scoped name registration, and
 implement an HTTP connector using those primitives. A caller records a request; a fetch
 worker executes an authorized attempt; response data and timing are recorded;
 the caller resumes from a correlated mailbox message. Replay uses the transcript.
-These outcomes define the [roadmap](ROADMAP.md).
+These outcomes define the [roadmap](roadmap/README.md).
 
 ## Boundaries
 

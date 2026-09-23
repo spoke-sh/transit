@@ -210,4 +210,4 @@ M1 implements minimal explicit grants and revocation, authenticated services,
 and a fixed trusted workload image. Identity federation, arbitrary user-supplied
 native plugins, an identity-provider product, and broad policy languages are
 outside the first slice. The adversarial evidence belongs in
-[CONFORMANCE.md](CONFORMANCE.md), with implementation gates in [ROADMAP.md](ROADMAP.md).
+[CONFORMANCE.md](CONFORMANCE.md), with implementation gates in [M1](roadmap/M1.md#design-gates-before-expanding-the-slice).

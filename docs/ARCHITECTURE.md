@@ -2,7 +2,7 @@
 
 Status: experimental M1 kernel, client, storage adapter, and reference runtime
 implemented. Station, production connectors, frontends, and trading applications
-remain planned. Use the [roadmap](ROADMAP.md) for scope and the
+remain planned. Use the [roadmap](roadmap/README.md) for scope and the
 [test guide](../tests/README.md) for proved behavior and limits.
 
 ## Execution model

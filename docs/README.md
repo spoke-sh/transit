@@ -1,7 +1,7 @@
 # Project documentation
 
 Start with [scope](SCOPE.md), [architecture](ARCHITECTURE.md), and the
-[glossary](GLOSSARY.md). The [roadmap](ROADMAP.md) distinguishes completed M1 work
+[glossary](GLOSSARY.md). The [roadmap](roadmap/README.md) distinguishes completed M1 work
 from planned framework, connector, and application milestones. M1 is experimental;
 its bounded implementation does not imply support for every target requirement.
 
@@ -22,7 +22,7 @@ its bounded implementation does not imply support for every target requirement.
 | [Deployment](DEPLOYMENT.md) | Runtime bindings, recovery, isolation, and portability |
 | [Ursula](URSULA.md) | Storage-provider choice and authority boundary |
 | [Conformance](CONFORMANCE.md) | Adversarial obligations and limits on guarantees |
-| [Roadmap](ROADMAP.md) | Milestones and observable exit criteria |
+| [Roadmap](roadmap/README.md) | Milestones and observable exit criteria |
 
 For hands-on work, use [development](DEVELOPMENT.md) and the
 [component READMEs](ARCHITECTURE.md#planned-monorepo-decomposition).
@@ -32,7 +32,8 @@ For hands-on work, use [development](DEVELOPMENT.md) and the
 | Location | Content |
 | --- | --- |
 | Root [README](../README.md) | Orientation, status, and a short runnable start |
-| `docs/` | Scope, cross-component design, invariants, tradeoffs, and plans |
+| `docs/` | Scope, cross-component design, invariants, and tradeoffs |
+| [docs/roadmap/](roadmap/README.md) | Milestone index and individual scope, criteria, and status files |
 | Package/app READMEs | Implemented APIs, dependencies, configuration, operations, and local limits |
 | [contracts/](../contracts/) | Exact versioned wire/provider specifications and generated schema |
 | [examples/](../examples/README.md) | Complete calling programs and how to run them |
