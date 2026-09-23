@@ -115,6 +115,20 @@ is one Transit process per Substrate Actor, across many activations. The
 [deployment design](DEPLOYMENT.md) defines that boundary, provider reconciliation,
 and why AX is excluded.
 
+## Public client boundary
+
+The `transit-protocol` library owns public commands, signatures, response types,
+and provider-neutral binding evidence. Both Transit and `transit-client` depend
+on it; the client has no dependency on the kernel implementation. An explicit
+process view excludes internal journal scan positions. Public compatibility
+follows this contract, not the layout of the kernel's state catalog.
+
+The M1 correction in progress moves application computation entirely into Zig
+callers. The authority will validate protocol transitions and recover recorded
+state without importing an application reducer. The public contract and shared
+conformance fixtures will provide the source for future language bindings;
+additional client languages are outside this correction.
+
 ## Enforcement and replay
 
 Application handlers operate on explicit state and messages. They propose

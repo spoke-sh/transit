@@ -1,7 +1,7 @@
 //! One PID's reference reconciler. Backlog scans are authoritative; notifications
 //! and provider state cannot create execution rights. --once advances one step.
 const std = @import("std");
-const transit = @import("transit");
+const transit = wire.protocol;
 const wire = @import("transit_client");
 const substrate = @import("runtime_substrate");
 const Config = struct {

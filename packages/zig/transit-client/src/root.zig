@@ -1,17 +1,11 @@
 //! Bounded protocol HTTP client. No storage or provider credentials.
 const std = @import("std");
-pub const transit = @import("transit");
-pub const max_body = 64 * 1024;
-pub const Input = struct { position: u64, value: i64 };
-pub const View = struct {
-    position: u64,
-    principal_sequence: u64,
-    process: transit.Process,
-    input: ?Input,
-    effects: [transit.max_effects]?transit.Effect = @splat(null),
-    payloads: [transit.max_payloads]?transit.Payload = @splat(null),
-};
-pub const Receipt = struct { position: u64 };
+pub const protocol = @import("transit_protocol");
+const transit = protocol;
+pub const max_body = protocol.max_body;
+pub const Input = protocol.Input;
+pub const View = protocol.View;
+pub const Receipt = protocol.Receipt;
 
 pub const Client = struct {
     http: std.http.Client,

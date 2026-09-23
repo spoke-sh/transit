@@ -1,7 +1,7 @@
 //! Trusted synthetic executor, not an HTTP connector or a handler. One fresh
 //! dispatch authorizes at most one local send. Recovery never resends an attempt.
 const std = @import("std");
-const transit = @import("transit");
+const transit = wire.protocol;
 const wire = @import("transit_client");
 const Config = struct {
     authority: []const u8,

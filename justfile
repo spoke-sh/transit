@@ -70,6 +70,7 @@ reference-down:
 
 # Check each library using its own declared dependencies.
 test-packages:
+    cd packages/zig/transit-protocol && zig build test
     cd packages/zig/transit && zig build test
     cd packages/zig/transit-ursula && zig build test
     cd packages/zig/transit-client && zig build test

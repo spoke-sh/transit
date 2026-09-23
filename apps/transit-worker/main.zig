@@ -1,7 +1,7 @@
 //! Fixed M1 counter worker. Has a PID-scoped signing key and protocol access;
 //! never imports Ursula, dispatches effects, or acquires its own ownership.
 const std = @import("std");
-const transit = @import("transit");
+const transit = wire.protocol;
 const wire = @import("transit_client");
 const Config = struct { url: []const u8, realm: u64, principal: u8, pid: u64, generation: u64 = 0, seed_file: ?[]const u8 = null };
 

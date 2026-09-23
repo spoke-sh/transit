@@ -1,7 +1,7 @@
 //! Explicit one-shot operations. Uncertain mutation outcomes require retrying
 //! the exact saved request; the CLI never invents a new sequence automatically.
 const std = @import("std");
-const transit = @import("transit");
+const transit = wire.protocol;
 const wire = @import("transit_client");
 fn print(io: std.Io, value: anytype) !void {
     var buffer: [wire.max_body]u8 = undefined;

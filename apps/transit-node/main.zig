@@ -14,6 +14,11 @@ const Config = struct {
     request_timeout_ms: u32 = 2000,
     maintenance: ?Maintenance.Config = null,
 };
+fn processView(p: transit.Process) wire.protocol.ProcessView {
+    var view: wire.protocol.ProcessView = undefined;
+    inline for (@typeInfo(wire.protocol.ProcessView).@"struct".field_names) |name| @field(view, name) = @field(p, name);
+    return view;
+}
 const Server = struct {
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -74,7 +79,7 @@ const Server = struct {
             var view: wire.View = .{
                 .position = e.state.position,
                 .principal_sequence = (try e.state.principal(signed.request.principal)).sequence,
-                .process = (try e.state.process(pid)).*,
+                .process = processView((try e.state.process(pid)).*),
                 .input = if (input) |r| .{ .position = r.position, .value = transit.messageOf(r).?.value } else null,
             };
             var index: usize = 0;
