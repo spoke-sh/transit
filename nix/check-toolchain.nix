@@ -3,6 +3,7 @@
   stdenv,
   runCommand,
   just,
+  python3,
   zig,
   vite-plus,
   ursula,
@@ -17,6 +18,7 @@ runCommand "rey-toolchain-check"
   {
     nativeBuildInputs = [
       just
+      python3
       zig
       vite-plus
       ursula
@@ -34,6 +36,7 @@ runCommand "rey-toolchain-check"
     export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-cache"
     mkdir -p "$out" web
     just --version > "$out/just-version"
+    python3 --version > "$out/python-version"
     zig version > "$out/zig-version"
     node --version > "$out/node-version"
     pnpm --version > "$out/pnpm-version"

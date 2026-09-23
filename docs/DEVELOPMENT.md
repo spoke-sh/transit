@@ -25,18 +25,20 @@ source of tool versions; direnv is optional and is not installed by this shell.
 | --- | --- |
 | `just` | Lists available recipes |
 | `just doctor` | Prints tool versions, including Ursula and Kubernetes tooling, without contacting a cluster |
-| `just check` | Checks Nix/Zig formatting, the toolchain smoke check, Zig unit tests, and diff whitespace |
+| `just check` | Checks Nix/Zig formatting, the toolchain smoke check, Zig unit tests, local Markdown links, and diff whitespace |
 | `just fmt` | Formats Nix and Zig files |
 | `just build` | Compiles implemented Zig executables |
 | `just test` | Runs Zig unit/protocol tests without a service |
+| `just test-packages` | Checks both libraries independently of root build orchestration |
 | `just test-storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
 
 The root Zig build composes package tests and the storage proof. Integration
-orchestration requires Python 3 and uses temporary directories and loopback ports;
+orchestration uses the Nix-provided Python 3, temporary directories, and loopback ports;
 it never uses an existing Ursula deployment. Cluster deployment, frontend, and
-CI remain implementation work. The Nix
-check runs Zig tests and builds a tiny TypeScript page through Vite+ from a clean
+application code remain implementation work. GitHub Actions runs the same local
+checks and storage proof on Linux; a workflow definition is not evidence of a
+remote CI run. The Nix check runs Zig tests and builds a tiny TypeScript page through Vite+ from a clean
 cache, verifying that first-use setup works without downloading another runtime.
 It also checks the Ursula and Kubernetes tool CLIs. These checks verify binary
 execution; stream persistence, cluster operation, and distributed recovery need
@@ -46,7 +48,8 @@ their own integration tests.
 
 Rey will contain multiple Zig library and executable packages following the
 [architecture's decomposition](ARCHITECTURE.md#planned-monorepo-decomposition).
-This is a build plan; no package directories or manifests exist yet.
+Transit and `transit-ursula` implement this package structure; the remaining
+packages are a build plan. Run `just test-packages` for their standalone checks.
 
 - Give each implemented package a `build.zig` and `build.zig.zon` declaring its
   own direct dependencies. Reusable libraries expose documented modules and
@@ -83,8 +86,9 @@ nix develop --command ursula --help
 nix develop --command ursulactl --version
 ```
 
-Entering the shell does not start a server. M1 will add the disk-backed local
-configuration and lifecycle commands described in [URSULA.md](URSULA.md).
+Entering the shell does not start a server. `just test-storage` owns a temporary
+disk-backed service and exercises four startup/crash phases. Persistent developer
+service and cluster lifecycle commands remain separate M1 work.
 
 ### Zig client dependency
 

@@ -8,6 +8,7 @@ default:
 doctor:
     nix --version
     just --version
+    python3 --version
     zig version
     node --version
     pnpm --version
@@ -24,6 +25,7 @@ check:
     nix flake check
     zig fmt --check build.zig packages/zig tests/*.zig
     zig build test
+    python3 -B tests/docs.py
     git diff --check
 
 # Compile the executable storage proof.
@@ -37,6 +39,11 @@ test:
 # Run isolated persistent Ursula tests, including SIGKILL and restart.
 test-storage:
     zig build test-storage
+
+# Check each library using its own declared dependencies.
+test-packages:
+    cd packages/zig/transit && zig build test
+    cd packages/zig/transit-ursula && zig build test
 
 # Format the Nix configuration.
 fmt:

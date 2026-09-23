@@ -61,6 +61,7 @@
             pkgs.mkShell {
               packages = [
                 pkgs.just
+                pkgs.python3
                 zig
                 vite-plus
                 ursula

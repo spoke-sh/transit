@@ -1,7 +1,9 @@
 # Architecture
 
 Status: layering, stack, and reference deployment established. Component layout
-and protocols below are proposed; no runtime components are implemented yet.
+and protocols below describe the target design. Transit and the Ursula adapter
+have an [experimental implementation](../contracts/TRANSIT_V1.md); reference
+deployment, Station, and connector components remain planned.
 
 ## Execution model
 
@@ -224,4 +226,5 @@ own. Vite+ manages frontend packages separately; shared wire contracts connect
 the languages. See [development](DEVELOPMENT.md#planned-zig-package-workflow).
 
 Create packages, manifests, and source directories only when their implementation
-begins. The current repository remains documentation and development tooling.
+begins. Transit and `transit-ursula` now have package builds and root-orchestrated
+proof executables. Other entries in this layout remain planned.
