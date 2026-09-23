@@ -28,6 +28,9 @@ check:
     python3 -B tests/docs.py
     git diff --check
 
+# Run the hosted CI checks within one already-entered development environment.
+ci: check test-packages test-storage test-service
+
 # Compile services, clients, and executable proofs.
 build:
     zig build

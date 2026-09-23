@@ -26,6 +26,7 @@ source of tool versions; direnv is optional and is not installed by this shell.
 | `just` | Lists available recipes |
 | `just doctor` | Prints tool versions, including Ursula and Kubernetes tooling, without contacting a cluster |
 | `just check` | Checks Nix/Zig formatting, the toolchain smoke check, Zig unit tests, local Markdown links, and diff whitespace |
+| `just ci` | Runs foundation, standalone package, disk recovery, and service checks in the same development shell |
 | `just fmt` | Formats Nix and Zig files |
 | `just build` | Compiles implemented Zig executables |
 | `just test` | Runs Zig unit/protocol tests without a service |
@@ -46,6 +47,27 @@ cache, verifying that first-use setup works without downloading another runtime.
 It also checks the Ursula and Kubernetes tool CLIs. These checks verify binary
 execution; stream persistence, cluster operation, and distributed recovery need
 their own integration tests.
+
+The hosted workflow caches the Nix store using the approach described in
+[Speeding up CI with Nix](https://simonshine.dk/articles/speeding-up-ci-with-nix/).
+The [baseline run](https://github.com/rupurt/rey/actions/runs/35809573509) spent
+16m32s in its first shell/check step: roughly 14 minutes building Ursula and
+`ursulactl` from Rust source. Installing Nix took only four seconds. We keep that
+installer and cache the pinned overlay outputs rather than changing tools.
+
+The cache key includes runner OS/architecture, `flake.lock`, Nix expressions,
+and Vite+'s npm sources/lockfile. Source-only changes reuse the same toolchain
+cache; toolchain changes can restore an older cache as a starting point. An
+explicit temporary Nix profile protects the shell during garbage collection,
+and successful preparation is saved even if a later protocol test fails. The
+6 GiB GC target accommodates the locally measured ~5 GiB build closure; it is
+not a hard size bound. No cache-purge permission or external cache secret is
+needed. The self-hosted reference workflow keeps using its existing local store.
+
+All checks still run via `just ci`. The first cache miss still builds the pinned
+toolchain; a warm GitHub run is needed to measure the actual improvement, including
+cache transfer overhead. Compare the separate restore, preparation, checks, and
+save step timings. Local cached timings are not a hosted-run benchmark.
 
 ## Planned Zig package workflow
 

@@ -13,7 +13,30 @@ jobs:
         with:
           persist-credentials: false
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
-      - run: nix develop --command just check
-      - run: nix develop --command just test-packages
-      - run: nix develop --command just test-storage
-      - run: nix develop --command just test-service
+        with:
+          extra_nix_config: |
+            keep-env-derivations = true
+            keep-outputs = true
+      - name: Restore Nix store
+        id: nix-cache
+        uses: nix-community/cache-nix-action/restore@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          # Include the npm inputs used by our Vite+ Nix derivation too.
+          primary-key: nix-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', '**/*.nix', 'nix/vite-plus/**') }}
+          restore-prefixes-first-match: nix-v1-${{ runner.os }}-${{ runner.arch }}-
+      - name: Prepare development shell
+        id: shell
+        # Keep the shell closure rooted through cache GC; a temporary `-c true`
+        # alone would let GC discard the binaries we just spent time building.
+        run: nix develop --profile "$RUNNER_TEMP/rey-ci-shell" --command true
+      - name: Run foundation and protocol checks
+        run: nix develop --command just ci
+      - name: Save Nix store
+        # Preserve expensive successful toolchain builds even if a test fails.
+        if: ${{ !cancelled() && steps.shell.outcome == 'success' && steps.nix-cache.outputs.hit-primary-key != 'true' }}
+        uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          primary-key: ${{ steps.nix-cache.outputs.primary-key }}
+          # The current rooted build closure is ~5 GiB. This is a GC target,
+          # not a hard limit; live roots are retained. No cache purge permission.
+          gc-max-store-size-linux: 6G
