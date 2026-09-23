@@ -39,7 +39,18 @@ SHA-256 of `rey.transit.request.v1` followed by a NUL byte and the typed canonic
 JSON request. The pinned Zig encoder emits all declared fields in declaration
 order; JSON whitespace/object order on ingress is not signed directly. There
 are no floats or arbitrary maps. Cross-language implementations must match the
-golden fixture test before interoperability is claimed.
+golden fixtures before interoperability is claimed. Committed
+[request vectors](../packages/zig/transit/src/fixtures/requests-v1.json) contain
+canonical bytes, SHA-256 digests, Ed25519 signatures and a public test seed.
+Zig checks them in `just test`; Python independently checks JSON encoding and
+hashes, then compares CLI signatures, in `just test-service`. The maximum signed
+64-bit input vector makes lossless integer handling observable.
+The shared [sequence trace](../packages/zig/transit/src/fixtures/sequences-v1.json)
+covers scoped PIDs, duplicate admission/spawn, stale ownership, invalid input
+order/results, dispatch/closure, permanent retirement, and a blocked overflow
+input. Zig reopens the authority after every accepted or rejected step. Its
+reviewed fixture workload emits an effect for input 9; it is not the deployed
+counter workload or a migration of an existing realm.
 
 The deployment's root public key is principal zero. Only root can change grants.
 Other grants bind a public key, permission bits, and optional PID restriction.

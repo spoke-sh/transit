@@ -72,6 +72,91 @@ test "canonical cross-language request fixture and strict schema" {
     try t.expectError(error.UnknownField, std.json.parseFromSlice(transit.Request, t.allocator, "{\"realm\":42,\"principal\":0,\"sequence\":1,\"command\":{\"spawn\":{}},\"admin\":true}", .{}));
 }
 
+test "shared JSON request vectors preserve canonical bytes, digests and signatures" {
+    const Vectors = struct {
+        version: u32,
+        seed_hex: []const u8,
+        public_key: [32]u8,
+        cases: []const struct { canonical: []const u8, sha256: []const u8, signature: [64]u8 },
+    };
+    var vectors = try std.json.parseFromSlice(Vectors, t.allocator, @embedFile("fixtures/requests-v1.json"), .{});
+    defer vectors.deinit();
+    try t.expectEqual(@as(u32, 1), vectors.value.version);
+    var seed: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&seed, vectors.value.seed_hex);
+    const key = try transit.Ed25519.KeyPair.generateDeterministic(seed);
+    try t.expectEqualSlices(u8, &vectors.value.public_key, &key.public_key.toBytes());
+    for (vectors.value.cases) |vector| {
+        var parsed = try std.json.parseFromSlice(transit.Request, t.allocator, vector.canonical, .{});
+        defer parsed.deinit();
+        const canonical = try std.json.Stringify.valueAlloc(t.allocator, parsed.value, .{});
+        defer t.allocator.free(canonical);
+        try t.expectEqualStrings(vector.canonical, canonical);
+        var expected: [32]u8 = undefined;
+        _ = try std.fmt.hexToBytes(&expected, vector.sha256);
+        try t.expectEqualSlices(u8, &expected, &transit.digest(parsed.value));
+        try t.expectEqualSlices(u8, &vector.signature, &(try transit.sign(parsed.value, key)).signature);
+        try transit.Ed25519.Signature.fromBytes(vector.signature).verify(&expected, key.public_key);
+    }
+}
+
+test "shared valid and invalid sequence fixture survives recovery after every step" {
+    const Trace = struct {
+        version: u32,
+        realm: u64,
+        seed_hex: []const u8,
+        steps: []const struct {
+            realm: u64 = 42,
+            sequence: u64,
+            command: transit.Command,
+            receipt: ?u64 = null,
+            @"error": ?[]const u8 = null,
+        },
+    };
+    var trace = try std.json.parseFromSlice(Trace, t.allocator, @embedFile("fixtures/sequences-v1.json"), .{});
+    defer trace.deinit();
+    try t.expectEqual(@as(u32, 1), trace.value.version);
+    var seed: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&seed, trace.value.seed_hex);
+    const key = try transit.Ed25519.KeyPair.generateDeterministic(seed);
+    const genesis: transit.Genesis = .{ .realm = trace.value.realm, .root_key = key.public_key.toBytes() };
+    const Workload = struct {
+        fn reduce(state: i64, input: i64) !transit.Decision {
+            return .{ .state = try std.math.add(i64, state, input), .effect = if (input == 9) 9 else null };
+        }
+    };
+    const TraceEngine = transit.Engine(Memory, Workload.reduce);
+    var store: Memory = .{};
+    defer store.deinit();
+    var engine = try TraceEngine.bootstrap(&store, genesis);
+    for (trace.value.steps) |step| {
+        const before = store.entries.items.len;
+        const signed = try transit.sign(.{ .realm = step.realm, .principal = 0, .sequence = step.sequence, .command = step.command }, key);
+        if (engine.submit(signed)) |receipt| {
+            try t.expect(step.@"error" == null);
+            try t.expectEqual(step.receipt.?, receipt);
+        } else |err| {
+            try t.expect(step.receipt == null);
+            try t.expectEqualStrings(step.@"error" orelse return err, @errorName(err));
+            try t.expectEqual(before, store.entries.items.len);
+        }
+        const recovered = try TraceEngine.open(&store, genesis);
+        try t.expect(std.meta.eql(engine.state, recovered.state));
+        engine = recovered;
+    }
+    try t.expectEqual(@as(u64, 16), engine.state.position);
+    const first = try engine.state.process(1);
+    try t.expectEqual(.terminated, first.lifecycle);
+    try t.expectEqual(@as(i64, 9), first.state);
+    try t.expectEqual(@as(u64, 1), first.admitted);
+    try t.expectEqual(.closed_unknown, (try engine.state.effect(4)).phase);
+    const replacement = try engine.state.process(9);
+    try t.expectEqual(.terminated, replacement.lifecycle);
+    try t.expectEqual(@as(u64, 1), replacement.consumed);
+    try t.expectEqual(@as(u64, 1), replacement.cancelled);
+    try t.expectEqual(@as(u64, 12), replacement.failure.?.input);
+}
+
 test "checkpoint administration requires a current realm-wide grant" {
     var f = try Fixture.init();
     defer f.store.deinit();

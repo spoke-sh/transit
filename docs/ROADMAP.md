@@ -84,7 +84,7 @@ checkpoint/trim recovery. General connector semantics remain M3 work.
 - [ ] Introduce the Transit library, Ursula adapter, and minimum executable
   composition from the [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition),
   with direct package dependencies and focused/root build checks.
-- [ ] Define versioned records and valid/invalid sequence fixtures covering
+- [x] Define versioned records and valid/invalid sequence fixtures covering
   scoped PIDs, lifecycle, admission, activation ownership, turn commits, and
   effect authorization.
 - [ ] Authenticate ingress, workers, and controllers; enforce action/resource
