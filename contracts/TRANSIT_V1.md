@@ -221,7 +221,8 @@ deployment are still required; these tests do not certify host UTC accuracy.
 
 History remains unlimited by default. Trimming requires both an explicit finite
 retry policy in genesis and `allow_trim: true` on every process. Root commits a
-checkpoint intent only when every input has completed or has been explicitly
+checkpoint intent from a principal with a current realm-wide `admin` grant only
+when every input has completed or has been explicitly
 cancelled by process termination. Cancellation counts remain separate from
 consumption; termination never pretends that unread messages ran.
 

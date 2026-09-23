@@ -15,7 +15,7 @@ integer addition, without I/O, allocation, ambient time, or dynamic plugins.
 Overflow refuses the turn, leaving input pending and inspectable. A worker exits
 on permanent rejection rather than repeatedly executing a failing handler.
 
-`transit-node CONFIG.json [--bootstrap]` accepts:
+`transit-node CONFIG.json [--bootstrap|--initialize|--maintain]` accepts:
 
 | Field | Meaning |
 | --- | --- |
@@ -23,10 +23,29 @@ on permanent rejection rather than repeatedly executing a failing handler.
 | `ursula_url`, `bucket`, `journal` | Private authoritative storage endpoint/location |
 | `listen`, `port` | IPv4 address (default `127.0.0.1`) and port (default 8080) |
 | `request_timeout_ms` | Whole-request deadline, default 2000, maximum 60000 |
+| `maintenance` | Optional settings for the separate `--maintain` process below |
 
-Only explicit `--bootstrap` creates storage. Ordinary startup requires validated
+Only explicit `--bootstrap` or `--initialize` creates storage; the latter exits
+after validating initialization. Ordinary startup requires validated
 existing history/checkpoint; an outage is not an empty installation. The node
 needs no root signing seed. Bootstrap configuration is an operator trust input.
+
+`--maintain` runs a separate trusted process without an HTTP listener. Its config
+requires `principal` and `seed_file`, with realm-wide `admin` and `effect` grants.
+It scans at most 64 PIDs and 128 effects, commits at most one due expiry/closure
+per iteration, and reconciles recorded checkpoint intents. Default interval is
+1000 ms and whole-operation timeout is 5000 ms; both are configurable up to
+60000 ms. Incoming HTTP load cannot occupy this process's execution loop.
+Lost acknowledgements are reconciled from history before the next operation.
+
+History remains unlimited by default. Optional `checkpoint_every_records` (at
+least 2) asks maintenance to checkpoint quiescent opted-in processes after that
+many records since the retained floor. Realm retry policy must permit removal,
+and every PID must have `allow_trim`; pending input still blocks trimming.
+Publication is read back before retention advances. Clock failure blocks timed
+expiry/closure but permits authorized checkpoint recovery. Maintenance credentials
+and raw storage access stay outside worker sandboxes. Physical full-store
+reservation remains a separate open M1 gate.
 
 `transit-worker CONFIG.json` requires `url`, `realm`, `principal`, `pid`,
 `generation`, and `seed_file`. Its grant needs `execute` and `inspect` scoped to

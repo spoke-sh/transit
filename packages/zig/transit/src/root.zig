@@ -536,7 +536,6 @@ pub const State = struct {
                 _ = try self.process(pid);
             },
             .checkpoint => {
-                if (req.principal != 0) return error.Forbidden;
                 if (self.retry_policy != .last_per_principal) return error.HistoryPinned;
                 for (self.processes) |slot| if (slot) |p| {
                     if (!p.allow_trim) return error.RetentionNotEnabled;

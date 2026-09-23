@@ -72,6 +72,20 @@ test "canonical cross-language request fixture and strict schema" {
     try t.expectError(error.UnknownField, std.json.parseFromSlice(transit.Request, t.allocator, "{\"realm\":42,\"principal\":0,\"sequence\":1,\"command\":{\"spawn\":{}},\"admin\":true}", .{}));
 }
 
+test "checkpoint administration requires a current realm-wide grant" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.retry_policy = .last_per_principal;
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.admin), .pid = pid } });
+    try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .checkpoint = {} }));
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.admin) } });
+    _ = try f.submit(&e, 1, .{ .checkpoint = {} });
+    _ = try f.submit(&e, 0, .{ .revoke = 1 });
+    try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .checkpoint = {} }));
+}
+
 test "lost spawn acknowledgement resolves to the same PID and conflicting retry is rejected" {
     var f = try Fixture.init();
     defer f.store.deinit();

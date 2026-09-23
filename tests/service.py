@@ -190,4 +190,7 @@ def run(node, worker, cli):
 
 
 if __name__ == "__main__":
-    run(*(Path(path).resolve(strict=True) for path in sys.argv[1:]))
+    binaries = [Path(path).resolve(strict=True) for path in sys.argv[1:]]
+    run(*binaries)
+    from maintenance import run as maintenance
+    maintenance(binaries[0], binaries[2])

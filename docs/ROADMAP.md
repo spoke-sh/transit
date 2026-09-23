@@ -60,8 +60,8 @@ Scalar effect intents and authenticated observations also survive checkpoint,
 trim, and restart without authorizing a second attempt or reviving a retired PID.
 Explicit closure fences late results, including after checkpoint/trim recovery.
 Controlled-clock proofs cover finite settlement, observation budgets, deadline
-rejection, and selection of due maintenance. A production clock source and
-maintenance service remain open;
+rejection, and selection of due maintenance. A Linux clock adapter and separate
+maintenance service now have an actual-clock, background expiry/checkpoint proof;
 the full retention, effect, and deployment gates below remain open.
 Same-realm outbox tests also cover source order per destination, partial fan-out,
 denied/expired delivery, lost receipts, and recovery after the source turn is
@@ -74,7 +74,8 @@ deployment assumptions and limits are in the [service profile](../contracts/SERV
 Runtime-binding proofs now separate provider observations from execution rights,
 rotate activation keys atomically with ownership, reject stale incarnations,
 and recover pending provider operations/control evidence across disk restart
-and trim. The real Substrate adapter and cluster proof are still being built.
+and trim. The real Substrate adapter and reference recovery harness are implemented;
+the broader isolation and capacity gates still require their own evidence.
 
 - [ ] Introduce the Transit library, Ursula adapter, and minimum executable
   composition from the [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition),

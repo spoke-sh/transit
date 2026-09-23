@@ -41,8 +41,12 @@ missing/uncertain time, rollback, delayed maintenance, permit recovery, deadline
 closure, and observation-budget exhaustion. A disk-backed fixture settles a
 preauthorized turn after its work cutoff, then expires its PID and trims history;
 restart preserves both retirement and the time high-water mark. Time is controlled
-in this fixture. The deployment's synchronized clock and maintenance service are
-still open parts of the time gate.
+in this fixture. `just test-service` additionally exercises Linux's synchronized
+clock and a separate maintenance process: opted-in expiry, explicit cancellation
+of unfinished input, checkpoint/trim while ingress remains live, and permanent
+retirement after authority/storage restart. It requires the host clock to report
+an error bound below one second; other platforms exercise explicit retirement
+and cleanup without claiming a supported finite-time source.
 The [deadline investigation](RETENTION.md#m1-deadline-enforcement-investigation)
 defines the remaining acceptance-time and closure proof obligations. A physical
 storage-write cutoff at the earlier work deadline is no longer the target.

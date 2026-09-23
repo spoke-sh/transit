@@ -3,6 +3,7 @@ const transit = @import("transit");
 const adapter = @import("transit_ursula");
 const wire = @import("transit_client");
 const Engine = transit.Engine(adapter.Store, @import("counter").reduce);
+const Maintenance = @import("Maintenance.zig");
 const Config = struct {
     genesis: transit.Genesis,
     ursula_url: []const u8,
@@ -11,6 +12,7 @@ const Config = struct {
     listen: []const u8 = "127.0.0.1",
     port: u16 = 8080,
     request_timeout_ms: u32 = 2000,
+    maintenance: ?Maintenance.Config = null,
 };
 const Server = struct {
     io: std.Io,
@@ -93,7 +95,9 @@ fn timeout(io: std.Io, milliseconds: u32) anyerror!void {
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const initialize = args.len == 3 and std.mem.eql(u8, args[2], "--initialize");
-    if (args.len < 2 or args.len > 3 or (args.len == 3 and !initialize and !std.mem.eql(u8, args[2], "--bootstrap"))) return error.ExpectedConfigAndOptionalBootstrap;
+    const maintain = args.len == 3 and std.mem.eql(u8, args[2], "--maintain");
+    const bootstrap = args.len == 3 and std.mem.eql(u8, args[2], "--bootstrap");
+    if (args.len < 2 or args.len > 3 or (args.len == 3 and !initialize and !maintain and !bootstrap)) return error.ExpectedConfigAndMode;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(wire.max_body));
     defer init.gpa.free(bytes);
     var parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
@@ -103,11 +107,12 @@ pub fn main(init: std.process.Init) !void {
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = config.ursula_url, .max_response_bytes = 2 * 1024 * 1024 });
     defer client.deinit();
     var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = config.bucket, .name = config.journal } } };
-    if (args.len == 3) try store.journal.create();
-    var engine = if (args.len == 3) try Engine.bootstrap(&store, config.genesis) else try Engine.open(&store, config.genesis);
+    if (initialize or bootstrap) try store.journal.create();
+    var engine = if (initialize or bootstrap) try Engine.bootstrap(&store, config.genesis) else try Engine.open(&store, config.genesis);
     if (initialize) return;
     var clock_context: u8 = 0;
     if (config.genesis.max_clock_error_ms != null) engine.clock = .{ .context = &clock_context, .read = @import("Clock.zig").read };
+    if (maintain) return Maintenance.run(init, &engine, config.maintenance orelse return error.MissingMaintenanceConfig);
     const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);
     var listener = try address.listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);

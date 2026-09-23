@@ -8,7 +8,10 @@ mailboxes, verified publication, and checkpoint-plus-tail recovery. Finite
 time policies, turn settlement permits, reconciliation observation budgets, and
 due-maintenance selection are implemented with a trusted clock interface. The
 disk proof uses controlled time; the Linux service clock reads the synchronized
-kernel's reported error bound. A periodic maintenance service remains unimplemented.
+kernel's reported error bound. A separate
+[`transit-node --maintain` process](../contracts/SERVICE_V1.md) now commits due
+expiry/closure and reconciles opted-in checkpoint/trim operations. Physical
+capacity reservation and general resource deletion remain open M1 gates.
 
 ## Application contract
 
