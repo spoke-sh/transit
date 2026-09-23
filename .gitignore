@@ -1,0 +1,19 @@
+.zig-cache/
+zig-out/
+*.o
+
+# Frontend dependencies, generated output, and tool state.
+node_modules/
+dist/
+coverage/
+.cache/
+.direnv/
+/result
+/result-*
+
+# Local configuration and runtime data.
+.env
+.env.*
+!.env.example
+/data/
+*.log

@@ -1,0 +1,97 @@
+# Rey
+
+An agentic streaming kernel: a foundational execution protocol enforced by
+durable message sequences.
+
+[Transit](docs/TRANSIT.md) is the kernel. Its execution primitive is a process,
+identified by a durable PID and owning an ordered, logically unbounded mailbox
+over durable streams. Transit governs legal transitions, ownership, progress,
+and effects; the recorded sequence is the authority for execution and recovery.
+[Station](docs/STATION.md) is the OTP-inspired framework above Transit, providing
+GenServer behaviors, supervision, and name registries. Connectors will execute
+effects such as HTTP requests and record their responses.
+
+A PID survives worker recovery and migration. Registered names resolve to PIDs;
+runtime bindings map those PIDs to deployment resources. Logical termination
+or process expiry retires the PID, while eligible recovery preserves it.
+
+Retention defaults to unlimited. Applications can opt into finite process,
+mailbox, and history lifetimes or workload-scoped streams. Suspension and
+activation respect that contract; expired processes cannot resume. See
+[retention and resource lifetimes](docs/RETENTION.md).
+
+Authentication establishes caller identity at trusted ingress; Transit enforces
+permissions alongside execution ownership. Station and infrastructure providers
+compose that boundary. See the [security model](docs/SECURITY.md) and
+[adversarial conformance requirements](docs/CONFORMANCE.md).
+
+The kernel is generic. LLM calls, tools, reasoning loops, and trading belong in
+layers above it. Trading remains an intended application of the primitives.
+
+Rey is a multi-language monorepo of reusable Zig libraries, Zig executables, and
+TypeScript/[Vite+](https://viteplus.dev/) frontends. Transit, Station, connectors,
+and runtime adapters have distinct library and executable boundaries, described
+in the [decomposition plan](docs/ARCHITECTURE.md#planned-monorepo-decomposition).
+[Ursula](https://ursula.tonbo.io/) supplies durable stream storage and transport,
+using [ursula-zig](https://github.com/rupurt/ursula-zig) from Zig. Kubernetes with
+[Agent Substrate](https://github.com/agent-substrate/substrate) is the reference
+deployment architecture; the protocol must remain portable to other runtimes.
+
+**Status:** foundations and planning. The dev shell works; no kernel, framework,
+connectors, deployment manifests, or frontend application exist yet. The first
+executable milestone proves process sequencing and recovery after worker failure
+on Kubernetes, building toward the Substrate reference architecture.
+
+## Development environment
+
+Install Nix with flakes and `nix-command` enabled, then:
+
+```sh
+nix develop
+just
+just doctor
+just check
+```
+
+The shell provides `just`, Zig **0.17 master** from
+[zig-overlay](https://github.com/mitchellh/zig-overlay), the Vite+ `vp` CLI,
+Node.js, pnpm, and the Ursula server and `ursulactl` CLI from
+[ursula-overlay](https://github.com/rupurt/ursula-overlay). `flake.lock` pins Nix
+inputs, including the exact Zig nightly and Ursula overlay revision; the Vite+
+release and archive checksums live in `nix/vite-plus.nix`. The shell also includes
+`kubectl` and `k9s`, plus `k3s` on Linux, from the pinned nixpkgs input. Linux and
+macOS on x86_64 and aarch64 are configured.
+
+Vite+'s CLI and JavaScript toolchain are packaged by Nix, with an internal npm
+lockfile under `nix/vite-plus/`. Its first invocation creates local settings in
+the ignored `.cache/vite-plus/` directory, uses the Nix-provided Node.js and
+package manager, and leaves shell profiles alone. The frontend milestone will
+add its own project-local Vite+ dependency and pnpm workspace lockfile.
+
+See [development](docs/DEVELOPMENT.md) for commands, updates, and verification.
+
+## Project plan
+
+Start at the [documentation index](docs/README.md).
+
+| Document | Purpose |
+| --- | --- |
+| [Glossary](docs/GLOSSARY.md) | Official names and shared protocol, runtime, and packaging terms |
+| [Scope](docs/SCOPE.md) | Kernel goals, first outcomes, and application boundaries |
+| [Architecture](docs/ARCHITECTURE.md) | Component boundaries and end-to-end data flow |
+| [Security](docs/SECURITY.md) | Authentication, authorization, realms, revocation, and trust boundaries |
+| [Conformance](docs/CONFORMANCE.md) | Adversarial scenarios, implementation gates, and guarantee limits |
+| [Transit — kernel](docs/TRANSIT.md) | Processes, PIDs, lifecycle, sequences, and ownership |
+| [Streams](docs/STREAMS.md) | Unbounded mailboxes, persistence, delivery, and retention |
+| [Retention](docs/RETENTION.md) | Application contracts, process/mailbox lifetimes, compaction, and reclamation |
+| [Station — framework](docs/STATION.md) | GenServer behaviors, supervision, registries, and composition |
+| [Connectors](docs/CONNECTORS.md) | HTTP messages, exchange stream groups, interpolation, and replay |
+| [Deployment](docs/DEPLOYMENT.md) | Runtime bindings, Kubernetes/Substrate, and portability |
+| [Ursula integration](docs/URSULA.md) | Selected stream infrastructure, Zig client boundary, and persistence plan |
+| [Roadmap](docs/ROADMAP.md) | Small milestones with observable completion criteria |
+| [Agent guidance](AGENTS.md) | Working conventions for this repository |
+
+The foundational docs distinguish established requirements from proposed
+mechanisms and implemented features. Ursula's binaries are available in the
+dev shell; client integration, durable service configuration, and cluster setup
+remain implementation work. Technical choices and rationale live in these docs.
