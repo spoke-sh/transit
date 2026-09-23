@@ -2,7 +2,9 @@
 
 Status: required boundaries and semantics. Credential providers, policy schema,
 execution isolation, and deployment configuration must be selected and proved
-in M1. No security mechanism is implemented by these documents.
+in M1. The [experimental v1 profile](../contracts/TRANSIT_V1.md) now implements
+Ed25519 request verification, scoped grants, key replacement, and durable
+revocation. Network ingress and deployment isolation remain unproved.
 
 ## Responsibility in the stack
 

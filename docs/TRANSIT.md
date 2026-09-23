@@ -1,7 +1,9 @@
 # Transit — kernel protocol
 
 Status: foundational requirements established; record names and mechanisms below
-are a proposed protocol outline. No implementation or wire format exists yet.
+are the target protocol outline. An experimental signed-request/ownership/replay
+slice is implemented; its supported surface and limits are specified in
+[the v1 profile](../contracts/TRANSIT_V1.md). M1 remains incomplete.
 
 ## Boundary
 

@@ -52,9 +52,12 @@ does not mark these gates complete.
 
 ### Exit criteria
 
-Initial evidence: `just test-storage` proves JSON conditional append, bounded
-paging, and single-node disk-WAL recovery after SIGKILL. These storage checks
-do not yet satisfy the broader protocol and deployment gates below.
+Initial evidence: `just test` covers the experimental signed-request protocol.
+`just test-storage` proves conditional append, revocation and ownership races,
+lost receipts, and a 100-message counter process across a single-node disk-WAL
+SIGKILL/restart. See [the implemented profile](../contracts/TRANSIT_V1.md).
+Finite wall-clock deadlines are explicitly rejected pending atomic enforcement;
+the full retention, effect, and deployment gates below remain open.
 
 - [ ] Introduce the Transit library, Ursula adapter, and minimum executable
   composition from the [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition),

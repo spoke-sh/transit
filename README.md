@@ -37,10 +37,12 @@ using [ursula-zig](https://github.com/rupurt/ursula-zig) from Zig. Kubernetes wi
 [Agent Substrate](https://github.com/agent-substrate/substrate) is the reference
 deployment architecture; the protocol must remain portable to other runtimes.
 
-**Status:** M1 implementation has begun. The Zig workspace and pinned Ursula
-adapter include a conditional-append and disk-restart proof (`just test-storage`).
-Transit execution and the Kubernetes/Substrate recovery milestone remain in
-progress; Station, connectors, and frontend applications are not implemented.
+**Status:** M1 implementation is in progress. Transit and its pinned Ursula
+adapter implement an experimental signed-request, ownership, and ordered-turn
+profile with a disk-restart proof (`just test-storage`). See the
+[implemented profile and limits](contracts/TRANSIT_V1.md). The full retention,
+effect, and Kubernetes/Substrate gates remain open; Station and applications
+are not implemented.
 
 ## Development environment
 

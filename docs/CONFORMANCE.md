@@ -9,6 +9,18 @@ M1 conformance evidence.
 
 ## Review assessment
 
+Implemented evidence: `just test` exercises request signatures, realm/PID grants,
+key replacement, retry identity, ownership, invalid results, ordered input, and
+retirement. `just test-storage` repeats competing transitions, revocation, lost
+receipts, and replay across a real Ursula SIGKILL/restart, with a 100-message
+backlog and a 16-record read window. The fixed reducer is trusted and compiled.
+These are local single-node results, not the Kubernetes/Substrate isolation proof.
+
+The deadline gate remains open: the adapter's conditional append cannot atomically
+test a per-process wall-clock deadline. The current profile rejects finite
+deadlines instead of relying on a pre-append clock sample. M1 must supply an
+enforceable storage/authority boundary before accepting those contracts.
+
 The foundations define a viable direction for a bounded M1 proof. The highest
 risk gaps are the concrete commit/fencing mechanism, authenticated authority,
 native-handler enforcement, and time/revocation at external dispatch. Choose

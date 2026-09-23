@@ -1,6 +1,7 @@
 //! The only Rey package importing the upstream Ursula client.
 const std = @import("std");
 pub const ursula = @import("ursula");
+pub const Store = @import("Store.zig");
 pub const max_record_bytes = 64 * 1024;
 pub const read_window = 16;
 

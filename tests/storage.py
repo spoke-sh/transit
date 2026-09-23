@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 
 
-def run(binary):
+def run(binaries):
     env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
     env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2")
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -59,7 +59,8 @@ backend = "inline"
                         if time.monotonic() > deadline:
                             raise TimeoutError("Ursula readiness deadline")
                         time.sleep(0.05)
-                    subprocess.run([str(binary), url, phase], env=env, check=True, timeout=120)
+                    for binary in binaries:
+                        subprocess.run([str(binary), url, phase], env=env, check=True, timeout=120)
                 except BaseException:
                     log.flush()
                     log.seek(0)
@@ -75,4 +76,4 @@ backend = "inline"
 
 if __name__ == "__main__":
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
-    run(Path(sys.argv[1]).resolve(strict=True))
+    run([Path(arg).resolve(strict=True) for arg in sys.argv[1:]])
