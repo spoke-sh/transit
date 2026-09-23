@@ -28,6 +28,16 @@ fn counter(state: i64, input: i64) !transit.Decision {
     return .{ .state = try std.math.add(i64, state, input) };
 }
 const Engine = transit.Engine(Memory, counter);
+const TestClock = struct {
+    now: transit.Time.Sample,
+    fn read(context: *anyopaque) !transit.Time.Sample {
+        const self: *TestClock = @ptrCast(@alignCast(context));
+        return self.now;
+    }
+    fn source(self: *TestClock) transit.Time.Source {
+        return .{ .context = self, .read = read };
+    }
+};
 const Fixture = struct {
     store: Memory = .{},
     root: transit.Ed25519.KeyPair,
@@ -359,4 +369,135 @@ test "revoking an executor fences its prepared closure but a controller can fini
     _ = try f.submit(&controller, 0, command);
     try t.expectEqual(.closed_unknown, (try controller.state.effect(effect)).phase);
     try t.expectEqual(.terminated, (try controller.state.process(pid)).lifecycle);
+}
+
+test "finite process settles only its recorded turn and expires permanently" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.max_clock_error_ms = 0;
+    var clock: TestClock = .{ .now = .{ .unix_ms = 10 } };
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    e.clock = clock.source();
+    const pid = try f.submit(&e, 0, .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 200 } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute), .pid = pid } });
+    _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 0 } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 7 } });
+    try t.expectError(error.MissingTurnPermit, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 7 } }));
+    const permit = try f.submit(&e, 1, .{ .begin_turn = .{ .pid = pid, .generation = 1, .input = input } });
+    clock.now.unix_ms = 110;
+    try t.expectError(error.DeadlineExpired, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 9 } }));
+    try t.expectError(error.DeadlineExpired, f.submit(&e, 1, .{ .begin_turn = .{ .pid = pid, .generation = 1, .input = input } }));
+    // Recovery transfers ownership, not the original work/settlement lifetime.
+    var recovered = try Engine.open(&f.store, f.genesis);
+    recovered.clock = clock.source();
+    _ = try f.submit(&recovered, 0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 1 } });
+    try t.expectError(error.StaleGeneration, f.submit(&recovered, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 7, .permit = permit } }));
+    _ = try f.submit(&recovered, 1, .{ .turn = .{ .pid = pid, .generation = 2, .input = input, .result = 7, .permit = permit } });
+    try t.expectEqual(@as(i64, 7), (try recovered.state.process(pid)).state);
+    try t.expectError(error.DeadlineExpired, f.submit(&recovered, 0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 2 } }));
+    try t.expectError(error.DeadlineNotReached, f.submit(&recovered, 0, .{ .expire = pid }));
+    clock.now.unix_ms = 200;
+    _ = try f.submit(&recovered, 0, (try recovered.state.nextMaintenance(clock.now)).?);
+    var replay = try Engine.open(&f.store, f.genesis);
+    try t.expectEqual(.expired, (try replay.state.process(pid)).lifecycle);
+    try t.expectEqual(@as(?transit.Command, null), try replay.state.nextMaintenance(clock.now));
+    try t.expectError(error.RetiredProcess, f.submit(&replay, 0, .{ .send = .{ .pid = pid, .value = 1 } }));
+}
+
+test "uncertain time, missing clock, and rollback cannot authorize finite work" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.max_clock_error_ms = 5;
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const spawn: transit.Command = .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 200 } };
+    try t.expectError(error.ClockUnavailable, f.submit(&e, 0, spawn));
+    var clock: TestClock = .{ .now = .{ .unix_ms = 96, .error_ms = 5 } };
+    e.clock = clock.source();
+    try t.expectError(error.DeadlineUncertain, f.submit(&e, 0, spawn));
+    clock.now = .{ .unix_ms = 80, .error_ms = 6 };
+    try t.expectError(error.UntrustedTime, f.submit(&e, 0, spawn));
+    clock.now.error_ms = 5;
+    _ = try f.submit(&e, 0, spawn);
+    clock.now.unix_ms = 79;
+    var recovered = try Engine.open(&f.store, f.genesis);
+    recovered.clock = clock.source();
+    try t.expectError(error.ClockRollback, f.submit(&recovered, 0, .{ .inspect = 1 }));
+    clock.now.unix_ms = 90;
+    try t.expectError(error.InvalidLifetime, f.submit(&recovered, 0, .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 99 } }));
+}
+
+test "reconciliation budgets survive restart and a missed timer cannot accept a late result" {
+    const EffectEngine = transit.Engine(Memory, effectCounter);
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.max_clock_error_ms = 0;
+    var clock: TestClock = .{ .now = .{ .unix_ms = 10 } };
+    var e = try EffectEngine.bootstrap(&f.store, f.genesis);
+    e.clock = clock.source();
+    const pid = try f.setup(&e);
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect), .pid = pid } });
+    for ([_]bool{ true, false }) |exhaust_budget| {
+        const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 9 } });
+        const result = (try e.state.process(pid)).state + 9;
+        const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = result, .effect = 9 } });
+        const attempt = try f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect, .reconcile_before_ms = 100, .max_observations = 2 } });
+        const observe: transit.Command = .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = null } };
+        _ = try f.submit(&e, 0, observe);
+        e = try EffectEngine.open(&f.store, f.genesis);
+        e.clock = clock.source();
+        try t.expectEqual(@as(u16, 1), (try e.state.effect(effect)).observations);
+        if (exhaust_budget) {
+            _ = try f.submit(&e, 0, observe);
+        } else {
+            clock.now.unix_ms = 100;
+            try t.expectError(error.DeadlineExpired, f.submit(&e, 0, observe));
+            _ = try f.submit(&e, 0, (try e.state.nextMaintenance(clock.now)).?);
+        }
+        try t.expectEqual(.closed_unknown, (try e.state.effect(effect)).phase);
+        try t.expectError(error.ReconciliationClosed, f.submit(&e, 0, observe));
+    }
+}
+
+test "acceptance uses trusted validation time while durable closure fences delayed persistence" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.max_clock_error_ms = 0;
+    var clock: TestClock = .{ .now = .{ .unix_ms = 10 } };
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    e.clock = clock.source();
+    const spawn = try f.request(&e, 0, .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 200 } });
+    const prepared = try e.prepare(spawn);
+    clock.now.unix_ms = 110;
+    // The authority validated this operation before the work cutoff. This is
+    // deliberately not a guarantee of physical persistence before that cutoff.
+    const pid = try e.commit(prepared);
+    try t.expectError(error.DeadlineExpired, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 1 } }));
+    var recovered = try Engine.open(&f.store, f.genesis);
+    recovered.clock = clock.source();
+    clock.now.unix_ms = 200;
+    _ = try f.submit(&recovered, 0, (try recovered.state.nextMaintenance(clock.now)).?);
+    try t.expectError(error.Conflict, e.commit(prepared));
+}
+
+test "an unfinished permit cannot outlive settlement or skip expired input" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.max_clock_error_ms = 0;
+    var clock: TestClock = .{ .now = .{ .unix_ms = 10 } };
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    e.clock = clock.source();
+    const pid = try f.submit(&e, 0, .{ .spawn = .{ .deadline_ms = 20, .settle_before_ms = 30 } });
+    _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .worker = 0, .expected_generation = 0 } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 1 } });
+    const permit = try f.submit(&e, 0, .{ .begin_turn = .{ .pid = pid, .generation = 1, .input = input } });
+    clock.now.unix_ms = 30;
+    try t.expectError(error.DeadlineExpired, f.submit(&e, 0, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .permit = permit, .result = 1 } }));
+    _ = try f.submit(&e, 0, (try e.state.nextMaintenance(clock.now)).?);
+    var recovered = try Engine.open(&f.store, f.genesis);
+    const p = (try recovered.state.process(pid)).*;
+    try t.expectEqual(.expired, p.lifecycle);
+    try t.expectEqual(@as(u64, 0), p.consumed);
+    try t.expectEqual(@as(u64, 1), p.cancelled);
+    try t.expectEqual(@as(i64, 0), p.state);
+    try t.expect(p.turn_permit == null);
 }

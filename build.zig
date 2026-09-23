@@ -9,47 +9,24 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(tests).step);
     const transit = b.dependency("transit", .{ .target = target, .optimize = optimize });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = transit.module("transit") })).step);
-    const proof = b.addExecutable(.{
-        .name = "transit-storage-proof",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("tests/storage.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{.{ .name = "transit_ursula", .module = adapter.module("transit_ursula") }},
-        }),
-    });
-    b.installArtifact(proof);
-    const kernel_proof = b.addExecutable(.{
-        .name = "transit-kernel-proof",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("tests/kernel.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "transit", .module = transit.module("transit") },
-                .{ .name = "transit_ursula", .module = adapter.module("transit_ursula") },
-            },
-        }),
-    });
-    b.installArtifact(kernel_proof);
-    const effects_proof = b.addExecutable(.{
-        .name = "transit-effects-proof",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("tests/effects.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "transit", .module = transit.module("transit") },
-                .{ .name = "transit_ursula", .module = adapter.module("transit_ursula") },
-            },
-        }),
-    });
-    b.installArtifact(effects_proof);
     const integration = b.addSystemCommand(&.{ "python3", "-B" });
     integration.addFileArg(b.path("tests/storage.py"));
-    integration.addArtifactArg(proof);
-    integration.addArtifactArg(kernel_proof);
-    integration.addArtifactArg(effects_proof);
+    for ([_][]const u8{ "storage", "kernel", "effects", "lifetime" }) |name| {
+        const proof = b.addExecutable(.{
+            .name = b.fmt("transit-{s}-proof", .{name}),
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(b.fmt("tests/{s}.zig", .{name})),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{
+                    .{ .name = "transit", .module = transit.module("transit") },
+                    .{ .name = "transit_ursula", .module = adapter.module("transit_ursula") },
+                },
+            }),
+        });
+        b.installArtifact(proof);
+        integration.addArtifactArg(proof);
+    }
     integration.has_side_effects = true;
     integration.stdio = .inherit;
     b.step("test-storage", "Prove conditional writes and disk recovery against Ursula").dependOn(&integration.step);

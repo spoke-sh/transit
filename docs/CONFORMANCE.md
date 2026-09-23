@@ -25,10 +25,13 @@ acknowledgements, and unauthorized closure. Real disk restart and trim preserve
 closed unknown outcomes and reject late observations even while the caller lives.
 These are local single-node results, not the Kubernetes/Substrate isolation proof.
 
-The time gate remains open. The selected contract allows specifically authorized
-work to settle within finite limits after the cutoff for new work; final closure
-rejects further results. The current profile rejects finite wall-clock policies
-until trusted authorization time, budgets, and settlement rights are implemented.
+The time interface and finite-policy transitions now have executable proofs:
+missing/uncertain time, rollback, delayed maintenance, permit recovery, deadline
+closure, and observation-budget exhaustion. A disk-backed fixture settles a
+preauthorized turn after its work cutoff, then expires its PID and trims history;
+restart preserves both retirement and the time high-water mark. Time is controlled
+in this fixture. The deployment's synchronized clock and maintenance service are
+still open parts of the time gate.
 The [deadline investigation](RETENTION.md#m1-deadline-enforcement-investigation)
 defines the remaining acceptance-time and closure proof obligations. A physical
 storage-write cutoff at the earlier work deadline is no longer the target.

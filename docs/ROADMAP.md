@@ -58,10 +58,10 @@ lost receipts, and a 100-message counter process across a single-node disk-WAL
 SIGKILL/restart. See [the implemented profile](../contracts/TRANSIT_V1.md).
 Scalar effect intents and authenticated observations also survive checkpoint,
 trim, and restart without authorizing a second attempt or reviving a retired PID.
-Explicit closure fences late results, including after checkpoint/trim recovery;
-the implementation does not yet schedule closure from a finite time contract.
-Finite wall-clock policies are rejected pending a proved authorization-time and
-bounded-settlement implementation;
+Explicit closure fences late results, including after checkpoint/trim recovery.
+Controlled-clock proofs cover finite settlement, observation budgets, deadline
+rejection, and selection of due maintenance. A production clock source and
+maintenance service remain open;
 the full retention, effect, and deployment gates below remain open.
 
 - [ ] Introduce the Transit library, Ursula adapter, and minimum executable

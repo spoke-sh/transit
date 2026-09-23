@@ -5,7 +5,10 @@ Policy fields, record names, deadline mechanics, and reclamation algorithms belo
 are the target contract. The [experimental v1 profile](../contracts/TRANSIT_V1.md)
 implements explicit checkpoint/trim opt-in for quiescent or explicitly cancelled
 mailboxes, verified publication, and checkpoint-plus-tail recovery. Finite
-wall-clock expiry and general background retention remain unimplemented.
+time policies, turn settlement permits, reconciliation observation budgets, and
+due-maintenance selection are implemented with a trusted clock interface. The
+disk proof uses controlled time; a production clock source and maintenance
+service remain unimplemented.
 
 ## Application contract
 
@@ -158,13 +161,19 @@ worker's prepared proposal or claimed timestamp is not a durable settlement
 grant. Closure and result acceptance race through conditional append: once
 closure wins, an old prepared result cannot append or reopen the attempt.
 
-M1 still needs a trusted time/clock-error model and a precise boundary for when
-result acceptance is authorized. Define how a request validated before a time
-boundary but persisted later is classified, and prove delayed controllers and
-clock rollback cannot grant a fresh window. Do not equate HTTP response time,
-worker-provided time, or a background timer with this boundary. The implemented
-profile continues to reject finite wall-clock policies until that authority path
-exists; an explicit ordered closure alone does not implement a wall-time window.
+The [implemented profile](../contracts/TRANSIT_V1.md#authority-time-and-bounded-settlement)
+uses trusted validation time at the expected journal tail as the authorization
+boundary. Its recorded uncertainty must fit the realm's configured bound.
+Persistence may finish later; an intervening closure or policy operation fences
+the candidate and forces fresh validation. A result first validated after its
+window is rejected even if a closure controller is delayed. Clock rollback below
+the durable high-water mark fails closed. This is an explicit authorization-time
+contract, not a guarantee that all physical writes stop at the UTC cutoff.
+
+The executable proof uses controlled time. A deployment still needs a trustworthy
+synchronized source and periodic maintenance; ordinary host wall-clock readings
+do not establish a UTC error bound. Reject finite contracts without the required
+realm opt-in and time source. Replay applies recorded time evidence.
 
 ### Bounded connector reconciliation
 

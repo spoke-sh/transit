@@ -107,15 +107,59 @@ unknown attempt does not deliver a fabricated failure message, cancel remote
 work, or authorize a retry. The experimental caller must inspect its closure;
 a typed framework notification is later work.
 
-Explicit closure is implemented; automatic time-based closure, reconciliation
-budgets, and preauthorized settlement turns are not. The selected design permits
-bounded settlement after a cutoff for new work, as specified in
-[RETENTION.md](../docs/RETENTION.md#m1-deadline-enforcement-investigation).
+Dispatch records an optional `reconcile_before_ms` and a positive
+`max_observations` budget (default 16). Every newly accepted observation spends
+one unit; duplicates spend none. The last unknown observation closes the attempt
+as unknown. A deadline closes result authorization independently of a background
+timer. `State.nextMaintenance` rebuilds due expiry/closure commands by scanning
+the bounded catalogs; a controller must sign and commit each command. It does
+not invoke external I/O or invent a remote outcome.
 
 These are protocol tests, not an isolated connector executor. The current
 effect grant combines intent, dispatch, and observation rights; it has PID scope
 but no destination or secret scope. Those distinctions and a synthetic executor
 behind a proved capability boundary remain required before service deployment.
+
+## Authority time and bounded settlement
+
+Finite policies require an explicit `max_clock_error_ms` in genesis and a trusted
+`Time.Source` attached to the engine. Requests cannot supply authority time.
+The authority records its validation sample and uncertainty with each operation;
+the sample must fit the configured error bound and cannot precede the durable
+time high-water mark. A missing source, excessive uncertainty, or rollback
+refuses time-dependent authorization. Replay uses recorded samples, never today's
+clock. Supplying a time source is a trusted deployment responsibility, not proof
+that an arbitrary host clock has the advertised UTC accuracy.
+
+The acceptance-time boundary is trusted validation of the candidate at an exact
+journal tail. Its append must still win CAS. A candidate validated before a
+deadline can persist later if no competing transition intervened; this is not a
+physical storage-write deadline. If closure or another operation wins first,
+retry requires current history and a fresh sample. A response first validated
+after its reconciliation deadline is refused even if maintenance is delayed.
+Both the lower and upper UTC bounds must be before an authorization cutoff;
+automatic expiry requires the lower bound to have reached the deadline. An
+interval crossing a cutoff fails closed rather than guessing.
+
+Finite spawn records `deadline_ms` (the work cutoff) and `settle_before_ms`
+(the final settlement bound), with the latter no earlier than the former.
+`begin_turn` durably authorizes the next input before the work cutoff. The
+resulting permit must be named by `turn`; it survives ownership replacement,
+while stale generations cannot commit. Only that turn may finish after the work
+cutoff and before the settlement bound. The first profile allows state-only
+settlement, not new effects or implicit response-handling continuations.
+
+After the work cutoff, ordinary admission, new turns, and dispatch fail. Recovery
+may transfer ownership only for the already recorded permit within settlement.
+An effect outcome arriving after its finite caller's work cutoff remains
+connector evidence; this profile has no preauthorized reply continuation.
+`expire` records final PID retirement and unread-input disposition after the
+settlement bound. Its durable evidence and the time high-water mark survive
+checkpoint/trim. Unlimited lifetimes remain the default.
+
+The time proofs use a controlled authority clock and real disk-backed Ursula.
+A production synchronized clock source, periodic controller service, and reference
+deployment are still required; these tests do not certify host UTC accuracy.
 
 ## Checkpoint and trim
 
@@ -141,8 +185,9 @@ This first reclamation profile refuses to trim a live pending mailbox. Keeping
 pending input in separate retained segments, physical capacity reservation, and
 general dependency pins remain M1 work. Whole-journal deletion is not exposed.
 
-Finite deadlines are rejected as `UnsupportedDeadline` pending trusted
-authorization time, bounded settlement rights, and budget enforcement. Control capacity
+Finite deadlines are rejected as `UnsupportedDeadline` unless the realm opts
+into bounded authority time; a missing required source gives `ClockUnavailable`.
+Control capacity
 reservation, isolated effect execution, cross-process outboxes, network ingress, and
 Kubernetes/Substrate runtime reconciliation remain unimplemented gates.
 Do not advertise M1 completion or deploy this experiment as a service.

@@ -1,6 +1,7 @@
 //! Protocol profile v1. No transport, OS clock, scheduling, or application I/O.
 const std = @import("std");
 pub const Ed25519 = std.crypto.sign.Ed25519;
+pub const Time = @import("Time.zig");
 pub const max_principals = 16;
 pub const max_processes = 64;
 pub const max_effects = 128;
@@ -38,6 +39,9 @@ pub const Process = struct {
     cancelled: u64 = 0,
     // Journal position of the last consumed input; backlog stays in storage.
     input_cursor: u64 = 0,
+    work_before_ms: ?u64 = null,
+    settle_before_ms: ?u64 = null,
+    turn_permit: ?struct { id: u64, input: u64 } = null,
 };
 pub const Effect = struct {
     id: u64,
@@ -48,18 +52,23 @@ pub const Effect = struct {
     executor: ?u8 = null,
     result: ?i64 = null,
     closed_at: ?u64 = null,
+    reconcile_before_ms: ?u64 = null,
+    max_observations: u16 = 16,
+    observations: u16 = 0,
 };
 pub const Command = union(enum) {
     grant: Grant,
     revoke: u8,
-    spawn: struct { code: u32 = 1, deadline_ms: ?u64 = null, allow_trim: bool = false },
+    spawn: struct { code: u32 = 1, deadline_ms: ?u64 = null, settle_before_ms: ?u64 = null, allow_trim: bool = false },
     own: struct { pid: u64, expected_generation: u64, worker: u8 },
     send: struct { pid: u64, value: i64 },
-    turn: struct { pid: u64, generation: u64, input: u64, result: i64, effect: ?i64 = null },
-    dispatch: struct { pid: u64, effect: u64 },
+    begin_turn: struct { pid: u64, generation: u64, input: u64 },
+    turn: struct { pid: u64, generation: u64, input: u64, result: i64, effect: ?i64 = null, permit: ?u64 = null },
+    dispatch: struct { pid: u64, effect: u64, reconcile_before_ms: ?u64 = null, max_observations: u16 = 16 },
     observe: struct { pid: u64, effect: u64, attempt: u64, result: ?i64 },
-    close_effect: struct { pid: u64, effect: u64, attempt: u64 },
+    close_effect: struct { pid: u64, effect: u64, attempt: u64, reason: enum { abandoned, deadline } = .abandoned },
     terminate: u64,
+    expire: u64,
     inspect: u64,
     checkpoint: void,
 };
@@ -76,6 +85,7 @@ pub const Record = struct {
     position: u64,
     policy_revision: u64,
     request: Request,
+    time: ?Time.Sample = null,
 };
 pub const RetryPolicy = enum { unlimited, last_per_principal };
 pub const Genesis = struct {
@@ -83,6 +93,7 @@ pub const Genesis = struct {
     realm: u64,
     root_key: [32]u8,
     retry_policy: RetryPolicy = .unlimited,
+    max_clock_error_ms: ?u32 = null,
 };
 pub const Entry = union(enum) { genesis: Genesis, operation: Record };
 
@@ -124,11 +135,13 @@ pub const State = struct {
     principals: [max_principals]?Principal = @splat(null),
     processes: [max_processes]?Process = @splat(null),
     effects: [max_effects]?Effect = @splat(null),
+    max_clock_error_ms: ?u32 = null,
+    time_floor_ms: u64 = 0,
 
     pub fn init(genesis: Genesis) !State {
         if (genesis.version != 1 or genesis.realm == 0 or genesis.realm > max_counter) return error.InvalidGenesis;
         _ = try Ed25519.PublicKey.fromBytes(genesis.root_key);
-        var state: State = .{ .realm = genesis.realm, .retry_policy = genesis.retry_policy };
+        var state: State = .{ .realm = genesis.realm, .retry_policy = genesis.retry_policy, .max_clock_error_ms = genesis.max_clock_error_ms };
         state.principals[0] = .{ .grant = .{ .subject = 0, .public_key = genesis.root_key, .permissions = all_permissions }, .revision = 0 };
         return state;
     }
@@ -164,10 +177,10 @@ pub const State = struct {
         if (request.version != 1 or request.realm != self.realm) return error.WrongProtocolRealm;
         const p = try self.principal(request.principal);
         const required: Permission = switch (request.command) {
-            .grant, .revoke, .own, .terminate, .checkpoint => .admin,
+            .grant, .revoke, .own, .terminate, .expire, .checkpoint => .admin,
             .spawn => .spawn,
             .send => .send,
-            .turn => .execute,
+            .turn, .begin_turn => .execute,
             .inspect => .inspect,
             .dispatch, .observe, .close_effect => .effect,
         };
@@ -176,10 +189,11 @@ pub const State = struct {
             .own => |c| c.pid,
             .send => |c| c.pid,
             .turn => |c| c.pid,
+            .begin_turn => |c| c.pid,
             .dispatch => |c| c.pid,
             .observe => |c| c.pid,
             .close_effect => |c| c.pid,
-            .terminate, .inspect => |id| id,
+            .terminate, .expire, .inspect => |id| id,
             else => null,
         };
         if (p.grant.pid) |scope| if (pid != scope) return error.Forbidden;
@@ -207,6 +221,12 @@ pub const State = struct {
         const req = record.request;
         if (try self.duplicate(req) != null) return error.DuplicateRecord;
         if ((try self.principal(req.principal)).revision != record.policy_revision) return error.StalePolicy;
+        if (record.time) |time| {
+            const bound = self.max_clock_error_ms orelse return error.UnsupportedDeadline;
+            if (time.error_ms > bound or time.unix_ms > max_counter) return error.UntrustedTime;
+            if (time.unix_ms < self.time_floor_ms) return error.ClockRollback;
+            self.time_floor_ms = time.unix_ms;
+        }
         switch (req.command) {
             .grant => |g| {
                 if (req.principal != 0) return error.Forbidden;
@@ -227,17 +247,24 @@ pub const State = struct {
             },
             .spawn => |c| {
                 if (c.code != 1) return error.UnsupportedWorkload;
-                // Trusted authorization time and bounded settlement rights must
-                // be implemented before finite wall-time contracts are accepted.
-                if (c.deadline_ms != null) return error.UnsupportedDeadline;
+                if (c.deadline_ms) |deadline| {
+                    const time = try self.trustedTime(record);
+                    const settle = c.settle_before_ms orelse return error.InvalidLifetime;
+                    if (deadline > settle or settle > max_counter) return error.InvalidLifetime;
+                    try time.before(deadline);
+                } else if (c.settle_before_ms != null) return error.InvalidLifetime;
                 const free = for (&self.processes) |*slot| {
                     if (slot.* == null) break slot;
                 } else return error.ProcessCapacity;
-                free.* = .{ .pid = record.position, .code = c.code, .allow_trim = c.allow_trim };
+                free.* = .{ .pid = record.position, .code = c.code, .allow_trim = c.allow_trim, .work_before_ms = c.deadline_ms, .settle_before_ms = c.settle_before_ms };
             },
             .own => |c| {
                 const p = try self.process(c.pid);
                 try running(p);
+                if (p.work_before_ms) |deadline| {
+                    const time = try self.trustedTime(record);
+                    try time.before(if (p.turn_permit != null) p.settle_before_ms.? else deadline);
+                }
                 if (c.expected_generation != p.generation) return error.StaleGeneration;
                 const worker = try self.principal(c.worker);
                 if (worker.grant.permissions & permission(.execute) == 0) return error.Forbidden;
@@ -247,13 +274,26 @@ pub const State = struct {
             },
             .send => |c| {
                 const p = try self.process(c.pid);
-                try running(p);
+                try self.newWork(p, record);
                 p.admitted = try std.math.add(u64, p.admitted, 1);
+            },
+            .begin_turn => |c| {
+                const p = try self.process(c.pid);
+                try self.newWork(p, record);
+                if (p.owner != req.principal or p.generation != c.generation) return error.StaleGeneration;
+                if (p.turn_permit != null) return error.TurnAlreadyAuthorized;
+                const message = input orelse return error.MissingInput;
+                if (message.position != c.input or (messageOf(message) orelse return error.InvalidInput).pid != c.pid) return error.InvalidInput;
+                p.turn_permit = .{ .id = record.position, .input = c.input };
             },
             .turn => |c| {
                 const p = try self.process(c.pid);
                 try running(p);
                 if (c.generation != p.generation or p.owner != req.principal) return error.StaleGeneration;
+                if (p.turn_permit) |permit| {
+                    if (c.permit != permit.id or c.input != permit.input) return error.InvalidTurnPermit;
+                } else if (c.permit != null or p.work_before_ms != null) return error.MissingTurnPermit;
+                if (p.settle_before_ms) |deadline| try (try self.trustedTime(record)).before(deadline);
                 const message = input orelse return error.MissingInput;
                 const body = messageOf(message) orelse return error.InvalidInput;
                 if (body.pid != c.pid or
@@ -262,6 +302,7 @@ pub const State = struct {
                 if (c.result != decision.state) return error.InvalidResult;
                 if (c.effect != decision.effect) return error.InvalidEffectIntent;
                 if (c.effect) |payload| {
+                    try self.newWork(p, record);
                     if ((try self.principal(req.principal)).grant.permissions & permission(.effect) == 0) return error.Forbidden;
                     const free = for (&self.effects) |*slot| {
                         if (slot.* == null) break slot;
@@ -271,25 +312,42 @@ pub const State = struct {
                 p.state = c.result;
                 p.consumed += 1;
                 p.input_cursor = c.input;
+                p.turn_permit = null;
             },
             .dispatch => |c| {
                 const e = try self.effect(c.effect);
                 if (e.pid != c.pid) return error.InvalidEffect;
-                try running(try self.process(c.pid));
+                try self.newWork(try self.process(c.pid), record);
                 if (e.phase != .pending) return error.AttemptAlreadyAuthorized;
+                if (c.max_observations == 0) return error.InvalidBudget;
+                if (c.reconcile_before_ms) |deadline| {
+                    if (deadline > max_counter) return error.InvalidLifetime;
+                    try (try self.trustedTime(record)).before(deadline);
+                }
                 e.phase = .authorized;
                 e.attempt = record.position;
                 e.executor = req.principal;
+                e.reconcile_before_ms = c.reconcile_before_ms;
+                e.max_observations = c.max_observations;
             },
             .observe => |c| {
                 const e = try self.effect(c.effect);
                 if (e.pid != c.pid or e.attempt != c.attempt or e.executor != req.principal) return error.InvalidAttempt;
                 if (e.phase != .authorized and e.phase != .unknown) return error.ReconciliationClosed;
+                if (e.reconcile_before_ms) |deadline| try (try self.trustedTime(record)).before(deadline);
+                e.observations += 1;
                 e.phase = if (c.result != null) .observed else .unknown;
+                if (e.phase == .unknown and e.observations == e.max_observations) e.phase = .closed_unknown;
                 e.result = c.result;
-                if (c.result != null) e.closed_at = record.position;
+                if (e.phase == .observed or e.phase == .closed_unknown) e.closed_at = record.position;
                 const p = try self.process(c.pid);
-                if (c.result != null and p.lifecycle == .running) p.admitted = try std.math.add(u64, p.admitted, 1);
+                if (c.result != null and p.lifecycle == .running) {
+                    // Finite callers need a separately authorized continuation
+                    // to process an outcome after their work cutoff. This first
+                    // profile keeps such late outcomes as connector evidence.
+                    const accepts = if (p.work_before_ms) |deadline| (try self.trustedTime(record)).upper() < deadline else true;
+                    if (accepts) p.admitted = try std.math.add(u64, p.admitted, 1);
+                }
             },
             .close_effect => |c| {
                 const e = try self.effect(c.effect);
@@ -300,14 +358,17 @@ pub const State = struct {
                 // or revoked. Neither path claims remote cancellation.
                 if (e.executor != req.principal and caller.grant.permissions & permission(.admin) == 0) return error.Forbidden;
                 if (e.phase != .authorized and e.phase != .unknown) return error.ReconciliationClosed;
+                if (c.reason == .deadline) try (try self.trustedTime(record)).after(e.reconcile_before_ms orelse return error.NoDeadline);
                 e.phase = .closed_unknown;
                 e.closed_at = record.position;
             },
-            .terminate => |pid| {
+            .terminate, .expire => |pid| {
                 const p = try self.process(pid);
                 try running(p);
-                p.lifecycle = .terminated;
+                if (req.command == .expire) try (try self.trustedTime(record)).after(p.settle_before_ms orelse return error.NoDeadline);
+                p.lifecycle = if (req.command == .expire) .expired else .terminated;
                 p.owner = null;
+                p.turn_permit = null;
                 p.cancelled = p.admitted - p.consumed;
                 for (&self.effects) |*slot| if (slot.*) |*e| {
                     if (e.pid == pid and e.phase == .pending) {
@@ -336,6 +397,35 @@ pub const State = struct {
         caller.receipt = record.position;
         self.position += 1;
     }
+
+    fn trustedTime(self: *const State, record: Record) !Time.Sample {
+        if (self.max_clock_error_ms == null) return error.UnsupportedDeadline;
+        return record.time orelse error.ClockUnavailable;
+    }
+
+    fn newWork(self: *const State, p: *const Process, record: Record) !void {
+        try running(p);
+        if (p.work_before_ms) |deadline| try (try self.trustedTime(record)).before(deadline);
+    }
+
+    /// Rebuildable bounded control scan. The returned command still needs a
+    /// signed, currently authorized commit; scanning does not mutate authority.
+    pub fn nextMaintenance(self: *const State, sample: Time.Sample) !?Command {
+        const bound = self.max_clock_error_ms orelse return error.UnsupportedDeadline;
+        if (sample.error_ms > bound or sample.unix_ms > max_counter) return error.UntrustedTime;
+        if (sample.unix_ms < self.time_floor_ms) return error.ClockRollback;
+        for (self.processes) |slot| if (slot) |p| {
+            if (p.lifecycle == .running) if (p.settle_before_ms) |deadline| {
+                if (sample.lower() >= deadline) return .{ .expire = p.pid };
+            };
+        };
+        for (self.effects) |slot| if (slot) |e| {
+            if (e.phase == .authorized or e.phase == .unknown) if (e.reconcile_before_ms) |deadline| {
+                if (sample.lower() >= deadline) return .{ .close_effect = .{ .pid = e.pid, .effect = e.id, .attempt = e.attempt.?, .reason = .deadline } };
+            };
+        };
+        return null;
+    }
 };
 
 pub const Checkpoint = struct {
@@ -358,6 +448,7 @@ pub const Checkpoint = struct {
     pub fn validate(self: Checkpoint, allocator: std.mem.Allocator, genesis: Genesis) !void {
         if (self.version != 1 or !std.meta.eql(self.genesis, genesis) or
             self.state.realm != genesis.realm or self.state.retry_policy != genesis.retry_policy or
+            self.state.max_clock_error_ms != genesis.max_clock_error_ms or
             self.state.position == 0 or self.state.history_floor == 0 or self.state.history_floor > self.state.position) return error.InvalidCheckpoint;
         if (!std.mem.eql(u8, &self.checksum, &try hash(allocator, self.genesis, self.state))) return error.InvalidCheckpoint;
         const root = try self.state.principal(0);
@@ -376,6 +467,7 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
         const Self = @This();
         store: *Store,
         state: State,
+        clock: ?Time.Source = null,
 
         pub fn open(store: *Store, genesis: Genesis) !Self {
             if (@hasDecl(Store, "loadCheckpoint")) {
@@ -418,7 +510,11 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
                 const entry = (try self.store.read(self.state.position)) orelse return error.IncompleteHistory;
                 if (entry != .operation) return error.InvalidHistory;
                 const r = entry.operation;
-                const input = if (r.request.command == .turn) try self.nextInput(r.request.command.turn.pid, r.position) else null;
+                const input = switch (r.request.command) {
+                    .turn => |c| try self.nextInput(c.pid, r.position),
+                    .begin_turn => |c| try self.nextInput(c.pid, r.position),
+                    else => null,
+                };
                 var next = self.state;
                 try next.apply(r, input, reducer);
                 self.state = next;
@@ -432,8 +528,12 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
             try self.state.authenticate(signed);
             const req = signed.request;
             if (try self.state.duplicate(req) != null) return error.AlreadyCommitted;
-            const r: Record = .{ .position = self.state.position, .policy_revision = (try self.state.principal(req.principal)).revision, .request = req };
-            const input = if (req.command == .turn) try self.nextInput(req.command.turn.pid, r.position) else null;
+            const r: Record = .{ .position = self.state.position, .policy_revision = (try self.state.principal(req.principal)).revision, .request = req, .time = if (self.clock) |clock| try clock.sample() else null };
+            const input = switch (req.command) {
+                .turn => |c| try self.nextInput(c.pid, r.position),
+                .begin_turn => |c| try self.nextInput(c.pid, r.position),
+                else => null,
+            };
             var next = self.state;
             try next.apply(r, input, reducer);
             return .{ .record = r, .next = next };
