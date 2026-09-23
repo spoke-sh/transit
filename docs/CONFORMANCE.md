@@ -16,6 +16,10 @@ receipts, and replay across a real Ursula SIGKILL/restart, with a 100-message
 backlog and a 16-record read window. The fixed reducer is trusted and compiled.
 Further SIGKILL boundaries exercise checkpoint publication before trim, retried
 trim, and recovery after prefix removal with new pending input in the tail.
+Effect tests additionally prove intent validation, revocation racing dispatch,
+authenticated observations, and one mailbox admission per result. Disk restart
+and prefix removal preserve unknown attempts; late evidence after caller
+termination cannot revive application execution. No external I/O is invoked.
 These are local single-node results, not the Kubernetes/Substrate isolation proof.
 
 The deadline gate remains open: the adapter's conditional append cannot atomically

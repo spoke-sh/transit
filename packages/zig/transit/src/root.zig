@@ -3,6 +3,7 @@ const std = @import("std");
 pub const Ed25519 = std.crypto.sign.Ed25519;
 pub const max_principals = 16;
 pub const max_processes = 64;
+pub const max_effects = 128;
 pub const max_counter = (1 << 53) - 1;
 pub const Permission = enum(u4) { admin, spawn, send, execute, inspect, effect };
 pub const all_permissions: u16 = 0x3f;
@@ -38,13 +39,24 @@ pub const Process = struct {
     // Journal position of the last consumed input; backlog stays in storage.
     input_cursor: u64 = 0,
 };
+pub const Effect = struct {
+    id: u64,
+    pid: u64,
+    payload: i64,
+    phase: enum { pending, authorized, unknown, observed, cancelled } = .pending,
+    attempt: ?u64 = null,
+    executor: ?u8 = null,
+    result: ?i64 = null,
+};
 pub const Command = union(enum) {
     grant: Grant,
     revoke: u8,
     spawn: struct { code: u32 = 1, deadline_ms: ?u64 = null, allow_trim: bool = false },
     own: struct { pid: u64, expected_generation: u64, worker: u8 },
     send: struct { pid: u64, value: i64 },
-    turn: struct { pid: u64, generation: u64, input: u64, result: i64 },
+    turn: struct { pid: u64, generation: u64, input: u64, result: i64, effect: ?i64 = null },
+    dispatch: struct { pid: u64, effect: u64 },
+    observe: struct { pid: u64, effect: u64, attempt: u64, result: ?i64 },
     terminate: u64,
     inspect: u64,
     checkpoint: void,
@@ -74,7 +86,17 @@ pub const Entry = union(enum) { genesis: Genesis, operation: Record };
 
 /// The v1 experiment uses scalar state/input and one compiled workload version.
 /// The executable supplies the reviewed reducer; Transit owns its sequencing.
-pub const Reducer = *const fn (i64, i64) anyerror!i64;
+pub const Decision = struct { state: i64, effect: ?i64 = null };
+pub const Reducer = *const fn (i64, i64) anyerror!Decision;
+
+pub const Message = struct { pid: u64, value: i64 };
+pub fn messageOf(record: Record) ?Message {
+    return switch (record.request.command) {
+        .send => |c| .{ .pid = c.pid, .value = c.value },
+        .observe => |c| if (c.result) |value| .{ .pid = c.pid, .value = value } else null,
+        else => null,
+    };
+}
 
 pub fn digest(request: Request) [32]u8 {
     // The typed encoder is the canonical wire representation: fixed fields/order,
@@ -99,6 +121,7 @@ pub const State = struct {
     history_floor: u64 = 0,
     principals: [max_principals]?Principal = @splat(null),
     processes: [max_processes]?Process = @splat(null),
+    effects: [max_effects]?Effect = @splat(null),
 
     pub fn init(genesis: Genesis) !State {
         if (genesis.version != 1 or genesis.realm == 0 or genesis.realm > max_counter) return error.InvalidGenesis;
@@ -120,6 +143,13 @@ pub const State = struct {
         return error.UnknownProcess;
     }
 
+    pub fn effect(self: *State, id: u64) !*Effect {
+        for (&self.effects) |*slot| if (slot.*) |*e| {
+            if (e.id == id) return e;
+        };
+        return error.UnknownEffect;
+    }
+
     pub fn authenticate(self: *const State, signed: SignedRequest) !void {
         const request = signed.request;
         if (request.version != 1 or request.realm != self.realm) return error.WrongProtocolRealm;
@@ -137,12 +167,15 @@ pub const State = struct {
             .send => .send,
             .turn => .execute,
             .inspect => .inspect,
+            .dispatch, .observe => .effect,
         };
         if (p.grant.permissions & permission(required) == 0) return error.Forbidden;
         const pid: ?u64 = switch (request.command) {
             .own => |c| c.pid,
             .send => |c| c.pid,
             .turn => |c| c.pid,
+            .dispatch => |c| c.pid,
+            .observe => |c| c.pid,
             .terminate, .inspect => |id| id,
             else => null,
         };
@@ -219,12 +252,40 @@ pub const State = struct {
                 try running(p);
                 if (c.generation != p.generation or p.owner != req.principal) return error.StaleGeneration;
                 const message = input orelse return error.MissingInput;
-                if (message.request.command != .send or message.request.command.send.pid != c.pid or
+                const body = messageOf(message) orelse return error.InvalidInput;
+                if (body.pid != c.pid or
                     c.input != message.position or c.input <= p.input_cursor or c.input >= record.position or p.consumed >= p.admitted) return error.InvalidInput;
-                if (c.result != try reducer(p.state, message.request.command.send.value)) return error.InvalidResult;
+                const decision = try reducer(p.state, body.value);
+                if (c.result != decision.state) return error.InvalidResult;
+                if (c.effect != decision.effect) return error.InvalidEffectIntent;
+                if (c.effect) |payload| {
+                    if ((try self.principal(req.principal)).grant.permissions & permission(.effect) == 0) return error.Forbidden;
+                    const free = for (&self.effects) |*slot| {
+                        if (slot.* == null) break slot;
+                    } else return error.EffectCapacity;
+                    free.* = .{ .id = record.position, .pid = c.pid, .payload = payload };
+                }
                 p.state = c.result;
                 p.consumed += 1;
                 p.input_cursor = c.input;
+            },
+            .dispatch => |c| {
+                const e = try self.effect(c.effect);
+                if (e.pid != c.pid) return error.InvalidEffect;
+                try running(try self.process(c.pid));
+                if (e.phase != .pending) return error.AttemptAlreadyAuthorized;
+                e.phase = .authorized;
+                e.attempt = record.position;
+                e.executor = req.principal;
+            },
+            .observe => |c| {
+                const e = try self.effect(c.effect);
+                if (e.pid != c.pid or e.attempt != c.attempt or e.executor != req.principal) return error.InvalidAttempt;
+                if (e.phase != .authorized and e.phase != .unknown) return error.InvalidAttempt;
+                e.phase = if (c.result != null) .observed else .unknown;
+                e.result = c.result;
+                const p = try self.process(c.pid);
+                if (c.result != null and p.lifecycle == .running) p.admitted = try std.math.add(u64, p.admitted, 1);
             },
             .terminate => |pid| {
                 const p = try self.process(pid);
@@ -232,6 +293,9 @@ pub const State = struct {
                 p.lifecycle = .terminated;
                 p.owner = null;
                 p.cancelled = p.admitted - p.consumed;
+                for (&self.effects) |*slot| if (slot.*) |*e| {
+                    if (e.pid == pid and e.phase == .pending) e.phase = .cancelled;
+                };
             },
             .inspect => |pid| {
                 _ = try self.process(pid);
@@ -317,11 +381,13 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
 
         pub fn nextInput(self: *Self, pid: u64, limit: u64) !?Record {
             const p = try self.state.process(pid);
-            if (p.admitted == p.consumed) return null;
+            if (p.admitted == p.consumed + p.cancelled) return null;
             var at = @max(p.input_cursor + 1, self.state.history_floor);
             while (at < limit) : (at += 1) {
                 const entry = (try self.store.read(at)) orelse return error.IncompleteHistory;
-                if (entry == .operation and entry.operation.request.command == .send and entry.operation.request.command.send.pid == pid) return entry.operation;
+                if (entry == .operation) {
+                    if (messageOf(entry.operation)) |message| if (message.pid == pid) return entry.operation;
+                }
             }
             return error.MissingInput;
         }

@@ -24,8 +24,8 @@ const Memory = struct {
         self.entries.deinit(t.allocator);
     }
 };
-fn counter(state: i64, input: i64) !i64 {
-    return std.math.add(i64, state, input);
+fn counter(state: i64, input: i64) !transit.Decision {
+    return .{ .state = try std.math.add(i64, state, input) };
 }
 const Engine = transit.Engine(Memory, counter);
 const Fixture = struct {
@@ -38,13 +38,13 @@ const Fixture = struct {
         const root = try transit.Ed25519.KeyPair.generateDeterministic(@splat(7));
         return .{ .root = root, .worker = try transit.Ed25519.KeyPair.generateDeterministic(@splat(8)), .genesis = .{ .realm = 42, .root_key = root.public_key.toBytes() } };
     }
-    fn request(self: *Fixture, engine: *Engine, caller: u8, command: transit.Command) !transit.SignedRequest {
+    fn request(self: *Fixture, engine: anytype, caller: u8, command: transit.Command) !transit.SignedRequest {
         return transit.sign(.{ .realm = 42, .principal = caller, .sequence = (try engine.state.principal(caller)).sequence + 1, .command = command }, if (caller == 0) self.root else self.worker);
     }
-    fn submit(self: *Fixture, engine: *Engine, caller: u8, command: transit.Command) !u64 {
+    fn submit(self: *Fixture, engine: anytype, caller: u8, command: transit.Command) !u64 {
         return engine.submit(try self.request(engine, caller, command));
     }
-    fn setup(self: *Fixture, engine: *Engine) !u64 {
+    fn setup(self: *Fixture, engine: anytype) !u64 {
         _ = try self.submit(engine, 0, .{ .grant = .{ .subject = 1, .public_key = self.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.inspect) } });
         const pid = try self.submit(engine, 0, .{ .spawn = .{} });
         _ = try self.submit(engine, 0, .{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 1 } });
@@ -211,4 +211,77 @@ test "checkpoint requires explicit retention opt-in and its content is verified"
     try checkpoint.validate(t.allocator, f.genesis);
     checkpoint.state.processes[0].?.state = 999;
     try t.expectError(error.InvalidCheckpoint, checkpoint.validate(t.allocator, f.genesis));
+}
+
+fn effectCounter(state: i64, input: i64) !transit.Decision {
+    return .{ .state = try std.math.add(i64, state, input), .effect = if (input == 9) 9 else null };
+}
+
+test "only a committed intent permits one attempt and late evidence cannot revive its caller" {
+    const EffectEngine = transit.Engine(Memory, effectCounter);
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try EffectEngine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect), .pid = pid } });
+    try t.expectError(error.UnknownEffect, f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = 99 } }));
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 9 } });
+    try t.expectError(error.InvalidEffectIntent, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 9 } }));
+    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 9, .effect = 9 } });
+    const attempt = try f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } });
+    var recovered = try EffectEngine.open(&f.store, f.genesis);
+    try t.expectEqual(.authorized, (try recovered.state.effect(effect)).phase);
+    try t.expectError(error.AttemptAlreadyAuthorized, f.submit(&recovered, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } }));
+    try t.expectError(error.InvalidAttempt, f.submit(&recovered, 1, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = 1 } }));
+    _ = try f.submit(&recovered, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = null } });
+    try t.expectEqual(.unknown, (try recovered.state.effect(effect)).phase);
+    _ = try f.submit(&recovered, 0, .{ .terminate = pid });
+    _ = try f.submit(&recovered, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = 3 } });
+    try t.expectEqual(.terminated, (try recovered.state.process(pid)).lifecycle);
+    try t.expectEqual(@as(u64, 1), (try recovered.state.process(pid)).admitted);
+    try t.expectEqual(@as(i64, 9), (try recovered.state.process(pid)).state);
+    try t.expectEqual(.observed, (try recovered.state.effect(effect)).phase);
+}
+
+test "authenticated effect outcome becomes exactly one ordered mailbox input" {
+    const EffectEngine = transit.Engine(Memory, effectCounter);
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try EffectEngine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect) } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 9 } });
+    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 9, .effect = 9 } });
+    const attempt = try f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } });
+    const outcome = try f.request(&e, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = 2 } });
+    const position = try e.submit(outcome);
+    try t.expectEqual(position, try e.submit(outcome));
+    try t.expectEqual(@as(u64, 2), (try e.state.process(pid)).admitted);
+    const message = (try e.nextInput(pid, e.state.position)).?;
+    try t.expectEqual(position, message.position);
+    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = position, .result = 11 } });
+    var replay = try EffectEngine.open(&f.store, f.genesis);
+    try t.expectEqual(@as(i64, 11), (try replay.state.process(pid)).state);
+}
+
+test "revocation fences prepared dispatch; termination cancels only unattempted intents" {
+    const EffectEngine = transit.Engine(Memory, effectCounter);
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try EffectEngine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect) } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 9 } });
+    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 9, .effect = 9 } });
+    const request = try f.request(&e, 1, .{ .dispatch = .{ .pid = pid, .effect = effect } });
+    const prepared = try e.prepare(request);
+    var competing = try EffectEngine.open(&f.store, f.genesis);
+    _ = try f.submit(&competing, 0, .{ .revoke = 1 });
+    try t.expectError(error.Conflict, e.commit(prepared));
+    try t.expectError(error.Forbidden, e.submit(request));
+    try t.expectEqual(.pending, (try e.state.effect(effect)).phase);
+    _ = try f.submit(&e, 0, .{ .terminate = pid });
+    var replay = try EffectEngine.open(&f.store, f.genesis);
+    try t.expectEqual(.cancelled, (try replay.state.effect(effect)).phase);
+    try t.expectEqual(@as(?u64, null), (try replay.state.effect(effect)).attempt);
 }

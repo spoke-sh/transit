@@ -3,6 +3,10 @@
 Status: HTTP over the streaming substrate is the first connector direction.
 Stream-group layout, interpolation syntax, and attempt protocol are proposed.
 No connector is implemented yet.
+The [experimental Transit profile](../contracts/TRANSIT_V1.md#effect-intents-and-observations)
+implements scalar intent, dispatch, and observation records, including unknown
+attempts and late evidence after caller retirement. This proves protocol
+ordering and recovery only; connector I/O and its isolation boundary remain open.
 
 ## Effect boundary
 

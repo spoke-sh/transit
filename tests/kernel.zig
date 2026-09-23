@@ -1,8 +1,8 @@
 const std = @import("std");
 const transit = @import("transit");
 const adapter = @import("transit_ursula");
-fn counter(state: i64, input: i64) !i64 {
-    return std.math.add(i64, state, input);
+fn counter(state: i64, input: i64) !transit.Decision {
+    return .{ .state = try std.math.add(i64, state, input) };
 }
 const Engine = transit.Engine(adapter.Store, counter);
 const t = std.testing;
