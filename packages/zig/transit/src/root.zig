@@ -43,10 +43,11 @@ pub const Effect = struct {
     id: u64,
     pid: u64,
     payload: i64,
-    phase: enum { pending, authorized, unknown, observed, cancelled } = .pending,
+    phase: enum { pending, authorized, unknown, observed, cancelled, closed_unknown } = .pending,
     attempt: ?u64 = null,
     executor: ?u8 = null,
     result: ?i64 = null,
+    closed_at: ?u64 = null,
 };
 pub const Command = union(enum) {
     grant: Grant,
@@ -57,6 +58,7 @@ pub const Command = union(enum) {
     turn: struct { pid: u64, generation: u64, input: u64, result: i64, effect: ?i64 = null },
     dispatch: struct { pid: u64, effect: u64 },
     observe: struct { pid: u64, effect: u64, attempt: u64, result: ?i64 },
+    close_effect: struct { pid: u64, effect: u64, attempt: u64 },
     terminate: u64,
     inspect: u64,
     checkpoint: void,
@@ -167,7 +169,7 @@ pub const State = struct {
             .send => .send,
             .turn => .execute,
             .inspect => .inspect,
-            .dispatch, .observe => .effect,
+            .dispatch, .observe, .close_effect => .effect,
         };
         if (p.grant.permissions & permission(required) == 0) return error.Forbidden;
         const pid: ?u64 = switch (request.command) {
@@ -176,6 +178,7 @@ pub const State = struct {
             .turn => |c| c.pid,
             .dispatch => |c| c.pid,
             .observe => |c| c.pid,
+            .close_effect => |c| c.pid,
             .terminate, .inspect => |id| id,
             else => null,
         };
@@ -224,8 +227,8 @@ pub const State = struct {
             },
             .spawn => |c| {
                 if (c.code != 1) return error.UnsupportedWorkload;
-                // A sampled client clock cannot fence a delayed storage commit.
-                // Reject finite wall-time contracts until that gate is proved.
+                // Trusted authorization time and bounded settlement rights must
+                // be implemented before finite wall-time contracts are accepted.
                 if (c.deadline_ms != null) return error.UnsupportedDeadline;
                 const free = for (&self.processes) |*slot| {
                     if (slot.* == null) break slot;
@@ -281,11 +284,24 @@ pub const State = struct {
             .observe => |c| {
                 const e = try self.effect(c.effect);
                 if (e.pid != c.pid or e.attempt != c.attempt or e.executor != req.principal) return error.InvalidAttempt;
-                if (e.phase != .authorized and e.phase != .unknown) return error.InvalidAttempt;
+                if (e.phase != .authorized and e.phase != .unknown) return error.ReconciliationClosed;
                 e.phase = if (c.result != null) .observed else .unknown;
                 e.result = c.result;
+                if (c.result != null) e.closed_at = record.position;
                 const p = try self.process(c.pid);
                 if (c.result != null and p.lifecycle == .running) p.admitted = try std.math.add(u64, p.admitted, 1);
+            },
+            .close_effect => |c| {
+                const e = try self.effect(c.effect);
+                if (e.pid != c.pid or e.attempt != c.attempt) return error.InvalidAttempt;
+                const caller = try self.principal(req.principal);
+                // The executor can abandon its own attempt. A controller with
+                // an administrative grant can close it if that executor is lost
+                // or revoked. Neither path claims remote cancellation.
+                if (e.executor != req.principal and caller.grant.permissions & permission(.admin) == 0) return error.Forbidden;
+                if (e.phase != .authorized and e.phase != .unknown) return error.ReconciliationClosed;
+                e.phase = .closed_unknown;
+                e.closed_at = record.position;
             },
             .terminate => |pid| {
                 const p = try self.process(pid);
@@ -294,7 +310,10 @@ pub const State = struct {
                 p.owner = null;
                 p.cancelled = p.admitted - p.consumed;
                 for (&self.effects) |*slot| if (slot.*) |*e| {
-                    if (e.pid == pid and e.phase == .pending) e.phase = .cancelled;
+                    if (e.pid == pid and e.phase == .pending) {
+                        e.phase = .cancelled;
+                        e.closed_at = record.position;
+                    }
                 };
             },
             .inspect => |pid| {

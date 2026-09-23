@@ -36,8 +36,10 @@ accepts terminal expiry if it cannot finish or recover within that contract.
 
 | Dimension | Meaning |
 | --- | --- |
-| Process lifetime | When the PID is eligible to execute; may end through termination or an application-selected expiry deadline |
+| Process lifetime | When the PID may accept new work, followed by any explicitly bounded settlement period before final retirement |
 | Mailbox lifetime | How long the logical mailbox and required unprocessed inputs remain valid for the process |
+| Settlement window | Bounded permission to finish specifically authorized work after the cutoff for starting new work |
+| Reconciliation lifetime | How long a connector may establish an attempt's outcome before its acceptance path closes |
 | Suspension limit | The latest permitted resumption boundary, constrained by process and recovery-resource lifetimes |
 | History retention | The window of past records available for replay or inspection; may advance while a process remains live |
 | Resource ownership | Whether a stream survives independently or is retired with a PID, session, or workload scope |
@@ -87,25 +89,33 @@ must be rejected. If a failure nevertheless keeps the process inactive past day
 cleanup has not removed the input yet. A 30-day window on already completed
 history alone would not impose that same process deadline.
 
-At a hard process/mailbox recovery deadline:
+At the application's cutoff for starting new work:
 
-1. Fence execution and refuse new admission, activation, turn commits, and new
-   application-effect dispatch authorizations under that expired contract.
-2. Record terminal process expiry and the disposition of pending work under the
-   application's accepted policy. Preserve the facts needed to reconcile
-   already-authorized attempts and notify lifecycle observers.
-3. Retire the PID. Supervisors must not retry activation forever or create an
-   empty mailbox under the same identity. An authorized replacement has a new
-   PID and an explicit bootstrap policy.
-4. Reconcile runtime shutdown, conditional name cleanup, and eventual storage
+1. Refuse new ordinary admissions, turns, and application-effect dispatch
+   authorizations. An earlier mailbox admission alone is not a turn authorization.
+2. Enter settlement only for work specifically authorized before the cutoff,
+   under recorded finite limits. This may permit its application-state commit;
+   it cannot start further work or renew its own authority.
+3. Close each settlement when resolved or when its limit is reached. Record the
+   disposition of unfinished work, including a closed unknown external outcome.
+4. Retire the PID when its settlement rights end. Reject further results and
+   activation; a replacement has a new PID and an explicit bootstrap policy.
+5. Reconcile runtime shutdown, conditional name cleanup, and eventual storage
    reclamation as separate recoverable operations.
 
-Expiry does not wait behind an application handler or require its cooperation.
-Admission, ownership, turn commit, and dispatch authorities enforce the cutoff
-even if the background expiry worker is delayed. A recorded deadline remains
-effective during controller outages; serialize the expiry observation when
-authority recovers. If current authority or deadline validity cannot be
-established, refuse execution rather than assume the process is still live.
+A settling PID is not yet retired. Recovery during that interval can resume
+only its existing settlement authority, with fresh ownership fencing, not its
+ordinary mailbox workload. A hard mailbox/resource availability deadline cannot
+be extended implicitly: validate that the recovery basis survives the entire
+promised settlement window, or reject the contract. Explicit termination still
+retires the PID immediately; an independently owned connector attempt can remain
+open under its own previously accepted reconciliation contract.
+
+Cutoffs cannot depend solely on a timer reaching a suspended mailbox. Authorities
+must validate the recorded work/settlement contract even when a background
+controller is delayed. If current authority or deadline validity cannot be
+established, refuse new authorization. Maintenance can record the terminal facts
+after recovery without reopening the expired acceptance path.
 
 An attempt authorized before the cutoff is already potentially in flight, even
 if its worker was paused before I/O. Expiry cannot promise that the remote action
@@ -135,46 +145,54 @@ partitions, and stale ownership must not extend an expired lifetime.
 
 ### M1 deadline enforcement investigation
 
-The selected target forbids a new application-state commit at or after the
-process's deadline, even if work began earlier. An authorization issued before
-expiry is not permission to finish a turn afterwards. A commit that became
-durable before expiry may be acknowledged or discovered later; acknowledgement
-time is not commit time. Retirement records, cleanup, and late attempt evidence
-may still be recorded after expiry without advancing application state.
+The selected contract permits previously authorized work to settle within a
+bounded window (option 1). There is no requirement that every physical storage
+write finish before the earlier cutoff for starting work. Final settlement
+closure is irreversible: it rejects late results, even if the request originally
+started on time. A historical receipt can still be read under current permission;
+returning that receipt is not accepting a new result.
 
-The rejected alternative would reserve permission for a specific turn before
-expiry and let that turn settle later. It would require a separate settlement
-horizon and resource pins; otherwise a paused turn could retain recovery state
-indefinitely. That alternative is not the current lifetime contract.
+Keep the upstream Ursula API unchanged. Transit must record the authorized work,
+its finite settlement rights, and closure in the same authority ordering. A
+worker's prepared proposal or claimed timestamp is not a durable settlement
+grant. Closure and result acceptance race through conditional append: once
+closure wins, an old prepared result cannot append or reopen the attempt.
 
-Keep the upstream Ursula API unchanged. The current investigation distinguishes
-these mechanisms rather than treating them as interchangeable:
+M1 still needs a trusted time/clock-error model and a precise boundary for when
+result acceptance is authorized. Define how a request validated before a time
+boundary but persisted later is classified, and prove delayed controllers and
+clock rollback cannot grant a fresh window. Do not equate HTTP response time,
+worker-provided time, or a background timer with this boundary. The implemented
+profile continues to reject finite wall-clock policies until that authority path
+exists; an explicit ordered closure alone does not implement a wall-time window.
 
-| Mechanism | Guarantee and limitation |
-| --- | --- |
-| Expiry record in the authority journal | CAS fences every subsequent turn, but a delayed expiry controller leaves a gap after the wall-clock deadline |
-| Clock check in a worker or trusted proxy | Rejects requests already known to be late; a pause after checking can still produce a late durable append |
-| Early cutoff with a safety margin | Needs proven clock error and a bound on the entire remaining commit path, including scheduling, queues, failover, and persistence; timeouts and latency percentiles do not prove this bound |
-| Ursula stream TTL | Whole-stream lifecycle mechanism, not an atomic Transit PID deadline; the pinned server carries a sampled request time into stream expiry checks |
-| Deadline enforcement in the commit authority | Candidate architectural requirement; must define the authoritative instant, clock uncertainty, and durable ordering without introducing a second execution source of truth |
+### Bounded connector reconciliation
 
-For a clock sample `C`, maximum clock error `E`, remaining commit-delay bound
-`B`, and deadline `D`, an early admission rule would need `C + E + B < D`.
-With unbounded pauses or storage delay, no finite margin proves this condition.
-Terminating a timed-out client cannot retract a request already accepted by the
-server. Checking again after the append can detect lateness but cannot undo the
-durable transition. A later confirmation record merely moves the boundary that
-still needs enforcement.
+Connectors own how to establish remote outcomes: interpreting responses, querying
+operation identities, cancellation, compensation, and safe retry policy. They
+declare a reconciliation window and work budget before dispatch. Transit owns
+the generic authorization, correlation, ordering, duplicate rejection, and
+irreversible closure guarantees on which those policies rely.
 
-The pinned Ursula implementation samples `now_ms` in the
-[HTTP append handler](https://github.com/tonbo-io/ursula/blob/e6d8d70770e1991d2eedf0ce2c3f74ac01f57f43/crates/ursula/src/lib.rs#L2560)
-and passes it to the
-[stream state machine](https://github.com/tonbo-io/ursula/blob/e6d8d70770e1991d2eedf0ce2c3f74ac01f57f43/crates/ursula-stream/src/state_machine/append.rs#L219).
-Neither that sample nor a timestamp in an ordinary record proves a strict
-physical persistence cutoff. Per-process streams or an HTTP proxy alone do not
-close this gap. Finite deadlines therefore remain rejected by the implemented
-adapter profile. This is an unresolved M1 gate, not permission to weaken expiry
-to the time a background controller eventually records it.
+An opted-in finite settlement contract must bound reconciliation duration,
+attempts, concurrency, and retained working data. Long or unlimited history
+retention does not authorize an endless retry loop. Connector attempts can
+outlive the caller only under an explicitly recorded independent owner and
+lifetime. Recovery cannot reset their deadlines or counters.
+
+When the window closes, stop authorizing further reconciliation work and reject
+new result submissions. Preserve either the established outcome or **closed with
+outcome unknown**. Closure is not remote failure, cancellation, or proof that a
+paused executor will never send. No automatic retry, caller revival, or reopening
+follows a late response. A separate investigation needs new explicit authority
+and must not mutate the closed attempt's result.
+
+Release active work and payload pins according to the contract. Retain compact
+closure/identity evidence for the supported retry horizon; after its reclamation,
+old attempt identities must still be rejected through a durable floor or retired
+scope. Payload expiry cannot make an old result eligible again. No promise that
+the external system stops or rolls back follows from local closure; applications
+requiring that guarantee need a connector with matching remote support.
 
 Policy changes are authorized, versioned transitions. A shorter lifetime must
 validate existing admissions and dependencies and record any terminal outcome

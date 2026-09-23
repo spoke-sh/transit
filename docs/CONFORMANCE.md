@@ -20,15 +20,18 @@ Effect tests additionally prove intent validation, revocation racing dispatch,
 authenticated observations, and one mailbox admission per result. Disk restart
 and prefix removal preserve unknown attempts; late evidence after caller
 termination cannot revive application execution. No external I/O is invoked.
+Closure tests exercise both winners of the result/closure race, lost
+acknowledgements, and unauthorized closure. Real disk restart and trim preserve
+closed unknown outcomes and reject late observations even while the caller lives.
 These are local single-node results, not the Kubernetes/Substrate isolation proof.
 
-The deadline gate remains open: the adapter's conditional append cannot atomically
-test a per-process wall-clock deadline. The current profile rejects finite
-deadlines instead of relying on a pre-append clock sample. M1 must supply an
-enforceable storage/authority boundary before accepting those contracts.
+The time gate remains open. The selected contract allows specifically authorized
+work to settle within finite limits after the cutoff for new work; final closure
+rejects further results. The current profile rejects finite wall-clock policies
+until trusted authorization time, budgets, and settlement rights are implemented.
 The [deadline investigation](RETENTION.md#m1-deadline-enforcement-investigation)
-records the stronger selected contract, counterexamples to proxy checks and
-delayed fences, and the bounds a different mechanism would have to prove.
+defines the remaining acceptance-time and closure proof obligations. A physical
+storage-write cutoff at the earlier work deadline is no longer the target.
 
 The foundations define a viable direction for a bounded M1 proof. The highest
 risk gaps are the concrete commit/fencing mechanism, authenticated authority,
@@ -53,7 +56,8 @@ tests as appropriate. A happy-path example alone does not satisfy a row.
 | Outbox retries reorder a sender's messages or only part of a fan-out arrives | Preserve declared per-sender/destination order, including delayed uncertain admissions; prove terminal delivery outcomes rather than inferring them from timeouts; no cross-process atomicity claim | [Streams](STREAMS.md#commit-and-delivery), M1 |
 | Native code reads an ambient clock, uses a socket, forges state, or never returns | Demonstrate the selected handler-execution boundary and limits; distinguish protocol validation, deterministic re-execution, and application correctness | [Transit](TRANSIT.md#enforcement), M1 |
 | A handler repeatedly fails on the head message | Bounded retries, visible blocked state or authorized ordered disposition; no silent skipping or endless supervisor replacement | [Station](STATION.md#failure-and-progress), minimal policy M1; helpers M2 |
-| A required input expires during suspension or an active turn | Permanent PID expiry; late activation/commit/dispatch authorization rejected even when bytes remain | [Retention](RETENTION.md), M1 |
+| A work cutoff or required-input expiry occurs during suspension or a turn | Only explicitly authorized bounded settlement may continue with a valid recovery basis; final retirement rejects all further execution even when bytes remain | [Retention](RETENTION.md), M1 |
+| A result races reconciliation closure or arrives after recovery/trim | One authoritative winner; closed unknown stays unknown; no late admission, retry, or reopening; existing receipts do not constitute new acceptance | [Connectors](CONNECTORS.md#bounded-reconciliation-contract), kernel proof M1; connector execution M3 |
 | Clock rollback or a controller partition delays expiry | State the time/error model and refusal behavior; recorded deadlines do not extend through stale authority | [Retention](RETENTION.md#time-and-policy-changes), M1 |
 | A worker pauses after dispatch authorization, then loses ownership | Treat the attempt as possibly in flight; do not infer cancellation or safe retry from revocation | [Security](SECURITY.md#effects-and-the-limits-of-revocation), M1 synthetic executor; M3 HTTP |
 | A connector is redirected to metadata/admin APIs or submits another attempt's result | Enforce destination/credential scope at each hop and authenticate result provenance | [Connectors](CONNECTORS.md), M3 |

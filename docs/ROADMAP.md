@@ -43,7 +43,7 @@ M1; this boundary does not defer them to a later milestone.
 | Durable authority | Select framing, authoritative reads, conditional append/coordination, and recovery of uncertain operations; prove one accepted successor despite competing authorities |
 | Identity and policy | Select credential validation, principal/realm mapping, grant representation, and revocation ordering; prove impersonation and stale-policy rejection |
 | Handler execution | Select the isolation/determinism mechanism and resource limits; state which code is trusted and prove the advertised enforcement |
-| Time and dispatch | Define deadline error bounds and the durable dispatch authorization point; prove refusal of new authorizations without claiming cancellation of possibly in-flight work |
+| Time and dispatch | Define work cutoffs, bounded settlement/reconciliation, clock error bounds, and acceptance/closure ordering; prove late-result rejection without claiming cancellation of possibly in-flight work |
 | Bootstrap and capacity | Define realm/control catalog recovery, idempotent spawn, and reserved control/maintenance capacity under full-store conditions |
 
 Do not build Station or real external-effect integrations on an unproved gate.
@@ -58,7 +58,10 @@ lost receipts, and a 100-message counter process across a single-node disk-WAL
 SIGKILL/restart. See [the implemented profile](../contracts/TRANSIT_V1.md).
 Scalar effect intents and authenticated observations also survive checkpoint,
 trim, and restart without authorizing a second attempt or reviving a retired PID.
-Finite wall-clock deadlines are explicitly rejected pending atomic enforcement;
+Explicit closure fences late results, including after checkpoint/trim recovery;
+the implementation does not yet schedule closure from a finite time contract.
+Finite wall-clock policies are rejected pending a proved authorization-time and
+bounded-settlement implementation;
 the full retention, effect, and deployment gates below remain open.
 
 - [ ] Introduce the Transit library, Ursula adapter, and minimum executable
@@ -79,11 +82,16 @@ the full retention, effect, and deployment gates below remain open.
 - [ ] Record effective retention policies with unlimited defaults and explicit
   application opt-in. Define authoritative time, deadline error bounds, policy
   changes, and quota/admission behavior; reject unsupported lifetime guarantees.
-- [ ] Enforce process/mailbox expiry at admission, activation, turn commit, and
-  effect dispatch authorization. Prove terminal late activation, including
+- [ ] Enforce work cutoffs at admission, activation, turn and dispatch
+  authorization; permit only explicitly bounded preauthorized settlement. Prove
+  irreversible final closure and retirement, including
   uncollected bytes, stale snapshots, delayed expiry workers, clock/failover cases,
   and storage outages distinguished from expiry. No same-PID empty-mailbox
   restart is allowed.
+- [ ] Record connector reconciliation rights and finite windows/budgets. Prove
+  that result/closure races have one winner, closed attempts reject late results,
+  and unknown closure authorizes neither retry nor caller revival. Preserve the
+  rejection evidence across checkpoint, trim, restart, and old receipts.
 - [ ] Pin `ursula-zig` by revision/hash, wire its `ursula` module, and validate
   create/append/catch-up/live reads against the pinned Ursula server.
 - [ ] Configure persistent Ursula storage and reproducible cluster/service

@@ -70,6 +70,8 @@ does not supply the security boundary. See [SECURITY.md](SECURITY.md).
 | Suspend | Fence execution and preserve the PID, state, mailbox, and pending work within the accepted resumption deadline |
 | Worker loss or migration | Reconcile runtime placement and recover the same process under fresh ownership |
 | Handler failure | Record the failure; policy decides whether to retry/recover or request logical termination |
+| Stop starting work | Refuse fresh work; preserve only specifically authorized, finitely bounded settlement rights |
+| Settle | Finish that authorized work under current ownership and grants, without granting further work or extending its window |
 | Terminate | Irrevocably retire the PID and fence its activations; apply an explicit policy to accepted input, pending outputs, and effects |
 | Expire | Permanently retire the PID when its opted-in process/mailbox recovery lifetime ends; fence execution and record pending-work disposition |
 
@@ -80,7 +82,8 @@ external attempt already dispatched. Its retirement and reconciliation policy
 must be recorded. Lifecycle observations identify whether they concern a PID
 or a particular activation; a lost worker must not masquerade as process death.
 After termination, reject new application admissions and turns while permitting
-authorized cleanup and recording of outstanding effect evidence.
+authorized cleanup and recording of outstanding effect evidence only while its
+independent reconciliation contract remains open. Closure rejects new results.
 
 Applications opt into finite retention and process lifetime; the default is
 unlimited. Suspension cannot promise recovery beyond the mailbox and other
@@ -121,6 +124,7 @@ trace fixtures in M1, not published API names.
 | Turn commit | Bind the next input to committed state, outgoing messages, and effect intents |
 | Effect attempt | Authorize a particular attempt of a committed effect and identify its executor |
 | Effect observation | Record correlated data, completion, failure, or an unknown outcome |
+| Settlement and closure | Bind preauthorized work to finite settlement rights; irrevocably close acceptance with a known or unknown outcome |
 | Recovery checkpoint | Identify a validated history prefix, state representation, and code/schema versions |
 | Retention lifecycle | Record policy versions, recovery deadlines, checkpoint coverage, trim/retirement decisions, and maintenance outcomes |
 | Authorization control | Record principal/resource bindings, grants, policy revisions, revocations, and operation decisions without persisting credentials |
@@ -186,9 +190,9 @@ admission deduplicates retries. See [STREAMS.md](STREAMS.md).
 
 - Validate sender authority, record schema, process lifecycle/state, input
   position, prior commit, ownership generation, and lifetime eligibility before
-  a transition can commit. Enforce expiry at admission, activation, commit, and
-  new effect dispatch authorization even when background expiry notification is
-  delayed.
+  a transition can commit. The cutoff for new work leaves only recorded bounded
+  settlement rights. Enforce those rights and final closure at acceptance and
+  recovery even when background notification is delayed.
 - Reject stale owners, competing commits, illegal transitions, and mismatched
   effect results. Within the supported retry horizon, an accepted identity
   returns its established outcome; conflicting content is rejected. Outside
@@ -235,7 +239,12 @@ credentials. Unavailability of authority blocks progress safely.
 Revocation cannot retract an external request already sent. Preserve the attempt
 and reconcile its outcome; never turn uncertainty into an invented success or
 failure. Late observations can be recorded as evidence without granting a stale
-worker authority to advance process state. Connector policy defines reconciliation.
+worker authority to advance process state. Connector policy defines bounded
+reconciliation; Transit rejects results after closure. A settling process can
+commit only its previously authorized work, not start a fresh turn or chain of
+effects. Delivering a connector result and authorizing a caller turn are distinct:
+applying that result after the work cutoff needs an explicit bounded settlement
+continuation, preserving mailbox order. Final retirement forbids either path.
 The durable dispatch authorization marks an attempt as potentially in flight,
 including a worker paused before sending. Fencing prevents new authorizations;
 it cannot prove that such an attempt never reaches the external system. This

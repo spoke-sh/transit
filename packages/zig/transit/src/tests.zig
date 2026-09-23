@@ -285,3 +285,78 @@ test "revocation fences prepared dispatch; termination cancels only unattempted 
     try t.expectEqual(.cancelled, (try replay.state.effect(effect)).phase);
     try t.expectEqual(@as(?u64, null), (try replay.state.effect(effect)).attempt);
 }
+
+test "result and unknown closure have one winner despite lost acknowledgements" {
+    const EffectEngine = transit.Engine(Memory, effectCounter);
+    for ([_]bool{ false, true }) |close_wins| {
+        var f = try Fixture.init();
+        defer f.store.deinit();
+        var e = try EffectEngine.bootstrap(&f.store, f.genesis);
+        const pid = try f.setup(&e);
+        _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect), .pid = pid } });
+        const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 9 } });
+        const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 9, .effect = 9 } });
+        const attempt = try f.submit(&e, 1, .{ .dispatch = .{ .pid = pid, .effect = effect } });
+        const response = try f.request(&e, 1, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = 2 } });
+        const close = try f.request(&e, 0, .{ .close_effect = .{ .pid = pid, .effect = effect, .attempt = attempt } });
+        var competing = try EffectEngine.open(&f.store, f.genesis);
+        const winner = if (close_wins) close else response;
+        const loser = if (close_wins) response else close;
+        const a = try e.prepare(winner);
+        const b = try competing.prepare(loser);
+        f.store.fail_ack = true;
+        try t.expectError(error.LostAcknowledgement, e.commit(a));
+        try t.expectError(error.Conflict, competing.commit(b));
+        var recovered = try EffectEngine.open(&f.store, f.genesis);
+        try t.expectEqual(a.record.position, try recovered.submit(winner));
+        try t.expectError(error.ReconciliationClosed, recovered.submit(loser));
+        const closed = (try recovered.state.effect(effect)).*;
+        try t.expectEqual(@as(?u64, a.record.position), closed.closed_at);
+        try t.expectEqual(@as(@TypeOf(closed.phase), if (close_wins) .closed_unknown else .observed), closed.phase);
+        try t.expectEqual(if (close_wins) @as(?i64, null) else 2, closed.result);
+        try t.expectEqual(if (close_wins) @as(u64, 1) else 2, (try recovered.state.process(pid)).admitted);
+        try t.expectError(error.ReconciliationClosed, f.submit(&recovered, 1, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = null } }));
+        try t.expectError(error.AttemptAlreadyAuthorized, f.submit(&recovered, 1, .{ .dispatch = .{ .pid = pid, .effect = effect } }));
+    }
+}
+
+test "closure needs executor or controller authority and cannot overwrite a result" {
+    const EffectEngine = transit.Engine(Memory, effectCounter);
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try EffectEngine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect), .pid = pid } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 9 } });
+    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 9, .effect = 9 } });
+    const attempt = try f.submit(&e, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } });
+    const close: transit.Command = .{ .close_effect = .{ .pid = pid, .effect = effect, .attempt = attempt } };
+    try t.expectError(error.Forbidden, f.submit(&e, 1, close));
+    try t.expectError(error.InvalidAttempt, f.submit(&e, 0, .{ .close_effect = .{ .pid = pid, .effect = effect, .attempt = attempt + 1 } }));
+    _ = try f.submit(&e, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = 2 } });
+    try t.expectError(error.ReconciliationClosed, f.submit(&e, 0, close));
+    try t.expectEqual(@as(?i64, 2), (try e.state.effect(effect)).result);
+}
+
+test "revoking an executor fences its prepared closure but a controller can finish cleanup" {
+    const EffectEngine = transit.Engine(Memory, effectCounter);
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try EffectEngine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.effect), .pid = pid } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 9 } });
+    const effect = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 9, .effect = 9 } });
+    const attempt = try f.submit(&e, 1, .{ .dispatch = .{ .pid = pid, .effect = effect } });
+    const command: transit.Command = .{ .close_effect = .{ .pid = pid, .effect = effect, .attempt = attempt } };
+    const request = try f.request(&e, 1, command);
+    const prepared = try e.prepare(request);
+    var controller = try EffectEngine.open(&f.store, f.genesis);
+    _ = try f.submit(&controller, 0, .{ .revoke = 1 });
+    try t.expectError(error.Conflict, e.commit(prepared));
+    try t.expectError(error.Forbidden, e.submit(request));
+    _ = try f.submit(&controller, 0, .{ .terminate = pid });
+    _ = try f.submit(&controller, 0, command);
+    try t.expectEqual(.closed_unknown, (try controller.state.effect(effect)).phase);
+    try t.expectEqual(.terminated, (try controller.state.process(pid)).lifecycle);
+}

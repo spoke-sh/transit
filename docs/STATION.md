@@ -58,6 +58,12 @@ and explicit process/stream overrides. Validate the effective contract before
 creating resources or admitting dependent work. See [RETENTION.md](RETENTION.md)
 for process, mailbox, history, and workload-scope lifetimes.
 
+Expose the cutoff for new work separately from final retirement. A settling
+process can finish only specifically preauthorized work within a finite window;
+supervision cannot turn that permission into ordinary activation or more work.
+Connector reconciliation has its own recorded owner, window, and budget. Its
+closure is terminal even if the original request later returns a response.
+
 Suspension returns an explicit resumption bound when lifetime is finite. Reject
 requested suspension beyond the process's validated recovery window; automatic
 sandbox suspension has the same constraint. Worker failure may prevent timely

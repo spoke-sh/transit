@@ -114,6 +114,14 @@ additional enforceable egress/remote support; the default contract only fences
 new dispatch authorizations. This limitation also applies to runtime-provider
 operations. See [CONNECTORS.md](CONNECTORS.md).
 
+Connectors own bounded reconciliation policy. Transit enforces the accepted
+scope and budget, authenticates observations, and orders result acceptance
+against irreversible closure. Authority to reconcile does not grant new caller
+turns, extra attempts, or an extension of the window. After closure, reject new
+result submissions even from the original executor; current read rights can
+still disclose historical receipts. Administrative investigation requires
+separate authority and cannot reopen or overwrite the closed attempt.
+
 For the first slice, reviewed connector executors and their dispatch path are
 trusted infrastructure. Untrusted handlers have neither connector credentials
 nor unrestricted egress. A plugin with direct sockets and secrets cannot be

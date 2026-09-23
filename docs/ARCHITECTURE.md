@@ -24,6 +24,12 @@ Transit defines the protocol. Ursula carries and persists its messages via
 perform external work; applications compose these facilities. LLM reasoning and
 trading rules do not enter the kernel's vocabulary.
 
+The cutoff for starting work and the end of settlement are distinct. Previously
+authorized work can finish within recorded finite limits. Connectors choose how
+to establish external outcomes; Transit enforces acceptance rights and permanent
+closure. A late result cannot reopen a closed attempt, and closing an unknown
+outcome makes no claim about what the external system did.
+
 Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 
 ## Layers and ownership
@@ -34,7 +40,7 @@ Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 | Transit — kernel | Processes/PIDs, lifecycle, legal sequences, ordered commits, realm/grant checks, ownership and effect authority | [TRANSIT.md](TRANSIT.md), [SECURITY.md](SECURITY.md) |
 | Durable transport | Persistent history, continuation positions, mailbox storage and delivery | [STREAMS.md](STREAMS.md), [URSULA.md](URSULA.md) |
 | Station — framework | GenServer behaviors, scoped name registries, request/reply, supervision, timers, worker-pool patterns | [STATION.md](STATION.md) |
-| Connectors | Authorized external attempts, request/response capture, outcome and retry policy | [CONNECTORS.md](CONNECTORS.md) |
+| Connectors | Authorized external attempts, request/response capture, bounded reconciliation, outcome and retry/cancellation policy | [CONNECTORS.md](CONNECTORS.md) |
 | Runtime adapter | Durable PID-to-provider bindings and reconciliation of lifecycle intents with provider resources/observations | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | Retention reconciliation | Enforce Transit-authorized policies and retained boundaries; coordinate checkpoints, dependency checks, and adapter reclamation | [RETENTION.md](RETENTION.md) |
 | Applications and UI | Workload policy, agent composition, trading, inspection and operator commands | [SCOPE.md](SCOPE.md) |

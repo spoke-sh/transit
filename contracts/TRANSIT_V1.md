@@ -92,6 +92,26 @@ mailbox input when the caller is live. After termination it updates reconciliati
 evidence only. Termination cancels pending, unattempted intents while preserving
 authorized/unknown attempts. Replay updates these records without invoking I/O.
 
+`close_effect` irrevocably closes an authorized/unknown attempt as
+`closed_unknown`. It binds PID, effect, and attempt; the current executor or a
+controller with both effect and administrative rights may close it within its
+PID scope. A known result instead closes as `observed`. `closed_at` records the
+journal position of closure, not a wall-clock timestamp. Closure and observation
+use the same CAS, so one wins; a losing proposal cannot overwrite that outcome.
+
+New observations after either closure return `ReconciliationClosed`, including
+unknown observations and otherwise valid late results. A same-identity retry of
+an earlier accepted operation may return its historical receipt under current
+permission and the retry policy; it does not admit anything again. A closed
+unknown attempt does not deliver a fabricated failure message, cancel remote
+work, or authorize a retry. The experimental caller must inspect its closure;
+a typed framework notification is later work.
+
+Explicit closure is implemented; automatic time-based closure, reconciliation
+budgets, and preauthorized settlement turns are not. The selected design permits
+bounded settlement after a cutoff for new work, as specified in
+[RETENTION.md](../docs/RETENTION.md#m1-deadline-enforcement-investigation).
+
 These are protocol tests, not an isolated connector executor. The current
 effect grant combines intent, dispatch, and observation rights; it has PID scope
 but no destination or secret scope. Those distinctions and a synthetic executor
@@ -114,13 +134,15 @@ missing required checkpoint stops recovery. Publishing, killing the server,
 resuming trim, and killing it again are exercised by `just test-storage`. An
 unknown effect survives these boundaries; a late observation after caller
 termination cannot revive the PID or advance its application state.
+Another fixture closes an unknown attempt while its caller is still running,
+then proves that late results remain rejected after checkpoint, trim, and restart.
 
 This first reclamation profile refuses to trim a live pending mailbox. Keeping
 pending input in separate retained segments, physical capacity reservation, and
 general dependency pins remain M1 work. Whole-journal deletion is not exposed.
 
-Finite deadlines are rejected as `UnsupportedDeadline`: pre-append clock checks
-alone cannot enforce expiry on a paused/delayed commit. Control capacity
+Finite deadlines are rejected as `UnsupportedDeadline` pending trusted
+authorization time, bounded settlement rights, and budget enforcement. Control capacity
 reservation, isolated effect execution, cross-process outboxes, network ingress, and
 Kubernetes/Substrate runtime reconciliation remain unimplemented gates.
 Do not advertise M1 completion or deploy this experiment as a service.

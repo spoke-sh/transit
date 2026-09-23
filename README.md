@@ -19,6 +19,9 @@ Retention defaults to unlimited. Applications can opt into finite process,
 mailbox, and history lifetimes or workload-scoped streams. Suspension and
 activation respect that contract; expired processes cannot resume. See
 [retention and resource lifetimes](docs/RETENTION.md).
+Work authorized before a cutoff may settle within an explicitly bounded window.
+Connectors own reconciliation policy; Transit enforces closure and rejects late
+results. Closing an unknown outcome does not cancel work in the external system.
 
 Authentication establishes caller identity at trusted ingress; Transit enforces
 permissions alongside execution ownership. Station and infrastructure providers
@@ -94,6 +97,6 @@ Start at the [documentation index](docs/README.md).
 | [Agent guidance](AGENTS.md) | Working conventions for this repository |
 
 The foundational docs distinguish established requirements from proposed
-mechanisms and implemented features. Ursula's binaries are available in the
-dev shell; client integration, durable service configuration, and cluster setup
-remain implementation work. Technical choices and rationale live in these docs.
+mechanisms and implemented features. The client adapter and local disk recovery
+proof are implemented; deployable services and the reference cluster remain
+implementation work. Technical choices and rationale live in these docs.

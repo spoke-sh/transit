@@ -61,9 +61,11 @@
 - Retention defaults to unlimited. Applications must opt into finite lifetime,
   history removal, and compaction semantics. Record effective policies and
   validate dependencies before accepting work; quota pressure is not expiry
-  authorization. Suspension must fit the recovery window, and known process
-  expiry permanently forbids activation, commits, and new application-effect
-  dispatch authorizations under that contract.
+  authorization. Suspension must fit the recovery window. The cutoff for new
+  work may leave bounded settlement rights for specifically authorized work;
+  it must not allow fresh turns or chains of effects. Final retirement forbids
+  activation and application commits. Connectors own reconciliation policy;
+  Transit enforces its authority, ordered closure, and rejection of late results.
 - Keep logical expiry separate from physical cleanup. Required checkpoints and
   retirement evidence remain durable after history/payload reclamation. A
   storage outage is not proof of expiry; old snapshots cannot revive expired

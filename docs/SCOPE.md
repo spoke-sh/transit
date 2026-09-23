@@ -37,6 +37,11 @@ The same primitives must support ordinary stateful distributed programs.
   Suspension fits the available recovery window; activation after known expiry
   fails permanently. Logical expiry and background physical reclamation are
   separate guarantees. See [RETENTION.md](RETENTION.md).
+- Allow specifically authorized work to settle within recorded finite limits
+  after the cutoff for starting new work. Connectors own reconciliation and
+  external retry/cancellation semantics; Transit supplies irreversible closure,
+  fenced acceptance, and late-result rejection. An unresolved attempt can close
+  with outcome unknown without pretending the remote operation was cancelled.
 - Station, the OTP-inspired framework, supplies behaviors, supervision, and
   scoped name registries above Transit. Registry changes are durable operations;
   rebinding a name cannot redirect accepted work or replies.

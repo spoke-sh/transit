@@ -39,6 +39,7 @@ distinction explicit when both appear in the same discussion.
 | Admission | Durable acceptance of a message's identity and place in the target PID's mailbox. It does not mean handling or an external effect has completed. |
 | Turn | Handling one admitted input against committed process state and proposing the next state, outgoing messages, and effect intents. |
 | Turn commit | The durable boundary that makes a turn's state transition and pending outputs authoritative together. |
+| Settlement | Completion of specifically authorized work within recorded finite limits after the cutoff for starting new work; it cannot grant more work or revive a retired PID. |
 | Worker | A replaceable executor that hosts process or connector work. A worker is distinct from the logical process it executes. |
 | Activation | A period of process execution under validated ownership on a worker. Recovery or resumption creates a fresh activation of the same PID. |
 | Activation reference | Conceptually `(PID, ownership_generation)`, identifying an execution incarnation. The reference itself grants no authority. |
@@ -104,7 +105,9 @@ See [STREAMS.md](STREAMS.md), [TRANSIT.md](TRANSIT.md), and [URSULA.md](URSULA.m
 | Term | Meaning |
 | --- | --- |
 | Retention contract | The application's recorded policy for lifetime, available history, cleanup, and expiry outcomes. Defaults are unlimited; finite semantics require opt-in. |
-| Process lifetime | The interval in which a PID may execute under its accepted policy and available recovery basis. |
+| Process lifetime | The interval in which a PID may start work, followed by any explicit bounded settlement period before final retirement. |
+| Work cutoff | The boundary after which fresh work cannot be authorized; specifically preauthorized settlement can remain eligible. |
+| Settlement window | The finite interval and permissions for completing identified work after its work cutoff, with required recovery resources retained. |
 | Mailbox lifetime | Availability of the logical mailbox and required pending inputs; it constrains process suspension and activation. |
 | Resumption bound | The latest permitted resumption boundary given process policy and required resource lifetimes. It does not guarantee scheduling before that time. |
 | Process expiry | Terminal retirement when the opted-in process/mailbox recovery lifetime ends. Activation permanently fails for that PID. |
@@ -140,6 +143,10 @@ checkpoint authority, and reclamation guarantees.
 | Interpolation | Rendering request variables from recorded bindings or authorized secret references, with field-specific encoding rules. |
 | Secret reference | A credential binding/version resolved by an authorized executor, allowing transcripts to identify substitutions without storing the secret value. |
 | Unknown outcome | An attempt whose remote result cannot be established from recorded evidence, such as a worker crash after sending. It requires connector recovery policy. |
+| Reconciliation | Connector work to establish an attempt's outcome using its external-system contract; it is not permission to repeat the original effect. |
+| Reconciliation lifetime | The accepted window and work budget for reconciliation. Recovery cannot renew it implicitly. |
+| Reconciliation closure | The irreversible end of an attempt's result-acceptance path. Late submissions are rejected; historical receipts remain receipts. |
+| Closed with outcome unknown | A terminal local disposition ending reconciliation without claiming remote success, failure, or cancellation. |
 
 See [CONNECTORS.md](CONNECTORS.md) for HTTP text, capture completeness, timing,
 and replay requirements.

@@ -5,7 +5,8 @@ Stream-group layout, interpolation syntax, and attempt protocol are proposed.
 No connector is implemented yet.
 The [experimental Transit profile](../contracts/TRANSIT_V1.md#effect-intents-and-observations)
 implements scalar intent, dispatch, and observation records, including unknown
-attempts and late evidence after caller retirement. This proves protocol
+attempts, explicit reconciliation closure, and evidence after caller retirement
+while reconciliation remains open. This proves protocol
 ordering and recovery only; connector I/O and its isolation boundary remain open.
 
 ## Effect boundary
@@ -75,8 +76,10 @@ already-authorized attempt follows a separate recorded metadata policy.
 
 Caller expiry is terminal for that PID. Apply its declared pending-effect policy;
 do not authorize new attempts under the expired contract or treat an unknown
-remote outcome as cancellation. Authorized reconciliation can record late
-evidence without reviving the caller or delivering to a replacement name binding.
+remote outcome as cancellation. Authorized reconciliation can record evidence
+while its own window remains open, without reviving a retired caller or
+delivering to a replacement name binding. Work authorized before a work cutoff
+may settle within its recorded limits; final retirement is a separate boundary.
 Keep execution lifetime, transcript replay retention, and physical reclamation
 separate, as defined in [RETENTION.md](RETENTION.md).
 
@@ -85,6 +88,45 @@ before reclaiming its members. Readers observe explicit expiry instead of an
 apparently complete transcript with missing bodies. Once required capture is
 outside its replay horizon, replay fails visibly; it cannot refetch the original
 request to manufacture replacement evidence.
+
+## Bounded reconciliation contract
+
+Reconciliation belongs to the connector. Transit provides the durable protocol
+guarantees it needs: stable attempt identity, authenticated observations, current
+grants, ordered acceptance/closure, duplicate rejection, and checkpoint recovery.
+It does not interpret an HTTP status as business success or choose a remote
+retry, cancellation, compensation, or polling strategy.
+
+Before dispatch, record who owns reconciliation, when it closes, its attempt and
+resource budgets, and the policy for an unresolved outcome. Validate dependent
+data lifetimes. A finite application contract cannot hide an unlimited cleanup
+loop. Recovery preserves the original window and budgets; starting a new worker
+does not renew them. Each polling, cancellation, or compensation request is
+itself an authorized connector attempt within that budget, not an unrecorded
+network call or an excuse to repeat the original operation.
+
+| Outcome at closure | Meaning |
+| --- | --- |
+| Confirmed outcome | The connector has sufficient evidence under the remote API contract; record the result once |
+| Closed with outcome unknown | Stop automatic reconciliation without claiming remote failure or cancellation |
+
+Result acceptance and closure share a serialized authority boundary. Once
+closed, reject new responses and observations, including those from a restored
+worker or one whose request began before the cutoff. A previously committed
+receipt may be returned under its retry/read policy; this performs no new
+acceptance. Closure cannot erase a result that already won the race.
+
+Release active reconciliation resources and permit transcript reclamation under
+the recorded retention policy, while preserving compact closure evidence and
+rejection floors. Late results cannot reopen the attempt, cause another send, or
+revive the caller. New investigation or a responsibility handoff requires separate
+explicit authority, preserves lineage, and does not reset the old attempt.
+
+The external system is unaffected by local closure. If the application requires
+remote work to stop or be undone, the connector must supply matching remote
+expiry/cancellation/compensation support, with its actual limits declared before
+admission. Reject guarantees the connector cannot support. Cancellation requests
+also need bounded reconciliation and may themselves end with an unknown outcome.
 
 ## Variables and secrets
 
@@ -145,9 +187,10 @@ Validate scheme, resolved destination, proxy route, and every redirect against
 the capability scope; block unauthorized private services, cloud metadata,
 storage/admin APIs, and credential forwarding. Authenticate outcome submissions
 against their executor and attempt; a matching correlation ID is insufficient.
-Late evidence from a superseded activation needs separate current permission
-to report that attempt, or ingestion by an authorized reconciler. It cannot
-restore the old activation's right to commit application state.
+Evidence from a superseded activation needs separate current permission to report
+that still-open attempt, or ingestion by an authorized reconciler. It cannot
+restore the old activation's right to commit application state. After closure,
+reject the submission rather than maintaining an unbounded late-evidence path.
 Timeout and cancellation are observations/requests; neither proves the remote
 service did no work. Completion is distinct from receiving an HTTP status line
 or a prefix of the body.
