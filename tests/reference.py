@@ -140,7 +140,11 @@ def images(s):
         tag = f"{host}/{name}:m1"
         run(["docker", "build", "-t", tag, context])
         run(["docker", "push", tag])
-        result[name] = json.loads(run(["docker", "image", "inspect", tag, "--format", "{{json .RepoDigests}}"], capture=True))[0]
+        digests = json.loads(run(["docker", "image", "inspect", tag, "--format", "{{json .RepoDigests}}"], capture=True))
+        current = [value for value in digests if value.startswith(f"{host}/{name}@sha256:")]
+        if len(current) != 1:
+            raise RuntimeError(f"Expected one digest in the owned registry for {name}")
+        result[name] = current[0]
     # Ursula publishes its own multi-platform image. Keep its release aligned
     # with the dev-shell overlay and pin the upstream manifest, without repacking.
     result["ursula"] = PINS["ursula"]
