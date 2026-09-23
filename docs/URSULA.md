@@ -104,11 +104,20 @@ Rey should own its stream catalog/naming scheme. This storage catalog is separat
 from Station's registered-name-to-PID registry. See
 [API overview](https://ursula.tonbo.io/docs/api/overview/).
 
-Treat `Stream-Next-Offset` as an opaque continuation value. Prefer `Stream-Cursor`
-for reconnecting live readers so stream recreation can be detected. `offset=-1`
-starts at the earliest retained data, not necessarily the original beginning.
-Handle trimmed positions (`410 Gone`) through explicit restore/bootstrap policy.
-See [offsets](https://ursula.tonbo.io/docs/concepts/offsets/).
+Treat `Stream-Next-Offset` as an opaque continuation value. The pinned 0.5.1
+long-poll proof wakes on an append and resumes correctly using that offset.
+It also exposes a documentation mismatch: a cursor-only request rereads the
+record instead of continuing. The
+[pinned renderer](https://github.com/tonbo-io/ursula/blob/v0.5.1/crates/ursula/src/render.rs)
+emits a numeric cursor; do not rely on the documented cursor/epoch bundle or
+claim stream-incarnation detection from it. The selected client also restricts
+`max_records` to record-coordinate requests; byte-offset reads use `max_bytes`.
+Transit uses explicit record positions and unreused physical identities.
+
+`offset=-1` starts at the earliest retained data, not necessarily the original
+beginning. Handle trimmed positions (`410 Gone`) through explicit restore policy.
+See [offsets](https://ursula.tonbo.io/docs/concepts/offsets/) for the upstream
+description, qualified by this executable finding.
 
 The client leaves retries, live-read reconnects, deadlines, and redirects to its
 caller. Rey must inspect HTTP status and response metadata before advancing

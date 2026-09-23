@@ -3,6 +3,61 @@ const adapter = @import("transit_ursula");
 const ursula = adapter.ursula;
 const check = std.testing;
 
+fn longPoll(client: *ursula.Client, stream: ursula.Stream) anyerror!void {
+    var response = try client.send(.{ .read = .{ .stream = stream, .options = .{
+        .position = .{ .record = 0 },
+        .live = .long_poll,
+        .max_records = 1,
+    } } });
+    defer response.deinit();
+    try response.head.requireSuccess();
+    try check.expectEqualStrings("{\"live\":true}\n", response.body);
+    const meta = try response.head.metadata();
+    try check.expectEqual(@as(?u64, 1), meta.record_next);
+    const cursor = meta.cursor orelse return error.MissingLiveCursor;
+    var resumed = try client.send(.{ .read = .{ .stream = stream, .options = .{
+        .position = .{ .cursor = cursor },
+        .max_bytes = adapter.max_record_bytes,
+    } } });
+    defer resumed.deinit();
+    try resumed.head.requireSuccess();
+    // Pinned 0.5.1's cursor is not a continuation coordinate despite its docs:
+    // cursor-only requests default to the beginning and repeat this record.
+    try check.expectEqualStrings(response.body, resumed.body);
+    var continued = try client.send(.{ .read = .{ .stream = stream, .options = .{
+        .position = .{ .offset = meta.next_offset orelse return error.MissingOffset },
+        .max_bytes = adapter.max_record_bytes,
+    } } });
+    defer continued.deinit();
+    try continued.head.requireSuccess();
+    try check.expectEqual(@as(usize, 0), continued.body.len);
+}
+fn delayedAppend(io: std.Io, journal: adapter.Journal) anyerror!void {
+    try io.sleep(.fromMilliseconds(100), .awake);
+    try check.expect(try journal.append(0, "{\"live\":true}"));
+}
+fn timeout(io: std.Io) anyerror!void {
+    try io.sleep(.fromSeconds(10), .awake);
+}
+fn proveLive(init: std.process.Init, url: []const u8, reader: *ursula.Client) !void {
+    var writer = try ursula.Client.init(init.gpa, init.io, .{ .base_url = url });
+    defer writer.deinit();
+    const journal: adapter.Journal = .{ .client = &writer, .stream = .{ .bucket = "transit-proof", .name = "live" } };
+    try journal.create();
+    const Result = union(enum) { read: anyerror!void, write: anyerror!void, timeout: anyerror!void };
+    var values: [3]Result = undefined;
+    var select: std.Io.Select(Result) = .init(init.io, &values);
+    defer select.cancelDiscard();
+    try select.concurrent(.timeout, timeout, .{init.io});
+    try select.concurrent(.read, longPoll, .{ reader, journal.stream });
+    select.async(.write, delayedAppend, .{ init.io, journal });
+    var done: usize = 0;
+    while (done < 2) : (done += 1) switch (try select.await()) {
+        .read, .write => |result| try result,
+        .timeout => return error.LiveReadTimeout,
+    };
+}
+
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 3) return error.ExpectedUrlAndPhase;
@@ -10,6 +65,7 @@ pub fn main(init: std.process.Init) !void {
     defer client.deinit();
     const journal: adapter.Journal = .{ .client = &client, .stream = .{ .bucket = "transit-proof", .name = "journal" } };
     if (std.mem.eql(u8, args[2], "write")) {
+        try proveLive(init, args[1], &client);
         try journal.create();
         const first = try journal.tail();
         try check.expectEqual(@as(u64, 0), first);
