@@ -103,6 +103,10 @@ pub const Adapter = struct {
         const body = try self.call(&.{ "resume", "actor", self.config.actor, "-a", self.config.atespace });
         self.allocator.free(body);
     }
+    pub fn revertActor(self: Adapter) !void {
+        const body = try self.call(&.{ "revert", "actor", self.config.actor, "-a", self.config.atespace });
+        self.allocator.free(body);
+    }
     pub fn suspendActor(self: Adapter) !void {
         const body = try self.call(&.{ "suspend", "actor", self.config.actor, "-a", self.config.atespace });
         self.allocator.free(body);
@@ -110,11 +114,14 @@ pub const Adapter = struct {
     /// The one allowed destination is the private authority hostname. All
     /// remaining egress must be denied by the selected Substrate gateway.
     pub fn policy(self: Adapter) !void {
-        const body = self.call(&.{ "get", "egress-policy", self.config.actor, "-a", self.config.atespace }) catch |err| switch (err) {
-            error.ProviderNotFound => {
+        const query = &.{ "get", "egress-policy", self.config.actor, "-a", self.config.atespace };
+        const body = self.call(query) catch |err| switch (err) {
+            error.ProviderNotFound => blk: {
                 const created = try self.call(&.{ "create", "egress-policy", self.config.actor, "-a", self.config.atespace, "-f", self.config.egress_policy_file });
                 self.allocator.free(created);
-                return self.policy();
+                // One bounded readback per scan; provider lag is retried by
+                // reconciliation, never through unbounded recursion.
+                break :blk try self.call(query);
             },
             else => return err,
         };

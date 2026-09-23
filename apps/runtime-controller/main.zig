@@ -47,7 +47,7 @@ const Controller = struct {
             .outcome = if (stopped) .stopped else .ready,
         } });
     }
-    fn step(self: *Controller) !enum { idle, intent, created, resumed, observed, activated, suspended } {
+    fn step(self: *Controller) !enum { idle, intent, created, reverted, resumed, observed, activated, suspended } {
         const view = try self.client.view(.{
             .realm = self.config.realm,
             .principal = self.config.principal,
@@ -98,7 +98,13 @@ const Controller = struct {
                 try self.observe(view, actor.uid, false);
                 return .observed;
             }
-            if (actor.state == .suspended or actor.state == .crashed) {
+            if (actor.state == .crashed) {
+                // Substrate requires revert before resuming a crashed Actor.
+                // The pending durable intent has already fenced the old owner.
+                try self.provider.revertActor();
+                return .reverted;
+            }
+            if (actor.state == .suspended) {
                 try self.provider.policy();
                 try self.provider.resumeActor();
                 return .resumed;

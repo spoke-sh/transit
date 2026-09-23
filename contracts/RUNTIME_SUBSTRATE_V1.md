@@ -39,7 +39,13 @@ Subsequent scans compare the assigned worker UID with durable activation
 evidence. Worker loss with pending input triggers another recorded intent and
 fresh activation for the same PID/Actor. Lost notifications do not strand work.
 Retirement prevents further activation; suspension is separate provider cleanup.
-Uncertain creation/resume calls are reconciled against the scoped identity.
+After worker loss, Substrate requires reverting a CRASHED Actor to its last
+committed snapshot before resuming it. The controller first records the new
+intent to fence the old activation, then reverts and resumes in separate scans.
+DATA-only snapshots restore no worker private key or execution authority;
+the fresh worker recovers current state from Transit. An interrupted revert is
+reconciled from the same Actor's observed state.
+Uncertain creation/revert/resume calls are reconciled against the scoped identity.
 An operation in progress is not permission to create another executor.
 
 Provider observations and log attribution are trusted controller inputs. There
