@@ -47,12 +47,13 @@ The basic sequence is:
 4. Keep the resulting `Pending` until its outcome is resolved. `pending.submit`
    sends that exact signed request and returns a durable receipt.
 
-The complete executable example is the
-[Zig caller proof](../tests/caller.zig), independently built with either
-[decimal accumulation](../examples/accumulator.zig) or
-[byte concatenation](../examples/byte_log.zig). The deployed
-[counter worker](../apps/transit-worker/main.zig) also uses Session. There is no
-application registry or callback table in the node; spawn's nonzero `code` is an
+The complete runnable examples are [counter](../examples/counter/README.md) and
+[byte log](../examples/byte-log/README.md), each with its own entry point, handler
+and run instructions. Both use Session. `just test-callers` launches these exact
+binaries; fault injection and adversarial assertions remain under `tests/`.
+The counter also supplies the reference deployment workload. Neither example
+is a required platform service. There is no application registry or callback
+table in the node; spawn's nonzero `code` is an
 application tag, separate from runtime binding and workload-image evidence.
 
 A state revision starts at zero and becomes the accepted successful turn's

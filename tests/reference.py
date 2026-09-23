@@ -129,10 +129,10 @@ def images(s):
     source()
     CACHE.mkdir(parents=True, exist_ok=True)
     go(["go", "build", "-o", CACHE / "kubectl-ate", "./cmd/kubectl-ate"])
-    run(["zig", "build", "apps", "probe", "-Dtarget=x86_64-linux-musl", "-Doptimize=ReleaseSafe", "--prefix", CACHE / "bin"])
+    run(["zig", "build", "apps", "examples", "probe", "-Dtarget=x86_64-linux-musl", "-Doptimize=ReleaseSafe", "--prefix", CACHE / "bin"])
     host = f"localhost:{s['port']}"
     result = {}
-    for name in ("transit-node", "transit-worker", "isolation-probe"):
+    for name in ("transit-node", "example-counter", "isolation-probe"):
         context = CACHE / (name + "-image")
         context.mkdir(exist_ok=True)
         shutil.copy2(CACHE / "bin/bin" / name, context / name)

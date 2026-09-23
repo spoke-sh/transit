@@ -167,7 +167,7 @@ backend = "inline"
                         "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"cpu": "1", "memory": "1Gi"}}}}})
         ref.ate(s, ["create", "atespace", namespace])
         template = {"metadata": {"atespace": namespace, "name": "counter"}, "workerSelector": {"matchLabels": {"workload": namespace}},
-                    "containers": [{"name": "counter", "image": images["transit-worker"], "command": ["/transit-worker", "--bootstrap-json",
+                    "containers": [{"name": "counter", "image": images["example-counter"], "command": ["/example-counter", "--bootstrap-json",
                                      json.dumps({"url": authority_url, "realm": 49, "principal": 1, "pid": pid})],
                                     "volumeMounts": [{"name": "runtime-data", "mountPath": "/runtime-data"}]}],
                     "volumes": [{"name": "runtime-data", "durableDir": {}}],
@@ -185,7 +185,7 @@ backend = "inline"
         controller_config.write_text(json.dumps({"url": url, "realm": 49, "principal": 2, "seed_file": str(controller_key), "pid": pid, "worker": 1,
             "provider": {"cli": str(ref.CACHE / "kubectl-ate"), "kubeconfig": str(ref.CACHE / "kubeconfig"), "context": "kind-" + s["cluster"],
                          "instance": list(uuid.uuid4().bytes), "atespace": namespace, "actor": actor_name, "template": "counter",
-                         "template_uid": list(uuid.UUID(template_uid).bytes), "image": images["transit-worker"],
+                         "template_uid": list(uuid.UUID(template_uid).bytes), "image": images["example-counter"],
                          "egress_policy_file": str(policy), "authority_host": authority_host}}))
         first, first_log = start([controller_bin, controller_config], "first-controller")
         deadline = time.monotonic() + 60

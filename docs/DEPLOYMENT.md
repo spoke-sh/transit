@@ -10,6 +10,8 @@ intents/observations, and atomic key/generation activation. Unit and disk proofs
 cover stale binding/worker rejection and retirement across checkpoint/trim;
 the provider proof below separately exercises the real runtime. See the
 [implemented profile](../contracts/TRANSIT_V2.md#runtime-bindings-and-activation).
+The reference workload is [example-counter](../examples/counter/README.md), a
+runnable application using `transit-client`. It is not a required Transit service.
 The [Substrate runtime profile](../contracts/RUNTIME_SUBSTRATE_V1.md) describes the
 implemented reconciler, pinned CLI transport, fresh-key bootstrap, and provider
 identity checks. `just reference-test` exercises controller interruption after

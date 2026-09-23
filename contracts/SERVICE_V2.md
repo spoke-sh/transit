@@ -8,15 +8,18 @@ requests, and authority/storage restart. This is not full deployment conformance
 
 ## Executables
 
-`just build` installs `transit-node`, `transit-worker`, and `rey-cli` under
-`zig-out/bin`. Workers and the CLI use `transit-client`, without an Ursula
-dependency. The node imports no application code. The reference worker alone compiles the
-[counter handler](../examples/counter.zig), which performs checked addition on
+`just build` installs the platform executables `transit-node`, `runtime-controller`
+and `rey-cli` under `zig-out/bin`. `just build-examples` installs `example-counter`
+and `example-byte-log`. These example callers and the CLI use `transit-client`,
+without an Ursula dependency. The node imports no application code.
+`example-counter` compiles the
+[counter handler](../examples/counter/handler.zig), which performs checked addition on
 decimal-text application values without I/O, allocation or ambient time. Overflow
-and malformed application data are reported by that caller; Transit records the failure, leaves input pending and
-fences ownership without recomputing the arithmetic. A worker exits and the
-runtime controller stops replacing it. Operator termination or opted-in expiry provides the
-explicit terminal disposition; no input is silently skipped.
+and malformed application data are reported by that caller; Transit records the
+failure, leaves input pending and fences ownership without recomputing the
+arithmetic. The example exits and runtime reconciliation stops replacing it.
+Operator termination or opted-in expiry provides the explicit terminal
+disposition; no input is silently skipped.
 
 `transit-node CONFIG.json [--bootstrap|--initialize|--maintain]` accepts:
 
@@ -54,14 +57,16 @@ credentials and raw storage access stay outside worker sandboxes. The separate
 physically reserved finite realm; enabling the node alone does not provision that
 reserve or promise full-store recovery for an arbitrary storage deployment.
 
-`transit-worker CONFIG.json` requires `url`, `realm`, `principal`, `pid`,
+The [counter example](../examples/counter/README.md) supplies the sample workload
+for this service proof. It is not required infrastructure.
+`example-counter CONFIG.json` requires `url`, `realm`, `principal`, `pid`,
 `generation`, and `seed_file`. Its grant needs `execute` and `inspect` scoped to
 the PID. Ownership is granted separately. Workers cannot refresh their own
 generation. They recover input/state and their own principal sequence, then
 retry an uncertain submission using exactly the same signed request. Independent
 writers must not share a principal sequence without coordination.
 
-For runtime-managed cold starts, `transit-worker --bootstrap-json CONFIG_JSON`
+For runtime-managed cold starts, `example-counter --bootstrap-json CONFIG_JSON`
 accepts public `url`, `realm`, `principal`, and `pid` settings. It generates an
 ephemeral private key in memory and prints only public registration evidence.
 A trusted controller validates that evidence against the current provider

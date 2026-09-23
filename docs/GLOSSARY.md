@@ -163,6 +163,7 @@ and replay requirements.
 | --- | --- |
 | Package | A source/dependency boundary in the monorepo with its own build definition. A Zig package may expose modules, executable artifacts, or both. |
 | Library/module | Reusable Zig code imported by consumers. Transit and Station will expose libraries; packaging a static/shared artifact is a separate consumer need. |
+| Example application | A complete runnable caller demonstrating the public client. `example-counter` and `example-byte-log` are examples; neither is required Transit infrastructure. |
 | Executable | A runnable entry point composing libraries with configuration and lifecycle handling. It is not synonymous with a library, Transit process, or deployment. |
 | Runtime instance | An explicitly identified deployment of an execution provider, such as a particular Substrate installation. It scopes provider resource references. |
 | Runtime binding | A durable association between a Transit PID and a scoped provider resource/workload version, reconciled by an adapter. It describes hosting, not execution authority. |

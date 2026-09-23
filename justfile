@@ -32,9 +32,18 @@ check:
 # Run the hosted CI checks within one already-entered development environment.
 ci: check test-packages test-storage test-service test-callers
 
-# Compile services, clients, and executable proofs.
+# Compile the platform executables: node, runtime controller and CLI.
 build:
     zig build
+
+# Compile complete example applications separately from platform executables.
+build-examples:
+    zig build examples
+
+# Run an example against a fresh, owned local disk Ursula and authority.
+example name:
+    zig build apps examples
+    python3 -B examples/local.py {{quote(name)}}
 
 # Run unit and protocol checks without a service.
 test:

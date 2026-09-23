@@ -16,15 +16,10 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);
     const runtime = b.dependency("runtime_substrate", .{ .target = target, .optimize = optimize });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = runtime.module("runtime_substrate") })).step);
-    const counter = b.createModule(.{
-        .root_source_file = b.path("examples/counter.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
     var node_artifact: *std.Build.Step.Compile = undefined;
     var cli_artifact: *std.Build.Step.Compile = undefined;
     const services = b.addSystemCommand(&.{ "python3", "-B" });
-    const apps_step = b.step("apps", "Install application executables without storage proof binaries");
+    const apps_step = b.step("apps", "Install platform executables");
     const probe = b.addExecutable(.{ .name = "isolation-probe", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/isolation.zig"),
         .target = target,
@@ -35,7 +30,7 @@ pub fn build(b: *std.Build) void {
     b.step("probe", "Install the adversarial reference sandbox executable").dependOn(&install_probe.step);
     test_step.dependOn(&probe.step);
     services.addFileArg(b.path("tests/service.py"));
-    for ([_][]const u8{ "transit-node", "transit-worker", "rey-cli", "runtime-controller" }) |name| {
+    for ([_][]const u8{ "transit-node", "rey-cli", "runtime-controller" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
@@ -45,7 +40,6 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "transit_client", .module = client.module("transit_client") },
             },
         }) });
-        if (std.mem.eql(u8, name, "transit-worker")) app.root_module.addImport("counter", counter);
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_core", core.module("transit_core"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_ursula", adapter.module("transit_ursula"));
         if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
@@ -53,13 +47,29 @@ pub fn build(b: *std.Build) void {
         const install = b.addInstallArtifact(app, .{});
         b.getInstallStep().dependOn(&install.step);
         apps_step.dependOn(&install.step);
-        if (std.mem.eql(u8, name, "runtime-controller")) app.root_module.addImport("runtime_substrate", runtime.module("runtime_substrate")) else services.addArtifactArg(app);
+        if (std.mem.eql(u8, name, "runtime-controller")) app.root_module.addImport("runtime_substrate", runtime.module("runtime_substrate"));
         if (std.mem.eql(u8, name, "transit-node") and target.result.os.tag == .linux) {
             const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
             app.root_module.addImport("clock_c", clock_c.createModule());
         }
         test_step.dependOn(&app.step);
     }
+    const examples_step = b.step("examples", "Install runnable example applications");
+    var example_artifacts: [2]*std.Build.Step.Compile = undefined;
+    inline for (.{ "counter", "byte-log" }, 0..) |name, index| {
+        const example = b.addExecutable(.{ .name = "example-" ++ name, .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/" ++ name ++ "/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
+        }) });
+        example_artifacts[index] = example;
+        examples_step.dependOn(&b.addInstallArtifact(example, .{}).step);
+        test_step.dependOn(&example.step);
+    }
+    services.addArtifactArg(node_artifact);
+    services.addArtifactArg(example_artifacts[0]);
+    services.addArtifactArg(cli_artifact);
     services.has_side_effects = true;
     services.stdio = .inherit;
     const executor = b.addExecutable(.{ .name = "effect-executor", .root_module = b.createModule(.{
@@ -74,6 +84,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = core.module("transit_core") })).step);
     const integration = b.addSystemCommand(&.{ "python3", "-B" });
     integration.addFileArg(b.path("tests/storage.py"));
+    const proofs_step = b.step("proofs", "Install disk conformance proof executables");
     for ([_][]const u8{ "storage", "kernel", "effects", "lifetime", "outbox", "runtime", "deletion" }) |name| {
         const proof = b.addExecutable(.{
             .name = b.fmt("transit-{s}-proof", .{name}),
@@ -87,7 +98,7 @@ pub fn build(b: *std.Build) void {
                 },
             }),
         });
-        b.installArtifact(proof);
+        proofs_step.dependOn(&b.addInstallArtifact(proof, .{}).step);
         integration.addArtifactArg(proof);
         if (std.mem.eql(u8, name, "deletion")) services.addArtifactArg(proof);
     }
@@ -98,12 +109,15 @@ pub fn build(b: *std.Build) void {
     // Both callers use the exact same authority and public CLI artifacts.
     callers.addArtifactArg(node_artifact);
     callers.addArtifactArg(cli_artifact);
-    inline for (.{ "accumulator", "byte_log" }) |name| {
-        const application = b.createModule(.{ .root_source_file = b.path("examples/" ++ name ++ ".zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }} });
-        const caller = b.addExecutable(.{ .name = name ++ "-caller", .root_module = b.createModule(.{ .root_source_file = b.path("tests/caller.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_client", .module = client.module("transit_client") }, .{ .name = "application", .module = application } } }) });
-        callers.addArtifactArg(caller);
-        test_step.dependOn(&caller.step);
-    }
+    for (example_artifacts) |example| callers.addArtifactArg(example);
+    const client_probe = b.addExecutable(.{ .name = "client-probe", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/client_probe.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
+    }) });
+    callers.addArtifactArg(client_probe);
+    test_step.dependOn(&client_probe.step);
     callers.has_side_effects = true;
     callers.stdio = .inherit;
     b.step("test-callers", "Prove two independent Zig applications against one generic node").dependOn(&callers.step);

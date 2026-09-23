@@ -28,12 +28,14 @@ source of tool versions; direnv is optional and is not installed by this shell.
 | `just check` | Checks Nix/Zig formatting, the toolchain smoke check, Zig unit tests, generated public-contract drift, local Markdown links, and diff whitespace |
 | `just ci` | Runs foundation, standalone package, disk recovery, service, and independent Zig caller checks in the same development shell |
 | `just fmt` | Formats Nix and Zig files |
-| `just build` | Compiles implemented Zig executables |
+| `just build` | Installs platform executables: node, runtime controller and CLI |
+| `just build-examples` | Installs `example-counter` and `example-byte-log` |
+| `just example counter`, `just example byte-log` | Provisions disposable disk Ursula and an authority, runs the real example, and verifies its committed state |
 | `just test` | Runs Zig unit/protocol tests without a service |
 | `just test-packages` | Checks each library independently of root build orchestration |
 | `just test-storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
 | `just test-service` | Proves signed HTTP ingress, scoped/revoked reads, worker replacement and authority/storage restart on loopback |
-| `just test-callers` | Runs two Zig applications through the public client against the same node, including dropped commit responses, stale owners and restart recovery |
+| `just test-callers` | Runs the actual counter and byte-log example binaries through the public client against the same node, including dropped commit responses, stale owners and restart recovery |
 | `just generate-contract`, `just check-contract` | Regenerates or checks the language-neutral JSON Schema derived from public Zig types |
 | `just test-capacity` | Linux/Docker proof of real disk pressure, reserved control progress, checkpoint/trim and restart on an owned ext4 image |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
@@ -41,8 +43,10 @@ source of tool versions; direnv is optional and is not installed by this shell.
 The root Zig build composes package tests and the storage proof. Integration
 orchestration uses the Nix-provided Python 3, temporary directories, and loopback ports;
 it never uses an existing Ursula deployment. Cluster deployment, frontend, and
-application scope follows the roadmap. The experimental counter service,
-worker, and CLI are described in the [service profile](../contracts/SERVICE_V2.md).
+application scope follows the roadmap. The platform service is described in the
+[service profile](../contracts/SERVICE_V2.md). Complete runnable applications and
+their local launcher live under [examples](../examples/README.md); the counter is
+also the reference deployment workload. Neither example is required infrastructure.
 
 The capacity proof requires Linux Docker with privileged-container support and
 at least 2 GiB of free disk for its temporary regular image file. It uses pinned

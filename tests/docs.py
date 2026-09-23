@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 
 root = Path(__file__).resolve().parent.parent
-files = [root / "README.md", root / "AGENTS.md", *sorted((root / "docs").rglob("*.md")), *sorted((root / "contracts").rglob("*.md"))]
+files = [root / "README.md", root / "AGENTS.md", *sorted((root / "docs").rglob("*.md")), *sorted((root / "contracts").rglob("*.md")), *sorted((root / "examples").rglob("*.md"))]
 errors = []
 links = 0
 for file in files:

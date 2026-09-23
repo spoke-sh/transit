@@ -116,6 +116,11 @@
 
 ## Implementation conventions
 
+- Keep platform and production application entry points under `apps/`. Keep
+  runnable demonstrations under `examples/`, with each example's handler, entry
+  point and README together.
+  Conformance tests should launch those actual binaries; keep fault injection
+  and assertions under `tests/`. Example binaries are not required infrastructure.
 - Keep application computation in callers. Transit authority validates protocol
   transitions and recovers recorded state; it must not import application handlers.
   Callers use `transit-client`, whose only protocol dependency is `transit-protocol`.

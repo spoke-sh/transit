@@ -1,4 +1,4 @@
-//! Compiled independently for two applications. Imports only the public client.
+//! Protocol assertions and adversarial proposals, separate from application execution.
 const std = @import("std");
 const wire = @import("transit_client");
 const p = wire.protocol;
@@ -8,12 +8,11 @@ const Config = struct {
     realm: u64,
     principal: u8,
     pid: u64,
-    peer: u64,
+    publish_to: u64,
     generation: u64,
     seed_file: []const u8,
     expected_state: p.Value,
     consumed: u64,
-    lose_ack: bool = false,
 };
 fn reject(client: *wire.Client, request: p.Request, key: p.Ed25519.KeyPair, code: p.ErrorCode) !void {
     try t.expectError(error.Rejected, client.submit(try p.sign(request, key)));
@@ -44,11 +43,10 @@ pub fn main(init: std.process.Init) !void {
         } } }, key, .StaleGeneration);
         return;
     }
-    if (std.mem.eql(u8, args[2], "commit")) {
+    if (std.mem.eql(u8, args[2], "reject")) {
         const delivery = (try session.receive()) orelse return error.ExpectedInput;
-        const result = try @import("application").apply(delivery.state, delivery.input.value);
-        try t.expect(result.eql(c.expected_state));
-        const pending = try session.prepareCommit(delivery, .{ .state = result, .outputs = .{ .{ .pid = c.peer, .value = p.Value.integer(5) }, null, null, null } });
+        const result = c.expected_state;
+        const pending = try session.prepareCommit(delivery, .{ .state = result, .outputs = .{ .{ .pid = c.publish_to, .value = result }, null, null, null } });
         // Legal computation is the application's concern. Protocol boundaries
         // reject stale state, skipped input, and unauthorized effects atomically.
         var invalid = pending.signed.request;
@@ -63,15 +61,7 @@ pub fn main(init: std.process.Init) !void {
         const before = try client.view(read, key);
         try t.expectEqual(delivery.revision, before.process.revision);
         try t.expect(delivery.state.eql(before.process.state));
-        // The harness drops a successful commit response after durable append.
-        if (c.lose_ack) {
-            if (pending.submit(&client)) |_| return error.ExpectedLostAcknowledgement else |_| {}
-            try t.expect(client.last_rejection == null);
-        }
-        const receipt = try pending.submit(&client);
-        try t.expectEqual(receipt.position, (try pending.submit(&client)).position);
-        const after = try client.view(read, key);
-        try t.expectEqual(receipt.position, after.process.revision);
+        return; // Valid turns are submitted only by the real example executables.
     } else if (!std.mem.eql(u8, args[2], "verify")) return error.UnknownPhase;
     const recovered = try client.view(read, key);
     try t.expect(recovered.process.state.eql(c.expected_state));

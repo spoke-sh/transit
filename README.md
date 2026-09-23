@@ -49,7 +49,7 @@ the same node, and a sample counter runs on the pinned Kubernetes/Substrate
 reference with worker-failure recovery and sandbox isolation proofs. A separate finite-capacity profile proves control
 progress using reserved disk space. See the [roadmap evidence](docs/ROADMAP.md)
 and [implemented profile and limits](contracts/TRANSIT_V2.md). Station, the HTTP
-connector, and applications are not implemented; this is not a stable public API.
+connector, and trading applications are not implemented; this is not a stable public API.
 
 ## Development environment
 
@@ -77,6 +77,16 @@ the ignored `.cache/vite-plus/` directory, uses the Nix-provided Node.js and
 package manager, and leaves shell profiles alone. The frontend milestone will
 add its own project-local Vite+ dependency and pnpm workspace lockfile.
 
+Run the complete [example applications](examples/README.md) against fresh local
+disk-backed infrastructure:
+
+```sh
+just example counter
+just example byte-log
+```
+
+`just build` builds platform executables; `just build-examples` builds the sample
+applications. No example binary is required to run the Transit authority.
 See [development](docs/DEVELOPMENT.md) for commands, updates, and verification.
 
 ## Project plan

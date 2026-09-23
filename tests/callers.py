@@ -9,7 +9,7 @@ import threading
 from storage import Fixture, free_port, wait_ready
 
 
-def run(node, cli, accumulator, byte_log):
+def run(node, cli, counter, byte_log, probe):
     with Fixture() as store:
         children, logs = [], []
         def start():
@@ -38,23 +38,45 @@ def run(node, cli, accumulator, byte_log):
             request = store.root / "request.json"
             request.write_text(json.dumps({"realm": 61, "principal": 0, "sequence": sequence, "command": value}))
             return json.loads(subprocess.check_output([str(cli), "submit", str(root), str(request), url], timeout=10))["position"]
-        dropped = set()
+        dropped = {}
+        verified_retries = set()
+        malformed_views = set()
+        malformed_receipts = set()
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
                 pass
+            def unavailable(self):
+                body = b"upstream temporarily unavailable"
+                self.send_response(503)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
             def do_POST(self):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 request = json.loads(body)["request"]
+                principal = request["principal"]
+                if self.path == "/v2/view" and principal in malformed_views:
+                    malformed_views.remove(principal)
+                    self.unavailable()
+                    return
                 connection = HTTPConnection("127.0.0.1", port, timeout=5)
                 try:
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    principal = request["principal"]
-                    if response.status == 200 and "turn" in request["command"] and principal not in dropped:
-                        dropped.add(principal)
-                        self.close_connection = True
-                        return
+                    if response.status == 200 and "turn" in request["command"]:
+                        if principal not in dropped:
+                            dropped[principal] = (body, data, request["sequence"])
+                            self.close_connection = True
+                            return
+                        original, receipt, sequence = dropped[principal]
+                        if request["sequence"] == sequence:
+                            assert body == original and data == receipt, "Uncertain commit changed identity or receipt"
+                            if principal not in malformed_receipts:
+                                malformed_receipts.add(principal)
+                                self.unavailable()
+                                return
+                            verified_retries.add(principal)
                     self.send_response(response.status)
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()
@@ -71,6 +93,7 @@ def run(node, cli, accumulator, byte_log):
             # and configuration remain identical for both applications.
             pids = [command({"spawn": {"code": 101, "initial_state": b"0".hex()}}),
                     command({"spawn": {"code": 202, "initial_state": b"seed:".hex()}})]
+            sink = command({"spawn": {}})
             configs = []
             for index, (pid, initial, expected) in enumerate(zip(pids, [b"7", b"alpha\0"], [b"7", b"seed:alpha\0"]), 1):
                 seed, public = key(f"worker-{index}.key")
@@ -78,36 +101,65 @@ def run(node, cli, accumulator, byte_log):
                 command({"own": {"pid": pid, "expected_generation": 0, "worker": index}})
                 command({"send": {"pid": pid, "value": initial.hex()}})
                 configs.append({"url": f"http://127.0.0.1:{proxy.server_port}", "realm": 61, "principal": index,
-                                "pid": pid, "peer": pids[2-index], "generation": 1, "seed_file": str(seed),
-                                "expected_state": expected.hex(), "consumed": 1, "lose_ack": True})
-            def call(index, phase):
-                path = store.root / f"caller-{index}.json"
+                                "pid": pid, "publish_to": pids[1] if index == 1 else sink, "generation": 1, "seed_file": str(seed),
+                                "expected_state": expected.hex(), "consumed": 1})
+            def check(index, phase):
+                path = store.root / f"probe-{index}.json"
                 path.write_text(json.dumps(configs[index]))
-                subprocess.run([str([accumulator, byte_log][index]), str(path), phase], check=True, timeout=20)
+                subprocess.run([str(probe), str(path), phase], check=True, timeout=20)
+            def call(index, expected_error=None):
+                path = store.root / f"example-{index}.json"
+                options = {k: v for k, v in configs[index].items() if k not in ("expected_state", "consumed")}
+                path.write_text(json.dumps(options))
+                result = subprocess.run([str([counter, byte_log][index]), "--once", str(path)],
+                                        capture_output=True, text=True, timeout=20)
+                if expected_error:
+                    assert result.returncode != 0 and expected_error in result.stderr, result
+                    return
+                assert result.returncode == 0, result.stderr
+                receipt = json.loads(result.stdout)
+                assert receipt["position"] > 0
             for index in range(2):
-                call(index, "commit")
-            assert dropped == {1, 2}
+                check(index, "reject")
+                malformed_views.add(index + 1)
+                call(index)
+                check(index, "verify")
+            assert set(dropped) == verified_retries == malformed_receipts == {1, 2}
+            assert not malformed_views
             # Atomic turn outputs appear once despite lost acknowledgements.
             command({"deliver": {"pid": pids[1], "output": 1, "courier": 0}})
-            command({"deliver": {"pid": pids[0], "output": 2, "courier": 0}})
+            command({"deliver": {"pid": sink, "output": 2, "courier": 0}})
+            read = store.root / "sink.json"
+            read.write_text(json.dumps({"realm": 61, "principal": 0, "sequence": 0, "command": {"inspect": sink}}))
+            sink_view = json.loads(subprocess.check_output([str(cli), "view", str(root), str(read), url], timeout=10))
+            assert sink_view["process"]["admitted"] == 1
+            assert sink_view["input"]["value"] == b"seed:alpha\0".hex()
+            command({"send": {"pid": pids[0], "value": b"5".hex()}})
             authority.kill()
             authority.wait(timeout=10)
             store.stop()
             store.start()
             authority = start()
-            for index, expected in enumerate([b"12", b"seed:alpha\x005"]):
+            for index, expected in enumerate([b"12", b"seed:alpha\x007"]):
                 command({"own": {"pid": pids[index], "expected_generation": 1, "worker": index+1}})
-                call(index, "stale")
-                configs[index].update(generation=2, expected_state=expected.hex(), consumed=2, lose_ack=False)
-                call(index, "commit")
-                call(index, "verify")
+                check(index, "stale")
+                call(index, expected_error="StaleActivation")
+                configs[index].update(generation=2, expected_state=expected.hex(), consumed=2)
+                check(index, "reject")
+                call(index)
+                check(index, "verify")
             # No application reducer is present during either restart/recovery.
             authority.kill()
             authority.wait(timeout=10)
             authority = start()
             for index in range(2):
-                call(index, "verify")
-            print("Two independent Zig callers: opaque state, atomic outputs, lost acknowledgements, stale activation and authority/storage recovery passed.")
+                check(index, "verify")
+            print("Runnable counter and byte-log examples: opaque state, atomic outputs, lost/malformed responses, stale activation and authority/storage recovery passed.")
+        except BaseException:
+            for log in logs:
+                log.flush()
+                print(Path(log.name).read_text()[-4000:])
+            raise
         finally:
             proxy.shutdown()
             proxy.server_close()

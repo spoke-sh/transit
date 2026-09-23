@@ -110,11 +110,15 @@ documentation mismatch are recorded in [URSULA.md](URSULA.md). The corrected
 client proof verifies offset-plus-cursor and record-plus-cursor continuation;
 Transit's journal reads use record positions.
 
-`just test-callers` compiles two Zig programs using only `transit-client` and their
-own application module: decimal accumulation and arbitrary byte concatenation.
+`just test-callers` launches the actual `example-counter` and `example-byte-log`
+binaries, each importing only `transit-client`. Application-independent Zig
+probes perform rejected proposals and state assertions; Python injects faults.
+The counter is shared with the service and reference proofs. No test driver
+executes a separate copy of application logic.
 The same node binary accepts both, records opaque state and atomic outputs,
 rejects stale revisions/skipped inputs/unauthorized effects, and recovers through
-authority and disk Ursula restart. A proxy drops successful commit responses;
+authority and disk Ursula restart. A proxy drops successful commit responses and
+injects malformed unavailable responses on reads and commit retries;
 retrying the identical pending request returns the original receipt. Replaced
 activations fail locally and at signed ingress. Recovery verification does not
 execute either application. `just check-contract` checks that the committed

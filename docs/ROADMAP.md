@@ -51,6 +51,14 @@ Do not build Station or real external-effect integrations on an unproved gate.
 Track evidence using [CONFORMANCE.md](CONFORMANCE.md); documentation agreement
 does not mark these gates complete.
 
+### Code structure
+
+The kernel implementation is `transit-core` (Zig module `transit_core`). Platform
+entry points live under `apps/`; the M1 counter and byte-log programs are complete
+applications under `examples/`. Conformance harnesses exercise those actual
+binaries, with assertions and faults under `tests/`. This clarifies the M1
+boundaries without adding a framework milestone or changing protocol v2.
+
 ### Exit criteria
 
 The supported M1 profile is intentionally small: one realm, bounded opaque
@@ -64,7 +72,7 @@ multi-node storage.
 | Evidence | What it proves |
 | --- | --- |
 | `just check`, `just test-packages` | Independent package composition; signed requests/current grants; one conditional successor; ordered input, invalid proposals and blocked failures; runtime fencing; bounded clocks, settlement, closure and outboxes; shared valid/invalid JSON traces and bounded view encoding |
-| `just test-callers`, `just check-contract` | Two distinct Zig callers use the same generic node; opaque bytes, state revisions, atomic outputs, denied effects, lost commit responses, ownership replacement and restart recovery; generated schema matches public types |
+| `just test-callers`, `just check-contract` | Runnable counter and byte-log examples use the same generic node; opaque bytes, state revisions, atomic outputs, denied effects, lost commit responses, ownership replacement and restart recovery; generated schema matches public types |
 | `just test-storage` | Disk WAL SIGKILL/restart; competing authorities, lost receipts and revoked grants; 100 inputs beyond the 16-record window; checkpoint/trim with pending effect/outbox/control evidence; live authority catch-up; immutable payload deletion after a lost receipt; native long-poll/offset continuation |
 | `just test-service` | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
 | `just test-capacity` | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations |

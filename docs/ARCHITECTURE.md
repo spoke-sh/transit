@@ -191,7 +191,9 @@ independently deployed service. Runtime isolation still follows the protocol
 authority model.
 
 `transit-protocol`, `transit-core`, `transit-ursula`, `transit-client`, and
-`runtime-substrate` are implemented libraries. The node, counter worker, runtime controller and CLI compose them.
+`runtime-substrate` are implemented libraries. The platform executables are
+`transit-node`, `runtime-controller` and `rey-cli`. Runnable counter and byte-log
+applications live under `examples/` and depend only on `transit-client`.
 Station and HTTP entries below remain proposals. Supporting interfaces are still
 experimental; a directory in this plan does not imply a deployed component.
 
@@ -228,7 +230,6 @@ utility package before shared code has a concrete owner.
 | Candidate entry point | Composition and role |
 | --- | --- |
 | `apps/transit-node/` | Transit plus adapters; hosts authenticated ingress, policy/control recovery, admission, sequencing, commit, delivery, and retention reconciliation |
-| `apps/transit-worker/` | Implemented fixed M1 counter activation worker using only the protocol client; precedes Station behaviors |
 | `apps/station-worker/` | Station plus workload libraries; runs process activations and their behaviors under Transit authority, without raw authoritative storage credentials |
 | `apps/http-worker/` | HTTP connector executor; performs authorized fetch attempts and publishes capture/outcomes through the protocol boundary |
 | `apps/runtime-controller/` | Transit lifecycle client plus `runtime-substrate`; reconciles durable execution intent with Substrate |
@@ -240,12 +241,31 @@ initially be compiled into workload-specific worker images; a dynamic plugin
 system is not implied. These are responsibilities to allocate as code lands,
 with final OS process/deployment topology driven by isolation and measured needs.
 
+### Runnable examples and tests
+
+`examples/counter/` builds `example-counter`; `examples/byte-log/` builds
+`example-byte-log`. Each owns its entry point, handler and README. The counter
+also serves as the Kubernetes/Substrate reference workload. No example binary is
+required to run the Transit authority; real applications provide their own callers.
+The service, reference deployment and client proofs share one counter handler.
+
+`just build` installs platform commands. `just build-examples` explicitly installs
+examples. `just example counter` and `just example byte-log` run them against
+fresh local disk-backed infrastructure. Root Zig build steps mirror these
+boundaries: `apps`, `examples`, and `proofs` for disk conformance executables.
+
+Conformance harnesses under `tests/` launch the real example binaries. Fault
+injection and protocol assertions stay there; test probes never replace the
+application entry points or perform their successful turns. See
+[the examples](../examples/README.md).
+
 ### Repository layout
 
 ```text
 packages/zig/      Reusable Zig libraries, including Transit and Station
 packages/ts/       Shared frontend libraries when needed
-apps/              Zig executable packages and the eventual web frontend
+apps/              Platform and production application entry points
+examples/          Complete runnable applications using the public client
 contracts/         Protocol profiles linking package-owned JSON fixtures
 tests/             Conformance, cluster failure and replay scenarios
 deploy/            Reference deployment configuration
