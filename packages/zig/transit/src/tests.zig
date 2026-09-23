@@ -501,3 +501,96 @@ test "an unfinished permit cannot outlive settlement or skip expired input" {
     try t.expectEqual(@as(i64, 0), p.state);
     try t.expect(p.turn_permit == null);
 }
+
+fn fanout(state: i64, input: i64) !transit.Decision {
+    var decision: transit.Decision = .{ .state = try std.math.add(i64, state, input) };
+    if (input == 99) decision.outputs = .{ .{ .pid = 1, .value = 1 }, .{ .pid = 1, .value = 2 }, .{ .pid = 2, .value = 3 }, null };
+    return decision;
+}
+
+fn seedOutbox(f: *Fixture, e: anytype) !void {
+    for (0..3) |_| _ = try f.submit(e, 0, .{ .spawn = .{ .allow_trim = true } });
+    _ = try f.submit(e, 0, .{ .own = .{ .pid = 3, .worker = 0, .expected_generation = 0 } });
+    const input = try f.submit(e, 0, .{ .send = .{ .pid = 3, .value = 99 } });
+    _ = try f.submit(e, 0, .{ .turn = .{ .pid = 3, .generation = 1, .input = input, .result = 99, .outputs = (try fanout(0, 99)).outputs } });
+    _ = try f.submit(e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.send) } });
+}
+
+test "outbox preserves each route's order, partial fanout, and uncertain admission receipts" {
+    const OutboxEngine = transit.Engine(Memory, fanout);
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try OutboxEngine.bootstrap(&f.store, f.genesis);
+    try seedOutbox(&f, &e);
+    try t.expectError(error.RouteBlocked, f.submit(&e, 0, .{ .deliver = .{ .pid = 1, .output = 2, .courier = 1 } }));
+    _ = try f.submit(&e, 0, .{ .deliver = .{ .pid = 2, .output = 3, .courier = 1 } });
+    try t.expectEqual(.pending, (try e.state.output(1)).phase);
+    try t.expectEqual(.delivered, (try e.state.output(3)).phase);
+    const first = try f.request(&e, 0, .{ .deliver = .{ .pid = 1, .output = 1, .courier = 1 } });
+    f.store.fail_ack = true;
+    try t.expectError(error.LostAcknowledgement, e.submit(first));
+    var replay = try OutboxEngine.open(&f.store, f.genesis);
+    const receipt = try replay.submit(first);
+    try t.expectEqual(@as(u64, 1), (try replay.state.process(1)).admitted);
+    try t.expectEqual(receipt, (try replay.nextInput(1, replay.state.position)).?.position);
+    _ = try f.submit(&replay, 0, .{ .deliver = .{ .pid = 1, .output = 2, .courier = 1 } });
+    try t.expectEqual(receipt, try replay.submit(first));
+    try t.expectEqual(@as(u64, 2), (try replay.state.process(1)).admitted);
+}
+
+test "revocation fences delivery; denied records are not mailbox inputs" {
+    const OutboxEngine = transit.Engine(Memory, fanout);
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try OutboxEngine.bootstrap(&f.store, f.genesis);
+    try seedOutbox(&f, &e);
+    const delivery = try f.request(&e, 0, .{ .deliver = .{ .pid = 1, .output = 1, .courier = 1 } });
+    const pending = try e.prepare(delivery);
+    var controller = try OutboxEngine.open(&f.store, f.genesis);
+    _ = try f.submit(&controller, 0, .{ .revoke = 1 });
+    try t.expectError(error.Conflict, e.commit(pending));
+    _ = try f.submit(&controller, 0, .{ .deliver = .{ .pid = 1, .output = 1, .courier = 1 } });
+    try t.expectEqual(.denied, (try controller.state.output(1)).phase);
+    try t.expectEqual(@as(u64, 0), (try controller.state.process(1)).admitted);
+    _ = try f.submit(&controller, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.send) } });
+    const accepted = try f.submit(&controller, 0, .{ .deliver = .{ .pid = 1, .output = 2, .courier = 1 } });
+    try t.expectEqual(accepted, (try controller.nextInput(1, controller.state.position)).?.position);
+    try t.expectError(error.OutputAlreadyResolved, f.submit(&controller, 0, .{ .deliver = .{ .pid = 1, .output = 1, .courier = 1 } }));
+    // Source termination cancels only remaining, unaccepted fanout destinations.
+    _ = try f.submit(&controller, 0, .{ .terminate = 3 });
+    try t.expectEqual(.cancelled, (try controller.state.output(3)).phase);
+    try t.expectEqual(.delivered, (try controller.state.output(2)).phase);
+    var replay = try OutboxEngine.open(&f.store, f.genesis);
+    try t.expectEqual(@as(u64, 1), (try replay.state.process(1)).admitted);
+}
+
+test "replay rejects forged mailbox admission metadata" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    const at = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 1 } });
+    f.store.entries.items[@intCast(at)].operation.admission.?.value = 999;
+    try t.expectError(error.InvalidAdmission, Engine.open(&f.store, f.genesis));
+}
+
+test "expired delivery is terminal without waiting for expiry maintenance" {
+    const OutboxEngine = transit.Engine(Memory, fanout);
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.max_clock_error_ms = 0;
+    var clock: TestClock = .{ .now = .{ .unix_ms = 10 } };
+    var e = try OutboxEngine.bootstrap(&f.store, f.genesis);
+    e.clock = clock.source();
+    _ = try f.submit(&e, 0, .{ .spawn = .{ .deadline_ms = 20, .settle_before_ms = 30 } });
+    for (0..2) |_| _ = try f.submit(&e, 0, .{ .spawn = .{} });
+    _ = try f.submit(&e, 0, .{ .own = .{ .pid = 3, .worker = 0, .expected_generation = 0 } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = 3, .value = 99 } });
+    _ = try f.submit(&e, 0, .{ .turn = .{ .pid = 3, .generation = 1, .input = input, .result = 99, .outputs = (try fanout(0, 99)).outputs } });
+    clock.now.unix_ms = 20;
+    _ = try f.submit(&e, 0, .{ .deliver = .{ .pid = 1, .output = 1, .courier = 0 } });
+    try t.expectEqual(.expired, (try e.state.output(1)).phase);
+    try t.expectEqual(@as(u64, 0), (try e.state.process(1)).admitted);
+    _ = try f.submit(&e, 0, .{ .deliver = .{ .pid = 2, .output = 3, .courier = 0 } });
+    try t.expectEqual(@as(i64, 3), (try e.nextInput(2, e.state.position)).?.admission.?.value);
+}

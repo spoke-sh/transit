@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = transit.module("transit") })).step);
     const integration = b.addSystemCommand(&.{ "python3", "-B" });
     integration.addFileArg(b.path("tests/storage.py"));
-    for ([_][]const u8{ "storage", "kernel", "effects", "lifetime" }) |name| {
+    for ([_][]const u8{ "storage", "kernel", "effects", "lifetime", "outbox" }) |name| {
         const proof = b.addExecutable(.{
             .name = b.fmt("transit-{s}-proof", .{name}),
             .root_module = b.createModule(.{

@@ -12,7 +12,9 @@ The journal contains one JSON object per Ursula record. The first is
 recovery rejects any mismatch. Only explicit bootstrap creates a journal.
 
 Subsequent entries wrap `operation`, whose fields are `version`, `position`,
-`policy_revision`, and `request`. Positions start at one, match the physical JSON
+`policy_revision`, `request`, authority `time`, and derived `admission`. Replay
+recomputes admission and rejects mismatches; a denied delivery or evidence-only
+observation is not a mailbox input. Positions start at one, match the physical JSON
 record ordinal in this adapter, and remain explicit protocol fields. The portable
 engine does not interpret an Ursula byte cursor. A PID is `(realm, spawn position)`.
 Retired process entries are preserved and never reallocated.
@@ -72,9 +74,37 @@ establish isolation or determinism for arbitrary native code.
 Mailbox bodies remain in storage. State holds counts and a scan position;
 the Ursula adapter caches at most 16 records. This trades scanning cost for a
 small, provable recovery mechanism. A deployment is currently limited to 16
-principals, 64 lifetime process identities, and 128 lifetime effect identities;
+principals, 64 lifetime process identities, 128 lifetime effect identities, and
+256 lifetime output identities;
 reaching those quotas fails
 before admission. Scaling those catalogs requires a later persistent index.
+
+## Process outboxes
+
+A turn can commit up to four scalar outputs to fixed destination PIDs, alongside
+state and input progress. The authority recomputes that array with the reducer
+and requires the producer's `publish` grant, scoped to the source PID. Each
+output retains its source, originating turn, array index, payload, and stable
+realm-scoped identity. A committed output does not guarantee destination admission.
+
+In this single-realm profile, an administrative controller submits `deliver`
+with the output identity, fixed destination PID, and proposed courier principal.
+Transit checks that courier's current `send` grant and PID scope, plus destination
+lifetime. Delivery records the policy revision and either one mailbox admission
+or a terminal denied/expired/retired outcome in the same conditional append.
+Revocation races fence a prepared delivery. This deliberately uses one authority
+journal; it is not a cross-realm or multi-stream transaction implementation.
+
+An unresolved earlier output blocks later outputs from the same source to the
+same destination. Other destinations can progress independently, so fan-out can
+partially succeed. A terminal disposition releases that route; a late retry
+cannot subsequently admit the earlier output. Source termination/expiry cancels
+only its still-pending outputs, preserving already admitted destinations.
+
+Checkpoints retain pending payloads and resolved delivery evidence. The disk
+proof removes the source turn, resumes partial fan-out after restart, and resolves
+a lost acknowledgement without duplicate destination admission. Catalog capacity
+refuses the entire source turn before committing any state or outputs.
 
 ## Effect intents and observations
 
@@ -188,6 +218,6 @@ general dependency pins remain M1 work. Whole-journal deletion is not exposed.
 Finite deadlines are rejected as `UnsupportedDeadline` unless the realm opts
 into bounded authority time; a missing required source gives `ClockUnavailable`.
 Control capacity
-reservation, isolated effect execution, cross-process outboxes, network ingress, and
+reservation, isolated effect execution, cross-realm delivery, network ingress, and
 Kubernetes/Substrate runtime reconciliation remain unimplemented gates.
 Do not advertise M1 completion or deploy this experiment as a service.

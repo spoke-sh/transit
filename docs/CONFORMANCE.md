@@ -23,6 +23,11 @@ termination cannot revive application execution. No external I/O is invoked.
 Closure tests exercise both winners of the result/closure race, lost
 acknowledgements, and unauthorized closure. Real disk restart and trim preserve
 closed unknown outcomes and reject late observations even while the caller lives.
+Outbox tests cover ordered routes, partial fan-out, denied/expired destinations,
+revocation racing delivery, and cancellation of undelivered outputs. Disk restart
+and prefix removal preserve pending payloads; a lost delivery receipt cannot
+admit the same output twice. Replay verifies explicit admission metadata so
+denied deliveries cannot masquerade as mailbox messages.
 These are local single-node results, not the Kubernetes/Substrate isolation proof.
 
 The time interface and finite-policy transitions now have executable proofs:

@@ -63,6 +63,9 @@ Controlled-clock proofs cover finite settlement, observation budgets, deadline
 rejection, and selection of due maintenance. A production clock source and
 maintenance service remain open;
 the full retention, effect, and deployment gates below remain open.
+Same-realm outbox tests also cover source order per destination, partial fan-out,
+denied/expired delivery, lost receipts, and recovery after the source turn is
+removed by checkpoint/trim. Broader capacity and deployment proofs remain open.
 
 - [ ] Introduce the Transit library, Ursula adapter, and minimum executable
   composition from the [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition),

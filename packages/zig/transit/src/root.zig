@@ -5,9 +5,11 @@ pub const Time = @import("Time.zig");
 pub const max_principals = 16;
 pub const max_processes = 64;
 pub const max_effects = 128;
+pub const max_outputs = 256;
+pub const max_turn_outputs = 4;
 pub const max_counter = (1 << 53) - 1;
-pub const Permission = enum(u4) { admin, spawn, send, execute, inspect, effect };
-pub const all_permissions: u16 = 0x3f;
+pub const Permission = enum(u4) { admin, spawn, send, execute, inspect, effect, publish };
+pub const all_permissions: u16 = 0x7f;
 pub fn permission(p: Permission) u16 {
     return @as(u16, 1) << @backingInt(p);
 }
@@ -56,6 +58,19 @@ pub const Effect = struct {
     max_observations: u16 = 16,
     observations: u16 = 0,
 };
+pub const Output = struct { pid: u64, value: i64 };
+pub const Outbox = struct {
+    id: u64,
+    source: u64,
+    turn: u64,
+    index: u8,
+    destination: u64,
+    value: i64,
+    phase: enum { pending, delivered, denied, expired, retired, cancelled } = .pending,
+    resolved_at: ?u64 = null,
+    courier: ?u8 = null,
+    policy_revision: ?u64 = null,
+};
 pub const Command = union(enum) {
     grant: Grant,
     revoke: u8,
@@ -63,7 +78,8 @@ pub const Command = union(enum) {
     own: struct { pid: u64, expected_generation: u64, worker: u8 },
     send: struct { pid: u64, value: i64 },
     begin_turn: struct { pid: u64, generation: u64, input: u64 },
-    turn: struct { pid: u64, generation: u64, input: u64, result: i64, effect: ?i64 = null, permit: ?u64 = null },
+    turn: struct { pid: u64, generation: u64, input: u64, result: i64, effect: ?i64 = null, permit: ?u64 = null, outputs: [max_turn_outputs]?Output = @splat(null) },
+    deliver: struct { pid: u64, output: u64, courier: u8 },
     dispatch: struct { pid: u64, effect: u64, reconcile_before_ms: ?u64 = null, max_observations: u16 = 16 },
     observe: struct { pid: u64, effect: u64, attempt: u64, result: ?i64 },
     close_effect: struct { pid: u64, effect: u64, attempt: u64, reason: enum { abandoned, deadline } = .abandoned },
@@ -86,6 +102,7 @@ pub const Record = struct {
     policy_revision: u64,
     request: Request,
     time: ?Time.Sample = null,
+    admission: ?Message = null,
 };
 pub const RetryPolicy = enum { unlimited, last_per_principal };
 pub const Genesis = struct {
@@ -99,16 +116,12 @@ pub const Entry = union(enum) { genesis: Genesis, operation: Record };
 
 /// The v1 experiment uses scalar state/input and one compiled workload version.
 /// The executable supplies the reviewed reducer; Transit owns its sequencing.
-pub const Decision = struct { state: i64, effect: ?i64 = null };
+pub const Decision = struct { state: i64, effect: ?i64 = null, outputs: [max_turn_outputs]?Output = @splat(null) };
 pub const Reducer = *const fn (i64, i64) anyerror!Decision;
 
 pub const Message = struct { pid: u64, value: i64 };
 pub fn messageOf(record: Record) ?Message {
-    return switch (record.request.command) {
-        .send => |c| .{ .pid = c.pid, .value = c.value },
-        .observe => |c| if (c.result) |value| .{ .pid = c.pid, .value = value } else null,
-        else => null,
-    };
+    return record.admission;
 }
 
 pub fn digest(request: Request) [32]u8 {
@@ -135,6 +148,8 @@ pub const State = struct {
     principals: [max_principals]?Principal = @splat(null),
     processes: [max_processes]?Process = @splat(null),
     effects: [max_effects]?Effect = @splat(null),
+    outputs: [max_outputs]?Outbox = @splat(null),
+    output_count: u64 = 0,
     max_clock_error_ms: ?u32 = null,
     time_floor_ms: u64 = 0,
 
@@ -165,6 +180,11 @@ pub const State = struct {
         return error.UnknownEffect;
     }
 
+    pub fn output(self: *State, id: u64) !*Outbox {
+        if (id == 0 or id > self.output_count) return error.UnknownOutput;
+        return &self.outputs[@intCast(id - 1)].?;
+    }
+
     pub fn authenticate(self: *const State, signed: SignedRequest) !void {
         const request = signed.request;
         if (request.version != 1 or request.realm != self.realm) return error.WrongProtocolRealm;
@@ -177,7 +197,7 @@ pub const State = struct {
         if (request.version != 1 or request.realm != self.realm) return error.WrongProtocolRealm;
         const p = try self.principal(request.principal);
         const required: Permission = switch (request.command) {
-            .grant, .revoke, .own, .terminate, .expire, .checkpoint => .admin,
+            .grant, .revoke, .own, .terminate, .expire, .checkpoint, .deliver => .admin,
             .spawn => .spawn,
             .send => .send,
             .turn, .begin_turn => .execute,
@@ -190,6 +210,7 @@ pub const State = struct {
             .send => |c| c.pid,
             .turn => |c| c.pid,
             .begin_turn => |c| c.pid,
+            .deliver => |c| c.pid,
             .dispatch => |c| c.pid,
             .observe => |c| c.pid,
             .close_effect => |c| c.pid,
@@ -216,7 +237,7 @@ pub const State = struct {
     /// Validate a transition on a copy. The caller publishes it only after CAS.
     /// `input` must be fetched from the journal by the trusted engine, never from
     /// a worker-supplied envelope. State alone does not hold the mailbox backlog.
-    pub fn apply(self: *State, record: Record, input: ?Record, reducer: Reducer) !void {
+    pub fn apply(self: *State, record: Record, input: ?Record, reducer: Reducer) !?Message {
         if (record.version != 1 or record.position != self.position or self.position >= max_counter) return error.InvalidPosition;
         const req = record.request;
         if (try self.duplicate(req) != null) return error.DuplicateRecord;
@@ -227,6 +248,7 @@ pub const State = struct {
             if (time.unix_ms < self.time_floor_ms) return error.ClockRollback;
             self.time_floor_ms = time.unix_ms;
         }
+        var admission: ?Message = null;
         switch (req.command) {
             .grant => |g| {
                 if (req.principal != 0) return error.Forbidden;
@@ -276,6 +298,7 @@ pub const State = struct {
                 const p = try self.process(c.pid);
                 try self.newWork(p, record);
                 p.admitted = try std.math.add(u64, p.admitted, 1);
+                admission = .{ .pid = c.pid, .value = c.value };
             },
             .begin_turn => |c| {
                 const p = try self.process(c.pid);
@@ -301,6 +324,15 @@ pub const State = struct {
                 const decision = try reducer(p.state, body.value);
                 if (c.result != decision.state) return error.InvalidResult;
                 if (c.effect != decision.effect) return error.InvalidEffectIntent;
+                if (!std.meta.eql(c.outputs, decision.outputs)) return error.InvalidOutputs;
+                for (c.outputs, 0..) |slot, index| if (slot) |out| {
+                    try self.newWork(p, record);
+                    if ((try self.principal(req.principal)).grant.permissions & permission(.publish) == 0) return error.Forbidden;
+                    _ = try self.process(out.pid);
+                    if (self.output_count == max_outputs) return error.OutputCapacity;
+                    self.outputs[@intCast(self.output_count)] = .{ .id = self.output_count + 1, .source = p.pid, .turn = record.position, .index = @intCast(index), .destination = out.pid, .value = out.value };
+                    self.output_count += 1;
+                };
                 if (c.effect) |payload| {
                     try self.newWork(p, record);
                     if ((try self.principal(req.principal)).grant.permissions & permission(.effect) == 0) return error.Forbidden;
@@ -313,6 +345,34 @@ pub const State = struct {
                 p.consumed += 1;
                 p.input_cursor = c.input;
                 p.turn_permit = null;
+            },
+            .deliver => |c| {
+                const out = try self.output(c.output);
+                if (out.destination != c.pid) return error.InvalidOutput;
+                if (out.phase != .pending) return error.OutputAlreadyResolved;
+                for (self.outputs) |slot| if (slot) |earlier| {
+                    if (earlier.id < out.id and earlier.source == out.source and earlier.destination == out.destination and earlier.phase == .pending) return error.RouteBlocked;
+                };
+                const destination = try self.process(c.pid);
+                // The controller resolves delivery under a named courier's
+                // current destination grant. Historical source acceptance alone
+                // is not permission to deliver after that grant is revoked.
+                const courier = self.principal(c.courier) catch null;
+                const allowed = if (courier) |p| p.grant.permissions & permission(.send) != 0 and (p.grant.pid == null or p.grant.pid == c.pid) else false;
+                out.courier = c.courier;
+                out.policy_revision = if (courier) |p| p.revision else null;
+                out.phase = if (!allowed) .denied else if (destination.lifecycle == .expired) .expired else if (destination.lifecycle == .terminated) .retired else .delivered;
+                if (out.phase == .delivered) if (destination.work_before_ms) |deadline| {
+                    const time = try self.trustedTime(record);
+                    if (time.lower() >= deadline) {
+                        out.phase = .expired;
+                    } else try time.before(deadline);
+                };
+                if (out.phase == .delivered) {
+                    destination.admitted = try std.math.add(u64, destination.admitted, 1);
+                    admission = .{ .pid = c.pid, .value = out.value };
+                }
+                out.resolved_at = record.position;
             },
             .dispatch => |c| {
                 const e = try self.effect(c.effect);
@@ -346,7 +406,10 @@ pub const State = struct {
                     // to process an outcome after their work cutoff. This first
                     // profile keeps such late outcomes as connector evidence.
                     const accepts = if (p.work_before_ms) |deadline| (try self.trustedTime(record)).upper() < deadline else true;
-                    if (accepts) p.admitted = try std.math.add(u64, p.admitted, 1);
+                    if (accepts) {
+                        p.admitted = try std.math.add(u64, p.admitted, 1);
+                        admission = .{ .pid = c.pid, .value = c.result.? };
+                    }
                 }
             },
             .close_effect => |c| {
@@ -376,6 +439,12 @@ pub const State = struct {
                         e.closed_at = record.position;
                     }
                 };
+                for (&self.outputs) |*slot| if (slot.*) |*out| {
+                    if (out.source == pid and out.phase == .pending) {
+                        out.phase = .cancelled;
+                        out.resolved_at = record.position;
+                    }
+                };
             },
             .inspect => |pid| {
                 _ = try self.process(pid);
@@ -396,6 +465,7 @@ pub const State = struct {
         caller.digest = digest(req);
         caller.receipt = record.position;
         self.position += 1;
+        return admission;
     }
 
     fn trustedTime(self: *const State, record: Record) !Time.Sample {
@@ -516,7 +586,8 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
                     else => null,
                 };
                 var next = self.state;
-                try next.apply(r, input, reducer);
+                const admission = try next.apply(r, input, reducer);
+                if (!std.meta.eql(admission, r.admission)) return error.InvalidAdmission;
                 self.state = next;
             }
         }
@@ -528,14 +599,14 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
             try self.state.authenticate(signed);
             const req = signed.request;
             if (try self.state.duplicate(req) != null) return error.AlreadyCommitted;
-            const r: Record = .{ .position = self.state.position, .policy_revision = (try self.state.principal(req.principal)).revision, .request = req, .time = if (self.clock) |clock| try clock.sample() else null };
+            var r: Record = .{ .position = self.state.position, .policy_revision = (try self.state.principal(req.principal)).revision, .request = req, .time = if (self.clock) |clock| try clock.sample() else null };
             const input = switch (req.command) {
                 .turn => |c| try self.nextInput(c.pid, r.position),
                 .begin_turn => |c| try self.nextInput(c.pid, r.position),
                 else => null,
             };
             var next = self.state;
-            try next.apply(r, input, reducer);
+            r.admission = try next.apply(r, input, reducer);
             return .{ .record = r, .next = next };
         }
 
