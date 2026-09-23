@@ -14,6 +14,8 @@ key replacement, retry identity, ownership, invalid results, ordered input, and
 retirement. `just test-storage` repeats competing transitions, revocation, lost
 receipts, and replay across a real Ursula SIGKILL/restart, with a 100-message
 backlog and a 16-record read window. The fixed reducer is trusted and compiled.
+Further SIGKILL boundaries exercise checkpoint publication before trim, retried
+trim, and recovery after prefix removal with new pending input in the tail.
 These are local single-node results, not the Kubernetes/Substrate isolation proof.
 
 The deadline gate remains open: the adapter's conditional append cannot atomically

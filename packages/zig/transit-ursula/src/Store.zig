@@ -50,3 +50,47 @@ pub fn read(self: *Store, at: u64) !?transit.Entry {
     }
     return if (self.cache_len == 0) null else self.cache[0];
 }
+
+pub fn loadCheckpoint(self: *Store, genesis: transit.Genesis) !?transit.Checkpoint {
+    var latest = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream } });
+    defer latest.deinit();
+    if (latest.head.status == .not_found) return null;
+    if (latest.head.status != .temporary_redirect) return error.InvalidSnapshotResponse;
+    // Follow only the opaque snapshot offset on the configured stream, never an
+    // arbitrary Location URL that could leak privileged storage credentials.
+    const offset = (try latest.head.metadata()).snapshot_offset orelse return error.MissingSnapshotOffset;
+    var response = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream, .offset = offset } });
+    defer response.deinit();
+    try response.head.requireSuccess();
+    var parsed = try std.json.parseFromSlice(transit.Checkpoint, self.journal.client.http.allocator, response.body, .{});
+    defer parsed.deinit();
+    try parsed.value.validate(self.journal.client.http.allocator, genesis);
+    return parsed.value;
+}
+
+/// Reconcile an already committed checkpoint intent. Publication is verified
+/// before logical retention moves; every step can be retried after a crash.
+pub fn publishCheckpoint(self: *Store, checkpoint: transit.Checkpoint) !void {
+    const allocator = self.journal.client.http.allocator;
+    try checkpoint.validate(allocator, checkpoint.genesis);
+    const bytes = try std.json.Stringify.valueAlloc(allocator, checkpoint, .{});
+    defer allocator.free(bytes);
+    var published = try self.journal.client.send(.{ .publish_snapshot = .{
+        .stream = self.journal.stream,
+        .at = .{ .record = checkpoint.state.position },
+        .body = bytes,
+        .content_type = "application/json",
+    } });
+    defer published.deinit();
+    try published.head.requireSuccess();
+    const verified = (try self.loadCheckpoint(checkpoint.genesis)) orelse return error.MissingCheckpoint;
+    if (verified.state.position < checkpoint.state.position or verified.state.history_floor < checkpoint.state.history_floor) return error.StaleCheckpoint;
+}
+
+pub fn maintain(self: *Store, checkpoint: transit.Checkpoint) !void {
+    try self.publishCheckpoint(checkpoint);
+    var trimmed = try self.journal.client.send(.{ .advance_retention = .{ .stream = self.journal.stream, .at = .{ .record = checkpoint.state.history_floor } } });
+    defer trimmed.deinit();
+    try trimmed.head.requireSuccess();
+    self.cache_len = 0;
+}

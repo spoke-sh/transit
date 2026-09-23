@@ -15,7 +15,10 @@ adapter rejects arrays, malformed objects, and oversized records. It reads at
 most 16 records per page and does not silently recreate missing history.
 
 The test discards an append receipt, rejects its retry at the original position,
-and verifies history after SIGKILL/restart. This proves the storage primitive on
+and verifies history after SIGKILL/restart. The kernel proof additionally
+publishes a validated checkpoint, interrupts maintenance, retries trim, and
+recovers the same PID/grants/state plus pending tail after another SIGKILL.
+This proves the storage primitive on
 this topology, not Transit authorization, multi-node availability, or host/disk
 loss tolerance. Protocol operation identities must still resolve uncertain writes
 by reading the accepted record; a transport success alone is not that resolution.

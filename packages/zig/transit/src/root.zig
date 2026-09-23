@@ -27,24 +27,27 @@ pub const Pid = struct { realm: u64, local: u64 };
 pub const Process = struct {
     pid: u64,
     code: u32,
+    allow_trim: bool = false,
     owner: ?u8 = null,
     generation: u64 = 0,
     lifecycle: enum { running, terminated, expired } = .running,
     state: i64 = 0,
     admitted: u64 = 0,
     consumed: u64 = 0,
+    cancelled: u64 = 0,
     // Journal position of the last consumed input; backlog stays in storage.
     input_cursor: u64 = 0,
 };
 pub const Command = union(enum) {
     grant: Grant,
     revoke: u8,
-    spawn: struct { code: u32 = 1, deadline_ms: ?u64 = null },
+    spawn: struct { code: u32 = 1, deadline_ms: ?u64 = null, allow_trim: bool = false },
     own: struct { pid: u64, expected_generation: u64, worker: u8 },
     send: struct { pid: u64, value: i64 },
     turn: struct { pid: u64, generation: u64, input: u64, result: i64 },
     terminate: u64,
     inspect: u64,
+    checkpoint: void,
 };
 pub const Request = struct {
     version: u32 = 1,
@@ -93,6 +96,7 @@ pub const State = struct {
     realm: u64,
     retry_policy: RetryPolicy,
     position: u64 = 1,
+    history_floor: u64 = 0,
     principals: [max_principals]?Principal = @splat(null),
     processes: [max_processes]?Process = @splat(null),
 
@@ -128,7 +132,7 @@ pub const State = struct {
         if (request.version != 1 or request.realm != self.realm) return error.WrongProtocolRealm;
         const p = try self.principal(request.principal);
         const required: Permission = switch (request.command) {
-            .grant, .revoke, .own, .terminate => .admin,
+            .grant, .revoke, .own, .terminate, .checkpoint => .admin,
             .spawn => .spawn,
             .send => .send,
             .turn => .execute,
@@ -193,7 +197,7 @@ pub const State = struct {
                 const free = for (&self.processes) |*slot| {
                     if (slot.* == null) break slot;
                 } else return error.ProcessCapacity;
-                free.* = .{ .pid = record.position, .code = c.code };
+                free.* = .{ .pid = record.position, .code = c.code, .allow_trim = c.allow_trim };
             },
             .own => |c| {
                 const p = try self.process(c.pid);
@@ -227,9 +231,20 @@ pub const State = struct {
                 try running(p);
                 p.lifecycle = .terminated;
                 p.owner = null;
+                p.cancelled = p.admitted - p.consumed;
             },
             .inspect => |pid| {
                 _ = try self.process(pid);
+            },
+            .checkpoint => {
+                if (req.principal != 0) return error.Forbidden;
+                if (self.retry_policy != .last_per_principal) return error.HistoryPinned;
+                for (self.processes) |slot| if (slot) |p| {
+                    if (!p.allow_trim) return error.RetentionNotEnabled;
+                    // This first compaction profile only trims quiescent queues.
+                    if (p.admitted != p.consumed + p.cancelled) return error.PendingWork;
+                };
+                self.history_floor = record.position + 1;
             },
         }
         const caller = &self.principals[req.principal].?;
@@ -237,6 +252,33 @@ pub const State = struct {
         caller.digest = digest(req);
         caller.receipt = record.position;
         self.position += 1;
+    }
+};
+
+pub const Checkpoint = struct {
+    version: u32 = 1,
+    genesis: Genesis,
+    state: State,
+    checksum: [32]u8,
+
+    fn hash(allocator: std.mem.Allocator, genesis: Genesis, state: State) ![32]u8 {
+        const bytes = try std.json.Stringify.valueAlloc(allocator, .{ .genesis = genesis, .state = state }, .{});
+        defer allocator.free(bytes);
+        var sum: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(bytes, &sum, .{});
+        return sum;
+    }
+    pub fn create(allocator: std.mem.Allocator, genesis: Genesis, state: State) !Checkpoint {
+        if (state.history_floor == 0) return error.NoCheckpointIntent;
+        return .{ .genesis = genesis, .state = state, .checksum = try hash(allocator, genesis, state) };
+    }
+    pub fn validate(self: Checkpoint, allocator: std.mem.Allocator, genesis: Genesis) !void {
+        if (self.version != 1 or !std.meta.eql(self.genesis, genesis) or
+            self.state.realm != genesis.realm or self.state.retry_policy != genesis.retry_policy or
+            self.state.position == 0 or self.state.history_floor == 0 or self.state.history_floor > self.state.position) return error.InvalidCheckpoint;
+        if (!std.mem.eql(u8, &self.checksum, &try hash(allocator, self.genesis, self.state))) return error.InvalidCheckpoint;
+        const root = try self.state.principal(0);
+        if (!std.mem.eql(u8, &root.grant.public_key, &genesis.root_key)) return error.GenesisMismatch;
     }
 };
 
@@ -253,6 +295,13 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
         state: State,
 
         pub fn open(store: *Store, genesis: Genesis) !Self {
+            if (@hasDecl(Store, "loadCheckpoint")) {
+                if (try store.loadCheckpoint(genesis)) |checkpoint| {
+                    var self: Self = .{ .store = store, .state = checkpoint.state };
+                    try self.refresh();
+                    return self;
+                }
+            }
             const first = (try store.read(0)) orelse return error.MissingGenesis;
             if (first != .genesis or !std.meta.eql(first.genesis, genesis)) return error.GenesisMismatch;
             var self: Self = .{ .store = store, .state = try State.init(genesis) };
@@ -269,7 +318,7 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
         pub fn nextInput(self: *Self, pid: u64, limit: u64) !?Record {
             const p = try self.state.process(pid);
             if (p.admitted == p.consumed) return null;
-            var at = p.input_cursor + 1;
+            var at = @max(p.input_cursor + 1, self.state.history_floor);
             while (at < limit) : (at += 1) {
                 const entry = (try self.store.read(at)) orelse return error.IncompleteHistory;
                 if (entry == .operation and entry.operation.request.command == .send and entry.operation.request.command.send.pid == pid) return entry.operation;

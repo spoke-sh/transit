@@ -24,7 +24,7 @@ pub fn main(init: std.process.Init) !void {
             defer init.gpa.free(body);
             try check.expect(try journal.append(i, body));
         }
-    } else if (std.mem.eql(u8, args[2], "recover")) {
+    } else if (std.mem.eql(u8, args[2], "recover") or std.mem.eql(u8, args[2], "checkpoint") or std.mem.eql(u8, args[2], "trim_recover")) {
         try check.expectEqual(@as(u64, 40), try journal.tail());
         try check.expect(!try journal.append(0, "{\"stale\":true}"));
         var at: u64 = 0;

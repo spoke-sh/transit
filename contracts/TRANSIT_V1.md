@@ -75,8 +75,27 @@ small, provable recovery mechanism. A deployment is currently limited to 16
 principals and 64 lifetime process identities; reaching those quotas fails
 before admission. Scaling those catalogs requires a later persistent index.
 
+## Checkpoint and trim
+
+History remains unlimited by default. Trimming requires both an explicit finite
+retry policy in genesis and `allow_trim: true` on every process. Root commits a
+checkpoint intent only when every input has completed or has been explicitly
+cancelled by process termination. Cancellation counts remain separate from
+consumption; termination never pretends that unread messages ran.
+
+The checkpoint preserves genesis, grants, deduplication floors/receipts, PIDs,
+ownership, state, and input progress, with a content checksum. The adapter
+publishes and reads it back before advancing Ursula retention. Recovery can
+start from this essential checkpoint and a bounded retained tail; a corrupt or
+missing required checkpoint stops recovery. Publishing, killing the server,
+resuming trim, and killing it again are exercised by `just test-storage`.
+
+This first reclamation profile refuses to trim a live pending mailbox. Keeping
+pending input in separate retained segments, physical capacity reservation, and
+general dependency pins remain M1 work. Whole-journal deletion is not exposed.
+
 Finite deadlines are rejected as `UnsupportedDeadline`: pre-append clock checks
-alone cannot enforce expiry on a paused/delayed commit. Snapshot/trim, control
-capacity reservation, effect attempts, cross-process outboxes, network ingress,
-and Kubernetes/Substrate runtime reconciliation remain unimplemented gates.
+alone cannot enforce expiry on a paused/delayed commit. Control capacity
+reservation, effect attempts, cross-process outboxes, network ingress, and
+Kubernetes/Substrate runtime reconciliation remain unimplemented gates.
 Do not advertise M1 completion or deploy this experiment as a service.

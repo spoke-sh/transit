@@ -39,7 +39,7 @@ backend = "none"
 [storage.snapshot]
 backend = "inline"
 ''')
-        for phase in ("write", "recover"):
+        for phase in ("write", "recover", "checkpoint", "trim_recover"):
             with (root / f"{phase}.log").open("w+") as log:
                 server = subprocess.Popen(
                     ["ursula", "server", "--config", str(config)],

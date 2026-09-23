@@ -191,4 +191,24 @@ test "poison input remains pending and cannot be skipped after arithmetic failur
     const b = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 1 } });
     try t.expectError(error.Overflow, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = b, .result = 0 } }));
     try t.expectEqual(@as(u64, 1), (try e.state.process(pid)).consumed);
+    _ = try f.submit(&e, 0, .{ .terminate = pid });
+    try t.expectEqual(@as(u64, 1), (try e.state.process(pid)).consumed);
+    try t.expectEqual(@as(u64, 1), (try e.state.process(pid)).cancelled);
+}
+
+test "checkpoint requires explicit retention opt-in and its content is verified" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    try t.expectError(error.HistoryPinned, f.submit(&e, 0, .{ .checkpoint = {} }));
+    f.store.deinit();
+    f.store = .{};
+    f.genesis.retry_policy = .last_per_principal;
+    e = try Engine.bootstrap(&f.store, f.genesis);
+    _ = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
+    _ = try f.submit(&e, 0, .{ .checkpoint = {} });
+    var checkpoint = try transit.Checkpoint.create(t.allocator, f.genesis, e.state);
+    try checkpoint.validate(t.allocator, f.genesis);
+    checkpoint.state.processes[0].?.state = 999;
+    try t.expectError(error.InvalidCheckpoint, checkpoint.validate(t.allocator, f.genesis));
 }

@@ -2,7 +2,10 @@
 
 Status: application opt-in and lifetime guarantees are established requirements.
 Policy fields, record names, deadline mechanics, and reclamation algorithms below
-are proposed. No retention controller or compactor is implemented yet.
+are the target contract. The [experimental v1 profile](../contracts/TRANSIT_V1.md)
+implements explicit checkpoint/trim opt-in for quiescent or explicitly cancelled
+mailboxes, verified publication, and checkpoint-plus-tail recovery. Finite
+wall-clock expiry and general background retention remain unimplemented.
 
 ## Application contract
 

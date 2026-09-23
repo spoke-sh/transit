@@ -19,7 +19,7 @@ pub fn main(init: std.process.Init) !void {
     if (args.len != 3) return error.ExpectedUrlAndPhase;
     const root = try transit.Ed25519.KeyPair.generateDeterministic(@splat(7));
     const worker = try transit.Ed25519.KeyPair.generateDeterministic(@splat(8));
-    const genesis: transit.Genesis = .{ .realm = 42, .root_key = root.public_key.toBytes() };
+    const genesis: transit.Genesis = .{ .realm = 42, .root_key = root.public_key.toBytes(), .retry_policy = .last_per_principal };
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 2 * 1024 * 1024 });
     defer client.deinit();
     var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-proof", .name = "kernel" } } };
@@ -29,7 +29,7 @@ pub fn main(init: std.process.Init) !void {
         // Bootstrap retry cannot allocate another realm or reset authorization.
         _ = try Engine.bootstrap(&store, genesis);
         _ = try submit(&e, root, 0, .{ .grant = .{ .subject = 1, .public_key = worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.inspect), .pid = 2 } });
-        const spawn = try signed(&e, root, 0, .{ .spawn = .{} });
+        const spawn = try signed(&e, root, 0, .{ .spawn = .{ .allow_trim = true } });
         _ = try e.submit(spawn); // Deliberately forget its receipt.
         var recovered = try Engine.open(&store, genesis);
         const pid = try recovered.submit(spawn);
@@ -63,11 +63,30 @@ pub fn main(init: std.process.Init) !void {
             _ = try submit(&e, worker, 1, .{ .turn = .{ .pid = 2, .generation = 2, .input = input.position, .result = (try e.state.process(2)).state + input.request.command.send.value } });
         }
         try t.expectEqual(@as(i64, 100), (try e.state.process(2)).state);
+        _ = try submit(&e, root, 0, .{ .checkpoint = {} });
+        const checkpoint = try transit.Checkpoint.create(init.gpa, genesis, e.state);
+        // The launcher kills Ursula after publication, before trim is recorded.
+        try store.publishCheckpoint(checkpoint);
+    } else if (std.mem.eql(u8, args[2], "checkpoint")) {
+        var e = try Engine.open(&store, genesis);
+        try t.expectEqual(@as(i64, 100), (try e.state.process(2)).state);
+        const checkpoint = try transit.Checkpoint.create(init.gpa, genesis, e.state);
+        try store.maintain(checkpoint);
+        try store.maintain(checkpoint); // Idempotent cleanup after lost acknowledgement.
+        try t.expectError(error.Gone, store.read(0));
+        _ = try submit(&e, root, 0, .{ .send = .{ .pid = 2, .value = 7 } });
+        try t.expectError(error.PendingWork, submit(&e, root, 0, .{ .checkpoint = {} }));
+    } else if (std.mem.eql(u8, args[2], "trim_recover")) {
+        try t.expectError(error.Gone, store.read(0));
+        var e = try Engine.open(&store, genesis);
+        try t.expectEqual(@as(i64, 100), (try e.state.process(2)).state);
+        const input = (try e.nextInput(2, e.state.position)).?;
+        _ = try submit(&e, worker, 1, .{ .turn = .{ .pid = 2, .generation = 2, .input = input.position, .result = 107 } });
         _ = try submit(&e, root, 0, .{ .terminate = 2 });
-        try t.expectError(error.RetiredProcess, submit(&e, root, 0, .{ .send = .{ .pid = 2, .value = 1 } }));
         var replay = try Engine.open(&store, genesis);
         try t.expectEqual(.terminated, (try replay.state.process(2)).lifecycle);
-        try t.expectEqual(@as(i64, 100), (try replay.state.process(2)).state);
+        try t.expectEqual(@as(i64, 107), (try replay.state.process(2)).state);
+        try t.expectError(error.RetiredProcess, submit(&replay, root, 0, .{ .send = .{ .pid = 2, .value = 1 } }));
     } else return error.UnknownPhase;
     std.debug.print("kernel {s}: passed\n", .{args[2]});
 }
