@@ -230,7 +230,10 @@ ownership, state, input progress, effect intents, and attempt evidence, with a
 content checksum. The adapter
 publishes and reads it back before advancing Ursula retention. Recovery can
 start from this essential checkpoint and a bounded retained tail; a corrupt or
-missing required checkpoint stops recovery. Publishing, killing the server,
+missing required checkpoint stops recovery. A running authority that falls behind
+another maintainer's trim loads a validated newer checkpoint and catches up from
+its retained tail; it never resets a missing range to empty history. Each refresh
+attempt bounds this recovery to one checkpoint reload. Publishing, killing the server,
 resuming trim, and killing it again are exercised by `just test-storage`. An
 unknown effect survives these boundaries; a late observation after caller
 termination cannot revive the PID or advance its application state.

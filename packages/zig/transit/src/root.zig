@@ -649,20 +649,21 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
     return struct {
         const Self = @This();
         store: *Store,
+        genesis: Genesis,
         state: State,
         clock: ?Time.Source = null,
 
         pub fn open(store: *Store, genesis: Genesis) !Self {
             if (@hasDecl(Store, "loadCheckpoint")) {
                 if (try store.loadCheckpoint(genesis)) |checkpoint| {
-                    var self: Self = .{ .store = store, .state = checkpoint.state };
+                    var self: Self = .{ .store = store, .genesis = genesis, .state = checkpoint.state };
                     try self.refresh();
                     return self;
                 }
             }
             const first = (try store.read(0)) orelse return error.MissingGenesis;
             if (first != .genesis or !std.meta.eql(first.genesis, genesis)) return error.GenesisMismatch;
-            var self: Self = .{ .store = store, .state = try State.init(genesis) };
+            var self: Self = .{ .store = store, .genesis = genesis, .state = try State.init(genesis) };
             try self.refresh();
             return self;
         }
@@ -687,6 +688,23 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
         }
 
         pub fn refresh(self: *Self) !void {
+            self.replayTail() catch |err| {
+                if (err != error.HistoryReclaimed) return err;
+                if (!@hasDecl(Store, "loadCheckpoint")) return err;
+                const checkpoint = (try self.store.loadCheckpoint(self.genesis)) orelse return error.MissingCheckpoint;
+                // Another maintainer may trim while this authority is idle or
+                // reading an input. Recovery must advance, never reset/revive.
+                if (checkpoint.state.position <= self.state.position or
+                    checkpoint.state.history_floor < self.state.history_floor) return error.StaleCheckpoint;
+                if (checkpoint.state.position > try self.store.tail()) return error.HistoryRollback;
+                self.state = checkpoint.state;
+                // A second concurrent trim can be retried by the caller; bound
+                // each refresh instead of chasing maintenance indefinitely.
+                try self.replayTail();
+            };
+        }
+
+        fn replayTail(self: *Self) !void {
             const target = try self.store.tail();
             if (target < self.state.position) return error.HistoryRollback;
             while (self.state.position < target) {

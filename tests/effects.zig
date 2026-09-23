@@ -53,7 +53,7 @@ pub fn main(init: std.process.Init) !void {
             try t.expectEqual(@as(?u64, 6), effect.attempt);
             try t.expectError(error.AttemptAlreadyAuthorized, submit(&e, root, 0, .{ .dispatch = .{ .pid = 1, .effect = 5 } }));
             try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
-            try t.expectError(error.Gone, store.read(0));
+            try t.expectError(error.HistoryReclaimed, store.read(0));
             if (close_unknown) {
                 const response = try transit.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = 10 } } }, root);
                 const pending = try e.prepare(response);
@@ -89,7 +89,7 @@ pub fn main(init: std.process.Init) !void {
             _ = try submit(&e, root, 0, .{ .checkpoint = {} });
             try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
         } else if (std.mem.eql(u8, args[2], "trim_recover")) {
-            try t.expectError(error.Gone, store.read(0));
+            try t.expectError(error.HistoryReclaimed, store.read(0));
             var e = try Engine.open(&store, genesis);
             const p = (try e.state.process(1)).*;
             try t.expectEqual(@as(@TypeOf(p.lifecycle), if (close_unknown) .running else .terminated), p.lifecycle);

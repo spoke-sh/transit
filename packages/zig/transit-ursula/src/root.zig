@@ -54,6 +54,7 @@ pub const Journal = struct {
             .options = .{ .position = .{ .record = position }, .max_records = read_window },
         } });
         errdefer response.deinit();
+        if (response.head.status == .gone) return error.HistoryReclaimed;
         try response.head.requireSuccess();
         const meta = try response.head.metadata();
         const next = meta.record_next orelse return error.MissingRecordCoordinate;

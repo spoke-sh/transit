@@ -44,7 +44,7 @@ pub fn main(init: std.process.Init) !void {
         var e = try Engine.open(&store, genesis);
         try t.expectEqual(.pending, (try e.state.output(1)).phase);
         try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
-        try t.expectError(error.Gone, store.read(0));
+        try t.expectError(error.HistoryReclaimed, store.read(0));
         try t.expectError(error.RouteBlocked, submit(&e, root, .{ .deliver = .{ .pid = 1, .output = 2, .courier = 0 } }));
         _ = try submit(&e, root, .{ .deliver = .{ .pid = 2, .output = 3, .courier = 0 } });
         try consume(&e, root, 2);
@@ -63,7 +63,7 @@ pub fn main(init: std.process.Init) !void {
         _ = try submit(&e, root, .{ .checkpoint = {} });
         try store.maintain(try transit.Checkpoint.create(init.gpa, genesis, e.state));
     } else if (std.mem.eql(u8, args[2], "trim_recover")) {
-        try t.expectError(error.Gone, store.read(0));
+        try t.expectError(error.HistoryReclaimed, store.read(0));
         var e = try Engine.open(&store, genesis);
         try t.expectEqual(.pending, (try e.state.output(2)).phase);
         _ = try submit(&e, root, .{ .deliver = .{ .pid = 1, .output = 2, .courier = 0 } });

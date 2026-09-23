@@ -70,14 +70,22 @@ pub fn main(init: std.process.Init) !void {
     } else if (std.mem.eql(u8, args[2], "checkpoint")) {
         var e = try Engine.open(&store, genesis);
         try t.expectEqual(@as(i64, 100), (try e.state.process(2)).state);
+        var idle_store: adapter.Store = .{ .journal = store.journal };
+        var idle = try Engine.open(&idle_store, genesis);
+        _ = try submit(&e, root, 0, .{ .inspect = 2 });
+        _ = try submit(&e, root, 0, .{ .checkpoint = {} });
         const checkpoint = try transit.Checkpoint.create(init.gpa, genesis, e.state);
         try store.maintain(checkpoint);
+        // A live authority with an independent cache catches up after trim.
+        try idle.refresh();
+        try t.expectEqual(@as(i64, 100), (try idle.state.process(2)).state);
+        try t.expectEqual(e.state.position, idle.state.position);
         try store.maintain(checkpoint); // Idempotent cleanup after lost acknowledgement.
-        try t.expectError(error.Gone, store.read(0));
+        try t.expectError(error.HistoryReclaimed, store.read(0));
         _ = try submit(&e, root, 0, .{ .send = .{ .pid = 2, .value = 7 } });
         try t.expectError(error.PendingWork, submit(&e, root, 0, .{ .checkpoint = {} }));
     } else if (std.mem.eql(u8, args[2], "trim_recover")) {
-        try t.expectError(error.Gone, store.read(0));
+        try t.expectError(error.HistoryReclaimed, store.read(0));
         var e = try Engine.open(&store, genesis);
         try t.expectEqual(@as(i64, 100), (try e.state.process(2)).state);
         const input = (try e.nextInput(2, e.state.position)).?;
