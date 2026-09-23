@@ -7,7 +7,14 @@ The [experimental Transit profile](../contracts/TRANSIT_V1.md#effect-intents-and
 implements scalar intent, dispatch, and observation records, including unknown
 attempts, explicit reconciliation closure, and evidence after caller retirement
 while reconciliation remains open. This proves protocol
-ordering and recovery only; connector I/O and its isolation boundary remain open.
+ordering and recovery. `just test-service` also compiles a separate synthetic
+workload and trusted Zig executor that POSTs to a harness-owned loopback endpoint.
+It proves successful delivery, a pause after dispatch authorization, a response
+after closure, and a crash after remote acceptance. Restart never resends the
+attempt; checkpoint/trim preserves observed or closed-unknown evidence. Closing
+before the paused executor sends still allows that already-authorized remote
+request, while Transit rejects its result. This is a test executor with a fixed
+destination and bounded response/deadline, not the planned HTTP connector.
 
 ## Effect boundary
 

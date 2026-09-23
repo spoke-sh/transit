@@ -54,6 +54,37 @@ pub fn build(b: *std.Build) void {
     }
     services.has_side_effects = true;
     services.stdio = .inherit;
+    // A separately compiled, reviewed test workload emits one scalar intent.
+    // It is never installed as the counter node or accepted into its realms.
+    const effect_counter = b.createModule(.{
+        .root_source_file = b.path("tests/effect_counter.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit", .module = transit.module("transit") }},
+    });
+    for ([_][]const u8{ "effect-node", "effect-executor" }) |name| {
+        const is_node = std.mem.eql(u8, name, "effect-node");
+        const proof = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{
+            .root_source_file = b.path(if (is_node) "apps/transit-node/main.zig" else "tests/effect_executor.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .imports = &.{
+                .{ .name = "transit", .module = transit.module("transit") },
+                .{ .name = "transit_client", .module = client.module("transit_client") },
+            },
+        }) });
+        if (is_node) {
+            proof.root_module.addImport("counter", effect_counter);
+            proof.root_module.addImport("transit_ursula", adapter.module("transit_ursula"));
+            if (target.result.os.tag == .linux) {
+                const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
+                proof.root_module.addImport("clock_c", clock_c.createModule());
+            }
+        }
+        services.addArtifactArg(proof);
+        test_step.dependOn(&proof.step);
+    }
     b.step("test-service", "Prove signed ingress and worker recovery over HTTP").dependOn(&services.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = transit.module("transit") })).step);
     const integration = b.addSystemCommand(&.{ "python3", "-B" });

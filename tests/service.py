@@ -208,6 +208,8 @@ def run(node, worker, cli):
 
 if __name__ == "__main__":
     binaries = [Path(path).resolve(strict=True) for path in sys.argv[1:]]
-    run(*binaries)
+    run(*binaries[:3])
     from maintenance import run as maintenance
     maintenance(binaries[0], binaries[2])
+    from effect_io import run as effect_io
+    effect_io(binaries[3], binaries[4], binaries[2])

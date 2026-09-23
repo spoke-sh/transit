@@ -48,6 +48,13 @@ Effect tests additionally prove intent validation, revocation racing dispatch,
 authenticated observations, and one mailbox admission per result. Disk restart
 and prefix removal preserve unknown attempts; late evidence after caller
 termination cannot revive application execution. No external I/O is invoked.
+The separate service proof now adds actual I/O through a trusted Zig synthetic
+executor: successful result admission, pause after authorization, late response,
+and executor death after remote acceptance. A fixture records exactly four
+requests across these schedules; fresh executors and checkpoint/trim/restart
+cause no additional sends. Closed attempts reject late outcomes, including when
+the authorized executor starts its request after closure. This demonstrates the
+external limit, not remote cancellation or a general HTTP connector.
 Closure tests exercise both winners of the result/closure race, lost
 acknowledgements, and unauthorized closure. Real disk restart and trim preserve
 closed unknown outcomes and reject late observations even while the caller lives.

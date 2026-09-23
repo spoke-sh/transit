@@ -76,6 +76,10 @@ rotate activation keys atomically with ownership, reject stale incarnations,
 and recover pending provider operations/control evidence across disk restart
 and trim. The real Substrate adapter and reference recovery harness are implemented;
 the broader isolation and capacity gates still require their own evidence.
+The signed-service suite includes a trusted Zig synthetic executor making real
+requests to a harness-owned endpoint. It proves paused dispatch, late-result
+rejection, unknown closure after executor death, and no redispatch during
+checkpoint/trim recovery. General connector semantics remain M3 work.
 
 - [ ] Introduce the Transit library, Ursula adapter, and minimum executable
   composition from the [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition),
