@@ -40,13 +40,14 @@ using [ursula-zig](https://github.com/rupurt/ursula-zig) from Zig. Kubernetes wi
 [Agent Substrate](https://github.com/agent-substrate/substrate) is the reference
 deployment architecture; the protocol must remain portable to other runtimes.
 
-**Status:** M1 implementation is in progress. Transit and its pinned Ursula
-adapter implement an experimental signed-request, ownership, and ordered-turn
-profile with disk-restart (`just test-storage`) and signed HTTP worker recovery
-(`just test-service`) proofs. See the
-[implemented profile and limits](contracts/TRANSIT_V1.md). The full retention,
-effect, and Kubernetes/Substrate gates remain open; Station and applications
-are not implemented.
+**Status:** Transit has an experimental M1 implementation: signed ingress,
+ordered turns and outboxes, fenced ownership, bounded effect reconciliation,
+opt-in expiry, checkpoint/trim, and immutable-payload deletion. A reviewed counter
+runs on the pinned Kubernetes/Substrate reference with worker-failure recovery
+and sandbox isolation proofs. A separate finite-capacity profile proves control
+progress using reserved disk space. See the [roadmap evidence](docs/ROADMAP.md)
+and [implemented profile and limits](contracts/TRANSIT_V1.md). Station, the HTTP
+connector, and applications are not implemented; this is not a stable public API.
 
 ## Development environment
 
@@ -97,7 +98,7 @@ Start at the [documentation index](docs/README.md).
 | [Roadmap](docs/ROADMAP.md) | Small milestones with observable completion criteria |
 | [Agent guidance](AGENTS.md) | Working conventions for this repository |
 
-The foundational docs distinguish established requirements from proposed
-mechanisms and implemented features. The client adapter and local disk recovery
-proof and experimental node/worker/CLI are implemented; reference cluster
-conformance remains implementation work. Technical rationale lives in these docs.
+The foundational docs distinguish implemented M1 profiles from broader target
+requirements. Run `just ci` for local protocol/service checks. The Linux/Docker
+reference and physical-capacity proofs have additional prerequisites documented
+under [development](docs/DEVELOPMENT.md). Technical rationale lives in these docs.

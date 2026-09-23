@@ -1,6 +1,6 @@
 # Transit v1 experimental protocol profile
 
-Status: executable M1 authority proof, not a stable public API or complete M1.
+Status: implemented and verified bounded M1 profile, not a stable public API.
 The owning requirements remain in [TRANSIT.md](../docs/TRANSIT.md) and
 [SECURITY.md](../docs/SECURITY.md).
 
@@ -278,9 +278,11 @@ remain unlimited. Dynamic capacity expansion is outside this experimental profil
 
 Synthetic effect I/O and Kubernetes/Substrate recovery/isolation now have their
 own executable proofs. Basic immutable payload deletion is described below;
-the final M1 evidence audit remains open. Cross-realm delivery is outside this slice.
+the [roadmap](../docs/ROADMAP.md) records the completed M1 evidence audit.
+Cross-realm delivery is outside this slice.
 The [experimental service](SERVICE_V1.md) hosts signed ingress and scoped views
-for the fixed counter workload. Do not advertise full M1 conformance yet.
+for the fixed counter workload. Conformance is limited to the documented
+profiles, topology and fault schedules; broader guarantees need new evidence.
 
 ## Standalone immutable payloads
 

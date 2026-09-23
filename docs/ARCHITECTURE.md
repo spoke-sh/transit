@@ -2,8 +2,9 @@
 
 Status: layering, stack, and reference deployment established. Component layout
 and protocols below describe the target design. Transit and the Ursula adapter
-have an [experimental implementation](../contracts/TRANSIT_V1.md); reference
-deployment, Station, and connector components remain planned.
+have an [experimental implementation](../contracts/TRANSIT_V1.md), including
+signed services, a Substrate runtime adapter and a reference recovery harness.
+Station and production connector components remain planned.
 
 ## Execution model
 
@@ -163,9 +164,10 @@ process lifecycle. A library boundary does not imply a Transit process, pod, or
 independently deployed service. Runtime isolation still follows the protocol
 authority model.
 
-The following package and executable paths are proposals. Transit and Station
-are official names; supporting package names and executable names can evolve
-as their first implementations establish the interfaces.
+Transit, `transit-ursula`, `transit-client`, and `runtime-substrate` are implemented
+libraries. The node, counter worker, runtime controller and CLI compose them.
+Station and HTTP entries below remain proposals. Supporting interfaces are still
+experimental; a directory in this plan does not imply a deployed component.
 
 ### Zig libraries
 
@@ -217,22 +219,23 @@ with final OS process/deployment topology driven by isolation and measured needs
 packages/zig/      Reusable Zig libraries, including Transit and Station
 packages/ts/       Shared frontend libraries when needed
 apps/              Zig executable packages and the eventual web frontend
-contracts/         Protocol schemas and language-neutral fixtures
+contracts/         Protocol profiles linking package-owned JSON fixtures
 tests/             Conformance, cluster failure and replay scenarios
 deploy/            Reference deployment configuration
 docs/              Scope, architecture, plans and technical rationale
 nix/               Development-tool packaging
 flake.nix          Reproducible development shell
 justfile           Repository command entry points
-build.zig          Planned root orchestration for Zig builds and checks
-build.zig.zon      Planned root Zig dependency manifest
+build.zig          Root orchestration for Zig builds and checks
+build.zig.zon      Root Zig dependency manifest
 ```
 
-The root Zig build will compose package builds and tests while each package
+The root Zig build composes package builds and tests while each package
 declares its own direct dependencies and can be checked in the monorepo on its
 own. Vite+ manages frontend packages separately; shared wire contracts connect
 the languages. See [development](DEVELOPMENT.md#planned-zig-package-workflow).
 
 Create packages, manifests, and source directories only when their implementation
-begins. Transit and `transit-ursula` now have package builds and root-orchestrated
-proof executables. Other entries in this layout remain planned.
+begins. The four implemented libraries have independent package checks as well
+as root-orchestrated proof executables. Frontend and Station directories remain
+planned.

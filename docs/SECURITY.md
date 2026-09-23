@@ -1,12 +1,14 @@
 # Identity, authorization, and trust boundaries
 
-Status: required boundaries and semantics. Credential providers, policy schema,
-execution isolation, and deployment configuration must be selected and proved
-in M1. The [experimental v1 profile](../contracts/TRANSIT_V1.md) now implements
+Status: required boundaries and semantics, with a bounded M1 implementation.
+The [experimental v1 profile](../contracts/TRANSIT_V1.md) implements
 Ed25519 request verification, scoped grants, key replacement, and durable
 revocation. The [service profile](../contracts/SERVICE_V1.md) proves signed HTTP
 ingress, scoped/revoked bounded reads, and key renewal on loopback. Deployment
-transport and sandbox isolation remain separate gates.
+transport uses a private trusted cluster network; the pinned Substrate gVisor
+proof denies raw storage/provider access and credential mounts. Public ingress
+TLS, identity federation, arbitrary native handlers and broader topologies need
+separate implementation and evidence.
 
 ## Responsibility in the stack
 

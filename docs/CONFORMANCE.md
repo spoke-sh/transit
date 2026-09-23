@@ -1,11 +1,11 @@
 # Protocol conformance and implementation gates
 
-Status: adversarial review requirements, not passed checks. Documentation review
-establishes owners and testable contracts; it cannot prove runtime guarantees.
-`just check` validates tooling and implemented unit tests. `just test-storage`
-exercises the initial conditional-append and disk-restart experiment described
-in [URSULA.md](URSULA.md#implemented-authority-experiment). This is not complete
-M1 conformance evidence.
+Status: adversarial requirements with executable evidence for the bounded M1
+profile. The [roadmap](ROADMAP.md) maps the completion criteria to commands and
+limits. `just check` alone validates tooling/unit tests; storage, service,
+physical-capacity and Kubernetes/Substrate proofs remain separate commands.
+Results apply to their pinned topology, reviewed workload and stated failure
+boundary, not every target requirement in the documents below.
 
 ## Review assessment
 
@@ -93,15 +93,15 @@ retirement after authority/storage restart. It requires the host clock to report
 an error bound below one second; other platforms exercise explicit retirement
 and cleanup without claiming a supported finite-time source.
 The [deadline investigation](RETENTION.md#m1-deadline-enforcement-investigation)
-defines the remaining acceptance-time and closure proof obligations. A physical
+defines the tested acceptance-time and closure contract. A physical
 storage-write cutoff at the earlier work deadline is no longer the target.
 
-The foundations define a viable direction for a bounded M1 proof. The highest
-risk gaps are the concrete commit/fencing mechanism, authenticated authority,
-native-handler enforcement, and time/revocation at external dispatch. Choose
-and test those mechanisms before building framework or connector behavior on
-their assumed guarantees. A failed proof requires revising the owning design,
-not relabeling a weaker implementation as conformant.
+The M1 mechanisms above now have concrete implementations and adversarial
+results. Extending them to general behaviors, connectors or another storage/
+runtime profile requires preserving these contracts and adding its own evidence.
+A failed proof requires revising the owning design, not relabeling a weaker
+implementation as conformant. The cursor-only live-read failure is recorded in
+[URSULA.md](URSULA.md); Transit uses verified record positions instead.
 
 ## Adversarial scenarios
 
@@ -144,9 +144,9 @@ unexpected effect execution observable.
 
 The first slice uses a single security realm, fixed workload code, a minimal
 policy authority, and synthetic effects on the Kubernetes/Substrate reference
-deployment. Multiple principals, conflicting authority instances, worker loss,
-and retention deadlines still need tests; a single-realm topology is not a
-reason to omit those cases.
+deployment. Multiple principals, conflicting authority instances, worker loss
+and retention deadlines are exercised above; the single-realm topology does
+not remove those obligations when the profile expands.
 
 The contract does not currently promise Byzantine fault tolerance, globally
 ordered messages, cross-process transactions, exactly-once remote effects,

@@ -108,17 +108,18 @@ disclosing existence. Malformed JSON returns 400. Bodies are limited to 64 KiB,
 headers to an 8 KiB buffer, and connections to one request. The sequential server
 bounds concurrent work and imposes a deadline including slow bodies and storage
 I/O. Client calls have a five-second deadline, a 64 KiB response buffer, and no
-redirect following. Rate fairness and reserved control capacity still need
-proof. Unauthenticated `GET /health` reveals only readiness after storage refresh.
+redirect following. Rate fairness is not promised; the separate maintenance
+process has its own bounded loop. Unauthenticated `GET /health` reveals only
+readiness after storage refresh.
 
 ## Transport and time limits
 
 Local proofs use loopback HTTP and a trusted host. Signatures authenticate
 callers and protect commands; they do not encrypt reads or authenticate response
 transport. Exposing this listener beyond a trusted private network requires an
-authenticated TLS ingress/service boundary. Kubernetes/Substrate network and
-credential isolation remain separate gates. Raw Ursula and provider APIs must
-remain unreachable by workloads.
+authenticated TLS ingress/service boundary. The separate Kubernetes/Substrate
+proof establishes network and credential isolation on its pinned baseline.
+Raw Ursula and provider APIs must remain unreachable by workloads.
 
 Finite lifetimes opt into `genesis.max_clock_error_ms`. On Linux, the node reads
 `adjtimex` in read-only mode, rejects unsynchronized/error status, and records the
@@ -127,5 +128,5 @@ C headers supply ABI offsets; clock policy is Zig. Transit checks the configured
 error bound and durable time floor. Other platforms fail finite clock use closed.
 A trusted synchronization service and honest reported UTC error bound remain
 deployment assumptions; reading a clock does not prove them. Controlled-clock
-tests prove the deadline rules. Background expiry and physical retention
-services are not yet hosted by this executable.
+tests prove the deadline rules. The `--maintain` mode hosts background expiry,
+closure, checkpoint/trim and eligible payload deletion in a separate process.

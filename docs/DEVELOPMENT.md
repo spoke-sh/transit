@@ -119,15 +119,16 @@ nix develop --command ursulactl --version
 ```
 
 Entering the shell does not start a server. `just test-storage` owns a temporary
-disk-backed service and exercises four startup/crash phases. Persistent developer
-service and cluster lifecycle commands remain separate M1 work.
+disk-backed service and exercises four startup/crash phases. `just reference-up`,
+`reference-images`, `reference-test` and `reference-down` own the separate
+Kubernetes/Substrate reference lifecycle described below.
 
 ### Zig client dependency
 
 [ursula-zig](https://github.com/rupurt/ursula-zig) is the selected application
-library. The planned `transit-ursula` package owns the `ursula_zig` dependency in
-its `build.zig.zon`, pinned to an immutable revision URL and Zig package hash
-when M1 adds the backend build. The upstream client exports the `ursula` module;
+library. The `transit-ursula` package owns the `ursula_zig` dependency in
+its `build.zig.zon`, pinned to an immutable revision URL and Zig package hash.
+The upstream client exports the `ursula` module;
 see its
 [build integration](https://github.com/rupurt/ursula-zig/blob/8cfd68b275022c2de8572bce3608157b95ba13d7/docs/usage.md).
 The adapter now pins that revision and its Zig package hash; `just build` and
@@ -223,8 +224,9 @@ The manual [reference CI workflow](../.github/workflows/reference.yml) uses thes
 commands and always attempts owned-resource cleanup. It requires a separately
 registered `rey-reference` Linux x86_64 runner with Nix and Docker; repository
 configuration does not provision one. Local execution is the evidence recorded
-here, not a claim that the remote workflow has run. Full-store and remaining M1
-gates are tracked in [conformance](CONFORMANCE.md).
+here, not a claim that the remote workflow has run. That workflow also runs the
+separate physical-capacity proof. Evidence and limits are tracked in
+[conformance](CONFORMANCE.md).
 
 Local unit/protocol tests should remain runnable without a cluster. Passing
 those tests does not establish reference-runtime isolation or recovery behavior;

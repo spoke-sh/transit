@@ -1,7 +1,9 @@
 # Scope
 
-Status: kernel direction and deployment reference established. Protocol details
-and milestones below are designs to implement and validate.
+Status: kernel direction and deployment reference established. The bounded
+[M1 profile](../contracts/TRANSIT_V1.md) is implemented, with evidence in the
+[roadmap](ROADMAP.md). Broader framework, connector and application outcomes
+below remain planned; they are not implied by the scalar M1 workload.
 
 ## Purpose
 

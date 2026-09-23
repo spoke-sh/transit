@@ -3,7 +3,9 @@
 Status: foundational requirements established; record names and mechanisms below
 are the target protocol outline. An experimental signed-request/ownership/replay
 slice is implemented; its supported surface and limits are specified in
-[the v1 profile](../contracts/TRANSIT_V1.md). M1 remains incomplete.
+[the v1 profile](../contracts/TRANSIT_V1.md), with evidence in the
+[roadmap](ROADMAP.md). General payloads, framework behaviors and migrations are
+not implied by this scalar profile.
 
 ## Boundary
 
@@ -17,7 +19,7 @@ It does not know prompts, reasoning loops, goals, agent delegation strategies,
 HTTP semantics, or trading policy. Those compose the protocol through
 [Station, the framework](STATION.md), and [connectors](CONNECTORS.md).
 
-The planned `transit` Zig library contains protocol types, validation, transition
+The `transit` Zig library contains protocol types, validation, transition
 logic, and runtime/transport interfaces. Its core stays independent of Ursula,
 Kubernetes, and Station. Separate adapters and executables supply persistence,
 hosting, and configuration; see the
@@ -33,8 +35,9 @@ is a behavior running in one. Raw processes and other behaviors can use Transit
 without Station.
 
 PIDs are opaque and unique within an explicit Transit identity authority. A
-portable reference must identify that scope as well as the process; its encoding
-and allocation mechanism remain M1 design work. Retired PIDs are never reused.
+portable reference must identify that scope as well as the process. M1 uses
+`(realm, accepted spawn position)`, with both coordinates in the exact integer
+range documented by the wire profile. Retired PIDs are never reused.
 An optional registered name is an alias to a PID, not its identity.
 
 Each process owns one logical ordered mailbox and execution sequence. Concurrent
@@ -135,8 +138,9 @@ ordering. The protocol must distinguish those two forms of control explicitly.
 
 ## Authoritative operations
 
-M1 must define the exact point at which each spawn, admission, ownership change,
-turn commit, dispatch authorization, and trim becomes accepted. Its durable
+M1 serializes spawn, admission, ownership changes, turn commits, dispatch
+authorizations and retention intents in one realm journal. A conditional append
+at the validated record tail is their acceptance point. Its durable
 record binds the operation identity, payload digest, expected prior version,
 relevant policy revision, and resulting version/receipt. A timeout after that
 point is an unknown acknowledgement, not permission to invent a new operation.
@@ -181,8 +185,8 @@ and execution caches remain disposable. A protocol checkpoint that replaces a
 reclaimed prefix must itself be durable and validated; it becomes part of the
 authoritative recovery basis with the retained tail.
 
-M1 must choose and prove the append/framing mechanism that makes a complete turn
-visible atomically. Do not infer multi-stream transactions from Ursula. Pending
+M1 writes one complete JSON object per conditional append, making its scalar
+turn visible atomically. This does not imply multi-stream transactions. Pending
 cross-process deliveries form a durable outbox with stable identities; destination
 admission deduplicates retries. See [STREAMS.md](STREAMS.md).
 

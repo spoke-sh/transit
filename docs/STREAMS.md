@@ -1,7 +1,8 @@
 # Durable streams and mailboxes
 
-Status: Ursula and the unbounded process mailbox are established choices. Storage
-mapping, framing, and commit mechanics must be proved during M1. The
+Status: Ursula and the unbounded process mailbox are established choices. The
+M1 realm-journal mapping has conditional-write, bounded-read and disk recovery
+proofs; broader stream/reference topologies remain planned. The
 [Transit kernel protocol](TRANSIT.md) owns execution semantics; this document
 owns their durable transport requirements.
 The [experimental profile](../contracts/TRANSIT_V1.md#process-outboxes) now proves

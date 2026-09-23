@@ -8,17 +8,17 @@ these foundational documents.
 | Document | Status | Read it for |
 | --- | --- | --- |
 | [Glossary](GLOSSARY.md) | Shared vocabulary | Official names, execution terms, transport, and packaging |
-| [Scope](SCOPE.md) | Direction established; implementation open | Generic kernel goals, first outcomes, and application boundaries |
-| [Architecture](ARCHITECTURE.md) | Layers established; implementation proposed | Transit, Station, library/executable decomposition, and dependency boundaries |
-| [Security](SECURITY.md) | Contracts defined; mechanisms unproved | Authentication, authorization, realms, revocation, credentials, and trusted boundaries |
-| [Conformance](CONFORMANCE.md) | Required evidence; no runtime results | Adversarial scenarios, proof ownership, implementation gates, and guarantee limits |
-| [Transit — kernel](TRANSIT.md) | Requirements established; protocol draft | Processes/PIDs, lifecycle, enforced sequences, ownership, and replay |
-| [Streams](STREAMS.md) | Mailbox model established; mapping proposed | Unbounded durable mailboxes, delivery, commits, and retention |
-| [Retention](RETENTION.md) | Lifetime guarantees established; mechanisms proposed | Application opt-in, process/mailbox expiry, compaction, tombstones, and reclamation |
+| [Scope](SCOPE.md) | Bounded M1 implemented; later scope planned | Generic kernel goals, first outcomes, and application boundaries |
+| [Architecture](ARCHITECTURE.md) | M1 libraries/services implemented; framework planned | Transit, Station, library/executable decomposition, and dependency boundaries |
+| [Security](SECURITY.md) | Signed authority and reference isolation proved within scope | Authentication, authorization, realms, revocation, credentials, and trusted boundaries |
+| [Conformance](CONFORMANCE.md) | Adversarial results and profile limits | Adversarial scenarios, proof ownership, implementation gates, and guarantee limits |
+| [Transit — kernel](TRANSIT.md) | Experimental executable M1 profile | Processes/PIDs, lifecycle, enforced sequences, ownership, and replay |
+| [Streams](STREAMS.md) | Realm-journal mapping and recovery proved | Unbounded durable mailboxes, delivery, commits, and retention |
+| [Retention](RETENTION.md) | M1 expiry, trim, deletion and capacity proofs | Application opt-in, process/mailbox expiry, compaction, tombstones, and reclamation |
 | [Station — framework](STATION.md) | Proposed behaviors | GenServer, supervision, scoped registries, and request/reply |
 | [Connectors](CONNECTORS.md) | HTTP direction established; contract draft | Request/response stream groups, interpolation, capture, and attempts |
-| [Deployment](DEPLOYMENT.md) | Reference selected; integration planned | Runtime bindings, Kubernetes/Substrate, isolation, recovery, and portability |
-| [Ursula integration](URSULA.md) | Server and client selected; integration planned | ursula-zig, persistence, and recovery boundaries |
+| [Deployment](DEPLOYMENT.md) | Pinned reference recovery/isolation harness | Runtime bindings, Kubernetes/Substrate, isolation, recovery, and portability |
+| [Ursula integration](URSULA.md) | Pinned disk, live-read and deletion integration | ursula-zig, persistence, and recovery boundaries |
 | [Roadmap](ROADMAP.md) | Kernel-first plan | Milestones and observable completion criteria |
 | [Development](DEVELOPMENT.md) | Current tooling | Setup, commands, and toolchain maintenance |
 | [Decision records](decisions/README.md) | Reserved for future use | Guidance and a template for later decision records |
