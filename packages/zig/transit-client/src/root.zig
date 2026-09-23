@@ -9,6 +9,7 @@ pub const View = struct {
     process: transit.Process,
     input: ?Input,
     effects: [transit.max_effects]?transit.Effect = @splat(null),
+    payloads: [transit.max_payloads]?transit.Payload = @splat(null),
 };
 pub const Receipt = struct { position: u64 };
 
@@ -99,4 +100,36 @@ pub fn readKey(allocator: std.mem.Allocator, io: std.Io, path: []const u8) !tran
     if (hex.len != 64) return error.InvalidSeed;
     _ = try std.fmt.hexToBytes(&seed, hex);
     return transit.Ed25519.KeyPair.generateDeterministic(seed);
+}
+
+fn largestFields(comptime T: type) T {
+    return switch (@typeInfo(T)) {
+        .int => |info| if (info.signedness == .signed) std.math.minInt(T) else std.math.maxInt(T),
+        .bool => false,
+        .optional => |info| largestFields(info.child),
+        .array => |info| @splat(largestFields(info.child)),
+        .@"struct" => |info| blk: {
+            var value: T = undefined;
+            inline for (info.field_names, info.field_types) |name, Field| @field(value, name) = largestFields(Field);
+            break :blk value;
+        },
+        .@"enum" => |info| blk: {
+            comptime var longest: usize = 0;
+            inline for (info.field_names, 0..) |name, index| {
+                if (comptime name.len > info.field_names[longest].len) longest = index;
+            }
+            break :blk @fromBackingInt(@intCast(info.field_values[longest]));
+        },
+        else => @compileError("Extend the wire-bound fixture for this type"),
+    };
+}
+
+test "a full metadata view fits the bounded HTTP response" {
+    // All optional metadata is present, all slots filled, every enum uses its
+    // longest tag and integers use their widest decimal form (even wider than
+    // legal protocol counters). Leave slack for shorter optional scalars/nulls.
+    const value = largestFields(View);
+    const bytes = try std.json.Stringify.valueAlloc(std.testing.allocator, value, .{});
+    defer std.testing.allocator.free(bytes);
+    try std.testing.expect(bytes.len + 1024 <= max_body);
 }

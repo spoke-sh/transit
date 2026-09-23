@@ -37,6 +37,30 @@ fn step(engine: anytype, config: Config, key: transit.Ed25519.KeyPair, allocator
             return .transition;
         }
     }
+    // Resource retirement is independent of clock health. Only immutable,
+    // positively published standalone payloads can enter deletion in M1.
+    for (engine.state.payloads) |slot| if (slot) |payload| {
+        const ref: transit.PayloadRef = .{ .pid = payload.pid, .payload = payload.id };
+        const command: transit.Command = if (payload.phase == .ready and payload.allow_delete and
+            (try engine.state.process(payload.pid)).lifecycle != .running)
+            .{ .retire_payload = ref }
+        else if (payload.phase == .retiring)
+            .{ .payload_deleted = ref }
+        else
+            continue;
+        const signed = try transit.sign(.{
+            .realm = engine.state.realm,
+            .principal = config.principal,
+            .sequence = (try engine.state.principal(config.principal)).sequence + 1,
+            .command = command,
+        }, key);
+        const prepared = try engine.prepare(signed);
+        if (command == .payload_deleted) try engine.store.reclaimPayload(payload);
+        // A conflict or lost acknowledgement leaves the committed retirement
+        // intent available for the next scan; a confirmed 404 is idempotent.
+        _ = try engine.commit(prepared);
+        return .transition;
+    };
     // A committed checkpoint intent survives every publication/trim crash.
     // Revalidate current rights before using the privileged storage adapter.
     const checkpoint_request: transit.Request = .{

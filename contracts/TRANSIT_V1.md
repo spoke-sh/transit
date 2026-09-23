@@ -275,7 +275,33 @@ for record/byte bounds, the tested reserve, and deployment limits. Defaults
 remain unlimited. Dynamic capacity expansion is outside this experimental profile.
 
 Synthetic effect I/O and Kubernetes/Substrate recovery/isolation now have their
-own executable proofs. General resource deletion and the final M1 evidence audit
-remain open; cross-realm delivery is outside this slice.
+own executable proofs. Basic immutable payload deletion is described below;
+the final M1 evidence audit remains open. Cross-realm delivery is outside this slice.
 The [experimental service](SERVICE_V1.md) hosts signed ingress and scoped views
 for the fixed counter workload. Do not advertise full M1 conformance yet.
+
+## Standalone immutable payloads
+
+`declare_payload` records PID, publisher, length (1–65,536 bytes), SHA-256 and
+explicit `allow_delete` (default false). Its accepted position identifies the
+payload; the realm has sixteen lifetime slots. `payload_ready`, `retire_payload`
+and `payload_deleted` name that PID and payload ID. All require a current
+PID-scoped administrative grant; only the original publisher may claim readiness.
+PID views disclose metadata under current inspect permission, never raw body
+access. Publication/deletion observations come from trusted storage code.
+
+The Ursula adapter derives an unreused physical name from the authority journal
+and payload ID, creates a closed stream atomically with its body, and verifies
+the body hash. A fresh declaration authorizes one serialized creation attempt.
+Recovery verifies it read-only; it must not retry PUT or infer non-execution from
+404. Readiness cannot be claimed until verification succeeds. Owner termination
+and `allow_delete=true` permit retirement; background maintenance confirms deletion
+before recording its outcome. Tombstones survive outside the removed stream,
+including checkpoint/trim and a lost DELETE acknowledgement.
+
+This first contract supports standalone bytes and unlimited-lifetime owners.
+Finite owners are rejected with `UnsupportedPayloadLifetime`. No handler state,
+mailbox or effect can depend on these bytes in the scalar profile; a general
+payload read/upload API, reference graph and bounded finite upload reconciliation
+remain outside M1. See [retention](../docs/RETENTION.md#m1-immutable-payload-deletion)
+for recovery rules and the unresolved-creation limit.

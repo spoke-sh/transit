@@ -223,7 +223,7 @@ os.sync()
             proof("recover")
             after_reconcile = stats()
             assert requests and set(requests) <= {"GET", "HEAD"}, "Completed maintenance issued a mutation"
-            evidence = {"image": image, "admission_ceiling": 256, "control_record_bound": 3857,
+            evidence = {"image": image, "admission_ceiling": 256, "control_record_bound": 3905,
                 "reserve_bytes": 1024**3, "before_pressure": before_pressure, "pressured": pressured,
                 "released": released, "after_control": after_control, "before_recovery": before_reconcile,
                 "after_recovery": after_reconcile, "recovery_methods": sorted(set(requests))}

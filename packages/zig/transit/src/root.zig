@@ -7,6 +7,8 @@ pub const max_principals = 16;
 pub const max_processes = 64;
 pub const max_effects = 128;
 pub const max_outputs = 256;
+pub const max_payloads = 16;
+pub const max_payload_bytes = 64 * 1024;
 pub const max_turn_outputs = 4;
 pub const max_counter = (1 << 53) - 1;
 pub const max_admission_ceiling = 65536;
@@ -19,7 +21,7 @@ pub const max_checkpoint_bytes = 1024 * 1024;
 /// provider reconciliation/retirement, revocation, and one final checkpoint.
 pub fn controlRecordBudget(ceiling: u64) u64 {
     return 2 * (ceiling + max_outputs + max_effects) +
-        max_effects * (16 + 1) + max_processes * 6 + max_principals + 1;
+        max_effects * (16 + 1) + max_processes * 6 + max_principals + max_payloads * 3 + 1;
 }
 pub const Permission = enum(u4) { admin, spawn, send, execute, inspect, effect, publish };
 pub const all_permissions: u16 = 0x7f;
@@ -74,6 +76,21 @@ pub const Effect = struct {
     observations: u16 = 0,
 };
 pub const Output = struct { pid: u64, value: i64 };
+/// Immutable, standalone payload. M1 has no references from live mailbox/state
+/// values to these bytes. Declaration authorizes one trusted creation attempt;
+/// recovery may verify it but never blindly issue another create.
+pub const Payload = struct {
+    id: u64,
+    pid: u64,
+    publisher: u8,
+    sha256: [32]u8,
+    bytes: u32,
+    allow_delete: bool = false,
+    phase: enum { creating, ready, retiring, deleted } = .creating,
+    retired_at: ?u64 = null,
+    deleted_at: ?u64 = null,
+};
+pub const PayloadRef = struct { pid: u64, payload: u64 };
 pub const Outbox = struct {
     id: u64,
     source: u64,
@@ -105,6 +122,10 @@ pub const Command = union(enum) {
     expire: u64,
     inspect: u64,
     checkpoint: void,
+    declare_payload: struct { pid: u64, sha256: [32]u8, bytes: u32, allow_delete: bool = false },
+    payload_ready: PayloadRef,
+    retire_payload: PayloadRef,
+    payload_deleted: PayloadRef,
 };
 pub const Request = struct {
     version: u32 = 1,
@@ -168,6 +189,7 @@ pub const State = struct {
     processes: [max_processes]?Process = @splat(null),
     effects: [max_effects]?Effect = @splat(null),
     outputs: [max_outputs]?Outbox = @splat(null),
+    payloads: [max_payloads]?Payload = @splat(null),
     output_count: u64 = 0,
     max_clock_error_ms: ?u32 = null,
     time_floor_ms: u64 = 0,
@@ -207,6 +229,16 @@ pub const State = struct {
         return &self.outputs[@intCast(id - 1)].?;
     }
 
+    pub fn payload(self: *State, ref: PayloadRef) !*Payload {
+        for (&self.payloads) |*slot| if (slot.*) |*value| {
+            if (value.id == ref.payload) {
+                if (value.pid != ref.pid) return error.InvalidPayload;
+                return value;
+            }
+        };
+        return error.UnknownPayload;
+    }
+
     pub fn authenticate(self: *const State, signed: SignedRequest) !void {
         const request = signed.request;
         if (request.version != 1 or request.realm != self.realm) return error.WrongProtocolRealm;
@@ -220,6 +252,7 @@ pub const State = struct {
         const p = try self.principal(request.principal);
         const required: Permission = switch (request.command) {
             .grant, .revoke, .own, .terminate, .expire, .checkpoint, .deliver, .runtime_intent, .runtime_observe, .activate => .admin,
+            .declare_payload, .payload_ready, .retire_payload, .payload_deleted => .admin,
             .spawn => .spawn,
             .send => .send,
             .turn, .begin_turn => .execute,
@@ -228,6 +261,8 @@ pub const State = struct {
         };
         if (p.grant.permissions & permission(required) == 0) return error.Forbidden;
         const pid: ?u64 = switch (request.command) {
+            .declare_payload => |c| c.pid,
+            .payload_ready, .retire_payload, .payload_deleted => |c| c.pid,
             .own => |c| c.pid,
             .runtime_intent => |c| c.pid,
             .runtime_observe => |c| c.pid,
@@ -276,6 +311,38 @@ pub const State = struct {
         }
         var admission: ?Message = null;
         switch (req.command) {
+            .declare_payload => |c| {
+                const p = try self.process(c.pid);
+                try executable(p);
+                // Finite upload/reconciliation contracts and dependent body
+                // lifetimes need the connector/resource profile, not inference.
+                if (p.work_before_ms != null) return error.UnsupportedPayloadLifetime;
+                if (c.bytes == 0 or c.bytes > max_payload_bytes) return error.InvalidPayload;
+                const slot = for (&self.payloads) |*slot| {
+                    if (slot.* == null) break slot;
+                } else return error.PayloadCapacity;
+                slot.* = .{ .id = record.position, .pid = c.pid, .publisher = req.principal, .sha256 = c.sha256, .bytes = c.bytes, .allow_delete = c.allow_delete };
+            },
+            .payload_ready => |ref| {
+                const value = try self.payload(ref);
+                if (value.publisher != req.principal) return error.Forbidden;
+                if (value.phase != .creating) return error.PayloadPhase;
+                value.phase = .ready;
+            },
+            .retire_payload => |ref| {
+                const value = try self.payload(ref);
+                if (!value.allow_delete) return error.RetentionNotEnabled;
+                if ((try self.process(ref.pid)).lifecycle == .running) return error.PayloadInUse;
+                if (value.phase != .ready) return error.PayloadPhase;
+                value.phase = .retiring;
+                value.retired_at = record.position;
+            },
+            .payload_deleted => |ref| {
+                const value = try self.payload(ref);
+                if (value.phase != .retiring) return error.PayloadPhase;
+                value.phase = .deleted;
+                value.deleted_at = record.position;
+            },
             .grant => |g| {
                 if (req.principal != 0) return error.Forbidden;
                 if (g.subject == 0 or g.subject >= max_principals or g.permissions & ~all_permissions != 0) return error.InvalidGrant;
@@ -450,13 +517,13 @@ pub const State = struct {
                     self.outputs[@intCast(self.output_count)] = .{ .id = self.output_count + 1, .source = p.pid, .turn = record.position, .index = @intCast(index), .destination = out.pid, .value = out.value };
                     self.output_count += 1;
                 };
-                if (c.effect) |payload| {
+                if (c.effect) |effect_payload| {
                     try self.newWork(p, record);
                     if ((try self.principal(req.principal)).grant.permissions & permission(.effect) == 0) return error.Forbidden;
                     const free = for (&self.effects) |*slot| {
                         if (slot.* == null) break slot;
                     } else return error.EffectCapacity;
-                    free.* = .{ .id = record.position, .pid = c.pid, .payload = payload };
+                    free.* = .{ .id = record.position, .pid = c.pid, .payload = effect_payload };
                 }
                 p.state = c.result;
                 p.consumed += 1;
@@ -595,7 +662,7 @@ pub const State = struct {
         if (self.position < ceiling) return;
         if (self.position >= ceiling + controlRecordBudget(ceiling)) return error.ControlCapacity;
         switch (command) {
-            .begin_turn, .observe, .close_effect, .terminate, .expire, .deliver => {},
+            .begin_turn, .observe, .close_effect, .terminate, .expire, .deliver, .payload_ready, .retire_payload, .payload_deleted => {},
             .turn => |c| {
                 if (c.effect != null) return error.AdmissionClosed;
                 for (c.outputs) |output_value| if (output_value != null) return error.AdmissionClosed;

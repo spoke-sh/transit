@@ -44,6 +44,15 @@ revocation, opted-in expiry, unknown closure, backlog completion and checkpoint/
 trim. The recorded bounds and measured amplification apply to the specified
 single-node fixture, not arbitrary disk writers, topologies or unlimited faults.
 
+Immutable standalone payload tests add whole-stream deletion through the pinned
+client. Owner/PID and current grants fence retirement; publication, explicit
+deletion opt-in and permanent owner retirement are prerequisites. Disk restart
+after DELETE but before outcome recording recovers from a tombstone in the
+separate control checkpoint. Background service maintenance completes deletion
+while preserving default-retention bytes. Late publication cannot reopen a
+retired payload. This profile rejects finite owners and live dependencies;
+unresolved creation cannot be mistaken for safe deletion or retried blindly.
+
 Implemented evidence: `just test` exercises request signatures, realm/PID grants,
 key replacement, retry identity, ownership, invalid results, ordered input, and
 retirement. `just test-storage` repeats competing transitions, revocation, lost

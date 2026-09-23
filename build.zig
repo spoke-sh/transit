@@ -89,7 +89,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = transit.module("transit") })).step);
     const integration = b.addSystemCommand(&.{ "python3", "-B" });
     integration.addFileArg(b.path("tests/storage.py"));
-    for ([_][]const u8{ "storage", "kernel", "effects", "lifetime", "outbox", "runtime" }) |name| {
+    for ([_][]const u8{ "storage", "kernel", "effects", "lifetime", "outbox", "runtime", "deletion" }) |name| {
         const proof = b.addExecutable(.{
             .name = b.fmt("transit-{s}-proof", .{name}),
             .root_module = b.createModule(.{
@@ -104,6 +104,7 @@ pub fn build(b: *std.Build) void {
         });
         b.installArtifact(proof);
         integration.addArtifactArg(proof);
+        if (std.mem.eql(u8, name, "deletion")) services.addArtifactArg(proof);
     }
     integration.has_side_effects = true;
     integration.stdio = .inherit;

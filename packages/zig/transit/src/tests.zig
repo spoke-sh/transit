@@ -205,6 +205,47 @@ test "capacity backpressure preserves accepted work and bounded control across t
     try t.expect(recovered.state.position < 8 + transit.controlRecordBudget(8));
 }
 
+test "payload deletion requires publication, owner retirement, opt-in and current grants" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.submit(&e, 0, .{ .spawn = .{} });
+    const retained = try f.submit(&e, 0, .{ .declare_payload = .{ .pid = pid, .sha256 = @splat(1), .bytes = 1 } });
+    const removed = try f.submit(&e, 0, .{ .declare_payload = .{ .pid = pid, .sha256 = @splat(2), .bytes = 1, .allow_delete = true } });
+    const ref: transit.PayloadRef = .{ .pid = pid, .payload = removed };
+    try t.expectError(error.PayloadInUse, f.submit(&e, 0, .{ .retire_payload = ref }));
+    try t.expectError(error.PayloadPhase, f.submit(&e, 0, .{ .payload_deleted = ref }));
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.admin), .pid = pid } });
+    try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .payload_ready = ref }));
+    _ = try f.submit(&e, 0, .{ .terminate = pid });
+    try t.expectError(error.PayloadPhase, f.submit(&e, 0, .{ .retire_payload = ref }));
+    _ = try f.submit(&e, 0, .{ .payload_ready = ref });
+    try t.expectError(error.InvalidPayload, f.submit(&e, 0, .{ .retire_payload = .{ .pid = 999, .payload = removed } }));
+    try t.expectError(error.RetentionNotEnabled, f.submit(&e, 0, .{ .retire_payload = .{ .pid = pid, .payload = retained } }));
+    const pending = try e.prepare(try f.request(&e, 1, .{ .retire_payload = ref }));
+    _ = try f.submit(&e, 0, .{ .revoke = 1 });
+    try t.expectError(error.Conflict, e.commit(pending));
+    try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .retire_payload = ref }));
+    _ = try f.submit(&e, 0, .{ .retire_payload = ref });
+    _ = try f.submit(&e, 0, .{ .payload_deleted = ref });
+    var recovered = try Engine.open(&f.store, f.genesis);
+    try t.expectEqual(.deleted, (try recovered.state.payload(ref)).phase);
+    try t.expectError(error.PayloadPhase, f.submit(&recovered, 0, .{ .payload_ready = ref }));
+    try t.expectError(error.RetiredProcess, f.submit(&recovered, 0, .{ .declare_payload = .{ .pid = pid, .sha256 = @splat(1), .bytes = 1 } }));
+}
+
+test "unsupported finite payload lifetimes fail before admission" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.max_clock_error_ms = 1;
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    var clock: TestClock = .{ .now = .{ .unix_ms = 1 } };
+    e.clock = clock.source();
+    const pid = try f.submit(&e, 0, .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 110 } });
+    try t.expectError(error.UnsupportedPayloadLifetime, f.submit(&e, 0, .{ .declare_payload = .{ .pid = pid, .sha256 = @splat(1), .bytes = 1 } }));
+    try t.expectEqual(@as(u64, 2), e.state.position);
+}
+
 test "a verified handler failure blocks recovery without consuming the head" {
     var f = try Fixture.init();
     defer f.store.deinit();

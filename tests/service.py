@@ -215,3 +215,5 @@ if __name__ == "__main__":
     maintenance(binaries[0], binaries[2])
     from effect_io import run as effect_io
     effect_io(binaries[3], binaries[4], binaries[2])
+    from deletion_service import run as deletion
+    deletion(binaries[0], binaries[2], binaries[5])

@@ -166,6 +166,15 @@ Ursula supplies mechanisms for whole-stream expiry/deletion and checkpoint-based
 prefix trimming. These are implementation options for Transit policy, not a
 complete process-lifetime or keyed-compaction model.
 
+The implemented deletion proof uses a separate closed immutable payload stream.
+Transit records declaration, verified publication, opt-in, owner retirement,
+deletion intent and outcome in the authority journal/checkpoint. The adapter
+uses the client's `create_stream` with initial bytes and `closed=true`, bounded
+read verification, and `delete_stream`. Recovery after a lost deletion receipt
+confirms 404 for the recorded intent; ordinary missing reads never mean expiry.
+See the [payload profile](RETENTION.md#m1-immutable-payload-deletion). Control
+journal deletion and native TTL on required history remain unavailable.
+
 | Required operation | Documented Ursula mechanism |
 | --- | --- |
 | Whole-stream expiration | Creation with `Stream-TTL` or `Stream-Expires-At` |

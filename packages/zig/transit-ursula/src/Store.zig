@@ -112,3 +112,78 @@ pub fn maintain(self: *Store, checkpoint: transit.Checkpoint) !void {
     try trimmed.head.requireSuccess();
     self.cache_len = 0;
 }
+
+fn payloadStream(self: *Store, id: u64, buffer: *[45]u8) adapter.ursula.Stream {
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("rey.payload.v1\x00");
+    hash.update(self.journal.stream.bucket);
+    hash.update("\x00");
+    hash.update(self.journal.stream.name);
+    hash.update("\x00");
+    const bytes = std.mem.toBytes(std.mem.nativeToBig(u64, id));
+    hash.update(&bytes);
+    const sum = hash.finalResult();
+    buffer[0..2].* = "p-".*;
+    _ = std.base64.url_safe_no_pad.Encoder.encode(buffer[2..], &sum);
+    return .{ .bucket = self.journal.stream.bucket, .name = buffer };
+}
+
+/// Only the trusted publisher which freshly committed the declaration may
+/// call this once. Lost receipts/restart use verifyPayload, never repeat PUT.
+/// The immutable body and closed flag are installed in a single storage call.
+pub fn createPayloadOnce(self: *Store, value: transit.Payload, body: []const u8) !void {
+    if (value.phase != .creating) return error.PayloadPhase;
+    try validatePayload(value, body);
+    var name: [45]u8 = undefined;
+    var response = try self.journal.client.send(.{ .create_stream = .{
+        .stream = self.payloadStream(value.id, &name),
+        .options = .{ .body = body, .closed = true },
+    } });
+    defer response.deinit();
+    try response.head.requireSuccess();
+    try self.verifyPayload(value);
+}
+
+fn validatePayload(value: transit.Payload, body: []const u8) !void {
+    if (value.bytes == 0 or value.bytes > transit.max_payload_bytes or body.len != value.bytes) return error.InvalidPayload;
+    var hash: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(body, &hash, .{});
+    if (!std.mem.eql(u8, &value.sha256, &hash)) return error.PayloadIntegrity;
+}
+
+/// Read-only recovery of an uncertain single creation attempt. A missing stream
+/// stays uncertain; it is never recreated, published as empty, or called deleted.
+pub fn verifyPayload(self: *Store, value: transit.Payload) !void {
+    if (value.phase != .creating and value.phase != .ready) return error.PayloadUnavailable;
+    var name: [45]u8 = undefined;
+    const stream = self.payloadStream(value.id, &name);
+    var head = try self.journal.client.send(.{ .head = .{ .stream = stream } });
+    defer head.deinit();
+    try head.head.requireSuccess();
+    if (!((try head.head.metadata()).closed orelse false)) return error.PayloadNotClosed;
+    var body = try self.journal.client.send(.{ .read = .{ .stream = stream, .options = .{ .max_bytes = transit.max_payload_bytes + 1 } } });
+    defer body.deinit();
+    try body.head.requireSuccess();
+    if (!((try body.head.metadata()).up_to_date orelse false)) return error.PayloadIntegrity;
+    try validatePayload(value, body.body);
+}
+
+/// The caller must obtain this retirement intent from current authenticated
+/// history. Its tombstone remains in the separate authority journal/checkpoint.
+/// Missing is success only for this already-authorized deletion, not for reads.
+pub fn reclaimPayload(self: *Store, value: transit.Payload) !void {
+    if (value.phase != .retiring or !value.allow_delete or value.retired_at == null) return error.PayloadPhase;
+    var name: [45]u8 = undefined;
+    const stream = self.payloadStream(value.id, &name);
+    var head = try self.journal.client.send(.{ .head = .{ .stream = stream } });
+    defer head.deinit();
+    if (head.head.status == .not_found) return;
+    try head.head.requireSuccess();
+    if (!((try head.head.metadata()).closed orelse false)) return error.PayloadNotClosed;
+    var response = try self.journal.client.send(.{ .delete_stream = stream });
+    defer response.deinit();
+    if (response.head.status != .not_found) try response.head.requireSuccess();
+    var verify = try self.journal.client.send(.{ .head = .{ .stream = stream } });
+    defer verify.deinit();
+    if (verify.head.status != .not_found) return error.DeletionUnconfirmed;
+}

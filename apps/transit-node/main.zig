@@ -49,6 +49,7 @@ const Server = struct {
             const status: std.http.Status = switch (err) {
                 error.AdmissionClosed, error.ControlCapacity => .service_unavailable,
                 error.ControlAlreadyRecorded => .unprocessable_entity,
+                error.UnknownPayload, error.InvalidPayload, error.PayloadCapacity, error.PayloadPhase, error.PayloadInUse, error.UnsupportedPayloadLifetime => .unprocessable_entity,
                 error.BlockedProcess, error.InvalidFailure => .unprocessable_entity,
                 error.Unauthorized, error.Forbidden, error.WrongProtocolRealm, error.SignatureVerificationFailed, error.IdentityElement, error.NonCanonical, error.InvalidEncoding => .forbidden,
                 error.Conflict => .conflict,
@@ -80,6 +81,13 @@ const Server = struct {
             for (e.state.effects) |slot| if (slot) |effect| {
                 if (effect.pid == pid) {
                     view.effects[index] = effect;
+                    index += 1;
+                }
+            };
+            index = 0;
+            for (e.state.payloads) |slot| if (slot) |payload| {
+                if (payload.pid == pid) {
+                    view.payloads[index] = payload;
                     index += 1;
                 }
             };

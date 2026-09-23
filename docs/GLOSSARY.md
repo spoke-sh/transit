@@ -88,6 +88,7 @@ cluster scopes, conflict handling, and stable message destinations.
 | Causation | The relationship identifying which input, turn, or effect caused a record. |
 | Correlation | An identity joining related work, such as a request and its reply. It does not itself establish order or authority. |
 | Durable stream | Persistent ordered records with resumable reading under a documented durability/retention contract. |
+| Immutable payload | A logical storage object with a fixed byte body, content hash and unreused identity. M1 supports standalone payloads with explicit publication and deletion records; application dependencies and finite body lifetimes need a later contract. |
 | Cursor | An opaque transport continuation value returned by Ursula. It is separate from message identity and process sequence position. |
 | Authoritative history | Validated durable records, including checkpoints replacing reclaimed prefixes, that determine accepted work, progress, ownership, lifetime, and effect eligibility. |
 | Outbox | Committed pending outputs awaiting delivery. Retried delivery preserves identity and the destination deduplicates admission. |

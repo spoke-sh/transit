@@ -34,8 +34,10 @@ needs no root signing seed. Bootstrap configuration is an operator trust input.
 
 `--maintain` runs a separate trusted process without an HTTP listener. Its config
 requires `principal` and `seed_file`, with realm-wide `admin` and `effect` grants.
-It scans at most 64 PIDs and 128 effects, commits at most one due expiry/closure
-per iteration, and reconciles recorded checkpoint intents. Default interval is
+It scans at most 64 PIDs, 128 effects and 16 payloads, commits at most one due
+transition per iteration, and reconciles recorded checkpoint/deletion intents.
+Payload deletion requires verified publication, owner retirement and explicit
+opt-in; its tombstone stays in control history. Default interval is
 1000 ms and whole-operation timeout is 5000 ms; both are configurable up to
 60000 ms. Incoming HTTP load cannot occupy this process's execution loop.
 Lost acknowledgements are reconciled from history before the next operation.
@@ -45,9 +47,11 @@ least 2) asks maintenance to checkpoint quiescent opted-in processes after that
 many records since the retained floor. Realm retry policy must permit removal,
 and every PID must have `allow_trim`; pending input still blocks trimming.
 Publication is read back before retention advances. Clock failure blocks timed
-expiry/closure but permits authorized checkpoint recovery. Maintenance credentials
-and raw storage access stay outside worker sandboxes. Physical full-store
-reservation remains a separate open M1 gate.
+expiry/closure but permits authorized checkpoint/deletion recovery. Maintenance
+credentials and raw storage access stay outside worker sandboxes. The separate
+[capacity proof](../docs/RETENTION.md#m1-bounded-capacity-profile) exercises a
+physically reserved finite realm; enabling the node alone does not provision that
+reserve or promise full-store recovery for an arbitrary storage deployment.
 
 `transit-worker CONFIG.json` requires `url`, `realm`, `principal`, `pid`,
 `generation`, and `seed_file`. Its grant needs `execute` and `inspect` scoped to

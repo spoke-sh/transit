@@ -11,8 +11,10 @@ disk proof uses controlled time; the Linux service clock reads the synchronized
 kernel's reported error bound. A separate
 [`transit-node --maintain` process](../contracts/SERVICE_V1.md) now commits due
 expiry/closure and reconciles opted-in checkpoint/trim operations. Physical
-capacity reservation now has a bounded single-node proof below; general resource
-deletion remains an open M1 gate.
+capacity reservation now has a bounded single-node proof below. A minimal
+immutable-payload catalog also records publication, retirement, and deletion;
+the separate maintenance process reconciles whole-stream deletion. General
+resource dependencies, finite body lifetimes, and compaction remain later work.
 
 ## Application contract
 
@@ -308,11 +310,14 @@ restart do not reopen admission. Online expansion/rearming is not implemented;
 do not enable this profile expecting a self-resizing production store.
 
 For ceiling `N`, the conservative post-ceiling bound is
-`2*(N+256+128) + 128*17 + 64*6 + 16 + 1` accepted records: at most a permit and
+`2*(N+256+128) + 128*17 + 64*6 + 16 + 16*3 + 1` accepted records: at most a permit and
 turn per old/newly delivered input, finite attempt observations/closures, bounded
-provider completion/stop and retirement, revocations, and one checkpoint.
-Typed journal entries are capped at 4 KiB and checkpoints at 1 MiB. Transport
-failures and backend housekeeping are not accepted protocol records; physical
+provider completion/stop and retirement, revocations, payload publication/
+retirement/deletion, and one checkpoint.
+Typed journal entries are capped at 4 KiB and checkpoints at 1 MiB.
+Pending preauthorized payload creation can additionally write at most sixteen
+64 KiB bodies (1 MiB total); those bytes need their own reserved headroom.
+Transport failures and backend housekeeping are not accepted protocol records; physical
 provisioning must additionally cover their amplification and temporary files.
 
 `just test-capacity` proves the `N=256` profile against the pinned official
@@ -323,9 +328,10 @@ stays in place while Transit revokes a grant, expires an opted-in PID, closes an
 unknown attempt, drains the unlimited PID's accepted backlog, and checkpoints
 and trims. SIGKILL/restart preserves retirement, closure, and closed admissions.
 
-The first passing run used 251 post-ceiling records; WAL allocation grew by
-167,936 bytes during control recovery, versus the conservative 3,857-record
-logical bound (15,798,272 bytes plus a checkpoint). The 1 GiB physical reserve is
+The fixture uses 251 post-ceiling records. A passing run grew WAL allocation by
+167,936 bytes during control recovery; current measurements are emitted by the
+recipe. The conservative current bound
+is 3,905 records (15,994,880 bytes plus a checkpoint). The 1 GiB physical reserve is
 a tested envelope for this configuration/schedule, not a universal filesystem
 or Ursula write-amplification guarantee. The fixture asserts control growth
 stays below 128 MiB and free space remains above the 32 MiB resume threshold.
@@ -340,6 +346,41 @@ it does not repeatedly publish or trim. Ursula can still change its internal WAL
 during reads/recovery, so raw WAL equality is not a valid no-mutation assertion.
 The fixture records adapter HTTP methods and stores measurements in the ignored
 `.cache/capacity-evidence.json`.
+
+### M1 immutable payload deletion
+
+The initial resource catalog supports sixteen lifetime payload identities, each
+at most 64 KiB, owned by an unlimited-lifetime PID. They are immutable standalone
+bytes; no mailbox/state/effect field can depend on them in this scalar profile.
+Finite owner/body lifetimes are rejected as unsupported rather than inferred.
+General reference admission, large body streams and connector replay dependencies
+need their own later contract.
+
+A declaration records owner PID, publisher principal, length, SHA-256, and
+`allow_delete` (false by default). Its journal position is its logical identity;
+neither logical nor derived physical names are reused. A trusted publisher makes
+one atomic Ursula create with the complete body and `closed=true`, verifies the
+closed stream and hash, then records readiness. Creation and publication are
+trusted control operations, not application handler capabilities. The publisher
+must be serialized and issue no duplicate PUT: a lost receipt or restarted
+publisher may only verify the original attempt. A missing stream stays uncertain;
+it is not recreated. An unresolved creation remains pinned, with bounded catalog
+and payload capacity; maintenance does not poll or discard it indefinitely.
+
+Once the owner is permanently retired, an opted-in, positively published payload
+can enter `retiring`. That durable record removes logical availability before
+physical deletion. Background maintenance checks current grants, verifies the
+stream is closed, issues DELETE, confirms 404, and records `deleted`. A crash
+after DELETE leaves `retiring` in the control journal/checkpoint; a subsequent
+404 completes that same intent. Storage errors are not deletion evidence.
+Creating/default-retention payloads are not eligible, and late publication or a
+new dependency cannot reopen a retired identity. Physical erasure of old WAL,
+snapshots, backups or external copies is not claimed by a DELETE acknowledgement.
+
+`just test-storage` kills/restarts disk Ursula after publication and after DELETE
+but before recording its outcome, including checkpoint/trim of the control
+history. `just test-service` proves automatic background retirement/deletion and
+that default-retention bytes remain readable by the trusted storage verifier.
 
 ## Logical storage and background reclamation
 
