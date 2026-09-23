@@ -29,6 +29,14 @@ they do not establish arbitrary native-handler determinism or protection against
 privileged administrators. Public ingress TLS and broader runtime support remain
 outside this reference slice.
 
+Verified counter overflow records a blocked head input and fences its owner.
+Unit and signed-service tests reject fabricated failure, preserve the pending
+input across restart, and permit explicit termination. Runtime reconciliation
+uses that durable failure to stop replacement; its cluster test also checks a
+stable generation after shutdown. This bounds retries of the fixed reviewed
+handler; arbitrary plugin execution and general Station restart policies remain
+outside this profile.
+
 Implemented evidence: `just test` exercises request signatures, realm/PID grants,
 key replacement, retry identity, ownership, invalid results, ordered input, and
 retirement. `just test-storage` repeats competing transitions, revocation, lost

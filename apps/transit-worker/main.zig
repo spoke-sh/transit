@@ -17,17 +17,21 @@ fn run(client: *wire.Client, config: Config, key: transit.Ed25519.KeyPair, io: s
         };
         const p = view.process;
         if (p.lifecycle != .running or p.owner != config.principal or p.generation != config.generation) return error.StaleActivation;
+        if (p.failure != null) return error.BlockedProcess;
         if (view.input) |input| {
             const command: transit.Command = if (p.work_before_ms != null and p.turn_permit == null)
                 .{ .begin_turn = .{ .pid = p.pid, .generation = p.generation, .input = input.position } }
-            else
-                .{ .turn = .{
+            else turn: {
+                const decision = @import("counter").reduce(p.state, input.value) catch null;
+                break :turn .{ .turn = .{
                     .pid = p.pid,
                     .generation = p.generation,
                     .input = input.position,
                     .permit = if (p.turn_permit) |permit| permit.id else null,
-                    .result = (try @import("counter").reduce(p.state, input.value)).state,
+                    .result = if (decision) |d| d.state else p.state,
+                    .failed = decision == null,
                 } };
+            };
             const signed = try transit.sign(.{ .realm = config.realm, .principal = config.principal, .sequence = view.principal_sequence + 1, .command = command }, key);
             // An acknowledgement can be lost after durable acceptance. Hold this
             // exact request until its outcome is known; never redispatch effects.

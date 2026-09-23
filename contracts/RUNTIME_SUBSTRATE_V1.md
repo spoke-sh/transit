@@ -43,6 +43,9 @@ Subsequent scans compare the assigned worker UID with durable activation
 evidence. Worker loss with pending input triggers another recorded intent and
 fresh activation for the same PID/Actor. Lost notifications do not strand work.
 Retirement prevents further activation; suspension is separate provider cleanup.
+A recorded handler failure also drives provider shutdown without retiring the
+PID or consuming its failed input. Controllers must not turn that visible blocked
+state into repeated activation attempts.
 After worker loss, Substrate requires reverting a CRASHED Actor to its last
 committed snapshot before resuming it. The controller first records the new
 intent to fence the old activation, then reverts and resumes in separate scans.

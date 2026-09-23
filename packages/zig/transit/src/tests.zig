@@ -86,6 +86,33 @@ test "checkpoint administration requires a current realm-wide grant" {
     try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .checkpoint = {} }));
 }
 
+test "a verified handler failure blocks recovery without consuming the head" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.retry_policy = .last_per_principal;
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute), .pid = pid } });
+    _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 1 } });
+    const first = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = std.math.maxInt(i64) } });
+    const bad = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 1 } });
+    try t.expectError(error.InvalidFailure, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = 0, .failed = true } }));
+    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = std.math.maxInt(i64) } });
+    const failure = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = bad, .result = std.math.maxInt(i64), .failed = true } });
+    var recovered = try Engine.open(&f.store, f.genesis);
+    const p = (try recovered.state.process(pid)).*;
+    try t.expectEqual(bad, p.failure.?.input);
+    try t.expectEqual(failure, p.failure.?.recorded_at);
+    try t.expectEqual(@as(u64, 1), p.consumed);
+    try t.expectEqual(@as(u64, 0), p.cancelled);
+    try t.expectEqual(@as(?u8, null), p.owner);
+    try t.expectError(error.BlockedProcess, f.submit(&recovered, 0, .{ .own = .{ .pid = pid, .expected_generation = p.generation, .worker = 1 } }));
+    try t.expectError(error.PendingWork, f.submit(&recovered, 0, .{ .checkpoint = {} }));
+    _ = try f.submit(&recovered, 0, .{ .terminate = pid });
+    try t.expectEqual(@as(u64, 1), (try recovered.state.process(pid)).cancelled);
+    _ = try f.submit(&recovered, 0, .{ .checkpoint = {} });
+}
+
 test "lost spawn acknowledgement resolves to the same PID and conflicting retry is rejected" {
     var f = try Fixture.init();
     defer f.store.deinit();

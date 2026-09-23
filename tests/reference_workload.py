@@ -241,6 +241,19 @@ backend = "inline"
         assert view(finite_pid)["process"]["lifecycle"] == "expired"
         from reference_isolation import run as isolation
         isolation_evidence = isolation(s, directory, namespace, authority_host, images, template)
+        # A deterministic poison input must stop replacement, not turn worker
+        # exits into an endless Substrate activation loop.
+        failed_input = command({"send": {"pid": pid, "value": 9223372036854775807}})
+        limit = time.monotonic() + 60
+        while True:
+            blocked = view(pid)["process"]
+            if blocked["failure"] is not None and blocked["binding"]["phase"] == "stopped":
+                break
+            assert time.monotonic() < limit, "Handler failure was not durably blocked/stopped"
+            time.sleep(0.2)
+        assert blocked["failure"]["input"] == failed_input and blocked["state"] == 1153
+        time.sleep(2)
+        assert view(pid)["process"]["generation"] == blocked["generation"]
         command({"terminate": pid})
         assert view(pid)["process"]["lifecycle"] == "terminated"
         limit = time.monotonic() + 60

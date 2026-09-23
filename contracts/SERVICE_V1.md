@@ -12,8 +12,10 @@ requests, and authority/storage restart. This is not full deployment conformance
 dependency. The authority and worker compile the reviewed
 [counter reducer](../examples/counter.zig): code version 1 performs checked
 integer addition, without I/O, allocation, ambient time, or dynamic plugins.
-Overflow refuses the turn, leaving input pending and inspectable. A worker exits
-on permanent rejection rather than repeatedly executing a failing handler.
+Overflow is recorded as a verified handler failure, leaving input pending and
+inspectable while fencing ownership. A worker exits and the runtime controller
+stops replacing it. Operator termination or opted-in expiry provides the
+explicit terminal disposition; no input is silently skipped.
 
 `transit-node CONFIG.json [--bootstrap|--initialize|--maintain]` accepts:
 

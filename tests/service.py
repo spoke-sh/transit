@@ -175,6 +175,23 @@ def run(node, worker, cli):
             view(pid, 1, rotated_key, 403)
             command({"terminate": pid})
             assert view(pid)["process"]["lifecycle"] == "terminated"
+            failed_pid = command({"spawn": {}})
+            command({"grant": {"subject": 3, "public_key": worker_public, "permissions": 24, "pid": failed_pid}})
+            command({"own": {"pid": failed_pid, "expected_generation": 0, "worker": 3}})
+            command({"send": {"pid": failed_pid, "value": 9223372036854775807}})
+            bad_input = command({"send": {"pid": failed_pid, "value": 1}})
+            failed_config = root / "failed-worker.json"
+            failed_config.write_text(json.dumps({"url": url, "realm": 47, "principal": 3,
+                "pid": failed_pid, "generation": 1, "seed_file": str(worker_key)}))
+            failed_worker = start(worker, failed_config)
+            assert failed_worker.wait(timeout=20) != 0
+            failed = view(failed_pid)["process"]
+            assert failed["failure"]["input"] == bad_input
+            assert failed["consumed"] == 1 and failed["cancelled"] == 0 and failed["owner"] is None
+            stop(authority)
+            authority = start(node, config)
+            wait_ready(store.http, authority, url + "/health")
+            assert view(failed_pid)["process"] == failed
             print("Signed service ingress, scoped/revoked reads, bounded requests, worker fencing and disk recovery passed.")
         except BaseException:
             for log in logs:

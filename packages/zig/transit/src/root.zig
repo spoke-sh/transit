@@ -37,6 +37,7 @@ pub const Process = struct {
     generation: u64 = 0,
     lifecycle: enum { running, terminated, expired } = .running,
     state: i64 = 0,
+    failure: ?struct { input: u64, recorded_at: u64 } = null,
     admitted: u64 = 0,
     consumed: u64 = 0,
     cancelled: u64 = 0,
@@ -83,7 +84,7 @@ pub const Command = union(enum) {
     activate: Runtime.Activate,
     send: struct { pid: u64, value: i64 },
     begin_turn: struct { pid: u64, generation: u64, input: u64 },
-    turn: struct { pid: u64, generation: u64, input: u64, result: i64, effect: ?i64 = null, permit: ?u64 = null, outputs: [max_turn_outputs]?Output = @splat(null) },
+    turn: struct { pid: u64, generation: u64, input: u64, result: i64, failed: bool = false, effect: ?i64 = null, permit: ?u64 = null, outputs: [max_turn_outputs]?Output = @splat(null) },
     deliver: struct { pid: u64, output: u64, courier: u8 },
     dispatch: struct { pid: u64, effect: u64, reconcile_before_ms: ?u64 = null, max_observations: u16 = 16 },
     observe: struct { pid: u64, effect: u64, attempt: u64, result: ?i64 },
@@ -291,7 +292,7 @@ pub const State = struct {
             .own => |c| {
                 const p = try self.process(c.pid);
                 if (p.binding != null) return error.RuntimeActivationRequired;
-                try running(p);
+                try executable(p);
                 if (p.work_before_ms) |deadline| {
                     const time = try self.trustedTime(record);
                     try time.before(if (p.turn_permit != null) p.settle_before_ms.? else deadline);
@@ -306,7 +307,7 @@ pub const State = struct {
             .runtime_intent => |c| {
                 const p = try self.process(c.pid);
                 if (c.desired == .running) {
-                    try running(p);
+                    try executable(p);
                     if (p.work_before_ms) |deadline| try (try self.trustedTime(record)).before(if (p.turn_permit != null) p.settle_before_ms.? else deadline);
                 }
                 const previous = p.binding;
@@ -360,7 +361,7 @@ pub const State = struct {
             },
             .activate => |c| {
                 const p = try self.process(c.pid);
-                try running(p);
+                try executable(p);
                 if (p.work_before_ms) |deadline| try (try self.trustedTime(record)).before(if (p.turn_permit != null) p.settle_before_ms.? else deadline);
                 const binding = if (p.binding) |*b| b else return error.InvalidBinding;
                 if (c.revision != binding.revision) return error.StaleBinding;
@@ -395,9 +396,9 @@ pub const State = struct {
                 if (message.position != c.input or (messageOf(message) orelse return error.InvalidInput).pid != c.pid) return error.InvalidInput;
                 p.turn_permit = .{ .id = record.position, .input = c.input };
             },
-            .turn => |c| {
+            .turn => |c| turn: {
                 const p = try self.process(c.pid);
-                try running(p);
+                try executable(p);
                 if (c.generation != p.generation or p.owner != req.principal) return error.StaleGeneration;
                 if (p.turn_permit) |permit| {
                     if (c.permit != permit.id or c.input != permit.input) return error.InvalidTurnPermit;
@@ -407,7 +408,20 @@ pub const State = struct {
                 const body = messageOf(message) orelse return error.InvalidInput;
                 if (body.pid != c.pid or
                     c.input != message.position or c.input <= p.input_cursor or c.input >= record.position or p.consumed >= p.admitted) return error.InvalidInput;
-                const decision = try reducer(p.state, body.value);
+                const decision = reducer(p.state, body.value) catch |err| {
+                    if (!c.failed) return err;
+                    if (c.result != p.state or c.effect != null) return error.InvalidFailure;
+                    for (c.outputs) |out| if (out != null) return error.InvalidFailure;
+                    // Failed execution never consumes/skips its input. Fence the
+                    // activation and leave a durable disposition for operators
+                    // and controllers, instead of an endless replacement loop.
+                    p.failure = .{ .input = c.input, .recorded_at = record.position };
+                    p.owner = null;
+                    p.generation = try std.math.add(u64, p.generation, 1);
+                    p.turn_permit = null;
+                    break :turn;
+                };
+                if (c.failed) return error.InvalidFailure;
                 if (c.result != decision.state) return error.InvalidResult;
                 if (c.effect != decision.effect) return error.InvalidEffectIntent;
                 if (!std.meta.eql(c.outputs, decision.outputs)) return error.InvalidOutputs;
@@ -586,7 +600,7 @@ pub const State = struct {
     }
 
     fn newWork(self: *const State, p: *const Process, record: Record) !void {
-        try running(p);
+        try executable(p);
         if (p.work_before_ms) |deadline| try (try self.trustedTime(record)).before(deadline);
     }
 
@@ -640,6 +654,10 @@ pub const Checkpoint = struct {
 
 fn running(p: *const Process) !void {
     if (p.lifecycle != .running) return error.RetiredProcess;
+}
+fn executable(p: *const Process) !void {
+    try running(p);
+    if (p.failure != null) return error.BlockedProcess;
 }
 
 /// Store contract: immutable positions, authoritative tail, conditional append.

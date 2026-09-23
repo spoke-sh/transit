@@ -55,10 +55,10 @@ const Controller = struct {
             .command = .{ .inspect = self.config.pid },
         }, self.key);
         const p = view.process;
-        const retired = p.lifecycle != .running;
+        const stopping = p.lifecycle != .running or p.failure != null;
         const backlog = p.admitted > p.consumed + p.cancelled;
         const b = p.binding orelse {
-            if (retired or !backlog) return .idle;
+            if (stopping or !backlog) return .idle;
             try self.intent(view, false);
             return .intent;
         };
@@ -71,7 +71,7 @@ const Controller = struct {
                     // A bound incarnation disappearing is not permission to
                     // recreate its name and adopt a different provider resource.
                     if (b.incarnation != null) return error.ProviderIncarnationLost;
-                    if (retired or b.desired == .stopped) {
+                    if (stopping or b.desired == .stopped) {
                         try self.observe(view, null, true);
                         return .observed;
                     }
@@ -92,9 +92,9 @@ const Controller = struct {
                 try self.observe(view, actor.uid, true);
                 return .observed;
             }
-            if (retired or actor.state == .running) {
+            if (stopping or actor.state == .running) {
                 // Evidence can settle after retirement; it grants no activation.
-                if (!retired) try self.provider.policy();
+                if (!stopping) try self.provider.policy();
                 try self.observe(view, actor.uid, false);
                 return .observed;
             }
@@ -111,7 +111,7 @@ const Controller = struct {
             }
             return .idle;
         }
-        if (retired) {
+        if (stopping) {
             if (b.desired == .stopped or b.phase == .stopped) return .idle;
             try self.intent(view, true);
             return .intent;

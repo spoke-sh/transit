@@ -68,7 +68,15 @@ admission. Concurrent producers need distinct principals.
 The engine accepts one reviewed, compiled reducer at workload version one. The
 counter fixture uses checked addition; the authority recomputes the result from
 the next journal input and rejects skipping or forged results. An arithmetic
-failure leaves the head pending for explicit operator action. This does not
+failure is submitted as `turn.failed=true` with the unchanged state and no
+outputs/effects. The authority verifies that the reviewed reducer actually fails;
+a worker cannot claim failure for a valid transition. Acceptance records
+`Process.failure` with the input and record position, fences the activation, and
+leaves the input unconsumed. Admissions, turns and activations then fail with
+`BlockedProcess`; runtime reconciliation stops the Actor rather than replacing
+it indefinitely. Explicit termination or opted-in expiry cancels the outstanding
+input; M1 provides no automatic retry or same-PID reset for a deterministic
+failure. Failure evidence survives replay and checkpointing. This does not
 establish isolation or determinism for arbitrary native code.
 
 Mailbox bodies remain in storage. State holds counts and a scan position;

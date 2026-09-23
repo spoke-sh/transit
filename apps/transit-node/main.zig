@@ -47,6 +47,7 @@ const Server = struct {
         defer parsed.deinit();
         self.execute(&request, parsed.value, is_view) catch |err| {
             const status: std.http.Status = switch (err) {
+                error.BlockedProcess, error.InvalidFailure => .unprocessable_entity,
                 error.Unauthorized, error.Forbidden, error.WrongProtocolRealm, error.SignatureVerificationFailed, error.IdentityElement, error.NonCanonical, error.InvalidEncoding => .forbidden,
                 error.Conflict => .conflict,
                 error.RuntimeActivationRequired, error.StaleBinding, error.PendingProviderOperation, error.BindingReplacementUnsupported, error.InvalidBinding, error.ResourceAlreadyBound, error.ProviderOperationClosed, error.ProviderIncarnationMismatch, error.ProviderNotReady, error.AlreadyActivated, error.StaleWorkerIncarnation, error.FreshKeyRequired => .unprocessable_entity,
