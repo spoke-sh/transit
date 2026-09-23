@@ -63,7 +63,7 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqual(@as(u64, 201), e.state.time_floor_ms);
         clock.now = 50;
         e.clock = .{ .context = &clock, .read = Clock.read };
-        try t.expectError(error.ClockRollback, submit(&e, root, 0, .{ .inspect = 1 }));
+        try t.expectError(error.ClockRollback, submit(&e, root, 0, .{ .spawn = .{ .deadline_ms = 300, .settle_before_ms = 400 } }));
         clock.now = 202;
         try t.expectError(error.RetiredProcess, submit(&e, root, 0, .{ .own = .{ .pid = 1, .worker = 1, .expected_generation = 2 } }));
     } else return error.UnknownPhase;

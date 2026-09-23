@@ -79,6 +79,30 @@ principals, 64 lifetime process identities, 128 lifetime effect identities, and
 reaching those quotas fails
 before admission. Scaling those catalogs requires a later persistent index.
 
+## Runtime bindings and activation
+
+Each process can pin a provider-neutral binding: runtime-instance identity,
+resource digest, workload digest, provider incarnation, binding revision, and
+current operation ID. `runtime_intent` records an operation and immediately
+fences the prior owner by advancing its generation. `runtime_observe` records
+ready/unknown/stopped evidence for that exact operation. Observations never
+grant ownership, including after process retirement.
+
+`activate` requires a ready binding and a pre-existing PID-scoped worker grant.
+It atomically replaces that principal's public key and advances ownership,
+recording the physical worker incarnation. Bound PIDs cannot use ordinary `own`.
+The controller must verify the fresh public key against the current provider
+worker before activation. Recovery preserves the process and provider resource;
+stale keys, binding revisions, and generations remain fenced. Binding and key
+evidence survive checkpoint/trim. Two PIDs cannot bind the same provider resource.
+
+M1 pins one association/workload and requires a different physical worker
+incarnation and fresh key for replacement. Migration, provider-resource
+replacement, native-code upgrades, and reusing a pod for another activation are
+rejected until their own recovery contracts exist. Unresolved provider operations
+must reconcile before starting another. An operator's provider observations are
+trusted input, not cryptographic proof of physical placement.
+
 ## Process outboxes
 
 A turn can commit up to four scalar outputs to fixed destination PIDs, alongside
@@ -154,12 +178,14 @@ behind a proved capability boundary remain required before service deployment.
 
 Finite policies require an explicit `max_clock_error_ms` in genesis and a trusted
 `Time.Source` attached to the engine. Requests cannot supply authority time.
-The authority records its validation sample and uncertainty with each operation;
+The authority records its validation sample and uncertainty with each time-sensitive operation;
 the sample must fit the configured error bound and cannot precede the durable
 time high-water mark. A missing source, excessive uncertainty, or rollback
 refuses time-dependent authorization. Replay uses recorded samples, never today's
 clock. Supplying a time source is a trusted deployment responsibility, not proof
 that an arbitrary host clock has the advertised UTC accuracy.
+Reads, revocation, explicit retirement, and non-time-dependent control/maintenance
+do not sample a clock, so a synchronization outage cannot disable those controls.
 
 The acceptance-time boundary is trusted validation of the candidate at an exact
 journal tail. Its append must still win CAS. A candidate validated before a

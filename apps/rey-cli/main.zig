@@ -5,7 +5,7 @@ const transit = @import("transit");
 const wire = @import("transit_client");
 fn print(io: std.Io, value: anytype) !void {
     var buffer: [wire.max_body]u8 = undefined;
-    var writer = std.Io.File.stdout().writer(io, &buffer);
+    var writer = std.Io.File.stdout().writerStreaming(io, &buffer);
     try std.json.Stringify.value(value, .{}, &writer.interface);
     try writer.interface.writeByte('\n');
     try writer.interface.flush();

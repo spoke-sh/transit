@@ -1,0 +1,8 @@
+.{
+    .name = .runtime_substrate,
+    .fingerprint = 0x982a1e4c2f26ee03,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
+    .dependencies = .{},
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

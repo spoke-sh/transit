@@ -140,6 +140,31 @@ def run(node, worker, cli):
             assert view(pid, 1, rotated_key)["process"]["state"] == 307
             command({"revoke": 1})
             view(pid, 1, rotated_key, 403)
+            # A cold worker publishes only a public key. The trusted runtime
+            # controller verifies provider identity before rotating its grant.
+            command({"grant": {"subject": 2, "public_key": worker_public, "permissions": 24, "pid": other}})
+            operation = command({"runtime_intent": {"pid": other, "expected_revision": 0,
+                                                     "instance": [1] * 16, "resource": [2] * 32, "workload": [3] * 32}})
+            command({"runtime_observe": {"pid": other, "revision": 1, "operation": operation,
+                                          "incarnation": [4] * 16, "outcome": "ready"}})
+            command({"send": {"pid": other, "value": 11}})
+            boot = start(worker, "--bootstrap-json", json.dumps({"url": url, "realm": 47, "principal": 2, "pid": other}))
+            log = logs[-1]
+            deadline = time.monotonic() + 5
+            while True:
+                log.seek(0)
+                line = log.readline()
+                if line:
+                    bootstrap = json.loads(line)["bootstrap"]
+                    break
+                assert time.monotonic() < deadline
+                time.sleep(0.05)
+            assert bootstrap["pid"] == other and bootstrap["realm"] == 47
+            assert view(other)["process"]["state"] == 0
+            command({"activate": {"pid": other, "revision": 1, "expected_generation": 1, "worker": 2,
+                                   "public_key": bootstrap["public_key"], "worker_incarnation": [5] * 16}})
+            await_state(other, 11)
+            stop(boot)
             before = view(pid)
             stop(authority)
             store.stop()

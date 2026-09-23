@@ -49,6 +49,7 @@ test-packages:
     cd packages/zig/transit && zig build test
     cd packages/zig/transit-ursula && zig build test
     cd packages/zig/transit-client && zig build test
+    cd packages/zig/runtime-substrate && zig build test
 
 # Format the Nix configuration.
 fmt:

@@ -35,6 +35,14 @@ generation. They recover input/state and their own principal sequence, then
 retry an uncertain submission using exactly the same signed request. Independent
 writers must not share a principal sequence without coordination.
 
+For runtime-managed cold starts, `transit-worker --bootstrap-json CONFIG_JSON`
+accepts public `url`, `realm`, `principal`, and `pid` settings. It generates an
+ephemeral private key in memory and prints only public registration evidence.
+A trusted controller validates that evidence against the current provider
+Actor/worker incarnation, then submits atomic `activate`. The worker pins the
+returned generation once; an old or restored worker cannot adopt a later one.
+No signing seed is embedded in an image, template, argument, or stream.
+
 The CLI supports:
 
 ```sh

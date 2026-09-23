@@ -47,6 +47,7 @@ const Server = struct {
             const status: std.http.Status = switch (err) {
                 error.Unauthorized, error.Forbidden, error.WrongProtocolRealm, error.SignatureVerificationFailed, error.IdentityElement, error.NonCanonical, error.InvalidEncoding => .forbidden,
                 error.Conflict => .conflict,
+                error.RuntimeActivationRequired, error.StaleBinding, error.PendingProviderOperation, error.BindingReplacementUnsupported, error.InvalidBinding, error.ResourceAlreadyBound, error.ProviderOperationClosed, error.ProviderIncarnationMismatch, error.ProviderNotReady, error.AlreadyActivated, error.StaleWorkerIncarnation, error.FreshKeyRequired => .unprocessable_entity,
                 error.InvalidRead, error.ConflictingRetry, error.InvalidSequence, error.SequenceGap, error.RetryHorizonExceeded, error.InvalidGrant, error.UnknownPrincipal, error.UnknownProcess, error.UnknownEffect, error.UnknownOutput, error.InvalidLifetime, error.UnsupportedDeadline, error.UnsupportedWorkload, error.StaleGeneration, error.RetiredProcess, error.InvalidInput, error.MissingInput, error.InvalidResult, error.InvalidTurnPermit, error.MissingTurnPermit, error.TurnAlreadyAuthorized, error.InvalidOutput, error.InvalidOutputs, error.OutputAlreadyResolved, error.RouteBlocked, error.InvalidEffectIntent, error.InvalidEffect, error.InvalidAttempt, error.AttemptAlreadyAuthorized, error.InvalidBudget, error.ReconciliationClosed, error.DeadlineExpired, error.NoDeadline, error.DeadlineNotReached, error.HistoryPinned, error.PendingWork, error.RetentionNotEnabled, error.ProcessCapacity, error.EffectCapacity, error.OutputCapacity, error.Overflow => .unprocessable_entity,
                 else => .service_unavailable,
             };
@@ -91,7 +92,8 @@ fn timeout(io: std.Io, milliseconds: u32) anyerror!void {
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len < 2 or args.len > 3 or (args.len == 3 and !std.mem.eql(u8, args[2], "--bootstrap"))) return error.ExpectedConfigAndOptionalBootstrap;
+    const initialize = args.len == 3 and std.mem.eql(u8, args[2], "--initialize");
+    if (args.len < 2 or args.len > 3 or (args.len == 3 and !initialize and !std.mem.eql(u8, args[2], "--bootstrap"))) return error.ExpectedConfigAndOptionalBootstrap;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(wire.max_body));
     defer init.gpa.free(bytes);
     var parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
@@ -103,6 +105,7 @@ pub fn main(init: std.process.Init) !void {
     var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = config.bucket, .name = config.journal } } };
     if (args.len == 3) try store.journal.create();
     var engine = if (args.len == 3) try Engine.bootstrap(&store, config.genesis) else try Engine.open(&store, config.genesis);
+    if (initialize) return;
     var clock_context: u8 = 0;
     if (config.genesis.max_clock_error_ms != null) engine.clock = .{ .context = &clock_context, .read = @import("Clock.zig").read };
     const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);

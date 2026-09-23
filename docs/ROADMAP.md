@@ -71,6 +71,10 @@ The node, fixed counter worker, and CLI have a loopback HTTP recovery proof
 slow-request deadlines, and paused-worker fencing across authority/disk restart.
 The Linux clock adapter reads the synchronized kernel's reported error bound;
 deployment assumptions and limits are in the [service profile](../contracts/SERVICE_V1.md).
+Runtime-binding proofs now separate provider observations from execution rights,
+rotate activation keys atomically with ownership, reject stale incarnations,
+and recover pending provider operations/control evidence across disk restart
+and trim. The real Substrate adapter and cluster proof are still being built.
 
 - [ ] Introduce the Transit library, Ursula adapter, and minimum executable
   composition from the [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition),

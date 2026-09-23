@@ -2,6 +2,7 @@
 const std = @import("std");
 pub const Ed25519 = std.crypto.sign.Ed25519;
 pub const Time = @import("Time.zig");
+pub const Runtime = @import("Runtime.zig");
 pub const max_principals = 16;
 pub const max_processes = 64;
 pub const max_effects = 128;
@@ -44,6 +45,7 @@ pub const Process = struct {
     work_before_ms: ?u64 = null,
     settle_before_ms: ?u64 = null,
     turn_permit: ?struct { id: u64, input: u64 } = null,
+    binding: ?Runtime.Binding = null,
 };
 pub const Effect = struct {
     id: u64,
@@ -76,6 +78,9 @@ pub const Command = union(enum) {
     revoke: u8,
     spawn: struct { code: u32 = 1, deadline_ms: ?u64 = null, settle_before_ms: ?u64 = null, allow_trim: bool = false },
     own: struct { pid: u64, expected_generation: u64, worker: u8 },
+    runtime_intent: Runtime.Intent,
+    runtime_observe: Runtime.Observation,
+    activate: Runtime.Activate,
     send: struct { pid: u64, value: i64 },
     begin_turn: struct { pid: u64, generation: u64, input: u64 },
     turn: struct { pid: u64, generation: u64, input: u64, result: i64, effect: ?i64 = null, permit: ?u64 = null, outputs: [max_turn_outputs]?Output = @splat(null) },
@@ -197,7 +202,7 @@ pub const State = struct {
         if (request.version != 1 or request.realm != self.realm) return error.WrongProtocolRealm;
         const p = try self.principal(request.principal);
         const required: Permission = switch (request.command) {
-            .grant, .revoke, .own, .terminate, .expire, .checkpoint, .deliver => .admin,
+            .grant, .revoke, .own, .terminate, .expire, .checkpoint, .deliver, .runtime_intent, .runtime_observe, .activate => .admin,
             .spawn => .spawn,
             .send => .send,
             .turn, .begin_turn => .execute,
@@ -207,6 +212,9 @@ pub const State = struct {
         if (p.grant.permissions & permission(required) == 0) return error.Forbidden;
         const pid: ?u64 = switch (request.command) {
             .own => |c| c.pid,
+            .runtime_intent => |c| c.pid,
+            .runtime_observe => |c| c.pid,
+            .activate => |c| c.pid,
             .send => |c| c.pid,
             .turn => |c| c.pid,
             .begin_turn => |c| c.pid,
@@ -282,6 +290,7 @@ pub const State = struct {
             },
             .own => |c| {
                 const p = try self.process(c.pid);
+                if (p.binding != null) return error.RuntimeActivationRequired;
                 try running(p);
                 if (p.work_before_ms) |deadline| {
                     const time = try self.trustedTime(record);
@@ -293,6 +302,83 @@ pub const State = struct {
                 if (worker.grant.pid) |scope| if (scope != c.pid) return error.Forbidden;
                 p.generation = try std.math.add(u64, p.generation, 1);
                 p.owner = c.worker;
+            },
+            .runtime_intent => |c| {
+                const p = try self.process(c.pid);
+                if (c.desired == .running) {
+                    try running(p);
+                    if (p.work_before_ms) |deadline| try (try self.trustedTime(record)).before(if (p.turn_permit != null) p.settle_before_ms.? else deadline);
+                }
+                const previous = p.binding;
+                if (c.expected_revision != (if (previous) |old| old.revision else @as(u64, 0))) return error.StaleBinding;
+                if (previous) |old| {
+                    if (old.phase == .pending or old.phase == .unknown) return error.PendingProviderOperation;
+                    // M1 pins one association and workload. Provider replacement
+                    // or migration requires an explicit future retirement protocol.
+                    if (!std.meta.eql(c.instance, old.instance) or !std.meta.eql(c.resource, old.resource) or !std.meta.eql(c.workload, old.workload)) return error.BindingReplacementUnsupported;
+                }
+                if (std.mem.allEqual(u8, &c.instance, 0) or std.mem.allEqual(u8, &c.resource, 0) or std.mem.allEqual(u8, &c.workload, 0)) return error.InvalidBinding;
+                for (self.processes) |slot| if (slot) |other| {
+                    if (other.pid != c.pid) if (other.binding) |b| {
+                        if (std.meta.eql(c.instance, b.instance) and std.meta.eql(c.resource, b.resource)) return error.ResourceAlreadyBound;
+                    };
+                };
+                p.binding = .{
+                    .revision = try std.math.add(u64, c.expected_revision, 1),
+                    .operation = record.position,
+                    .instance = c.instance,
+                    .resource = c.resource,
+                    .workload = c.workload,
+                    .incarnation = if (previous) |old| old.incarnation else null,
+                    .desired = if (c.desired == .running) .running else .stopped,
+                    .last_worker_incarnation = if (previous) |old| old.last_worker_incarnation else null,
+                };
+                p.owner = null;
+                p.generation = try std.math.add(u64, p.generation, 1);
+            },
+            .runtime_observe => |c| {
+                const p = try self.process(c.pid);
+                const binding = if (p.binding) |*b| b else return error.InvalidBinding;
+                if (c.revision != binding.revision or c.operation != binding.operation) return error.StaleBinding;
+                if (binding.phase != .pending and binding.phase != .unknown) return error.ProviderOperationClosed;
+                if (c.incarnation) |id| {
+                    if (std.mem.allEqual(u8, &id, 0)) return error.InvalidBinding;
+                    if (binding.incarnation) |old| if (!std.meta.eql(old, id)) return error.ProviderIncarnationMismatch;
+                    binding.incarnation = id;
+                }
+                switch (c.outcome) {
+                    .unknown => binding.phase = .unknown,
+                    .ready => {
+                        if (binding.desired != .running or c.incarnation == null) return error.InvalidBinding;
+                        binding.phase = .ready;
+                    },
+                    .stopped => {
+                        if (binding.desired != .stopped and p.lifecycle == .running) return error.InvalidBinding;
+                        binding.phase = .stopped;
+                    },
+                }
+            },
+            .activate => |c| {
+                const p = try self.process(c.pid);
+                try running(p);
+                if (p.work_before_ms) |deadline| try (try self.trustedTime(record)).before(if (p.turn_permit != null) p.settle_before_ms.? else deadline);
+                const binding = if (p.binding) |*b| b else return error.InvalidBinding;
+                if (c.revision != binding.revision) return error.StaleBinding;
+                if (binding.desired != .running or binding.phase != .ready or binding.incarnation == null) return error.ProviderNotReady;
+                if (binding.activation != null) return error.AlreadyActivated;
+                if (binding.last_worker_incarnation) |old| if (std.meta.eql(old, c.worker_incarnation)) return error.StaleWorkerIncarnation;
+                if (c.expected_generation != p.generation) return error.StaleGeneration;
+                if (c.worker == 0 or std.mem.allEqual(u8, &c.worker_incarnation, 0)) return error.InvalidGrant;
+                const old = try self.principal(c.worker);
+                if (old.grant.pid != c.pid or old.grant.permissions & (permission(.execute) | permission(.inspect)) != (permission(.execute) | permission(.inspect))) return error.Forbidden;
+                if (std.meta.eql(old.grant.public_key, c.public_key)) return error.FreshKeyRequired;
+                _ = try Ed25519.PublicKey.fromBytes(c.public_key);
+                self.principals[c.worker].?.grant.public_key = c.public_key;
+                self.principals[c.worker].?.revision = record.position;
+                p.generation = try std.math.add(u64, p.generation, 1);
+                p.owner = c.worker;
+                binding.activation = .{ .worker_incarnation = c.worker_incarnation, .generation = p.generation };
+                binding.last_worker_incarnation = c.worker_incarnation;
             },
             .send => |c| {
                 const p = try self.process(c.pid);
@@ -473,6 +559,33 @@ pub const State = struct {
         return record.time orelse error.ClockUnavailable;
     }
 
+    /// Clocks constrain time-sensitive rights, not revocation/retirement or
+    /// read access. A synchronization outage must not disable control authority.
+    pub fn requiresTime(self: *State, command: Command) !bool {
+        const pid: u64 = switch (command) {
+            .spawn => |c| return c.deadline_ms != null,
+            .expire => return true,
+            .close_effect => |c| return c.reason == .deadline,
+            .own => |c| c.pid,
+            .activate => |c| c.pid,
+            .runtime_intent => |c| if (c.desired == .running) c.pid else return false,
+            .send => |c| c.pid,
+            .begin_turn => |c| c.pid,
+            .turn => |c| c.pid,
+            .deliver => |c| c.pid,
+            .dispatch => |c| if (c.reconcile_before_ms != null) return true else c.pid,
+            .observe => |c| blk: {
+                const attempt = try self.effect(c.effect);
+                if (attempt.phase != .authorized and attempt.phase != .unknown) return false;
+                if (attempt.reconcile_before_ms != null) return true;
+                break :blk c.pid;
+            },
+            else => return false,
+        };
+        const p = try self.process(pid);
+        return p.lifecycle == .running and p.work_before_ms != null;
+    }
+
     fn newWork(self: *const State, p: *const Process, record: Record) !void {
         try running(p);
         if (p.work_before_ms) |deadline| try (try self.trustedTime(record)).before(deadline);
@@ -599,7 +712,8 @@ pub fn Engine(comptime Store: type, comptime reducer: Reducer) type {
             try self.state.authenticate(signed);
             const req = signed.request;
             if (try self.state.duplicate(req) != null) return error.AlreadyCommitted;
-            var r: Record = .{ .position = self.state.position, .policy_revision = (try self.state.principal(req.principal)).revision, .request = req, .time = if (self.clock) |clock| try clock.sample() else null };
+            const needs_time = try self.state.requiresTime(req.command);
+            var r: Record = .{ .position = self.state.position, .policy_revision = (try self.state.principal(req.principal)).revision, .request = req, .time = if (needs_time) (if (self.clock) |clock| try clock.sample() else null) else null };
             const input = switch (req.command) {
                 .turn => |c| try self.nextInput(c.pid, r.position),
                 .begin_turn => |c| try self.nextInput(c.pid, r.position),

@@ -7,8 +7,8 @@ implements explicit checkpoint/trim opt-in for quiescent or explicitly cancelled
 mailboxes, verified publication, and checkpoint-plus-tail recovery. Finite
 time policies, turn settlement permits, reconciliation observation budgets, and
 due-maintenance selection are implemented with a trusted clock interface. The
-disk proof uses controlled time; a production clock source and maintenance
-service remain unimplemented.
+disk proof uses controlled time; the Linux service clock reads the synchronized
+kernel's reported error bound. A periodic maintenance service remains unimplemented.
 
 ## Application contract
 

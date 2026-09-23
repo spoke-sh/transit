@@ -3,7 +3,16 @@
 Status: Kubernetes with Agent Substrate is the selected reference architecture
 and recommended execution target. The dev shell supplies `kubectl`, `k9s`, and
 Linux-only `k3s`; see [development](DEVELOPMENT.md#kubernetes-and-substrate).
-Deployment manifests, a Substrate pin, and the runtime adapter remain planned.
+Deployment manifests, a Substrate pin, and the runtime adapter remain in progress.
+The experimental kernel now records opaque runtime bindings, operation
+intents/observations, and atomic key/generation activation. Unit and disk proofs
+cover stale binding/worker rejection and retirement across checkpoint/trim;
+this is not yet provider integration evidence. See the
+[implemented profile](../contracts/TRANSIT_V1.md#runtime-bindings-and-activation).
+The [Substrate runtime profile](../contracts/RUNTIME_SUBSTRATE_V1.md) describes the
+implemented reconciler, pinned CLI transport, fresh-key bootstrap, and provider
+identity checks. Its reference cluster proof is being exercised; startup alone
+is not recovery or isolation evidence.
 
 ## Reference architecture
 

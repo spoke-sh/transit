@@ -421,7 +421,9 @@ test "uncertain time, missing clock, and rollback cannot authorize finite work" 
     clock.now.unix_ms = 79;
     var recovered = try Engine.open(&f.store, f.genesis);
     recovered.clock = clock.source();
-    try t.expectError(error.ClockRollback, f.submit(&recovered, 0, .{ .inspect = 1 }));
+    try t.expectError(error.ClockRollback, f.submit(&recovered, 0, .{ .send = .{ .pid = 1, .value = 1 } }));
+    // Revocation and reads must remain available during clock failure.
+    _ = try f.submit(&recovered, 0, .{ .inspect = 1 });
     clock.now.unix_ms = 90;
     try t.expectError(error.InvalidLifetime, f.submit(&recovered, 0, .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 99 } }));
 }
@@ -506,6 +508,58 @@ fn fanout(state: i64, input: i64) !transit.Decision {
     var decision: transit.Decision = .{ .state = try std.math.add(i64, state, input) };
     if (input == 99) decision.outputs = .{ .{ .pid = 1, .value = 1 }, .{ .pid = 1, .value = 2 }, .{ .pid = 2, .value = 3 }, null };
     return decision;
+}
+
+test "provider observations cannot grant ownership; activation rotates keys atomically" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = transit.permission(.execute) | transit.permission(.inspect), .pid = pid } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = 7 } });
+    const stale = try f.request(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = 7 } });
+    var intent: transit.Runtime.Intent = .{ .pid = pid, .expected_revision = 0, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) };
+    const operation = try f.submit(&e, 0, .{ .runtime_intent = intent });
+    try t.expectError(error.StaleGeneration, e.submit(stale));
+    try t.expectError(error.RuntimeActivationRequired, f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 2, .worker = 1 } }));
+    const replacement = try transit.Ed25519.KeyPair.generateDeterministic(@splat(10));
+    var activation: transit.Runtime.Activate = .{ .pid = pid, .revision = 1, .expected_generation = 2, .worker = 1, .public_key = replacement.public_key.toBytes(), .worker_incarnation = @splat(4) };
+    try t.expectError(error.ProviderNotReady, f.submit(&e, 0, .{ .activate = activation }));
+    const observation: transit.Runtime.Observation = .{ .pid = pid, .revision = 1, .operation = operation, .incarnation = @splat(5), .outcome = .ready };
+    _ = try f.submit(&e, 0, .{ .runtime_observe = observation });
+    try t.expectEqual(@as(?u8, null), (try e.state.process(pid)).owner);
+    // Replaying an already recorded provider outcome does not authorize a worker.
+    var recovered = try Engine.open(&f.store, f.genesis);
+    try t.expectEqual(@as(?u8, null), (try recovered.state.process(pid)).owner);
+    _ = try f.submit(&recovered, 0, .{ .activate = activation });
+    try t.expectError(error.SignatureVerificationFailed, recovered.submit(stale));
+    f.worker = replacement;
+    _ = try f.submit(&recovered, 1, .{ .turn = .{ .pid = pid, .generation = 3, .input = input, .result = 7 } });
+    intent.expected_revision = 1;
+    const second_op = try f.submit(&recovered, 0, .{ .runtime_intent = intent });
+    try t.expectError(error.StaleBinding, f.submit(&recovered, 0, .{ .runtime_observe = observation }));
+    var second_observation = observation;
+    second_observation.revision = 2;
+    second_observation.operation = second_op;
+    second_observation.incarnation = @splat(6);
+    try t.expectError(error.ProviderIncarnationMismatch, f.submit(&recovered, 0, .{ .runtime_observe = second_observation }));
+    second_observation.incarnation = @splat(5);
+    _ = try f.submit(&recovered, 0, .{ .runtime_observe = second_observation });
+    activation.revision = 2;
+    activation.expected_generation = 4;
+    try t.expectError(error.StaleWorkerIncarnation, f.submit(&recovered, 0, .{ .activate = activation }));
+    activation.worker_incarnation = @splat(7);
+    try t.expectError(error.FreshKeyRequired, f.submit(&recovered, 0, .{ .activate = activation }));
+    activation.public_key = (try transit.Ed25519.KeyPair.generateDeterministic(@splat(11))).public_key.toBytes();
+    const prepared = try recovered.prepare(try f.request(&recovered, 0, .{ .activate = activation }));
+    var terminator = try Engine.open(&f.store, f.genesis);
+    _ = try f.submit(&terminator, 0, .{ .terminate = pid });
+    try t.expectError(error.Conflict, recovered.commit(prepared));
+    try t.expectError(error.RetiredProcess, f.submit(&terminator, 0, .{ .activate = activation }));
+    const another = try f.submit(&terminator, 0, .{ .spawn = .{} });
+    intent.pid = another;
+    intent.expected_revision = 0;
+    try t.expectError(error.ResourceAlreadyBound, f.submit(&terminator, 0, .{ .runtime_intent = intent }));
 }
 
 fn seedOutbox(f: *Fixture, e: anytype) !void {
