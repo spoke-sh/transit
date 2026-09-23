@@ -8,8 +8,9 @@ requests, and authority/storage restart. This is not full deployment conformance
 
 ## Executables
 
-`just build` installs the platform executables `transit-node`, `runtime-controller`
-and `rey-cli` under `zig-out/bin`. `just build-examples` installs `example-counter`
+`just build` installs the platform executables `transit-node`,
+`transit-runtime-controller` and `rey-cli` under `zig-out/bin`.
+`just build-examples` installs `example-counter`
 and `example-byte-log`. These example callers and the CLI use `transit-client`,
 without an Ursula dependency. The node imports no application code.
 `example-counter` compiles the

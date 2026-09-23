@@ -1,5 +1,5 @@
 const std = @import("std");
-const adapter = @import("transit_ursula");
+const adapter = @import("transit_backend_ursula");
 const ursula = adapter.ursula;
 const check = std.testing;
 

@@ -1,6 +1,6 @@
 .{
-    .name = .transit_ursula,
-    .fingerprint = 0x590ce12e541c23e5,
+    .name = .transit_backend_ursula,
+    .fingerprint = 0x36c21d93996b8d0b,
     .version = "0.0.0",
     .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
     .dependencies = .{

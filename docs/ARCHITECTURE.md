@@ -190,10 +190,10 @@ process lifecycle. A library boundary does not imply a Transit process, pod, or
 independently deployed service. Runtime isolation still follows the protocol
 authority model.
 
-`transit-protocol`, `transit-core`, `transit-ursula`, `transit-client`, and
-`runtime-substrate` are implemented libraries. The platform executables are
-`transit-node`, `runtime-controller` and `rey-cli`. Runnable counter and byte-log
-applications live under `examples/` and depend only on `transit-client`.
+`transit-protocol`, `transit-core`, `transit-backend-ursula`, `transit-client`, and
+`transit-runtime-substrate` are implemented libraries. The platform executables are
+`transit-node`, `transit-runtime-controller` and `rey-cli`. Runnable counter and
+byte-log applications live under `examples/` and depend only on `transit-client`.
 Station and HTTP entries below remain proposals. Supporting interfaces are still
 experimental; a directory in this plan does not imply a deployed component.
 
@@ -203,11 +203,24 @@ experimental; a directory in this plan does not imply a deployed component.
 | --- | --- | --- |
 | `packages/zig/transit-protocol/` | `transit_protocol` | Public wire types, signatures, opaque values, response views and shared fixtures; source for the generated language-neutral schema; independent of kernel/storage/runtime implementations |
 | `packages/zig/transit-core/` | `transit_core` | Depends on the public protocol; process/PID state, protocol/lifetime validation, principal/grant contracts, logical storage contracts, and credential/storage/runtime interfaces; independent of Station, Ursula, and deployment providers |
-| `packages/zig/transit-ursula/` | `transit_ursula` | Ursula persistence/transport, checkpoint, trim, and deletion mapping; depends on Transit and external `ursula-zig` |
+| `packages/zig/transit-backend-ursula/` | `transit_backend_ursula` | Ursula persistence/transport, checkpoint, trim, and deletion mapping; depends on Transit and external `ursula-zig` |
 | `packages/zig/transit-client/` | `transit_client` | Signed HTTP client and bounded process views; depends only on `transit-protocol`, with no kernel/storage/provider implementation access |
 | `packages/zig/station/` | `station` | GenServer, supervision, registries, request/reply, and application retention/state-view helpers; builds on `transit-client` and the public protocol |
 | `packages/zig/station-http/` | `station_http` | HTTP request/response contracts, exchange groups, caller helpers, and executor logic; builds on Station and Transit |
-| `packages/zig/runtime-substrate/` | `runtime_substrate` | PID-to-Substrate-Actor binding and lifecycle reconciliation; implements Transit's runtime interfaces without putting provider types in the core protocol |
+| `packages/zig/transit-runtime-substrate/` | `transit_runtime_substrate` | PID-to-Substrate-Actor binding and lifecycle reconciliation; implements Transit's runtime interfaces without putting provider types in the core protocol |
+
+Provider integrations use two package families: `transit-backend-*` implements
+durable storage and transport; `transit-runtime-*` implements execution placement
+and lifecycle integration. Their Zig module names use underscores. Ursula and
+Substrate are the current implementations. The names establish boundaries;
+they do not imply dynamic provider selection or additional supported providers.
+
+Transit core defines the required guarantees. Each backend must prove authoritative
+ordering, competing-writer fencing, durable acknowledgement, recovery, and its
+supported retention semantics. Runtime adapters reconcile committed intent with
+provider resources; placement and provider observations cannot independently
+grant execution authority. Broader interfaces should follow evidence from a
+second implementation rather than a speculative plugin system.
 
 Keep the dependency graph acyclic: Station uses the public Transit client;
 concrete adapters implement Transit interfaces; connectors build on the framework. Transit core
@@ -232,12 +245,14 @@ utility package before shared code has a concrete owner.
 | `apps/transit-node/` | Transit plus adapters; hosts authenticated ingress, policy/control recovery, admission, sequencing, commit, delivery, and retention reconciliation |
 | `apps/station-worker/` | Station plus workload libraries; runs process activations and their behaviors under Transit authority, without raw authoritative storage credentials |
 | `apps/http-worker/` | HTTP connector executor; performs authorized fetch attempts and publishes capture/outcomes through the protocol boundary |
-| `apps/runtime-controller/` | Transit lifecycle client plus `runtime-substrate`; reconciles durable execution intent with Substrate |
+| `apps/transit-runtime-controller/` | Transit lifecycle client plus `transit-runtime-substrate`; reconciles durable execution intent with Substrate |
 | `apps/rey-cli/` | Protocol client and inspection tooling for processes, registries, runtime bindings, history, and exchange transcripts |
 
 Entry points own startup, configuration, signal handling, and observability.
-Reusable execution logic belongs in libraries. Process behavior selection may
-initially be compiled into workload-specific worker images; a dynamic plugin
+Transit service executables use the `transit-` prefix. `transit-runtime-controller`
+is the executable; `transit-runtime-substrate` is the provider library it currently
+composes. Reusable execution logic belongs in libraries. Process behavior selection
+may initially be compiled into workload-specific worker images; a dynamic plugin
 system is not implied. These are responsibilities to allocate as code lands,
 with final OS process/deployment topology driven by isolation and measured needs.
 

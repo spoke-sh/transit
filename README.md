@@ -39,6 +39,8 @@ in the [decomposition plan](docs/ARCHITECTURE.md#planned-monorepo-decomposition)
 using [ursula-zig](https://github.com/rupurt/ursula-zig) from Zig. Kubernetes with
 [Agent Substrate](https://github.com/agent-substrate/substrate) is the reference
 deployment architecture; the protocol must remain portable to other runtimes.
+The provider packages are `transit-backend-ursula` for storage and transport and
+`transit-runtime-substrate` for execution placement and lifecycle integration.
 
 **Status:** Transit has an experimental M1 implementation: signed ingress,
 ordered turns and outboxes, fenced ownership, bounded effect reconciliation,

@@ -138,7 +138,7 @@ Use established credential mechanisms with explicit issuer, audience, subject,
 validity, and rotation rules. M1 selects a minimal provider/service identity
 setup and proves spoofing, expiry, renewal, and revoked-owner rejection. Provider
 credentials and Transit workload grants remain distinct. Keep operator, kernel,
-connector, storage, and runtime-controller privileges separately scoped.
+connector, storage, and runtime controller privileges separately scoped.
 
 Provider logout or token invalidation is separate from Transit grant revocation.
 Each credential adapter declares validation freshness, revocation delay, and

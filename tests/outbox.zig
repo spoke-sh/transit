@@ -1,6 +1,6 @@
 const std = @import("std");
 const core = @import("transit_core");
-const adapter = @import("transit_ursula");
+const adapter = @import("transit_backend_ursula");
 const t = std.testing;
 
 const Fanout = struct { state: i64, outputs: [core.max_turn_outputs]?core.Output = @splat(null) };

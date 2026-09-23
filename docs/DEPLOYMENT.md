@@ -25,9 +25,9 @@ Host-header, and CONNECT bypass attempts. The scripts and prerequisites are in
 
 Kubernetes manages the infrastructure that hosts Rey, persistent Ursula, and
 Agent Substrate. Substrate supplies sandbox execution and worker lifecycle.
-Rey's runtime adapter translates Transit's committed lifecycle intent into those
-operations and records observations back into the protocol. Process execution
-authority stays in the durable history.
+The `transit-runtime-substrate` adapter translates Transit's committed lifecycle
+intent into those operations and records observations back into the protocol.
+Process execution authority stays in the durable history.
 
 Substrate separates an **Actor**, addressed by `(atespace, name)`, from its
 current Worker/pod. The Actor is the unit of suspension and resumption and can

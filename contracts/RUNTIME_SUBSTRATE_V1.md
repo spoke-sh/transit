@@ -1,14 +1,14 @@
 # Experimental Substrate runtime profile
 
-The Zig `runtime-substrate` adapter and `runtime-controller` reconcile one
-configured PID against the [pinned reference baseline](../deploy/reference/versions.json).
+The Zig `transit-runtime-substrate` adapter and `transit-runtime-controller`
+reconcile one configured PID against the [pinned reference baseline](../deploy/reference/versions.json).
 They use the upstream `kubectl-ate` executable for authenticated TLS/gRPC and
 Kubernetes log access. The adapter requires its exact source revision; a changed
 or dirty client build fails validation. Substrate, its CLI, and Kubernetes are
 external infrastructure, not a second source of Transit task authority.
 
-`runtime-controller CONFIG.json [--once]` reads a bounded authenticated process
-view and advances at most one step per scan. Configuration supplies the protocol
+`transit-runtime-controller CONFIG.json [--once]` reads a bounded authenticated
+process view and advances at most one step per scan. Configuration supplies the protocol
 URL/realm, controller principal and private seed file, PID, worker principal,
 and provider settings: explicit CLI/kubeconfig/context, runtime-instance UUID,
 atespace, unique Actor name, template name/UID, immutable image digest, authority

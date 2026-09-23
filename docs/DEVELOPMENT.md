@@ -99,8 +99,8 @@ client and binding resource.
 
 Rey will contain multiple Zig library and executable packages following the
 [architecture's decomposition](ARCHITECTURE.md#planned-monorepo-decomposition).
-`transit-protocol`, `transit-core`, `transit-ursula`, `transit-client` and
-`runtime-substrate` implement this structure; Station and connectors remain
+`transit-protocol`, `transit-core`, `transit-backend-ursula`, `transit-client` and
+`transit-runtime-substrate` implement this structure; Station and connectors remain
 planned. Run `just test-packages` for their standalone checks.
 
 - Give each implemented package a `build.zig` and `build.zig.zon` declaring its
@@ -146,7 +146,7 @@ Kubernetes/Substrate reference lifecycle described below.
 ### Zig client dependency
 
 [ursula-zig](https://github.com/rupurt/ursula-zig) is the selected application
-library. The `transit-ursula` package owns the `ursula_zig` dependency in
+library. The `transit-backend-ursula` package owns the `ursula_zig` dependency in
 its `build.zig.zon`, pinned to an immutable revision URL and Zig package hash.
 The upstream client exports the `ursula` module;
 see its

@@ -3,8 +3,8 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const adapter = b.dependency("transit_ursula", .{ .target = target, .optimize = optimize });
-    const tests = b.addTest(.{ .root_module = adapter.module("transit_ursula") });
+    const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
+    const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
     test_step.dependOn(&b.addRunArtifact(tests).step);
     const core = b.dependency("transit_core", .{ .target = target, .optimize = optimize });
@@ -14,8 +14,8 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = protocol.module("transit_protocol") })).step);
     const client = b.dependency("transit_client", .{ .target = target, .optimize = optimize });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);
-    const runtime = b.dependency("runtime_substrate", .{ .target = target, .optimize = optimize });
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = runtime.module("runtime_substrate") })).step);
+    const runtime = b.dependency("transit_runtime_substrate", .{ .target = target, .optimize = optimize });
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = runtime.module("transit_runtime_substrate") })).step);
     var node_artifact: *std.Build.Step.Compile = undefined;
     var cli_artifact: *std.Build.Step.Compile = undefined;
     const services = b.addSystemCommand(&.{ "python3", "-B" });
@@ -30,7 +30,7 @@ pub fn build(b: *std.Build) void {
     b.step("probe", "Install the adversarial reference sandbox executable").dependOn(&install_probe.step);
     test_step.dependOn(&probe.step);
     services.addFileArg(b.path("tests/service.py"));
-    for ([_][]const u8{ "transit-node", "rey-cli", "runtime-controller" }) |name| {
+    for ([_][]const u8{ "transit-node", "rey-cli", "transit-runtime-controller" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
@@ -41,13 +41,13 @@ pub fn build(b: *std.Build) void {
             },
         }) });
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_core", core.module("transit_core"));
-        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_ursula", adapter.module("transit_ursula"));
+        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_ursula", adapter.module("transit_backend_ursula"));
         if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
         if (std.mem.eql(u8, name, "rey-cli")) cli_artifact = app;
         const install = b.addInstallArtifact(app, .{});
         b.getInstallStep().dependOn(&install.step);
         apps_step.dependOn(&install.step);
-        if (std.mem.eql(u8, name, "runtime-controller")) app.root_module.addImport("runtime_substrate", runtime.module("runtime_substrate"));
+        if (std.mem.eql(u8, name, "transit-runtime-controller")) app.root_module.addImport("transit_runtime_substrate", runtime.module("transit_runtime_substrate"));
         if (std.mem.eql(u8, name, "transit-node") and target.result.os.tag == .linux) {
             const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
             app.root_module.addImport("clock_c", clock_c.createModule());
@@ -94,7 +94,7 @@ pub fn build(b: *std.Build) void {
                 .optimize = optimize,
                 .imports = &.{
                     .{ .name = "transit_core", .module = core.module("transit_core") },
-                    .{ .name = "transit_ursula", .module = adapter.module("transit_ursula") },
+                    .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
                 },
             }),
         });
@@ -127,7 +127,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "transit_core", .module = core.module("transit_core") },
-            .{ .name = "transit_ursula", .module = adapter.module("transit_ursula") },
+            .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
         },
     }) });
     b.step("capacity-proof", "Install the physical storage pressure proof driver").dependOn(&b.addInstallArtifact(capacity, .{}).step);

@@ -23,7 +23,7 @@ def run():
     namespace = "rey-" + directory.name
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     cli = ref.CACHE / "bin/bin/rey-cli"
-    controller_bin = ref.CACHE / "bin/bin/runtime-controller"
+    controller_bin = ref.CACHE / "bin/bin/transit-runtime-controller"
     children = []
     logs = []
 

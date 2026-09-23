@@ -86,9 +86,9 @@ reference-down:
 test-packages:
     cd packages/zig/transit-protocol && zig build test
     cd packages/zig/transit-core && zig build test
-    cd packages/zig/transit-ursula && zig build test
+    cd packages/zig/transit-backend-ursula && zig build test
     cd packages/zig/transit-client && zig build test
-    cd packages/zig/runtime-substrate && zig build test
+    cd packages/zig/transit-runtime-substrate && zig build test
 
 # Format the Nix configuration.
 fmt:

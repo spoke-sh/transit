@@ -1,6 +1,6 @@
 const std = @import("std");
 const core = @import("transit_core");
-const adapter = @import("transit_ursula");
+const adapter = @import("transit_backend_ursula");
 const wire = @import("transit_client");
 const Engine = core.Engine(adapter.Store);
 const Maintenance = @import("Maintenance.zig");

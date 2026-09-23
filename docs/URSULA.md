@@ -4,7 +4,7 @@ Status: Ursula 0.5.1 and its matching `ursulactl` CLI are pinned in the dev shel
 through [ursula-overlay](https://github.com/rupurt/ursula-overlay). `flake.lock`
 records the overlay revision. [ursula-zig](https://github.com/rupurt/ursula-zig)
 is the selected Zig client, pinned by revision and package hash in
-`packages/zig/transit-ursula/build.zig.zon`.
+`packages/zig/transit-backend-ursula/build.zig.zon`.
 
 Container deployments use the [official Ursula image](https://github.com/tonbo-io/ursula/pkgs/container/ursula),
 not a separately built Nix image. The matching `0.5.1` release and immutable
@@ -66,8 +66,8 @@ exchanges, and an incremental SSE decoder. Reusing it keeps protocol handling
 in one upstream implementation.
 Rey's integration layer implements the kernel's transport requirements around
 that library. Ursula provides persistence and transport; legal execution is
-defined by [Transit, the kernel](TRANSIT.md). The proposed `transit-ursula`
-library owns this transport integration; see the
+defined by [Transit, the kernel](TRANSIT.md). The `transit-backend-ursula`
+library owns this storage and transport integration; see the
 [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition).
 Transit defines logical stream identity, lifetime, and retained-boundary
 semantics independently of this adapter. Native Ursula retention mechanisms

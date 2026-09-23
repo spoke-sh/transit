@@ -3,7 +3,7 @@
 const std = @import("std");
 const transit = wire.protocol;
 const wire = @import("transit_client");
-const substrate = @import("runtime_substrate");
+const substrate = @import("transit_runtime_substrate");
 const Config = struct {
     url: []const u8,
     realm: u64,

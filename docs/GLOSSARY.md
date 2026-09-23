@@ -165,11 +165,12 @@ and replay requirements.
 | Library/module | Reusable Zig code imported by consumers. Transit and Station will expose libraries; packaging a static/shared artifact is a separate consumer need. |
 | Example application | A complete runnable caller demonstrating the public client. `example-counter` and `example-byte-log` are examples; neither is required Transit infrastructure. |
 | Executable | A runnable entry point composing libraries with configuration and lifecycle handling. It is not synonymous with a library, Transit process, or deployment. |
+| Transit backend | A durable storage and transport implementation of Transit's persistence requirements. Packages use `transit-backend-*`; `transit-backend-ursula` exports `transit_backend_ursula`. Each implementation must prove its supported guarantees. |
 | Runtime instance | An explicitly identified deployment of an execution provider, such as a particular Substrate installation. It scopes provider resource references. |
 | Runtime binding | A durable association between a Transit PID and a scoped provider resource/workload version, reconciled by an adapter. It describes hosting, not execution authority. |
 | Runtime binding revision | A version of that hosting association. Changing it does not change the PID or replace ownership fencing. |
 | Substrate Actor | The external runtime's sandbox lifecycle unit, addressed by atespace and name within a Substrate instance. It maps to a Transit process in the first reference slice. |
-| Runtime adapter | Code reconciling committed lifecycle intent with an execution provider and recording observations into Transit. |
+| Runtime adapter | Code reconciling committed lifecycle intent with an execution provider and recording observations into Transit. Packages use `transit-runtime-*`; `transit-runtime-substrate` exports `transit_runtime_substrate`. Provider state does not grant execution authority. |
 | Reference deployment | The Kubernetes/Agent Substrate configuration against which execution, isolation, and worker-recovery behavior are proved. |
 
 See [ARCHITECTURE.md](ARCHITECTURE.md#planned-monorepo-decomposition) for package

@@ -3,7 +3,7 @@
 const std = @import("std");
 const t = std.testing;
 const core = @import("transit_core");
-const adapter = @import("transit_ursula");
+const adapter = @import("transit_backend_ursula");
 
 const Engine = core.Engine(adapter.Store);
 fn clock(context: *anyopaque) !core.Time.Sample {

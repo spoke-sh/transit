@@ -53,8 +53,11 @@ does not mark these gates complete.
 
 ### Code structure
 
-The kernel implementation is `transit-core` (Zig module `transit_core`). Platform
-entry points live under `apps/`; the M1 counter and byte-log programs are complete
+The kernel implementation is `transit-core` (Zig module `transit_core`). Its
+Ursula backend is `transit-backend-ursula`; its Substrate runtime integration is
+`transit-runtime-substrate`. Their package families separate durable storage and
+transport from execution placement and lifecycle. Platform entry points live
+under `apps/`; the M1 counter and byte-log programs are complete
 applications under `examples/`. Conformance harnesses exercise those actual
 binaries, with assertions and faults under `tests/`. This clarifies the M1
 boundaries without adding a framework milestone or changing protocol v2.
@@ -241,7 +244,7 @@ Exit criteria:
 
 - [ ] Exercise Substrate suspend/resume, worker migration, and stale snapshots
   against kernel ownership and history validation.
-- [ ] Recover runtime-controller state and wakeups from backlog after controller
+- [ ] Recover `transit-runtime-controller` state and wakeups from backlog after controller
   failure; test ownership transfer during partitions and worker-pool changes.
 - [ ] Prove cluster-scoped registry uniqueness, conditional rebinding, and
   lookup consistency during partitions; unavailable mutation authority fails
