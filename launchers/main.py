@@ -11,6 +11,7 @@ import sys
 from common import Installation, lock
 from compose import Compose
 from local import Local
+from settings import environment
 
 
 def main():
@@ -23,7 +24,7 @@ def main():
     parser.add_argument("--base-port", type=int, default=os.environ.get("REY_LAUNCHER_BASE_PORT"))
     parser.add_argument("--request-id")
     args = parser.parse_intermixed_args()
-    installation = Installation(args.profile, args.name, args.base_port)
+    installation = Installation(args.profile, args.name, args.base_port, environment() if args.action == "up" else {})
     launcher = Local(installation) if args.profile == "local" else Compose(installation)
     if args.action == "service":
         if args.profile != "local":

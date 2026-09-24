@@ -22,10 +22,10 @@ class Compose:
         output = self.docker("ps", "--all", "--format", "json", capture=True)
         return [json.loads(line) for line in output.splitlines() if line.strip()]
 
-    def ready(self, name, url):
+    def ready(self, name, url, headers=None):
         deadline = time.monotonic() + 45
         while time.monotonic() < deadline:
-            if healthy(url):
+            if healthy(url, headers):
                 return
             if any(row["Service"] == name and row["State"] == "exited" for row in self.services()):
                 raise RuntimeError(f"{name} exited; inspect launcher logs. Data has been preserved.")
@@ -76,6 +76,7 @@ class Compose:
             "logging": {"driver": "json-file", "options": {"max-size": "5m", "max-file": "2"}}}
         for name, offset in (("ursula", 0), ("node", 1), ("board", 2)):
             services[name]["ports"] = [{"target": 8080, "published": str(base + offset), "host_ip": "127.0.0.1"}]
+        services["board"]["ports"][0].update(published=str(self.installation.board["port"]), host_ip=self.installation.board["host"])
         # Ordinary bridges support loopback publication for host-side tools.
         # This separates direct service discovery/mounts, not hostile-workload
         # egress: the reference runtime owns that stronger isolation proof.
@@ -85,7 +86,7 @@ class Compose:
     def up(self):
         if self.services():
             raise RuntimeError("Compose resources already exist; use restart or down before up")
-        self.installation.check_ports()
+        self.installation.configure_board()
         self.config()
         self.images()
         self.docker("up", "-d", "ursula", timeout=300)
@@ -96,7 +97,7 @@ class Compose:
         self.installation.provision()
         self.installation.activate()
         self.docker("up", "-d", "maintenance", "counter", "board")
-        self.ready("board", self.installation.origin + "/health")
+        self.ready("board", self.installation.board_url + "/health", self.installation.board_headers)
         if {row["Service"] for row in self.services() if row["State"] == "running"} != set(SERVICES):
             raise RuntimeError("A service exited during startup; inspect status and logs")
 

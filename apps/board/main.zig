@@ -12,6 +12,7 @@ const Config = struct {
     seed_file: []const u8,
     credential_file: []const u8,
     public_origin: []const u8,
+    development_allow_insecure_http: bool = false,
     listen: []const u8 = "127.0.0.1",
     port: u16 = 8090,
     session_seconds: u32 = 900,
@@ -193,6 +194,14 @@ fn browserRoute(path: []const u8) bool {
 fn timeout(io: std.Io, milliseconds: u32) anyerror!void {
     try io.sleep(.fromMilliseconds(milliseconds), .awake);
 }
+fn originHost(origin: []const u8, development_allow_insecure_http: bool) ![]const u8 {
+    const secure = std.mem.startsWith(u8, origin, "https://");
+    if (!secure and !std.mem.startsWith(u8, origin, "http://")) return error.InvalidOrigin;
+    if (!secure and !development_allow_insecure_http and !std.mem.startsWith(u8, origin, "http://127.0.0.1:")) return error.RemoteOriginRequiresTLS;
+    const host = origin[if (secure) 8 else 7..];
+    if (host.len == 0 or host.len > 200 or std.mem.indexOfAny(u8, host, "/@?#\\\r\n\t ") != null) return error.InvalidOrigin;
+    return host;
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 2) return error.ExpectedBoardConfig;
@@ -202,10 +211,7 @@ pub fn main(init: std.process.Init) !void {
     defer parsed.deinit();
     const config = parsed.value;
     if (config.principal == 0 or config.principal >= client.protocol.max_principals or config.realm == 0 or config.realm > client.protocol.max_counter or config.session_seconds == 0 or config.session_seconds > 3600 or config.request_timeout_ms < 100 or config.request_timeout_ms > 5000 or config.upstream_timeout_ms == 0 or config.upstream_timeout_ms >= config.request_timeout_ms or config.read_interval_ms < 100 or config.read_interval_ms > 5000 or config.lenses.len > 64) return error.InvalidConfig;
-    const secure = std.mem.startsWith(u8, config.public_origin, "https://");
-    if (!secure and !std.mem.startsWith(u8, config.public_origin, "http://127.0.0.1:")) return error.RemoteOriginRequiresTLS;
-    const host = config.public_origin[if (secure) 8 else 7..];
-    if (host.len == 0 or host.len > 200 or std.mem.indexOfAny(u8, host, "/@?#\r\n ") != null) return error.InvalidOrigin;
+    const host = try originHost(config.public_origin, config.development_allow_insecure_http);
     for (config.lenses, 0..) |mapping, index| {
         if (mapping.kind.len > 128 or !std.unicode.utf8ValidateSlice(mapping.kind)) return error.InvalidLens;
         for (config.lenses[0..index]) |previous| if (mapping.pid == previous.pid) return error.DuplicateLens;
@@ -227,6 +233,16 @@ pub fn main(init: std.process.Init) !void {
             .handled => |value| value catch {},
             .timeout => {},
         }
+    }
+}
+test "development HTTP requires explicit opt-in and preserves origin validation" {
+    const remote = "http://devbox.local:18102";
+    try std.testing.expectError(error.RemoteOriginRequiresTLS, originHost(remote, false));
+    try std.testing.expectEqualStrings("devbox.local:18102", try originHost(remote, true));
+    try std.testing.expectEqualStrings("127.0.0.1:18102", try originHost("http://127.0.0.1:18102", false));
+    try std.testing.expectEqualStrings("board.example", try originHost("https://board.example", false));
+    for ([_][]const u8{ "ftp://board.example", "http://", "http://user@board.example", "http://board.example/path", "http://board.example?query", "http://board.example\r\nInjected: yes", "http://board.example\\path" }) |invalid| {
+        try std.testing.expectError(error.InvalidOrigin, originHost(invalid, true));
     }
 }
 test "routes and query bounds reject ambiguous or unsafe identity" {

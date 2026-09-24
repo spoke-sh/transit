@@ -24,8 +24,10 @@ nix develop --command just doctor
 nix develop --command just check
 ```
 
-An existing `.envrc` can use `use flake` if you prefer direnv. Nix remains the
-source of tool versions; direnv is optional and is not installed by this shell.
+The repository's [.envrc](../.envrc) runs `use flake`, then `dotenv_if_exists .env`
+for per-checkout development settings. Copy [.env.example](../.env.example) for
+Board listener/origin settings; `.env` stays out of Git. Nix remains the source
+of tool versions; direnv is optional and is not installed by this shell.
 
 ## Vite+
 

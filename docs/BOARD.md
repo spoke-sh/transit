@@ -169,6 +169,9 @@ session follows authenticated exchange; each API call rereads the key file,
 invalidating sessions after rotation. Credentials never enter URLs or bundles.
 Host/Origin checks, private HTTP with remote TLS ingress, request limits and the
 session lifetime are specified in the [app guide](../apps/board/README.md).
+Trusted LAN development can explicitly opt into a configured remote HTTP origin;
+this relaxes transport encryption only, while preserving authentication and
+exact Host/Origin validation. The default remote deployment still requires TLS.
 Loopback binding alone is not authentication. These guarantees are qualified by
 API and real-browser tests; the deployment proof checks the runtime boundary.
 

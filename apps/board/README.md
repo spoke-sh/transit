@@ -86,14 +86,23 @@ Query errors are JSON, including unknown API routes; they never fall through to 
 
 ## Deployment boundary
 
-Remote `public_origin` requires HTTPS at a trusted TLS ingress. Board itself
+By default, remote `public_origin` requires HTTPS at a trusted TLS ingress. Board itself
 serves private HTTP. Match the configured Host exactly; pass the original Origin.
 Strip `Forwarded` and `X-Forwarded-{Host,Proto,For}` headers: Board rejects them
 and does not use them to authenticate proxy claims. No CORS or credentialed proxy
-surface is available. Plain HTTP is accepted only for a `127.0.0.1` public origin.
+surface is available. By default, plain HTTP is accepted only for a `127.0.0.1` public origin.
 Keep the listener private and permit egress only to its configured Transit service
 and required DNS. No service-account token, storage credential or provider
 credential belongs in the pod. Host validation is also required on health probes.
+
+For a trusted development LAN, explicitly set `development_allow_insecure_http`
+to `true` to allow an origin such as `http://devbox.local:18102`, with `listen`
+set to `0.0.0.0` and `port` set to `18102`. This opt-in sends credentials and
+sessions over unencrypted HTTP and omits the cookie's Secure attribute;
+authentication, HttpOnly/SameSite cookies, exact Host/Origin checks and read-only
+grants still apply. Its default is false. HTTPS remains required for normal remote
+deployments. The [launcher settings](../../launchers/README.md#local-development-configuration)
+expose these fields through a Git-ignored `.env` loaded by `.envrc`.
 
 ## Bounds and observations
 

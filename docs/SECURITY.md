@@ -178,6 +178,12 @@ ingress/session profile and qualification boundary. Per-user policy, federation,
 require later explicit scope. Lists, relationship edges, counts, and previews
 must not disclose resources outside the read grant.
 
+The [development launchers](../launchers/README.md#local-development-configuration)
+can explicitly enable unencrypted HTTP for a trusted LAN origin. This is a
+development transport exception, not relaxed authentication or authorization:
+the public origin remains exact, credentials are still required, and Transit
+and Ursula listeners remain private. Normal remote Board deployments require TLS.
+
 ## Trusted computing base and provider boundaries
 
 The trusted computing base includes protocol authorities, credential validation,

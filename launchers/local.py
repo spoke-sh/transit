@@ -31,7 +31,7 @@ class Local:
         if self.services():
             raise RuntimeError("Local manager is already running; use status, restart or down")
         installation = self.installation
-        installation.check_ports()
+        installation.configure_board()
         installation.configs()
         # Startup readiness must refer to this worker launch, not the saved
         # configuration from the previous activation.
@@ -57,6 +57,8 @@ class Local:
         for name, offset, route in (("ursula", 0, "/__ursula/ready"), ("node", 1, "/health"), ("board", 2, "/health")):
             processes[name]["readiness_probe"] = {"http_get": {"host": "127.0.0.1", "port": installation.load()["base_port"] + offset,
                 "scheme": "http", "path": route}, "period_seconds": 1, "timeout_seconds": 1, "failure_threshold": 30}
+        processes["board"]["readiness_probe"]["http_get"].update(
+            host=installation.board_probe_host, port=installation.board["port"], headers=installation.board_headers)
         write(self.path / "process-compose.json", {"version": "0.5", "is_strict": True, "processes": processes})
         self.pc("up", "-f", self.path / "process-compose.json", "--disable-dotenv", "-D", capture=True)
         deadline = time.monotonic() + 45
@@ -66,7 +68,7 @@ class Local:
                 if not process["is_running"] and process["exit_code"] != 0:
                     raise RuntimeError(f"{process['name']} failed; inspect {process['name']}.log. Data has been preserved.")
             running = {p["name"] for p in rows if p["status"] == "Running"}
-            if set(SERVICES) <= running and (self.path / "counter/config.json").exists() and healthy(installation.origin + "/health"):
+            if set(SERVICES) <= running and (self.path / "counter/config.json").exists() and healthy(installation.board_url + "/health", installation.board_headers):
                 return
             time.sleep(.2)
         raise RuntimeError("A local service did not start; use status and logs. Data has been preserved.")
@@ -98,8 +100,10 @@ class Local:
                     return
                 time.sleep(.2)
             raise RuntimeError("Counter did not acquire a fresh activation; inspect counter logs")
-        if name in ("node", "board", "ursula"):
-            port = self.installation.load()["base_port"] + {"ursula": 0, "node": 1, "board": 2}[name]
+        if name == "board":
+            wait_for(self.installation.board_url + "/health", headers=self.installation.board_headers)
+        elif name in ("node", "ursula"):
+            port = self.installation.load()["base_port"] + {"ursula": 0, "node": 1}[name]
             wait_for(f'http://127.0.0.1:{port}' + ("/__ursula/ready" if name == "ursula" else "/health"))
 
     def logs(self, name):

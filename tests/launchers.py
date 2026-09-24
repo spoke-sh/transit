@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the real persistent launchers in an isolated, owned installation."""
 import json
+from http.client import HTTPConnection
 import os
 from pathlib import Path
 import secrets
@@ -41,10 +42,14 @@ def proof(profile):
     installation = Installation(profile, "proof-" + secrets.token_hex(3), ports())
     launcher = Local(installation) if profile == "local" else Compose(installation)
 
-    def invoke(action, *args, success=True):
+    def invoke(action, *args, success=True, settings=None):
         command = [sys.executable, "-B", ROOT / "launchers/main.py", profile, action,
                    "--name", installation.name, "--base-port", str(installation.base_port), *args]
-        result = subprocess.run(list(map(str, command)), cwd=ROOT, text=True, capture_output=True, timeout=600)
+        # A developer's .env must never redirect proof resources or publish
+        # credentials on their chosen development listener.
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("REY_BOARD_", "REY_LAUNCHER_"))}
+        env.update(settings or {})
+        result = subprocess.run(list(map(str, command)), cwd=ROOT, env=env, text=True, capture_output=True, timeout=600)
         if (result.returncode == 0) != success:
             raise AssertionError((command, result.returncode, result.stdout[-4000:], result.stderr[-4000:]))
         return result.stdout
@@ -139,6 +144,56 @@ def proof(profile):
         for service in ("ursula", "node", "board"):
             invoke("restart", service)
             assert observe(25)["pid"] == first["pid"]
+        # Change the endpoint of an existing installation, without resetting its
+        # identity/history. Public DNS and probe transport are distinct.
+        board_port = ports()
+        remote_origin = f"http://devbox.local:{board_port}"
+        remote = {"REY_BOARD_HOST": "0.0.0.0", "REY_BOARD_PORT": str(board_port),
+                  "REY_BOARD_PUBLIC_ORIGIN": remote_origin, "REY_BOARD_ALLOW_INSECURE_HTTP": "true"}
+        saved_manifest = installation.manifest.read_bytes()
+        invoke("up", success=False, settings=remote)
+        assert installation.manifest.read_bytes() == saved_manifest
+        invoke("down")
+        for invalid in ({**remote, "REY_BOARD_ALLOW_INSECURE_HTTP": "false"},
+                        {**remote, "REY_BOARD_PORT": str(installation.base_port)},
+                        {**remote, "REY_BOARD_PUBLIC_ORIGIN": "http://user@devbox.local"}):
+            invoke("up", success=False, settings=invalid)
+            assert installation.manifest.read_bytes() == saved_manifest
+        invoke("up", settings=remote)
+        assert observe(25)["pid"] == first["pid"]
+        assert installation.origin == remote_origin
+        assert installation.board["port"] == board_port and installation.board["host"] == "0.0.0.0"
+        config = json.loads((installation.path / "node.json").read_text())
+        if profile == "local":
+            assert config["listen"] == "127.0.0.1"
+        else:
+            topology = json.loads((installation.path / "compose.json").read_text())
+            assert topology["services"]["board"]["ports"][0]["host_ip"] == "0.0.0.0"
+            for service in ("node", "ursula"):
+                assert topology["services"][service]["ports"][0]["host_ip"] == "127.0.0.1"
+        authority = f"devbox.local:{board_port}"
+        def remote_request(path, *, host=authority, origin=remote_origin, method="GET", auth=True):
+            headers = {"Host": host, "Origin": origin}
+            if auth:
+                headers["Authorization"] = "Bearer " + access
+            connection = HTTPConnection("127.0.0.1", board_port, timeout=5)
+            try:
+                connection.request(method, path, headers=headers)
+                response = connection.getresponse()
+                response.read()
+                return response.status, dict(response.getheaders())
+            finally:
+                connection.close()
+        assert remote_request("/health", auth=False)[0] == 200
+        assert remote_request("/health", host="evil.example")[0] == 403
+        assert remote_request("/health", origin="http://evil.example")[0] == 403
+        assert remote_request("/api/v1/processes", auth=False)[0] == 401
+        status, headers = remote_request("/api/v1/session", method="POST")
+        assert status == 200 and "HttpOnly" in headers["set-cookie"] and "SameSite=Strict" in headers["set-cookie"]
+        assert "Secure" not in headers["set-cookie"]
+        assert (installation.path / "operator/root.key").read_bytes() == root_key
+        invoke("restart", "board")
+        assert observe(25)["pid"] == first["pid"]
         invoke("down")
         # An established installation with missing WAL must fail recovery.
         # It must not take the initial --initialize path or allocate new PIDs.
@@ -159,7 +214,7 @@ def proof(profile):
         invoke("down")
         invoke("reset")
         assert not installation.path.exists()
-        print(f"{profile}: persistent restart, bounded inspection, exact retries, fresh ownership and missing-store refusal passed.")
+        print(f"{profile}: persistence, retries, fencing, retirement, missing-store refusal and configurable Board origin/auth passed.")
         completed = True
     finally:
         if installation.manifest.exists():

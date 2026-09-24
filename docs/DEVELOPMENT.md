@@ -21,6 +21,9 @@ configuration and recovery limits.
 preserve protocol semantics while adding deployment-specific evidence; they do
 not imply automatic data migration or equivalent runtime isolation.
 The [examples](../examples/README.md) also provide disposable one-shot demos.
+Per-checkout `.env` settings loaded by `.envrc` configure Board's listen address,
+port and browser origin, including remote LAN development. See the
+[configuration guide](../launchers/README.md#local-development-configuration).
 Protocol v2 requires a fresh development realm; automatic migration of v1
 histories and signatures is not implemented.
 

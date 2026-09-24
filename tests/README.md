@@ -77,6 +77,10 @@ Docker-dependent check. The proof checks:
   node and Board restarts; no fresh bootstrap when established WAL is missing.
 - Refusal to reset running resources, adopt an occupied port or running
   installation, or reactivate a permanently retired PID.
+- Reconfigure an existing Board listener/public origin without resetting its
+  realm or keys; probe through the correct Host header without public DNS.
+  Remote HTTP requires explicit development opt-in; wrong Host/Origin and
+  unauthenticated reads still fail. Ursula/Transit keep loopback publication.
 
 Successful proofs stop/remove only their owned resources and delete their test
 state. Failed proofs preserve private evidence for inspection after cleanup.

@@ -93,8 +93,9 @@ user's numeric UID/GID so private bind mounts remain owner-readable. Rey
 containers have read-only root filesystems, dropped capabilities, and only their
 own configuration/credential mounts. The root signing seed is never mounted.
 
-Storage and client services use separate bridge networks. Published Ursula,
-Transit and Board ports bind to host loopback. These are **trusted development
+Storage and client services use separate bridge networks. Published Ursula and
+Transit ports bind to host loopback. Board defaults to loopback and can be
+configured separately for remote development. These are **trusted development
 workloads**, with ordinary Docker egress; network segmentation is not the
 reference sandbox or a hostile-workload isolation proof. Docker's internal-only
 networks did not support the required host port publication in our tested setup,
@@ -145,10 +146,56 @@ clock, capacity, and disaster-recovery guarantees still need their own proofs.
 
 ## Configuration and implementation
 
+### Local development configuration
+
+[.envrc](../.envrc) loads an optional, Git-ignored `.env` after entering the Nix
+shell. Copy [.env.example](../.env.example) and edit it, then run `direnv allow`
+when accepting the changed `.envrc`. Subsequent `.env` changes reload through
+direnv. For your browser on another machine:
+
+```dotenv
+REY_BOARD_HOST=0.0.0.0
+REY_BOARD_PORT=18102
+REY_BOARD_PUBLIC_ORIGIN=http://devbox.local:18102
+REY_BOARD_ALLOW_INSECURE_HTTP=true
+```
+
+| Setting | Meaning |
+| --- | --- |
+| `REY_BOARD_HOST` | IPv4 bind address; `0.0.0.0` listens on all IPv4 interfaces |
+| `REY_BOARD_PORT` | Board listener/published port; independent of Ursula/Transit ports |
+| `REY_BOARD_PUBLIC_ORIGIN` | Exact browser URL origin, used for Host/Origin checks and printed links |
+| `REY_BOARD_ALLOW_INSECURE_HTTP` | Explicit `true`/`false` development HTTP opt-in; default false |
+
+Apply changed settings with `just launchers::local::down` followed by
+`just launchers::local::up`. The same settings work for Compose with its task
+group. Stopping and starting preserves realm, PID, mailbox, committed state and
+credentials. Settings are saved in the installation; unset variables keep saved
+values. Set explicit loopback values and `false` to revert. A running installation
+rejects `up` without rewriting its current settings. `restart` uses the saved
+configuration; it does not apply `.env` changes.
+
+The bind address and browser origin are distinct: `0.0.0.0` is not a URL host.
+Health probes and agent inspection use the listener's local address with the
+configured Host header, so the server does not need to resolve the browser's DNS
+name or contact a TLS proxy to check its own health. Ursula and Transit remain
+private. Remote HTTP still requires Board sign-in, but credentials and sessions
+are unencrypted; this option is for a trusted development network. Use a trusted
+TLS ingress with an `https://` origin for other remote use.
+
+Direnv is optional: exported environment variables or inline assignments work
+with `nix develop --command just …` too. `nix develop` by itself does not load
+`.env`. These settings apply to the selected launcher; when running local and
+Compose simultaneously, give their Board instances distinct ports/origins.
+
+### Installation selection
+
 To run another independent installation, set `REY_LAUNCHER_NAME` and
 `REY_LAUNCHER_BASE_PORT` before its first `up`, and use that name for subsequent
-commands. The three consecutive ports are Ursula, Transit and Board. The name
-and ports are persisted; an occupied port fails rather than adopting a service.
+commands. By default, the three consecutive ports are Ursula, Transit and Board.
+The name and internal base port are persisted; use a new name to change the
+Ursula/Transit ports. Board's settings can change as described above. An occupied
+port fails rather than adopting a service.
 The selected checkout must have a path short enough for the local Unix socket.
 Linux x86_64 is qualified here; other host/engine combinations remain unverified.
 
@@ -158,6 +205,7 @@ REY_LAUNCHER_NAME=experiment just launchers::local::down
 ```
 
 [main.py](main.py) implements the command boundary;
+[settings.py](settings.py) validates Board listener and public-origin settings;
 [common.py](common.py) owns provisioning, private files and exact operator retries;
 [local.py](local.py) and [compose.py](compose.py) wire their process managers.
 Python is development infrastructure glue; the actual services and caller stay

@@ -11,6 +11,9 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
+
+import settings
 
 ROOT = Path(__file__).resolve().parents[1]
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -61,30 +64,31 @@ def lock(path):
         yield
 
 
-def healthy(url):
+def healthy(url, headers=None):
     try:
-        with HTTP.open(url, timeout=1) as response:
+        with HTTP.open(urllib.request.Request(url, headers=headers or {}), timeout=1) as response:
             return response.status == 200
     except (urllib.error.URLError, TimeoutError, ConnectionError):
         return False
 
 
-def wait_for(url, seconds=45):
+def wait_for(url, seconds=45, headers=None):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
-        if healthy(url):
+        if healthy(url, headers):
             return
         time.sleep(.2)
     raise RuntimeError(f"Not ready: {url}; inspect launcher status and logs")
 
 
 class Installation:
-    def __init__(self, profile, name="default", base_port=None):
+    def __init__(self, profile, name="default", base_port=None, board_settings=None):
         if not re.fullmatch(r"[a-z][a-z0-9-]{0,23}", name):
             raise ValueError("Name must be 1–24 lowercase letters, digits or hyphens, starting with a letter")
         self.profile, self.name = profile, name
         self.path = ROOT / ".cache/launchers" / profile / name
         self.base_port = base_port
+        self.board_overrides = board_settings or {}
         self.manifest = self.path / "installation.json"
         self.cli = ROOT / "zig-out/bin/rey-cli"
         self.lifecycle_lock = self.path.parent / (name + ".lock")
@@ -103,7 +107,32 @@ class Installation:
 
     @property
     def origin(self):
-        return f'http://127.0.0.1:{self.load()["base_port"] + 2}'
+        return self.board["public_origin"]
+
+    @property
+    def board(self):
+        config = self.load()
+        return config.get("board", settings.defaults(config["base_port"]))
+
+    @property
+    def board_probe_host(self):
+        return "127.0.0.1" if self.board["host"] == "0.0.0.0" else self.board["host"]
+
+    @property
+    def board_url(self):
+        return f'http://{self.board_probe_host}:{self.board["port"]}'
+
+    @property
+    def board_headers(self):
+        return {"Host": urlsplit(self.origin).netloc}
+
+    def configure_board(self):
+        # Called only after verifying that this installation is stopped.
+        # Environment changes never alter status/down or a running listener.
+        config = self.load()
+        board = settings.resolve(self.board, self.board_overrides, config["base_port"])
+        self.check_ports(board)
+        write(self.manifest, {**config, "board": board})
 
     def key(self, relative):
         path = self.path / relative
@@ -152,7 +181,9 @@ class Installation:
         write(self.path / "board/config.json", {"upstream": self.upstream, "realm": config["realm"],
               "principal": 2, "seed_file": "/board/seed.key" if container else str(self.path / "board/seed.key"),
               "credential_file": "/board/access.key" if container else str(self.path / "board/access.key"),
-              "public_origin": self.origin, "listen": node["listen"], "port": 8080 if container else base + 2,
+              "public_origin": self.origin, "listen": "0.0.0.0" if container else self.board["host"],
+              "port": 8080 if container else self.board["port"],
+              "development_allow_insecure_http": self.board["allow_insecure_http"],
               "lenses": [{"pid": pid, "kind": "rey.example.counter", "version": 1}] if pid else []})
         address = "0.0.0.0:8080" if container else f"127.0.0.1:{base}"
         wal = "/wal" if container else str(self.path / "wal")
@@ -180,14 +211,16 @@ backend = "inline"
             run([ROOT / "zig-out/bin/transit-node", self.path / "host-node.json", "--initialize"])
             write(self.path / "initialized.json", True)
 
-    def check_ports(self):
+    def check_ports(self, board=None):
+        board = board or self.board
+        base = self.load()["base_port"]
         listeners = []
         try:
-            for port in range(self.load()["base_port"], self.load()["base_port"] + 3):
+            for host, port in (("127.0.0.1", base), ("127.0.0.1", base + 1), (board["host"], board["port"])):
                 listener = socket.socket()
                 listeners.append(listener)
                 listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                listener.bind(("127.0.0.1", port))
+                listener.bind((host, port))
         except OSError as error:
             raise RuntimeError(f"Port {port} is already in use; refusing to adopt another service") from error
         finally:
@@ -276,10 +309,11 @@ backend = "inline"
         return {"profile": self.profile, "name": self.name, "realm": self.load()["realm"],
                 "pid": json.loads((self.path / "pid.json").read_text()) if (self.path / "pid.json").exists() else None,
                 "board": self.origin, "transit": self.url, "state": str(self.path),
+                "board_host": self.board["host"], "board_port": self.board["port"],
                 "access_key_file": str(self.path / "board/access.key")}
 
     def inspect(self):
-        request = urllib.request.Request(self.origin + "/api/v1/processes", headers={
+        request = urllib.request.Request(self.board_url + "/api/v1/processes", headers={**self.board_headers,
             "Authorization": "Bearer " + (self.path / "board/access.key").read_text().strip()})
         with HTTP.open(request, timeout=5) as response:
             return read_json(response)
