@@ -68,8 +68,11 @@ plugin on Linux and macOS. The shell also packages the repository's
 longer included: the reference is tested with Kind. The Kind CLI version and Substrate revision live alongside the node
 image digest in [reference pins](../deploy/reference/versions.json).
 [reference-tools.nix](reference-tools.nix) pins source and dependency hashes;
-`kubectl-ate` uses Substrate's checked-in vendor tree and reports the exact source
-revision required by the runtime adapter. These packages use the existing Nix
+`kubectl-ate` uses Substrate's checked-in vendor tree and reports its base source
+revision plus `transit-upgrade-v1`. The versioned
+[CLI extension](ate-upgrade/README.md) exposes the pinned server's guarded
+`UpdateActor` operation without changing the provider API. Its package tests
+cover stale UID/template/version and lost-response retries. These packages use the existing Nix
 Go 1.27 compiler; upstream runtime build scripts retain their own pinned toolchain.
 No Zig, Ursula, Substrate, or node image upgrade is implied.
 
@@ -111,7 +114,7 @@ installer and cache the pinned overlay outputs rather than changing tools.
 
 The cache key includes runner OS/architecture, `flake.lock`, Nix expressions,
 Vite+'s npm sources/lockfile, reference CLI pins, environment helper and packaged
-plugin source. Other application-source changes reuse the same toolchain cache;
+plugin source and provider CLI extension. Other application-source changes reuse the same toolchain cache;
 toolchain changes can restore an older cache as a starting point. An explicit temporary Nix profile protects the shell during garbage collection,
 and successful preparation is saved even if a later protocol test fails. The
 6 GiB GC target accommodates the locally measured ~5 GiB build closure; it is

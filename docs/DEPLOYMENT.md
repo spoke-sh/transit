@@ -14,12 +14,14 @@ through the same public protocol, with disk storage, separate inspection and
 maintenance credentials, and a real example caller. Native process management
 and container lifecycle do not substitute for Substrate runtime bindings.
 These trusted development profiles use direct recorded ownership; the reference
-adds provider reconciliation and sandbox isolation. Its current launcher remains
-a qualification harness, not a persistent application installer.
+adds provider reconciliation and sandbox execution. Reference `up` installs the
+complete persistent application, including its in-cluster controller; recovery
+and isolation proofs use separate installations.
 
-The [launcher development plan](roadmap/M2-LAUNCHERS.md) closes that gap and
-separates building artifacts, updating services and upgrading the code assigned
-to a durable process. Those workflows are planned, not current launcher behavior.
+The implemented [launcher follow-up](roadmap/M2-LAUNCHERS.md) separates candidate
+builds, service updates and same-PID workload upgrades. Each installation selects
+identified artifacts and retains its durable state. Application stop/start is
+separate from destroying the reference cluster.
 
 [Service instrumentation](OBSERVABILITY.md) uses the same event meanings
 across these profiles, with executable-owned configuration and bounded sinks.
@@ -32,7 +34,8 @@ The checked-in [Transit Helm chart](../charts/transit/README.md) packages the
 current service topology. The reference proof consumes it with explicit values
 and separate credentials; it no longer defines those deployments in Python.
 Bootstrap, lifecycle limits, optional services, and chart operation live in its
-README. The reference's provider setup and fault injection remain in the harness.
+README. Both the persistent launcher and isolated proofs consume it; provider
+infrastructure setup is shared, while fault injection remains in the test harness.
 
 Kubernetes manages the infrastructure that hosts Transit, persistent Ursula, and
 Agent Substrate. Substrate supplies sandbox execution and worker lifecycle.
@@ -196,6 +199,14 @@ the same PID. Binding replacement or migration must reconcile pending provider
 operations and invalidate stale authority before work can commit at the new
 location. Suspending or stopping a sandbox alone proves neither fencing nor
 logical process termination.
+
+A compatible workload upgrade also preserves the PID. Transit records the old
+and new workload identity after fencing and reconciling suspension; the adapter
+switches the existing Substrate Actor to a new immutable template, then a fresh
+worker obtains a new activation. The current contract preserves opaque state
+without conversion. The deployer declares compatibility; neither a healthy pod
+nor protocol validation proves it. See the
+[upgrade contract](../contracts/RUNTIME_SUBSTRATE_V1.md#same-pid-workload-changes).
 
 Treat sandbox snapshots as execution caches tied to PID, binding revision, code
 version, history position, and activation reference. Restored code may run with

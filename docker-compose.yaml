@@ -29,7 +29,7 @@ services:
 
   node:
     <<: *service
-    image: '${REY_COMPOSE_IMAGE_PREFIX:?}/transit-node'
+    image: '${REY_COMPOSE_NODE_IMAGE:?}'
     command: [/node.json]
     environment: {LOG_LEVEL: '${REY_COMPOSE_NODE_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_NODE_LOG_FORMAT:?}'}
     volumes:
@@ -40,7 +40,7 @@ services:
 
   maintenance:
     <<: *service
-    image: '${REY_COMPOSE_IMAGE_PREFIX:?}/transit-node'
+    image: '${REY_COMPOSE_NODE_IMAGE:?}'
     command: [/maintenance/config.json, --maintain]
     environment: {LOG_LEVEL: '${REY_COMPOSE_MAINTENANCE_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_MAINTENANCE_LOG_FORMAT:?}'}
     volumes:
@@ -49,7 +49,7 @@ services:
 
   counter:
     <<: *service
-    image: '${REY_COMPOSE_IMAGE_PREFIX:?}/example-counter'
+    image: '${REY_COMPOSE_COUNTER_IMAGE:?}'
     command: [/counter/config.json]
     environment: {LOG_LEVEL: '${REY_COMPOSE_COUNTER_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_COUNTER_LOG_FORMAT:?}'}
     volumes:
@@ -58,7 +58,7 @@ services:
 
   board:
     <<: *service
-    image: '${REY_COMPOSE_IMAGE_PREFIX:?}/transit-board'
+    image: '${REY_COMPOSE_BOARD_IMAGE:?}'
     command: [/board/config.json]
     environment: {LOG_LEVEL: '${REY_COMPOSE_BOARD_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_BOARD_LOG_FORMAT:?}'}
     volumes:

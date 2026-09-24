@@ -10,17 +10,67 @@ environment's tasks. Use double colons between task groups.
 | `compose` | Check container packaging, mounts, service discovery and restart | The same scenario in Docker Compose; official pinned Ursula image and static Zig images |
 | `reference` | Qualify the deployment target | Kubernetes/Substrate, real provider controller, gVisor workers and recovery/isolation proofs; [reference runbook](../deploy/reference/README.md) |
 
-Local and Compose are persistent development installations, with separate data
-and realms. Moving between them means running the same scenario against another
-environment; copying a live realm or migrating storage is not implemented.
-The reference remains an owned cluster **proof harness**: `up` provisions
-infrastructure, `images` builds runtime artifacts, and `test` exercises the
-workload. It is not yet a persistent reference application launcher.
+All three profiles have persistent, separate installations. Moving between them
+means running the same scenario against another environment; copying a live
+realm or migrating storage is not implemented. Reference `up` installs a usable
+Transit application, including Board and an in-cluster runtime controller.
+Its recovery/isolation tests use separate installations.
 
-The [incremental development plan](../docs/roadmap/M2-LAUNCHERS.md) proposes a
-persistent reference application plus consistent `build`, `update` and `restart`
-semantics. `update` and `watch` are not implemented yet; current commands below
-describe the existing behavior.
+## Incremental development
+
+The command meanings are shared across all three profiles:
+
+```sh
+just launchers::local::build board
+just launchers::local::update board --no-build
+just launchers::local::update counter
+just launchers::local::restart board
+# Substitute compose or reference for the same development loop.
+```
+
+`build [SERVICE...]` produces candidates without changing running services or
+the selected version. `update` builds, applies affected services and verifies
+readiness; `--no-build` selects saved candidates. `restart` uses the selected
+artifact/configuration. Omit names to select all application services. Node and
+maintenance share an executable and update together. Ursula and provider
+infrastructure are separately pinned and excluded from application builds.
+
+Native binaries live at identified paths under ignored
+`.cache/launcher-artifacts/PROFILE/NAME/`; services no longer execute shared
+`zig-out` files. Compose selects image IDs, and reference pushes images and
+selects registry digests. Builds use ReleaseSafe, with Zig/Vite+ caching their
+source dependencies. Board builds its frontend and embedded API together.
+`status` reports candidates, selections, service observations and pending updates.
+Build provenance describes the latest candidate build; artifact hashes identify
+the actual selected bytes.
+
+Identical artifacts/configuration are a no-op. Build failure leaves live
+services alone. A failed deployment keeps `update.json` and its exact target;
+retrying `update` resumes that plan, even if newer candidates exist. To deploy a
+corrected candidate after failure, use `update SERVICE --replace-pending`.
+This archives the previous plan, flushes uncertain signed requests, and refuses
+to replace an unresolved recorded template switch. It cannot roll back history.
+Restart is refused while an update is pending. Readiness failure remains visible;
+there is no automatic image/history rollback.
+
+Updates read supported `.env` settings for the selected roles. Restarts reuse
+saved configuration. Topology changes to Process Compose require `down`/`up`;
+`update` replaces existing services, not arbitrary manager topology. Source
+watching and frontend HMR remain future work.
+
+The example counter's update contract is `code=1` with the same state encoding.
+Updates preserve its PID/state and pending inputs. This is a caller/deployer
+compatibility declaration, not proof that arbitrary edited code understands
+old state. Retired or blocked processes and changed declared contracts are
+rejected; no state conversion is provided.
+Local/Compose replace direct owners; reference uses the
+[recorded workload upgrade](../contracts/RUNTIME_SUBSTRATE_V1.md#same-pid-workload-changes),
+retaining the Actor UID, reconciling a suspended template switch, and activating
+a fresh pod/key/generation. Retrying does not redispatch effects.
+
+An existing local/Compose installation from before identified artifacts needs
+one `down`/`up` cycle to select binaries and load the new manager configuration.
+Its durable data and keys are retained.
 
 ## Start locally
 
@@ -41,7 +91,7 @@ form. The launcher never prints credentials or puts them in URLs. Board remains
 inspection-only; development inputs go through the separately privileged
 launcher CLI, not through Board.
 
-`up` builds the native binaries, provisions the installation on first use, and
+`up` builds/selects binaries on first use, recovers saved selections later, and
 stays in the foreground streaming service logs plus manager startup/exit events.
 Ctrl-C stops the owned services in dependency order and preserves data and keys;
 SIGTERM and terminal hangup also request shutdown. Use another terminal for
@@ -105,8 +155,7 @@ launcher builds static Linux binaries for the Docker engine architecture.
 The official Ursula digest comes from the same
 [version pins](../deploy/reference/versions.json) as the reference deployment.
 
-`up` stays in the foreground, using Docker Compose's attached output for service
-logs and container exits. Startup first brings up Ursula and the node for ordered
+`up` stays in the foreground, following Docker Compose service logs and reporting container exits. Startup first brings up Ursula and the node for ordered
 provisioning, then attaches to all services as the application containers start.
 Earlier startup logs are included; failures before attachment print recent
 container logs before cleanup. An individual service exit leaves the others
@@ -115,8 +164,9 @@ running for inspection and explicit restart.
 Ctrl-C, SIGTERM and terminal hangup stop this invocation's containers and remove
 its Compose resources while preserving the installation's WAL, configuration
 and keys. A subsequent `up` recovers the same realm. Other terminals can run
-`status`, `send`, `restart` or `down` while logs stream. Cleanup checks container
-identities so an old foreground session cannot stop a later replacement stack.
+`status`, `send`, `restart` or `down` while logs stream. Cleanup checks the installation session so deliberate updates stay attached,
+while an old foreground session cannot stop a later `down`/`up` stack. Log
+followers reattach to replacement containers.
 Use `just launchers::compose::up --detach` (or `-d`) for background use; then
 `just launchers::compose::down` stops the installation.
 
@@ -136,16 +186,66 @@ reference sandbox or a hostile-workload isolation proof. Docker's internal-only
 networks did not support the required host port publication in our tested setup,
 so the launcher uses regular bridges explicitly.
 
+## Run the reference installation
+
+On the supported Linux x86_64 host with Docker:
+
+```sh
+just launchers::reference::up
+just launchers::reference::status
+kubectl transit get installations -A
+just launchers::reference::attach
+just launchers::reference::update board
+just launchers::reference::update counter
+just launchers::reference::down
+```
+
+`up` reuses the owned Kind/Substrate cluster or creates it when absent, installs
+a uniquely named `transit-NAME-ID` namespace and Helm release `transit`, and
+returns after Board and the example's activation are ready. Board defaults to
+`http://127.0.0.1:18302`. The configured host/port/origin apply to its host forward.
+[Process Compose](../deploy/reference/process-compose.yaml) keeps forwards and
+remote log followers running; `attach` opens that manager. Kubernetes services
+and the controller continue independently of this attachment.
+
+`down` records a stopped runtime intent, waits for Actor suspension, and scales
+application services/worker capacity to zero. PVCs, credentials, PID and Actor
+remain; `up` recovers them. A missing bound Actor or namespace is an error.
+`restart counter` also records suspension and replaces worker capacity before a
+fresh activation; it does not select new code. `reset` deletes only this stopped
+installation and its provider resources. It is destructive to its data.
+Counter logging is part of the immutable Actor template: a later `up` retains
+its saved logging and reports any deferred change. Use `update counter` to apply
+new settings through the recorded workload transition.
+
+`infra-up` creates only Kind/Substrate; `infra-down` destroys the entire owned
+cluster and registry, including every application and proof namespace. The
+separate `images`/`test` commands build and run the destructive M1 proof. See the
+[reference runbook](../deploy/reference/README.md). Ordinary updates do not rebuild
+Kind, Ursula or Substrate. The pinned Substrate worker runtime image is built and
+cached once per owned registry/pin.
+
+Provider credentials belong to the in-cluster controller. It has its own
+PID-scoped Transit principal, rotating projected provider tokens, namespace-local
+worker-log reads and access to public trust roots. It does not mount a personal
+kubeconfig. The pinned provider API lacks per-Actor authorization; this remains
+a trusted controller boundary. Kind's default CNI does not enforce the chart's
+NetworkPolicies. The separate adversarial proof qualifies worker/Board isolation;
+this development launcher's Board pod does not imply that proof's additional
+network-isolation fixture.
+
 ## Lifecycle and ownership
 
-| Task | Local and Compose behavior |
+| Task | Shared behavior (foreground attachment differs for reference) |
 | --- | --- |
-| `up` | Create an installation once, or recover its saved history; stream logs until stopped (`--detach` / `-d` opts out); fail if already running or resources need cleanup |
+| `up` | Create once or recover saved history/artifacts; local/Compose stream logs (`--detach` opts out), reference returns after readiness |
 | `status` | JSON endpoints, realm/PID, state path and manager/container observations; these observations do not grant authority |
 | `endpoints` | JSON URLs and credential-file location, without secrets |
 | `inspect` | Authenticated current Board discovery; unavailable/denied reads fail |
 | `logs SERVICE` | Recent service output; local also accepts `manager` for lifecycle/probe evidence. Native files survive `down`; container logs disappear when Compose removes containers |
-| `restart SERVICE` | Replace that service; replacing `counter` rotates credentials and records fresh ownership for the same PID |
+| `build [SERVICE...]` | Build candidates without deploying |
+| `update [SERVICE...]` | Apply compatible candidates/configuration and verify readiness |
+| `restart SERVICE` | Replace the selected version of that service; replacing `counter` rotates credentials and records fresh ownership for the same PID |
 | `down` | Stop owned services; preserve WAL, configuration, keys, PID and admitted work |
 | `reset` | Delete that stopped installation's data and keys permanently; refuses while managed resources exist |
 | `test` | Create an isolated installation and prove recovery, retry and refusal behavior |
@@ -189,7 +289,7 @@ clock, capacity, and disaster-recovery guarantees still need their own proofs.
 | --- | --- | --- |
 | Local | [process-compose.yaml](../process-compose.yaml) | Private `process-compose.vars.json` overlay: paths, ports and log settings |
 | Compose | [docker-compose.yaml](../docker-compose.yaml) | Private `compose.env.json`: paths, image names, ports, UID/GID and log settings |
-| Reference | [charts/transit](../charts/transit/README.md) | Helm values supplied by the proof; separately provisioned Secrets and protocol grants |
+| Reference | [charts/transit](../charts/transit/README.md) | Saved Helm values, separately provisioned Secrets and protocol grants; host access uses [Process Compose](../deploy/reference/process-compose.yaml) |
 
 Edit the checked-in files to change service topology, dependencies, probes,
 mounts or resource/log limits. Local and Compose `down` followed by `up` load
@@ -226,9 +326,9 @@ REY_BOARD_ALLOW_INSECURE_HTTP=true
 | `REY_BOARD_PUBLIC_ORIGIN` | Exact browser URL origin, used for Host/Origin checks and printed links |
 | `REY_BOARD_ALLOW_INSECURE_HTTP` | Explicit `true`/`false` development HTTP opt-in; default false |
 
-Apply changed settings with `just launchers::local::down` followed by
-`just launchers::local::up`. The same settings work for Compose with its task
-group. Stopping and starting preserves realm, PID, mailbox, committed state and
+Apply changed settings with `just launchers::local::update board`, or a
+`down`/`up` cycle. The same settings work for Compose and reference with their
+task groups. These operations preserve realm, PID, mailbox, committed state and
 credentials. Settings are saved in the installation; unset variables keep saved
 values. Set explicit loopback values and `false` to revert. A running installation
 rejects `up` without rewriting its current settings. `restart` uses the saved
@@ -254,7 +354,8 @@ Compose simultaneously, give their Board instances distinct ports/origins.
 Board logs completed HTTP requests at `info`, including route templates, elapsed
 time and local response outcome. Successful health probes and frequent Transit
 reads are `debug`. Failures remain visible at normal verbosity. For correlated
-Board/client/node/storage detail, set these in `.env` before the next `up`:
+Board/client/node/storage detail, set these in `.env` before the next `update`
+or `up`:
 
 ```dotenv
 REY_BOARD_LOG_LEVEL=debug
@@ -268,11 +369,13 @@ or rate-limited.
 
 `REY_LOG_LEVEL` and `REY_LOG_FORMAT` set installation-wide defaults. Override
 either field per service with `REY_BOARD_LOG_*`, `REY_NODE_LOG_*`,
-`REY_MAINTENANCE_LOG_*`, or `REY_COUNTER_LOG_*`. Levels are `debug`, `info`,
+`REY_MAINTENANCE_LOG_*`, `REY_COUNTER_LOG_*`, or reference `REY_CONTROLLER_LOG_*`.
+Levels are `debug`, `info`,
 `warn`, `error`, and `off`; formats are `text` and `json`. Precedence is the
 per-service variable, global variable, saved service value, then the default:
-`info` with text locally and JSON in Compose. As with listener settings, `up`
-validates and persists these choices; `restart` uses the saved configuration.
+`info` with text locally and JSON in Compose/reference. `update` validates and
+persists settings for its selected roles; `up` applies them when starting a
+stopped installation. `restart` uses the saved configuration.
 The launcher maps them to each executable's `LOG_LEVEL` and `LOG_FORMAT`.
 Ursula and the process/container managers keep their upstream logging controls.
 
@@ -317,7 +420,8 @@ reports. These budgets are independent of mailbox/history retention.
 
 To run another independent installation, set `REY_LAUNCHER_NAME` and
 `REY_LAUNCHER_BASE_PORT` before its first `up`, and use that name for subsequent
-commands. By default, the three consecutive ports are Ursula, Transit and Board.
+commands. Locally and in Compose, the three consecutive ports are Ursula,
+Transit and Board. Reference forwards only Transit and Board on base+1/base+2.
 The name and internal base port are persisted; use a new name to change the
 Ursula/Transit ports. Board's settings can change as described above. An occupied
 port fails rather than adopting a service.
@@ -332,7 +436,9 @@ REY_LAUNCHER_NAME=experiment just launchers::local::down
 [main.py](main.py) implements the command boundary;
 [settings.py](settings.py) validates Board listener, public-origin and diagnostic settings;
 [common.py](common.py) owns provisioning, private files and exact operator retries;
-[local.py](local.py) and [compose.py](compose.py) wire their process managers.
+[local.py](local.py), [compose.py](compose.py) and [kubernetes.py](kubernetes.py)
+wire their managers and providers. [artifacts.py](artifacts.py) stages identified
+builds; [updates.py](updates.py) saves and resumes deployment plans.
 [logs.py](logs.py) owns native manager-log rotation.
 Python is development infrastructure glue; the actual services and caller stay
 in Zig. Service config semantics belong to the
@@ -340,12 +446,6 @@ in Zig. Service config semantics belong to the
 [counter](../examples/counter/README.md) guides.
 
 Keep defaults and scenario provisioning shared rather than maintaining divergent
-demo realms. A second runtime adapter, persistent Substrate application launcher,
-hot frontend development proxy, and configurable application catalogs are future
+demo realms. Other runtime adapters, frontend HMR, automatic source watching,
+artifact garbage collection and configurable application catalogs are future
 work. The current launcher exercises the kernel and Board before Station lands.
-
-After editing Zig or frontend code, use `just launchers::local::build` then
-`just launchers::local::restart SERVICE` to load the new native binary. Compose
-`up` builds its images: use Compose `down` followed by `up` for code changes. A plain
-container `restart` keeps its existing image. `compose::build` only builds the
-host provisioning tools used by `up`; it does not recreate running containers.

@@ -64,7 +64,7 @@ processes:
 
   maintenance:
     <<: *managed
-    command: 'exec {{.ROOT_Q}}/zig-out/bin/transit-node {{.STATE_DIR_Q}}/maintenance/config.json --maintain 2>&1'
+    command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} maintenance 2>&1'
     log_location: '{{.STATE_DIR}}/maintenance.log'
     environment: ['LOG_LEVEL={{.MAINTENANCE_LOG_LEVEL}}', 'LOG_FORMAT={{.MAINTENANCE_LOG_FORMAT}}']
     depends_on:
@@ -72,7 +72,7 @@ processes:
 
   board:
     <<: *managed
-    command: 'exec {{.ROOT_Q}}/zig-out/bin/transit-board {{.STATE_DIR_Q}}/board/config.json 2>&1'
+    command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} board 2>&1'
     log_location: '{{.STATE_DIR}}/board.log'
     environment: ['LOG_LEVEL={{.BOARD_LOG_LEVEL}}', 'LOG_FORMAT={{.BOARD_LOG_FORMAT}}']
     depends_on:

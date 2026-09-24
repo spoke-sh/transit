@@ -41,8 +41,9 @@ from pod names. No second authoritative registry or local execution store is add
   another cluster when the reference has not been created or has been removed.
 - Keep explicit kubeconfig/context selection inside the reference harness, so
   a developer's interactive override cannot redirect setup or teardown.
-- `reference up` creates infrastructure. Transit releases only appear after an
-  application is deployed; an empty discovery result must explain this boundary.
+- `reference infra-up` creates infrastructure; `reference up` also installs the
+  persistent Transit application. Discovery lists actual releases and explains
+  an empty result. See the [launcher follow-up](M2-LAUNCHERS.md).
 
 ## Command families
 

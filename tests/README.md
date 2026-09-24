@@ -20,7 +20,8 @@ suite. Capacity and reference proofs have extra prerequisites and are separate.
 | `just test::service` | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
 | `just test::capacity` | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations |
 | `just test::deployments` | Rendered/linted Transit Helm chart; explicit bootstrap, existing credential references, retained/reused PVCs, private services and network policies; unsupported values fail before deployment |
-| `just launchers::reference::up`, `just launchers::reference::images`, `just launchers::reference::test` | Real provider setup; controller crash after creation; backlog wakeup, killed worker and fresh activation; Ursula/authority pod restart; opted-in expiry; blocked overflow stops replacement; gVisor egress/credential bypass denials |
+| `just launchers::reference::infra-up`, `just launchers::reference::images`, `just launchers::reference::test` | Real provider setup; controller crash after creation; backlog wakeup, killed worker and fresh activation; Ursula/authority pod restart; opted-in expiry; blocked overflow stops replacement; gVisor egress/credential bypass denials |
+| `just test::runtime-upgrade`, `just launchers::reference::test-launcher` | Fenced same-PID workload changes, provider response loss, complete persistent reference startup, isolated service updates and state-preserving stop/start |
 
 The capacity proof uses a finite allocation and a measured physical reserve;
 online expansion and arbitrary write amplification are not promised. Retention
@@ -143,6 +144,54 @@ config, Docker internal networks suppressing host port publication, private buil
 output permissions preventing non-root execution, and a Board config mount
 colliding with its executable path. Readiness now requires fresh worker config;
 images place executable files under `/bin` with explicit executable permissions.
+
+## Incremental development and workload upgrades
+
+The local/Compose launcher proofs also build candidates without touching running
+services, verify no-op updates and selected-version restart, interrupt an apply
+and resume its saved target, replace Board alone, and update the counter without
+replaying committed inputs. Foreground logs remain attached across replacement.
+Native candidates use a different optimization build; image candidates add a
+unique image label around the real executable. This proves deployment identity
+and recovery mechanics, not compatibility of arbitrary edited application code.
+
+Core tests exercise the public `runtime_upgrade` transition: scoped grants,
+stale revisions/workloads, incompatible declared code/state revisions, retirement
+and the work cutoff. Pending input/turn permits/effects survive the transition;
+old owners and reused worker identities cannot activate or commit. Disk tests
+checkpoint and trim with an unresolved upgrade, recover it, and reconcile
+provider suspension after retirement without reviving execution. The optional
+binding marker is omitted when absent to preserve existing checkpoint bytes.
+
+`just test::runtime-upgrade` uses the real node/controller with a fake provider
+CLI boundary. It rejects stale controllers and replacement Actor UIDs, then
+simulates a completed template switch whose response is lost. A fresh controller
+observes the target without switching it again. `--check` leaves protocol and
+provider state unchanged. The Nix-packaged CLI extension separately tests
+UID/template/suspension validation and version conflicts.
+
+`just launchers::reference::test-launcher` uses a newly owned namespace on the
+existing reference cluster. It provisions the complete stack, changes Board
+without replacing the node/Ursula/maintenance/controller pods, admits input while
+the Actor is suspended, and deploys a different counter image through the real
+guarded Substrate API. PID and Actor UID remain stable; worker UID and activation
+generation change. The queued input commits once. Authority restart and full
+application stop/start preserve state, followed by owned-resource cleanup.
+
+Qualification found that private build contexts could give the controller's Nix
+store directory mode `0700`. Image assembly now sets directory/file permissions
+explicitly, and controller readiness exercises the packaged provider CLI instead
+of assuming a running container is functional. Reference cleanup verifies saved
+template identities before deletion; Substrate refuses to delete a nonempty
+atespace. Application `down` also waits for the prior worker to disappear before
+another start may request a fresh activation.
+
+The real reference upgrade and cleanup proof passed on 2026-09-24, alongside the
+local suite, Compose launcher proof and focused protocol/provider/chart proofs
+on Linux x86_64. These checks do not rerun or replace the separate
+M1 capacity and adversarial isolation qualification. The persistent reference
+launcher uses the default Kind CNI and does not claim the additional Board
+firewall confinement supplied by that isolated proof.
 
 ## Service and reference evidence
 

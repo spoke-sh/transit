@@ -5,13 +5,19 @@ set working-directory := "../.."
 _default:
     @just --list launchers compose
 
-# Compile the binaries used by this launcher; install frontend dependencies first.
-build:
-    zig build apps
+# Build candidates without changing the running installation.
+[positional-arguments]
+build *args:
+    python3 -B launchers/main.py compose build "$@"
+
+# Build and apply compatible changes; pass --no-build to select existing candidates.
+[positional-arguments]
+update *args:
+    python3 -B launchers/main.py compose update "$@"
 
 # Stream a persistent Compose stack's logs; pass --detach (or -d) for background use.
 [positional-arguments]
-up *args: build
+up *args:
     python3 -B launchers/main.py compose up "$@"
 
 # Stop owned services while preserving history, configuration and credentials.
@@ -47,5 +53,5 @@ reset:
     python3 -B launchers/main.py compose reset
 
 # Prove persistence, duplicate-safe provisioning, fencing and missing-store refusal.
-test: build
+test:
     python3 -B tests/launchers.py compose

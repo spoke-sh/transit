@@ -5,13 +5,19 @@ set working-directory := "../.."
 _default:
     @just --list launchers local
 
-# Compile the binaries used by this launcher; install frontend dependencies first.
-build:
-    zig build apps examples transit-board
+# Build candidates without changing the running installation.
+[positional-arguments]
+build *args:
+    python3 -B launchers/main.py local build "$@"
+
+# Build and apply compatible changes; pass --no-build to select existing candidates.
+[positional-arguments]
+update *args:
+    python3 -B launchers/main.py local update "$@"
 
 # Stream a persistent local stack's logs; pass --detach (or -d) for background use.
 [positional-arguments]
-up *args: build
+up *args:
     python3 -B launchers/main.py local up "$@"
 
 # Stop owned services while preserving history, configuration and credentials.
@@ -47,7 +53,7 @@ reset:
     python3 -B launchers/main.py local reset
 
 # Prove persistence, duplicate-safe provisioning, fencing and missing-store refusal.
-test: build
+test:
     python3 -B tests/launchers.py local
 
 # Attach the terminal service/log viewer; detach leaves the stack running.

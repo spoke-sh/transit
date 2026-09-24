@@ -73,6 +73,7 @@ does not supply the security boundary. See [SECURITY.md](SECURITY.md).
 | Activate or recover | Validate lifetime and recovery eligibility, then execute the existing process under a fresh ownership generation |
 | Suspend | Fence execution and preserve the PID, state, mailbox, and pending work within the accepted resumption deadline |
 | Worker loss or migration | Reconcile runtime placement and recover the same process under fresh ownership |
+| Compatible code upgrade | Record the workload change while fenced and suspended; preserve PID, state and pending work, then require fresh activation |
 | Handler failure | Record the failure; policy decides whether to retry/recover or request logical termination |
 | Stop starting work | Refuse fresh work; preserve only specifically authorized, finitely bounded settlement rights |
 | Settle | Finish that authorized work under current ownership and grants, without granting further work or extending its window |
@@ -88,6 +89,11 @@ or a particular activation; a lost worker must not masquerade as process death.
 After termination, reject new application admissions and turns while permitting
 authorized cleanup and recording of outstanding effect evidence only while its
 independent reconciliation contract remains open. Closure rejects new results.
+
+The implemented [same-PID upgrade](../contracts/TRANSIT_V2.md) keeps the declared
+application/state contract unchanged. It performs no state conversion, renews no
+lifetime, and cannot revive a failed or retired process. Compatibility of edited
+application code remains the caller/deployer's responsibility.
 
 Applications opt into finite retention and process lifetime; the default is
 unlimited. Suspension cannot promise recovery beyond the mailbox and other

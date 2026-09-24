@@ -6,10 +6,10 @@ image digest in [versions.json](versions.json). The
 this runbook explains how to operate the proof. It is not a production installer.
 
 Commands live under `just launchers::reference`; see the
-[launcher guide](../../launchers/README.md) for persistent native and Compose
-environments that precede this qualification step. Reference `down` deletes the
-owned cluster and its workload volumes; unlike local/Compose `down`, it does
-not preserve a running development realm for a later `up`.
+[launcher guide](../../launchers/README.md) for persistent native, Compose and reference installations. Reference `up`
+starts the complete application; `down` preserves its realm and storage. This
+runbook documents the separate destructive recovery proof. `infra-down` deletes
+the owned cluster and all its workload volumes.
 
 ## Prerequisites and lifecycle
 
@@ -22,10 +22,10 @@ required certificate feature gates and gVisor. K3s compatibility is not claimed.
 ```sh
 nix develop
 just transit-board::install
-just launchers::reference::up
+just launchers::reference::infra-up
 just launchers::reference::images
 just launchers::reference::test
-just launchers::reference::down
+just launchers::reference::infra-down
 ```
 
 Setup creates a uniquely named cluster, local registry, and private kubeconfig
@@ -40,11 +40,11 @@ do not publish them. The shell supplies pinned Kind and `kubectl ate`; the harne
 upstream Substrate runtime, builds Rey's static Zig images, and pulls the official Ursula
 release by its [pinned digest](versions.json).
 
-After `up`, `kubectl get nodes` and `kubectl ate get workers` use the reference
-from the same project environment. `up` creates Substrate infrastructure; the
-recovery proof provisions its own temporary Transit release. An empty Transit
-installation list immediately after `up` is expected. Use the
-[Transit plugin](../../apps/kubectl-transit/README.md) for deployed releases:
+After infrastructure setup, `kubectl get nodes` and `kubectl ate get workers`
+use the reference from the same project environment. `infra-up` creates provider
+infrastructure; `up` also provisions a persistent Transit installation. The
+recovery proof provisions its own separate Transit release. Use the
+[Transit plugin](../../apps/kubectl-transit/README.md) to discover deployed releases:
 
 ```sh
 kubectl transit get installations -A
@@ -92,7 +92,8 @@ WorkerPool definitions. [reference_chart.py](../../tests/reference_chart.py)
 supplies public values and stages storage, explicit initialization, then normal
 recovery-only service startup. The workload fixture adds grants and Secrets
 before enabling Board and maintenance. It keeps controller fault injection on
-the host; the chart does not yet package a controller pod or Substrate itself.
+the host; the persistent launcher uses the chart's optional controller pod.
+Substrate infrastructure is installed separately.
 
 [tests/reference.py](../../tests/reference.py) owns infrastructure setup;
 [reference_workload.py](../../tests/reference_workload.py) owns provisioning and
@@ -106,7 +107,8 @@ The proof configures `LOG_FORMAT=json` and `LOG_LEVEL=info` for Board, node,
 maintenance, the host runtime controller and the counter's Actor template.
 Change the chart's per-component `logging` values for deployed services, and the
 explicit environment entries for the host controller and Actor template. The
-local/Compose `REY_*` configuration is not a reference installer API.
+launcher `REY_*` settings apply to persistent installations; the isolated proof
+supplies its own configuration explicitly.
 Read service stderr through `kubectl logs` with the owned kubeconfig/context,
 and controller/provider diagnostics in the private proof directory. Substrate
 worker logs remain accessible through its provider log interface; bootstrap

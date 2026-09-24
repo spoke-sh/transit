@@ -105,6 +105,9 @@ def proof(profile):
             assert config["services"]["node"]["environment"]["LOG_LEVEL"] == "debug"
             assert config["services"]["board"]["logging"]["options"]["max-size"] == "5m"
         assert first["consumed"] == first["admitted"] == 2 and first["binding"] is None
+        from launcher_updates import exercise
+        exercise(installation, launcher, invoke, observe)
+        first = observe(12)
         endpoints = json.loads(invoke("endpoints"))
         assert endpoints["board"] == installation.origin
         assert len(json.loads(invoke("status"))["services"]) >= 5

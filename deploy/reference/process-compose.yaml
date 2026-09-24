@@ -1,0 +1,38 @@
+# Host access and log attachment only. Application services run in Kubernetes.
+version: "0.5"
+is_strict: true
+disable_env_expansion: true
+ordered_shutdown: true
+x-process: &process
+  working_dir: .
+  availability: {restart: always, backoff_seconds: 1}
+  shutdown: {signal: 15, timeout_seconds: 5}
+  log_configuration:
+    rotation: {max_size_mb: 5, max_backups: 2, max_age_days: 7}
+    no_metadata: true
+    flush_each_line: true
+processes:
+  node-forward:
+    <<: *process
+    command: 'exec {{.KUBECTL}} port-forward service/transit {{.TRANSIT_PORT}}:8080 2>&1'
+    log_location: node-forward.log
+  board-forward:
+    <<: *process
+    command: 'exec {{.KUBECTL}} port-forward --address {{.BOARD_HOST}} service/board {{.BOARD_PORT}}:8080 2>&1'
+    log_location: board-forward.log
+  node:
+    <<: *process
+    command: 'exec {{.KUBECTL}} logs --follow --tail=50 deployment/transit 2>&1'
+    log_location: node.log
+  board:
+    <<: *process
+    command: 'exec {{.KUBECTL}} logs --follow --tail=50 deployment/board 2>&1'
+    log_location: board.log
+  controller:
+    <<: *process
+    command: 'exec {{.KUBECTL}} logs --follow --tail=50 deployment/controller 2>&1'
+    log_location: controller.log
+  maintenance:
+    <<: *process
+    command: 'exec {{.KUBECTL}} logs --follow --tail=50 deployment/maintenance 2>&1'
+    log_location: maintenance.log

@@ -55,7 +55,10 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::callers` | Runs the actual counter and byte-log example binaries through the public client against the same node, including dropped commit responses, stale owners and restart recovery |
 | `just contract::generate`, `just contract::check` | Regenerates or checks the language-neutral JSON Schema derived from public Zig types |
 | `just test::capacity` | Linux/Docker proof of real disk pressure, reserved control progress, checkpoint/trim and restart on an owned ext4 image |
-| `just launchers::reference::up`, `just launchers::reference::images`, `just launchers::reference::test`, `just launchers::reference::down` | Sets up, builds, tests and removes the owned Kubernetes/Substrate reference deployment |
+| `just launchers::reference::up`, `status`, `inspect`, `update`, `restart`, `down` | Runs and updates a persistent Kubernetes/Substrate Transit application; down preserves its data |
+| `just launchers::reference::infra-up`, `images`, `test`, `infra-down` | Sets up, builds, tests and destroys the separately owned reference infrastructure |
+| `just launchers::local::build [SERVICE...]`, `update [SERVICE...]` | Build candidates or deploy compatible changes; Compose/reference expose the same interface |
+| `just test::runtime-upgrade` | Proves provider-switch fencing and recovery after a lost provider response |
 | `just launchers::reference::test-plugin` | Check discovery, logs and live forwarding using isolated chart-labelled resources on an existing reference cluster |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
 

@@ -44,6 +44,11 @@ or Ctrl-C to stop local services while preserving your data. Local and Compose
 `up` stream logs in the foreground; pass `--detach` for background use.
 `just launchers` lists the groups.
 
+After editing code, run `just launchers::local::update board` (or `counter`).
+Use the same `build`, `update` and `restart` tasks in Compose and reference;
+the [development loop](launchers/README.md#incremental-development) explains
+candidate builds and same-PID workload upgrades.
+
 Deployment definitions are checked in: [Process Compose](process-compose.yaml),
 [Docker Compose](docker-compose.yaml), and the [Transit Helm chart](charts/transit/README.md).
 

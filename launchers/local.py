@@ -43,6 +43,7 @@ class Local:
         if self.services():
             raise RuntimeError("Local manager is already running; use status, restart or down")
         installation = self.installation
+        installation.artifacts.initialize()
         installation.configure_board()
         installation.configs()
         # Startup readiness must refer to this worker launch, not the saved
@@ -146,9 +147,20 @@ class Local:
             raise ValueError("Unknown service")
         if not self.services():
             raise RuntimeError("Local manager is stopped; use up")
+        previous_pid = next((p["pid"] for p in self.services() if p["name"] == name), None)
         if name == "counter":
             (self.path / "counter/config.json").unlink(missing_ok=True)
         self.pc("process", "restart", name, capture=True)
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            process = next(p for p in self.services() if p["name"] == name)
+            if process["is_running"] and process["pid"] != previous_pid:
+                break
+            if process["exit_code"] != 0:
+                raise RuntimeError(f"{name} failed after replacement; inspect its logs")
+            time.sleep(.1)
+        else:
+            raise RuntimeError(f"{name} did not acquire a new running process")
         if name == "counter":
             deadline = time.monotonic() + 30
             while time.monotonic() < deadline:
@@ -164,6 +176,18 @@ class Local:
         elif name in ("node", "ursula"):
             port = self.installation.load()["base_port"] + {"ursula": 0, "node": 1}[name]
             wait_for(f'http://127.0.0.1:{port}' + ("/__ursula/ready" if name == "ursula" else "/health"))
+
+    def validate_update(self, operation):
+        if "counter" in operation["services"]:
+            self.installation.validate_counter_update()
+
+    def apply_update(self, operation):
+        from updates import publish, completed
+        publish(self, operation)
+        for role in operation["services"]:
+            if role not in operation["completed"]:
+                self.restart(role)
+                completed(self, operation, role)
 
     def logs(self, name):
         if name not in SERVICES and name not in ("provision", "manager", "log-retention"):
@@ -192,13 +216,18 @@ class Local:
             return
         elif name == "node":
             self.installation.initialize()
-            command = [ROOT / "zig-out/bin/transit-node", self.path / "node.json"]
+            command = [self.installation.artifacts.binary("transit-node"), self.path / "node.json"]
         elif name == "provision":
             self.installation.provision()
             return
         elif name == "counter":
             self.installation.activate()
-            command = [ROOT / "zig-out/bin/example-counter", self.path / "counter/config.json"]
+            command = [self.installation.artifacts.binary("example-counter"), self.path / "counter/config.json"]
+        elif name == "board":
+            command = [self.installation.artifacts.binary("transit-board"), self.path / "board/config.json"]
+        elif name == "maintenance":
+            command = [self.installation.artifacts.binary("transit-node"), self.path / "maintenance/config.json", "--maintain"]
         else:
             raise ValueError("Unknown internal service")
+        os.environ.update(self.installation.service_environment(name))
         os.execv(str(command[0]), list(map(str, command)))

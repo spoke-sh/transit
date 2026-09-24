@@ -69,7 +69,7 @@ def up():
     if sys.platform != "linux" or os.uname().machine != "x86_64":
         raise RuntimeError("The first reference proof supports Linux x86_64 with Docker")
     if STATE.exists():
-        raise RuntimeError("An owned reference cluster already exists; use just launchers::reference::test or just launchers::reference::down")
+        raise RuntimeError("An owned reference cluster already exists; use just launchers::reference::up, or infra-down to destroy it")
     run(["docker", "info"], capture=True)
     source()
     CACHE.mkdir(parents=True, exist_ok=True)

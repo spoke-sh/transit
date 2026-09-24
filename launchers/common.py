@@ -90,8 +90,16 @@ class Installation:
         self.base_port = base_port
         self.board_overrides = board_settings or {}
         self.manifest = self.path / "installation.json"
-        self.cli = ROOT / "zig-out/bin/rey-cli"
         self.lifecycle_lock = self.path.parent / (name + ".lock")
+
+    @property
+    def artifacts(self):
+        from artifacts import Artifacts
+        return Artifacts(self)
+
+    @property
+    def cli(self):
+        return self.artifacts.binary("rey-cli")
 
     def load(self):
         value = json.loads(self.manifest.read_text())
@@ -154,6 +162,7 @@ class Installation:
             return
         if self.path.exists():
             raise RuntimeError("Incomplete installation directory; inspect and move it aside before provisioning")
+        self.artifacts.initialize()
         base = self.base_port if self.base_port is not None else (18100 if self.profile == "local" else 18200)
         if not 1024 <= base <= 65533:
             raise ValueError("Base port must be between 1024 and 65533")
@@ -214,7 +223,7 @@ backend = "inline"
         # Only this explicit provisioning path can create history. Ordinary
         # service restarts fail closed if storage has disappeared.
         if not (self.path / "initialized.json").exists():
-            run([ROOT / "zig-out/bin/transit-node", self.path / "host-node.json", "--initialize"])
+            run([self.artifacts.binary("transit-node"), self.path / "host-node.json", "--initialize"])
             write(self.path / "initialized.json", True)
 
     def check_ports(self, board=None):
@@ -310,6 +319,19 @@ backend = "inline"
             write(self.path / "counter/config.json", {"url": "http://node:8080" if self.profile == "compose" else self.url,
                 "realm": self.load()["realm"], "principal": 1, "pid": pid, "generation": view["generation"] + 1,
                 "seed_file": "/counter/seed.key" if self.profile == "compose" else str(self.path / "counter/seed.key")})
+
+    def view(self):
+        pid = json.loads((self.path / "pid.json").read_text())
+        read = self.path / "operator/read.json"
+        write(read, {"realm": self.load()["realm"], "principal": 0, "sequence": 0, "command": {"inspect": pid}})
+        return json.loads(run([self.cli, "view", self.path / "operator/root.key", read, self.url], capture=True))["process"]
+
+    def validate_counter_update(self):
+        process = self.view()
+        if process["code"] != 1 or process["failure"] or process["lifecycle"] != "running":
+            raise RuntimeError("Counter update requires the compatible code=1 contract and a running, unblocked PID")
+        if process["binding"] and self.profile != "reference":
+            raise RuntimeError("Provider-bound code must be upgraded by its reference launcher")
 
     def endpoints(self):
         return {"profile": self.profile, "name": self.name, "realm": self.load()["realm"],

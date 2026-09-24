@@ -120,10 +120,10 @@ recorded bindings remain necessary. See [deployment](../../docs/DEPLOYMENT.md).
 ```sh
 just test::deployments
 # With Linux/Docker and the reference prerequisites:
-just launchers::reference::up
+just launchers::reference::infra-up
 just launchers::reference::images
 just launchers::reference::test
-just launchers::reference::down
+just launchers::reference::infra-down
 ```
 
 The first command renders and lints representative values, checks credential,

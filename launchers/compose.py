@@ -1,7 +1,7 @@
 """Container packaging waypoint; host provisioning uses the same public client."""
 import json
 import os
-import shutil
+import secrets
 import signal
 import subprocess
 import time
@@ -19,7 +19,14 @@ class Compose:
         values_file = self.path / "compose.env.json"
         env = dict(os.environ)
         if values_file.exists():
-            env.update(json.loads(values_file.read_text()))
+            values = json.loads(values_file.read_text())
+            # Older installations must still be inspectable/stoppable before
+            # their first up selects immutable image identities.
+            prefix = values.get("REY_COMPOSE_IMAGE_PREFIX")
+            if prefix:
+                for role, artifact in (("NODE", "transit-node"), ("BOARD", "transit-board"), ("COUNTER", "example-counter")):
+                    values.setdefault("REY_COMPOSE_" + role + "_IMAGE", prefix + "/" + artifact)
+            env.update(values)
             config = ROOT / "docker-compose.yaml"
         else:
             # Allow existing installations to stop before their first new up.
@@ -52,31 +59,18 @@ class Compose:
             time.sleep(.2)
         raise RuntimeError(f"{name} is not ready; inspect launcher status and logs")
 
-    def images(self):
-        architecture = run(["docker", "info", "--format", "{{.Architecture}}"], capture=True).strip()
-        target = {"x86_64": "x86_64-linux-musl", "aarch64": "aarch64-linux-musl"}.get(architecture)
-        if target is None:
-            raise RuntimeError("Compose currently supports Linux Docker engines on x86_64 or aarch64")
-        prefix = self.path / "build"
-        run(["zig", "build", "apps", "examples", "transit-board", "-Dtarget=" + target,
-             "-Doptimize=ReleaseSafe", "--prefix", prefix], cwd=ROOT, timeout=600)
-        for name in ("transit-node", "example-counter", "transit-board"):
-            context = self.path / "images" / name
-            context.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(prefix / "bin" / name, context / name)
-            (context / name).chmod(0o755)
-            write(context / "Dockerfile", f'FROM scratch\nCOPY {name} /bin/{name}\nUSER 65532:65532\nENTRYPOINT ["/bin/{name}"]\n')
-            run(["docker", "build", "--tag", self.installation.load()["project"] + "/" + name, context], timeout=300)
-
     def config(self):
         self.installation.configs()
         value = self.installation.load()
         base = value["base_port"]
         pins = json.loads((ROOT / "deploy/reference/versions.json").read_text())
-        values = {"STATE": str(self.path), "IMAGE_PREFIX": value["project"],
+        values = {"STATE": str(self.path),
                   "UID": str(os.getuid()), "GID": str(os.getgid()), "URSULA_IMAGE": pins["ursula"],
                   "URSULA_PORT": str(base), "TRANSIT_PORT": str(base + 1),
                   "BOARD_HOST": self.installation.board["host"], "BOARD_PORT": str(self.installation.board["port"])}
+        selected = self.installation.artifacts.read("selected")
+        for role, artifact in (("NODE", "transit-node"), ("BOARD", "transit-board"), ("COUNTER", "example-counter")):
+            values[role + "_IMAGE"] = selected[artifact]["image"]
         for role in ("node", "board", "counter", "maintenance"):
             values.update({role.upper() + "_" + key: value for key, value in self.installation.service_environment(role).items()})
         write(self.path / "compose.env.json", {"REY_COMPOSE_" + key: value for key, value in values.items()})
@@ -85,9 +79,10 @@ class Compose:
     def up(self, detached=True):
         if self.services():
             raise RuntimeError("Compose resources already exist; use restart or down before up")
+        self.installation.artifacts.initialize()
         self.installation.configure_board()
         self.config()
-        self.images()
+        write(self.path / "session.json", {"id": secrets.token_hex(16)})
         self.docker("up", "-d", "ursula", timeout=300)
         self.ready("ursula", f'http://127.0.0.1:{self.installation.load()["base_port"]}/__ursula/ready')
         self.installation.initialize()
@@ -95,13 +90,9 @@ class Compose:
         self.ready("node", self.installation.url + "/health")
         self.installation.provision()
         self.installation.activate()
-        if detached:
-            self.docker("up", "-d", "maintenance", "counter", "board")
-        else:
-            # Ursula and the node must be provisioned before application services
-            # start. Attach to all services, including their earlier startup logs.
-            self.manager = self.docker("up", "--no-recreate", "--no-build", "--menu=false",
-                                       "--timeout", "10", spawn=True)
+        self.docker("up", "-d", "maintenance", "counter", "board")
+        if not detached:
+            self.manager = self.docker("logs", "--follow", "--tail", "200", spawn=True)
         self.ready("board", self.installation.board_url + "/health", self.installation.board_headers)
         if {row["Service"] for row in self.services() if row["State"] == "running"} != set(SERVICES):
             raise RuntimeError("A service exited during startup; inspect status and logs")
@@ -130,7 +121,7 @@ class Compose:
 
         signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
         previous = {sig: signal.signal(sig, interrupted) for sig in signals}
-        owned = set()
+        owned = None
 
         def ignore_signals():
             for sig in signals:
@@ -143,7 +134,7 @@ class Compose:
                     raise RuntimeError("Compose resources already exist; use restart or down before up")
                 try:
                     self.up(detached=False)
-                    owned = {row["ID"] for row in self.services()}
+                    owned = json.loads((self.path / "session.json").read_text())
                 except BaseException:
                     # Startup still holds the lifecycle lock, so any partially
                     # created containers belong to this invocation. Show their
@@ -159,10 +150,28 @@ class Compose:
                     raise
                 print(json.dumps(self.installation.endpoints(), indent=2), flush=True)
                 print("Compose stack ready. Streaming logs; Ctrl-C stops services and preserves data.", flush=True)
-            # Commands in other terminals must remain usable while attached.
-            result = self.manager.wait()
-            if result != 0:
-                raise RuntimeError(f"Compose exited ({result}); data retained")
+            # Reattach logs after intentional container replacement. A logs
+            # follower is scoped to the containers it initially discovered.
+            current_ids = {row["ID"] for row in self.services()}
+            reported_exits = set()
+            since = int(time.time())
+            while self.session() == owned:
+                time.sleep(.5)
+                rows = self.services()
+                if not rows:
+                    break
+                for row in rows:
+                    if row["State"] == "exited" and row["ID"] not in reported_exits:
+                        print(f'{row["Service"]} exited with code {row.get("ExitCode", "unknown")}; other services remain available.', flush=True)
+                        reported_exits.add(row["ID"])
+                ids = {row["ID"] for row in rows}
+                if ids != current_ids:
+                    self.stop_attachment()
+                    self.manager = self.docker("logs", "--follow", "--since", str(since), spawn=True)
+                    current_ids = ids
+                elif self.manager.poll() is not None:
+                    raise RuntimeError("Compose log attachment exited; inspect service logs")
+                since = int(time.time()) - 1
         except KeyboardInterrupt:
             print("\nStopping Compose services; data and keys retained.", flush=True)
         finally:
@@ -171,10 +180,7 @@ class Compose:
                 if owned:
                     with lock(self.installation.lifecycle_lock):
                         try:
-                            current = {row["ID"] for row in self.services()}
-                            # Another terminal may have run down then up. An old
-                            # foreground invocation must not stop the new stack.
-                            if current and current <= owned:
+                            if self.session() == owned:
                                 self.down()
                         finally:
                             self.stop_attachment()
@@ -182,9 +188,14 @@ class Compose:
                 for sig, handler in previous.items():
                     signal.signal(sig, handler)
 
+    def session(self):
+        path = self.path / "session.json"
+        return json.loads(path.read_text()) if path.exists() else None
+
     def down(self):
         if self.configured():
             self.docker("down", "--timeout", "10")
+            (self.path / "session.json").unlink(missing_ok=True)
 
     def restart(self, name):
         if name not in SERVICES:
@@ -195,6 +206,31 @@ class Compose:
             self.docker("stop", "counter")
             self.installation.activate()
         self.docker("restart", name)
+
+    def validate_update(self, operation):
+        if "counter" in operation["services"]:
+            self.installation.validate_counter_update()
+
+    def apply_update(self, operation):
+        from updates import publish, completed
+        publish(self, operation)
+        self.config()
+        for role in operation["services"]:
+            if role in operation["completed"]:
+                continue
+            if role == "counter":
+                self.docker("stop", "counter")
+                self.installation.activate()
+            self.docker("up", "-d", "--no-deps", "--force-recreate", "--no-build", role)
+            if role == "board":
+                self.ready(role, self.installation.board_url + "/health", self.installation.board_headers)
+            elif role == "node":
+                self.ready(role, self.installation.url + "/health")
+            else:
+                time.sleep(.5)
+                if not any(r["Service"] == role and r["State"] == "running" for r in self.services()):
+                    raise RuntimeError(f"{role} failed after replacement; update remains pending")
+            completed(self, operation, role)
 
     def logs(self, name):
         if name not in SERVICES:
