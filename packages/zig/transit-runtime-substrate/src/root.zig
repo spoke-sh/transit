@@ -3,6 +3,7 @@
 const std = @import("std");
 const observations = @import("transit_observability");
 pub const revision = "d277088bc1d081ef716d81dd7986d05d0a36ad3a";
+pub const PreviousWorkload = struct { template: []const u8, template_uid: [16]u8, image: []const u8 };
 pub const Config = struct {
     cli: []const u8,
     kubeconfig: []const u8,
@@ -15,11 +16,15 @@ pub const Config = struct {
     image: []const u8,
     egress_policy_file: []const u8,
     authority_host: []const u8,
+    previous_workload: ?PreviousWorkload = null,
+    endpoint: ?[]const u8 = null,
+    token_file: ?[]const u8 = null,
 };
 pub const Actor = struct {
     uid: [16]u8,
     worker: ?[16]u8,
     state: enum { running, suspended, crashed, other },
+    previous_workload: bool = false,
 };
 pub const Bootstrap = struct { realm: u64, pid: u64, public_key: [32]u8 };
 pub const Adapter = struct {
@@ -38,19 +43,28 @@ pub const Adapter = struct {
         return hash.finalResult();
     }
     pub fn workload(self: Adapter) [32]u8 {
+        return workloadIdentity(self.config.template_uid, self.config.image);
+    }
+    pub fn workloadIdentity(template_uid: [16]u8, image: []const u8) [32]u8 {
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
         hash.update("rey.substrate.workload.v1\x00");
-        hash.update(&self.config.template_uid);
-        hash.update(self.config.image);
+        hash.update(&template_uid);
+        hash.update(image);
         return hash.finalResult();
     }
     pub fn validate(self: Adapter) !void {
         for ([_][]const u8{ self.config.atespace, self.config.actor, self.config.template }) |value| try name(value);
         if (self.config.context.len == 0 or self.config.kubeconfig.len == 0 or self.config.cli.len == 0) return error.MissingProviderTrust;
+        if ((self.config.endpoint == null) != (self.config.token_file == null)) return error.MissingProviderTrust;
         if (std.mem.find(u8, self.config.image, "@sha256:") == null) return error.UnpinnedImage;
         const version = try self.call(&.{"--version"});
         defer self.allocator.free(version);
         if (std.mem.find(u8, version, "commit=" ++ revision ++ " ") == null) return error.UnsupportedSubstrate;
+        if (self.config.previous_workload) |previous| {
+            try name(previous.template);
+            if (std.mem.find(u8, version, "version transit-upgrade-v1 commit=") == null) return error.UnsupportedSubstrateUpgrade;
+            if (std.mem.eql(u8, previous.template, self.config.template)) return error.TemplateMismatch;
+        }
         const body = try self.call(&.{ "get", "actor-template", self.config.template, "-a", self.config.atespace });
         defer self.allocator.free(body);
         var parsed = try std.json.parseFromSlice(std.json.Value, self.allocator, body, .{});
@@ -77,6 +91,30 @@ pub const Adapter = struct {
     }
 
     pub fn get(self: Adapter) !Actor {
+        return self.getImpl(false);
+    }
+    /// Called only for a recorded upgrade. Configuration alone is never
+    /// authority to switch templates or to accept an earlier workload.
+    pub fn reconcileUpgrade(self: Adapter, previous: [32]u8, uid: [16]u8) !enum { idle, reverted, switched, stopped } {
+        const old = self.config.previous_workload orelse return error.MissingUpgradeConfiguration;
+        if (!std.meta.eql(previous, workloadIdentity(old.template_uid, old.image))) return error.BindingMismatch;
+        const actor = try self.getImpl(true);
+        if (!std.meta.eql(actor.uid, uid)) return error.ProviderIncarnationMismatch;
+        if (actor.state == .crashed) {
+            try self.revertActor();
+            return .reverted;
+        }
+        if (actor.state != .suspended) return .idle;
+        if (!actor.previous_workload) return .stopped;
+        const hex = std.fmt.bytesToHex(uid, .lower);
+        const formatted = try self.allocator.print("{s}-{s}-{s}-{s}-{s}", .{ hex[0..8], hex[8..12], hex[12..16], hex[16..20], hex[20..32] });
+        defer self.allocator.free(formatted);
+        const body = try self.call(&.{ "update", "actor", self.config.actor, "-a", self.config.atespace, "--expected-uid", formatted, "--expected-template", old.template, "--template", self.config.template });
+        self.allocator.free(body);
+        // Readback on a later scan is required even after a successful response.
+        return .switched;
+    }
+    fn getImpl(self: Adapter, allow_previous: bool) !Actor {
         const body = try self.call(&.{ "get", "actor", self.config.actor, "-a", self.config.atespace });
         defer self.allocator.free(body);
         var parsed = try std.json.parseFromSlice(std.json.Value, self.allocator, body, .{});
@@ -86,13 +124,20 @@ pub const Adapter = struct {
         if (!std.mem.eql(u8, try string(try member(meta, "atespace")), self.config.atespace) or
             !std.mem.eql(u8, try string(try member(meta, "name")), self.config.actor)) return error.ResourceMismatch;
         const template = try member(value, "actorTemplate");
-        if (!std.mem.eql(u8, try string(try member(template, "atespace")), self.config.atespace) or
-            !std.mem.eql(u8, try string(try member(template, "name")), self.config.template)) return error.TemplateMismatch;
+        if (!std.mem.eql(u8, try string(try member(template, "atespace")), self.config.atespace)) return error.TemplateMismatch;
+        const template_name = try string(try member(template, "name"));
+        const previous = !std.mem.eql(u8, template_name, self.config.template);
+        if (previous) {
+            if (!allow_previous) return error.TemplateMismatch;
+            const old = self.config.previous_workload orelse return error.TemplateMismatch;
+            if (!std.mem.eql(u8, template_name, old.template)) return error.TemplateMismatch;
+        }
         const status = try member(value, "status");
         const state = try string(try member(status, "state"));
         const running = std.mem.eql(u8, state, "ACTOR_STATE_RUNNING");
         var worker: ?[16]u8 = null;
         if (running) {
+            if (previous) return error.ProviderNotStopped;
             const current_template = try uuid(try string(try member(status, "currentActorTemplateUid")));
             if (!std.meta.eql(current_template, self.config.template_uid)) return error.TemplateMismatch;
             worker = try uuid(try string(try member(try member(status, "workerAssignment"), "workerPodUid")));
@@ -100,6 +145,7 @@ pub const Adapter = struct {
         return .{
             .uid = try uuid(try string(try member(meta, "uid"))),
             .worker = worker,
+            .previous_workload = previous,
             .state = if (running) .running else if (std.mem.eql(u8, state, "ACTOR_STATE_SUSPENDED")) .suspended else if (std.mem.eql(u8, state, "ACTOR_STATE_CRASHED")) .crashed else .other,
         };
     }
@@ -170,7 +216,7 @@ pub const Adapter = struct {
 
     fn call(self: Adapter, args: []const []const u8) ![]u8 {
         const operation: []const u8 = operation: {
-            if (args.len != 0) inline for (.{ "--version", "get", "create", "apply", "suspend", "resume", "revert", "logs" }) |known| {
+            if (args.len != 0) inline for (.{ "--version", "get", "create", "update", "apply", "suspend", "resume", "revert", "logs" }) |known| {
                 if (std.mem.eql(u8, args[0], known)) break :operation known;
             };
             break :operation "other";
@@ -188,10 +234,17 @@ pub const Adapter = struct {
         const prefix = [_][]const u8{ self.config.cli, "--kubeconfig", self.config.kubeconfig, "--context", self.config.context, "-o", "json" };
         if (prefix.len + args.len > argv.len) return error.TooManyArguments;
         @memcpy(argv[0..prefix.len], &prefix);
-        @memcpy(argv[prefix.len..][0..args.len], args);
+        var count = prefix.len;
+        if (self.config.endpoint) |endpoint| {
+            if (count + 4 + args.len > argv.len) return error.TooManyArguments;
+            const direct = [_][]const u8{ "--endpoint", endpoint, "--token-file", self.config.token_file.? };
+            @memcpy(argv[count..][0..direct.len], &direct);
+            count += direct.len;
+        }
+        @memcpy(argv[count..][0..args.len], args);
         const timeout: std.Io.Timeout = .{ .duration = .{ .raw = .fromSeconds(30), .clock = .awake } };
         const result = try std.process.run(self.allocator, self.io, .{
-            .argv = argv[0 .. prefix.len + args.len],
+            .argv = argv[0 .. count + args.len],
             .stdout_limit = .limited(64 * 1024),
             .stderr_limit = .limited(8 * 1024),
             .timeout = .{ .deadline = timeout.toTimestamp(self.io).? },

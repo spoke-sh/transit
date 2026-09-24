@@ -61,3 +61,7 @@ dev-environment:
 # Prove the inspection plugin's CLI, subprocess and credential boundaries offline.
 kubectl-transit:
     zig build test-kubectl-transit
+
+# Prove fenced workload changes and recovery after a lost provider response.
+runtime-upgrade:
+    zig build test-runtime-upgrade

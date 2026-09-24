@@ -31,7 +31,7 @@
 
   kubectl-ate = buildGo127Module {
     pname = "kubectl-ate";
-    version = "0-unstable-${builtins.substring 0 7 pins.substrate}";
+    version = "0-unstable-${builtins.substring 0 7 pins.substrate}-transit1";
     src = fetchFromGitHub {
       owner = "agent-substrate";
       repo = "substrate";
@@ -40,12 +40,19 @@
     };
     # The pinned source includes its complete upstream vendor tree.
     vendorHash = null;
+    postPatch = ''
+      cp ${./ate-upgrade}/*.go cmd/kubectl-ate/internal/cmd/
+    '';
+    postCheck = ''
+      go test ./cmd/kubectl-ate/internal/cmd -run '^TestTransitUpdateActor$'
+    '';
     subPackages = [ "cmd/kubectl-ate" ];
     env.CGO_ENABLED = 0;
     ldflags = [
       "-s"
       "-w"
       "-X=github.com/agent-substrate/substrate/internal/version.Commit=${pins.substrate}"
+      "-X=github.com/agent-substrate/substrate/internal/version.Version=transit-upgrade-v1"
     ];
     meta = {
       description = "Agent Substrate kubectl plugin at Transit's reference revision";

@@ -51,7 +51,7 @@ const Controller = struct {
             .outcome = if (stopped) .stopped else .ready,
         } });
     }
-    fn step(self: *Controller) !enum { idle, intent, created, reverted, resumed, observed, activated, suspended } {
+    fn step(self: *Controller) !enum { idle, intent, created, reverted, resumed, observed, activated, suspended, switched } {
         const view = try self.client.view(.{
             .realm = self.config.realm,
             .principal = self.config.principal,
@@ -71,6 +71,18 @@ const Controller = struct {
         if (!std.meta.eql(b.instance, self.config.provider.instance) or
             !std.meta.eql(b.resource, self.provider.resource()) or
             !std.meta.eql(b.workload, self.provider.workload())) return error.BindingMismatch;
+        if (b.upgrade_from) |previous| {
+            if (b.desired != .stopped or (b.phase != .pending and b.phase != .unknown)) return error.InvalidBinding;
+            switch (try self.provider.reconcileUpgrade(previous, b.incarnation orelse return error.InvalidBinding)) {
+                .idle => return .idle,
+                .reverted => return .reverted,
+                .switched => return .switched,
+                .stopped => {
+                    try self.observe(view, b.incarnation, true);
+                    return .observed;
+                },
+            }
+        }
         if (b.phase == .pending or b.phase == .unknown) {
             const actor = self.provider.get() catch |err| switch (err) {
                 error.ProviderNotFound => {
@@ -122,7 +134,7 @@ const Controller = struct {
             try self.intent(view, true);
             return .intent;
         }
-        if (!backlog or b.desired == .stopped) return .idle;
+        if ((!backlog and b.activation != null) or b.desired == .stopped) return .idle;
         const actor = try self.provider.get();
         if (!std.meta.eql(b.incarnation, @as(?[16]u8, actor.uid))) return error.ProviderIncarnationMismatch;
         if (actor.state != .running or (if (b.activation) |a| !std.meta.eql(actor.worker, @as(?[16]u8, a.worker_incarnation)) else false)) {

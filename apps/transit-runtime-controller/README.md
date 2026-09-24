@@ -72,3 +72,15 @@ Provider invocations and public client requests have separate related spans;
 provider arguments, raw stdout/stderr and credentials are never logged.
 Continuous diagnostics go to stderr. `--once` keeps its single disposition on
 stdout. Provider progress is not proof of Transit ownership or remote cancellation.
+
+## Workload updates
+
+The controller reconciles a recorded `runtime_upgrade`; it never infers upgrade
+authority from a changed configuration. Set the target provider template/UID/image
+and `previous_workload: {template, template_uid, image}` while that transition is
+pending. A switched Actor remains stopped until an operator records running
+intent. See the [runtime contract](../../contracts/RUNTIME_SUBSTRATE_V1.md#same-pid-workload-changes).
+
+`just test::runtime-upgrade` checks the real node/controller with a faultable CLI
+boundary: stale controller, wrong Actor UID, lost switch response and idempotent
+readback. It complements, rather than substitutes for, the real Substrate proof.

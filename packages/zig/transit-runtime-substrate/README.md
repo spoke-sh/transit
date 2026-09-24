@@ -58,7 +58,7 @@ version-specific success/empty-output convention normalized inside this adapter.
 
 Provider observations and log attribution are trusted controller inputs. No
 transaction spans provider state and Transit. Arbitrary provider replacement,
-template migration, multiple PIDs per Actor, and out-of-band privileged provider
+state migration, multiple PIDs per Actor, and out-of-band privileged provider
 administration are outside the supported profile.
 
 ## Build and verification
@@ -83,3 +83,9 @@ runtime/context through [transit-observability](../transit-observability/README.
 vocabulary. It excludes provider args/configuration, raw output and credentials.
 Success is debug; failures are warnings. A failed invocation can follow a remote
 change: diagnostics do not resolve uncertain provider intent or authorize retries.
+
+Same-PID compatible template changes use `reconcileUpgrade` only after a durable
+upgrade transition. `Config.previous_workload` supplies old template identity;
+the adapter checks it against the recorded hash, and the packaged CLI supplies
+UID/version guarded UpdateActor. Readback, not the CLI exit status, closes the
+provider operation. See the [upgrade contract](../../../contracts/RUNTIME_SUBSTRATE_V1.md#same-pid-workload-changes).

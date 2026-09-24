@@ -54,7 +54,7 @@ check:
     git diff --check
 
 # Run the hosted CI checks within one already-entered development environment.
-ci: check test::dev-environment test::kubectl-transit test::deployments test::telemetry test::observability test::packages test::storage test::service test::callers test::inspection transit-board::check transit-board::test launchers::local::test
+ci: check test::dev-environment test::kubectl-transit test::deployments test::telemetry test::observability test::packages test::storage test::service test::runtime-upgrade test::callers test::inspection transit-board::check transit-board::test launchers::local::test
 
 # Format Nix and Zig source.
 fmt:

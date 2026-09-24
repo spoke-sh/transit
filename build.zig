@@ -55,6 +55,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = runtime.module("transit_runtime_substrate") })).step);
     var node_artifact: *std.Build.Step.Compile = undefined;
     var cli_artifact: *std.Build.Step.Compile = undefined;
+    var controller_artifact: *std.Build.Step.Compile = undefined;
     const services = b.addSystemCommand(&.{ "python3", "-B" });
     const apps_step = b.step("apps", "Install platform executables");
     const kubectl_transit = b.addExecutable(.{ .name = "kubectl-transit", .root_module = b.createModule(.{
@@ -97,9 +98,11 @@ pub fn build(b: *std.Build) void {
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_ursula", adapter.module("transit_backend_ursula"));
         if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
         if (std.mem.eql(u8, name, "rey-cli")) cli_artifact = app;
+        if (std.mem.eql(u8, name, "transit-runtime-controller")) controller_artifact = app;
         const install = b.addInstallArtifact(app, .{});
         b.getInstallStep().dependOn(&install.step);
         apps_step.dependOn(&install.step);
+        b.step(name, b.fmt("Install {s}", .{name})).dependOn(&install.step);
         if (std.mem.eql(u8, name, "transit-runtime-controller")) app.root_module.addImport("transit_runtime_substrate", runtime.module("transit_runtime_substrate"));
         if (std.mem.eql(u8, name, "transit-node") and target.result.os.tag == .linux) {
             const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
@@ -108,6 +111,14 @@ pub fn build(b: *std.Build) void {
         test_step.dependOn(&app.step);
     }
     const examples_step = b.step("examples", "Install runnable example applications");
+    const upgrade_tests = b.addSystemCommand(&.{ "python3", "-B" });
+    upgrade_tests.addFileArg(b.path("tests/runtime_upgrade.py"));
+    upgrade_tests.addArtifactArg(node_artifact);
+    upgrade_tests.addArtifactArg(cli_artifact);
+    upgrade_tests.addArtifactArg(controller_artifact);
+    upgrade_tests.has_side_effects = true;
+    upgrade_tests.stdio = .inherit;
+    b.step("test-runtime-upgrade", "Prove provider-switch reconciliation and fencing").dependOn(&upgrade_tests.step);
     var example_artifacts: [2]*std.Build.Step.Compile = undefined;
     inline for (.{ "counter", "byte-log" }, 0..) |name, index| {
         const example = b.addExecutable(.{ .name = "example-" ++ name, .root_module = b.createModule(.{
@@ -117,7 +128,9 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
         }) });
         example_artifacts[index] = example;
-        examples_step.dependOn(&b.addInstallArtifact(example, .{}).step);
+        const install = b.addInstallArtifact(example, .{});
+        examples_step.dependOn(&install.step);
+        b.step("example-" ++ name, "Install example-" ++ name).dependOn(&install.step);
         test_step.dependOn(&example.step);
     }
     services.addArtifactArg(node_artifact);
