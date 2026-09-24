@@ -44,6 +44,8 @@ export function Evidence({ view }: { view: ReturnType<typeof useObservation> }) 
                 ? "History prefix reclaimed — checkpoint state survives; earlier event detail is unavailable."
                 : "History retained"}{" "}
               · {page.complete ? "End of this query" : "More matching records may follow"}
+              {page.last_collection != null &&
+                ` · Working catalogs have collected entries (latest operation ${page.last_collection}); absence does not mean an identity never existed.`}
             </p>
           </>
         )}
@@ -153,6 +155,7 @@ export function EventTable({ events }: { events: Event[] }) {
               <td>{event.position}</td>
               <td>
                 {event.kind}
+                {event.lifecycle_action ? ` · ${event.lifecycle_action}` : ""}
                 {event.failed ? " · failed" : ""}
               </td>
               <td>

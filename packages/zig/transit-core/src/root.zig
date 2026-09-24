@@ -139,15 +139,16 @@ pub const State = struct {
     time_floor_ms: u64 = 0,
     admission_ceiling: ?u64 = null,
     capacity_checkpoint: bool = false,
+    last_collection: ?u64 = null,
     resources: ?resources.Catalog = null,
 
     pub fn jsonStringify(self: *const State, out: anytype) !void {
         try out.beginObject();
         inline for (@typeInfo(State).@"struct".field_names) |name| {
-            if (comptime std.mem.eql(u8, name, "resources")) {
-                if (self.resources != null) {
+            if (comptime std.mem.eql(u8, name, "resources") or std.mem.eql(u8, name, "last_collection")) {
+                if (@field(self, name) != null) {
                     try out.objectField(name);
-                    try out.write(self.resources);
+                    try out.write(@field(self, name));
                 }
             } else {
                 try out.objectField(name);
@@ -354,7 +355,10 @@ pub const State = struct {
         switch (req.command) {
             .lifecycle => |c| try lifecycle.apply(self, c, record),
             .catalog_retention => |c| try collection.enable(self, c.pid),
-            .collect => |c| try collection.apply(self, c, input),
+            .collect => |c| {
+                try collection.apply(self, c, input);
+                self.last_collection = record.position;
+            },
             .state => |c| try resources.apply(self, c, record, input),
             .declare_payload => |c| {
                 const p = try self.process(c.pid);

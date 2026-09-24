@@ -73,3 +73,11 @@ is added.
 pins and default unlimited retention. `just test::storage` repeats the sustained
 profile over disk Ursula, SIGKILL, checkpoint publication, trim and restart,
 then rejects old identities while allocating a new PID beyond the frontier.
+
+Inspection pages expose `last_collection`, the most recent collection operation,
+not a universal history or ID floor. Current catalogs list retained entries only.
+Authorized `history` queries can still read retained events for an absent past PID;
+without its current catalog entry, mailbox disposition is unknown (`null`), never
+invented as pending or consumed. Live-process/mailbox queries still reject absent
+PIDs. Board identifies collected catalogs and displays exact lifecycle action
+names, keeping historical evidence separate from current authority.

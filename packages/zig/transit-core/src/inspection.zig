@@ -33,11 +33,13 @@ fn event(state: *core.State, record: core.Record, grant: p.Grant, pid: u64) !?i.
         result.admitted = admission.pid == pid;
         if (result.admitted) {
             result.value = admission.value;
-            const process = try state.process(pid);
-            result.mailbox_status = if (record.position <= process.input_cursor) .consumed else if (process.lifecycle != .running) .cancelled else .pending;
+            if (state.process(pid)) |process| {
+                result.mailbox_status = if (record.position <= process.input_cursor) .consumed else if (process.lifecycle != .running) .cancelled else .pending;
+            } else |_| {} // Collection removes current disposition, not retained events.
         }
     }
     switch (command) {
+        .lifecycle => |c| result.lifecycle_action = @as(std.meta.Tag(p.Lifecycle.Command), c),
         .state => |c| if (c == .turn) {
             // A normal turn projection, with no resource IDs, keys or values.
             // Resource metadata separately discloses its committing position.
@@ -81,13 +83,19 @@ pub fn read(engine: anytype, signed: i.SignedQuery) !i.Page {
     if (principal.grant.permissions & p.permission(.inspect) == 0) return error.Forbidden;
     if (q.pid) |pid| if (!allowed(principal.grant, pid)) return error.Forbidden;
     try i.validate(q);
-    if (q.pid) |pid| _ = try state.process(pid);
+    if (q.pid) |pid| {
+        if (state.process(pid)) |_| {} else |err| {
+            // Historical queries remain useful after opted-in catalog removal.
+            // They carry retained records, never current activation authority.
+            if (q.resource != .history or state.last_collection == null or pid >= state.position) return err;
+        }
+    }
     const cut: i.Cut = .{ .position = state.position, .policy_revision = principal.revision, .retained_from = state.history_floor };
     if (q.cut) |previous| {
         if (previous.retained_from < cut.retained_from) return error.HistoryReclaimed;
         if (!std.meta.eql(previous, cut)) return error.QueryExpired;
     }
-    var result: i.Page = .{ .realm = state.realm, .resource = q.resource, .pid = q.pid, .cut = cut, .reader = .{ .principal = q.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid }, .history = if (state.history_floor > 1) .prefix_reclaimed else .retained };
+    var result: i.Page = .{ .realm = state.realm, .resource = q.resource, .pid = q.pid, .cut = cut, .last_collection = state.last_collection, .reader = .{ .principal = q.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid }, .history = if (state.history_floor > 1) .prefix_reclaimed else .retained };
     var count: usize = 0;
     switch (q.resource) {
         .process => {

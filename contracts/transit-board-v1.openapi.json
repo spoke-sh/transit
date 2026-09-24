@@ -1812,6 +1812,7 @@
               "resource",
               "pid",
               "cut",
+              "last_collection",
               "reader",
               "next",
               "complete",
@@ -1901,6 +1902,20 @@
                   "retained_from"
                 ],
                 "x-transit-defaults": {}
+              },
+              "last_collection": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "reader": {
                 "type": "object",
@@ -2532,6 +2547,7 @@
                         "position",
                         "pid",
                         "kind",
+                        "lifecycle_action",
                         "policy_revision",
                         "input",
                         "effect",
@@ -2590,6 +2606,24 @@
                             "payload_deleted",
                             "runtime_upgrade",
                             "state"
+                          ]
+                        },
+                        "lifecycle_action": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "create",
+                                "initialize",
+                                "suspend",
+                                "resume",
+                                "retry",
+                                "expire_suspension"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "policy_revision": {
@@ -2722,6 +2756,7 @@
                         "position",
                         "pid",
                         "kind",
+                        "lifecycle_action",
                         "policy_revision",
                         "input",
                         "effect",
@@ -2735,6 +2770,7 @@
                         "clock_error_ms"
                       ],
                       "x-transit-defaults": {
+                        "lifecycle_action": null,
                         "input": null,
                         "effect": null,
                         "output": null,
@@ -3196,6 +3232,7 @@
               "resource",
               "pid",
               "cut",
+              "last_collection",
               "reader",
               "next",
               "complete",
@@ -3209,6 +3246,7 @@
             ],
             "x-transit-defaults": {
               "version": 1,
+              "last_collection": null,
               "next": null,
               "complete": true,
               "scanned": 0,

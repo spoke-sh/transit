@@ -1334,3 +1334,25 @@ test "suspension fits required resource lifetime and rejects expired recovery be
     try t.expectEqual(@as(u64, 2), (try e.state.process(pid)).cancelled);
     try t.expectError(error.RetiredProcess, f.submit(&e, 0, .{ .lifecycle = .{ .@"resume" = .{ .pid = pid, .expected_generation = 5 } } }));
 }
+
+test "collected process history stays inspectable without fabricating current mailbox status" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.retry_policy = .last_per_principal;
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.submit(&e, 0, .{ .lifecycle = .{ .create = .{ .allow_trim = true, .collect_catalog = true } } });
+    _ = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = .{} } });
+    _ = try f.submit(&e, 0, .{ .terminate = pid });
+    const collected = try f.submit(&e, 0, .{ .collect = .{ .pid = pid, .kind = .process, .id = pid } });
+    const q: core.protocol.Inspection.Query = .{ .realm = 42, .principal = 0, .resource = .history, .pid = pid };
+    const page = try core.inspection.read(&e, try core.protocol.Inspection.sign(q, f.root));
+    try t.expectEqual(collected, page.last_collection.?);
+    try t.expectEqual(.create, page.events[0].?.lifecycle_action.?);
+    try t.expect(page.events[1].?.admitted);
+    try t.expectEqual(null, page.events[1].?.mailbox_status);
+    var mailbox = q;
+    mailbox.resource = .mailbox;
+    try t.expectError(error.UnknownProcess, core.inspection.read(&e, try core.protocol.Inspection.sign(mailbox, f.root)));
+    const signed = try core.protocol.Inspection.sign(q, f.worker);
+    try t.expectError(error.Unauthorized, core.inspection.read(&e, signed));
+}

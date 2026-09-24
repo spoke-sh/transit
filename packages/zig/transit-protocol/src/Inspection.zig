@@ -21,6 +21,7 @@ pub const Event = struct {
     position: u64,
     pid: u64,
     kind: std.meta.Tag(p.Command),
+    lifecycle_action: ?std.meta.Tag(p.Lifecycle.Command) = null,
     policy_revision: u64,
     input: ?u64 = null,
     effect: ?u64 = null,
@@ -41,6 +42,7 @@ pub const Page = struct {
     resource: Resource,
     pid: ?u64,
     cut: Cut,
+    last_collection: ?u64 = null,
     reader: struct { principal: u8, permissions: u16, pid: ?u64 },
     next: ?u64 = null,
     /// Completion of this query at the cut, not a claim of complete history.
