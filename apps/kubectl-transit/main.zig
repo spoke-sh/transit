@@ -18,6 +18,8 @@ const help =
     \\  --help / -h        --version
     \\
     \\Components: node, board, maintenance, controller, ursula, initialize.
+    \\Select with the NAMESPACE and RELEASE columns from get installations -A.
+    \\--release is the Helm release name, not a namespace suffix or Transit PID.
     \\Namespace defaults to the selected kubeconfig context's namespace.
     \\Readiness and logs are Kubernetes observations, not Transit execution authority.
     \\Reference up deploys Transit; reference infra-up creates only provider infrastructure.
@@ -159,6 +161,31 @@ fn integer(value: Json, fallback: i64) i64 {
     return if (value == .integer) value.integer else fallback;
 }
 
+const ViewRow = [6][]const u8;
+const view_headers: ViewRow = .{ "NAMESPACE", "RELEASE", "COMPONENT", "KIND", "NAME", "OBSERVED" };
+
+fn writeRow(out: *std.Io.Writer, row: ViewRow, widths: [6]usize) !void {
+    for (row, 0..) |cell, column| {
+        try out.writeAll(cell);
+        if (column + 1 < row.len) try out.splatByteAll(' ', widths[column] - cell.len + 2);
+    }
+    try out.writeByte('\n');
+}
+
+fn writeTable(out: *std.Io.Writer, rows: []const ViewRow) !void {
+    var widths: [6]usize = undefined;
+    for (view_headers, 0..) |header, column| widths[column] = header.len;
+    // Kubernetes names/labels and these status summaries are printable ASCII.
+    // Bound padding and reject control sequences before emitting a partial table.
+    for (rows) |row| for (row, 0..) |cell, column| {
+        if (cell.len > 253) return error.InvalidKubernetesResponse;
+        for (cell) |byte| if (byte < 0x20 or byte > 0x7e) return error.InvalidKubernetesResponse;
+        widths[column] = @max(widths[column], cell.len);
+    };
+    try writeRow(out, view_headers, widths);
+    for (rows) |row| try writeRow(out, row, widths);
+}
+
 const App = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -269,8 +296,8 @@ const App = struct {
         if (list.len == 0 and self.options.command != .installations) return error.ResourceNotFound;
         if (self.options.json) return self.out.writeAll(result.raw);
         if (list.len == 0) return self.out.writeAll("No Transit installations found. Reference up deploys Transit; reference infra-up creates only provider infrastructure.\n");
-        try self.out.writeAll("NAMESPACE\tRELEASE\tCOMPONENT\tKIND\tNAME\tOBSERVED\n");
-        for (list) |item| {
+        const rows = try self.allocator.alloc(ViewRow, list.len);
+        for (list, rows) |item, *row| {
             const metadata = try member(item, "metadata");
             const kind = try string(try member(item, "kind"));
             const status = optional(item, "status");
@@ -281,13 +308,31 @@ const App = struct {
                 try self.allocator.print("succeeded={d}/{d}", .{ integer(optional(status, "succeeded"), 0), integer(optional(spec, "completions"), 1) })
             else
                 string(optional(status, "phase")) catch "-";
-            try self.out.print("{s}\t{s}\t{s}\t{s}\t{s}\t{s}\n", .{
+            row.* = .{
                 try string(try member(metadata, "namespace")), label(item, "app.kubernetes.io/instance"),
                 label(item, "app.kubernetes.io/component"),    kind,
                 try string(try member(metadata, "name")),      observed,
-            });
+            };
         }
+        try writeTable(self.out, rows);
         try self.err.writeAll("Kubernetes observations only; readiness does not establish Transit execution authority.\n");
+        if (self.options.command == .installations) try self.err.writeAll("Select an installation with --namespace NAMESPACE --release RELEASE from the columns above.\n");
+    }
+
+    fn reportFailure(self: *App, failure: anyerror) !void {
+        if (failure == error.KubectlFailed) return; // Keep kubectl's diagnostic and status.
+        if (failure == error.ResourceNotFound) {
+            const resource = if (self.options.command == .board) "Board resources" else "Transit resources";
+            try self.err.print("kubectl transit: ResourceNotFound: no matching {s} for Helm release '{s}'", .{ resource, self.options.release.? });
+            if (self.options.namespace) |namespace| {
+                try self.err.print(" in namespace '{s}'.\n", .{namespace});
+            } else {
+                try self.err.writeAll(" in the current context's namespace (--namespace was not supplied).\n");
+            }
+            try self.err.writeAll("Discover installations with 'kubectl transit get installations -A' using the same context/kubeconfig.\nUse the NAMESPACE column for --namespace and RELEASE for --release; a namespace suffix is not a release name.\n");
+            return;
+        }
+        try self.err.print("kubectl transit: {s}\n", .{@errorName(failure)});
     }
 
     fn replace(self: *App, argv: []const []const u8) !void {
@@ -381,7 +426,7 @@ pub fn main(init: std.process.Init) void {
         .board => app.board(),
     };
     result catch |failure| {
-        if (failure != error.KubectlFailed) err.interface.print("kubectl transit: {s}\n", .{@errorName(failure)}) catch {};
+        app.reportFailure(failure) catch {};
         err.interface.flush() catch {};
         std.process.exit(app.exit_code);
     };

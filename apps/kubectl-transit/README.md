@@ -31,6 +31,18 @@ selected context; the plugin never changes that context. `-A` is only available
 for discovery, and cannot be combined with a namespace. Every installation-specific
 command requires `--release`; there is no implicit choice of the first installation.
 
+Use the discovery table's **NAMESPACE** for `--namespace` and **RELEASE** for
+`--release`. For example, a row with namespace `transit-sample-abc123` and release
+`transit` is selected with:
+
+```sh
+kubectl transit get workloads -n transit-sample-abc123 --release transit
+```
+
+The namespace suffix `abc123` is not a Helm release name. Discovery with `-A`
+does not select a namespace for later commands. An empty targeted result reports
+the requested release and namespace scope, with guidance for finding the pair.
+
 ## Views and diagnostics
 
 Discovery selects node Deployments with the [chart's](../../charts/transit/README.md)
@@ -40,6 +52,7 @@ These labels are operational associations, never authenticated Transit identitie
 
 `status` reads Deployments, StatefulSets, Jobs, Pods, Services, and PVCs.
 `get workloads` limits that list to workload controllers and Pods. Human tables
+use aligned spaces rather than terminal tab stops and
 identify namespace, release, component, kind, name, and observed readiness or
 phase. Replica counts are Kubernetes observations; they do not assert current
 ownership, caught-up protocol state, or a healthy end-to-end system. `--output
@@ -78,6 +91,8 @@ stdout limit and a 32 KiB stderr limit. Exceeding a bound fails without emitting
 partial JSON; narrow discovery by namespace/release. The deadline includes
 credential helpers and waiting for kubectl to exit. Query failures kill the owned process group and reap kubectl. Interactive credential prompts are unsupported for captured
 queries: establish credentials through your normal Kubernetes login first.
+Human table fields are limited to 253 printable ASCII bytes; malformed fields
+fail before emitting a partial table or terminal control sequences.
 
 Logs and port-forwards replace the plugin process with kubectl, preserving
 terminal I/O, signals and exit status without detached tunnels. Their intentional

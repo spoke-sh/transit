@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import subprocess
 import sys
@@ -41,7 +42,13 @@ if "logs" in sys.argv or "port-forward" in sys.argv:
     sys.exit(0)
 resource = sys.argv[sys.argv.index("get") + 1]
 fixtures = json.loads(Path(os.environ["FIXTURES"]).read_text())
-print(json.dumps(fixtures.get(resource, {"apiVersion":"v1", "kind":"List", "items":[]})))
+result = fixtures.get(resource, {"apiVersion":"v1", "kind":"List", "items":[]})
+selector = dict(part.split("=", 1) for part in sys.argv[sys.argv.index("--selector") + 1].split(","))
+namespace = sys.argv[sys.argv.index("--namespace") + 1] if "--namespace" in sys.argv else "demo"
+result["items"] = [item for item in result["items"]
+    if ("--all-namespaces" in sys.argv or item["metadata"]["namespace"] == namespace)
+    and all(item["metadata"].get("labels", {}).get(key) == value for key, value in selector.items())]
+print(json.dumps(result))
 '''
 
 
@@ -132,6 +139,41 @@ def run(binary):
         assert args[args.index("--context") + 1] == "chosen-context"
         assert "--all-namespaces" in args and "--request-timeout=15s" in args
         assert args[args.index("--selector") + 1] == "app.kubernetes.io/name=transit,app.kubernetes.io/component=node"
+        # Discovery keeps namespace and Helm release visually associated, even
+        # when names have different widths. Its selectors can then be copied.
+        other = fixture("Deployment", "node", "transit")
+        other["metadata"].update(namespace="transit-sample-abc123")
+        other["metadata"]["labels"]["app.kubernetes.io/instance"] = "transit"
+        other.update(spec={"replicas": 1}, status={"readyReplicas": 1})
+        fixtures.write_text(json.dumps({"deployments": listed(node, other),
+            "deployments,statefulsets,jobs,pods": listed(node, other)}))
+        discovery = invoke("get", "installations", "-A")
+        lines = discovery.stdout.splitlines()
+        assert len(lines) == 3 and "\t" not in discovery.stdout, discovery
+        columns = ["NAMESPACE", "RELEASE", "COMPONENT", "KIND", "NAME", "OBSERVED"]
+        assert lines[0].split() == columns
+        starts = [match.start() for match in re.finditer(r"\S+", lines[0])]
+        ends = starts[1:] + [None]
+        assert [lines[2][start:end].strip() for start, end in zip(starts, ends)] == [
+            "transit-sample-abc123", "transit", "node", "Deployment", "transit", "ready=1/1"]
+        assert "--namespace NAMESPACE --release RELEASE" in discovery.stderr
+        for args, message in [
+            (("--release", "abc123"), "--namespace was not supplied"),
+            (("--release", "transit"), "--namespace was not supplied"),
+            (("--release", "abc123", "-n", "transit-sample-abc123"), "namespace 'transit-sample-abc123'"),
+        ]:
+            result = invoke("get", "workloads", *args, code=1)
+            assert not result.stdout and "ResourceNotFound" in result.stderr
+            assert message in result.stderr and "NAMESPACE column" in result.stderr
+            assert "namespace suffix is not a release name" in result.stderr
+        result = invoke("get", "workloads", "--release", "transit", "-n", "transit-sample-abc123", "-o", "json")
+        assert json.loads(result.stdout)["items"] == [other]
+        for invalid in ("forged\nrow", "\x1b[31mforged", "x" * 254):
+            other["metadata"]["name"] = invalid
+            fixtures.write_text(json.dumps({"deployments": listed(other)}))
+            result = invoke("get", "installations", "-A", code=1)
+            assert "InvalidKubernetesResponse" in result.stderr and not result.stdout
+        setup()
         result = invoke("status", "--release", "example", "-n", "demo")
         assert "custom-authority" in result.stdout and "ready=1/1" in result.stdout
         assert "execution authority" in result.stderr

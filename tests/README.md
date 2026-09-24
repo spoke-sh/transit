@@ -71,6 +71,9 @@ boundary, without credentials or a cluster. It checks selectors, explicit contex
 and kubeconfig forwarding, native JSON, invalid flags, read failures, empty and
 ambiguous resources, output bounds, a hanging child after both pipes close,
 and SIGINT/SIGTERM cleanup for log following and Board forwarding.
+Discovery tests cover aligned columns across namespace lengths, exact
+namespace/release selection, useful empty-selection diagnostics, and rejection
+of control characters or oversized human-table fields without partial output.
 
 The plugin's [runbook](../apps/kubectl-transit/README.md) and
 [full plan](../docs/roadmap/M5.md) define its inspection-only scope.
