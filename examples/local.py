@@ -127,8 +127,7 @@ backend = "inline"
                 board_port = free_port()
                 origin = f"http://127.0.0.1:{board_port}"
                 options = {"upstream": url, "realm": 71, "principal": 2, "seed_file": str(reader_key),
-                           "public_origin": origin, "port": board_port,
-                           "lenses": [{"pid": pid, "kind": "rey.example.counter", "version": 1}] if name == "counter" else []}
+                           "public_origin": origin, "port": board_port}
                 viewer = start([binaries["board"], write("board", options)])
                 ready(viewer, origin + "/health")
                 # Keep an admitted input visible; there is no worker executing it.

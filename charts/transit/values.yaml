@@ -55,7 +55,7 @@ board:
   image: ""
   # Key: seed (Transit inspection principal). Board has no viewer credential.
   existingSecret: ""
-  # Board JSON fields, including realm, principal, public_origin and lenses.
+  # Board JSON fields, including realm, principal, and public_origin.
   # The chart fixes the listener, credential paths and internal node upstream.
   config: {}
   logging: {level: info, format: json}

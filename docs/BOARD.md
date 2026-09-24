@@ -198,11 +198,11 @@ presented facts link back to their source. Board explains Transit/Station
 primitives and their relationships; application-specific value meaning and
 interfaces belong to applications.
 
-M2 implemented a statically registered counter lens to prove source provenance
-and unknown-version/malformed-data fallback. That decoder remains in the current
-API/UI, but is outside the revised boundary. [M7](roadmap/M7.md) removes it and
-its launcher mapping while adding generic [state-resource inspection](STATE.md#ownership-in-the-stack-and-inspection).
-This plan does not claim the existing lens has already been removed.
+M7 removes M2's experimental application counter decoder and its mapping and
+API field. Generic [state-resource inspection](STATE.md#ownership-in-the-stack-and-inspection)
+now shows associations, lifetime/retention policy, revisions, and committing-turn
+evidence. Opaque entry reads require a separate resource grant. Runtime/framework
+interpretations remain future work.
 
 Later Station supplies descriptors/fixtures for GenServers, supervisors, and
 registries; the HTTP connector adds exchange and attempt views. Identification

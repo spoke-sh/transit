@@ -11,6 +11,9 @@ import {
   BoardError,
   capabilities,
   read,
+  readState,
+  type StateResponse,
+  type StateResource,
   type Capabilities,
   type Response,
   type Resource,
@@ -114,8 +117,27 @@ export function message(cause: unknown): string {
   return "Connection unavailable. No new observation was received.";
 }
 export function useObservation(resource: Resource, pid?: number) {
+  return usePagedRead<Response, Resource>(resource, pid, read, true);
+}
+export function useStateObservation(resource: StateResource, id?: number) {
+  return usePagedRead<StateResponse, StateResource>(resource, id, readState, false);
+}
+function usePagedRead<
+  T extends { observation: { cut: Cut; next: number | null } },
+  R extends string,
+>(
+  resource: R,
+  pid: number | undefined,
+  fetchPage: (
+    resource: R,
+    pid?: number,
+    continuation?: { cut: Cut; after: number },
+    signal?: AbortSignal,
+  ) => Promise<T>,
+  clearScope: boolean,
+) {
   const { denied } = useScope();
-  const [data, setData] = useState<Response | null>(null);
+  const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState("");
   const [observedAt, setObservedAt] = useState<string>("");
   const [continuation, setContinuation] = useState<{ cut: Cut; after: number }>();
@@ -133,7 +155,7 @@ export function useObservation(resource: Resource, pid?: number) {
         return;
       }
       try {
-        const next = await read(resource, pid, continuation, controller.signal);
+        const next = await fetchPage(resource, pid, continuation, controller.signal);
         if (controller.signal.aborted) return;
         setData(next);
         setError("");
@@ -145,7 +167,7 @@ export function useObservation(resource: Resource, pid?: number) {
         setError(message(cause));
         if (cause instanceof BoardError && cause.status === 403) {
           setData(null);
-          denied();
+          if (clearScope) denied();
           return;
         }
         // A stale continuation needs an explicit restart, never automatic stitching.
@@ -160,7 +182,7 @@ export function useObservation(resource: Resource, pid?: number) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [resource, pid, continuation, refresh, denied]);
+  }, [resource, pid, continuation, refresh, denied, fetchPage, clearScope]);
   return {
     data,
     error,

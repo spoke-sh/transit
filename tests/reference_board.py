@@ -35,8 +35,7 @@ class Board:
         config = {"upstream": f"http://{authority}:8080", "realm": 49, "principal": 4,
                   "seed_file": "/secrets/seed",
                   "public_origin": self.origin, "listen": "0.0.0.0", "port": 8080,
-                  "request_timeout_ms": 3000, "upstream_timeout_ms": 2000,
-                  "lenses": [{"pid": pid, "kind": "rey.example.counter", "version": 1}]}
+                  "request_timeout_ms": 3000, "upstream_timeout_ms": 2000}
         apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "board", "namespace": namespace},
                "stringData": {"seed": seed.read_text()}})
         # Kind's default CNI does not enforce NetworkPolicy. Apply rules in this

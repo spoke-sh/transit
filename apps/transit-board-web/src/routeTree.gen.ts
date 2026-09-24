@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ResourcesRouteImport } from './routes/resources'
 import { Route as ProcessesPidRouteImport } from './routes/processes.$pid'
 import { Route as ProcessesPidJourneyRouteImport } from './routes/processes.$pid.journey'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResourcesRoute = ResourcesRouteImport.update({
+  id: '/resources',
+  path: '/resources',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProcessesPidRoute = ProcessesPidRouteImport.update({
@@ -31,30 +37,39 @@ const ProcessesPidJourneyRoute = ProcessesPidJourneyRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/resources': typeof ResourcesRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/resources': typeof ResourcesRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/resources': typeof ResourcesRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/processes/$pid' | '/processes/$pid/journey'
+  fullPaths: '/' | '/resources' | '/processes/$pid' | '/processes/$pid/journey'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/processes/$pid' | '/processes/$pid/journey'
-  id: '__root__' | '/' | '/processes/$pid' | '/processes/$pid/journey'
+  to: '/' | '/resources' | '/processes/$pid' | '/processes/$pid/journey'
+  id:
+    | '__root__'
+    | '/'
+    | '/resources'
+    | '/processes/$pid'
+    | '/processes/$pid/journey'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ResourcesRoute: typeof ResourcesRoute
   ProcessesPidRoute: typeof ProcessesPidRouteWithChildren
 }
 
@@ -65,6 +80,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/resources': {
+      id: '/resources'
+      path: '/resources'
+      fullPath: '/resources'
+      preLoaderRoute: typeof ResourcesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/processes/$pid': {
@@ -98,6 +120,7 @@ const ProcessesPidRouteWithChildren = ProcessesPidRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ResourcesRoute: ResourcesRoute,
   ProcessesPidRoute: ProcessesPidRouteWithChildren,
 }
 export const routeTree = rootRouteImport

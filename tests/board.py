@@ -33,14 +33,17 @@ def run(node, cli, board, browser=False):
                             "result": b"7".hex(), "failed": True}})
         seed, public = s.key("board")
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16}})
+        resource = s.command({"state": {"create": {"writer": pids[1], "history_ms": 0}}})
+        hidden = s.command({"state": {"create": {"writer": pids[2], "history_ms": 0}}})
+        for identifier in (resource, hidden):
+            s.command({"state": {"grant": {"resource": identifier, "subject": 0, "permissions": 7}}})
+            s.command({"state": {"associate": {"pid": pids[1], "name": str(identifier).encode().hex(), "resource": identifier}}})
+        s.command({"state": {"grant": {"resource": resource, "subject": 1, "permissions": 1}}})
         port = free_port()
         origin = f"http://127.0.0.1:{port}"
         config = s.root / "board.json"
         options = {"upstream": s.url, "realm": 72, "principal": 1, "seed_file": str(seed),
-                   "public_origin": origin, "port": port,
-                   "lenses": [{"pid": pids[0], "kind": "rey.example.counter", "version": 1},
-                              {"pid": pids[1], "kind": "unrecognized.example", "version": 9},
-                              {"pid": pids[2], "kind": "rey.example.counter", "version": 1}]}
+                   "public_origin": origin, "port": port}
         config.write_text(json.dumps(options))
         isolated = s.root / "standalone"
         isolated.mkdir()
@@ -104,11 +107,15 @@ def run(node, cli, board, browser=False):
         snapshot = api("processes")
         assert [p["pid"] for p in snapshot["observation"]["processes"] if p] == pids
         detail = api(f"processes/{pids[0]}")
-        assert detail["lens"]["status"] == "applied" and detail["lens"]["count"] == 7
+        assert "lens" not in detail
+        assert [r["id"] for r in api("resources")["observation"]["resources"] if r] == [resource]
+        assert [a["resource"] for a in api(f"processes/{pids[1]}/associations")["observation"]["associations"] if a] == [resource]
+        api(f"resources/{hidden}", status=403)
+        api(f"resources/{resource}/entries", status=403)
+        s.command({"state": {"grant": {"resource": resource, "subject": 1, "permissions": 3}}})
+        assert not any(api(f"resources/{resource}/entries")["observation"]["entries"])
         process = detail["observation"]["processes"][0]
         assert process["failure"]["input"] == blocked and process["admitted"] - process["consumed"] == 1
-        assert api(f"processes/{pids[1]}")["lens"]["status"] == "unknown"
-        assert api(f"processes/{pids[2]}")["lens"]["status"] == "malformed"
         subprocess.run(["vp", "exec", "node", "tests/board_client.mjs"], input=json.dumps(detail), text=True, check=True, timeout=30)
         outbox = api(f"processes/{pids[0]}/outbox")
         assert outbox["edges"][1]["to"] == {"realm": 72, "pid": pids[1], "kind": "input", "id": delivered}
@@ -118,7 +125,7 @@ def run(node, cli, board, browser=False):
         # Browser runtime tests open the real binary directly, without credentials.
         if browser:
             env = os.environ | {"BOARD_TEST_URL": origin,
-                                "BOARD_TEST_PID": str(pids[0]), "BOARD_TEST_SINK": str(pids[1]), "BOARD_TEST_MALFORMED": str(pids[2]),
+                                "BOARD_TEST_RESOURCE": str(resource), "BOARD_TEST_PID": str(pids[0]), "BOARD_TEST_SINK": str(pids[1]), "BOARD_TEST_MALFORMED": str(pids[2]),
                                 "BOARD_SCREENSHOT": str(Path(".cache/board.png").resolve())}
             subprocess.run(["vp", "exec", "--filter", "@rey/transit-board-web", "playwright", "test"], env=env, check=True, timeout=180)
 

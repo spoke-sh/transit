@@ -1,5 +1,5 @@
-import type { Response, Capabilities, Error as ErrorBody } from "./types";
-export type { Response, Capabilities } from "./types";
+import type { Response, StateResponse, Capabilities, Error as ErrorBody } from "./types";
+export type { Response, StateResponse, Capabilities } from "./types";
 export type Page = Response["observation"];
 export type Process = NonNullable<Page["processes"][number]>;
 export type Event = NonNullable<Page["events"][number]>;
@@ -9,6 +9,7 @@ export type Cut = Page["cut"];
 // Standalone validators are generated at build time: browser CSP forbids eval.
 import {
   Response as responseValidator,
+  StateResponse as stateResponseValidator,
   Capabilities as capabilitiesValidator,
   Error as errorValidator,
 } from "./validators.js";
@@ -93,3 +94,25 @@ export function read(
 }
 export const capabilities = (signal?: AbortSignal) =>
   request("/api/v1/capabilities", validateCapabilities, { signal });
+
+export type StateResource = "resources" | "associations" | "entries";
+export const validateStateResponse = (value: unknown): value is StateResponse =>
+  stateResponseValidator(value);
+export function readState(
+  resource: StateResource,
+  id?: number,
+  continuation?: { cut: Cut; after: number },
+  signal?: AbortSignal,
+) {
+  if (id !== undefined && (!Number.isSafeInteger(id) || id <= 0))
+    throw new BoardError(0, "InvalidResource");
+  if (resource !== "resources" && id === undefined) throw new BoardError(0, "InvalidResource");
+  const base =
+    resource === "associations"
+      ? `/api/v1/processes/${id}/associations`
+      : `/api/v1/resources${id === undefined ? "" : `/${id}`}${resource === "entries" ? "/entries" : ""}`;
+  const query = continuation
+    ? `?${new URLSearchParams(Object.entries({ after: continuation.after, ...continuation.cut }).map(([key, value]) => [key, String(value)]))}`
+    : "";
+  return request(base + query, validateStateResponse, { signal });
+}

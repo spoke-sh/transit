@@ -27,6 +27,7 @@ pub const Resource = struct {
     changed_ms: u64 = 0,
     phase: enum { active, retired, reclaimed } = .active,
     retired_at: ?u64 = null,
+    last_turn: ?u64 = null,
 };
 pub const Association = struct {
     pid: u64,
@@ -119,6 +120,8 @@ pub const Page = struct {
     version: u32 = version,
     realm: u64,
     principal_sequence: u64,
+    reader: @FieldType(p.Inspection.Page, "reader"),
+    kind: @FieldType(Query, "kind"),
     cut: p.Inspection.Cut,
     capabilities: ?Capabilities = null,
     next: ?u16 = null,
@@ -156,6 +159,8 @@ pub fn validateQuery(q: Query) !void {
     }
     if (q.after != 0 and q.cut == null) return error.InvalidRead;
     if (q.key != null and q.after != 0) return error.InvalidRead;
+    for ([_]?u64{ q.pid, q.resource, q.view }) |id| if (id) |value| if (value == 0 or value > p.max_counter) return error.InvalidRead;
+    if (q.cut) |cut| if (cut.position > p.max_counter or cut.policy_revision > p.max_counter or cut.retained_from > cut.position) return error.InvalidRead;
 }
 pub fn digest(q: Query) [32]u8 {
     var bytes: [2048]u8 = undefined;

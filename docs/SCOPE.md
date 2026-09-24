@@ -33,7 +33,7 @@ The same primitives must support ordinary stateful distributed programs.
   executable. OpenAPI supports further clients; read-only views expose kernel
   evidence and optional interpretations of runtime/framework primitives.
   Application value decoding belongs in application interfaces. The existing M2
-  counter lens will be removed in M7. See [BOARD.md](BOARD.md).
+  counter lens is removed in M7. See [BOARD.md](BOARD.md).
 - Ursula supplies durable streams; `ursula-zig` supplies the Zig client.
 - Strong protocol enforcement: effects and committed state follow valid durable
   sequences. Worker memory and scheduling caches cannot override that history.

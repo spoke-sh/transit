@@ -30,8 +30,9 @@ and never stitches a changed continuation. Historical pagination requires explic
 refresh; no unbounded graph or automatic scan is performed.
 
 Opaque bytes render as escaped text or an explicit binary label. Timing labels
-refer to the latest observation; no duration or ETA is inferred. Optional lenses
-show mapping provenance and source revision alongside unchanged kernel facts.
+refer to the latest observation; no duration or ETA is inferred. State resources
+and associations have generic views with explicit coverage, lifecycle and revision
+evidence. Resource entries render as exact hex bytes after an explicit read.
 
 `just transit-board::browser` requires `just transit-board::browser-install` first. It starts the
 actual embedded binary against a disposable realm; checks direct access, deep

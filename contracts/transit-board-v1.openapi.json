@@ -63,6 +63,16 @@
               }
             }
           },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Error",
             "content": {
@@ -177,6 +187,16 @@
             }
           },
           "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
             "description": "Error",
             "content": {
               "application/json": {
@@ -319,6 +339,578 @@
               }
             }
           },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/processes/{pid}/associations": {
+      "get": {
+        "summary": "StateResponse",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "StateResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resources": {
+      "get": {
+        "summary": "StateResponse",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "StateResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resources/{resource}": {
+      "get": {
+        "summary": "StateResponse",
+        "parameters": [
+          {
+            "name": "resource",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "StateResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resources/{resource}/entries": {
+      "get": {
+        "summary": "StateResponse",
+        "parameters": [
+          {
+            "name": "resource",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "StateResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Error",
             "content": {
@@ -443,6 +1035,16 @@
             }
           },
           "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
             "description": "Error",
             "content": {
               "application/json": {
@@ -585,6 +1187,16 @@
               }
             }
           },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Error",
             "content": {
@@ -709,6 +1321,16 @@
             }
           },
           "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
             "description": "Error",
             "content": {
               "application/json": {
@@ -851,6 +1473,16 @@
               }
             }
           },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Error",
             "content": {
@@ -975,6 +1607,16 @@
             }
           },
           "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
             "description": "Error",
             "content": {
               "application/json": {
@@ -1117,6 +1759,16 @@
               }
             }
           },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Error",
             "content": {
@@ -1148,7 +1800,6 @@
         "additionalProperties": false,
         "x-transit-field-order": [
           "observation",
-          "lens",
           "edges"
         ],
         "properties": {
@@ -2567,129 +3218,6 @@
               ]
             }
           },
-          "lens": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "x-transit-field-order": [
-                  "kind",
-                  "version",
-                  "provenance",
-                  "status",
-                  "source",
-                  "count"
-                ],
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "maxLength": 256
-                  },
-                  "version": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 4294967295,
-                    "x-transit-bits": 32,
-                    "x-transit-signed": false
-                  },
-                  "provenance": {
-                    "type": "string",
-                    "enum": [
-                      "operator_mapping"
-                    ]
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "applied",
-                      "unknown",
-                      "malformed"
-                    ]
-                  },
-                  "source": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "x-transit-field-order": [
-                      "realm",
-                      "pid",
-                      "kind",
-                      "id"
-                    ],
-                    "properties": {
-                      "realm": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991,
-                        "x-transit-bits": 64,
-                        "x-transit-signed": false
-                      },
-                      "pid": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991,
-                        "x-transit-bits": 64,
-                        "x-transit-signed": false
-                      },
-                      "kind": {
-                        "type": "string",
-                        "enum": [
-                          "input",
-                          "turn",
-                          "output",
-                          "effect",
-                          "event",
-                          "state"
-                        ]
-                      },
-                      "id": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991,
-                        "x-transit-bits": 64,
-                        "x-transit-signed": false
-                      }
-                    },
-                    "required": [
-                      "realm",
-                      "pid",
-                      "kind",
-                      "id"
-                    ],
-                    "x-transit-defaults": {}
-                  },
-                  "count": {
-                    "anyOf": [
-                      {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991,
-                        "x-transit-bits": 64,
-                        "x-transit-signed": true
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "kind",
-                  "version",
-                  "provenance",
-                  "status",
-                  "source",
-                  "count"
-                ],
-                "x-transit-defaults": {
-                  "provenance": "operator_mapping",
-                  "count": null
-                }
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "edges": {
             "type": "array",
             "minItems": 32,
@@ -2854,11 +3382,9 @@
         },
         "required": [
           "observation",
-          "lens",
           "edges"
         ],
         "x-transit-defaults": {
-          "lens": null,
           "edges": [
             null,
             null,
@@ -2895,6 +3421,690 @@
           ]
         }
       },
+      "StateResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-transit-field-order": [
+          "observation"
+        ],
+        "properties": {
+          "observation": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "version",
+              "realm",
+              "principal_sequence",
+              "reader",
+              "kind",
+              "cut",
+              "capabilities",
+              "next",
+              "resources",
+              "associations",
+              "entries",
+              "view"
+            ],
+            "properties": {
+              "version": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295,
+                "x-transit-bits": 32,
+                "x-transit-signed": false
+              },
+              "realm": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "principal_sequence": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "reader": {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "principal",
+                  "permissions",
+                  "pid"
+                ],
+                "properties": {
+                  "principal": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "x-transit-bits": 8,
+                    "x-transit-signed": false
+                  },
+                  "permissions": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 65535,
+                    "x-transit-bits": 16,
+                    "x-transit-signed": false
+                  },
+                  "pid": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "principal",
+                  "permissions",
+                  "pid"
+                ],
+                "x-transit-defaults": {}
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "capabilities",
+                  "resources",
+                  "associations",
+                  "entries",
+                  "view"
+                ]
+              },
+              "cut": {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "position",
+                  "policy_revision",
+                  "retained_from"
+                ],
+                "properties": {
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "policy_revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "retained_from": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  }
+                },
+                "required": [
+                  "position",
+                  "policy_revision",
+                  "retained_from"
+                ],
+                "x-transit-defaults": {}
+              },
+              "capabilities": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "resources",
+                      "keys_per_resource",
+                      "associations",
+                      "active_views",
+                      "mutations_per_turn",
+                      "key_bytes",
+                      "value_bytes",
+                      "page_entries",
+                      "view_ms"
+                    ],
+                    "properties": {
+                      "resources": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535,
+                        "x-transit-bits": 16,
+                        "x-transit-signed": false
+                      },
+                      "keys_per_resource": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535,
+                        "x-transit-bits": 16,
+                        "x-transit-signed": false
+                      },
+                      "associations": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535,
+                        "x-transit-bits": 16,
+                        "x-transit-signed": false
+                      },
+                      "active_views": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535,
+                        "x-transit-bits": 16,
+                        "x-transit-signed": false
+                      },
+                      "mutations_per_turn": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535,
+                        "x-transit-bits": 16,
+                        "x-transit-signed": false
+                      },
+                      "key_bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535,
+                        "x-transit-bits": 16,
+                        "x-transit-signed": false
+                      },
+                      "value_bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535,
+                        "x-transit-bits": 16,
+                        "x-transit-signed": false
+                      },
+                      "page_entries": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65535,
+                        "x-transit-bits": 16,
+                        "x-transit-signed": false
+                      },
+                      "view_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "required": [
+                      "resources",
+                      "keys_per_resource",
+                      "associations",
+                      "active_views",
+                      "mutations_per_turn",
+                      "key_bytes",
+                      "value_bytes",
+                      "page_entries",
+                      "view_ms"
+                    ],
+                    "x-transit-defaults": {
+                      "resources": 4,
+                      "keys_per_resource": 32,
+                      "associations": 64,
+                      "active_views": 4,
+                      "mutations_per_turn": 4,
+                      "key_bytes": 32,
+                      "value_bytes": 256,
+                      "page_entries": 8,
+                      "view_ms": 60000
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "next": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 65535,
+                    "x-transit-bits": 16,
+                    "x-transit-signed": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resources": {
+                "type": "array",
+                "minItems": 8,
+                "maxItems": 8,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "id",
+                        "writer",
+                        "owner",
+                        "revision",
+                        "deadline_ms",
+                        "history_ms",
+                        "changed_ms",
+                        "phase",
+                        "retired_at",
+                        "last_turn"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "writer": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "owner": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "deadline_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "history_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 4294967295,
+                              "x-transit-bits": 32,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "changed_ms": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "phase": {
+                          "type": "string",
+                          "enum": [
+                            "active",
+                            "retired",
+                            "reclaimed"
+                          ]
+                        },
+                        "retired_at": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "last_turn": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "writer",
+                        "owner",
+                        "revision",
+                        "deadline_ms",
+                        "history_ms",
+                        "changed_ms",
+                        "phase",
+                        "retired_at",
+                        "last_turn"
+                      ],
+                      "x-transit-defaults": {
+                        "changed_ms": 0,
+                        "phase": "active",
+                        "retired_at": null,
+                        "last_turn": null
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "associations": {
+                "type": "array",
+                "minItems": 8,
+                "maxItems": 8,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "pid",
+                        "name",
+                        "resource",
+                        "revision",
+                        "required"
+                      ],
+                      "properties": {
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "name": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "resource": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "required": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "pid",
+                        "name",
+                        "resource",
+                        "revision",
+                        "required"
+                      ],
+                      "x-transit-defaults": {}
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "entries": {
+                "type": "array",
+                "minItems": 8,
+                "maxItems": 8,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "key",
+                        "value",
+                        "revision"
+                      ],
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "value",
+                        "revision"
+                      ],
+                      "x-transit-defaults": {}
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "view": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "id",
+                      "pid",
+                      "principal",
+                      "generation",
+                      "input",
+                      "process_revision",
+                      "resource",
+                      "revision",
+                      "deadline_ms"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "pid": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "principal": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255,
+                        "x-transit-bits": 8,
+                        "x-transit-signed": false
+                      },
+                      "generation": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "input": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "process_revision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "resource": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "deadline_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "pid",
+                      "principal",
+                      "generation",
+                      "input",
+                      "process_revision",
+                      "resource",
+                      "revision",
+                      "deadline_ms"
+                    ],
+                    "x-transit-defaults": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "version",
+              "realm",
+              "principal_sequence",
+              "reader",
+              "kind",
+              "cut",
+              "capabilities",
+              "next",
+              "resources",
+              "associations",
+              "entries",
+              "view"
+            ],
+            "x-transit-defaults": {
+              "version": 1,
+              "capabilities": null,
+              "next": null,
+              "resources": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              "associations": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              "entries": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              "view": null
+            }
+          }
+        },
+        "required": [
+          "observation"
+        ],
+        "x-transit-defaults": {}
+      },
       "Capabilities": {
         "type": "object",
         "additionalProperties": false,
@@ -2909,6 +4119,7 @@
           "max_edges",
           "min_refresh_ms",
           "max_request_bytes",
+          "state_resources",
           "station",
           "http_connector",
           "push"
@@ -2983,6 +4194,9 @@
             "x-transit-bits": 32,
             "x-transit-signed": false
           },
+          "state_resources": {
+            "type": "boolean"
+          },
           "station": {
             "type": "boolean"
           },
@@ -3004,6 +4218,7 @@
           "max_edges",
           "min_refresh_ms",
           "max_request_bytes",
+          "state_resources",
           "station",
           "http_connector",
           "push"
@@ -3017,6 +4232,7 @@
           "max_edges": 32,
           "min_refresh_ms": 5000,
           "max_request_bytes": 4096,
+          "state_resources": true,
           "station": false,
           "http_connector": false,
           "push": false
@@ -3040,7 +4256,8 @@
               "Unavailable",
               "RateLimited",
               "InvalidOrigin",
-              "UnsafePrincipal"
+              "UnsafePrincipal",
+              "StateResourceExpired"
             ]
           }
         },

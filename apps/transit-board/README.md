@@ -47,8 +47,7 @@ The deployment boundary controls who can reach Board.
   "port": 8090,
   "request_timeout_ms": 1500,
   "upstream_timeout_ms": 800,
-  "read_interval_ms": 100,
-  "lenses": [{"pid": 1, "kind": "rey.example.counter", "version": 1}]
+  "read_interval_ms": 100
 }
 ```
 
@@ -61,7 +60,7 @@ maps, frontend assets, query strings, or application history.
 
 Every reachable human or agent shares this instance's explicit Transit scope.
 There is no per-user delegation. Configure separate instances/principals for
-separate scopes. Upstream URLs, signing identity and lens mappings are trusted
+separate scopes. Upstream URLs, and signing identity are trusted
 operator configuration, never accepted from requests.
 
 Browser and agent clients call `GET /api/v1/…` directly, without bearer tokens
@@ -121,10 +120,10 @@ calls have a shorter timeout; no redirects or response cache. The minimum spacin
 between upstream reads is 100 ms by default (configurable up to 5000 ms), shared
 across viewers. Excess reads get `429 RateLimited`; clients back off. Headers are
 8 KiB, request bodies 4 KiB (routes accept empty bodies), request targets 1024 bytes,
-and upstream responses 256 KiB. Lens mappings are bounded.
+and upstream responses 256 KiB.
 
-Each data response preserves the public inspection observation plus optional
-lens/causal facts. Pages contain at most 16 facts and journeys at most 32 edges.
+Each data response preserves the public inspection observation plus explicit
+causal facts. Pages contain at most 16 facts and journeys at most 32 edges.
 Any authority change expires a continuation; busy writes may prevent pagination.
 Coverage is explicit after trimming, and no Board cache pins history. A running
 lifecycle is not worker liveness; delivered is admission, and closed-unknown is
@@ -161,3 +160,26 @@ lint and frontend unit tests. `just transit-board::test` runs Zig ingress/unit t
 real disk-backed service proofs. `just transit-board::browser-install` installs the pinned
 Chromium; `just transit-board::browser` exercises the real embedded UI with Playwright.
 The [test guide](../../tests/README.md) records measured limits and reference evidence.
+
+## State resources
+
+`GET /api/v1/resources`, `/resources/{resource}` and `/resources/{resource}/entries`
+under the API prefix expose the [state v1](../../contracts/STATE_V1.md) read
+contract. `/api/v1/processes/{pid}/associations` lists authorized associations.
+The UI links these from **State resources** and the process **State** tab.
+Resource pages show identity, writer, lifetime owner, revision, lifecycle,
+retention policy and last committing turn. Coverage marks reclaimed turn detail.
+Entry reads are explicit and display hexadecimal bytes without application decoding.
+
+Provision resource `inspect` (1) for metadata, or `inspect | read` (3) to also
+allow entry reads. Coarse PID `inspect` alone discloses no resource. Association
+pages also require the PID grant. The bounded API returns at most eight entries
+or associations per page and uses the same explicit cut/restart rules. A 410
+`StateResourceExpired` is different from an empty KV result. A resource-level
+denial does not make other authorized process views unavailable.
+
+M7 removes the counter lens, `lenses` configuration, and response `lens` field.
+This is an intentional change to the experimental v1 API: regenerate external
+clients from OpenAPI and remove `lenses` from standalone configs. Launcher
+`update board` regenerates its configuration. No application value decoder or
+executable interpretation plugin remains in Board.

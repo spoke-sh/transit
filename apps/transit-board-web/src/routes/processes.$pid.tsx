@@ -1,10 +1,20 @@
 import { createFileRoute, Link, Outlet, useMatchRoute } from "@tanstack/react-router";
-import { useObservation } from "../state";
+import { useObservation, useStateObservation } from "../state";
+import { StateEvidence } from "../resources";
 import { Evidence, EventTable, Journey, present, ProcessFacts, text } from "../components";
-const tabs = ["process", "mailbox", "outbox", "effects", "payloads", "history"] as const;
+const tabs = [
+  "process",
+  "mailbox",
+  "outbox",
+  "effects",
+  "payloads",
+  "history",
+  "associations",
+] as const;
 type Tab = (typeof tabs)[number];
 const labels = {
   process: "Process",
+  associations: "State",
   mailbox: "Arrivals",
   outbox: "Departures",
   effects: "Effects",
@@ -47,11 +57,15 @@ function ProcessPage() {
           Journey
         </Link>
       </nav>
-      <Resource key={`${pid}-${tab}`} pid={Number(pid)} tab={tab} />
+      {tab === "associations" ? (
+        <Associations key={pid} pid={Number(pid)} />
+      ) : (
+        <Resource key={`${pid}-${tab}`} pid={Number(pid)} tab={tab} />
+      )}
     </main>
   );
 }
-function Resource({ pid, tab }: { pid: number; tab: Tab }) {
+function Resource({ pid, tab }: { pid: number; tab: Exclude<Tab, "associations"> }) {
   const view = useObservation(tab, pid);
   const data = view.data;
   const process = data?.observation.processes[0];
@@ -59,24 +73,6 @@ function Resource({ pid, tab }: { pid: number; tab: Tab }) {
     <>
       <Evidence view={view} />
       {process && <ProcessFacts process={process} />}
-      {data?.lens && (
-        <section className="lens">
-          <h2>Application interpretation</h2>
-          <p>
-            {data.lens.kind} v{data.lens.version} · {data.lens.status} · operator mapping
-          </p>
-          <p>
-            Source: PID {data.lens.source.pid}, state revision {data.lens.source.id}
-          </p>
-          {data.lens.status === "applied" ? (
-            <p>
-              Counter value: <strong>{data.lens.count}</strong>
-            </p>
-          ) : (
-            <p>Unsupported or malformed interpretation. Kernel evidence remains available.</p>
-          )}
-        </section>
-      )}
       {data && (tab === "mailbox" || tab === "history") && (
         <EventTable events={data.observation.events.filter(present)} />
       )}
@@ -157,6 +153,31 @@ function Resource({ pid, tab }: { pid: number; tab: Tab }) {
           ))}
         </>
       )}
+    </>
+  );
+}
+
+function Associations({ pid }: { pid: number }) {
+  const view = useStateObservation("associations", pid);
+  return (
+    <>
+      <StateEvidence view={view} />
+      <h2>State associations</h2>
+      <p>
+        Names locate resources; they do not grant access or imply lifetime ownership. Only
+        authorized associations are shown.
+      </p>
+      {view.data?.observation.associations.filter(present).map((a) => (
+        <article key={a.revision}>
+          <h3>{text(a.name)}</h3>
+          <p>
+            {a.required ? "Required for recovery" : "Optional"} · association revision {a.revision}
+          </p>
+          <Link to="/resources" search={{ resource: a.resource }}>
+            Resource {a.resource}
+          </Link>
+        </article>
+      ))}
     </>
   );
 }

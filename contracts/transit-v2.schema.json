@@ -7597,6 +7597,8 @@
         "version",
         "realm",
         "principal_sequence",
+        "reader",
+        "kind",
         "cut",
         "capabilities",
         "next",
@@ -7626,6 +7628,61 @@
           "maximum": 18446744073709551615,
           "x-transit-bits": 64,
           "x-transit-signed": false
+        },
+        "reader": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "principal",
+            "permissions",
+            "pid"
+          ],
+          "properties": {
+            "principal": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255,
+              "x-transit-bits": 8,
+              "x-transit-signed": false
+            },
+            "permissions": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535,
+              "x-transit-bits": 16,
+              "x-transit-signed": false
+            },
+            "pid": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "principal",
+            "permissions",
+            "pid"
+          ],
+          "x-transit-defaults": {}
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "capabilities",
+            "resources",
+            "associations",
+            "entries",
+            "view"
+          ]
         },
         "cut": {
           "type": "object",
@@ -7796,7 +7853,8 @@
                   "history_ms",
                   "changed_ms",
                   "phase",
-                  "retired_at"
+                  "retired_at",
+                  "last_turn"
                 ],
                 "properties": {
                   "id": {
@@ -7890,6 +7948,20 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "last_turn": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 18446744073709551615,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -7903,7 +7975,8 @@
                 "x-transit-defaults": {
                   "changed_ms": 0,
                   "phase": "active",
-                  "retired_at": null
+                  "retired_at": null,
+                  "last_turn": null
                 }
               },
               {
@@ -8126,6 +8199,8 @@
       "required": [
         "realm",
         "principal_sequence",
+        "reader",
+        "kind",
         "cut"
       ],
       "x-transit-defaults": {

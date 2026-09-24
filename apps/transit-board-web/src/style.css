@@ -296,15 +296,11 @@ code {
     0.85rem/1.5 ui-monospace,
     monospace;
 }
-article,
-.lens {
+article {
   padding: 0.7rem 1.2rem;
   border: 1px solid var(--line);
   background: #fffefa;
   margin: 0.8rem 0;
-}
-.lens {
-  border-left: 3px solid #488a85;
 }
 .lanes {
   list-style: none;

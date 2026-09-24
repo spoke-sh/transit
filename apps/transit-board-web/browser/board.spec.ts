@@ -17,7 +17,7 @@ test("real embedded UI explains kernel evidence and retains focus while polling"
   await expect(page.getByText(/Blocked on input/)).toBeVisible();
   await link.press("Enter");
   await expect(page.getByRole("heading", { name: `PID ${pid}`, exact: true })).toBeVisible();
-  await expect(page.getByText("Counter value:")).toContainText("7");
+  await expect(page.getByText(/Committed state ·/)).toBeVisible();
   await page.getByRole("button", { name: "Arrivals", exact: true }).click();
   await expect(page.getByRole("cell", { name: "consumed", exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "pending", exact: true })).toBeVisible();
@@ -44,13 +44,25 @@ test("real embedded UI explains kernel evidence and retains focus while polling"
   expect(errors).toEqual([]);
 });
 
-test("unknown lenses and hostile payloads remain text, denial clears observations", async ({
+test("state associations disclose resources without interpreting application data", async ({
   page,
 }) => {
+  await page.goto(`/processes/${sink}?tab=associations`);
+  await expect(page.getByRole("heading", { name: "State associations" })).toBeVisible();
+  const resource = process.env.BOARD_TEST_RESOURCE!;
+  await page.getByRole("link", { name: `Resource ${resource}`, exact: true }).click();
+  await expect(page.getByRole("heading", { name: `KV resource ${resource}` })).toBeVisible();
+  await expect(page.getByText("Application interpretation")).toHaveCount(0);
+  await page.getByRole("button", { name: "Read opaque entries" }).click();
+  await expect(page.getByRole("heading", { name: "Opaque KV entries" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Value (hex)" })).toBeVisible();
+});
+
+test("opaque hostile payloads remain text, denial clears observations", async ({ page }) => {
   await page.goto(`/processes/${sink}`);
-  await expect(page.getByText(/Unsupported or malformed interpretation/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: `PID ${sink}`, exact: true })).toBeVisible();
   await page.goto(`/processes/${process.env.BOARD_TEST_MALFORMED!}`);
-  await expect(page.getByText(/malformed · operator mapping/)).toBeVisible();
+  await expect(page.getByText(/Application interpretation/)).toHaveCount(0);
   await page.getByText(/Committed state ·/).click();
   await expect(page.getByText("<script>window.pwned=true</script>", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => "pwned" in window)).toBe(false);
@@ -68,21 +80,21 @@ test("unknown lenses and hostile payloads remain text, denial clears observation
   await expect(page.getByText(/Source: PID/)).toHaveCount(0);
   await page.unroute("**/api/v1/processes/**");
   await page.getByRole("button", { name: "Retry connection" }).click();
-  await expect(page.getByText(/malformed · operator mapping/)).toBeVisible();
+  await expect(page.getByText(/Application interpretation/)).toHaveCount(0);
 });
 
 test("disconnection preserves an explicitly stale observation instead of an empty view", async ({
   page,
 }) => {
   await page.goto(`/processes/${pid}`);
-  await expect(page.getByText("Counter value:")).toContainText("7");
+  await expect(page.getByText(/Committed state ·/)).toBeVisible();
   await page.route("**/api/v1/processes/**", (route) =>
     route.fulfill({ status: 503, contentType: "application/json", body: '{"err":"Unavailable"}' }),
   );
   await expect(page.getByText(/Last observation remains below; it is stale/)).toBeVisible({
     timeout: 10000,
   });
-  await expect(page.getByText("Counter value:")).toContainText("7");
+  await expect(page.getByText(/Committed state ·/)).toBeVisible();
   await expect(page.getByText("Stale", { exact: true })).toBeVisible();
 });
 

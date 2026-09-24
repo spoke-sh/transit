@@ -30,7 +30,7 @@ pub fn read(engine: anytype, signed: s.SignedQuery) !s.Page {
         if (old.retained_from < cut.retained_from) return error.HistoryReclaimed;
         if (!std.meta.eql(old, cut)) return error.QueryExpired;
     }
-    var result: s.Page = .{ .realm = state.realm, .principal_sequence = principal.sequence, .cut = cut };
+    var result: s.Page = .{ .realm = state.realm, .principal_sequence = principal.sequence, .reader = .{ .principal = q.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid }, .kind = q.kind, .cut = cut };
     if (q.kind == .capabilities) result.capabilities = .{};
     if (q.kind == .associations) _ = try state.process(q.pid.?);
     if (state.resources) |*cat| {

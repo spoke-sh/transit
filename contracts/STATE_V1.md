@@ -159,3 +159,12 @@ budget and cannot add outputs/effects after admission closes. The initial larger
 catalog exceeded the default Debug stack during an existing checkpoint proof;
 the selected four-resource/32-key bounds pass the full disk suite. Do not raise
 them without repeating serialized-size, stack, and recovery measurements.
+
+The read page identifies the query `kind`, current principal sequence, and the
+reader's current coarse permissions/PID scope. Board requires the exact
+read-only coarse grant before releasing these observations. Resource metadata
+includes `last_turn` (null before its first value mutation); it is explicit
+committing-turn evidence, while `revision` also identifies initial creation.
+Retained history normalizes a resource-backed turn to the same generic turn
+projection as an inline turn, without disclosing resource IDs, keys or values.
+Those require the separate resource grants and read surface.

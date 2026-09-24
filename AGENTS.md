@@ -67,8 +67,8 @@ expanding framework or real-effect integrations.
 - Keep Board inspection-only for M2. Use public `transit-client` read surfaces;
   no raw storage/provider access, hidden mutations, or unqualified cached views.
   Interpret runtime/framework primitives with source evidence; keep application
-  value decoding out of Board. The existing counter lens is scheduled for removal
-  in M7, not a pattern for new integrations.
+  value decoding out of Board. M7 removes the counter lens;
+  do not add application value decoders.
   Board admits viewers through its private deployment boundary without access
   keys or sessions; its upstream Transit identity still requires a read-only grant.
 - Keep instrumentation with its domain owner and I/O outside deterministic core.

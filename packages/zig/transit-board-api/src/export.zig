@@ -26,13 +26,13 @@ fn route(out: *std.json.Stringify, path: []const u8, method: []const u8, name: [
     try field(out, "summary", name);
     try out.objectField("parameters");
     try out.beginArray();
-    if (pid) try out.write(.{ .name = "pid", .in = "path", .required = true, .schema = .{ .type = "integer", .minimum = 1, .maximum = api.protocol.max_counter } });
+    if (pid) try out.write(.{ .name = if (std.mem.indexOf(u8, path, "{resource}") != null) "resource" else "pid", .in = "path", .required = true, .schema = .{ .type = "integer", .minimum = 1, .maximum = api.protocol.max_counter } });
     if (paged) for ([_][]const u8{ "after", "position", "policy_revision", "retained_from" }) |param| try out.write(.{ .name = param, .in = "query", .required = false, .schema = .{ .type = "integer", .minimum = 0, .maximum = api.protocol.max_counter }, .description = "Continuation: supply all cut fields together; restart explicitly after 409" });
     try out.endArray();
     try out.objectField("responses");
     try out.beginObject();
     try response(out, "200", name);
-    for ([_][]const u8{ "400", "403", "404", "409", "429", "503" }) |status| try response(out, status, "Error");
+    for ([_][]const u8{ "400", "403", "404", "409", "410", "429", "503" }) |status| try response(out, status, "Error");
     try out.endObject();
     try out.endObject();
     try out.endObject();
@@ -51,6 +51,10 @@ pub fn main(init: std.process.Init) !void {
     try route(&out, "/api/v1/capabilities", "get", "Capabilities", false, false);
     try route(&out, "/api/v1/processes", "get", "Response", false, true);
     try route(&out, "/api/v1/processes/{pid}", "get", "Response", true, true);
+    try route(&out, "/api/v1/processes/{pid}/associations", "get", "StateResponse", true, true);
+    try route(&out, "/api/v1/resources", "get", "StateResponse", false, true);
+    try route(&out, "/api/v1/resources/{resource}", "get", "StateResponse", true, true);
+    try route(&out, "/api/v1/resources/{resource}/entries", "get", "StateResponse", true, true);
     for ([_][]const u8{ "mailbox", "outbox", "effects", "payloads", "history", "journey" }) |resource| {
         var path: [128]u8 = undefined;
         try route(&out, try std.fmt.bufPrint(&path, "/api/v1/processes/{{pid}}/{s}", .{resource}), "get", "Response", true, true);
@@ -60,7 +64,7 @@ pub fn main(init: std.process.Init) !void {
     try out.beginObject();
     try out.objectField("schemas");
     try out.beginObject();
-    inline for (.{ "Response", "Capabilities", "Error" }, .{ api.Response, api.Capabilities, api.Error }) |name, T| {
+    inline for (.{ "Response", "StateResponse", "Capabilities", "Error" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error }) |name, T| {
         try out.objectField(name);
         try s.write(T, &out, .{ .output = true, .safe_integers = true });
     }

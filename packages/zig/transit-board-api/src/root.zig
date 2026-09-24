@@ -4,7 +4,6 @@ pub const protocol = @import("transit_protocol");
 const p = protocol;
 const i = p.Inspection;
 pub const max_edges = 32;
-pub const Mapping = struct { pid: u64, kind: []const u8, version: u32 };
 pub const Reference = struct {
     realm: u64,
     pid: u64,
@@ -19,15 +18,8 @@ pub const Edge = struct {
     from_coverage: Coverage,
     to_coverage: Coverage,
 };
-pub const Lens = struct {
-    kind: []const u8,
-    version: u32,
-    provenance: enum { operator_mapping } = .operator_mapping,
-    status: enum { applied, unknown, malformed },
-    source: Reference,
-    count: ?i64 = null,
-};
-pub const Response = struct { observation: i.Page, lens: ?Lens = null, edges: [max_edges]?Edge = @splat(null) };
+pub const Response = struct { observation: i.Page, edges: [max_edges]?Edge = @splat(null) };
+pub const StateResponse = struct { observation: p.State.Page };
 pub const Capabilities = struct {
     version: u32 = 1,
     realm: u64,
@@ -39,11 +31,12 @@ pub const Capabilities = struct {
     max_edges: u32 = max_edges,
     min_refresh_ms: u32 = 5000,
     max_request_bytes: u32 = 4096,
+    state_resources: bool = true,
     station: bool = false,
     http_connector: bool = false,
     push: bool = false,
 };
-pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal } };
+pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired } };
 
 fn reference(page: i.Page, pid: u64, kind: @FieldType(Reference, "kind"), id: u64) Reference {
     return .{ .realm = page.realm, .pid = pid, .kind = kind, .id = id };
@@ -57,7 +50,7 @@ fn add(result: *Response, count: *usize, from: Reference, to: Reference, relatio
     result.edges[count.*] = .{ .from = from, .to = to, .relation = relation, .from_coverage = coverage(result.observation, from), .to_coverage = coverage(result.observation, to) };
     count.* += 1;
 }
-pub fn project(page: i.Page, mappings: []const Mapping) error{InvalidObservation}!Response {
+pub fn project(page: i.Page) error{InvalidObservation}!Response {
     const collection = switch (page.resource) {
         .process, .processes => "processes",
         .mailbox, .history => "events",
@@ -91,61 +84,54 @@ pub fn project(page: i.Page, mappings: []const Mapping) error{InvalidObservation
         add(&result, &count, reference(page, output.source, .turn, output.turn), out, .turn_to_output);
         if (output.phase == .delivered) if (output.resolved_at) |at| add(&result, &count, out, reference(page, output.destination, .input, at), .output_to_admission);
     };
-    // A lens requires an explicit operator declaration, never a code-tag guess.
-    if (page.resource == .process) if (page.processes[0]) |process| {
-        for (mappings) |mapping| if (mapping.pid == process.pid) {
-            var lens: Lens = .{ .kind = mapping.kind, .version = mapping.version, .status = .unknown, .source = reference(page, process.pid, .state, process.revision) };
-            if (std.mem.eql(u8, mapping.kind, "rey.example.counter") and mapping.version == 1) {
-                lens.status = .malformed;
-                if (process.state.asInteger()) |value| {
-                    if (value >= -p.max_counter and value <= p.max_counter) {
-                        lens.status = .applied;
-                        lens.count = value;
-                    }
-                } else |_| {}
-            }
-            result.lens = lens;
-            break;
-        };
-    };
     return result;
-}
-
-test "lenses require explicit mapping and preserve kernel facts on malformed or unknown data" {
-    var page: i.Page = .{ .realm = 1, .resource = .process, .pid = 3, .cut = .{ .position = 10, .policy_revision = 2, .retained_from = 0 }, .reader = .{ .principal = 1, .permissions = 16, .pid = null }, .history = .retained };
-    page.processes[0] = .{ .pid = 3, .code = 1, .state = p.Value.integer(23), .lifecycle = .expired };
-    try std.testing.expectEqual(null, (try project(page, &.{})).lens);
-    const known = try project(page, &.{.{ .pid = 3, .kind = "rey.example.counter", .version = 1 }});
-    try std.testing.expectEqual(.applied, known.lens.?.status);
-    try std.testing.expectEqual(23, known.lens.?.count.?);
-    try std.testing.expectEqual(.expired, known.observation.processes[0].?.lifecycle);
-    const unknown = try project(page, &.{.{ .pid = 3, .kind = "rey.example.counter", .version = 2 }});
-    try std.testing.expectEqual(.unknown, unknown.lens.?.status);
-    page.processes[0].?.state = try p.Value.init("<script>alert('test')</script>");
-    try std.testing.expectEqual(.malformed, (try project(page, &.{.{ .pid = 3, .kind = "rey.example.counter", .version = 1 }})).lens.?.status);
 }
 
 test "journey edges are explicit and retained gaps do not fabricate history" {
     var page: i.Page = .{ .realm = 1, .resource = .outbox, .pid = 3, .cut = .{ .position = 20, .policy_revision = 2, .retained_from = 10 }, .reader = .{ .principal = 1, .permissions = 16, .pid = null }, .history = .prefix_reclaimed };
     page.outbox[0] = .{ .id = 1, .source = 3, .turn = 7, .index = 0, .destination = 4, .value = .{}, .phase = .delivered, .resolved_at = 12 };
-    const view = try project(page, &.{});
+    const view = try project(page);
     try std.testing.expectEqual(.reclaimed, view.edges[0].?.from_coverage);
     try std.testing.expectEqual(.current_state, view.edges[0].?.to_coverage);
     try std.testing.expectEqual(4, view.edges[1].?.to.pid);
     try std.testing.expectEqual(12, view.edges[1].?.to.id);
     try std.testing.expectEqual(null, view.edges[2]);
     page.outbox[0].?.phase = .denied;
-    try std.testing.expectEqual(null, (try project(page, &.{})).edges[1]);
+    try std.testing.expectEqual(null, (try project(page)).edges[1]);
 }
 
 test "malformed mixed resource pages cannot overflow or fabricate a journey" {
     var page: i.Page = .{ .realm = 1, .resource = .history, .pid = 3, .cut = .{ .position = 30, .policy_revision = 2, .retained_from = 0 }, .reader = .{ .principal = 1, .permissions = 16, .pid = null }, .history = .retained };
     page.events = @splat(.{ .position = 7, .pid = 3, .kind = .turn, .policy_revision = 2, .input = 5, .effect = 7 });
-    const valid = try project(page, &.{});
+    const valid = try project(page);
     try std.testing.expect(valid.edges[max_edges - 1] != null);
     page.outbox[0] = .{ .id = 1, .source = 3, .turn = 7, .index = 0, .destination = 4, .value = .{} };
-    try std.testing.expectError(error.InvalidObservation, project(page, &.{}));
+    try std.testing.expectError(error.InvalidObservation, project(page));
     page.outbox[0] = null;
     page.complete = false;
-    try std.testing.expectError(error.InvalidObservation, project(page, &.{}));
+    try std.testing.expectError(error.InvalidObservation, project(page));
+}
+
+pub fn projectState(page: p.State.Page) !StateResponse {
+    if (page.version != 1 or page.view != null or page.capabilities != null) return error.InvalidObservation;
+    const collection = switch (page.kind) {
+        .resources => "resources",
+        .associations => "associations",
+        .entries => "entries",
+        else => return error.InvalidObservation,
+    };
+    inline for (.{ "resources", "associations", "entries" }) |name| {
+        if (!std.mem.eql(u8, collection, name) and !(page.kind == .entries and std.mem.eql(u8, name, "resources"))) {
+            for (@field(page, name)) |slot| if (slot != null) return error.InvalidObservation;
+        }
+    }
+    return .{ .observation = page };
+}
+
+test "state projection cannot mix metadata-only associations with opaque values" {
+    var page: p.State.Page = .{ .realm = 1, .principal_sequence = 0, .kind = .associations, .reader = .{ .principal = 1, .permissions = 16, .pid = 2 }, .cut = .{ .position = 5, .policy_revision = 3, .retained_from = 0 } };
+    page.associations[0] = .{ .pid = 2, .name = try p.Value.init("opaque"), .resource = 3, .revision = 4, .required = true };
+    try std.testing.expectEqual(page, (try projectState(page)).observation);
+    page.entries[0] = .{ .key = try p.Value.init("key"), .value = try p.Value.init("private"), .revision = 4 };
+    try std.testing.expectError(error.InvalidObservation, projectState(page));
 }

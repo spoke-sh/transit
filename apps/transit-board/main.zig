@@ -17,7 +17,6 @@ const Config = struct {
     request_timeout_ms: u32 = 1500,
     upstream_timeout_ms: u32 = 800,
     read_interval_ms: u32 = 100,
-    lenses: []const api.Mapping = &.{},
 };
 const Server = struct {
     io: std.Io,
@@ -84,7 +83,8 @@ const Server = struct {
         // this instance's read-only principal and authorizes every data read.
         if (req.head.method != .GET) return self.failure(&req, .not_found, .NotFound);
         const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
-        const q = if (capabilities) i.Query{ .realm = self.config.realm, .principal = self.config.principal, .resource = .processes } else parseQuery(target, self.config.realm, self.config.principal) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const sq = parseStateQuery(target, self.config.realm, self.config.principal) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const q = if (capabilities or sq != null) i.Query{ .realm = self.config.realm, .principal = self.config.principal, .resource = .processes } else parseQuery(target, self.config.realm, self.config.principal) catch return self.failure(&req, .bad_request, .InvalidQuery);
         if (self.now() < self.next_read_ms) return self.failure(&req, .too_many_requests, .RateLimited);
         self.next_read_ms = self.now() + self.config.read_interval_ms;
         var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
@@ -94,6 +94,28 @@ const Server = struct {
         upstream.parent_context = self.observation.span.context;
         var key = client.readKey(self.allocator, self.io, self.config.seed_file) catch return self.failure(&req, .service_unavailable, .Unavailable);
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+        if (sq) |query| {
+            const page = upstream.state(query, key) catch |err| {
+                if (err == error.AccessDenied) return self.failure(&req, .forbidden, .Forbidden);
+                return switch (upstream.last_rejection orelse .AuthorityUnavailable) {
+                    .HistoryReclaimed => self.failure(&req, .conflict, .HistoryReclaimed),
+                    .QueryExpired, .Conflict => self.failure(&req, .conflict, .QueryExpired),
+                    .StateResourceExpired => self.failure(&req, .gone, .StateResourceExpired),
+                    .InvalidRead => self.failure(&req, .bad_request, .InvalidQuery),
+                    else => self.failure(&req, .service_unavailable, .Unavailable),
+                };
+            };
+            if (page.reader.permissions != client.protocol.permission(.inspect)) return self.failure(&req, .service_unavailable, .UnsafePrincipal);
+            if (page.realm != query.realm or page.kind != query.kind or page.reader.principal != query.principal) return self.failure(&req, .service_unavailable, .Unavailable);
+            if (query.resource) |id| for (page.resources) |slot| if (slot) |resource| {
+                if (resource.id != id) return self.failure(&req, .service_unavailable, .Unavailable);
+            };
+            if (query.pid) |pid| for (page.associations) |slot| if (slot) |association| {
+                if (association.pid != pid) return self.failure(&req, .service_unavailable, .Unavailable);
+            };
+            const projection = api.projectState(page) catch return self.failure(&req, .service_unavailable, .Unavailable);
+            return self.json(&req, .ok, projection);
+        }
         const page = upstream.inspect(q, key) catch |err| {
             if (err == error.AccessDenied) return self.failure(&req, .forbidden, .Forbidden);
             return switch (upstream.last_rejection orelse .AuthorityUnavailable) {
@@ -107,7 +129,7 @@ const Server = struct {
         if (page.reader.permissions != client.protocol.permission(.inspect)) return self.failure(&req, .service_unavailable, .UnsafePrincipal);
         if (page.realm != q.realm or page.resource != q.resource or page.pid != q.pid or page.reader.principal != q.principal) return self.failure(&req, .service_unavailable, .Unavailable);
         if (capabilities) return self.json(&req, .ok, api.Capabilities{ .realm = page.realm, .scope_pid = page.reader.pid });
-        const projection = api.project(page, self.config.lenses) catch return self.failure(&req, .service_unavailable, .Unavailable);
+        const projection = api.project(page) catch return self.failure(&req, .service_unavailable, .Unavailable);
         return self.json(&req, .ok, projection);
     }
 };
@@ -116,6 +138,13 @@ fn logRoute(target: []const u8) []const u8 {
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
     inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes" }) |known| if (std.mem.eql(u8, path, known)) return known;
     if (assets.get(path) != null) return "/assets/{asset}";
+    if (parseStateQuery(path, 1, 1) catch null) |q| return switch (q.kind) {
+        .resources => if (q.resource == null) "/api/v1/resources" else "/api/v1/resources/{resource}",
+        .associations => "/api/v1/processes/{pid}/associations",
+        .entries => "/api/v1/resources/{resource}/entries",
+        else => "unmatched",
+    };
+    if (std.mem.eql(u8, path, "/resources")) return "/resources";
     if (browserRoute(path)) return if (std.mem.endsWith(u8, path, "/journey")) "/processes/{pid}/journey" else "/processes/{pid}";
     const query = parseQuery(path, 1, 1) catch return "unmatched";
     return switch (query.resource) {
@@ -180,8 +209,36 @@ fn parseQuery(target: []const u8, realm: u64, principal: u8) !i.Query {
     try i.validate(q);
     return q;
 }
+fn parseStateQuery(target: []const u8, realm: u64, principal: u8) !?client.protocol.State.Query {
+    const sep = std.mem.indexOfScalar(u8, target, '?') orelse target.len;
+    const path = target[0..sep];
+    const resources = "/api/v1/resources";
+    const processes = "/api/v1/processes/";
+    var q: client.protocol.State.Query = .{ .realm = realm, .principal = principal, .kind = .resources };
+    if (std.mem.eql(u8, path, resources)) {} else if (std.mem.startsWith(u8, path, resources ++ "/")) {
+        var parts = std.mem.splitScalar(u8, path[resources.len + 1 ..], '/');
+        q.resource = try number(parts.next() orelse return error.InvalidQuery);
+        if (parts.next()) |part| {
+            if (!std.mem.eql(u8, part, "entries")) return error.InvalidQuery;
+            q.kind = .entries;
+        }
+        if (parts.next() != null) return error.InvalidQuery;
+    } else if (std.mem.startsWith(u8, path, processes) and std.mem.endsWith(u8, path, "/associations")) {
+        q.pid = try number(path[processes.len .. path.len - "/associations".len]);
+        q.kind = .associations;
+    } else return null;
+    // Reuse the single continuation grammar; no arbitrary URLs or query fields.
+    if (sep < target.len) {
+        var buffer: [1200]u8 = undefined;
+        const parsed = try parseQuery(try std.fmt.bufPrint(&buffer, "/api/v1/processes{s}", .{target[sep..]}), realm, principal);
+        q.cut = parsed.cut;
+        q.after = std.math.cast(u16, parsed.after) orelse return error.InvalidQuery;
+    }
+    try client.protocol.State.validateQuery(q);
+    return q;
+}
 fn browserRoute(path: []const u8) bool {
-    if (std.mem.eql(u8, path, "/")) return true;
+    if (std.mem.eql(u8, path, "/") or std.mem.eql(u8, path, "/resources")) return true;
     if (!std.mem.startsWith(u8, path, "/processes/")) return false;
     var parts = std.mem.splitScalar(u8, path[11..], '/');
     const pid = number(parts.next() orelse return false) catch return false;
@@ -219,12 +276,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
     defer parsed.deinit();
     const config = parsed.value;
-    if (config.principal == 0 or config.principal >= client.protocol.max_principals or config.realm == 0 or config.realm > client.protocol.max_counter or config.request_timeout_ms < 100 or config.request_timeout_ms > 5000 or config.upstream_timeout_ms == 0 or config.upstream_timeout_ms >= config.request_timeout_ms or config.read_interval_ms < 100 or config.read_interval_ms > 5000 or config.lenses.len > 64) return error.InvalidConfig;
+    if (config.principal == 0 or config.principal >= client.protocol.max_principals or config.realm == 0 or config.realm > client.protocol.max_counter or config.request_timeout_ms < 100 or config.request_timeout_ms > 5000 or config.upstream_timeout_ms == 0 or config.upstream_timeout_ms >= config.request_timeout_ms or config.read_interval_ms < 100 or config.read_interval_ms > 5000) return error.InvalidConfig;
     const host = try originHost(config.public_origin, config.development_allow_insecure_http);
-    for (config.lenses, 0..) |mapping, index| {
-        if (mapping.kind.len > 128 or !std.unicode.utf8ValidateSlice(mapping.kind)) return error.InvalidLens;
-        for (config.lenses[0..index]) |previous| if (mapping.pid == previous.pid) return error.DuplicateLens;
-    }
     var server: Server = .{ .io = init.io, .allocator = init.gpa, .config = config, .host = host };
     const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);
     var listener = try address.listen(init.io, .{ .reuse_address = true });

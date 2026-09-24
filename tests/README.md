@@ -421,7 +421,7 @@ bounded reference measurement, not a throughput/fairness or latency guarantee.
 `just transit-board::browser-install` and `just transit-board::browser` run pinned Chromium against
 that same real binary/API. Checks cover direct access, typed runtime validation, nested
 routes/lazy assets, arrivals/departures and uncertainty, keyboard focus through
-polling, escaped payloads/lens fallback, denial clearing and connection retry,
+polling, escaped opaque payloads and authorized state-resource views, denial clearing and connection retry,
 and absence of Board cookies or browser storage. Axe checks the journey against WCAG A/AA;
 this does not replace a full assistive-technology audit. Local screenshots/traces
 remain ignored under `.cache/`. Remote TLS termination and identity federation

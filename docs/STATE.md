@@ -211,8 +211,8 @@ Board may show bounded authorized raw values without decoding their business
 meaning. Resource metadata access does not imply value access, and inspecting a
 PID must not disclose otherwise hidden associated resources. Board should explain
 why a dependency constrains recovery, with source evidence and current grants.
-It must not label a value as a counter, balance, or strategy state. The current
-M2 counter lens is an implementation exception scheduled for removal in M7;
+It must not label a value as a counter, balance, or strategy state. M7 removes the
+M2 counter lens;
 Station and connector views remain interpretations of runtime primitives.
 
 ## Implementation gates

@@ -249,6 +249,7 @@ pub fn apply(state: *core.State, command: s.Command, record: core.Record, input:
             if (changed) {
                 write.?.meta.revision = record.position;
                 write.?.meta.changed_ms = now.upper();
+                write.?.meta.last_turn = record.position;
             }
             // All mutations above are in the engine's private candidate copy.
             try state.applyTurn(c.turn, record, input);

@@ -15,7 +15,8 @@ fn processView(process: core.Process) p.ProcessView {
 fn event(state: *core.State, record: core.Record, grant: p.Grant, pid: u64) !?i.Event {
     const command = record.request.command;
     const subject: ?u64 = switch (command) {
-        .grant, .revoke, .checkpoint, .inspect, .state => null,
+        .grant, .revoke, .checkpoint, .inspect => null,
+        .state => |c| if (c == .turn) c.turn.turn.pid else null,
         .spawn => record.position,
         .terminate, .expire => |id| id,
         inline else => |c| c.pid,
@@ -35,6 +36,14 @@ fn event(state: *core.State, record: core.Record, grant: p.Grant, pid: u64) !?i.
         }
     }
     switch (command) {
+        .state => |c| if (c == .turn) {
+            // A normal turn projection, with no resource IDs, keys or values.
+            // Resource metadata separately discloses its committing position.
+            result.kind = .turn;
+            result.input = c.turn.turn.input;
+            result.failed = c.turn.turn.failed;
+            if (c.turn.turn.effect != null) result.effect = record.position;
+        },
         inline .own, .activate => |c| result.generation = c.expected_generation + 1,
         .spawn => |c| result.value = c.initial_state,
         .begin_turn => |c| result.input = c.input,

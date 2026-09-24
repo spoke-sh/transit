@@ -47,6 +47,9 @@ function Overview() {
           TRANSIT
         </span>
       </div>
+      <Link to="/resources" search={{}}>
+        State resources →
+      </Link>
       <Evidence view={view} />
       <div className="filters">
         <label>
