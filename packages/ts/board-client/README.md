@@ -1,0 +1,27 @@
+# Board client
+
+Typed resource client for Board's inspection API. This is the browser's first
+shared TypeScript package, independent of React and Router; it is not a Transit
+execution/signing client. [Zig board-api](../../zig/board-api/README.md) owns the
+[OpenAPI contract](../../../contracts/board-v1.openapi.json).
+
+`just board::generate` derives TypeScript models, JSON schemas and standalone AJV
+validators. `just board::contract` detects drift, including validator declarations.
+Validation executes without runtime `eval`, so the production content-security
+policy can forbid it. Numeric IDs are checked against JavaScript's safe integer
+range, values use Transit's lowercase hex representation, and unknown fields or
+malformed tagged unions are rejected. A type assertion never replaces validation.
+
+The small transport wrapper exposes `capabilities`, `login`, `logout`, and
+`read(resource, pid?, continuation?, signal?)`. Fetches use same-origin cookies,
+no redirects/cache, a four-second timeout, and a streaming 256 KiB decoded-response
+limit. Consumers own refresh/backoff and lifecycle; they must discard assembled
+pages on `QueryExpired`/`HistoryReclaimed`, clear sensitive views on denial, and
+label connection failures instead of returning empty data. API errors are typed
+`BoardError` values, distinct from empty authorized results.
+
+Dependencies are installed with `vp` from the root pnpm workspace. Generated
+models/schemas/validators are committed; the generator deliberately supports only
+the JSON Schema vocabulary emitted by the shared Zig writer and fails on unknown
+types. Unit/runtime and real-browser checks live with Board web; API fixtures and
+independent Python consumers live in `tests/board.py`.

@@ -1,0 +1,1 @@
+{"name":"@rey/board-client","version":"0.0.0","private":true,"type":"module","exports":"./src/index.ts","dependencies":{"ajv":"8.20.0"}}

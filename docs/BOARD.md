@@ -1,9 +1,10 @@
 # Board — system inspection
 
-Status: planned for [M2](roadmap/M2.md), before Station. Board is the UI and
+Status: implemented inspection surface for [M2](roadmap/M2.md), with deployment
+qualification in progress before Station. Board is the UI and
 OpenAPI surface through which operators and agents comprehend a running Transit
-system. M2 is inspection-only; operational controls are later scope. No Board
-executable, frontend, or inspection extensions are implemented yet.
+system. M2 is inspection-only; operational controls are later scope. The [Board application](../apps/board/README.md) owns configuration,
+commands and access limits; [tests](../tests/README.md#board-qualification) own evidence.
 
 ## Purpose and visual language
 
@@ -56,9 +57,9 @@ Board cannot grant ownership, dispatch effects, advance consumer progress, or
 run application handlers. Transit remains the execution authority.
 
 Use TypeScript and TanStack Router with Vite+. React with file-based routes is
-the proposed frontend choice. TanStack documents a Vite router plugin, and
-Vite+ supports the Vite build/configuration model; compatibility with Rey's
-pinned toolchain still needs an executable proof. See
+the implemented frontend. TanStack documents a Vite router plugin, and
+Vite+ supports the Vite build/configuration model; the embedded build and browser checks qualify Rey's
+pinned 0.3.3 toolchain. See
 [TanStack's Vite integration](https://tanstack.com/router/latest/docs/framework/react/installation/with-vite)
 and [Vite+ production builds](https://viteplus.dev/guide/build).
 
@@ -69,14 +70,14 @@ routes need HTML fallback; API and missing asset routes must retain real errors.
 Version the assets and API together. Build tooling and dependency pins stay in
 the Vite+/pnpm workspace; no production JavaScript server is needed.
 
-Proposed ownership, to create when implementation starts:
+Implemented ownership:
 
 | Location | Responsibility |
 | --- | --- |
-| `apps/board/` | Zig executable, authenticated API hosting, bounded observations, static asset embedding, and lens composition |
-| `apps/board-web/` | TanStack Router application and browser interaction tests |
-| `packages/zig/board-api/` | Board response/route definitions and OpenAPI generation, reusing public Transit types |
-| `packages/ts/board-client/` | Generated typed Board API client shared by the browser and future TypeScript consumers |
+| [apps/board](../apps/board/README.md) | Zig executable, authenticated API hosting, bounded observations, static asset embedding, and lens composition |
+| [apps/board-web](../apps/board-web/README.md) | TanStack Router application and browser interaction tests |
+| [board-api](../packages/zig/board-api/README.md) | Board response/route definitions and OpenAPI generation, reusing public Transit types |
+| [board-client](../packages/ts/board-client/README.md) | Generated typed Board API client shared by the browser and future TypeScript consumers |
 
 The Board executable composes `transit-client` and `board-api`; public Transit
 inspection contracts remain in `transit-protocol`. No dependency from Transit
@@ -85,12 +86,10 @@ the `transit-` prefix reserved for kernel services.
 
 ## Public inspection contract
 
-Current [service v2](../contracts/SERVICE_V2.md) supports a known-PID view with
-state, next input, effects, payload metadata, and binding evidence. It does not
-provide discovery, a mailbox page, an outbox listing, or retained event history.
-The first M2 work is to add these as authenticated, provider-neutral public read
-operations in Transit and `transit-client`. Do not bypass that gap by letting
-Board scan Ursula or import core's state catalog.
+[Inspection v1](../contracts/INSPECTION_V1.md) extends service v2 with signed,
+provider-neutral discovery, current-state, mailbox, outbox, effect, payload-metadata
+and retained-history queries through the public client. Existing command/view
+signatures remain compatible. Board never reads raw storage or core catalogs.
 
 Expose typed, filtered inspection facts, not raw realm journal records containing
 other principals' data. Discovery, cross-PID relationships, history, payload
@@ -100,7 +99,8 @@ establish a separate metadata-only permission. Keep public read changes versione
 and preserve existing caller compatibility or declare a deliberate migration.
 
 Board's resource API should be useful independently of its screen layouts.
-Proposed areas under `/api/v1/` are capabilities, authorized realms/processes,
+Implemented resources under `/api/v1/` are capabilities and authorized processes in
+the configured realm,
 process details, mailbox entries, outbox entries, effects, retained history, and
 bounded journeys. Resource references preserve realm/PID, activation generation,
 state revision, and effect/output identity. Lists have stable IDs, bounded
@@ -126,7 +126,10 @@ snapshot. Explanations link to the records or current-state fields they use.
 Distinguish protocol facts, derived conclusions, provider observations, and
 application-declared labels. Unsupported or unavailable evidence is not zero.
 
-Define a stable read boundary for paginated queries. Continuations bind filters,
+M2 uses a conservative stable cut: any authority change expires pagination.
+A busy writer can therefore prevent completing a paginated query; clients expose
+that limitation rather than combining states. This avoids persistent snapshot
+indexes and retention pins. Continuations bind filters,
 realm, and view identity but never grant permission; reauthorize each page. If a
 stable cut cannot be maintained within bounded resources, expire the query and
 require an explicit refresh. Retention overtaking a read returns a defined gap
@@ -153,7 +156,7 @@ exports, offline operation, and resumable push subscriptions need separate scope
 
 ## Access and trust
 
-Proposed first deployment profile: one configured realm and one read-only Transit
+Implemented first deployment profile: one configured realm and one read-only Transit
 principal per Board instance. Operators/agents admitted to that instance share
 that principal's explicit inspection scope; this does not claim per-user Transit
 isolation. Bind upstream endpoints and identity in trusted server configuration,
@@ -161,13 +164,13 @@ not request-supplied URLs or principal IDs. Store signing seeds only on the serv
 Board receives only read grants, with no admin, spawn, execute, send, publish,
 or effect authority.
 
-Authenticate both browser and agent ingress. A minimal proposal is a configured
-Board access credential for agents and a bounded HttpOnly browser session
-established through authenticated exchange; never put credentials in URLs or
-static bundles. Validate origin/host and keep the service private, with TLS at
-a trusted ingress for remote use. Loopback binding alone is not authentication.
-Exact session expiry, credential rotation, and deployment trust must pass the
-M2 access gate before any live data is exposed.
+Browser/agent ingress uses a separate configured access key. A bounded HttpOnly
+session follows authenticated exchange; each API call rereads the key file,
+invalidating sessions after rotation. Credentials never enter URLs or bundles.
+Host/Origin checks, private HTTP with remote TLS ingress, request limits and the
+session lifetime are specified in the [app guide](../apps/board/README.md).
+Loopback binding alone is not authentication. These guarantees are qualified by
+API and real-browser tests; the deployment proof checks the runtime boundary.
 
 The node applies current Transit authorization at each read boundary. Board
 additionally checks its ingress identity; a valid Board session cannot bypass a
@@ -184,8 +187,8 @@ must never cache authenticated API responses or embed installation secrets.
 
 A **lens** is a versioned Board interpretation of authorized kernel evidence.
 It declares a namespaced kind/version, required capabilities, and how presented
-facts link back to their source. M2 should prove a small statically registered
-lens using an existing example, plus an unknown-version fallback. No Station
+facts link back to their source. M2 implements a statically registered counter lens, with unknown-version and
+malformed-data fallback. No Station
 implementation is needed to establish this boundary.
 
 Later Station supplies descriptors/fixtures for GenServers, supervisors, and

@@ -7,7 +7,7 @@ Run commands from the repository root inside `nix develop`.
 The root [justfile](../justfile) keeps common commands: `build`, `check`, `ci`,
 `fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
 [reference](reference.just), [test](test.just),
-[examples](examples.just), and [contract](contract.just).
+[examples](examples.just), [contract](contract.just), and [board](board.just).
 Use double colons, for example `just reference::up` or `just examples::run counter`.
 
 `just` lists common commands and namespaces. `just reference` or
@@ -26,11 +26,15 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just` | Lists available recipes |
 | `just doctor` | Prints tool versions, including Ursula and Kubernetes tooling, without contacting a cluster |
 | `just check` | Checks Nix/Zig formatting, the toolchain smoke check, Zig unit tests, generated public-contract drift, local Markdown links, and diff whitespace |
-| `just ci` | Runs foundation, standalone package, disk recovery, service, and independent Zig caller checks in the same development shell |
+| `just ci` | Runs foundation, package, recovery, caller, inspection, Board API and frontend checks in the same development shell |
 | `just fmt` | Formats Nix and Zig files |
-| `just build` | Installs platform executables: node, runtime controller and CLI |
+| `just build` | Installs platform executables: node, runtime controller, CLI and embedded Board (requires `board::install`) |
 | `just examples::build` | Installs `example-counter` and `example-byte-log` |
 | `just examples::run counter`, `just examples::run byte-log` | Provisions disposable disk Ursula and an authority, runs the real example, and verifies its committed state |
+| `just board::install`, `just board::demo` | Install locked frontend dependencies and inspect a disposable counter realm |
+| `just board::build`, `just board::run CONFIG` | Build the embedded binary and run a provisioned installation |
+| `just board::generate`, `just board::contract`, `just board::check` | Generate/check OpenAPI and browser models, then validate frontend formatting/lint/types/tests |
+| `just board::test`, `just board::browser-install`, `just board::browser` | Qualify the real API and install/run the pinned browser proof |
 | `just test::unit` | Runs Zig unit/protocol tests without a service |
 | `just test::packages` | Checks each library independently of root build orchestration |
 | `just test::storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |

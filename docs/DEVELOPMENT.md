@@ -8,7 +8,8 @@ just doctor
 just check
 ```
 
-`just build` builds platform executables. To try an application, run
+`just board::install` installs locked frontend dependencies. `just build` builds
+platform executables including the embedded Board. To try an application, run
 `just examples::run counter` or `just examples::run byte-log`; each launcher owns
 fresh local disk-backed infrastructure. See the [examples](../examples/README.md).
 Protocol v2 requires a fresh development realm; automatic migration of v1
@@ -26,9 +27,10 @@ histories and signatures is not implemented.
 | Set up or tear down Kubernetes/Substrate | [Reference runbook](../deploy/reference/README.md) |
 | Contribute code or documentation | [Agent instructions](../AGENTS.md), [documentation ownership](README.md#where-documentation-lives) |
 
-Board will establish the first application Vite+/pnpm workspace in [M2](roadmap/M2.md).
-Its frontend, generated API client, and embedded Zig build remain planned; no
-Board recipes or application manifests are available yet.
+Board's Vite+/pnpm workspace is implemented. Use `just board::demo` to inspect a
+running disposable realm, `just board::check` for frontend/contract checks, and
+`just board::browser` for the real UI proof. [Board's app guide](../apps/board/README.md)
+owns configuration, authentication and runnable commands.
 
 ## Package workflow
 
@@ -41,7 +43,7 @@ Package READMEs give focused commands and integration requirements.
 All packages use the Nix-pinned compiler. External dependencies belong to their
 consumer's manifest with immutable revision/hash pins. Libraries become static
 or shared artifacts only when needed; independent releases and stable public
-APIs remain future work. Board frontend tooling will live in a Vite+/pnpm
+APIs remain future work. Board frontend tooling lives in a Vite+/pnpm
 workspace, connected through generated OpenAPI and shared Transit contracts.
 
 ## Verification

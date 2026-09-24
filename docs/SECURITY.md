@@ -169,12 +169,12 @@ revocation across every open connection.
 ## Board inspection profile
 
 [M2](roadmap/M2.md) adds protected discovery/history and an inspection-only UI/API.
-The proposed first Board deployment maps authenticated viewers to one explicitly
+The first Board deployment maps authenticated viewers to one explicitly
 configured read-only Transit principal per instance. It exposes that shared scope,
 not individual user delegation. Transit rechecks current permission for each
 bounded read; Board sessions and cached projections cannot extend it. The
-[Board design](BOARD.md#access-and-trust) owns the proposed ingress/session profile
-and qualification gate. Per-user policy, federation, and operational controls
+[Board design](BOARD.md#access-and-trust) and [application guide](../apps/board/README.md) specify the implemented
+ingress/session profile and qualification boundary. Per-user policy, federation, and operational controls
 require later explicit scope. Lists, relationship edges, counts, and previews
 must not disclose resources outside the read grant.
 

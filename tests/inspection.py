@@ -37,6 +37,9 @@ class System:
                 child.kill()
             child.wait(timeout=10)
         for log in self.logs:
+            if exc[0] is not None:
+                log.seek(0)
+                print(log.read()[-5000:], file=sys.stderr)
             log.close()
         self.store.__exit__(*exc)
 

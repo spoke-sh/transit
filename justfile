@@ -1,5 +1,8 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+# Embedded inspection API, UI and generated browser client.
+mod board 'tasks/board.just'
+
 # Kubernetes and Substrate reference deployment.
 mod reference 'tasks/reference.just'
 
@@ -43,9 +46,9 @@ check:
     git diff --check
 
 # Run the hosted CI checks within one already-entered development environment.
-ci: check test::packages test::storage test::service test::callers test::inspection
+ci: check test::packages test::storage test::service test::callers test::inspection board::check board::test
 
-# Compile the platform executables: node, runtime controller and CLI.
+# Compile platform executables and the standalone Board UI/API.
 build:
     zig build
 

@@ -1,0 +1,5 @@
+packages:
+  - apps/board-web
+  - packages/ts/*
+onlyBuiltDependencies:
+  - esbuild

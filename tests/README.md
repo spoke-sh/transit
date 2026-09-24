@@ -1,4 +1,4 @@
-# Validation and M1 evidence
+# Validation and milestone evidence
 
 This directory owns conformance harnesses, fault injection, test-only executors,
 and proof results. Application examples live under [examples](../examples/README.md);
@@ -9,7 +9,7 @@ all commands have been rerun on every documentation change.
 
 ## Running checks
 
-Enter `nix develop` at the repository root. `just ci` runs the ordinary local
+Enter `nix develop` and run `just board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 
 | Evidence | What it proves |
@@ -244,3 +244,33 @@ A failed proof requires revising the owning design, not weakening its label.
 expiry, revocation, and disk recovery through the node and public client. Core
 unit tests inject final-tail and trim races, test bounded sparse scans, and verify
 that scoped outbox/history projections do not disclose hidden endpoints.
+
+## Board qualification
+
+`just board::check` checks exact Zig/OpenAPI regeneration, generated TypeScript and
+standalone validator drift, strict TypeScript, Vite+ formatting/lint and unit tests.
+`just board::test` runs Zig ingress tests and `tests/board.py` against disk-backed
+Ursula. A copy of the Board binary runs alone in an empty directory with an empty
+executable search path, serving embedded assets and the exact OpenAPI artifact.
+An independent Python consumer follows process/output/effect evidence; generated
+JS validators consume actual Zig responses and reject malformed identities/data.
+
+The API proof checks current grants, scoped lists and edges, unsafe deployment
+principals, missing API/asset routes, Host/Origin/forwarded-header rejection,
+HttpOnly cookies, key rotation, session expiry/logout, no mutation/proxy routes,
+closed-unknown effects, blocked inputs, history cut/trim gaps and storage restart.
+Core tests deterministically inject revocation/tail and physical-trim races.
+The initial local load run (Linux x86_64, pinned tools) completed five control
+writes during 25 refresh requests; the maximum observed latency was 43 ms.
+Requests exceeding Board's 10 upstream reads/second admission rate were rejected.
+A slow incomplete Board request also left the authority available. This is a
+bounded reference measurement, not a throughput/fairness or latency guarantee.
+
+`just board::browser-install` and `just board::browser` run pinned Chromium against
+that same real binary/API. Checks cover login, typed runtime validation, nested
+routes/lazy assets, arrivals/departures and uncertainty, keyboard focus through
+polling, escaped payloads/lens fallback, denial/logout clearing and absence of
+credentials in URLs/browser storage. Axe checks the journey against WCAG A/AA;
+this does not replace a full assistive-technology audit. Local screenshots/traces
+remain ignored under `.cache/`. Remote TLS termination and identity federation
+are outside this private/loopback profile. Kubernetes qualification is in progress.

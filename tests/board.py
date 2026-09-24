@@ -1,0 +1,215 @@
+"""Board's real API, embedded distribution, auth and recovery qualification."""
+from concurrent.futures import ThreadPoolExecutor
+from http.client import HTTPConnection
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import time
+from inspection import System
+from storage import free_port, wait_ready
+
+
+def run(node, cli, board, browser=False):
+    with System(node, cli) as s:
+        pids = [s.command({"spawn": {"code": 101, "initial_state": b"0".hex(), "allow_trim": True}}),
+                s.command({"spawn": {"initial_state": b"sink".hex(), "allow_trim": True}}),
+                s.command({"spawn": {"initial_state": b"<script>window.pwned=true</script>".hex(), "allow_trim": True}})]
+        s.command({"own": {"pid": pids[0], "expected_generation": 0, "worker": 0}})
+        admission = s.command({"send": {"pid": pids[0], "value": b"7".hex()}})
+        turn = s.command({"turn": {"pid": pids[0], "generation": 1, "input": admission,
+                                  "result": b"7".hex(), "effect": b"synthetic".hex(),
+                                  "outputs": [{"pid": pids[1], "value": b"7".hex()}, None, None, None]}})
+        delivered = s.command({"deliver": {"pid": pids[1], "output": 1, "courier": 0}})
+        attempt = s.command({"dispatch": {"pid": pids[0], "effect": turn}})
+        s.command({"observe": {"pid": pids[0], "effect": turn, "attempt": attempt, "result": None}})
+        s.command({"close_effect": {"pid": pids[0], "effect": turn, "attempt": attempt}})
+        blocked = s.command({"send": {"pid": pids[0], "value": b"bad".hex()}})
+        s.command({"turn": {"pid": pids[0], "generation": 1, "input": blocked, "expected_revision": turn,
+                            "result": b"7".hex(), "failed": True}})
+        seed, public = s.key("board")
+        s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16}})
+        port = free_port()
+        origin = f"http://127.0.0.1:{port}"
+        credential = s.root / "board-access"
+        access = os.urandom(32).hex()
+        credential.write_text(access)
+        credential.chmod(0o600)
+        config = s.root / "board.json"
+        options = {"upstream": s.url, "realm": 72, "principal": 1, "seed_file": str(seed),
+                   "credential_file": str(credential), "public_origin": origin, "port": port,
+                   "lenses": [{"pid": pids[0], "kind": "rey.example.counter", "version": 1},
+                              {"pid": pids[1], "kind": "unrecognized.example", "version": 9},
+                              {"pid": pids[2], "kind": "rey.example.counter", "version": 1}]}
+        config.write_text(json.dumps(options))
+        isolated = s.root / "standalone"
+        isolated.mkdir()
+        binary = isolated / "board"
+        shutil.copyfile(board, binary)
+        binary.chmod(0o755)
+        running = s.start(binary, config, cwd=isolated, env={"PATH": "/no-executables"})
+        wait_ready(s.store.http, running, origin + "/health")
+
+        def request(path, method="GET", auth=True, headers=None, status=200, retry=True):
+            extra = {"Authorization": f"Bearer {access}"} if auth else {}
+            extra.update(headers or {})
+            for _ in range(20):
+                conn = HTTPConnection("127.0.0.1", port, timeout=5)
+                try:
+                    conn.request(method, path, headers=extra)
+                    response = conn.getresponse()
+                    body = response.read()
+                    values = dict(response.getheaders())
+                    actual = response.status
+                finally:
+                    conn.close()
+                if retry and actual == 429:
+                    time.sleep(.12)
+                    continue
+                assert actual == status, (path, actual, body[:500], status)
+                assert values["cache-control"] == "no-store"
+                return body, values
+            raise AssertionError("Rate limit did not clear")
+
+        def api(path, **kwargs):
+            body, _ = request("/api/v1/" + path, **kwargs)
+            return json.loads(body)
+
+        # The only running file in this cwd is the binary. Static dependencies
+        # are loaded from it, including lazy chunks and the versioned OpenAPI.
+        html, headers = request("/processes/1/journey", auth=False)
+        assert "text/html" in headers["content-type"]
+        assert b"<script" in html and b"cdn" not in html
+        assert "unsafe-eval" not in headers["content-security-policy"]
+        openapi = json.loads(request("/openapi/v1.json", auth=False)[0])
+        assert openapi == json.loads((Path(__file__).resolve().parents[1] / "contracts/board-v1.openapi.json").read_text())
+        assets = re.findall(rb'(?:src|href)="(/assets/[^"]+)"', html)
+        assert assets
+        for asset in assets:
+            content, _ = request(asset.decode(), auth=False)
+            assert access.encode() not in content and seed.read_bytes().strip() not in content
+        for path in ("/assets/missing.js", "/unknown", "/api/missing"):
+            body, _ = request(path, status=400 if path == "/api/missing" else 404)
+            assert b"<!doctype" not in body
+        request("/api/v1/capabilities", auth=False, status=401)
+        request("/api/v1/capabilities", headers={"Host": "evil.example"}, status=403)
+        request("/api/v1/capabilities", headers={"Origin": "https://evil.example"}, status=403)
+        request("/api/v1/capabilities", headers={"X-Forwarded-Host": "evil.example"}, status=403)
+        api("processes?url=http://metadata", status=400)
+        request("/api/v1/processes", method="POST", status=404)
+        request("/v2/command", method="POST", status=404)
+        caps = api("capabilities")
+        assert caps["read_only"] and caps["realm"] == 72 and caps["station"] is False
+        snapshot = api("processes")
+        assert [p["pid"] for p in snapshot["observation"]["processes"] if p] == pids
+        detail = api(f"processes/{pids[0]}")
+        assert detail["lens"]["status"] == "applied" and detail["lens"]["count"] == 7
+        process = detail["observation"]["processes"][0]
+        assert process["failure"]["input"] == blocked and process["admitted"] - process["consumed"] == 1
+        assert api(f"processes/{pids[1]}")["lens"]["status"] == "unknown"
+        assert api(f"processes/{pids[2]}")["lens"]["status"] == "malformed"
+        subprocess.run(["vp", "exec", "node", "tests/board_client.mjs"], input=json.dumps(detail), text=True, check=True, timeout=30)
+        outbox = api(f"processes/{pids[0]}/outbox")
+        assert outbox["edges"][1]["to"] == {"realm": 72, "pid": pids[1], "kind": "input", "id": delivered}
+        assert api(f"processes/{pids[0]}/effects")["observation"]["effects"][0]["phase"] == "closed_unknown"
+        journey = api(f"processes/{pids[0]}/journey")
+        assert any(edge and edge["from"]["id"] == admission and edge["to"]["id"] == turn for edge in journey["edges"])
+        # Browser runtime tests also run against this real authenticated binary.
+        if browser:
+            env = os.environ | {"BOARD_TEST_URL": origin, "BOARD_TEST_ACCESS": access,
+                                "BOARD_TEST_PID": str(pids[0]), "BOARD_TEST_SINK": str(pids[1]), "BOARD_TEST_MALFORMED": str(pids[2]),
+                                "BOARD_SCREENSHOT": str(Path(".cache/board.png").resolve())}
+            subprocess.run(["vp", "exec", "--filter", "@rey/board-web", "playwright", "test"], env=env, check=True, timeout=180)
+
+        body, headers = request("/api/v1/session", method="POST", headers={"Origin": origin})
+        cookie = headers["set-cookie"].split(";", 1)[0]
+        assert "HttpOnly" in headers["set-cookie"] and "SameSite=Strict" in headers["set-cookie"]
+        api("capabilities", auth=False, headers={"Cookie": cookie})
+        request("/api/v1/session", method="POST", auth=False, headers={"Cookie": cookie}, status=401)
+        # Rotate atomically: both old bearer and every old browser session fail.
+        rotated = os.urandom(32).hex()
+        replacement = s.root / "rotated-access"
+        replacement.write_text(rotated)
+        replacement.replace(credential)
+        api("capabilities", status=401)
+        api("capabilities", auth=False, headers={"Cookie": cookie}, status=401)
+        access = rotated
+        api("capabilities")
+        _, headers = request("/api/v1/session", method="POST")
+        cookie = headers["set-cookie"].split(";", 1)[0]
+        request("/api/v1/logout", method="POST", auth=False, headers={"Cookie": cookie})
+        api("capabilities", auth=False, headers={"Cookie": cookie}, status=401)
+        # Principal scope applies to catalogs, edges, and current reads.
+        s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16, "pid": pids[0]}})
+        assert [p["pid"] for p in api("processes")["observation"]["processes"] if p] == pids[:1]
+        assert not any(api(f"processes/{pids[0]}/outbox")["observation"]["outbox"])
+        api(f"processes/{pids[1]}", status=403)
+        s.command({"revoke": 1})
+        api("processes", status=403)
+        s.command({"grant": {"subject": 1, "public_key": public, "permissions": 17}})
+        assert api("capabilities", status=503)["err"] == "UnsafePrincipal"
+        s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16}})
+        # No stale response is served during an authority/storage outage.
+        s.authority.kill()
+        s.authority.wait(timeout=10)
+        api("processes", status=503)
+        s.store.stop()
+        s.store.start()
+        s.authority = s.start(s.node, s.config)
+        wait_ready(s.store.http, s.authority, s.url + "/health")
+        assert api(f"processes/{pids[0]}")["observation"]["processes"][0]["revision"] == turn
+        # Slow viewers consume only Board's bounded request slot, not a node
+        # connection. A refresh flood is throttled and control keeps progressing.
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as slow:
+            slow.sendall(b"GET /api/v1/processes HTTP/1.1\r\nHost:")
+            started = time.monotonic()
+            s.command({"send": {"pid": pids[1], "value": b"control".hex()}})
+            assert time.monotonic() - started < 3
+        statuses = []
+        def flood():
+            for _ in range(25):
+                conn = HTTPConnection("127.0.0.1", port, timeout=5)
+                conn.request("GET", "/api/v1/processes", headers={"Authorization": f"Bearer {access}"})
+                response = conn.getresponse()
+                statuses.append(response.status)
+                response.read()
+                conn.close()
+        latencies = []
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(flood)
+            for _ in range(5):
+                start = time.monotonic()
+                s.command({"send": {"pid": pids[1], "value": b"progress".hex()}})
+                latencies.append(time.monotonic() - start)
+            future.result()
+        assert 429 in statuses and max(latencies) < 3, (statuses, latencies)
+        # Current state and explicit gaps remain visible after logical trim.
+        before = api(f"processes/{pids[0]}/history")["observation"]["cut"]
+        for pid in pids:
+            s.command({"terminate": pid})
+        s.command({"checkpoint": {}})
+        from urllib.parse import urlencode
+        assert api(f"processes/{pids[0]}/history?" + urlencode(before), status=409)["err"] == "HistoryReclaimed"
+        trimmed = api(f"processes/{pids[0]}/history")["observation"]
+        assert trimmed["history"] == "prefix_reclaimed" and not any(trimmed["events"])
+        assert api(f"processes/{pids[0]}")["observation"]["processes"][0]["lifecycle"] == "terminated"
+        # Real session timeout and restart invalidation, using a shorter profile.
+        running.kill()
+        running.wait(timeout=10)
+        options["session_seconds"] = 1
+        config.write_text(json.dumps(options))
+        running = s.start(binary, config, cwd=isolated, env={"PATH": "/no-executables"})
+        wait_ready(s.store.http, running, origin + "/health")
+        _, headers = request("/api/v1/session", method="POST")
+        cookie = headers["set-cookie"].split(";", 1)[0]
+        time.sleep(1.05)
+        api("capabilities", auth=False, headers={"Cookie": cookie}, status=401)
+        print(f"Board: embedded assets, auth/rotation/expiry, scope, gaps, effects, outage and load passed; max control latency {max(latencies):.3f}s.")
+
+
+if __name__ == "__main__":
+    run(*[Path(p).resolve() for p in sys.argv[1:4]], browser="--browser" in sys.argv)

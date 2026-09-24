@@ -20,8 +20,10 @@ def free_port():
         return listener.getsockname()[1]
 
 
-def run(name):
+def run(name, board=False):
     binaries = {n: ROOT / "zig-out/bin" / n for n in ("transit-node", "rey-cli", f"example-{name}")}
+    if board:
+        binaries["board"] = ROOT / "zig-out/bin/board"
     for binary in binaries.values():
         if not binary.is_file():
             raise RuntimeError("Build first with: nix develop --command zig build apps examples")
@@ -119,6 +121,28 @@ backend = "inline"
             actual = bytes.fromhex(view["process"]["state"])
             assert actual == expected and view["process"]["consumed"] == len(values), view
             print(f"{name}: state={actual.decode()!r}, consumed={len(values)}, pending={view['input']}")
+            if board:
+                reader_key, reader_public = key("board-reader")
+                command({"grant": {"subject": 2, "public_key": reader_public, "permissions": 16}})
+                access = work / "board-access.key"
+                access.write_text(os.urandom(32).hex())
+                access.chmod(0o600)
+                board_port = free_port()
+                origin = f"http://127.0.0.1:{board_port}"
+                options = {"upstream": url, "realm": 71, "principal": 2, "seed_file": str(reader_key),
+                           "credential_file": str(access), "public_origin": origin, "port": board_port,
+                           "lenses": [{"pid": pid, "kind": "rey.example.counter", "version": 1}] if name == "counter" else []}
+                viewer = start([binaries["board"], write("board", options)])
+                ready(viewer, origin + "/health")
+                # Keep an admitted input visible; there is no worker executing it.
+                command({"send": {"pid": pid, "value": (b"3" if name == "counter" else b"!").hex()}})
+                print(f"Board: {origin}\nAccess key file: {access}\nRead that file locally and paste its contents into Board. Ctrl-C removes this disposable realm.", flush=True)
+                while viewer.poll() is None:
+                    time.sleep(.5)
+                raise RuntimeError("Board stopped unexpectedly")
+        except KeyboardInterrupt:
+            if not board:
+                raise
         except BaseException:
             for log in logs:
                 log.flush()
@@ -136,4 +160,6 @@ backend = "inline"
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("name", choices=("counter", "byte-log"))
-    run(parser.parse_args().name)
+    parser.add_argument("--board", action="store_true", help="Keep the demo open in Board")
+    args = parser.parse_args()
+    run(args.name, args.board)

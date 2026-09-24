@@ -2,14 +2,14 @@
 
 Status: Transit-first plan. Milestones are ordered by dependency, not calendar
 commitments. The bounded M1 reference profile is implemented and verified;
-completed outcomes link to their proof commands and limits. Board is next,
+completed outcomes link to their proof commands and limits. Board is implemented with M2 qualification in progress,
 before Station, so higher-level abstractions grow on an inspectable kernel.
 
 | Milestone | Focus | Status |
 | --- | --- | --- |
 | [M0](M0.md) | Foundations and pinned development tools | Established; remaining platform validation open |
 | [M1](M1.md) | Transit sequence enforcement and Kubernetes recovery | Bounded reference profile implemented and verified |
-| [M2](M2.md) | Board: inspection UI and OpenAPI surface for operators/agents | Planned; next |
+| [M2](M2.md) | Board: inspection UI and OpenAPI surface for operators/agents | Implemented; deployment qualification in progress |
 | [M3](M3.md) | Station GenServer, supervision, and registries | Planned |
 | [M4](M4.md) | HTTP connector and exchange transcripts | Planned |
 | [M5](M5.md) | Clustered execution and portability | Planned |

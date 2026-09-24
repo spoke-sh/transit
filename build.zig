@@ -18,6 +18,22 @@ pub fn build(b: *std.Build) void {
     b.step("board-contract", "Export Board OpenAPI to stdout").dependOn(&b.addRunArtifact(board_contract).step);
     const client = b.dependency("transit_client", .{ .target = target, .optimize = optimize });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);
+    const embed = b.addSystemCommand(&.{ "python3", "-B" });
+    embed.addFileArg(b.path("apps/board/embed.py"));
+    const asset_source = embed.addOutputFileArg("assets.zig");
+    // Vite owns its dependency graph. Always rebuild the closed asset manifest;
+    // Zig still caches compilation by the resulting bytes.
+    embed.has_side_effects = true;
+    const asset_module = b.createModule(.{ .root_source_file = asset_source, .target = target, .optimize = optimize });
+    const board = b.addExecutable(.{ .name = "board", .root_module = b.createModule(.{ .root_source_file = b.path("apps/board/main.zig"), .target = target, .optimize = optimize, .imports = &.{
+        .{ .name = "transit_client", .module = client.module("transit_client") },
+        .{ .name = "board_api", .module = board_api.module("board_api") },
+        .{ .name = "assets", .module = asset_module },
+    } }) });
+    const install_board = b.addInstallArtifact(board, .{});
+    b.step("board", "Build the standalone Board API and embedded UI").dependOn(&install_board.step);
+    b.getInstallStep().dependOn(&install_board.step);
+    b.step("test-board-unit", "Test Board ingress and route boundaries").dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = board.root_module })).step);
     const runtime = b.dependency("transit_runtime_substrate", .{ .target = target, .optimize = optimize });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = runtime.module("transit_runtime_substrate") })).step);
     var node_artifact: *std.Build.Step.Compile = undefined;
@@ -109,6 +125,15 @@ pub fn build(b: *std.Build) void {
     integration.has_side_effects = true;
     integration.stdio = .inherit;
     b.step("test-storage", "Prove conditional writes and disk recovery against Ursula").dependOn(&integration.step);
+    const board_tests = b.addSystemCommand(&.{ "python3", "-B" });
+    board_tests.addFileArg(b.path("tests/board.py"));
+    board_tests.addArtifactArg(node_artifact);
+    board_tests.addArtifactArg(cli_artifact);
+    board_tests.addArtifactArg(board);
+    if (b.option(bool, "board-browser", "Include real browser qualification") orelse false) board_tests.addArg("--browser");
+    board_tests.has_side_effects = true;
+    board_tests.stdio = .inherit;
+    b.step("test-board", "Qualify Board against disk-backed Transit").dependOn(&board_tests.step);
     const inspection = b.addSystemCommand(&.{ "python3", "-B" });
     inspection.addFileArg(b.path("tests/inspection.py"));
     inspection.addArtifactArg(node_artifact);
