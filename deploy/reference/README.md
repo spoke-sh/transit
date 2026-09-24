@@ -29,13 +29,29 @@ just launchers::reference::down
 ```
 
 Setup creates a uniquely named cluster, local registry, and private kubeconfig
-under ignored `.cache/reference/`. It never uses or changes the default context.
+under ignored `.cache/reference/`. The project shell selects that kubeconfig;
+setup and teardown pass its path/context explicitly and never modify personal
+`~/.kube/config`. See the [toolchain guide](../../nix/README.md#kubernetes-tools)
+for a deliberate interactive override.
 Teardown checks recorded Docker identities before deleting owned resources.
 Run it after a failed setup/test too. Build caches and proof logs remain for
 inspection. Proof directories are private and contain disposable test keys;
-do not publish them. The harness compiles the pinned upstream Substrate tools
-and runtime, builds Rey's static Zig images, and pulls the official Ursula
+do not publish them. The shell supplies pinned Kind and `kubectl ate`; the harness compiles the
+upstream Substrate runtime, builds Rey's static Zig images, and pulls the official Ursula
 release by its [pinned digest](versions.json).
+
+After `up`, `kubectl get nodes` and `kubectl ate get workers` use the reference
+from the same project environment. `up` creates Substrate infrastructure; the
+recovery proof provisions its own temporary Transit release. An empty Transit
+installation list immediately after `up` is expected. Use the
+[Transit plugin](../../apps/kubectl-transit/README.md) for deployed releases:
+
+```sh
+kubectl transit get installations -A
+kubectl transit status -n demo --release transit
+kubectl transit logs node -n demo --release transit --follow
+kubectl transit board -n demo --release transit
+```
 
 The recovery test installs [charts/transit](../../charts/transit/README.md) in an
 isolated namespace, with explicit bootstrap and disk-backed Ursula storage. It
@@ -114,7 +130,7 @@ changes remain visible independently of the durable protocol history.
 
 ## Board qualification
 
-The reference images include the standalone `board` binary. The workload proof
+The reference images include the standalone `transit-board` binary. The workload proof
 starts it in a separate pod, observes same-PID/fresh-activation worker recovery,
 and verifies expiry/state/retained boundaries after Ursula and authority restart.
 Only Board's dedicated inspection seed and ingress access key are mounted; no

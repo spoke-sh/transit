@@ -53,3 +53,11 @@ observability:
 # Render and validate the Transit Helm chart without a cluster.
 deployments:
     python3 -B tests/deployments.py
+
+# Verify checkout-local Kubernetes selection without contacting a cluster.
+dev-environment:
+    python3 -B tests/dev_environment.py
+
+# Prove the inspection plugin's CLI, subprocess and credential boundaries offline.
+kubectl-transit:
+    zig build test-kubectl-transit

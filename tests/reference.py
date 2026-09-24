@@ -55,7 +55,14 @@ def kube(s, args, **kwargs):
 
 
 def ate(s, args, **kwargs):
-    return run([CACHE / "kubectl-ate", "--kubeconfig", CACHE / "kubeconfig", "--context", "kind-" + s["cluster"], *args], **kwargs)
+    return run([ate_binary(), "--kubeconfig", CACHE / "kubeconfig", "--context", "kind-" + s["cluster"], *args], **kwargs)
+
+
+def ate_binary():
+    binary = shutil.which("kubectl-ate")
+    if binary is None:
+        raise RuntimeError("Enter nix develop to use the pinned kubectl ate plugin")
+    return str(Path(binary).resolve())
 
 
 def up():
@@ -97,8 +104,8 @@ containerdConfigPatches:
   [plugins."io.containerd.cri.v1.images".registry]
     config_path = "/etc/containerd/certs.d"
 ''')
-    go(["hack/kind.sh", "create", "cluster", "--name", name, "--config", config,
-        "--image", PINS["kind_node"], "--wait", "120s"], {"KUBECONFIG": str(CACHE / "kubeconfig")})
+    run(["kind", "create", "cluster", "--name", name, "--config", config,
+         "--image", PINS["kind_node"], "--wait", "120s", "--kubeconfig", CACHE / "kubeconfig"])
     s["node_ids"] = run(["docker", "ps", "-aq", "--no-trunc", "--filter", "label=io.x-k8s.kind.cluster=" + name], capture=True).split()
     STATE.write_text(json.dumps(s, indent=2))
     run(["docker", "network", "connect", "kind", s["registry"]])
@@ -115,6 +122,8 @@ containerdConfigPatches:
     })
     configure_registry(s)
     print("Reference infrastructure ready:", name)
+    print("Kubeconfig:", CACHE / "kubeconfig")
+    print("Use kubectl get nodes or kubectl ate get workers from the project Nix/direnv environment.")
 
 
 def configure_registry(s):
@@ -133,7 +142,7 @@ def configure_registry(s):
 def images(s):
     source()
     CACHE.mkdir(parents=True, exist_ok=True)
-    go(["go", "build", "-o", CACHE / "kubectl-ate", "./cmd/kubectl-ate"])
+    ate_binary()  # The shell and runtime controller share the Nix-packaged CLI.
     run(["zig", "build", "apps", "examples", "probe", "transit-board", "-Dtarget=x86_64-linux-musl", "-Doptimize=ReleaseSafe", "--prefix", CACHE / "bin"])
     host = f"localhost:{s['port']}"
     result = {}
@@ -168,7 +177,7 @@ def down():
     current = run(["docker", "ps", "-aq", "--no-trunc", "--filter", "label=io.x-k8s.kind.cluster=" + s["cluster"]], capture=True).split()
     if s["node_ids"] and set(current) - set(s["node_ids"]):
         raise RuntimeError("Reference node identity changed; refusing deletion")
-    go(["hack/kind.sh", "delete", "cluster", "--name", s["cluster"]], {"KUBECONFIG": str(CACHE / "kubeconfig")})
+    run(["kind", "delete", "cluster", "--name", s["cluster"], "--kubeconfig", CACHE / "kubeconfig"])
     registry = subprocess.run(["docker", "inspect", s["registry"], "--format", "{{.Id}}"], capture_output=True, text=True)
     if registry.returncode == 0:
         if registry.stdout.strip() != s.get("registry_id"):

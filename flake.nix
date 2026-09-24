@@ -33,16 +33,26 @@
         system:
         let
           pkgs = pkgsFor system;
+          zig = zig-overlay.packages.${system}.master;
+          kubectl-transit = pkgs.callPackage ./nix/kubectl-transit.nix { inherit zig; };
+          reference = pkgs.callPackage ./nix/reference-tools.nix {
+            pins = builtins.fromJSON (builtins.readFile ./deploy/reference/versions.json);
+          };
         in
         {
           inherit pkgs;
+          inherit (reference) kind kubectl-ate;
           inherit (ursula-overlay.packages.${system}) ursula ursulactl;
-          zig = zig-overlay.packages.${system}.master;
+          inherit zig kubectl-transit;
           vite-plus = pkgs.callPackage ./nix/vite-plus.nix { };
         }
       );
     in
     {
+      packages = forAllSystems (system: {
+        inherit (toolchains.${system}) kind kubectl-ate kubectl-transit;
+      });
+
       devShells = forAllSystems (
         system:
         let
@@ -52,6 +62,9 @@
             vite-plus
             ursula
             ursulactl
+            kind
+            kubectl-ate
+            kubectl-transit
             ;
         in
         {
@@ -61,6 +74,7 @@
             pkgs.mkShell {
               packages = [
                 pkgs.just
+                pkgs.git
                 (pkgs.python3.withPackages (ps: [ ps.pyyaml ]))
                 pkgs.process-compose
                 zig
@@ -73,12 +87,14 @@
                 pkgs.kubectl
                 pkgs.kubernetes-helm
                 pkgs.k9s
-              ]
-              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.k3s ];
+                kind
+                kubectl-ate
+                kubectl-transit
+              ];
 
-              # Isolate Vite+'s first-run setup from the user's global installation.
+              # Keep tool state and the default Kubernetes context checkout-local.
               shellHook = ''
-                export VP_HOME="$PWD/.cache/vite-plus"
+                source ${./nix/dev-environment.sh}
               '';
             };
         }
@@ -93,6 +109,9 @@
             vite-plus
             ursula
             ursulactl
+            kind
+            kubectl-ate
+            kubectl-transit
             ;
         in
         {
@@ -102,6 +121,9 @@
               vite-plus
               ursula
               ursulactl
+              kind
+              kubectl-ate
+              kubectl-transit
               ;
           };
         }

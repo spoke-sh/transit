@@ -169,6 +169,7 @@ follow a second concrete implementation, not a speculative plugin system.
 | [transit-node](../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
 | [transit-runtime-controller](../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
 | [transit-board](../apps/transit-board/README.md) | Inspection-only API host with embedded [TanStack Router frontend](../apps/transit-board-web/README.md); public client and transit-board-api composition |
+| [kubectl-transit](../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
 | [rey-cli](../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |
 | [example-counter](../examples/counter/README.md) | Complete caller, also the reference deployment workload |
 | [example-byte-log](../examples/byte-log/README.md) | Independent caller against the same generic authority |
@@ -182,9 +183,8 @@ and protocol assertions belong under [tests/](../tests/README.md).
 
 ### Planned components
 
-- `apps/kubectl-transit`: Kubernetes operator interface, starting with installation
-  discovery, diagnostics and Board access. The [plugin plan](roadmap/M2-KUBECTL.md)
-  separates infrastructure inspection from later authorized protocol operations.
+- Extend `kubectl-transit` with authorized logical inspection and, later, operator
+  controls as scoped in the [full plugin plan](roadmap/M2-KUBECTL.md).
 - `packages/zig/transit-station`, module `transit_station`: GenServer, supervision, registries,
   request/reply, and retention helpers over the public client.
 - `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,

@@ -38,7 +38,10 @@ doctor:
     kubectl version --client
     helm version --short
     k9s version --short
-    if [[ "$(uname -s)" == "Linux" ]]; then k3s --version; fi
+    kind version
+    kubectl ate --version
+    kubectl transit --version
+    kubectl plugin list
 
 # Validate tooling and the implemented Zig packages.
 check:
@@ -51,7 +54,7 @@ check:
     git diff --check
 
 # Run the hosted CI checks within one already-entered development environment.
-ci: check test::deployments test::telemetry test::observability test::packages test::storage test::service test::callers test::inspection transit-board::check transit-board::test launchers::local::test
+ci: check test::dev-environment test::kubectl-transit test::deployments test::telemetry test::observability test::packages test::storage test::service test::callers test::inspection transit-board::check transit-board::test launchers::local::test
 
 # Format Nix and Zig source.
 fmt:

@@ -1,6 +1,4 @@
 {
-  lib,
-  stdenv,
   runCommand,
   just,
   python3,
@@ -14,7 +12,9 @@
   kubectl,
   kubernetes-helm,
   k9s,
-  k3s,
+  kind,
+  kubectl-ate,
+  kubectl-transit,
 }:
 runCommand "rey-toolchain-check"
   {
@@ -31,8 +31,10 @@ runCommand "rey-toolchain-check"
       kubectl
       kubernetes-helm
       k9s
-    ]
-    ++ lib.optionals stdenv.hostPlatform.isLinux [ k3s ];
+      kind
+      kubectl-ate
+      kubectl-transit
+    ];
   }
   ''
     # The Nix build sandbox has no network: first-use setup must be self-contained.
@@ -51,9 +53,12 @@ runCommand "rey-toolchain-check"
     kubectl version --client > "$out/kubectl-version"
     helm version --short > "$out/helm-version"
     k9s version --short > "$out/k9s-version"
-    ${lib.optionalString stdenv.hostPlatform.isLinux ''
-      k3s --version > "$out/k3s-version"
-    ''}
+    kind version > "$out/kind-version"
+    kubectl ate --version > "$out/kubectl-ate-version"
+    kubectl ate --help > "$out/kubectl-ate-help"
+    kubectl transit --version > "$out/kubectl-transit-version"
+    kubectl transit --help > "$out/kubectl-transit-help"
+    kubectl plugin list > "$out/kubectl-plugins"
     vp toolchain --global > "$out/vite-plus-toolchain"
     test "$(vp env which node)" = "$(command -v node)"
 

@@ -62,22 +62,37 @@ requires a user-managed Docker daemon and Compose v2 plugin.
 
 ## Kubernetes tools
 
-The dev shell includes `kubectl`, Helm and `k9s` on Linux and macOS, with `k3s` included
-on Linux. Their versions are pinned through the existing nixpkgs input in
-`flake.lock`. K3s runs on Linux; macOS development can use a Linux VM or remote
-cluster. See the [K3s requirements](https://docs.k3s.io/installation/requirements).
+The dev shell includes `kubectl`, Helm, `k9s`, Kind and the upstream `kubectl ate`
+plugin on Linux and macOS. The shell also packages the repository's
+[inspection-only `kubectl transit`](../apps/kubectl-transit/README.md). K3s is no
+longer included: the reference is tested with Kind. The Kind CLI version and Substrate revision live alongside the node
+image digest in [reference pins](../deploy/reference/versions.json).
+[reference-tools.nix](reference-tools.nix) pins source and dependency hashes;
+`kubectl-ate` uses Substrate's checked-in vendor tree and reports the exact source
+revision required by the runtime adapter. These packages use the existing Nix
+Go 1.27 compiler; upstream runtime build scripts retain their own pinned toolchain.
+No Zig, Ursula, Substrate, or node image upgrade is implied.
 
 ```sh
-nix develop --command kubectl version --client
-nix develop --command helm version --short
-nix develop --command k9s version --short
-# Linux only:
-nix develop --command k3s --version
+nix develop --command kind version
+nix develop --command kubectl ate --version
+nix develop --command kubectl plugin list
 ```
 
-Entering the shell supplies tools without starting a cluster or changing
-kubeconfig. `just doctor` and the toolchain smoke check run only local version
-commands for these tools.
+The shell selects `$CHECKOUT/.cache/reference/kubeconfig` through
+[dev-environment.sh](dev-environment.sh), even before the reference exists.
+After `just launchers::reference::up`, ordinary `kubectl get nodes`, `kubectl ate
+get workers`, and `k9s` use that cluster. Entering the shell does not start it or
+write/merge `~/.kube/config`. An absent reference config does not fall back to
+personal clusters. Reference setup/teardown always use their own explicit path
+and context, regardless of interactive overrides.
+
+Set `REY_KUBECONFIG` to an absolute path to deliberately select another config.
+With direnv, put it in ignored `.env`; `.envrc` reapplies the environment helper
+after loading those settings. Plain `nix develop` does not load `.env`: export
+`REY_KUBECONFIG` before entering it. Per-command `--kubeconfig` and `--context`
+remain available. Reauthorize `.envrc` with `direnv allow` after reviewing changes,
+or reenter `nix develop`. `just doctor` and Nix smoke checks stay offline.
 
 The [reference runbook](../deploy/reference/README.md) owns cluster setup.
 Helm 3.20.2 and PyYAML come from the existing nixpkgs pin; the chart proof uses
@@ -95,9 +110,9 @@ The [baseline run](https://github.com/rupurt/rey/actions/runs/35809573509) spent
 installer and cache the pinned overlay outputs rather than changing tools.
 
 The cache key includes runner OS/architecture, `flake.lock`, Nix expressions,
-and Vite+'s npm sources/lockfile. Source-only changes reuse the same toolchain
-cache; toolchain changes can restore an older cache as a starting point. An
-explicit temporary Nix profile protects the shell during garbage collection,
+Vite+'s npm sources/lockfile, reference CLI pins, environment helper and packaged
+plugin source. Other application-source changes reuse the same toolchain cache;
+toolchain changes can restore an older cache as a starting point. An explicit temporary Nix profile protects the shell during garbage collection,
 and successful preparation is saved even if a later protocol test fails. The
 6 GiB GC target accommodates the locally measured ~5 GiB build closure; it is
 not a hard size bound. No cache-purge permission or external cache secret is
@@ -111,6 +126,11 @@ availability, so it is not a passing end-to-end timing. Compare the separate
 restore, preparation, checks, and save step timings on subsequent runs.
 
 ## Updating tools
+
+When changing Kind or Substrate, update the reference pins and corresponding
+source/vendor hashes in `reference-tools.nix` together. Build both packages,
+verify the CLI revision, and rerun the reference recovery proof before claiming
+compatibility. `nix build .#kind .#kubectl-ate` builds the packaged tools directly.
 
 ```sh
 # Update the Zig overlay intentionally, then inspect the lockfile diff.

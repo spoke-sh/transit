@@ -57,6 +57,21 @@ pub fn build(b: *std.Build) void {
     var cli_artifact: *std.Build.Step.Compile = undefined;
     const services = b.addSystemCommand(&.{ "python3", "-B" });
     const apps_step = b.step("apps", "Install platform executables");
+    const kubectl_transit = b.addExecutable(.{ .name = "kubectl-transit", .root_module = b.createModule(.{
+        .root_source_file = b.path("apps/kubectl-transit/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    }) });
+    const install_plugin = b.addInstallArtifact(kubectl_transit, .{});
+    apps_step.dependOn(&install_plugin.step);
+    b.getInstallStep().dependOn(&install_plugin.step);
+    b.step("kubectl-transit", "Install the Kubernetes inspection plugin").dependOn(&install_plugin.step);
+    const plugin_tests = b.addSystemCommand(&.{ "python3", "-B" });
+    plugin_tests.addFileArg(b.path("tests/kubectl_transit.py"));
+    plugin_tests.addArtifactArg(kubectl_transit);
+    plugin_tests.has_side_effects = true;
+    plugin_tests.stdio = .inherit;
+    b.step("test-kubectl-transit", "Verify Kubernetes plugin boundaries without a cluster").dependOn(&plugin_tests.step);
     const probe = b.addExecutable(.{ .name = "isolation-probe", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/isolation.zig"),
         .target = target,

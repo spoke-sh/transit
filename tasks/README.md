@@ -46,6 +46,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just launchers::local::test`, `just launchers::compose::test` | Qualify persistence, duplicate-safe provisioning, fresh ownership and missing-store refusal in isolated installations |
 | `just test::unit` | Runs Zig unit/protocol tests without a service |
 | `just test::packages` | Checks each library independently of root build orchestration |
+| `just test::dev-environment`, `just test::kubectl-transit` | Verify checkout kubeconfig isolation and the plugin CLI, query limits, origin checks and signal handling offline; included in `ci` |
 | `just test::deployments` | Renders/lints the Transit Helm chart and checks bootstrap, credential, storage and network boundaries without a cluster; included in `ci` |
 | `just test::telemetry` | Checks bounded log emission and independent metrics with disabled, drained, stalled and closed sinks on one CPU |
 | `just test::observability` | Proves real Board/client/node correlation, privacy, receipt semantics and Transit progress with a blocked log pipe |
@@ -55,6 +56,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just contract::generate`, `just contract::check` | Regenerates or checks the language-neutral JSON Schema derived from public Zig types |
 | `just test::capacity` | Linux/Docker proof of real disk pressure, reserved control progress, checkpoint/trim and restart on an owned ext4 image |
 | `just launchers::reference::up`, `just launchers::reference::images`, `just launchers::reference::test`, `just launchers::reference::down` | Sets up, builds, tests and removes the owned Kubernetes/Substrate reference deployment |
+| `just launchers::reference::test-plugin` | Check discovery, logs and live forwarding using isolated chart-labelled resources on an existing reference cluster |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
 
 Keep root recipes for common entry points and put specific workflows in the
@@ -80,7 +82,7 @@ The [build module](build.just) exposes Zig's four optimization modes:
 | `just build::release-small` | `-Doptimize=small` | Optimize for executable size | Disabled by default |
 
 Bare `just build` lists these choices. With no further arguments, each profile
-installs `transit-node`, `transit-runtime-controller`, `rey-cli`, and `transit-board` with
+installs `transit-node`, `transit-runtime-controller`, `rey-cli`, `kubectl-transit`, and `transit-board` with
 its embedded UI into `zig-out/bin`. Install frontend dependencies first with
 `just transit-board::install`. Zig caches each optimization mode separately, but the
 default installation directory is shared: the most recent build replaces those

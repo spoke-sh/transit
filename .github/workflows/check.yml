@@ -21,8 +21,8 @@ jobs:
         id: nix-cache
         uses: nix-community/cache-nix-action/restore@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
-          # Include the npm inputs used by our Vite+ Nix derivation too.
-          primary-key: nix-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', '**/*.nix', 'nix/vite-plus/**') }}
+          # Include packaged CLI sources/pins and Vite+ npm inputs.
+          primary-key: nix-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', '**/*.nix', 'nix/dev-environment.sh', 'nix/vite-plus/**', 'deploy/reference/versions.json', 'apps/kubectl-transit/*.zig') }}
           restore-prefixes-first-match: nix-v1-${{ runner.os }}-${{ runner.arch }}-
       - name: Prepare development shell
         id: shell

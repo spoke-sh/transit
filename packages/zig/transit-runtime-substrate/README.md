@@ -27,7 +27,10 @@ explicit argument arrays, bounded output (64 KiB stdout / 8 KiB stderr), and a
 
 The exact CLI revision is enforced by the adapter and tracked with the
 [reference pins](../../../deploy/reference/versions.json). A changed or dirty
-CLI build fails validation. Do not infer provider compatibility from CLI startup.
+CLI build fails validation. The reference resolves the Nix-packaged executable
+on PATH and stores its absolute path in controller configuration; interactive
+`kubectl ate` uses that same build. Do not infer provider compatibility from CLI
+startup.
 
 ## Provider mapping and limits
 

@@ -147,7 +147,7 @@ def run():
         actor_name = f"realm-49-pid-{pid}"
         controller_config = directory / "controller.json"
         controller_config.write_text(json.dumps({"url": url, "realm": 49, "principal": 2, "seed_file": str(controller_key), "pid": pid, "worker": 1,
-            "provider": {"cli": str(ref.CACHE / "kubectl-ate"), "kubeconfig": str(ref.CACHE / "kubeconfig"), "context": "kind-" + s["cluster"],
+            "provider": {"cli": ref.ate_binary(), "kubeconfig": str(ref.CACHE / "kubeconfig"), "context": "kind-" + s["cluster"],
                          "instance": list(uuid.uuid4().bytes), "atespace": namespace, "actor": actor_name, "template": "counter",
                          "template_uid": list(uuid.UUID(template_uid).bytes), "image": images["example-counter"],
                          "egress_policy_file": str(policy), "authority_host": authority_host}}))

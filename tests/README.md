@@ -60,6 +60,37 @@ The synthetic effect harness sets `NO_COLOR=1` for captured child logs so exact
 error checks work under interactive and forced-color builds too. Its rejection
 checks also verify the durable effect state, mailbox counts, and remote sends.
 
+## Kubernetes tooling qualification
+
+`just test::dev-environment` proves that the shell selects the checkout-local
+reference config before creation and after removal, honors an explicit override
+from a subdirectory, and leaves a personal config untouched.
+`just test::kubectl-transit` runs the real Zig executable against a fake kubectl
+boundary, without credentials or a cluster. It checks selectors, explicit context
+and kubeconfig forwarding, native JSON, invalid flags, read failures, empty and
+ambiguous resources, output bounds, a hanging child after both pipes close,
+and SIGINT/SIGTERM cleanup for log following and Board forwarding.
+
+The plugin's [runbook](../apps/kubectl-transit/README.md) and
+[full plan](../docs/roadmap/M2-KUBECTL.md) define its inspection-only scope.
+Toolchain smoke checks verify Kind and both kubectl plugins offline.
+
+`just launchers::reference::test-plugin` passed on Linux x86_64 against the
+already-running owned Kind reference. It renders the real chart with overridden
+names into a uniquely created namespace, uses an inert node Deployment plus a
+CoreDNS HTTP health responder in place of Board, and verifies native discovery,
+status/workload views, prefixed logs, configured origin, real port-forward traffic
+and listener shutdown after interruption. The fixture proves Kubernetes wiring,
+not Board authentication or Transit execution. Cleanup verifies the namespace
+UID before deleting only test resources. Existing reference workloads are not
+restarted. Plain `kubectl get nodes` and packaged `kubectl ate get workers` also
+succeeded through the environment's default reference kubeconfig.
+
+`just check`, `just doctor`, the offline proofs and chart validation passed;
+`nix flake check --all-systems --no-build` evaluated all configured systems. Native
+macOS execution and complete reference recovery after these tooling changes
+remain separate qualification; a successful inspection is not a recovery proof.
+
 ## Launcher qualification
 
 Stable topology lives in root [process-compose.yaml](../process-compose.yaml),

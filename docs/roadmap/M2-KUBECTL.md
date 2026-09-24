@@ -2,9 +2,11 @@
 
 [Roadmap](README.md)
 
-Status: planned. Commit this plan before implementing the inspection-only slice.
-Later phases describe intended capabilities, not available commands or additional
-implementation authorized by the first slice.
+Status: phase 1 implemented; qualification is recorded in the
+[test guide](../../tests/README.md#kubernetes-tooling-qualification). The complete
+plan was committed before implementation. Later phases remain planned; their
+commands are unavailable. Implemented usage and limits belong to the
+[plugin README](../../apps/kubectl-transit/README.md).
 
 ## Purpose and boundaries
 
