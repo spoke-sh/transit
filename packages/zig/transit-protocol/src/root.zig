@@ -99,6 +99,7 @@ pub const Command = union(enum) {
     retire_payload: PayloadRef,
     payload_deleted: PayloadRef,
     runtime_upgrade: Runtime.Upgrade,
+    state: State.Command,
 };
 pub const Request = struct {
     version: u32 = version,
@@ -126,9 +127,10 @@ pub const ProcessView = struct {
     turn_permit: ?struct { id: u64, input: u64 } = null,
     binding: ?Runtime.Binding = null,
 };
-pub fn validate(request: Request) !void {
+pub fn validate(request: Request) anyerror!void {
     switch (request.command) {
         .spawn => |c| try c.initial_state.validate(),
+        .state => |c| try State.validate(c),
         .send => |c| try c.value.validate(),
         .turn => |c| {
             try c.result.validate();
@@ -182,6 +184,21 @@ test {
 
 /// Stable wire rejection codes. Unknown internal failures map to AuthorityUnavailable.
 pub const ErrorCode = enum {
+    InvalidStateKey,
+    InvalidStateMutation,
+    InvalidStateView,
+    StaleAssociation,
+    StaleStateResource,
+    StateAssociationCapacity,
+    StateEntryCapacity,
+    StateResourceCapacity,
+    StateResourceExpired,
+    StateResourceInUse,
+    StateViewCapacity,
+    StateViewExpired,
+    StateViewInUse,
+    UnknownStateResource,
+
     AccessDenied,
     AdmissionClosed,
     AlreadyActivated,

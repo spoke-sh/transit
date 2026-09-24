@@ -1,7 +1,7 @@
 # State resources v1
 
-Status: M7 public contract defined; authority, service, client, and inspection
-implementation is in progress. Until the state route is implemented, exported
+Status: M7 authority transitions pass unit and disk-recovery proofs; service,
+client, and inspection implementation is in progress. Until the state route is implemented, exported
 types are not a capability advertisement. [STATE.md](../docs/STATE.md) owns the
 design; [M7](../docs/roadmap/M7.md) owns completion and qualification.
 
@@ -29,8 +29,8 @@ or multi-stream commit. Larger upload-backed resources require another profile.
 
 | Item | v1 bound |
 | --- | --- |
-| Resource identities | 8 per realm lifetime; retired identities are never reused |
-| Live keys | 64 per resource |
+| Resource identities | 4 per realm lifetime; retired identities are never reused |
+| Live keys | 32 per resource |
 | Key or association-name bytes | 1–32, opaque byte equality |
 | Value bytes | 0–256, existing canonical lowercase-hex `Value` |
 | Associations | 64 active records per realm |
@@ -152,3 +152,10 @@ The finite-admission profile must include resource retirement/view release in
 its reserved control budget. Opening views, creating resources, changing grants,
 and associations cannot consume that reserve. Quota pressure cannot expire
 resources, drop live keys, or complete unfinished inputs.
+
+The additional post-ceiling reserve is at most four view releases and eight
+resource retirement/reclamation records. State turns consume the existing turn
+budget and cannot add outputs/effects after admission closes. The initial larger
+catalog exceeded the default Debug stack during an existing checkpoint proof;
+the selected four-resource/32-key bounds pass the full disk suite. Do not raise
+them without repeating serialized-size, stack, and recovery measurements.

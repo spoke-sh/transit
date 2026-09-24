@@ -1,11 +1,12 @@
 # State — resources and process associations
 
-Status: foundational design for [M7](roadmap/M7.md), before Station. State
-resources and associations are not implemented. The current
+Status: foundational design for [M7](roadmap/M7.md), before Station. The bounded
+authority resource/association transitions pass unit and disk-recovery proofs;
+service/client, Board, and launcher integration remain in progress. The existing
 [v2 profile](../contracts/TRANSIT_V2.md) commits an opaque inline value with each
 turn; its standalone immutable payloads are not enforced state references.
 The initial [wire contract](../contracts/STATE_V1.md) defines bounds and a
-compatibility path; authority/service integration and qualification are in progress.
+compatibility path; full M7 qualification remains outstanding.
 
 ## Purpose
 

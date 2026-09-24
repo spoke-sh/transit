@@ -15,7 +15,7 @@ fn processView(process: core.Process) p.ProcessView {
 fn event(state: *core.State, record: core.Record, grant: p.Grant, pid: u64) !?i.Event {
     const command = record.request.command;
     const subject: ?u64 = switch (command) {
-        .grant, .revoke, .checkpoint, .inspect => null,
+        .grant, .revoke, .checkpoint, .inspect, .state => null,
         .spawn => record.position,
         .terminate, .expire => |id| id,
         inline else => |c| c.pid,

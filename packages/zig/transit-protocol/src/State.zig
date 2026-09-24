@@ -2,8 +2,8 @@
 const std = @import("std");
 const p = @import("root.zig");
 pub const version = 1;
-pub const max_resources = 8;
-pub const max_entries = 64;
+pub const max_resources = 4;
+pub const max_entries = 32;
 pub const max_associations = 64;
 pub const max_views = 4;
 pub const max_mutations = 4;

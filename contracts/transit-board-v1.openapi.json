@@ -1851,7 +1851,8 @@
                             "payload_ready",
                             "retire_payload",
                             "payload_deleted",
-                            "runtime_upgrade"
+                            "runtime_upgrade",
+                            "state"
                           ]
                         },
                         "policy_revision": {

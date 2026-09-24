@@ -42,6 +42,8 @@ test "shared JSON request vectors preserve canonical bytes, digests and signatur
 
 fn largest(comptime T: type) T {
     if (T == transit.Value) return transit.Value.init(&(@as([transit.Value.max_bytes]u8, @splat(255)))) catch unreachable;
+    if (T == transit.State.Mutation) return .{ .key = transit.Value.init(&@as([transit.State.max_key_bytes]u8, @splat(255))) catch unreachable, .value = largest(transit.Value) };
+    if (T == transit.State.Associate) return .{ .pid = transit.max_counter, .name = transit.Value.init(&@as([transit.State.max_key_bytes]u8, @splat(255))) catch unreachable, .expected_revision = transit.max_counter, .resource = transit.max_counter };
     return switch (@typeInfo(T)) {
         .int => |i| if (i.signedness == .signed) std.math.minInt(T) else std.math.maxInt(T),
         .bool => false,
@@ -66,13 +68,10 @@ fn largest(comptime T: type) T {
 test "every full command fits canonical signing and the bounded journal envelope" {
     const info = @typeInfo(transit.Command).@"union";
     inline for (info.field_names, info.field_types) |name, T| {
-        const request: transit.Request = .{ .realm = transit.max_counter, .principal = 15, .sequence = transit.max_counter, .command = @unionInit(transit.Command, name, largest(T)) };
-        const encoded = try std.json.Stringify.valueAlloc(t.allocator, request, .{});
-        defer t.allocator.free(encoded);
-        // Allow space for the record position, policy revision, time and a
-        // derived admission containing another maximum-size application value.
-        try t.expect(encoded.len + 1024 <= transit.max_entry_bytes);
-        _ = transit.digest(request);
+        if (comptime T == transit.State.Command) {
+            const variants = @typeInfo(T).@"union";
+            inline for (variants.field_names, variants.field_types) |tag, V| try envelope(.{ .state = @unionInit(T, tag, largest(V)) });
+        } else try envelope(@unionInit(transit.Command, name, largest(T)));
     }
 }
 
@@ -102,4 +101,12 @@ test "runtime binding keeps legacy checkpoint bytes and accepts optional upgrade
     var recovered = try std.json.parseFromSlice(transit.Runtime.Binding, t.allocator, pending, .{});
     defer recovered.deinit();
     try t.expectEqual(@as(?[32]u8, @splat(6)), recovered.value.upgrade_from);
+}
+
+fn envelope(command: transit.Command) !void {
+    const request: transit.Request = .{ .realm = transit.max_counter, .principal = 15, .sequence = transit.max_counter, .command = command };
+    const encoded = try std.json.Stringify.valueAlloc(t.allocator, request, .{});
+    defer t.allocator.free(encoded);
+    try t.expect(encoded.len + 1024 <= transit.max_entry_bytes);
+    _ = transit.digest(request);
 }

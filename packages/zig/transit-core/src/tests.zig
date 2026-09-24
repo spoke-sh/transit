@@ -995,6 +995,9 @@ test "checkpoint parser preserves opaque state and rejects ambiguous or incomple
 }
 
 fn largestCheckpointFields(comptime T: type) T {
+    const state = core.protocol.State;
+    if (T == state.Entry) return .{ .key = core.Value.init(&@as([state.max_key_bytes]u8, @splat(255))) catch unreachable, .value = largestCheckpointFields(core.Value), .revision = std.math.maxInt(u64) };
+    if (T == state.Association) return .{ .pid = std.math.maxInt(u64), .name = core.Value.init(&@as([state.max_key_bytes]u8, @splat(255))) catch unreachable, .resource = std.math.maxInt(u64), .revision = std.math.maxInt(u64), .required = false };
     if (T == core.Value) return core.Value.init(&(@as([core.Value.max_bytes]u8, @splat(255)))) catch unreachable;
     return switch (@typeInfo(T)) {
         .int => std.math.maxInt(T),
@@ -1019,7 +1022,8 @@ fn largestCheckpointFields(comptime T: type) T {
 
 test "all lifetime catalogs with maximum inline values fit the checkpoint bound" {
     // Deliberately wider than legal counters, with every optional field and slot
-    // present. This protects reserved control capacity from schema growth.
+    // present, with state keys at their enforced 32-byte bound. This protects
+    // reserved control capacity from schema growth.
     const value = largestCheckpointFields(core.Checkpoint);
     const bytes = try std.json.Stringify.valueAlloc(t.allocator, &value, .{});
     defer t.allocator.free(bytes);

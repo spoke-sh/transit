@@ -9,6 +9,16 @@ all commands have been rerun on every documentation change.
 
 ## Running checks
 
+M7 state work is in progress. `just test::unit` now covers atomic KV proposals,
+lost acknowledgements, independent grants, bounded view expiry, required-state
+retirement, independent resource lifetime, and current-value preservation through
+history compaction. `just test::storage` also runs [state.zig](state.zig) against
+disk-backed Ursula: competing conditional commits, abandoned preparations,
+durable read-view recovery, 32 live keys beyond the replay/read page bounds,
+checkpoint publication/trim interruptions, and expiry with retained retirement
+evidence. These proofs passed together with all existing storage phases; HTTP,
+Board, example and launcher qualification for state remain outstanding.
+
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 

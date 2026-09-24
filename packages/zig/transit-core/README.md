@@ -80,6 +80,10 @@ turn per old/newly delivered input, finite attempt observations/closures, bounde
 provider completion/stop and retirement, revocations, payload publication/
 retirement/deletion, and one checkpoint.
 Typed journal entries are capped at 8 KiB and checkpoints at 1 MiB.
+M7 adds at most four view-release and eight resource-retirement/reclamation
+records to that reserve; creation, view opening, association changes and grants
+are refused after admission closes. State turns retain the ordinary turn budget
+and cannot publish new outputs/effects from the reserve.
 Pending preauthorized payload creation can additionally write at most sixteen
 64 KiB bodies (1 MiB total); those bytes need their own reserved headroom.
 Transport failures and backend housekeeping are not accepted protocol records; physical
@@ -118,3 +122,26 @@ It preserves opaque state and pending work while recording a stopped provider
 switch; it does not perform state migration. Unit tests cover stale owners,
 permissions, incompatible declarations, lost acknowledgements and expiry; the
 disk runtime proof checkpoints and trims with a switch outstanding.
+
+## State resources (M7 in progress)
+
+[`resources.zig`](src/resources.zig) implements the deterministic catalog,
+independent resource grants, named associations, bounded revision views, and
+atomic KV mutations through the existing conditional turn append. One resource
+mutation batch and input progress/outputs share that decision; prepared copies
+are private. Resource data remains opaque, and core executes no application code.
+
+The [v1 state contract](../../../contracts/STATE_V1.md) owns the exact bounds:
+four resources, 32 live keys each, four finite views, and four mutations per turn.
+Current data and view copies are bounded materializations recoverable from the
+journal/checkpoint. The initial eight-resource/64-key candidate exhausted the
+default Debug stack in an existing checkpoint proof; the selected bounds pass
+the complete disk-recovery suite without raising process stack limits.
+
+The optional catalog is omitted for inline-only checkpoint encoding. Resource
+grants never replace process execution authority; replacing/revoking a principal
+clears its resource grants, while same-PID activation credential rotation keeps
+the workload's grants. Required-resource expiry fences execution before delayed
+maintenance and records permanent dependent-PID retirement. Compaction preserves
+current values independently of their write age. Service/client and Board
+integration remain in progress; this is not a completed M7 qualification claim.
