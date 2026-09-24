@@ -12,6 +12,8 @@ export function text(hex: string): string {
 }
 export function attention(p: Process): string {
   if (p.lifecycle !== "running") return `${p.lifecycle} · permanently retired`;
+  if (p.control?.phase === "initializing") return "Initializing · handler activation blocked";
+  if (p.control?.phase === "suspended") return "Suspended · bounded resumption window";
   if (p.failure) return `Blocked on input ${p.failure.input}`;
   if (p.admitted > p.consumed + p.cancelled)
     return p.owner === null ? "Waiting · no owner" : "Waiting · admitted input";
@@ -101,6 +103,16 @@ export function ProcessFacts({ process: p }: { process: Process }) {
         </dd>
         <dt>History removal allowed</dt>
         <dd>{p.allow_trim ? "Opted in" : "No"}</dd>
+        <dt>Working catalog collection</dt>
+        <dd>{p.collection ? "Opted in · identities never reused" : "Retain catalog evidence"}</dd>
+        <dt>Execution phase</dt>
+        <dd>{p.control?.phase ?? "ready"}</dd>
+        {p.control?.resume_before_ms != null && (
+          <>
+            <dt>Resume before (Unix ms)</dt>
+            <dd>{p.control.resume_before_ms}</dd>
+          </>
+        )}
         <dt>Turn authorization</dt>
         <dd>
           {p.turn_permit ? `Permit ${p.turn_permit.id}, input ${p.turn_permit.input}` : "None"}

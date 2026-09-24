@@ -7,6 +7,7 @@ pub const Schema = @import("Schema.zig");
 pub const Inspection = @import("Inspection.zig");
 pub const Runtime = @import("Runtime.zig");
 pub const State = @import("State.zig");
+pub const Lifecycle = @import("Lifecycle.zig");
 pub const Delivery = @import("Delivery.zig");
 pub const max_principals = 16;
 pub const max_processes = 64;
@@ -78,6 +79,7 @@ pub const Outbox = struct {
 pub const Turn = struct { pid: u64, generation: u64, input: u64, expected_revision: u64 = 0, result: Value, failed: bool = false, effect: ?Value = null, permit: ?u64 = null, outputs: [max_turn_outputs]?Output = @splat(null) };
 pub const Collection = struct { pid: u64, kind: enum { output, effect, process, resource, payload }, id: u64 };
 pub const Command = union(enum) {
+    lifecycle: Lifecycle.Command,
     catalog_retention: struct { pid: u64 },
     collect: Collection,
     grant: Grant,
@@ -119,6 +121,7 @@ pub const ProcessView = struct {
     code: u32,
     allow_trim: bool = false,
     collection: bool = false,
+    control: ?Lifecycle.Control = null,
     owner: ?u8 = null,
     generation: u64 = 0,
     lifecycle: enum { running, terminated, expired } = .running,
@@ -135,6 +138,7 @@ pub const ProcessView = struct {
 };
 pub fn validate(request: Request) anyerror!void {
     switch (request.command) {
+        .lifecycle => |c| try Lifecycle.validate(c),
         .spawn => |c| try c.initial_state.validate(),
         .state => |c| try State.validate(c),
         .send => |c| try c.value.validate(),
@@ -199,6 +203,10 @@ test {
 
 /// Stable wire rejection codes. Unknown internal failures map to AuthorityUnavailable.
 pub const ErrorCode = enum {
+    InvalidLifecycle,
+    MissingRequiredAssociation,
+    NotInitialized,
+    SuspendedProcess,
     NoPendingOutput,
     InvalidStateKey,
     InvalidStateMutation,

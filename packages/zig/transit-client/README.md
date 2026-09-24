@@ -80,3 +80,9 @@ mailbox, outbox, effects, payload metadata, and filtered retained history. Pages
 own their bytes. Keep the resource/PID/cut when following `next`; on `QueryExpired`
 or `HistoryReclaimed`, discard assembled pages and refresh with explicit gap
 handling. See [inspection v1](../../../contracts/INSPECTION_V1.md).
+
+`protocol.Lifecycle.Command` and `protocol.Collection` expose M8 control requests
+through the same signed `Client.submit`/`Session.Pending` mechanism. Administration
+and provisioning use separate scoped credentials; execution sessions do not gain
+those rights. Follow the [lifecycle contract](../../../contracts/LIFECYCLE_V1.md)
+for generation fences, uncertain allocations and resumption bounds.

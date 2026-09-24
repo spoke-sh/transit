@@ -62,9 +62,16 @@ pub fn time(state: *const core.State, sample: ?core.Time.Sample) !core.Time.Samp
     if (value.unix_ms < state.time_floor_ms) return error.ClockRollback;
     return value;
 }
+pub fn effectiveDeadline(state: *core.State, data: *const Data) ?u64 {
+    var bound = data.meta.deadline_ms;
+    if (data.meta.owner) |pid| if (core.lifecycle.suspensionDeadline(state.process(pid) catch return bound)) |cutoff| {
+        bound = if (bound) |existing| @min(existing, cutoff) else cutoff;
+    };
+    return bound;
+}
 pub fn usable(state: *core.State, data: *const Data, sample: ?core.Time.Sample) !void {
     if (data.meta.phase != .active) return error.StateResourceExpired;
-    if (data.meta.deadline_ms) |deadline| (try time(state, sample)).before(deadline) catch |err| {
+    if (effectiveDeadline(state, data)) |cutoff| (try time(state, sample)).before(cutoff) catch |err| {
         if (err == error.DeadlineExpired) return error.StateResourceExpired;
         return err;
     };
@@ -81,7 +88,7 @@ pub fn processNeedsTime(state: *core.State, pid: u64) bool {
     for (cat.associations) |slot| if (slot) |association| {
         if (association.pid == pid and association.required) {
             const data = cat.resource(association.resource) catch continue;
-            if (data.meta.deadline_ms != null) return true;
+            if (effectiveDeadline(state, data) != null) return true;
         }
     };
     return false;
@@ -95,12 +102,12 @@ pub fn historyNeedsTime(state: *const core.State) bool {
 }
 pub fn needsTime(state: *core.State, command: s.Command) !bool {
     switch (command) {
-        .create => |c| return c.deadline_ms != null or (c.history_ms orelse 0) > 0 or (c.owned and (try state.process(c.writer)).settle_before_ms != null),
+        .create => |c| return processNeedsTime(state, c.writer) or c.deadline_ms != null or (c.history_ms orelse 0) > 0 or (c.owned and (try state.process(c.writer)).settle_before_ms != null),
         .open, .expire => return true,
         .turn => return true,
         .associate => |c| {
             if (processNeedsTime(state, c.pid)) return true;
-            if (c.resource) |id| return (try (try catalog(state)).resource(id)).meta.deadline_ms != null;
+            if (c.resource) |id| return effectiveDeadline(state, try (try catalog(state)).resource(id)) != null;
             return false;
         },
         .reclaim => |id| return ((try (try catalog(state)).resource(id)).meta.history_ms orelse 0) > 0,
@@ -126,6 +133,7 @@ pub fn apply(state: *core.State, command: s.Command, record: core.Record, input:
         .create => |c| {
             const process = try state.process(c.writer);
             if (process.lifecycle != .running) return error.RetiredProcess;
+            if (core.lifecycle.suspensionDeadline(process) != null) return error.SuspendedProcess;
             try checkProcess(state, c.writer, record.time);
             var deadline = c.deadline_ms;
             if (c.owned) if (process.settle_before_ms) |bound| {
@@ -165,7 +173,11 @@ pub fn apply(state: *core.State, command: s.Command, record: core.Record, input:
             if ((if (existing) |slot| slot.*.?.revision else @as(u64, 0)) != c.expected_revision) return error.StaleAssociation;
             if (c.resource) |id| {
                 if (!cat.allowed(id, caller, .inspect)) return error.Forbidden;
-                try usable(state, try cat.resource(id), record.time);
+                const data = try cat.resource(id);
+                try usable(state, data, record.time);
+                if (c.required) if (core.lifecycle.suspensionDeadline(process)) |resumption_bound| {
+                    if (effectiveDeadline(state, data)) |bound| if (resumption_bound > bound) return error.InvalidLifetime;
+                };
                 const slot = existing orelse free orelse return error.StateAssociationCapacity;
                 slot.* = .{ .pid = c.pid, .name = c.name, .resource = id, .revision = record.position, .required = c.required };
             } else if (existing) |slot| {

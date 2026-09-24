@@ -1249,3 +1249,88 @@ test "collection never weakens unlimited retention or retroactively changes acce
     try t.expectError(error.RetentionNotEnabled, f.submit(&e, 0, .{ .collect = .{ .pid = pid, .kind = .process, .id = pid } }));
     try t.expectEqual(.terminated, (try e.state.process(pid)).lifecycle);
 }
+
+test "initialization is a durable barrier with scoped controls and exact allocation retries" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const name = try core.Value.init("behavior");
+    const creation = try f.request(&e, 0, .{ .lifecycle = .{ .create = .{ .required = .{ name, null, null, null } } } });
+    f.store.fail_ack = true;
+    try t.expectError(error.LostAcknowledgement, e.submit(creation));
+    e = try Engine.open(&f.store, f.genesis);
+    const pid = try e.submit(creation);
+    try t.expectEqual(@as(u64, 1), pid);
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(2) } });
+    try t.expectError(error.NotInitialized, f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } }));
+    try t.expectError(error.MissingRequiredAssociation, f.submit(&e, 0, .{ .lifecycle = .{ .initialize = .{ .pid = pid, .expected_generation = 0 } } }));
+    const allocation = try f.request(&e, 0, .{ .state = .{ .create = .{ .writer = pid } } });
+    f.store.fail_ack = true;
+    try t.expectError(error.LostAcknowledgement, e.submit(allocation));
+    e = try Engine.open(&f.store, f.genesis);
+    const resource = try e.submit(allocation);
+    _ = try f.submit(&e, 0, .{ .state = .{ .grant = .{ .resource = resource, .subject = 0, .permissions = 7 } } });
+    _ = try f.submit(&e, 0, .{ .state = .{ .associate = .{ .pid = pid, .name = name, .resource = resource } } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute), .pid = pid } });
+    try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .lifecycle = .{ .initialize = .{ .pid = pid, .expected_generation = 1 } } }));
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 2, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.admin), .pid = pid } });
+    const other = try f.submit(&e, 0, .{ .spawn = .{} });
+    try t.expectError(error.Forbidden, f.submit(&e, 2, .{ .terminate = other }));
+    _ = try f.submit(&e, 2, .{ .lifecycle = .{ .initialize = .{ .pid = pid, .expected_generation = 1 } } });
+    _ = try f.submit(&e, 2, .{ .own = .{ .pid = pid, .expected_generation = 2, .worker = 1 } });
+    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 3, .input = input, .result = core.Value.integer(2) } });
+    e = try Engine.open(&f.store, f.genesis);
+    try t.expectEqual(.ready, (try e.state.process(pid)).control.?.phase);
+    try t.expectEqual(@as(u64, 1), (try e.state.process(pid)).consumed);
+}
+
+test "blocked-input retry fences generations and never skips the failed input" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = .{} } });
+    const failure = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = .{}, .failed = true } });
+    try t.expectError(error.InvalidFailure, f.submit(&e, 0, .{ .lifecycle = .{ .retry = .{ .pid = pid, .expected_generation = 2, .failure = failure + 1 } } }));
+    try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .lifecycle = .{ .retry = .{ .pid = pid, .expected_generation = 2, .failure = failure } } }));
+    _ = try f.submit(&e, 0, .{ .lifecycle = .{ .retry = .{ .pid = pid, .expected_generation = 2, .failure = failure } } });
+    try t.expectEqual(input, (try e.nextInput(pid, e.state.position)).?.position);
+    _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 3, .worker = 1 } });
+    try t.expectError(error.StaleGeneration, f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = .{} } }));
+    _ = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 4, .input = input, .result = .{} } });
+    try t.expectEqual(@as(u64, 1), (try e.state.process(pid)).consumed);
+}
+
+test "suspension fits required resource lifetime and rejects expired recovery before maintenance" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.max_clock_error_ms = 0;
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    var clock: TestClock = .{ .now = .{ .unix_ms = 100 } };
+    e.clock = clock.source();
+    const pid = try f.submit(&e, 0, .{ .spawn = .{} });
+    const resource = try f.submit(&e, 0, .{ .state = .{ .create = .{ .writer = pid, .deadline_ms = 200 } } });
+    _ = try f.submit(&e, 0, .{ .state = .{ .grant = .{ .resource = resource, .subject = 0, .permissions = 7 } } });
+    _ = try f.submit(&e, 0, .{ .state = .{ .associate = .{ .pid = pid, .name = try core.Value.init("state"), .resource = resource } } });
+    _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 0 } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = .{} } });
+    const prepared = try e.prepare(try f.request(&e, 0, .{ .turn = .{ .pid = pid, .generation = 2, .input = input, .result = .{} } }));
+    try t.expectError(error.InvalidLifetime, f.submit(&e, 0, .{ .lifecycle = .{ .@"suspend" = .{ .pid = pid, .expected_generation = 2, .resume_before_ms = 201 } } }));
+    _ = try f.submit(&e, 0, .{ .lifecycle = .{ .@"suspend" = .{ .pid = pid, .expected_generation = 2, .resume_before_ms = 150 } } });
+    try t.expectError(error.Conflict, e.commit(prepared));
+    try t.expectError(error.SuspendedProcess, f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 3, .worker = 0 } }));
+    // A suspended mailbox may receive inputs but cannot execute them.
+    _ = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = .{} } });
+    _ = try f.submit(&e, 0, .{ .lifecycle = .{ .@"resume" = .{ .pid = pid, .expected_generation = 3 } } });
+    try t.expectEqual(@as(u64, 4), (try e.state.process(pid)).generation);
+    _ = try f.submit(&e, 0, .{ .lifecycle = .{ .@"suspend" = .{ .pid = pid, .expected_generation = 4, .resume_before_ms = 150 } } });
+    clock.now.unix_ms = 150;
+    try t.expectError(error.StateResourceExpired, f.submit(&e, 0, .{ .lifecycle = .{ .@"resume" = .{ .pid = pid, .expected_generation = 5 } } }));
+    try t.expectError(error.StateResourceExpired, f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = .{} } }));
+    _ = try f.submit(&e, 0, (try e.state.nextMaintenance(clock.now)).?);
+    e = try Engine.open(&f.store, f.genesis);
+    e.clock = clock.source();
+    try t.expectEqual(.expired, (try e.state.process(pid)).lifecycle);
+    try t.expectEqual(@as(u64, 2), (try e.state.process(pid)).cancelled);
+    try t.expectError(error.RetiredProcess, f.submit(&e, 0, .{ .lifecycle = .{ .@"resume" = .{ .pid = pid, .expected_generation = 5 } } }));
+}

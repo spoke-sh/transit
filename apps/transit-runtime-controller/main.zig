@@ -61,7 +61,7 @@ const Controller = struct {
         const p = view.process;
         self.generation = p.generation;
         self.binding_revision = if (p.binding) |binding| binding.revision else null;
-        const stopping = p.lifecycle != .running or p.failure != null;
+        const stopping = p.lifecycle != .running or p.failure != null or (if (p.control) |control| control.phase != .ready else false);
         const backlog = p.admitted > p.consumed + p.cancelled;
         const b = p.binding orelse {
             if (stopping or !backlog) return .idle;

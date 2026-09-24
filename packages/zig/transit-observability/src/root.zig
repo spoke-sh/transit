@@ -48,6 +48,7 @@ pub fn begin(runtime: ?*telemetry.Runtime, kind: Kind, operation: ?[]const u8, p
 /// Supply only after authorization, or for the caller's own accepted receipt.
 pub fn pid(command: protocol.Command) ?u64 {
     return switch (command) {
+        .lifecycle => |c| protocol.Lifecycle.pid(c),
         .inspect, .terminate, .expire => |value| value,
         inline else => |value| switch (@typeInfo(@TypeOf(value))) {
             .@"struct" => if (@hasField(@TypeOf(value), "pid")) value.pid else null,

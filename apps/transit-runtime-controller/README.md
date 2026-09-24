@@ -90,3 +90,7 @@ intent. See the [runtime contract](../../contracts/RUNTIME_SUBSTRATE_V1.md#same-
 `just test::runtime-upgrade` checks the real node/controller with a faultable CLI
 boundary: stale controller, wrong Actor UID, lost switch response and idempotent
 readback. It complements, rather than substitutes for, the real Substrate proof.
+
+M8 initialization and suspension phases also stop activation. A recorded retry or
+resume requires a confirmed stopped binding, then records a fresh running intent
+for this controller to reconcile. See [lifecycle controls](../../contracts/LIFECYCLE_V1.md).

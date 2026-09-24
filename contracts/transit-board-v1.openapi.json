@@ -1991,6 +1991,8 @@
                         "pid",
                         "code",
                         "allow_trim",
+                        "collection",
+                        "control",
                         "owner",
                         "generation",
                         "lifecycle",
@@ -2022,6 +2024,82 @@
                         },
                         "allow_trim": {
                           "type": "boolean"
+                        },
+                        "collection": {
+                          "type": "boolean"
+                        },
+                        "control": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "phase",
+                                "required",
+                                "resume_before_ms"
+                              ],
+                              "properties": {
+                                "phase": {
+                                  "type": "string",
+                                  "enum": [
+                                    "initializing",
+                                    "ready",
+                                    "suspended"
+                                  ]
+                                },
+                                "required": {
+                                  "type": "array",
+                                  "minItems": 4,
+                                  "maxItems": 4,
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "pattern": "^(?:[0-9a-f]{2})*$",
+                                        "maxLength": 512,
+                                        "x-transit-encoding": "lowercase-hex"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "resume_before_ms": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991,
+                                      "x-transit-bits": 64,
+                                      "x-transit-signed": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "phase",
+                                "required",
+                                "resume_before_ms"
+                              ],
+                              "x-transit-defaults": {
+                                "phase": "initializing",
+                                "required": [
+                                  null,
+                                  null,
+                                  null,
+                                  null
+                                ],
+                                "resume_before_ms": null
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "owner": {
                           "anyOf": [
@@ -2400,6 +2478,8 @@
                         "pid",
                         "code",
                         "allow_trim",
+                        "collection",
+                        "control",
                         "owner",
                         "generation",
                         "lifecycle",
@@ -2416,6 +2496,8 @@
                       ],
                       "x-transit-defaults": {
                         "allow_trim": false,
+                        "collection": false,
+                        "control": null,
                         "owner": null,
                         "generation": 0,
                         "lifecycle": "running",
@@ -2480,6 +2562,9 @@
                         "kind": {
                           "type": "string",
                           "enum": [
+                            "lifecycle",
+                            "catalog_retention",
+                            "collect",
                             "grant",
                             "revoke",
                             "spawn",
@@ -2490,6 +2575,7 @@
                             "send",
                             "begin_turn",
                             "turn",
+                            "deliver_next",
                             "deliver",
                             "dispatch",
                             "observe",

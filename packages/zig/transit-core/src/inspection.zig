@@ -16,6 +16,7 @@ fn event(state: *core.State, record: core.Record, grant: p.Grant, pid: u64) !?i.
     const command = record.request.command;
     const subject: ?u64 = switch (command) {
         .grant, .revoke, .checkpoint, .inspect => null,
+        .lifecycle => |c| if (c == .create) record.position else p.Lifecycle.pid(c),
         .state => |c| if (c == .turn) c.turn.turn.pid else null,
         .deliver_next => if (record.delivery) |ref| ref.destination else null,
         .spawn => record.position,

@@ -6,6 +6,7 @@ pub const Ed25519 = protocol.Ed25519;
 pub const Time = @import("Time.zig");
 pub const Runtime = protocol.Runtime;
 pub const resources = @import("resources.zig");
+pub const lifecycle = @import("lifecycle.zig");
 pub const collection = @import("collection.zig");
 pub const max_principals = protocol.max_principals;
 pub const max_processes = protocol.max_processes;
@@ -59,6 +60,11 @@ pub const Process = struct {
                     try out.objectField(name);
                     try out.write(self.collection);
                 }
+            } else if (comptime std.mem.eql(u8, name, "control")) {
+                if (self.control != null) {
+                    try out.objectField(name);
+                    try out.write(self.control);
+                }
             } else {
                 try out.objectField(name);
                 try out.write(@field(self, name));
@@ -71,6 +77,7 @@ pub const Process = struct {
     code: u32,
     allow_trim: bool = false,
     collection: bool = false,
+    control: ?protocol.Lifecycle.Control = null,
     owner: ?u8 = null,
     generation: u64 = 0,
     lifecycle: @FieldType(protocol.ProcessView, "lifecycle") = .running,
@@ -246,6 +253,7 @@ pub const State = struct {
         if (request.version != protocol.version or request.realm != self.realm) return error.WrongProtocolRealm;
         const p = try self.principal(request.principal);
         const required: Permission = switch (request.command) {
+            .lifecycle => |c| if (c == .create) .spawn else .admin,
             .catalog_retention, .collect, .grant, .revoke, .own, .terminate, .expire, .checkpoint, .deliver, .runtime_intent, .runtime_observe, .activate, .runtime_upgrade => .admin,
             .declare_payload, .payload_ready, .retire_payload, .payload_deleted => .admin,
             .state => |c| switch (c) {
@@ -270,6 +278,7 @@ pub const State = struct {
                 .turn => |v| v.turn.pid,
                 else => null,
             },
+            .lifecycle => |c| protocol.Lifecycle.pid(c),
             inline .catalog_retention, .collect => |c| c.pid,
             .declare_payload => |c| c.pid,
             .payload_ready, .retire_payload, .payload_deleted => |c| c.pid,
@@ -343,12 +352,13 @@ pub const State = struct {
         if (dependency_pid) |pid| try resources.checkProcess(self, pid, record.time);
         var admission: ?Message = null;
         switch (req.command) {
+            .lifecycle => |c| try lifecycle.apply(self, c, record),
             .catalog_retention => |c| try collection.enable(self, c.pid),
             .collect => |c| try collection.apply(self, c, input),
             .state => |c| try resources.apply(self, c, record, input),
             .declare_payload => |c| {
                 const p = try self.process(c.pid);
-                try executable(p);
+                try self.checkExecutable(p, record);
                 // Finite upload/reconciliation contracts and dependent body
                 // lifetimes need the connector/resource profile, not inference.
                 if (p.work_before_ms != null) return error.UnsupportedPayloadLifetime;
@@ -398,23 +408,12 @@ pub const State = struct {
                 } else return error.UnknownPrincipal;
             },
             .spawn => |c| {
-                if (c.code == 0) return error.UnsupportedWorkload;
-                try c.initial_state.validate();
-                if (c.deadline_ms) |deadline| {
-                    const time = try self.trustedTime(record);
-                    const settle = c.settle_before_ms orelse return error.InvalidLifetime;
-                    if (deadline > settle or settle > max_counter) return error.InvalidLifetime;
-                    try time.before(deadline);
-                } else if (c.settle_before_ms != null) return error.InvalidLifetime;
-                const free = for (&self.processes) |*slot| {
-                    if (slot.* == null) break slot;
-                } else return error.ProcessCapacity;
-                free.* = .{ .pid = record.position, .code = c.code, .state = c.initial_state, .allow_trim = c.allow_trim, .work_before_ms = c.deadline_ms, .settle_before_ms = c.settle_before_ms };
+                _ = try self.spawnProcess(c, record);
             },
             .own => |c| {
                 const p = try self.process(c.pid);
                 if (p.binding != null) return error.RuntimeActivationRequired;
-                try executable(p);
+                try self.checkExecutable(p, record);
                 if (p.work_before_ms) |deadline| {
                     const time = try self.trustedTime(record);
                     try time.before(if (p.turn_permit != null) p.settle_before_ms.? else deadline);
@@ -429,7 +428,7 @@ pub const State = struct {
             .runtime_intent => |c| {
                 const p = try self.process(c.pid);
                 if (c.desired == .running) {
-                    try executable(p);
+                    try self.checkExecutable(p, record);
                     if (p.work_before_ms) |deadline| try (try self.trustedTime(record)).before(if (p.turn_permit != null) p.settle_before_ms.? else deadline);
                 }
                 const previous = p.binding;
@@ -501,7 +500,7 @@ pub const State = struct {
             },
             .activate => |c| {
                 const p = try self.process(c.pid);
-                try executable(p);
+                try self.checkExecutable(p, record);
                 if (p.work_before_ms) |deadline| try (try self.trustedTime(record)).before(if (p.turn_permit != null) p.settle_before_ms.? else deadline);
                 const binding = if (p.binding) |*b| b else return error.InvalidBinding;
                 if (c.revision != binding.revision) return error.StaleBinding;
@@ -523,7 +522,10 @@ pub const State = struct {
             },
             .send => |c| {
                 const p = try self.process(c.pid);
-                try self.newWork(p, record);
+                try running(p);
+                if (p.failure != null) return error.BlockedProcess;
+                if (p.work_before_ms) |bound| try (try self.trustedTime(record)).before(bound);
+                if (lifecycle.suspensionDeadline(p)) |bound| try (try self.trustedTime(record)).before(bound);
                 p.admitted = try std.math.add(u64, p.admitted, 1);
                 admission = .{ .pid = c.pid, .value = c.value };
             },
@@ -582,7 +584,7 @@ pub const State = struct {
                         };
                         break :blk true;
                     };
-                    const accepts = dependencies and (if (p.work_before_ms) |deadline| (try self.trustedTime(record)).upper() < deadline else true);
+                    const accepts = dependencies and (if (lifecycle.suspensionDeadline(p)) |bound| (try self.trustedTime(record)).upper() < bound else true) and (if (p.work_before_ms) |deadline| (try self.trustedTime(record)).upper() < deadline else true);
                     if (accepts) {
                         p.admitted = try std.math.add(u64, p.admitted, 1);
                         admission = .{ .pid = c.pid, .value = c.result.? };
@@ -634,6 +636,27 @@ pub const State = struct {
         return admission;
     }
 
+    pub fn spawnProcess(self: *State, c: @FieldType(Command, "spawn"), record: Record) !*Process {
+        if (c.code == 0) return error.UnsupportedWorkload;
+        try c.initial_state.validate();
+        if (c.deadline_ms) |deadline| {
+            const time = try self.trustedTime(record);
+            const settle = c.settle_before_ms orelse return error.InvalidLifetime;
+            if (deadline > settle or settle > max_counter) return error.InvalidLifetime;
+            try time.before(deadline);
+        } else if (c.settle_before_ms != null) return error.InvalidLifetime;
+        const free = for (&self.processes) |*slot| {
+            if (slot.* == null) break slot;
+        } else return error.ProcessCapacity;
+        free.* = .{ .pid = record.position, .code = c.code, .state = c.initial_state, .allow_trim = c.allow_trim, .work_before_ms = c.deadline_ms, .settle_before_ms = c.settle_before_ms };
+        return &free.*.?;
+    }
+
+    fn checkExecutable(self: *State, subject: *const Process, record: Record) !void {
+        try executable(subject);
+        try lifecycle.required(self, subject, record.time);
+    }
+
     fn deliver(self: *State, c: @FieldType(Command, "deliver"), record: Record) !?Message {
         var admission: ?Message = null;
         const out = try self.output(c.output);
@@ -660,6 +683,10 @@ pub const State = struct {
                 out.phase = .expired;
             } else try time.before(deadline);
         };
+        if (out.phase == .delivered) if (lifecycle.suspensionDeadline(destination)) |deadline| {
+            const time = try self.trustedTime(record);
+            if (time.lower() >= deadline) out.phase = .expired else try time.before(deadline);
+        };
         if (out.phase == .delivered) {
             destination.admitted = try std.math.add(u64, destination.admitted, 1);
             admission = .{ .pid = c.pid, .value = out.value };
@@ -671,7 +698,7 @@ pub const State = struct {
     pub fn applyTurn(self: *State, c: protocol.Turn, record: Record, input: ?Record) !void {
         try resources.checkProcess(self, c.pid, record.time);
         const p = try self.process(c.pid);
-        try executable(p);
+        try self.checkExecutable(p, record);
         if (c.generation != p.generation or p.owner != record.request.principal) return error.StaleGeneration;
         if (p.turn_permit) |permit| {
             if (c.permit != permit.id or c.input != permit.input) return error.InvalidTurnPermit;
@@ -720,9 +747,9 @@ pub const State = struct {
         p.turn_permit = null;
     }
 
-    pub fn retireProcess(self: *State, p: *Process, position: u64, lifecycle: @FieldType(protocol.ProcessView, "lifecycle")) void {
+    pub fn retireProcess(self: *State, p: *Process, position: u64, terminal: @FieldType(protocol.ProcessView, "lifecycle")) void {
         const pid = p.pid;
-        p.lifecycle = lifecycle;
+        p.lifecycle = terminal;
         p.owner = null;
         p.turn_permit = null;
         p.cancelled = p.admitted - p.consumed;
@@ -748,6 +775,7 @@ pub const State = struct {
         if (self.position < ceiling) return;
         if (self.position >= ceiling + controlRecordBudget(ceiling)) return error.ControlCapacity;
         switch (command) {
+            .lifecycle => |c| if (c != .expire_suspension) return error.AdmissionClosed,
             .state => |c| switch (c) {
                 .close, .retire, .expire, .reclaim => {},
                 .turn => |turn| try self.checkCapacity(.{ .turn = turn.turn }),
@@ -787,6 +815,7 @@ pub const State = struct {
     /// read access. A synchronization outage must not disable control authority.
     pub fn requiresTime(self: *State, command: Command) !bool {
         const pid: u64 = switch (command) {
+            .lifecycle => |c| return lifecycle.needsTime(self, c),
             .state => |c| return resources.needsTime(self, c),
             .deliver_next => {
                 for (self.outputs) |slot| if (slot) |out| {
@@ -798,6 +827,7 @@ pub const State = struct {
             .spawn => |c| return c.deadline_ms != null,
             .expire => return true,
             .close_effect => |c| return c.reason == .deadline,
+            .declare_payload => |c| c.pid,
             .own => |c| c.pid,
             .activate => |c| c.pid,
             .runtime_upgrade => |c| c.pid,
@@ -816,11 +846,11 @@ pub const State = struct {
             else => return false,
         };
         const p = try self.process(pid);
-        return p.lifecycle == .running and (p.work_before_ms != null or resources.processNeedsTime(self, pid));
+        return p.lifecycle == .running and (p.work_before_ms != null or lifecycle.suspensionDeadline(p) != null or resources.processNeedsTime(self, pid));
     }
 
     fn newWork(self: *State, p: *const Process, record: Record) !void {
-        try executable(p);
+        try self.checkExecutable(p, record);
         try resources.checkProcess(self, p.pid, record.time);
         if (p.work_before_ms) |deadline| try (try self.trustedTime(record)).before(deadline);
     }
@@ -832,6 +862,9 @@ pub const State = struct {
         if (sample.error_ms > bound or sample.unix_ms > max_counter) return error.UntrustedTime;
         if (sample.unix_ms < self.time_floor_ms) return error.ClockRollback;
         for (self.processes) |slot| if (slot) |p| {
+            if (p.lifecycle == .running) if (lifecycle.suspensionDeadline(&p)) |deadline| {
+                if (sample.lower() >= deadline) return .{ .lifecycle = .{ .expire_suspension = p.pid } };
+            };
             if (p.lifecycle == .running) if (p.settle_before_ms) |deadline| {
                 if (sample.lower() >= deadline) return .{ .expire = p.pid };
             };
@@ -881,8 +914,13 @@ pub const Checkpoint = struct {
 fn running(p: *const Process) !void {
     if (p.lifecycle != .running) return error.RetiredProcess;
 }
-fn executable(p: *const Process) !void {
+pub fn executable(p: *const Process) !void {
     try running(p);
+    if (p.control) |control| switch (control.phase) {
+        .initializing => return error.NotInitialized,
+        .suspended => return error.SuspendedProcess,
+        .ready => {},
+    };
     if (p.failure != null) return error.BlockedProcess;
 }
 

@@ -298,3 +298,11 @@ or fence old activations, preserve pending message/effect identities, and commit
 the new version and compatible state under explicit authority. If old code or
 required history is unavailable, stop visibly; neither loading a new image nor
 recomputing old effects is a migration strategy.
+
+## Runtime readiness controls
+
+[M8 lifecycle controls](../contracts/LIFECYCLE_V1.md) implement generic initialization
+barriers, scoped blocked-input retry, and bounded suspension/resumption. They keep
+process retirement, ownership generations and provider activation distinct.
+Station builds behavior initialization, subscriptions and restart policy on these
+operations; none of those framework policies executes in the node.

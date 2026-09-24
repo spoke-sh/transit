@@ -69,7 +69,7 @@ pub fn read(engine: anytype, signed: s.SignedQuery) !s.Page {
             },
             .entries => {
                 const data = try cat.resource(q.resource.?);
-                try core.resources.usable(state, data, if (data.meta.deadline_ms != null) try sample(engine) else null);
+                try core.resources.usable(state, data, if (core.resources.effectiveDeadline(state, data) != null) try sample(engine) else null);
                 result.resources[0] = data.meta;
                 try entries(&result, &data.entries, q);
             },

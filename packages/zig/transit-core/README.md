@@ -34,6 +34,8 @@ The [Transit design](../../../docs/TRANSIT.md) describes the broader invariants.
 | Source | Responsibility |
 | --- | --- |
 | [root.zig](src/root.zig) | `State`, protocol transitions, `Engine(Store)`, candidate validation, conditional commit and replay |
+| [lifecycle.zig](src/lifecycle.zig) | Initialization barrier, scoped retry and bounded suspension |
+| [collection.zig](src/collection.zig) | Opted-in working slot reclamation with non-reusable identities |
 | [resources.zig](src/resources.zig) | KV catalog, associations, grants, captured views, dependency retirement and receipt rights |
 | [inspection.zig](src/inspection.zig), [resource_read.zig](src/resource_read.zig) | Current-authorized bounded read projections and final tail checks |
 | [Time.zig](src/Time.zig) | Trusted sample/error-bound semantics; the host supplies the clock |
@@ -112,3 +114,7 @@ history. This check discloses the original decision and never republishes a turn
 Large checkpoint objects use `Checkpoint.Heap` and an owned parsed result at the
 storage boundary. The parser preserves strict field and fixed-array validation
 without passing the full catalog through nested by-value parse frames.
+
+[M8 lifecycle controls](../../../contracts/LIFECYCLE_V1.md) extend the generic
+protocol without a behavior dispatcher. Legacy `spawn` is immediately ready;
+managed creation enforces declared dependencies before initialization completes.

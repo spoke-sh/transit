@@ -44,6 +44,11 @@ fn largest(comptime T: type) T {
     if (T == transit.Value) return transit.Value.init(&(@as([transit.Value.max_bytes]u8, @splat(255)))) catch unreachable;
     if (T == transit.State.Mutation) return .{ .key = transit.Value.init(&@as([transit.State.max_key_bytes]u8, @splat(255))) catch unreachable, .value = largest(transit.Value) };
     if (T == transit.State.Associate) return .{ .pid = transit.max_counter, .name = transit.Value.init(&@as([transit.State.max_key_bytes]u8, @splat(255))) catch unreachable, .expected_revision = transit.max_counter, .resource = transit.max_counter };
+    if (T == transit.Lifecycle.Create) {
+        var required: [transit.Lifecycle.max_required]?transit.Value = undefined;
+        for (&required, 0..) |*slot, index| slot.* = transit.Value.init(&@as([transit.State.max_key_bytes]u8, @splat(@intCast(index)))) catch unreachable;
+        return .{ .code = std.math.maxInt(u32), .initial_state = largest(transit.Value), .deadline_ms = std.math.maxInt(u64), .settle_before_ms = std.math.maxInt(u64), .required = required };
+    }
     return switch (@typeInfo(T)) {
         .int => |i| if (i.signedness == .signed) std.math.minInt(T) else std.math.maxInt(T),
         .bool => false,
@@ -68,9 +73,9 @@ fn largest(comptime T: type) T {
 test "every full command fits canonical signing and the bounded journal envelope" {
     const info = @typeInfo(transit.Command).@"union";
     inline for (info.field_names, info.field_types) |name, T| {
-        if (comptime T == transit.State.Command) {
+        if (comptime @typeInfo(T) == .@"union") {
             const variants = @typeInfo(T).@"union";
-            inline for (variants.field_names, variants.field_types) |tag, V| try envelope(.{ .state = @unionInit(T, tag, largest(V)) });
+            inline for (variants.field_names, variants.field_types) |tag, V| try envelope(@unionInit(transit.Command, name, @unionInit(T, tag, largest(V))));
         } else try envelope(@unionInit(transit.Command, name, largest(T)));
     }
 }

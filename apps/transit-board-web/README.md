@@ -36,13 +36,13 @@ evidence. Resource entries render as exact hex bytes after an explicit read.
 
 ## Working in the frontend
 
-| Source | Owns |
-| --- | --- |
-| [routes/](src/routes/) | Overview, resource and PID/journey routes; stable URLs and route validation |
-| [state.tsx](src/state.tsx) | Shared process inspection state and polling lifecycle |
-| [resources.tsx](src/resources.tsx) | Resource/association/entry reads and generic state presentation |
-| [components.tsx](src/components.tsx) | Evidence, status and process views |
-| [model.test.ts](src/model.test.ts) | Model/client boundary tests |
+| Source                               | Owns                                                                        |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| [routes/](src/routes/)               | Overview, resource and PID/journey routes; stable URLs and route validation |
+| [state.tsx](src/state.tsx)           | Shared process inspection state and polling lifecycle                       |
+| [resources.tsx](src/resources.tsx)   | Resource/association/entry reads and generic state presentation             |
+| [components.tsx](src/components.tsx) | Evidence, status and process views                                          |
+| [model.test.ts](src/model.test.ts)   | Model/client boundary tests                                                 |
 
 Import public types and transports from `@rey/transit-board-client`; do not copy
 wire types into a route. Generated route trees and client validators are not
