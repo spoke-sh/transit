@@ -60,7 +60,14 @@ pub fn main(init: std.process.Init) !void {
         var ignored: u32 = 0;
         var completed = false;
         for (0..200) |_| {
-            if (try session.receive()) |input| {
+            const received = session.receive() catch |err| {
+                // Pod readiness may precede the host forward reconnecting.
+                // Unavailable reads grant no progress; retry the public read.
+                if (err == error.AccessDenied or err == error.Rejected or err == error.StaleActivation or err == error.BlockedProcess) return err;
+                try init.io.sleep(.fromMilliseconds(100), .awake);
+                continue;
+            };
+            if (received) |input| {
                 const origin = input.input.origin.source;
                 const accepted = origin == .process and origin.process.pid == config.source.?;
                 _ = try caller.submit(try session.prepareCommit(input, .{ .state = if (accepted) try p.Value.init("accepted") else input.state }));

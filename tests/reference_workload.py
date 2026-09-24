@@ -242,7 +242,9 @@ def run():
             output = ref.kube(s, ["-n", namespace, "logs", "deployment/" + deployment_name, "-c", container_name, "--tail=500"], capture=True)
             parsed_logs = [json.loads(line) for line in output.splitlines() if line.startswith('{"schema_version":')]
             assert any(r.get("event", {}).get("name") == event for r in parsed_logs), (deployment_name, output[-3000:])
-            assert board.access not in output and root_key.read_text().strip() not in output
+            # Board viewer keys were removed; all remaining fixture signing
+            # seeds must still stay out of service diagnostics.
+            assert all(credential.read_text().strip() not in output for credential in directory.glob("*.key"))
             diagnostic_evidence[deployment_name] = len(parsed_logs)
         assert any('"name":"transit.runtime.step"' in Path(log.name).read_text() for log in logs)
         nodes = json.loads(ref.kube(s, ["get", "nodes", "-o", "json"], capture=True))
