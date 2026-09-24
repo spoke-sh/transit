@@ -1,0 +1,45 @@
+# Arrow integration
+
+The selected compiler is Zig `0.17.0-dev.2267+48abf1a34`. The package manifest
+pins [rupurt/zarrow](https://github.com/rupurt/zarrow/tree/4276ac30d63d1af159490b7dc70e15d749b8d01b)
+by Git revision and package hash. Its IPC writer uses its own pinned vendored
+zstd/lz4 sources. Fuze's initial results are uncompressed.
+
+[zarrow-compute](https://github.com/tylitianrui/zarrow-compute/tree/357fbf421c77785cd972fe5589918cb3bd39a92e)
+is included as a licensed source snapshot under `vendor/zarrow-compute`. Its
+upstream build uses older Zig filesystem APIs and a moving zarrow archive.
+Fuze supplies the build wiring and exactly one Arrow module to both libraries.
+The snapshot's `upstream.json` records original per-file hashes. Compatibility
+changes handle fallible Arrow accessors and the newer registry's explicit
+`InvalidOptions` distinction; they do not add query features. The original
+compute tests remain executable through the package's `test` step.
+
+`patches.zig` applies guarded patches to a generated copy of zarrow's source.
+An IPC schema write that fails after transferring ownership to `MessageT`
+previously freed the schema twice. The patch records ownership transfer before
+writing, leaving early-construction cleanup intact. Its regression test fills a
+one-byte output buffer using Zig's checking allocator. The fetched dependency
+is never edited in place; changed patch anchors fail the build.
+The FlatBuffer builder's unscoped byte/string debug logging is also disabled:
+encoding must not disclose schemas or perform logging I/O. Caller-owned
+instrumentation describes the query operation without payloads.
+
+Use Git dependency fetching on this compiler. Mixing a prior `zig fetch` of the
+GitHub tarball with the new build fetcher's global archive cache produced a hash
+mismatch with an extra archive directory in the local proof. A fresh Git fetch
+produces the manifest's package hash; package builds must also work cold.
+
+## Initial capacity evidence
+
+`just test::arrow` emits a complete two-column IPC stream (`id: int64`, nullable
+`label: utf8`) and checks it with Nix-pinned PyArrow 23.0.0. The three-row fixture
+includes a null, Unicode and integers above JavaScript's exact-number range.
+It is 456 bytes; the empty result preserves its schema in 392 bytes.
+
+Both fit three 256-byte data keys plus one manifest key in a four-mutation
+commit. This is a feasibility fixture, not the maximum supported Table profile
+or proof of durable publication. Station must still budget framework records,
+schemas, live rows, waiting and delivery records against the same resource, and
+qualify oversized results, cancellation and restart. Kernel IDs remain subject
+to the protocol's advertised counter limit; Arrow integer values have their own
+full signed 64-bit range.

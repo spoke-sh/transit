@@ -1,7 +1,7 @@
 # Development toolchain
 
 [flake.nix](../flake.nix) supplies `just`, Zig 0.17 master through `zig-overlay`,
-Ursula/`ursulactl` through `ursula-overlay`, Vite+ (`vp`), Node.js, pnpm, Python with PyYAML, Process Compose,
+Ursula/`ursulactl` through `ursula-overlay`, Vite+ (`vp`), Node.js, pnpm, Python with PyYAML and PyArrow, Process Compose,
 and Kubernetes tools. [flake.lock](../flake.lock) pins inputs; the Vite+ release
 and checksums live in [vite-plus.nix](vite-plus.nix). Linux and macOS on x86_64
 and aarch64 are configured; native checks on every platform are not claimed.

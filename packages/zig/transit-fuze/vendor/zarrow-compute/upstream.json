@@ -1,0 +1,36 @@
+{
+  "repository": "https://github.com/tylitianrui/zarrow-compute",
+  "revision": "357fbf421c77785cd972fe5589918cb3bd39a92e",
+  "files": {
+    "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "src/kernels/aggregate.zig": "6e2f310cec98ee404930de4445da01b7feb11163ddf9f034b431d4de6b071248",
+    "src/kernels/arithmetic.zig": "0d5dafa5cec3d1bc04befcc22ba1ecea0b6525d711dd88e81e6a3b650437e645",
+    "src/kernels/cast.zig": "b4b9e3d9436988998e4f8a0432e86b484cda4d9ade985723cd18b4e87b2d1672",
+    "src/kernels/common.zig": "86647e1000eabc89377b2c01cb164dd11431cc5dcd75a64f9fdc352557c06d43",
+    "src/kernels/compare.zig": "99da6c7a9169ae5b23021548bd69a836eee51b165adf5fc66a2b341648255835",
+    "src/kernels/conditionals.zig": "1812835178f1035fa6d18f50dd649aca57ffff4af91e3207d9590f8997590dd3",
+    "src/kernels/filter.zig": "227ae414978a98606199224f28fefc02c97008c95280a7db148746b152ee31bf",
+    "src/kernels/impl.zig": "f263e66b9dc41e326894a327b289abc00234d97c39f63f4b9b3bc9da18809e67",
+    "src/kernels/logical.zig": "787114a3f412c5e790de82fc2eda71e05f019a8a9ea71f862c3a6ee1e01f86f0",
+    "src/kernels/nulls.zig": "1ca14b49650bbf9d3b29edbf6e04a3786a84aba4005f624c3ecf5471f5a6eec1",
+    "src/kernels/register.zig": "294cc06362a4cc7c15d91a7c619f753717511a35f76c2ce052971679bc7cd23e",
+    "src/kernels/selection.zig": "8d82336c898ca2bde52812b5763e32c4ccc01bae3a7bfa2feb364672efad7486",
+    "src/kernels/test_support.zig": "d62e994d597af37756bdc472373569d9597d31f20dc542605d0186fb6991f6d9",
+    "src/kernels/tests_conditional_variadic.zig": "3d92bc15e469abcfb7aaf80683fb9bbb98e76e173a695365d9ac7ffdcb4527ea",
+    "src/kernels/tests_filter_dropnull.zig": "95e649d2aef7028889c0be6cf74f81a0fcccf011201c9c725f5b27d32b6fdccd",
+    "src/kernels/tests_misc.zig": "f5092663f4c1c0cad8bbba959ed3988fb926ac6466863c15d7264d1b5c5aac35",
+    "src/kernels/tests_null_ifelse.zig": "7870b6c6f9e5ce6f4014d583f0d3d3a8de654d6a1b2c66e64a41794b346147a4",
+    "src/kernels/tests_registry.zig": "be5108cd8ca1c975e76438a26a4bd34ccf8a5749d7c67f8fceae6d1337139ade",
+    "src/kernels.zig": "9bbec1d1c85a7e41a612e425bb81232eb7e66c5c1067a70311ddf7f1aef916c3",
+    "src/root.zig": "5fb5b88105256f527f081eb60bb08f75552f80fc83d480db39764a12c867cb8f"
+  },
+  "patched_files": {
+    "src/kernels/common.zig": "b9f51fc3cea5880d769814aff294c4d515e377358f54e609d5055f34f1a47b24",
+    "src/kernels/test_support.zig": "b277c3b4bb1e46b4755fc984bcf8299292dd6f6d98b80aac50c0d0c7712fa814",
+    "src/kernels/tests_conditional_variadic.zig": "87eb9c8d398470cb8b6cad63d6c6963c0669521597dc10dd3346f8db8e23608d",
+    "src/kernels/tests_filter_dropnull.zig": "a1d2f5ec9cdff1d28201fc7dc346758b58d0c68449095d2c4c8843797f76bb14",
+    "src/kernels/tests_misc.zig": "36df2e4c5d2935279418873f1f81a41b84136ae421a8585cf0f2dcf8ac2d609b",
+    "src/kernels/tests_null_ifelse.zig": "a65ee63bd5e9ffa9f4a22a6c0aefdb3ca76fca667539360aadfd3fcbc607b3c9"
+  },
+  "patch_sha256": "2f41da3d0b664fce7c90951b53095d53bbf334ba631af1741d6cfa52acc82cf2"
+}

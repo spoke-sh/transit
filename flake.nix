@@ -75,7 +75,10 @@
               packages = [
                 pkgs.just
                 pkgs.git
-                (pkgs.python3.withPackages (ps: [ ps.pyyaml ]))
+                (pkgs.python3.withPackages (ps: [
+                  ps.pyyaml
+                  ps.pyarrow
+                ]))
                 pkgs.process-compose
                 zig
                 vite-plus

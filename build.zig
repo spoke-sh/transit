@@ -3,11 +3,25 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
+    const arrow_proof = b.addExecutable(.{ .name = "transit-arrow-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/arrow.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    const arrow_test = b.addSystemCommand(&.{ "python3", "-B" });
+    arrow_test.addFileArg(b.path("tests/arrow.py"));
+    arrow_test.addArtifactArg(arrow_proof);
+    arrow_test.has_side_effects = true;
+    arrow_test.stdio = .inherit;
+    b.step("test-arrow", "Qualify finite IPC with an independent Arrow implementation").dependOn(&arrow_test.step);
     const observations = b.dependency("transit_observability", .{ .target = target, .optimize = optimize });
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
     test_step.dependOn(&b.addRunArtifact(tests).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = telemetry.module("telemetry") })).step);
     const telemetry_proof = b.addExecutable(.{ .name = "telemetry-proof", .root_module = b.createModule(.{

@@ -1,0 +1,589 @@
+--- a/src/kernels/common.zig
++++ b/src/kernels/common.zig
+@@ -399 +399 @@
+-            break :blk view.value(logical_index);
++            break :blk view.value(logical_index) catch return error.InvalidInput;
+--- a/src/kernels/test_support.zig
++++ b/src/kernels/test_support.zig
+@@ -371 +371 @@
+-            try std.testing.expectEqual(v, view.value(i));
++            try std.testing.expectEqual(v, (try view.value(i)));
+@@ -386 +386 @@
+-            try std.testing.expectEqual(v, view.value(i));
++            try std.testing.expectEqual(v, (try view.value(i)));
+@@ -401 +401 @@
+-            try std.testing.expectEqual(v, view.value(i));
++            try std.testing.expectEqual(v, (try view.value(i)));
+@@ -416 +416 @@
+-            try std.testing.expectEqual(v, view.value(i));
++            try std.testing.expectEqual(v, (try view.value(i)));
+@@ -436,2 +436,2 @@
+-    try std.testing.expectEqual(expected_values_len, out_list.valuesRef().data().length);
+-}
++    try std.testing.expectEqual(expected_values_len, (try out_list.valuesRef()).data().length);
++}
+--- a/src/kernels/tests_conditional_variadic.zig
++++ b/src/kernels/tests_conditional_variadic.zig
+@@ -75,4 +75,4 @@
+-    try std.testing.expectEqual(@as(i64, 9), view.value(0));
+-    try std.testing.expectEqual(@as(i64, 2), view.value(1));
+-    try std.testing.expectEqual(@as(i64, 9), view.value(2));
+-    try std.testing.expectEqual(@as(i64, 4), view.value(3));
++    try std.testing.expectEqual(@as(i64, 9), (try view.value(0)));
++    try std.testing.expectEqual(@as(i64, 2), (try view.value(1)));
++    try std.testing.expectEqual(@as(i64, 9), (try view.value(2)));
++    try std.testing.expectEqual(@as(i64, 4), (try view.value(3)));
+@@ -113,2 +113,2 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(1), "x"));
+-    try std.testing.expect(std.mem.eql(u8, view.value(2), "y"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(1)), "x"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(2)), "y"));
+@@ -162 +162 @@
+-    try std.testing.expectEqual(@as(i32, 10), row0_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 10), (try row0_i32.value(0)));
+@@ -168 +168 @@
+-    try std.testing.expectEqual(@as(i32, 1), row1_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 1), (try row1_i32.value(0)));
+@@ -174 +174 @@
+-    try std.testing.expectEqual(@as(i32, 13), row2_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 13), (try row2_i32.value(0)));
+@@ -180,2 +180,2 @@
+-    try std.testing.expectEqual(@as(i32, 2), row3_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 3), row3_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 2), (try row3_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 3), (try row3_i32.value(1)));
+@@ -230,2 +230,2 @@
+-    try std.testing.expectEqual(@as(i32, 9), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 10), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 9), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 10), (try row0_i32.value(1)));
+@@ -236 +236 @@
+-    try std.testing.expectEqual(@as(i32, 1), row1_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 1), (try row1_i32.value(0)));
+@@ -241,2 +241,2 @@
+-    try std.testing.expectEqual(@as(i32, 9), row2_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 10), row2_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 9), (try row2_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 10), (try row2_i32.value(1)));
+@@ -297,2 +297,2 @@
+-    try std.testing.expectEqual(@as(i32, 11), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 12), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 11), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 12), (try row0_i32.value(1)));
+@@ -303,2 +303,2 @@
+-    try std.testing.expectEqual(@as(i32, 3), row1_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 4), row1_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 3), (try row1_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 4), (try row1_i32.value(1)));
+@@ -309,2 +309,2 @@
+-    try std.testing.expectEqual(@as(i32, 15), row2_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 16), row2_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 15), (try row2_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 16), (try row2_i32.value(1)));
+@@ -315,2 +315,2 @@
+-    try std.testing.expectEqual(@as(i32, 7), row3_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 8), row3_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 7), (try row3_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 8), (try row3_i32.value(1)));
+@@ -364,2 +364,2 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 2), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 2), (try row0_i32.value(1)));
+@@ -370,2 +370,2 @@
+-    try std.testing.expectEqual(@as(i32, 5), row2_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 6), row2_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 5), (try row2_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 6), (try row2_i32.value(1)));
+@@ -461,8 +461,8 @@
+-    const out_i64 = zcore.Int64Array{ .data = out_struct.fieldRef(0).data() };
+-    const out_bool = zcore.BooleanArray{ .data = out_struct.fieldRef(1).data() };
+-    try std.testing.expectEqual(@as(i64, 10), out_i64.value(0));
+-    try std.testing.expectEqual(false, out_bool.value(0));
+-    try std.testing.expectEqual(@as(i64, 2), out_i64.value(1));
+-    try std.testing.expectEqual(false, out_bool.value(1));
+-    try std.testing.expectEqual(@as(i64, 4), out_i64.value(3));
+-    try std.testing.expectEqual(false, out_bool.value(3));
++    const out_i64 = zcore.Int64Array{ .data = (try out_struct.fieldRef(0)).data() };
++    const out_bool = zcore.BooleanArray{ .data = (try out_struct.fieldRef(1)).data() };
++    try std.testing.expectEqual(@as(i64, 10), (try out_i64.value(0)));
++    try std.testing.expectEqual(false, (try out_bool.value(0)));
++    try std.testing.expectEqual(@as(i64, 2), (try out_i64.value(1)));
++    try std.testing.expectEqual(false, (try out_bool.value(1)));
++    try std.testing.expectEqual(@as(i64, 4), (try out_i64.value(3)));
++    try std.testing.expectEqual(false, (try out_bool.value(3)));
+@@ -517 +517 @@
+-    try std.testing.expectEqual(@as(i64, 10), view.value(0));
++    try std.testing.expectEqual(@as(i64, 10), (try view.value(0)));
+@@ -520,2 +520,2 @@
+-    try std.testing.expectEqual(@as(i64, 23), view.value(3));
+-    try std.testing.expectEqual(@as(i64, 99), view.value(4));
++    try std.testing.expectEqual(@as(i64, 23), (try view.value(3)));
++    try std.testing.expectEqual(@as(i64, 99), (try view.value(4)));
+@@ -587 +587 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
+@@ -596,2 +596,2 @@
+-    try std.testing.expectEqual(@as(i32, 24), row3_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 25), row3_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 24), (try row3_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 25), (try row3_i32.value(1)));
+@@ -603,2 +603,2 @@
+-    try std.testing.expectEqual(@as(i32, 13), row4_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 14), row4_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 13), (try row4_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 14), (try row4_i32.value(1)));
+@@ -665,2 +665,2 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 2), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 2), (try row0_i32.value(1)));
+@@ -671,2 +671,2 @@
+-    try std.testing.expectEqual(@as(i32, 17), row3_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 18), row3_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 17), (try row3_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 18), (try row3_i32.value(1)));
+@@ -677,2 +677,2 @@
+-    try std.testing.expectEqual(@as(i32, 9), row4_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 10), row4_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 9), (try row4_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 10), (try row4_i32.value(1)));
+@@ -736,2 +736,2 @@
+-    try std.testing.expectEqual(@as(i32, 7), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 8), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 7), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 8), (try row0_i32.value(1)));
+@@ -742,2 +742,2 @@
+-    try std.testing.expectEqual(@as(i32, 13), row1_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 14), row1_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 13), (try row1_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 14), (try row1_i32.value(1)));
+@@ -748,2 +748,2 @@
+-    try std.testing.expectEqual(@as(i32, 7), row2_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 8), row2_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 7), (try row2_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 8), (try row2_i32.value(1)));
+@@ -804,2 +804,2 @@
+-    try std.testing.expectEqual(@as(i32, 13), row1_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 14), row1_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 13), (try row1_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 14), (try row1_i32.value(1)));
+@@ -908,6 +908,6 @@
+-    const out_i64 = zcore.Int64Array{ .data = out_struct.fieldRef(0).data() };
+-    const out_bool = zcore.BooleanArray{ .data = out_struct.fieldRef(1).data() };
+-    try std.testing.expectEqual(@as(i64, 1), out_i64.value(0));
+-    try std.testing.expectEqual(true, out_bool.value(0));
+-    try std.testing.expectEqual(@as(i64, 40), out_i64.value(3));
+-    try std.testing.expectEqual(true, out_bool.value(3));
++    const out_i64 = zcore.Int64Array{ .data = (try out_struct.fieldRef(0)).data() };
++    const out_bool = zcore.BooleanArray{ .data = (try out_struct.fieldRef(1)).data() };
++    try std.testing.expectEqual(@as(i64, 1), (try out_i64.value(0)));
++    try std.testing.expectEqual(true, (try out_bool.value(0)));
++    try std.testing.expectEqual(@as(i64, 40), (try out_i64.value(3)));
++    try std.testing.expectEqual(true, (try out_bool.value(3)));
+@@ -1004,2 +1004,2 @@
+-    try std.testing.expectEqual(@as(i64, 2), view.value(0));
+-    try std.testing.expectEqual(@as(i64, 1), view.value(1));
++    try std.testing.expectEqual(@as(i64, 2), (try view.value(0)));
++    try std.testing.expectEqual(@as(i64, 1), (try view.value(1)));
+@@ -1007 +1007 @@
+-    try std.testing.expectEqual(@as(i64, 9), view.value(3));
++    try std.testing.expectEqual(@as(i64, 9), (try view.value(3)));
+@@ -1053 +1053 @@
+-    try std.testing.expectEqual(@as(i64, 1), view.value(0));
++    try std.testing.expectEqual(@as(i64, 1), (try view.value(0)));
+@@ -1055 +1055 @@
+-    try std.testing.expectEqual(@as(i64, 3), view.value(2));
++    try std.testing.expectEqual(@as(i64, 3), (try view.value(2)));
+@@ -1125 +1125 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
+@@ -1133 +1133 @@
+-    try std.testing.expectEqual(@as(i32, 11), row2_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 11), (try row2_i32.value(0)));
+@@ -1139 +1139 @@
+-    try std.testing.expectEqual(@as(i32, 24), row3_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 24), (try row3_i32.value(0)));
+@@ -1145 +1145 @@
+-    try std.testing.expectEqual(@as(i32, 25), row4_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 25), (try row4_i32.value(0)));
+@@ -1223,2 +1223,2 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 2), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 2), (try row0_i32.value(1)));
+@@ -1229,2 +1229,2 @@
+-    try std.testing.expectEqual(@as(i32, 25), row2_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 26), row2_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 25), (try row2_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 26), (try row2_i32.value(1)));
+@@ -1235,2 +1235,2 @@
+-    try std.testing.expectEqual(@as(i32, 17), row3_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 18), row3_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 17), (try row3_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 18), (try row3_i32.value(1)));
+@@ -1294,2 +1294,2 @@
+-    try std.testing.expectEqual(@as(i32, 23), row1_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 24), row1_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 23), (try row1_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 24), (try row1_i32.value(1)));
+@@ -1420,8 +1420,8 @@
+-    const out_i64 = zcore.Int64Array{ .data = out_struct.fieldRef(0).data() };
+-    const out_bool = zcore.BooleanArray{ .data = out_struct.fieldRef(1).data() };
+-    try std.testing.expectEqual(@as(i64, 1), out_i64.value(0));
+-    try std.testing.expectEqual(true, out_bool.value(0));
+-    try std.testing.expectEqual(@as(i64, 30), out_i64.value(2));
+-    try std.testing.expectEqual(false, out_bool.value(2));
+-    try std.testing.expectEqual(@as(i64, 400), out_i64.value(3));
+-    try std.testing.expectEqual(true, out_bool.value(3));
++    const out_i64 = zcore.Int64Array{ .data = (try out_struct.fieldRef(0)).data() };
++    const out_bool = zcore.BooleanArray{ .data = (try out_struct.fieldRef(1)).data() };
++    try std.testing.expectEqual(@as(i64, 1), (try out_i64.value(0)));
++    try std.testing.expectEqual(true, (try out_bool.value(0)));
++    try std.testing.expectEqual(@as(i64, 30), (try out_i64.value(2)));
++    try std.testing.expectEqual(false, (try out_bool.value(2)));
++    try std.testing.expectEqual(@as(i64, 400), (try out_i64.value(3)));
++    try std.testing.expectEqual(true, (try out_bool.value(3)));
+@@ -1474,2 +1474,2 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(1), "B"));
+-    try std.testing.expect(std.mem.eql(u8, view.value(2), "C"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(1)), "B"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(2)), "C"));
+--- a/src/kernels/tests_filter_dropnull.zig
++++ b/src/kernels/tests_filter_dropnull.zig
+@@ -67 +67 @@
+-    try std.testing.expectEqual(@as(i64, 11), view.value(0));
++    try std.testing.expectEqual(@as(i64, 11), (try view.value(0)));
+@@ -69 +69 @@
+-    try std.testing.expectEqual(@as(i64, 13), view.value(2));
++    try std.testing.expectEqual(@as(i64, 13), (try view.value(2)));
+@@ -173 +173 @@
+-    try std.testing.expectEqual(@as(i64, 1), view.value(0));
++    try std.testing.expectEqual(@as(i64, 1), (try view.value(0)));
+@@ -214 +214 @@
+-    try std.testing.expectEqual(@as(i64, 7), view.value(0));
++    try std.testing.expectEqual(@as(i64, 7), (try view.value(0)));
+@@ -216 +216 @@
+-    try std.testing.expectEqual(@as(i64, 9), view.value(2));
++    try std.testing.expectEqual(@as(i64, 9), (try view.value(2)));
+@@ -288 +288 @@
+-    try std.testing.expect(view.value(0));
++    try std.testing.expect((try view.value(0)));
+@@ -290 +290 @@
+-    try std.testing.expect(!view.value(2));
++    try std.testing.expect(!(try view.value(2)));
+@@ -328 +328 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(0), "x"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(0)), "x"));
+@@ -330 +330 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(2), "x"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(2)), "x"));
+@@ -367 +367 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(0), "aa"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(0)), "aa"));
+@@ -405 +405 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(1), "right"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(1)), "right"));
+@@ -442 +442 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(0), "ab"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(0)), "ab"));
+@@ -444 +444 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(2), "ef"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(2)), "ef"));
+@@ -496 +496 @@
+-    try std.testing.expectEqual(@as(i64, 1), view.value(0));
++    try std.testing.expectEqual(@as(i64, 1), (try view.value(0)));
+@@ -498 +498 @@
+-    try std.testing.expectEqual(@as(i64, 4), view.value(2));
++    try std.testing.expectEqual(@as(i64, 4), (try view.value(2)));
+@@ -533 +533 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(0), "one"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(0)), "one"));
+@@ -535 +535 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(2), "three"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(2)), "three"));
+@@ -572 +572 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(0), "aa"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(0)), "aa"));
+@@ -620,2 +620,2 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 2), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 2), (try row0_i32.value(1)));
+@@ -629,2 +629,2 @@
+-    try std.testing.expectEqual(@as(i32, 4), row2_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 5), row2_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 4), (try row2_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 5), (try row2_i32.value(1)));
+@@ -674,2 +674,2 @@
+-    try std.testing.expectEqual(@as(i32, 11), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 12), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 11), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 12), (try row0_i32.value(1)));
+@@ -681 +681 @@
+-    try std.testing.expectEqual(@as(i32, 13), row1_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 13), (try row1_i32.value(0)));
+@@ -731,2 +731,2 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 2), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 2), (try row0_i32.value(1)));
+@@ -737,2 +737,2 @@
+-    try std.testing.expectEqual(@as(i32, 5), row2_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 6), row2_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 5), (try row2_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 6), (try row2_i32.value(1)));
+@@ -821,6 +821,6 @@
+-    const out_i64 = zcore.Int64Array{ .data = out_struct.fieldRef(0).data() };
+-    try std.testing.expectEqual(@as(i64, 1), out_i64.value(0));
+-    try std.testing.expectEqual(@as(i64, 3), out_i64.value(2));
+-
+-    const out_bool = zcore.BooleanArray{ .data = out_struct.fieldRef(1).data() };
+-    try std.testing.expect(out_bool.value(0));
++    const out_i64 = zcore.Int64Array{ .data = (try out_struct.fieldRef(0)).data() };
++    try std.testing.expectEqual(@as(i64, 1), (try out_i64.value(0)));
++    try std.testing.expectEqual(@as(i64, 3), (try out_i64.value(2)));
++
++    const out_bool = zcore.BooleanArray{ .data = (try out_struct.fieldRef(1)).data() };
++    try std.testing.expect((try out_bool.value(0)));
+@@ -854,3 +854,3 @@
+-    try std.testing.expectEqual(@as(i64, 10), view.value(0));
+-    try std.testing.expectEqual(@as(i64, 20), view.value(1));
+-    try std.testing.expectEqual(@as(i64, 30), view.value(2));
++    try std.testing.expectEqual(@as(i64, 10), (try view.value(0)));
++    try std.testing.expectEqual(@as(i64, 20), (try view.value(1)));
++    try std.testing.expectEqual(@as(i64, 30), (try view.value(2)));
+@@ -888,3 +888,3 @@
+-    try std.testing.expectEqual(@as(i64, 1), view.value(0));
+-    try std.testing.expectEqual(@as(i64, 2), view.value(1));
+-    try std.testing.expectEqual(@as(i64, 3), view.value(2));
++    try std.testing.expectEqual(@as(i64, 1), (try view.value(0)));
++    try std.testing.expectEqual(@as(i64, 2), (try view.value(1)));
++    try std.testing.expectEqual(@as(i64, 3), (try view.value(2)));
+@@ -925,2 +925,2 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 2), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 2), (try row0_i32.value(1)));
+@@ -931 +931 @@
+-    try std.testing.expectEqual(@as(i32, 3), row1_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 3), (try row1_i32.value(0)));
+@@ -936 +936 @@
+-    try std.testing.expectEqual(@as(i32, 4), row2_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 4), (try row2_i32.value(0)));
+@@ -971 +971 @@
+-    try std.testing.expectEqual(@as(i32, 7), row0_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 7), (try row0_i32.value(0)));
+@@ -976,2 +976,2 @@
+-    try std.testing.expectEqual(@as(i32, 8), row1_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 9), row1_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 8), (try row1_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 9), (try row1_i32.value(1)));
+@@ -982 +982 @@
+-    try std.testing.expectEqual(@as(i32, 10), row2_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 10), (try row2_i32.value(0)));
+@@ -1022,2 +1022,2 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 2), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 2), (try row0_i32.value(1)));
+@@ -1028,2 +1028,2 @@
+-    try std.testing.expectEqual(@as(i32, 5), row1_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 6), row1_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 5), (try row1_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 6), (try row1_i32.value(1)));
+@@ -1034,2 +1034,2 @@
+-    try std.testing.expectEqual(@as(i32, 9), row2_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 10), row2_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 9), (try row2_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 10), (try row2_i32.value(1)));
+@@ -1070,6 +1070,6 @@
+-    const out_i64 = zcore.Int64Array{ .data = out_struct.fieldRef(0).data() };
+-    try std.testing.expectEqual(@as(i64, 10), out_i64.value(0));
+-    try std.testing.expectEqual(@as(i64, 30), out_i64.value(1));
+-
+-    const out_bool = zcore.BooleanArray{ .data = out_struct.fieldRef(1).data() };
+-    try std.testing.expect(out_bool.value(0));
++    const out_i64 = zcore.Int64Array{ .data = (try out_struct.fieldRef(0)).data() };
++    try std.testing.expectEqual(@as(i64, 10), (try out_i64.value(0)));
++    try std.testing.expectEqual(@as(i64, 30), (try out_i64.value(1)));
++
++    const out_bool = zcore.BooleanArray{ .data = (try out_struct.fieldRef(1)).data() };
++    try std.testing.expect((try out_bool.value(0)));
+--- a/src/kernels/tests_misc.zig
++++ b/src/kernels/tests_misc.zig
+@@ -65 +65 @@
+-    try std.testing.expectEqual(@as(i64, 5), view.value(0));
++    try std.testing.expectEqual(@as(i64, 5), (try view.value(0)));
+@@ -67 +67 @@
+-    try std.testing.expectEqual(@as(i64, -7), view.value(2));
++    try std.testing.expectEqual(@as(i64, -7), (try view.value(2)));
+@@ -93 +93 @@
+-    try std.testing.expectEqual(std.math.minInt(i64) -% @as(i64, 1), wrapped_view.value(0));
++    try std.testing.expectEqual(std.math.minInt(i64) -% @as(i64, 1), (try wrapped_view.value(0)));
+@@ -129 +129 @@
+-    try std.testing.expectEqual(@as(i64, 0), view.value(0));
++    try std.testing.expectEqual(@as(i64, 0), (try view.value(0)));
+@@ -162 +162 @@
+-    try std.testing.expectEqual(@as(i64, 8), view.value(0));
++    try std.testing.expectEqual(@as(i64, 8), (try view.value(0)));
+@@ -164 +164 @@
+-    try std.testing.expectEqual(@as(i64, -12), view.value(2));
++    try std.testing.expectEqual(@as(i64, -12), (try view.value(2)));
+@@ -190 +190 @@
+-    try std.testing.expectEqual(std.math.maxInt(i64) *% @as(i64, 2), wrapped_view.value(0));
++    try std.testing.expectEqual(std.math.maxInt(i64) *% @as(i64, 2), (try wrapped_view.value(0)));
+@@ -228 +228 @@
+-    try std.testing.expectEqual(expected, view.value(0));
++    try std.testing.expectEqual(expected, (try view.value(0)));
+@@ -389 +389 @@
+-        error.NoMatchingKernel,
++        error.InvalidOptions,
+@@ -413 +413 @@
+-        error.NoMatchingKernel,
++        error.InvalidOptions,
+@@ -777 +777 @@
+-        error.NoMatchingKernel,
++        error.InvalidOptions,
+@@ -859,2 +859,2 @@
+-    try std.testing.expectEqual(@as(i32, 5), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 6), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 5), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 6), (try row0_i32.value(1)));
+@@ -865,2 +865,2 @@
+-    try std.testing.expectEqual(@as(i32, 1), row3_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 2), row3_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 1), (try row3_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 2), (try row3_i32.value(1)));
+@@ -919,2 +919,2 @@
+-    try std.testing.expectEqual(@as(i32, 13), row1_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 14), row1_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 13), (try row1_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 14), (try row1_i32.value(1)));
+@@ -925,2 +925,2 @@
+-    try std.testing.expectEqual(@as(i32, 17), row3_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 18), row3_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 17), (try row3_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 18), (try row3_i32.value(1)));
+--- a/src/kernels/tests_null_ifelse.zig
++++ b/src/kernels/tests_null_ifelse.zig
+@@ -64,5 +64,5 @@
+-    try std.testing.expect(!view.value(0));
+-    try std.testing.expect(view.value(1));
+-    try std.testing.expect(view.value(2));
+-    try std.testing.expect(!view.value(3));
+-    try std.testing.expect(!view.value(4));
++    try std.testing.expect(!(try view.value(0)));
++    try std.testing.expect((try view.value(1)));
++    try std.testing.expect((try view.value(2)));
++    try std.testing.expect(!(try view.value(3)));
++    try std.testing.expect(!(try view.value(4)));
+@@ -95,4 +95,4 @@
+-    try std.testing.expect(view.value(0));
+-    try std.testing.expect(!view.value(1));
+-    try std.testing.expect(view.value(2));
+-    try std.testing.expect(!view.value(3));
++    try std.testing.expect((try view.value(0)));
++    try std.testing.expect(!(try view.value(1)));
++    try std.testing.expect((try view.value(2)));
++    try std.testing.expect(!(try view.value(3)));
+@@ -204,4 +204,4 @@
+-    try std.testing.expect(view.value(0));
+-    try std.testing.expect(view.value(1));
+-    try std.testing.expect(!view.value(2));
+-    try std.testing.expect(view.value(3));
++    try std.testing.expect((try view.value(0)));
++    try std.testing.expect((try view.value(1)));
++    try std.testing.expect(!(try view.value(2)));
++    try std.testing.expect((try view.value(3)));
+@@ -249,2 +249,2 @@
+-    try std.testing.expectEqual(@as(i64, 1), view.value(0));
+-    try std.testing.expectEqual(@as(i64, 9), view.value(1));
++    try std.testing.expectEqual(@as(i64, 1), (try view.value(0)));
++    try std.testing.expectEqual(@as(i64, 9), (try view.value(1)));
+@@ -252,2 +252,2 @@
+-    try std.testing.expectEqual(@as(i64, 4), view.value(3));
+-    try std.testing.expectEqual(@as(i64, 9), view.value(4));
++    try std.testing.expectEqual(@as(i64, 4), (try view.value(3)));
++    try std.testing.expectEqual(@as(i64, 9), (try view.value(4)));
+@@ -295 +295 @@
+-    try std.testing.expect(std.mem.eql(u8, view.value(0), "R"));
++    try std.testing.expect(std.mem.eql(u8, (try view.value(0)), "R"));
+@@ -338,3 +338,3 @@
+-    try std.testing.expectEqual(true, view.value(0));
+-    try std.testing.expectEqual(true, view.value(1));
+-    try std.testing.expectEqual(false, view.value(2));
++    try std.testing.expectEqual(true, (try view.value(0)));
++    try std.testing.expectEqual(true, (try view.value(1)));
++    try std.testing.expectEqual(false, (try view.value(2)));
+@@ -443,4 +443,4 @@
+-    const out_i64 = zcore.Int64Array{ .data = out_struct.fieldRef(0).data() };
+-    const out_bool = zcore.BooleanArray{ .data = out_struct.fieldRef(1).data() };
+-    try std.testing.expectEqual(@as(i64, 1), out_i64.value(0));
+-    try std.testing.expectEqual(true, out_bool.value(0));
++    const out_i64 = zcore.Int64Array{ .data = (try out_struct.fieldRef(0)).data() };
++    const out_bool = zcore.BooleanArray{ .data = (try out_struct.fieldRef(1)).data() };
++    try std.testing.expectEqual(@as(i64, 1), (try out_i64.value(0)));
++    try std.testing.expectEqual(true, (try out_bool.value(0)));
+@@ -501,2 +501,2 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 2), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 2), (try row0_i32.value(1)));
+@@ -508,2 +508,2 @@
+-    try std.testing.expectEqual(@as(i32, 11), row1_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 12), row1_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 11), (try row1_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 12), (try row1_i32.value(1)));
+@@ -517,2 +517,2 @@
+-    try std.testing.expectEqual(@as(i32, 4), row3_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 5), row3_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 4), (try row3_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 5), (try row3_i32.value(1)));
+@@ -524,2 +524,2 @@
+-    try std.testing.expectEqual(@as(i32, 15), row4_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 16), row4_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 15), (try row4_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 16), (try row4_i32.value(1)));
+@@ -581,2 +581,2 @@
+-    try std.testing.expectEqual(@as(i32, 42), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 43), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 42), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 43), (try row0_i32.value(1)));
+@@ -587 +587 @@
+-    try std.testing.expectEqual(@as(i32, 2), row1_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 2), (try row1_i32.value(0)));
+@@ -592,2 +592,2 @@
+-    try std.testing.expectEqual(@as(i32, 42), row2_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 43), row2_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 42), (try row2_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 43), (try row2_i32.value(1)));
+@@ -651 +651 @@
+-    const out_items = zcore.ListArray{ .data = out_struct.fieldRef(0).data() };
++    const out_items = zcore.ListArray{ .data = (try out_struct.fieldRef(0)).data() };
+@@ -656 +656 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
+@@ -662 +662 @@
+-    try std.testing.expectEqual(@as(i32, 8), row1_i32.value(0));
++    try std.testing.expectEqual(@as(i32, 8), (try row1_i32.value(0)));
+@@ -784,2 +784,2 @@
+-    try std.testing.expectEqual(@as(i32, 1), row0_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 2), row0_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 1), (try row0_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 2), (try row0_i32.value(1)));
+@@ -790,2 +790,2 @@
+-    try std.testing.expectEqual(@as(i32, 19), row4_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 20), row4_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 19), (try row4_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 20), (try row4_i32.value(1)));
+@@ -846,2 +846,2 @@
+-    try std.testing.expectEqual(@as(i32, 13), row1_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 14), row1_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 13), (try row1_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 14), (try row1_i32.value(1)));
+@@ -852,2 +852,2 @@
+-    try std.testing.expectEqual(@as(i32, 17), row3_i32.value(0));
+-    try std.testing.expectEqual(@as(i32, 18), row3_i32.value(1));
++    try std.testing.expectEqual(@as(i32, 17), (try row3_i32.value(0)));
++    try std.testing.expectEqual(@as(i32, 18), (try row3_i32.value(1)));

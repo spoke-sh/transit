@@ -10,8 +10,13 @@ _default:
 unit:
     zig build test
 
+# Qualify finite IPC schemas/values against an independent Arrow reader.
+arrow:
+    zig build test-arrow
+
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-fuze && zig build test
     cd packages/zig/transit-observability && zig build test
     cd packages/zig/telemetry && zig build test
     cd packages/zig/transit-board-api && zig build test
