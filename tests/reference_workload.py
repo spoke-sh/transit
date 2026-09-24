@@ -204,6 +204,10 @@ backend = "inline"
         completed = await_state(pid, 153)
         live = actor()
         assert live["metadata"]["uid"] == first_actor_uid
+        from reference_board import Board
+        board = Board(s, directory, namespace, images, pid, command, key, apply, start)
+        board_before = board.process(pid)
+        assert board_before["generation"] == completed["process"]["generation"]
         old_worker = live["status"]["workerAssignment"]
         ref.kube(s, ["-n", old_worker["workerNamespace"], "delete", "pod", old_worker["workerPod"], "--grace-period=0", "--force"])
         command({"send": {"pid": pid, "value": 1000}})
@@ -212,6 +216,10 @@ backend = "inline"
         assert replacement["metadata"]["uid"] == first_actor_uid
         assert replacement["status"]["workerAssignment"]["workerPodUid"] != old_worker["workerPodUid"]
         assert recovered["process"]["generation"] > completed["process"]["generation"]
+        board_after = board.process(pid)
+        assert board_after["pid"] == board_before["pid"]
+        assert board_after["generation"] > board_before["generation"]
+        assert board_after["binding"]["activation"]["worker_incarnation"] != board_before["binding"]["activation"]["worker_incarnation"]
         ref.kube(s, ["-n", namespace, "delete", "pod", "-l", "app=ursula", "--grace-period=0", "--force"])
         ref.kube(s, ["-n", namespace, "rollout", "status", "deployment/ursula", "--timeout=120s"])
         assert await_state(pid, 1153)["process"]["pid"] == pid
@@ -242,6 +250,8 @@ backend = "inline"
                             "-n", namespace, "port-forward", "service/transit", f"{port}:8080"], "replacement-forward")
         assert await_state(pid, 1153)["process"]["pid"] == pid
         assert view(finite_pid)["process"]["lifecycle"] == "expired"
+        assert board.process(finite_pid)["lifecycle"] == "expired"
+        assert board.process(pid)["state"] == b"1153".hex()
         from reference_isolation import run as isolation
         isolation_evidence = isolation(s, directory, namespace, authority_host, images, template)
         # A deterministic poison input must stop replacement, not turn worker
@@ -263,7 +273,10 @@ backend = "inline"
         while view(pid)["process"]["binding"]["phase"] != "stopped":
             assert time.monotonic() < limit, "Runtime shutdown did not reconcile"
             time.sleep(0.2)
-        evidence = {"namespace": namespace, "pid": pid, "actor_uid": first_actor_uid,
+        assert board.process(pid)["lifecycle"] == "terminated"
+        board_history = board.read(f"processes/{pid}/history")["observation"]
+        board.evidence["retained_history"] = {key: board_history[key] for key in ("cut", "history", "complete")}
+        evidence = {"board": board.evidence, "namespace": namespace, "pid": pid, "actor_uid": first_actor_uid,
                     "first_worker_uid": old_worker["workerPodUid"], "replacement_worker_uid": replacement["status"]["workerAssignment"]["workerPodUid"],
                     "state": 1153, "expired_pid": finite_pid, "isolation": isolation_evidence, "images": images, "pins": ref.PINS}
         (directory / "evidence.json").write_text(json.dumps(evidence, indent=2))

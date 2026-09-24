@@ -18,8 +18,8 @@ remain independent of those providers.
 **Status:** experimental M1 is implemented, including signed ingress, fenced
 turns, recovery, bounded effect reconciliation, and opt-in retention. Application
 code runs in callers; the node validates the protocol and stores opaque state.
-Board now provides an embedded inspection UI and OpenAPI service; its M2
-qualification is in progress. Station, the HTTP connector, and trading applications follow. See the
+Board provides an embedded inspection UI and OpenAPI service, qualified against
+the Kubernetes/Substrate reference. Station, the HTTP connector, and trading applications follow. See the
 [roadmap](docs/roadmap/README.md) and [proof coverage and limits](tests/README.md).
 
 ## Get started

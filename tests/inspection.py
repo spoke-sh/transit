@@ -104,7 +104,16 @@ def run(node, cli):
         query = s.query("process", pids[0])
         canonical = json.dumps(query["query"], separators=(",", ":"))
         assert canonical.startswith('{"version":1,"realm":72,"principal":0,"resource":"process"')
-        assert len(hashlib.sha256(b"rey.transit.inspection.v1\0" + canonical.encode()).digest()) == 32
+        fixture = json.loads((Path(__file__).resolve().parents[1] / "packages/zig/transit-protocol/src/fixtures/inspection-v1.json").read_text())
+        assert hashlib.sha256(b"rey.transit.inspection.v1\0" + fixture["canonical"].encode()).hexdigest() == fixture["sha256"]
+        vector_key = s.root / "vector.key"
+        vector_key.write_text(fixture["seed_hex"])
+        vector_key.chmod(0o600)
+        vector_request = s.root / "vector-query.json"
+        vector_request.write_text(fixture["canonical"])
+        vector = s.invoke("sign-inspection", vector_key, vector_request)
+        assert vector["signature"] == fixture["signature"]
+        assert json.dumps(vector["query"], separators=(",", ":")) == fixture["canonical"]
         query["query"]["pid"] = pids[1]
         s.post("/v2/inspect", query, 403)
         s.post("/v2/command", s.query("process", pids[0]), 400)

@@ -73,3 +73,19 @@ pub fn sign(query: Query, key: p.Ed25519.KeyPair) !SignedQuery {
     try validate(query);
     return .{ .query = query, .signature = (try key.sign(&digest(query), null)).toBytes() };
 }
+
+test "shared inspection canonical bytes, domain hash and signature" {
+    const Fixture = struct { seed_hex: []const u8, canonical: []const u8, sha256: []const u8, signature: [64]u8 };
+    var fixture = try std.json.parseFromSlice(Fixture, std.testing.allocator, @embedFile("fixtures/inspection-v1.json"), .{});
+    defer fixture.deinit();
+    var query = try std.json.parseFromSlice(Query, std.testing.allocator, fixture.value.canonical, .{});
+    defer query.deinit();
+    const canonical = try std.json.Stringify.valueAlloc(std.testing.allocator, query.value, .{});
+    defer std.testing.allocator.free(canonical);
+    try std.testing.expectEqualStrings(fixture.value.canonical, canonical);
+    try std.testing.expectEqualStrings(fixture.value.sha256, &std.fmt.bytesToHex(digest(query.value), .lower));
+    var seed: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&seed, fixture.value.seed_hex);
+    const key = try p.Ed25519.KeyPair.generateDeterministic(seed);
+    try std.testing.expectEqual(fixture.value.signature, (try sign(query.value, key)).signature);
+}

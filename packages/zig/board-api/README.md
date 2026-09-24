@@ -4,7 +4,8 @@ The typed Board v1 response contract, exported as `board_api`. Depends only on
 [transit-protocol](../transit-protocol/README.md). It does not read stores, execute
 handlers, or authenticate viewers; the Board executable composes those boundaries.
 
-`project(page, mappings)` preserves the original authorized inspection page and
+`try project(page, mappings)` rejects malformed mixed-resource or inconsistent
+continuation pages before interpretation. It preserves the original authorized inspection page and
 adds explicit causal references. Input-to-turn, turn-to-effect, turn-to-output,
 and delivered output-to-admission links come from recorded fields. References
 below the retained floor are marked reclaimed, never reconstructed.

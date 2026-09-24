@@ -1,8 +1,7 @@
 # Architecture
 
 Status: experimental M1 kernel, client, storage adapter, and reference runtime
-implemented. Board now supplies the inspection UI/API; M2 deployment
-qualification is in progress. Station, production
+implemented and verified. Board supplies the qualified M2 inspection UI/API. Station, production
 connectors, and trading applications follow. Use the [roadmap](roadmap/README.md)
 for scope and the [test guide](../tests/README.md) for proved behavior and limits.
 

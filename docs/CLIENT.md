@@ -41,13 +41,12 @@ belong to the [transit-client README](../packages/zig/transit-client/README.md).
 
 ## Inspection clients
 
-[Board](BOARD.md) is the planned operator/agent inspection client. Its Zig service
-will use `transit-client`, while its browser and other API consumers use Board's
-OpenAPI surface. The existing known-PID view is insufficient for discovery and
-retained-history inspection; M2 must extend the public read contract with current
-authorization, bounded queries, and explicit coverage. Board cannot import core
-internals or reach raw storage to fill those gaps. Its generated TypeScript client
-is a Board SDK, not a complete Transit execution SDK.
+[Board](BOARD.md) is the operator/agent inspection client. Its Zig service uses
+`transit-client`; the browser and other API consumers use Board's generated
+OpenAPI surface. [Inspection v1](../contracts/INSPECTION_V1.md) adds discovery and
+retained-history reads with current authorization, bounded queries, and explicit
+coverage. Board has no core/storage dependency. Its generated TypeScript models
+and runtime validators form a Board SDK, not a complete Transit execution SDK.
 
 ## Language-neutral boundary
 

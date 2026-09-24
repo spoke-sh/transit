@@ -5,6 +5,7 @@ const Check = struct {
     url: []const u8,
     method: std.http.Method = .GET,
     host: ?[]const u8 = null,
+    deny_at_transport: bool = false,
 };
 const Config = struct { authority: []const u8, checks: []const Check };
 const Response = struct { status: std.http.Status, authority_not_found: bool };
@@ -76,7 +77,18 @@ pub fn main(init: std.process.Init) !void {
     var buffer: [2048]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     for (config.checks) |check| {
-        const response = try bounded(&client, check);
+        const response = bounded(&client, check) catch |err| {
+            // Board's reference pod uses namespace egress rejection, unlike
+            // Substrate's HTTP policy proxy. Require a positive transport denial,
+            // not DNS failure, a timeout, or arbitrary unavailability.
+            if (check.deny_at_transport and (err == error.ConnectionRefused or err == error.ConnectionResetByPeer)) {
+                try output.interface.print("probe {s}: transport rejected denied=true\n", .{check.label});
+                try output.interface.flush();
+                continue;
+            }
+            return err;
+        };
+        if (check.deny_at_transport) return error.EgressBypass;
         // Host-spoofed traffic may be routed to the permitted authority, whose
         // fixed NotFound response also proves the raw target was not reached.
         const denied = response.status == .forbidden or

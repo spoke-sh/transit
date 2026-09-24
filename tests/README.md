@@ -260,6 +260,8 @@ principals, missing API/asset routes, Host/Origin/forwarded-header rejection,
 HttpOnly cookies, key rotation, session expiry/logout, no mutation/proxy routes,
 closed-unknown effects, blocked inputs, history cut/trim gaps and storage restart.
 Core tests deterministically inject revocation/tail and physical-trim races.
+Board projection tests reject mixed-resource pages before they could overflow
+the 32-edge budget, and session-capacity tests forbid eviction to admit a new viewer.
 The initial local load run (Linux x86_64, pinned tools) completed five control
 writes during 25 refresh requests; the maximum observed latency was 43 ms.
 Requests exceeding Board's 10 upstream reads/second admission rate were rejected.
@@ -273,4 +275,31 @@ polling, escaped payloads/lens fallback, denial/logout clearing and absence of
 credentials in URLs/browser storage. Axe checks the journey against WCAG A/AA;
 this does not replace a full assistive-technology audit. Local screenshots/traces
 remain ignored under `.cache/`. Remote TLS termination and identity federation
-are outside this private/loopback profile. Kubernetes qualification is in progress.
+are outside this private/loopback profile.
+
+The Kubernetes/Substrate run on 2026-09-23 passed using the pinned images/tools.
+Board observed PID 1 at generation 2, then the same PID at generation 4 with a
+new worker incarnation. After disk Ursula and node replacement it still exposed
+state `1153`; it also exposed permanently expired PID 48. Retained history began
+at position 52 after checkpoint/physical trim; inspection reported
+`prefix_reclaimed`, and later PID 1 termination remained visible. This preserved
+the existing M1 controller-crash, worker-recovery, expiry and gVisor isolation
+proof. Local evidence is in ignored `.cache/reference/proof-d585cab0/evidence.json`;
+its enclosing directory contains private disposable keys and must not be published.
+
+Board ran as a non-root, read-only-filesystem pod without a service-account token,
+using only a dedicated inspect grant. A second unprivileged container in that
+pod's network namespace first reached Transit, then received transport denials
+for raw Ursula service/pod/admin endpoints and actual Substrate/Kubernetes API
+addresses. The default Kind CNI does not enforce NetworkPolicy: the owned proof
+uses an init-container firewall, permitting Transit, DNS and loopback Board
+port-forwarding. Production clusters need equivalent enforced egress policy;
+the fixture is not a portable NetworkPolicy conformance claim. The cluster and
+registry were removed through the ownership-checking teardown command.
+
+Qualification caught and corrected three assumptions: HTTP header views cannot
+be accessed after Zig's body reader changes state; Kubernetes port-forwarding
+needs a loopback exception inside the confined pod; and Substrate's headless API
+service must resolve to a ready EndpointSlice address for a valid denial probe.
+The probe rejects DNS errors/timeouts as evidence of egress denial, so an invalid
+target cannot produce a passing isolation result.

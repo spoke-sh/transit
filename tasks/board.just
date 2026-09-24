@@ -23,6 +23,7 @@ contract:
 
 # Check frontend formatting, lint, strict types and unit tests.
 check: contract
+    cd packages/ts/board-client && vp check
     cd apps/board-web && vp check
     vp exec --filter @rey/board-web tsc --noEmit
     cd apps/board-web && vp test run

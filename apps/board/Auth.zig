@@ -80,3 +80,13 @@ test "session expiry, rotation and logout invalidate cached authorization" {
     auth.logout(@as([32]u8, @splat(7)));
     try std.testing.expect(!auth.authorized(@as([32]u8, @splat(7)), @splat(9), 99));
 }
+
+test "full session capacity rejects admission without evicting an active viewer" {
+    var auth: Auth = .{};
+    for (0..capacity) |_| _ = try auth.issue(std.testing.io, @splat(9), 100, 1);
+    const first = auth.sessions[0].?.token;
+    try std.testing.expectError(error.SessionCapacity, auth.issue(std.testing.io, @splat(9), 100, 1));
+    try std.testing.expect(auth.authorized(first, @splat(9), 100));
+    _ = try auth.issue(std.testing.io, @splat(9), 1100, 1);
+    try std.testing.expect(!auth.authorized(first, @splat(9), 1100));
+}

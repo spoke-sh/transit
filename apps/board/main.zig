@@ -125,7 +125,8 @@ const Server = struct {
         if (page.reader.permissions != client.protocol.permission(.inspect)) return self.failure(&req, .service_unavailable, .UnsafePrincipal);
         if (page.realm != q.realm or page.resource != q.resource or page.pid != q.pid or page.reader.principal != q.principal) return self.failure(&req, .service_unavailable, .Unavailable);
         if (capabilities) return self.json(&req, .ok, api.Capabilities{ .realm = page.realm, .scope_pid = page.reader.pid, .session_seconds = self.config.session_seconds }, null);
-        return self.json(&req, .ok, api.project(page, self.config.lenses), null);
+        const projection = api.project(page, self.config.lenses) catch return self.failure(&req, .service_unavailable, .Unavailable);
+        return self.json(&req, .ok, projection, null);
     }
 };
 fn header(req: *std.http.Server.Request, name: []const u8) !?[]const u8 {

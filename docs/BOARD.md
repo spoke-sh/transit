@@ -1,7 +1,7 @@
 # Board — system inspection
 
-Status: implemented inspection surface for [M2](roadmap/M2.md), with deployment
-qualification in progress before Station. Board is the UI and
+Status: bounded [M2](roadmap/M2.md) inspection profile implemented and qualified
+on the reference deployment, before Station. Board is the UI and
 OpenAPI surface through which operators and agents comprehend a running Transit
 system. M2 is inspection-only; operational controls are later scope. The [Board application](../apps/board/README.md) owns configuration,
 commands and access limits; [tests](../tests/README.md#board-qualification) own evidence.

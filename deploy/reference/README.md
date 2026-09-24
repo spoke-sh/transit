@@ -15,6 +15,7 @@ required certificate feature gates and gVisor. K3s compatibility is not claimed.
 
 ```sh
 nix develop
+just board::install
 just reference::up
 just reference::images
 just reference::test
@@ -53,10 +54,11 @@ keep cluster checks and their prerequisites explicit. AX is not a dependency.
 
 ## Component configuration
 
-The harness wires an authority and separate maintenance process, disk Ursula,
+The harness wires Board, an authority and separate maintenance process, disk Ursula,
 Substrate, a runtime controller, and the counter example. Configuration belongs
 to each executable:
 
+- [Board](../../apps/board/README.md): embedded UI/API, dedicated read grant, origin and session configuration.
 - [transit-node](../../apps/transit-node/README.md): bootstrap, storage, HTTP, and maintenance.
 - [transit-runtime-controller](../../apps/transit-runtime-controller/README.md): one PID, worker principal, and provider configuration.
 - [example-counter](../../examples/counter/README.md): caller and fresh-key bootstrap.
@@ -66,3 +68,21 @@ to each executable:
 injection. Keep version changes deliberate and rerun the recovery/isolation
 proof. Ursula uses the official upstream image with explicit disk configuration,
 not a separately compiled Nix image. Local Ursula binaries come from the overlay.
+
+## Board qualification
+
+The reference images include the standalone `board` binary. The workload proof
+starts it in a separate pod, observes same-PID/fresh-activation worker recovery,
+and verifies expiry/state/retained boundaries after Ursula and authority restart.
+Only Board's dedicated inspection seed and ingress access key are mounted; no
+service-account token or storage/provider credentials are supplied.
+
+Kind's default CNI does not enforce NetworkPolicy. The owned fixture installs
+IPv4/IPv6 egress rules in the Board pod namespace from an init container with
+NET_ADMIN, then runs Board and its test-only probe without that capability.
+Allowed destinations are the Transit service, cluster DNS and local Board for
+port-forwarding. A positive Transit check precedes explicit transport-denial
+probes against raw Ursula and ready Substrate/Kubernetes endpoints. This proves
+the declared fixture, not all CNIs; a deployment needs equivalent enforced policy.
+See [the harness](../../tests/reference_board.py) and
+[recorded evidence](../../tests/README.md#board-qualification).

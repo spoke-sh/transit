@@ -73,3 +73,20 @@ test("unknown lenses and hostile payloads remain text, denial clears observation
   await expect(page.getByLabel("Board access key")).toBeVisible();
   await expect(page.getByText(/Source: PID/)).toHaveCount(0);
 });
+
+test("disconnection preserves an explicitly stale observation instead of an empty view", async ({
+  page,
+}) => {
+  await page.goto(`/processes/${pid}`);
+  await page.getByLabel("Board access key").fill(process.env.BOARD_TEST_ACCESS!);
+  await page.getByRole("button", { name: "Open board" }).click();
+  await expect(page.getByText("Counter value:")).toContainText("7");
+  await page.route("**/api/v1/processes/**", (route) =>
+    route.fulfill({ status: 503, contentType: "application/json", body: '{"err":"Unavailable"}' }),
+  );
+  await expect(page.getByText(/Last observation remains below; it is stale/)).toBeVisible({
+    timeout: 10000,
+  });
+  await expect(page.getByText("Counter value:")).toContainText("7");
+  await expect(page.getByText("Stale", { exact: true })).toBeVisible();
+});

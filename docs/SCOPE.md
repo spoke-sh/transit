@@ -2,8 +2,9 @@
 
 Status: kernel direction and deployment reference established. The bounded
 [M1 profile](../contracts/TRANSIT_V2.md) is implemented, with evidence in the
-[roadmap](roadmap/README.md). Board and broader framework, connector and application outcomes
-below remain planned; they are not implied by the bounded M1 workloads.
+[roadmap](roadmap/README.md). [Board M2](roadmap/M2.md) is implemented and qualified
+for bounded inspection. Broader framework, connector and application outcomes
+below remain planned; they are not implied by those profiles.
 
 ## Purpose
 

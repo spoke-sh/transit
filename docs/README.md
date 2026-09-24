@@ -1,9 +1,9 @@
 # Project documentation
 
 Start with [scope](SCOPE.md), [architecture](ARCHITECTURE.md), and the
-[glossary](GLOSSARY.md). The [roadmap](roadmap/README.md) distinguishes completed M1 work
-from planned Board, framework, connector, and application milestones. M1 is experimental;
-its bounded implementation does not imply support for every target requirement.
+[glossary](GLOSSARY.md). The [roadmap](roadmap/README.md) distinguishes completed M1/M2 profiles
+from planned framework, connector, and application milestones. These profiles
+are experimental; their bounded implementation does not imply support for every target requirement.
 
 ## Foundations
 

@@ -81,6 +81,8 @@ source events, so consumers must mark unresolved historical links.
 `rey-cli inspect SEED QUERY.json URL` performs the public client call.
 
 `just test::inspection` exercises real signed HTTP calls and disk recovery.
+A shared [canonical fixture](../packages/zig/transit-protocol/src/fixtures/inspection-v1.json)
+checks field ordering, the separate domain hash and signatures in Zig and Python.
 Core tests deterministically inject final-tail races and trim, check scan budgets,
 scoped discovery and two-endpoint links, and distinguish mailbox dispositions.
 Board adds its own ingress and generated API above this contract.

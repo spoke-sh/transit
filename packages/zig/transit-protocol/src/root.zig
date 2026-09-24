@@ -171,6 +171,7 @@ pub const fixtures = struct {
     pub const sequences = @embedFile("fixtures/sequences-v2.json");
 };
 test {
+    _ = Inspection;
     _ = Value;
     _ = @import("tests.zig");
 }
