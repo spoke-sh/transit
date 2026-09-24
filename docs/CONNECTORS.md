@@ -1,7 +1,7 @@
 # Connectors and external exchanges
 
-Status: [HTTP M10](roadmap/M10.md) is the first planned connector;
-[gRPC M11](roadmap/M11.md) is the second. Stream groups, interpolation,
+Status: [HTTP M11](roadmap/M11.md) is the first planned connector;
+[gRPC M12](roadmap/M12.md) is the second. Stream groups, interpolation,
 and connector attempt policy below remain design work. Transit already has
 opaque intents, dispatch authorization, observations, and bounded closure in its
 [effect contract](../contracts/TRANSIT_V2.md#effect-intents-and-observations).

@@ -110,7 +110,7 @@ proposed API offers typed insert/update/upsert/delete, get/scan, and a bounded
 query plan. Requests to another writer travel through its PID's mailbox;
 local operations contribute to the current handler's proposal. The first query
 surface uses versioned structured operations. SQL is planned as a frontend
-to that same contract: [M12](roadmap/M12.md) scopes the first bounded read-only
+to that same contract: [M13](roadmap/M13.md) scopes the first bounded read-only
 subset, with an explicit grammar and capability matrix.
 
 Tabular results use Apache Arrow: bounded record batches in memory and Arrow IPC
@@ -124,8 +124,8 @@ retention and transactional visibility.
 Acero. Station supplies authorized KV/Table/Document source adapters and owns
 mutations, merge rules and durable result publication. The Document direction
 includes both structured state and collaborative text; its CRDT/storage profile
-needs separate qualification. Fuze queries accepted state and does not merge
-speculative edits. [Arrow interchange](ARROW.md) connects the engine to IPC/C
+and unified querying are scoped in [M10](roadmap/M10.md). Fuze queries accepted
+state and does not merge speculative edits. [Arrow interchange](ARROW.md) connects the engine to IPC/C
 interfaces and later Flight, Flight SQL and ADBC. Query operators stay outside
 kernel authority;
 network batch streams cannot confer durability or broaden transactions. HTTP is
@@ -211,7 +211,7 @@ Every namespace declares its authority, visibility, and lifetime. Local and
 cluster-wide registration must identify the logical scope in which a name is
 unique and how that scope survives worker replacement. Neither means an
 unqualified worker-memory map, a Kubernetes namespace, or a Substrate atespace.
-M9 defines the minimal scoped registry; M13 proves cluster-wide conflict and
+M9 defines the minimal scoped registry; M14 proves cluster-wide conflict and
 partition behavior.
 
 Serialize changes for each name under one fenced authority. Conditional updates

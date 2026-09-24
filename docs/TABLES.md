@@ -144,7 +144,7 @@ authorization, a durable stream scheduler or transactional materialization.
 [Fuze](FUZE.md) composes these dependencies in a Zig-native query engine,
 inspired by DataFusion and Acero, with shared source, logical/physical plan and
 operator/sink boundaries across state entities. M9 proves the bounded Table path,
-finite execution and IPC; [M12](roadmap/M12.md) adds Flight, a bounded Flight SQL
+finite execution and IPC; [M13](roadmap/M13.md) adds Flight, a bounded Flight SQL
 frontend and ADBC interoperability over the same Table/query contract, following
 [ARROW.md](ARROW.md).
 
@@ -254,7 +254,7 @@ Full SQL, separate-resource transactions, continuous queries/retractions,
 multi-source snapshot coordination, historical time travel, large results,
 disk-scale indexes/spill, per-row TTL, migrations and writer transfer are outside
 M9. When selected, give this work a new numbered milestone in the linear roadmap.
-The selected remote interoperability work is [M12](roadmap/M12.md), including a
+The selected remote interoperability work is [M13](roadmap/M13.md), including a
 small read-only SQL subset; it does not promise full SQL, continuous queries or
 broader transaction scope.
 For transactions, first investigate a bounded multi-resource write/read-set

@@ -97,7 +97,7 @@ implement resource associations.
 | Read basis | The exact resource identities/revisions observed by a turn and the evidence supporting its recovery/replay contract |
 | KV | The initial versioned resource interface for opaque key/value lookup, put, delete, and bounded enumeration |
 | Table | A planned Station typed keyspace within a state resource, with declared schema/keys and Arrow query results; several tables can share one resource's transaction boundary |
-| Document | A proposed Station state abstraction for nested structured values and collaborative text, with versioned change/merge rules; Fuze queries its accepted materialized revisions, not speculative edits |
+| Document | A planned [M10](roadmap/M10.md) Station state abstraction for nested structured values and collaborative text, with versioned change/merge rules; Fuze queries its accepted materialized revisions, not speculative edits |
 | Table transaction | A bounded mutation batch committed in one resource/turn; M9 does not extend this across separate resources or writer PIDs |
 | Arrow record batch | A finite set of typed column arrays with one schema, used for tabular interchange and query computation; it is not a durable commit |
 | Arrow IPC stream | Serialized schema and record batches for cross-process interchange; durability, result framing and recovery remain Station/Transit responsibilities |
@@ -106,13 +106,14 @@ implement resource associations.
 | Staged data | Durably prepared data that remains unpublished until referenced by an accepted commit decision |
 
 See [Tables](TABLES.md) for the proposed M9 surface, materialization and
-transaction limits. A finite Arrow batch stream and a durable Transit stream
+transaction limits, and [M10](roadmap/M10.md) for Documents and unified querying.
+A finite Arrow batch stream and a durable Transit stream
 have different responsibilities.
 
 ## Arrow execution and interchange
 
 These are planned interfaces above the kernel. [Fuze](FUZE.md) owns query
-execution; [Arrow](ARROW.md) owns interchange and the M12 remote query profile.
+execution; [Arrow](ARROW.md) owns interchange and the M13 remote query profile.
 
 | Term | Meaning |
 | --- | --- |

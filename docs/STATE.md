@@ -70,9 +70,9 @@ become a SQL or Arrow compute engine.
 
 [Fuze](FUZE.md) names that shared query engine. Its target source model includes
 KV, Table and a proposed Station Document for structured values and collaborative
-text. Document change/CRDT semantics belong above core and need a separately
-qualified storage/lifetime profile. Shared querying does not add those semantics
-to the current KV resource or widen its transaction boundary.
+text. [M10](roadmap/M10.md) owns Document change/CRDT semantics above core and
+the qualification of its storage/lifetime profile. Shared querying does not add
+those semantics to the current KV resource or widen its transaction boundary.
 
 The first KV implementation does not promise arbitrary queries, secondary
 indexes, per-key TTL, distributed transactions, or automatic schema migration.

@@ -3,7 +3,7 @@
 Status: proposed, with no implementation. [M9](roadmap/M9.md) introduces Fuze's
 bounded Table execution profile alongside Station. The shared query model targets
 KV, Table and Document sources; Document storage, collaborative editing and CRDT
-qualification still need their own milestone. [M12](roadmap/M12.md) adds the first
+qualification belong to [M10](roadmap/M10.md). [M13](roadmap/M13.md) adds the first
 SQL/Flight frontend. Those bounded profiles do not imply the whole target design.
 
 ## Purpose and ownership
@@ -161,10 +161,9 @@ contracts. These capabilities need their own storage, retention and recovery
 proofs; a batch engine or RPC stream alone cannot provide them.
 
 M9 fixes the source/plan/operator contract and proves the bounded Table path.
-KV and Document query adapters, structured documents and collaborative text must
-receive an explicit numbered milestone before implementation; they are target
-requirements for the shared design, not additions silently claimed by M9.
+[M10](roadmap/M10.md) adds KV and Document query adapters, structured documents,
+collaborative text and the required CRDT/storage/retention qualification.
 The existing 256-byte KV values and bounded mutation batches do not imply a
-usable large-document storage profile. [M12](roadmap/M12.md) remains the first
+usable large-document storage profile. [M13](roadmap/M13.md) remains the first
 bounded SQL/Flight frontend over qualified Table sources; broadening its source
 matrix requires explicit source and interoperability qualification.
