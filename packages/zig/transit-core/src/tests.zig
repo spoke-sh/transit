@@ -1356,3 +1356,54 @@ test "collected process history stays inspectable without fabricating current ma
     const signed = try core.protocol.Inspection.sign(q, f.worker);
     try t.expectError(error.Unauthorized, core.inspection.read(&e, signed));
 }
+
+test "logical resume and failed-input retry require confirmed provider stop and fresh activation" {
+    for ([_]bool{ false, true }) |blocked| {
+        var f = try Fixture.init();
+        defer f.store.deinit();
+        f.genesis.max_clock_error_ms = 0;
+        var clock: TestClock = .{ .now = .{ .unix_ms = 10 } };
+        var e = try Engine.bootstrap(&f.store, f.genesis);
+        e.clock = clock.source();
+        const pid = try f.setup(&e);
+        _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.inspect), .pid = pid } });
+        var intent: core.Runtime.Intent = .{ .pid = pid, .expected_revision = 0, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) };
+        const created = try f.submit(&e, 0, .{ .runtime_intent = intent });
+        _ = try f.submit(&e, 0, .{ .runtime_observe = .{ .pid = pid, .revision = 1, .operation = created, .incarnation = @splat(4), .outcome = .ready } });
+        f.worker = try core.Ed25519.KeyPair.generateDeterministic(@splat(10));
+        const activation: core.Runtime.Activate = .{ .pid = pid, .revision = 1, .expected_generation = 2, .worker = 1, .public_key = f.worker.public_key.toBytes(), .worker_incarnation = @splat(5) };
+        _ = try f.submit(&e, 0, .{ .activate = activation });
+        const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = .{} } });
+        const failure = if (blocked)
+            try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 3, .input = input, .result = .{}, .failed = true } })
+        else
+            try f.submit(&e, 0, .{ .lifecycle = .{ .@"suspend" = .{ .pid = pid, .expected_generation = 3, .resume_before_ms = 150 } } });
+        var control: core.protocol.Lifecycle.Command = if (blocked)
+            .{ .retry = .{ .pid = pid, .expected_generation = 4, .failure = failure } }
+        else
+            .{ .@"resume" = .{ .pid = pid, .expected_generation = 4 } };
+        try t.expectError(error.ProviderNotReady, f.submit(&e, 0, .{ .lifecycle = control }));
+        intent.expected_revision = 1;
+        intent.desired = .stopped;
+        const stop = try f.submit(&e, 0, .{ .runtime_intent = intent });
+        if (blocked) control.retry.expected_generation = 5 else control.@"resume".expected_generation = 5;
+        try t.expectError(error.ProviderNotReady, f.submit(&e, 0, .{ .lifecycle = control }));
+        _ = try f.submit(&e, 0, .{ .runtime_observe = .{ .pid = pid, .revision = 2, .operation = stop, .incarnation = @splat(4), .outcome = .stopped } });
+        const restarted = try f.submit(&e, 0, .{ .lifecycle = control });
+        var recovered = try Engine.open(&f.store, f.genesis);
+        recovered.clock = clock.source();
+        const process = try recovered.state.process(pid);
+        try t.expectEqual(.running, process.binding.?.desired);
+        try t.expectEqual(.pending, process.binding.?.phase);
+        try t.expectEqual(restarted, process.binding.?.operation);
+        try t.expectEqual(@as(u64, 3), process.binding.?.revision);
+        try t.expectEqual(@as(u64, 0), process.consumed);
+        try t.expectEqual(null, process.owner);
+        try t.expectError(error.StaleBinding, f.submit(&recovered, 0, .{ .activate = activation }));
+        _ = try f.submit(&recovered, 0, .{ .runtime_observe = .{ .pid = pid, .revision = 3, .operation = restarted, .incarnation = @splat(4), .outcome = .ready } });
+        f.worker = try core.Ed25519.KeyPair.generateDeterministic(@splat(11));
+        _ = try f.submit(&recovered, 0, .{ .activate = .{ .pid = pid, .revision = 3, .expected_generation = 6, .worker = 1, .public_key = f.worker.public_key.toBytes(), .worker_incarnation = @splat(6) } });
+        _ = try f.submit(&recovered, 1, .{ .turn = .{ .pid = pid, .generation = 7, .input = input, .result = .{} } });
+        try t.expectEqual(@as(u64, 1), (try recovered.state.process(pid)).consumed);
+    }
+}
