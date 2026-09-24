@@ -105,67 +105,16 @@ def run():
     def actor():
         return json.loads(ref.ate(s, ["get", "actor", actor_name, "-a", namespace, "-o", "json"], capture=True))
 
-    def pod_spec(image, args, app, storage=False):
-        result = {
-            "automountServiceAccountToken": False,
-            "securityContext": {"runAsNonRoot": True, "runAsUser": 65532, "runAsGroup": 65532, "fsGroup": 65532},
-            "containers": [{"name": app, "image": image, "args": args,
-                            "env": [{"name": "LOG_FORMAT", "value": "json"}, {"name": "LOG_LEVEL", "value": "info"}],
-                            "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}},
-                            "resources": {"requests": {"cpu": "100m", "memory": "128Mi"}, "limits": {"cpu": "2", "memory": "1Gi"}},
-                            "volumeMounts": [{"name": "config", "mountPath": "/config", "readOnly": True}]}],
-            "volumes": [{"name": "config", "configMap": {"name": "config"}}],
-        }
-        if storage:
-            result["containers"][0]["env"] = [{"name": "RUST_LOG", "value": "warn"}, {"name": "TOKIO_WORKER_THREADS", "value": "2"}]
-            result["containers"][0]["volumeMounts"].append({"name": "data", "mountPath": "/data"})
-            result["volumes"].append({"name": "data", "persistentVolumeClaim": {"claimName": "ursula"}})
-        return result
-
-    def deployment(app, spec):
-        spec["containers"][0]["readinessProbe"] = {"httpGet": {"path": "/__ursula/ready" if app == "ursula" else "/health", "port": 8080}, "periodSeconds": 2}
-        return {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": app, "namespace": namespace},
-                "spec": {"replicas": 1, "strategy": {"type": "Recreate"}, "selector": {"matchLabels": {"app": app}},
-                         "template": {"metadata": {"labels": {"app": app}}, "spec": spec}}}
-
     config = {"genesis": {"realm": 49, "root_key": root_public, "retry_policy": "last_per_principal", "max_clock_error_ms": 2000}, "ursula_url": f"http://ursula.{namespace}.svc.cluster.local:8080",
               "bucket": "rey-reference", "journal": "authority", "listen": "0.0.0.0", "port": 8080, "request_timeout_ms": 3000, "accept_trace_parent": True}
-    maintenance_config = dict(config, maintenance={"principal": 3, "seed_file": "/secrets/seed", "interval_ms": 200,
-                                                  "operation_timeout_ms": 5000, "checkpoint_every_records": 16})
-    wal = '''[server]
-listen = "0.0.0.0:8080"
-admin_listen = "0.0.0.0:8081"
-[runtime]
-core_count = 2
-[raft]
-node_id = 1
-group_count = 1
-[raft.wal]
-backend = "disk"
-path = "/data/wal"
-[storage.cold]
-backend = "none"
-[storage.snapshot]
-backend = "inline"
-'''
+    from reference_chart import Chart
+    chart = Chart(s, directory, namespace, images, config)
     try:
         apply({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": namespace}})
-        apply({"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "config", "namespace": namespace}, "data": {
-            "node.json": json.dumps(config), "maintenance.json": json.dumps(maintenance_config), "ursula.toml": wal}})
-        apply({"apiVersion": "v1", "kind": "PersistentVolumeClaim", "metadata": {"name": "ursula", "namespace": namespace}, "spec": {"accessModes": ["ReadWriteOnce"], "resources": {"requests": {"storage": "1Gi"}}}})
-        for app in ("ursula", "transit"):
-            apply({"apiVersion": "v1", "kind": "Service", "metadata": {"name": app, "namespace": namespace},
-                   "spec": {"selector": {"app": app}, "ports": [{"name": "http", "port": 8080, "targetPort": 8080}]}})
-        apply(deployment("ursula", pod_spec(images["ursula"], ["server", "--config", "/config/ursula.toml"], "ursula", True)))
-        ref.kube(s, ["-n", namespace, "rollout", "status", "deployment/ursula", "--timeout=120s"])
-        boot = pod_spec(images["transit-node"], ["/config/node.json", "--initialize"], "initialize")
-        boot["restartPolicy"] = "Never"
-        apply({"apiVersion": "batch/v1", "kind": "Job", "metadata": {"name": "initialize", "namespace": namespace},
-               "spec": {"backoffLimit": 0, "template": {"spec": boot}}})
-        ref.kube(s, ["-n", namespace, "wait", "--for=condition=complete", "job/initialize", "--timeout=120s"])
+        chart.deploy()
+        chart.deploy(initialize={"enabled": True})
         # Ordinary pod restarts never create a missing realm.
-        apply(deployment("transit", pod_spec(images["transit-node"], ["/config/node.json"], "transit")))
-        ref.kube(s, ["-n", namespace, "rollout", "status", "deployment/transit", "--timeout=120s"])
+        chart.deploy(initialize={"enabled": False}, node={"enabled": True})
         forward, _ = start(["kubectl", "--kubeconfig", ref.CACHE / "kubeconfig", "--context", "kind-" + s["cluster"],
                             "-n", namespace, "port-forward", "service/transit", f"{port}:8080"], "port-forward")
         time.sleep(1)
@@ -174,9 +123,11 @@ backend = "inline"
         command({"grant": {"subject": 2, "public_key": controller_public, "permissions": 17, "pid": pid}})
         for value in range(1, 18):
             command({"send": {"pid": pid, "value": value}})
-        apply({"apiVersion": "ate.dev/v1alpha1", "kind": "WorkerPool", "metadata": {"name": "counter", "namespace": namespace, "labels": {"workload": namespace}},
-               "spec": {"replicas": 3, "workerImage": images["ateom"], "template": {"nodeSelector": {"ate.dev/substrate-version": ref.PINS["substrate"][:7]},
-                        "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"cpu": "1", "memory": "1Gi"}}}}})
+        chart.deploy(workerPool={"enabled": True, "labels": {"workload": namespace},
+                                "spec": {"replicas": 3, "workerImage": images["ateom"],
+                                         "template": {"nodeSelector": {"ate.dev/substrate-version": ref.PINS["substrate"][:7]},
+                                                      "resources": {"requests": {"cpu": "100m", "memory": "512Mi"},
+                                                                    "limits": {"cpu": "1", "memory": "1Gi"}}}}})
         ref.ate(s, ["create", "atespace", namespace])
         template = {"metadata": {"atespace": namespace, "name": "counter"}, "workerSelector": {"matchLabels": {"workload": namespace}},
                     "containers": [{"name": "counter", "image": images["example-counter"],
@@ -220,7 +171,7 @@ backend = "inline"
         live = actor()
         assert live["metadata"]["uid"] == first_actor_uid
         from reference_board import Board
-        board = Board(s, directory, namespace, images, pid, command, key, apply, start)
+        board = Board(s, directory, namespace, images, pid, command, key, apply, start, chart)
         board_before = board.process(pid)
         assert board_before["generation"] == completed["process"]["generation"]
         old_worker = live["status"]["workerAssignment"]
@@ -246,12 +197,7 @@ backend = "inline"
         command({"send": {"pid": finite_pid, "value": 99}})
         apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "maintenance", "namespace": namespace},
                "stringData": {"seed": maintenance_key.read_text()}})
-        maintenance_spec = pod_spec(images["transit-node"], ["/config/maintenance.json", "--maintain"], "maintenance")
-        maintenance_spec["containers"][0]["volumeMounts"].append({"name": "seed", "mountPath": "/secrets", "readOnly": True})
-        maintenance_spec["volumes"].append({"name": "seed", "secret": {"secretName": "maintenance", "defaultMode": 0o440}})
-        maintenance_deployment = deployment("maintenance", maintenance_spec)
-        del maintenance_deployment["spec"]["template"]["spec"]["containers"][0]["readinessProbe"]
-        apply(maintenance_deployment)
+        chart.deploy(maintenance={"enabled": True, "existingSecret": "maintenance"})
         limit = time.monotonic() + 60
         while view(finite_pid)["process"]["lifecycle"] != "expired":
             assert time.monotonic() < limit, "Finite process did not expire"
@@ -305,7 +251,7 @@ backend = "inline"
         diagnostic_evidence["container_log_budget"] = {"size": "5Mi", "files": 3}
         evidence = {"observability": diagnostic_evidence, "board": board.evidence, "namespace": namespace, "pid": pid, "actor_uid": first_actor_uid,
                     "first_worker_uid": old_worker["workerPodUid"], "replacement_worker_uid": replacement["status"]["workerAssignment"]["workerPodUid"],
-                    "state": 1153, "expired_pid": finite_pid, "isolation": isolation_evidence, "images": images, "pins": ref.PINS}
+                    "state": 1153, "expired_pid": finite_pid, "isolation": isolation_evidence, "images": images, "pins": ref.PINS, "chart": "charts/transit"}
         (directory / "evidence.json").write_text(json.dumps(evidence, indent=2))
         print("Substrate controller crash, same-PID/Actor worker recovery, persistent Ursula/authority restart and background expiry passed.")
         print("Evidence:", directory / "evidence.json")

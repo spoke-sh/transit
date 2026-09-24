@@ -12,6 +12,7 @@
   nodejs_24,
   pnpm,
   kubectl,
+  kubernetes-helm,
   k9s,
   k3s,
 }:
@@ -19,7 +20,7 @@ runCommand "rey-toolchain-check"
   {
     nativeBuildInputs = [
       just
-      python3
+      (python3.withPackages (ps: [ ps.pyyaml ]))
       process-compose
       zig
       vite-plus
@@ -28,6 +29,7 @@ runCommand "rey-toolchain-check"
       nodejs_24
       pnpm
       kubectl
+      kubernetes-helm
       k9s
     ]
     ++ lib.optionals stdenv.hostPlatform.isLinux [ k3s ];
@@ -39,6 +41,7 @@ runCommand "rey-toolchain-check"
     mkdir -p "$out" web
     just --version > "$out/just-version"
     python3 --version > "$out/python-version"
+    python3 -c 'import yaml; assert yaml.safe_load("enabled: true")["enabled"]'
     process-compose version > "$out/process-compose-version"
     zig version > "$out/zig-version"
     node --version > "$out/node-version"
@@ -46,6 +49,7 @@ runCommand "rey-toolchain-check"
     ursula --help > "$out/ursula-help"
     ursulactl --version > "$out/ursulactl-version"
     kubectl version --client > "$out/kubectl-version"
+    helm version --short > "$out/helm-version"
     k9s version --short > "$out/k9s-version"
     ${lib.optionalString stdenv.hostPlatform.isLinux ''
       k3s --version > "$out/k3s-version"

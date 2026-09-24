@@ -8,7 +8,7 @@ below remain planned; they are not implied by those profiles.
 
 ## Purpose
 
-Build Transit, a generic streaming kernel that makes distributed, agentic workloads
+Build Transit, a reusable streaming runtime whose generic kernel makes distributed, agentic workloads
 understandable through enforced message sequences. A process's durable history
 determines what it may do next, how progress commits, and how execution recovers.
 The kernel supplies the foundational protocol; durable streams are its transport
@@ -62,7 +62,7 @@ The same primitives must support ordinary stateful distributed programs.
   to other cloud runtimes through durable PID-to-provider runtime bindings.
   Begin with one process per Substrate Actor; activation ownership stays in
   Transit while Substrate handles sandbox placement and lifecycle.
-- AX is excluded. Rey owns execution protocol/orchestration authority; adding
+- AX is excluded. Transit owns execution protocol/orchestration authority; adding
   AX's task store and queue would introduce a competing authority.
 - Scope and cross-component rationale live in foundational Markdown docs;
   implementation details live with their owning components.

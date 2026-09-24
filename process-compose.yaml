@@ -1,0 +1,86 @@
+# Native development topology. The launcher supplies only vars in a private
+# overlay; use `just launchers::local::up` for provisioning and lifecycle control.
+version: "0.5"
+is_strict: true
+disable_env_expansion: true
+ordered_shutdown: true
+
+x-managed: &managed
+  # The launcher starts the manager in its private installation directory.
+  # Keep this literal: Process Compose copies it into probes before templating.
+  working_dir: .
+  availability: {restart: "no"}
+  shutdown: {signal: 15, timeout_seconds: 5}
+  log_configuration:
+    rotation: {max_size_mb: 5, max_backups: 2, max_age_days: 7}
+    flush_each_line: true
+    no_metadata: true
+
+processes:
+  log-retention:
+    <<: *managed
+    command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} log-retention 2>&1'
+    log_location: '{{.STATE_DIR}}/log-retention.log'
+
+  ursula:
+    <<: *managed
+    command: 'exec ursula server --config {{.STATE_DIR_Q}}/ursula.toml 2>&1'
+    log_location: '{{.STATE_DIR}}/ursula.log'
+    depends_on:
+      log-retention: {condition: process_started}
+    readiness_probe:
+      http_get: {host: 127.0.0.1, port: '{{.URSULA_PORT}}', scheme: http, path: /__ursula/ready}
+      period_seconds: 1
+      timeout_seconds: 1
+      failure_threshold: 30
+
+  node:
+    <<: *managed
+    command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} node 2>&1'
+    log_location: '{{.STATE_DIR}}/node.log'
+    environment: ['LOG_LEVEL={{.NODE_LOG_LEVEL}}', 'LOG_FORMAT={{.NODE_LOG_FORMAT}}']
+    depends_on:
+      ursula: {condition: process_healthy}
+    readiness_probe:
+      http_get: {host: 127.0.0.1, port: '{{.TRANSIT_PORT}}', scheme: http, path: /health}
+      period_seconds: 1
+      timeout_seconds: 1
+      failure_threshold: 30
+
+  provision:
+    <<: *managed
+    command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} provision 2>&1'
+    log_location: '{{.STATE_DIR}}/provision.log'
+    depends_on:
+      node: {condition: process_healthy}
+
+  counter:
+    <<: *managed
+    command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} counter 2>&1'
+    log_location: '{{.STATE_DIR}}/counter.log'
+    environment: ['LOG_LEVEL={{.COUNTER_LOG_LEVEL}}', 'LOG_FORMAT={{.COUNTER_LOG_FORMAT}}']
+    depends_on:
+      provision: {condition: process_completed_successfully}
+
+  maintenance:
+    <<: *managed
+    command: 'exec {{.ROOT_Q}}/zig-out/bin/transit-node {{.STATE_DIR_Q}}/maintenance/config.json --maintain 2>&1'
+    log_location: '{{.STATE_DIR}}/maintenance.log'
+    environment: ['LOG_LEVEL={{.MAINTENANCE_LOG_LEVEL}}', 'LOG_FORMAT={{.MAINTENANCE_LOG_FORMAT}}']
+    depends_on:
+      provision: {condition: process_completed_successfully}
+
+  board:
+    <<: *managed
+    command: 'exec {{.ROOT_Q}}/zig-out/bin/board {{.STATE_DIR_Q}}/board/config.json 2>&1'
+    log_location: '{{.STATE_DIR}}/board.log'
+    environment: ['LOG_LEVEL={{.BOARD_LOG_LEVEL}}', 'LOG_FORMAT={{.BOARD_LOG_FORMAT}}']
+    depends_on:
+      provision: {condition: process_completed_successfully}
+    # Preserve the configured Host without relying on the browser hostname's DNS.
+    readiness_probe:
+      exec:
+        command: '{{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} board-probe'
+      period_seconds: 1
+      timeout_seconds: 3
+      failure_threshold: 30

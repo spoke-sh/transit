@@ -1,0 +1,14 @@
+{{- if .Values.workerPool.enabled }}
+{{- $ctx := dict "root" . "component" "workerPool" }}
+apiVersion: ate.dev/v1alpha1
+kind: WorkerPool
+metadata:
+  name: {{ include "transit.name" $ctx }}
+  labels:
+    {{- include "transit.labels" $ctx | nindent 4 }}
+    {{- with .Values.workerPool.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- required "workerPool.spec is required; install Substrate first" .Values.workerPool.spec | toYaml | nindent 2 }}
+{{- end }}

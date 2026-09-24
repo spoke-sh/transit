@@ -1,0 +1,79 @@
+# Images for Zig services are built by the consuming project. Use immutable tags
+# or digests. This chart does not install Substrate or grant Transit permissions.
+imagePullSecrets: []
+node:
+  enabled: true
+  nameOverride: ""
+  image: ""
+  # transit-node JSON configuration; genesis is required. The chart fixes the
+  # listener to 0.0.0.0:8080 and supplies the internal Ursula URL when enabled.
+  config: {}
+  logging: {level: info, format: json}
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "2", memory: 1Gi}
+
+# Explicit bootstrap only, never an install/upgrade hook. Enable with node off,
+# wait for success, then disable and enable node. Restarts never initialize.
+initialize:
+  enabled: false
+  nameOverride: ""
+
+ursula:
+  enabled: true
+  nameOverride: ""
+  image: ghcr.io/tonbo-io/ursula:0.5.1@sha256:cff4c6669e0f8ce32da9857b21c050a627fe91e32e91a5c5e2d0f08b198081ba
+  persistence:
+    existingClaim: ""
+    size: 1Gi
+    # null selects the cluster default; "" explicitly selects no storage class.
+    storageClass: null
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "2", memory: 1Gi}
+
+maintenance:
+  enabled: false
+  nameOverride: ""
+  # Separate principal with the required recorded admin/effect grant.
+  existingSecret: ""
+  config:
+    principal: 3
+    interval_ms: 200
+    operation_timeout_ms: 5000
+    checkpoint_every_records: 16
+  logging: {level: info, format: json}
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "2", memory: 1Gi}
+
+board:
+  enabled: false
+  nameOverride: ""
+  image: ""
+  # Keys: seed (Transit inspection principal) and access (Board ingress key).
+  existingSecret: ""
+  # Board JSON fields, including realm, principal, public_origin and lenses.
+  # The chart fixes the listener, credential paths and internal node upstream.
+  config: {}
+  logging: {level: info, format: json}
+  resources:
+    requests: {cpu: 100m, memory: 64Mi}
+    limits: {cpu: "1", memory: 256Mi}
+  # Reference-only network isolation/probes on Kind's non-enforcing CNI.
+  # Empty in normal deployments; these can expand the pod's trust boundary.
+  extraInitContainers: []
+  extraContainers: []
+
+# These policies require an enforcing CNI. They do not provide TLS or identity.
+networkPolicy:
+  enabled: true
+  dnsNamespace: kube-system
+
+# Optional capacity in an already-installed Agent Substrate cluster. Actor
+# templates, recorded bindings and the runtime controller are separate concerns.
+workerPool:
+  enabled: false
+  nameOverride: ""
+  labels: {}
+  spec: {}

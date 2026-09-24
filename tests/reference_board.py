@@ -1,5 +1,4 @@
 """Board pod: read-only principal, namespace egress confinement and public views."""
-import copy
 import json
 import os
 from pathlib import Path
@@ -11,7 +10,7 @@ from storage import free_port
 
 
 class Board:
-    def __init__(self, s, directory, namespace, images, pid, command, key, apply, start):
+    def __init__(self, s, directory, namespace, images, pid, command, key, apply, start, chart):
         self.s, self.directory, self.namespace = s, directory, namespace
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         seed, public = key("board")
@@ -36,11 +35,10 @@ class Board:
         pods = json.loads(ref.kube(s, ["-n", namespace, "get", "pods", "-l", "app=ursula", "-o", "json"], capture=True))["items"]
         raw_ip = pods[0]["status"]["podIP"]
         config = {"upstream": f"http://{authority}:8080", "realm": 49, "principal": 4,
-                  "seed_file": "/board-secrets/seed", "credential_file": "/board-secrets/access",
+                  "seed_file": "/secrets/seed", "credential_file": "/secrets/access",
                   "public_origin": self.origin, "listen": "0.0.0.0", "port": 8080,
                   "request_timeout_ms": 3000, "upstream_timeout_ms": 2000,
                   "lenses": [{"pid": pid, "kind": "rey.example.counter", "version": 1}]}
-        apply({"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "board", "namespace": namespace}, "data": {"board.json": json.dumps(config)}})
         apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "board", "namespace": namespace},
                "stringData": {"seed": seed.read_text(), "access": self.access}})
         # Kind's default CNI does not enforce NetworkPolicy. Apply rules in this
@@ -66,19 +64,16 @@ ip6tables -w -A OUTPUT -j REJECT
             ("kubernetes", f"http://{kube_ip}:443/"),
         ]]
         hardened = {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}}
-        pod = {"automountServiceAccountToken": False,
-               "securityContext": {"runAsNonRoot": True, "runAsUser": 65532, "runAsGroup": 65532, "fsGroup": 65532},
-               "initContainers": [{"name": "egress", "image": ref.PINS["kind_node"], "command": ["sh", "-ec", rules],
-                                   "securityContext": {"runAsNonRoot": False, "runAsUser": 0, "allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"], "add": ["NET_ADMIN"]}}}],
-               "containers": [{"name": "board", "image": images["board"], "env": [{"name": "LOG_FORMAT", "value": "json"}, {"name": "LOG_LEVEL", "value": "info"}], "args": ["/board-config/board.json"], "securityContext": hardened,
-                               "resources": {"requests": {"cpu": "100m", "memory": "64Mi"}, "limits": {"cpu": "1", "memory": "256Mi"}},
-                               "volumeMounts": [{"name": "config", "mountPath": "/board-config", "readOnly": True}, {"name": "secrets", "mountPath": "/board-secrets", "readOnly": True}],
-                               "readinessProbe": {"httpGet": {"path": "/health", "port": 8080, "httpHeaders": [{"name": "Host", "value": "board.reference.invalid"}]}, "periodSeconds": 2}},
-                              {"name": "probe", "image": images["isolation-probe"], "args": [json.dumps({"authority": f"http://{authority}:8080/health", "checks": checks})], "securityContext": copy.deepcopy(hardened),
-                               "resources": {"requests": {"cpu": "10m", "memory": "16Mi"}, "limits": {"cpu": "100m", "memory": "64Mi"}}}],
-               "volumes": [{"name": "config", "configMap": {"name": "board"}}, {"name": "secrets", "secret": {"secretName": "board", "defaultMode": 0o440}}]}
-        apply({"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": "board", "namespace": namespace},
-               "spec": {"replicas": 1, "selector": {"matchLabels": {"app": "board"}}, "template": {"metadata": {"labels": {"app": "board"}}, "spec": pod}}})
+        chart.deploy(board={
+            "enabled": True, "existingSecret": "board", "config": config,
+            "extraInitContainers": [{"name": "egress", "image": ref.PINS["kind_node"], "command": ["sh", "-ec", rules],
+                                     "securityContext": {"runAsNonRoot": False, "runAsUser": 0, "allowPrivilegeEscalation": False,
+                                                         "capabilities": {"drop": ["ALL"], "add": ["NET_ADMIN"]}}}],
+            "extraContainers": [{"name": "probe", "image": images["isolation-probe"],
+                                 "args": [json.dumps({"authority": f"http://{authority}:8080/health", "checks": checks})],
+                                 "securityContext": hardened,
+                                 "resources": {"requests": {"cpu": "10m", "memory": "16Mi"}, "limits": {"cpu": "100m", "memory": "64Mi"}}}],
+        })
         ref.kube(s, ["-n", namespace, "rollout", "status", "deployment/board", "--timeout=180s"])
         self.forward, _ = start(["kubectl", "--kubeconfig", ref.CACHE / "kubeconfig", "--context", "kind-" + s["cluster"],
                                  "-n", namespace, "port-forward", "deployment/board", f"{self.port}:8080"], "board-forward")

@@ -42,6 +42,7 @@ For hands-on work, use [development](DEVELOPMENT.md) and the
 | [launchers/](../launchers/README.md) | Running and inspecting persistent development environments; lifecycle and trust limits |
 | [tests/](../tests/README.md) | Proof commands, failure schedules, results, and qualification limits |
 | [deploy/reference/](../deploy/reference/README.md) | Reference setup, prerequisites, and teardown |
+| [charts/transit/](../charts/transit/README.md) | Transit Helm resources, values, bootstrap and deployment limits |
 | [nix/](../nix/README.md), [tasks/](../tasks/README.md) | Toolchain maintenance and command reference |
 | [AGENTS.md](../AGENTS.md) | Working instructions and required reading |
 

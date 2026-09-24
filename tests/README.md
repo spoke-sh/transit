@@ -19,6 +19,7 @@ suite. Capacity and reference proofs have extra prerequisites and are separate.
 | `just test::storage` | Disk WAL SIGKILL/restart; competing authorities, lost receipts and revoked grants; 100 inputs beyond the 16-record window; checkpoint/trim with pending effect/outbox/control evidence; live authority catch-up; immutable payload deletion after a lost receipt; native long-poll/offset continuation |
 | `just test::service` | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
 | `just test::capacity` | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations |
+| `just test::deployments` | Rendered/linted Transit Helm chart; explicit bootstrap, existing credential references, retained/reused PVCs, private services and network policies; unsupported values fail before deployment |
 | `just launchers::reference::up`, `just launchers::reference::images`, `just launchers::reference::test` | Real provider setup; controller crash after creation; backlog wakeup, killed worker and fresh activation; Ursula/authority pod restart; opted-in expiry; blocked overflow stops replacement; gVisor egress/credential bypass denials |
 
 The capacity proof uses a finite allocation and a measured physical reserve;
@@ -60,6 +61,15 @@ error checks work under interactive and forced-color builds too. Its rejection
 checks also verify the durable effect state, mailbox counts, and remote sends.
 
 ## Launcher qualification
+
+Stable topology lives in root [process-compose.yaml](../process-compose.yaml),
+[docker-compose.yaml](../docker-compose.yaml) and
+[charts/transit](../charts/transit/README.md). Integration proofs consume these
+files directly; generated private files contain only installation-specific
+values, service configuration and provisioning material. The reference proof
+installs/upgrades the chart, including its WorkerPool and optional Board and
+maintenance resources. Provider setup and adversarial fault injection stay in
+the harness.
 
 `just launchers::local::test` and `just launchers::compose::test` exercise the
 real launchers in uniquely named installations, with disk-backed Ursula and

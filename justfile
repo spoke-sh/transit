@@ -33,6 +33,7 @@ doctor:
     ursula --help > /dev/null
     ursulactl --version
     kubectl version --client
+    helm version --short
     k9s version --short
     if [[ "$(uname -s)" == "Linux" ]]; then k3s --version; fi
 
@@ -47,7 +48,7 @@ check:
     git diff --check
 
 # Run the hosted CI checks within one already-entered development environment.
-ci: check test::telemetry test::observability test::packages test::storage test::service test::callers test::inspection board::check board::test launchers::local::test
+ci: check test::deployments test::telemetry test::observability test::packages test::storage test::service test::callers test::inspection board::check board::test launchers::local::test
 
 # Compile platform executables and the standalone Board UI/API.
 build:

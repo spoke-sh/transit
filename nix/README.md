@@ -1,7 +1,7 @@
 # Development toolchain
 
 [flake.nix](../flake.nix) supplies `just`, Zig 0.17 master through `zig-overlay`,
-Ursula/`ursulactl` through `ursula-overlay`, Vite+ (`vp`), Node.js, pnpm, Python, Process Compose,
+Ursula/`ursulactl` through `ursula-overlay`, Vite+ (`vp`), Node.js, pnpm, Python with PyYAML, Process Compose,
 and Kubernetes tools. [flake.lock](../flake.lock) pins inputs; the Vite+ release
 and checksums live in [vite-plus.nix](vite-plus.nix). Linux and macOS on x86_64
 and aarch64 are configured; native checks on every platform are not claimed.
@@ -62,13 +62,14 @@ requires a user-managed Docker daemon and Compose v2 plugin.
 
 ## Kubernetes tools
 
-The dev shell includes `kubectl` and `k9s` on Linux and macOS, with `k3s` included
+The dev shell includes `kubectl`, Helm and `k9s` on Linux and macOS, with `k3s` included
 on Linux. Their versions are pinned through the existing nixpkgs input in
 `flake.lock`. K3s runs on Linux; macOS development can use a Linux VM or remote
 cluster. See the [K3s requirements](https://docs.k3s.io/installation/requirements).
 
 ```sh
 nix develop --command kubectl version --client
+nix develop --command helm version --short
 nix develop --command k9s version --short
 # Linux only:
 nix develop --command k3s --version
@@ -79,6 +80,8 @@ kubeconfig. `just doctor` and the toolchain smoke check run only local version
 commands for these tools.
 
 The [reference runbook](../deploy/reference/README.md) owns cluster setup.
+Helm 3.20.2 and PyYAML come from the existing nixpkgs pin; the chart proof uses
+them to render, lint and inspect [charts/transit](../charts/transit/README.md).
 [Backend notes](../packages/zig/transit-backend-ursula/README.md) own Ursula's disk
 configuration and the separately pinned Zig client dependency.
 

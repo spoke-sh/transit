@@ -17,14 +17,20 @@ These trusted development profiles use direct recorded ownership; the reference
 adds provider reconciliation and sandbox isolation. Its current launcher remains
 a qualification harness, not a persistent application installer.
 
-Planned [service instrumentation](OBSERVABILITY.md) uses the same event meanings
+[Service instrumentation](OBSERVABILITY.md) uses the same event meanings
 across these profiles, with executable-owned configuration and bounded sinks.
 Service, launcher and provider diagnostics identify their own instances; telemetry
 availability never determines Transit ownership or changes retention authority.
 
 ## Reference architecture
 
-Kubernetes manages the infrastructure that hosts Rey, persistent Ursula, and
+The checked-in [Transit Helm chart](../charts/transit/README.md) packages the
+current service topology. The reference proof consumes it with explicit values
+and separate credentials; it no longer defines those deployments in Python.
+Bootstrap, lifecycle limits, optional services, and chart operation live in its
+README. The reference's provider setup and fault injection remain in the harness.
+
+Kubernetes manages the infrastructure that hosts Transit, persistent Ursula, and
 Agent Substrate. Substrate supplies sandbox execution and worker lifecycle.
 The `transit-runtime-substrate` adapter translates Transit's committed lifecycle
 intent into those operations and records observations back into the protocol.
@@ -42,7 +48,7 @@ PID, Actor incarnation, worker/pod, and activation generation remain distinct.
 | Agent Substrate | Sandbox placement, worker assignment, activation, suspension, and snapshot lifecycle |
 | Kubernetes | Infrastructure capacity, pods, and supporting cluster resources |
 
-Rey should use Substrate's placement and sandbox lifecycle machinery. Its own
+Transit uses Substrate's placement and sandbox lifecycle machinery. Its own
 controller determines which logical processes need execution and reconciles
 their bindings; it need not duplicate Substrate's worker scheduler. See the
 [runtime contract](../contracts/RUNTIME_SUBSTRATE_V1.md) for the implemented
@@ -57,10 +63,10 @@ The initial reference topology should include:
 - Rebuildable inspection views and failure/lag metrics.
 
 Kernel/control services and Ursula need not themselves be sandboxed as
-application processes. Planned [Board](BOARD.md) is an optional inspection service
+application processes. [Board](BOARD.md) is an optional inspection service
 with private authenticated ingress and access only to the Transit read boundary.
 It hosts the embedded frontend and API together and needs no Ursula, Substrate,
-or Kubernetes credentials. M2 will qualify this separately from worker isolation.
+or Kubernetes credentials. M2 qualifies this separately from worker isolation.
 
 ## Bootstrap and disaster recovery
 

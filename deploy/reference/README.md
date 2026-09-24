@@ -37,7 +37,8 @@ do not publish them. The harness compiles the pinned upstream Substrate tools
 and runtime, builds Rey's static Zig images, and pulls the official Ursula
 release by its [pinned digest](versions.json).
 
-The recovery test creates an isolated namespace and disk-backed Ursula volume,
+The recovery test installs [charts/transit](../../charts/transit/README.md) in an
+isolated namespace, with explicit bootstrap and disk-backed Ursula storage. It
 interrupts the controller after Actor creation, replaces a real worker pod, and
 restarts Ursula. It checks PID/Actor continuity, fresh worker identity and
 ownership generation, ordered state recovery, background expiry, authority
@@ -70,8 +71,16 @@ to each executable:
 - [example-counter](../../examples/counter/README.md): caller and fresh-key bootstrap.
 - [Substrate adapter](../../packages/zig/transit-runtime-substrate/README.md): pinned CLI, template validation, and egress policy.
 
-[tests/reference.py](../../tests/reference.py) owns orchestration and fault
-injection. Keep version changes deliberate and rerun the recovery/isolation
+[charts/transit](../../charts/transit/README.md) owns the deployed service and
+WorkerPool definitions. [reference_chart.py](../../tests/reference_chart.py)
+supplies public values and stages storage, explicit initialization, then normal
+recovery-only service startup. The workload fixture adds grants and Secrets
+before enabling Board and maintenance. It keeps controller fault injection on
+the host; the chart does not yet package a controller pod or Substrate itself.
+
+[tests/reference.py](../../tests/reference.py) owns infrastructure setup;
+[reference_workload.py](../../tests/reference_workload.py) owns provisioning and
+fault injection. Keep version changes deliberate and rerun the recovery/isolation
 proof. Ursula uses the official upstream image with explicit disk configuration,
 not a separately compiled Nix image. Local Ursula binaries come from the overlay.
 
@@ -79,8 +88,9 @@ not a separately compiled Nix image. Local Ursula binaries come from the overlay
 
 The proof configures `LOG_FORMAT=json` and `LOG_LEVEL=info` for Board, node,
 maintenance, the host runtime controller and the counter's Actor template.
-Change those explicit environment entries to select per-service verbosity;
-the local/Compose `REY_*` configuration is not a reference installer API.
+Change the chart's per-component `logging` values for deployed services, and the
+explicit environment entries for the host controller and Actor template. The
+local/Compose `REY_*` configuration is not a reference installer API.
 Read service stderr through `kubectl logs` with the owned kubeconfig/context,
 and controller/provider diagnostics in the private proof directory. Substrate
 worker logs remain accessible through its provider log interface; bootstrap

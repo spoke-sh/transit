@@ -1,0 +1,5 @@
+apiVersion: v2
+name: transit
+description: Transit streaming runtime with persistent Ursula and optional Board inspection
+version: 0.1.0
+type: application

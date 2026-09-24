@@ -1,0 +1,25 @@
+{{- if and .Values.initialize.enabled .Values.node.enabled }}
+{{- fail "disable node while initialize.enabled; bootstrap is an explicit separate phase" }}
+{{- end }}
+{{- if and .Values.initialize.enabled .Values.maintenance.enabled }}
+{{- fail "disable maintenance while initialize.enabled" }}
+{{- end }}
+{{- if and .Values.board.enabled (not .Values.node.enabled) }}
+{{- fail "board requires node.enabled in this chart" }}
+{{- end }}
+{{- range $component := list "node" "ursula" "maintenance" "board" }}
+{{- $settings := index $.Values $component }}
+{{- if or $settings.enabled (and (eq $component "node") $.Values.initialize.enabled) }}
+{{- $ctx := dict "root" $ "component" $component }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "transit.name" $ctx }}
+  labels:
+    {{- include "transit.labels" $ctx | nindent 4 }}
+data:
+  {{ if eq $component "ursula" }}ursula.toml{{ else }}config.json{{ end }}: |
+    {{- include "transit.config" $ctx | nindent 4 }}
+{{- end }}
+{{- end }}

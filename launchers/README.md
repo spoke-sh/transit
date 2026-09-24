@@ -101,8 +101,9 @@ The official Ursula digest comes from the same
 This launcher currently starts Compose detached; the foreground default described
 above applies to the native local launcher.
 
-Generated `compose.json` is a Docker Compose document (JSON is accepted as YAML).
-The printed state directory contains it, the service configurations, and disk
+The checked-in [docker-compose.yaml](../docker-compose.yaml) defines the services,
+mounts, networks and log budgets. The printed state directory contains saved
+interpolation values (`compose.env.json`), service configurations, and disk
 WAL. Project names are unique and persisted. Containers run with the invoking
 user's numeric UID/GID so private bind mounts remain owner-readable. Rey
 containers have read-only root filesystems, dropped capabilities, and only their
@@ -160,6 +161,28 @@ Protocol legality is common across environments; provider placement, sandboxing,
 clock, capacity, and disaster-recovery guarantees still need their own proofs.
 
 ## Configuration and implementation
+
+### Checked-in topology
+
+| Environment | Definition | Installation-specific inputs |
+| --- | --- | --- |
+| Local | [process-compose.yaml](../process-compose.yaml) | Private `process-compose.vars.json` overlay: paths, ports and log settings |
+| Compose | [docker-compose.yaml](../docker-compose.yaml) | Private `compose.env.json`: paths, image names, ports, UID/GID and log settings |
+| Reference | [charts/transit](../charts/transit/README.md) | Helm values supplied by the proof; separately provisioned Secrets and protocol grants |
+
+Edit the checked-in files to change service topology, dependencies, probes,
+mounts or resource/log limits. Local and Compose `down` followed by `up` load
+those definitions with saved installation settings. `restart` replaces a service
+using its current manager/container configuration. The local manager is started
+in the installation directory, including for probes.
+
+Launchers still provision identity, configuration and durable state through the
+public API; these are not safe to express as automatic service restarts. They
+generate only environment-specific inputs, not a second copy of the topology.
+Use the launcher tasks to supply these inputs and preserve bootstrap/recovery
+ordering. Bare `process-compose up` or `docker compose up` is not the provisioning
+entry point. Ambient dotenv expansion is disabled in both managers; `.envrc`
+loads the supported development settings before the launcher validates them.
 
 ### Local development configuration
 

@@ -13,11 +13,22 @@ class Compose:
         self.path = installation.path
 
     def docker(self, *args, **kwargs):
+        values_file = self.path / "compose.env.json"
+        env = dict(os.environ)
+        if values_file.exists():
+            env.update(json.loads(values_file.read_text()))
+            config = ROOT / "docker-compose.yaml"
+        else:
+            # Allow existing installations to stop before their first new up.
+            config = self.path / "compose.json"
         return run(["docker", "compose", "--project-name", self.installation.load()["project"],
-                    "--file", self.path / "compose.json", *args], **kwargs)
+                    "--env-file", os.devnull, "--file", config, *args], env=env, **kwargs)
+
+    def configured(self):
+        return (self.path / "compose.env.json").exists() or (self.path / "compose.json").exists()
 
     def services(self):
-        if not (self.path / "compose.json").exists():
+        if not self.configured():
             return []
         output = self.docker("ps", "--all", "--format", "json", capture=True)
         return [json.loads(line) for line in output.splitlines() if line.strip()]
@@ -52,37 +63,14 @@ class Compose:
         self.installation.configs()
         value = self.installation.load()
         base = value["base_port"]
-        image = lambda name: value["project"] + "/" + name
-        def mount(source, target, readonly=True):
-            return {"type": "bind", "source": str(self.path / source), "target": target,
-                    "read_only": readonly, "bind": {"create_host_path": False}}
-        def service(binary, args, mounts, networks):
-            return {"image": image(binary), "command": args, "volumes": mounts, "networks": networks,
-                    "user": f"{os.getuid()}:{os.getgid()}", "read_only": True, "cap_drop": ["ALL"],
-                    "security_opt": ["no-new-privileges:true"], "restart": "no", "init": True,
-                    "logging": {"driver": "json-file", "options": {"max-size": "5m", "max-file": "2"}}}
-        services = {
-            "node": service("transit-node", ["/node.json"], [mount("node.json", "/node.json")], ["storage", "client"]),
-            "maintenance": service("transit-node", ["/maintenance/config.json", "--maintain"], [mount("maintenance", "/maintenance")], ["storage"]),
-            "counter": service("example-counter", ["/counter/config.json"], [mount("counter", "/counter")], ["client"]),
-            "board": service("board", ["/board/config.json"], [mount("board", "/board")], ["client"]),
-        }
-        for name, service_config in services.items():
-            service_config["environment"] = self.installation.service_environment(name)
         pins = json.loads((ROOT / "deploy/reference/versions.json").read_text())
-        services["ursula"] = {"image": pins["ursula"], "command": ["server", "--config", "/ursula.toml"],
-            "user": f"{os.getuid()}:{os.getgid()}", "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],
-            "environment": {"RUST_LOG": "warn", "TOKIO_WORKER_THREADS": "2"},
-            "volumes": [mount("ursula.toml", "/ursula.toml"), mount("wal", "/wal", False)],
-            "networks": ["storage"], "restart": "no", "init": True,
-            "logging": {"driver": "json-file", "options": {"max-size": "5m", "max-file": "2"}}}
-        for name, offset in (("ursula", 0), ("node", 1), ("board", 2)):
-            services[name]["ports"] = [{"target": 8080, "published": str(base + offset), "host_ip": "127.0.0.1"}]
-        services["board"]["ports"][0].update(published=str(self.installation.board["port"]), host_ip=self.installation.board["host"])
-        # Ordinary bridges support loopback publication for host-side tools.
-        # This separates direct service discovery/mounts, not hostile-workload
-        # egress: the reference runtime owns that stronger isolation proof.
-        write(self.path / "compose.json", {"services": services, "networks": {"storage": {}, "client": {}}})
+        values = {"STATE": str(self.path), "IMAGE_PREFIX": value["project"],
+                  "UID": str(os.getuid()), "GID": str(os.getgid()), "URSULA_IMAGE": pins["ursula"],
+                  "URSULA_PORT": str(base), "TRANSIT_PORT": str(base + 1),
+                  "BOARD_HOST": self.installation.board["host"], "BOARD_PORT": str(self.installation.board["port"])}
+        for role in ("node", "board", "counter", "maintenance"):
+            values.update({role.upper() + "_" + key: value for key, value in self.installation.service_environment(role).items()})
+        write(self.path / "compose.env.json", {"REY_COMPOSE_" + key: value for key, value in values.items()})
         self.docker("config", "--quiet")
 
     def up(self):
@@ -104,7 +92,7 @@ class Compose:
             raise RuntimeError("A service exited during startup; inspect status and logs")
 
     def down(self):
-        if (self.path / "compose.json").exists():
+        if self.configured():
             self.docker("down", "--timeout", "10")
 
     def restart(self, name):

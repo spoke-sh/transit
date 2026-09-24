@@ -1,9 +1,10 @@
 # Rey
 
-An agentic streaming kernel: a foundational execution protocol enforced by
-durable message sequences.
+Home of Transit, an agentic streaming runtime built around a foundational
+execution protocol enforced by durable message sequences.
 
-[Transit](docs/TRANSIT.md) is the kernel. Each process has a durable PID and an
+[Transit](docs/TRANSIT.md) is the reusable streaming runtime subsystem: the
+kernel, services, clients, and storage/runtime adapters. Each process has a durable PID and an
 ordered mailbox; its recorded sequence governs ownership, progress, and effects.
 [Station](docs/STATION.md) is the planned OTP-inspired framework for GenServer
 behaviors, supervision, and registries. [Board](docs/BOARD.md) is the
@@ -40,6 +41,9 @@ waypoint, and the Kubernetes/Substrate reference. Use `just launchers::local::do
 or Ctrl-C to stop local services while preserving your data. Local `up` streams
 logs in the foreground; pass `--detach` for background use.
 `just launchers` lists the groups.
+
+Deployment definitions are checked in: [Process Compose](process-compose.yaml),
+[Docker Compose](docker-compose.yaml), and the [Transit Helm chart](charts/transit/README.md).
 
 The [examples](examples/README.md) also offer disposable calling-program demos.
 `just build` builds executables; `just ci` runs the local checks and proofs.

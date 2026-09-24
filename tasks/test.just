@@ -49,3 +49,7 @@ telemetry:
 # Prove Board/client/node correlation and protocol-aware diagnostic outcomes.
 observability:
     zig build test-observability
+
+# Render and validate the Transit Helm chart without a cluster.
+deployments:
+    python3 -B tests/deployments.py

@@ -7,8 +7,11 @@ for scope and the [test guide](../tests/README.md) for proved behavior and limit
 
 ## Execution model
 
-Rey is the monorepo. Transit is its generic agentic streaming kernel, and Station
-is the OTP-inspired framework above it. Transit's execution primitive is a
+Rey is the monorepo. Transit is the reusable streaming runtime subsystem: its
+generic agentic kernel, supporting services, clients, and storage/runtime
+adapters. `transit-core` implements the deterministic kernel; the runtime's
+deployment is packaged in [charts/transit](../charts/transit/README.md). Station
+is the OTP-inspired framework above Transit. Transit's execution primitive is a
 process with a durable PID and an ordered, logically unbounded mailbox. Its
 sequence determines valid execution, including lifecycle, input handling,
 progress, and authorized effects. Actors are implemented by processes; GenServer
@@ -46,7 +49,7 @@ Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 | Board — inspection | Authorized operator/agent API, embedded frontend, evidence-linked views, and optional framework lenses | [BOARD.md](BOARD.md) |
 | Applications | Workload policy, agent composition, trading, and application-specific views | [SCOPE.md](SCOPE.md) |
 
-Zig implements Rey's kernel, framework, connectors, runtime adapters, and
+Zig implements the Transit kernel, Station framework, connectors, runtime adapters, and
 application backends. TypeScript/Vite+ supplies frontend code and tooling.
 Shared contracts use language-neutral schemas and fixtures. Ursula and Agent
 Substrate are external infrastructure with their own implementation languages.
@@ -108,7 +111,7 @@ stream does not establish a transaction over another process's stream. Committed
 destinations remain bound to PIDs across name rebinding and placement changes.
 
 Kubernetes and Substrate retain operational state for infrastructure and sandbox
-management. Rey's runtime adapter reconciles that state with recorded execution
+management. Transit's runtime adapter reconciles that state with recorded execution
 intent. Substrate owns physical worker assignment; a running pod or restored
 sandbox is not proof of current process ownership. The first reference mapping
 is one Transit process per Substrate Actor, across many activations. The

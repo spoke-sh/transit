@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "launchers"))
@@ -87,7 +88,7 @@ def proof(profile):
         visible = invoke("logs", "board")
         assert 'board.http.request' in visible and '"route":"/api/v1/processes"' in visible
         if profile == "local":
-            config = json.loads((installation.path / "process-compose.json").read_text())
+            config = yaml.safe_load((ROOT / "process-compose.yaml").read_text())
             assert config["processes"]["board"]["log_configuration"]["rotation"]["max_size_mb"] == 5
             # Exercise the owned background manager-log retention process.
             for _ in range(3):
@@ -100,7 +101,7 @@ def proof(profile):
             assert (installation.path / "manager.log.1").stat().st_size <= 5 * 1024 * 1024
             assert (installation.path / "manager.log.2").stat().st_size <= 5 * 1024 * 1024
         else:
-            config = json.loads((installation.path / "compose.json").read_text())
+            config = json.loads(launcher.docker("config", "--format", "json", capture=True))
             assert config["services"]["node"]["environment"]["LOG_LEVEL"] == "debug"
             assert config["services"]["board"]["logging"]["options"]["max-size"] == "5m"
         assert first["consumed"] == first["admitted"] == 2 and first["binding"] is None
@@ -199,7 +200,7 @@ def proof(profile):
                 assert managed["is_running"] and managed["is_ready"] == "Ready", managed
                 time.sleep(.5)
         else:
-            topology = json.loads((installation.path / "compose.json").read_text())
+            topology = json.loads(launcher.docker("config", "--format", "json", capture=True))
             assert topology["services"]["board"]["ports"][0]["host_ip"] == "0.0.0.0"
             for service in ("node", "ursula"):
                 assert topology["services"][service]["ports"][0]["host_ip"] == "127.0.0.1"
@@ -251,10 +252,7 @@ def proof(profile):
     finally:
         if installation.manifest.exists():
             if not completed and profile == "compose":
-                result = subprocess.run(["docker", "compose", "--project-name", installation.load()["project"],
-                    "--file", installation.path / "compose.json", "logs", "--no-color", "--tail", "100"],
-                    capture_output=True, text=True, timeout=30)
-                write(installation.path / "failure.log", result.stdout + result.stderr)
+                write(installation.path / "failure.log", launcher.docker("logs", "--no-color", "--tail", "100", capture=True, timeout=30))
             try:
                 launcher.down()
             except Exception:

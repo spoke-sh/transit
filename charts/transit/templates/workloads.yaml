@@ -1,0 +1,125 @@
+{{- range $component := list "node" "ursula" "maintenance" "board" "initialize" }}
+{{- $settings := index $.Values $component }}
+{{- if $settings.enabled }}
+{{- $ctx := dict "root" $ "component" $component }}
+{{- $configComponent := ternary "node" $component (eq $component "initialize") }}
+{{- $configCtx := dict "root" $ "component" $configComponent }}
+{{- $runtime := ternary $.Values.node $settings (has $component (list "initialize" "maintenance")) }}
+{{- $resources := ternary $.Values.node.resources $settings.resources (eq $component "initialize") }}
+---
+apiVersion: {{ if eq $component "initialize" }}batch/v1{{ else }}apps/v1{{ end }}
+kind: {{ if eq $component "initialize" }}Job{{ else }}Deployment{{ end }}
+metadata:
+  name: {{ include "transit.name" $ctx }}
+  labels:
+    {{- include "transit.labels" $ctx | nindent 4 }}
+spec:
+  {{- if eq $component "initialize" }}
+  backoffLimit: 0
+  activeDeadlineSeconds: 120
+  {{- else }}
+  # The qualified profile has one authority and one maintenance reconciler.
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "transit.labels" $ctx | nindent 6 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "transit.labels" $ctx | nindent 8 }}
+      annotations:
+        checksum/config: {{ include "transit.config" $configCtx | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      {{- if eq $component "initialize" }}
+      restartPolicy: Never
+      {{- end }}
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      {{- if and (eq $component "board") $settings.extraInitContainers }}
+      initContainers:
+        {{- toYaml $settings.extraInitContainers | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "transit.name" $ctx }}
+          image: {{ required (printf "%s image is required" $component) $runtime.image | quote }}
+          imagePullPolicy: IfNotPresent
+          args:
+            {{- if eq $component "ursula" }}
+            - server
+            - --config
+            - /config/ursula.toml
+            {{- else }}
+            - /config/config.json
+            {{- if eq $component "initialize" }}
+            - --initialize
+            {{- else if eq $component "maintenance" }}
+            - --maintain
+            {{- end }}
+            {{- end }}
+          env:
+            {{- if eq $component "ursula" }}
+            - {name: RUST_LOG, value: warn}
+            - {name: TOKIO_WORKER_THREADS, value: "2"}
+            {{- else }}
+            {{- $logging := ternary $.Values.node.logging $settings.logging (eq $component "initialize") }}
+            - {name: LOG_FORMAT, value: {{ $logging.format | quote }}}
+            - {name: LOG_LEVEL, value: {{ $logging.level | quote }}}
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            {{- toYaml $resources | nindent 12 }}
+          {{- if has $component (list "node" "ursula" "board") }}
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe:
+            httpGet:
+              path: {{ if eq $component "ursula" }}/__ursula/ready{{ else }}/health{{ end }}
+              port: http
+              {{- if eq $component "board" }}
+              httpHeaders:
+                - name: Host
+                  value: {{ regexReplaceAll "^https?://" $settings.config.public_origin "" | quote }}
+              {{- end }}
+            periodSeconds: 2
+          {{- end }}
+          volumeMounts:
+            - {name: config, mountPath: /config, readOnly: true}
+            {{- if eq $component "ursula" }}
+            - {name: data, mountPath: /data}
+            {{- else if has $component (list "maintenance" "board") }}
+            - {name: secrets, mountPath: /secrets, readOnly: true}
+            {{- end }}
+        {{- if eq $component "board" }}
+        {{- with $settings.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "transit.name" $configCtx }}
+        {{- if eq $component "ursula" }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ default (include "transit.name" $ctx) $settings.persistence.existingClaim }}
+        {{- else if has $component (list "maintenance" "board") }}
+        - name: secrets
+          secret:
+            secretName: {{ required (printf "%s.existingSecret is required; never put credentials in values" $component) $settings.existingSecret }}
+            defaultMode: 288
+        {{- end }}
+{{- end }}
+{{- end }}

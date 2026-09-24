@@ -1,0 +1,19 @@
+{{- if and .Values.ursula.enabled (not .Values.ursula.persistence.existingClaim) }}
+{{- $ctx := dict "root" . "component" "ursula" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "transit.name" $ctx }}
+  labels:
+    {{- include "transit.labels" $ctx | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if ne .Values.ursula.persistence.storageClass nil }}
+  storageClassName: {{ .Values.ursula.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.ursula.persistence.size | quote }}
+{{- end }}

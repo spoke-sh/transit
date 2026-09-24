@@ -50,42 +50,17 @@ class Local:
         (self.path / "counter/config.json").unlink(missing_ok=True)
         if len(os.fsencode(self.path / "pc.sock")) >= 104:
             raise RuntimeError("Checkout path is too long for the private Unix socket")
-        launcher = [sys.executable, "-B", ROOT / "launchers/main.py", "local", "service", "--name", installation.name]
-        commands = {
-            "log-retention": [*launcher, "log-retention"],
-            "ursula": ["ursula", "server", "--config", self.path / "ursula.toml"],
-            "node": [*launcher, "node"], "provision": [*launcher, "provision"],
-            "counter": [*launcher, "counter"],
-            "maintenance": [ROOT / "zig-out/bin/transit-node", self.path / "maintenance/config.json", "--maintain"],
-            "board": [ROOT / "zig-out/bin/board", self.path / "board/config.json"],
-        }
-        processes = {}
-        for name, command in commands.items():
-            # Process Compose paints every stderr line red, regardless of its
-            # recorded severity. Merge only the launcher's human log streams;
-            # keep its colored service prefix and the program's own log levels.
-            processes[name] = {"command": "exec " + shlex.join(list(map(str, command))) + " 2>&1", "working_dir": str(self.path),
-                "log_location": str(self.path / (name + ".log")), "availability": {"restart": "no"},
-                "log_configuration": {"rotation": {"max_size_mb": 5, "max_backups": 2, "max_age_days": 7}, "flush_each_line": True, "no_metadata": True},
-                "shutdown": {"signal": 15, "timeout_seconds": 5}}
-            if name in ("node", "board", "counter", "maintenance"):
-                processes[name]["environment"] = [f"{key}={value}" for key, value in installation.service_environment(name).items()]
-            if name == "ursula":
-                processes[name]["depends_on"] = {"log-retention": {"condition": "process_started"}}
-            elif name != "log-retention":
-                dependency = "ursula" if name == "node" else "node" if name == "provision" else "provision"
-                processes[name]["depends_on"] = {dependency: {"condition": "process_completed_successfully" if dependency == "provision" else "process_healthy"}}
-        for name, offset, route in (("ursula", 0, "/__ursula/ready"), ("node", 1, "/health"), ("board", 2, "/health")):
-            processes[name]["readiness_probe"] = {"http_get": {"host": "127.0.0.1", "port": installation.load()["base_port"] + offset,
-                "scheme": "http", "path": route}, "period_seconds": 1, "timeout_seconds": 1, "failure_threshold": 30}
-        # The pinned manager's HTTP checker puts Host in Go's Header map,
-        # which does not override Request.Host. Use our local transport probe
-        # so a public browser hostname never depends on DNS or loses its Host.
-        processes["board"]["readiness_probe"] = {
-            "exec": {"command": shlex.join(map(str, [*launcher, "board-probe"]))},
-            "period_seconds": 1, "timeout_seconds": 3, "failure_threshold": 30}
-        write(self.path / "process-compose.json", {"version": "0.5", "is_strict": True, "processes": processes})
-        args = ("up", "-f", self.path / "process-compose.json", "--disable-dotenv")
+        values = {"ROOT_Q": shlex.quote(str(ROOT)), "PYTHON_Q": shlex.quote(sys.executable),
+                  "NAME_Q": shlex.quote(installation.name), "STATE_DIR": str(self.path),
+                  "STATE_DIR_Q": shlex.quote(str(self.path)),
+                  "URSULA_PORT": installation.load()["base_port"],
+                  "TRANSIT_PORT": installation.load()["base_port"] + 1}
+        for role in ("node", "board", "counter", "maintenance"):
+            values.update({role.upper() + "_" + key: value for key, value in installation.service_environment(role).items()})
+        # Only values are generated. Disable Process Compose's environment
+        # expansion so literal dollars in quoted paths cannot be reinterpreted.
+        write(self.path / "process-compose.vars.json", {"disable_env_expansion": True, "vars": values})
+        args = ("up", "-f", ROOT / "process-compose.yaml", "-f", self.path / "process-compose.vars.json", "--disable-dotenv")
         log_retention.rotate(self.path / "manager.log", force=True)
         if detached:
             self.pc(*args, "-D", manager=True, capture=True)

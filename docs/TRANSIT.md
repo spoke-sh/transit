@@ -9,7 +9,8 @@ not implied by this bounded inline-value profile.
 
 ## Boundary
 
-Transit is Rey's agentic streaming kernel. It defines which message sequences
+Transit names the reusable streaming runtime subsystem. This document owns its
+agentic kernel protocol: it defines which message sequences
 constitute valid execution. Durable streams transport and persist those
 sequences. A record is authoritative only when it satisfies protocol validation
 and commit rules; storing arbitrary bytes does not authorize an action.

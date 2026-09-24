@@ -61,7 +61,7 @@
             pkgs.mkShell {
               packages = [
                 pkgs.just
-                pkgs.python3
+                (pkgs.python3.withPackages (ps: [ ps.pyyaml ]))
                 pkgs.process-compose
                 zig
                 vite-plus
@@ -71,6 +71,7 @@
                 pkgs.pnpm
                 pkgs.nixfmt
                 pkgs.kubectl
+                pkgs.kubernetes-helm
                 pkgs.k9s
               ]
               ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.k3s ];
