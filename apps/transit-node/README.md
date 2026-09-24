@@ -136,3 +136,12 @@ checkpoint/trim action, with idle scans at debug and clock/storage/deadline erro
 at warning. Storage calls and authority open/bootstrap have their own correlated
 observations. Recovery reports the recovered position; it does not re-emit turns.
 The separate maintenance process uses service name `transit-maintenance`.
+
+## State-resource reads
+
+`POST /v2/state` implements the domain-separated signed [state v1](../../contracts/STATE_V1.md)
+query contract. Current principal, PID and resource grants are checked before
+returning bounded metadata, associations, entries or an activation's captured
+read view. Reads fence against a changed journal tail; stale pagination cuts
+fail explicitly. Resource mutations use `/v2/command` and the existing receipt
+and retry rules. Legacy inline-only callers retain their original wire format.

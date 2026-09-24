@@ -42,6 +42,10 @@ capacity:
 inspection:
     zig build test-inspection
 
+# Prove authorized state reads and atomic KV commits through the public service.
+state:
+    zig build test-state
+
 # Prove bounded diagnostics, independent metrics and cancelable log sinks.
 telemetry:
     zig build test-telemetry

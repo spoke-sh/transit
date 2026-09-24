@@ -195,6 +195,13 @@ pub fn build(b: *std.Build) void {
     inspection.has_side_effects = true;
     inspection.stdio = .inherit;
     b.step("test-inspection", "Prove scoped public inspection against disk Ursula").dependOn(&inspection.step);
+    const state_api = b.addSystemCommand(&.{ "python3", "-B" });
+    state_api.addFileArg(b.path("tests/state_api.py"));
+    state_api.addArtifactArg(node_artifact);
+    state_api.addArtifactArg(cli_artifact);
+    state_api.has_side_effects = true;
+    state_api.stdio = .inherit;
+    b.step("test-state", "Prove state resources through the public service").dependOn(&state_api.step);
     const callers = b.addSystemCommand(&.{ "python3", "-B", "-c", "import sys; sys.path.insert(0, 'tests'); from pathlib import Path; from callers import run; run(*[Path(p).resolve() for p in sys.argv[1:]])" });
     // Both callers use the exact same authority and public CLI artifacts.
     callers.addArtifactArg(node_artifact);

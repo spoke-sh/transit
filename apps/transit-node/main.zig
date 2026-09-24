@@ -50,7 +50,7 @@ const Server = struct {
         var http = std.http.Server.init(&reader.interface, &writer.interface);
         var request = try http.receiveHead();
         const route: []const u8 = route: {
-            inline for (.{ "/health", "/v2/command", "/v2/view", "/v2/inspect" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
+            inline for (.{ "/health", "/v2/command", "/v2/view", "/v2/inspect", "/v2/state" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
             break :route "unmatched";
         };
         self.observation.received(&request, route, self.accept_trace_parent);
@@ -60,13 +60,34 @@ const Server = struct {
             try self.engine.refresh();
             return self.json(&request, .ok, .{ .ready = true });
         }
+        const is_state = std.mem.eql(u8, request.head.target, "/v2/state");
         const is_inspection = std.mem.eql(u8, request.head.target, "/v2/inspect");
         const is_view = std.mem.eql(u8, request.head.target, "/v2/view");
-        if (request.head.method != .POST or (!is_view and !is_inspection and !std.mem.eql(u8, request.head.target, "/v2/command")))
+        if (request.head.method != .POST or (!is_view and !is_inspection and !is_state and !std.mem.eql(u8, request.head.target, "/v2/command")))
             return self.json(&request, .not_found, .{ .err = "NotFound" });
         const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch
             return self.json(&request, .bad_request, .{ .err = "InvalidBody" });
         defer self.allocator.free(bytes);
+        if (is_state) {
+            var query = std.json.parseFromSlice(wire.protocol.State.SignedQuery, self.allocator, bytes, .{}) catch
+                return self.json(&request, .bad_request, .{ .err = "InvalidRequest" });
+            defer query.deinit();
+            const page = core.resource_read.read(self.engine, query.value) catch |err| {
+                const status: std.http.Status = switch (err) {
+                    error.Unauthorized, error.Forbidden => .forbidden,
+                    error.QueryExpired, error.HistoryReclaimed, error.Conflict => .conflict,
+                    error.InvalidRead, error.InvalidStateKey, error.StateViewExpired, error.StateResourceExpired, error.UnknownProcess => .unprocessable_entity,
+                    else => .service_unavailable,
+                };
+                return self.json(&request, status, .{ .err = if (status == .forbidden) wire.protocol.ErrorCode.AccessDenied else std.meta.stringToEnum(wire.protocol.ErrorCode, @errorName(err)) orelse .AuthorityUnavailable });
+            };
+            self.observation.protocol_outcome = .read;
+            self.observation.realm = page.realm;
+            self.observation.pid = query.value.query.pid;
+            self.observation.position = page.cut.position;
+            self.observation.operation = "state_read";
+            return self.json(&request, .ok, page);
+        }
         if (is_inspection) {
             var query = std.json.parseFromSlice(wire.protocol.Inspection.SignedQuery, self.allocator, bytes, .{}) catch
                 return self.json(&request, .bad_request, .{ .err = "InvalidRequest" });
@@ -94,6 +115,7 @@ const Server = struct {
             const status: std.http.Status = switch (err) {
                 error.AdmissionClosed, error.ControlCapacity => .service_unavailable,
                 error.ControlAlreadyRecorded => .unprocessable_entity,
+                error.InvalidStateKey, error.InvalidStateMutation, error.InvalidStateView, error.StaleAssociation, error.StaleStateResource, error.StateAssociationCapacity, error.StateEntryCapacity, error.StateResourceCapacity, error.StateResourceExpired, error.StateResourceInUse, error.StateViewCapacity, error.StateViewExpired, error.StateViewInUse, error.UnknownStateResource => .unprocessable_entity,
                 error.UnknownPayload, error.InvalidPayload, error.PayloadCapacity, error.PayloadPhase, error.PayloadInUse, error.UnsupportedPayloadLifetime => .unprocessable_entity,
                 error.InvalidValue, error.StaleState, error.BlockedProcess, error.InvalidFailure => .unprocessable_entity,
                 error.Unauthorized, error.Forbidden, error.WrongProtocolRealm, error.SignatureVerificationFailed, error.IdentityElement, error.NonCanonical, error.InvalidEncoding => .forbidden,

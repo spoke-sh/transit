@@ -34,7 +34,7 @@ pub const Client = struct {
     pub fn call(self: *Client, comptime T: type, path: []const u8, signed: anytype) !T {
         const command = if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else "inspect";
         var observation = observability.begin(self.observer, .client_request, command, self.parent_context);
-        observation.event.route = if (std.mem.eql(u8, path, "/v2/view")) "/v2/view" else if (std.mem.eql(u8, path, "/v2/inspect")) "/v2/inspect" else if (std.mem.eql(u8, path, "/v2/command")) "/v2/command" else "unmatched";
+        observation.event.route = if (std.mem.eql(u8, path, "/v2/view")) "/v2/view" else if (std.mem.eql(u8, path, "/v2/inspect")) "/v2/inspect" else if (std.mem.eql(u8, path, "/v2/state")) "/v2/state" else if (std.mem.eql(u8, path, "/v2/command")) "/v2/command" else "unmatched";
         observation.event.method = "POST";
         const mutation = std.mem.eql(u8, path, "/v2/command");
         if (mutation) observation.event.protocol_outcome = .uncertain;
@@ -132,6 +132,9 @@ pub const Client = struct {
     }
     pub fn inspect(self: *Client, query: protocol.Inspection.Query, key: protocol.Ed25519.KeyPair) !protocol.Inspection.Page {
         return self.call(protocol.Inspection.Page, "/v2/inspect", try protocol.Inspection.sign(query, key));
+    }
+    pub fn state(self: *Client, query: protocol.State.Query, key: protocol.Ed25519.KeyPair) !protocol.State.Page {
+        return self.call(protocol.State.Page, "/v2/state", try protocol.State.sign(query, key));
     }
     pub fn submit(self: *Client, signed: transit.SignedRequest) !Receipt {
         return self.call(Receipt, "/v2/command", signed);

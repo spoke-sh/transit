@@ -935,3 +935,4 @@ test {
 }
 
 pub const inspection = @import("inspection.zig");
+pub const resource_read = @import("resource_read.zig");

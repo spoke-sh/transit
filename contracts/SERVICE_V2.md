@@ -70,3 +70,12 @@ The node's [time integration](../apps/transit-node/README.md#time-and-deadlines)
 describes Linux support and rejection on unsupported/unsynchronized sources.
 The [protocol time contract](TRANSIT_V2.md#authority-time-and-bounded-settlement)
 defines acceptance, uncertainty, and durable time-floor rules.
+
+## State-resource reads
+
+`POST /v2/state` implements the domain-separated signed [state v1](STATE_V1.md)
+query contract. Current principal, PID and resource grants are checked before
+returning bounded metadata, associations, entries or an activation's captured
+read view. Reads fence against a changed journal tail; stale pagination cuts
+fail explicitly. Resource mutations use `/v2/command` and the existing receipt
+and retry rules. Legacy inline-only callers retain their original wire format.

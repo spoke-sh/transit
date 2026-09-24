@@ -34,6 +34,16 @@ fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const key = try wire.readKey(init.gpa, init.io, args[2]);
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.gpa, .limited(wire.max_body));
     defer init.gpa.free(bytes);
+    if (std.mem.eql(u8, command, "state") or std.mem.eql(u8, command, "sign-state")) {
+        var query = try std.json.parseFromSlice(transit.State.Query, init.gpa, bytes, .{});
+        defer query.deinit();
+        if (std.mem.eql(u8, command, "sign-state") and args.len == 4) return print(init.io, try transit.State.sign(query.value, key));
+        if (args.len != 5) return error.ExpectedAuthorityUrl;
+        var client = wire.Client.init(init.gpa, init.io, args[4]);
+        defer client.deinit();
+        client.observer = diagnostics;
+        return print(init.io, try client.state(query.value, key));
+    }
     if (std.mem.eql(u8, command, "inspect") or std.mem.eql(u8, command, "sign-inspection")) {
         var query = try std.json.parseFromSlice(transit.Inspection.Query, init.gpa, bytes, .{});
         defer query.deinit();

@@ -123,3 +123,35 @@ mailbox, outbox, effects, payload metadata, and filtered retained history. Pages
 own their bytes. Keep the resource/PID/cut when following `next`; on `QueryExpired`
 or `HistoryReclaimed`, discard assembled pages and refresh with explicit gap
 handling. See [inspection v1](../../../contracts/INSPECTION_V1.md).
+
+## Durable KV resources
+
+`Client.state(query, key)` implements [state v1](../../../contracts/STATE_V1.md).
+Read `capabilities` before selecting a profile. Resource inspection and value
+reads require separate resource grants; a process association grants neither.
+Metadata and entries are bounded pages. Follow `next` with the same query/cut;
+restart explicitly on `QueryExpired` or `HistoryReclaimed`.
+
+For a state-backed turn, receive the ordered input, obtain any finite-process
+permit, and resolve the configured association via `Session.associations()`.
+Fetch the resource metadata, then `prepareStateView(delivery, resource, deadline)`.
+Submit/reconcile that exact pending request before receiving again: opening a
+view consumes a principal sequence. `readStateView(id, key)` reads the captured
+revision, even if another authorized turn later changes the resource. Larger
+enumerations use `Client.state` with the view ID and cut. Deadlines must fit the
+advertised view bound and resource/process lifetimes; authority time decides
+acceptance.
+
+`prepareStateCommit(delivery, decision)` binds the returned view identities,
+up to four distinct KV mutations in one resource, input progress, outputs and
+an effect intent to one signed commit. A null mutation value deletes a key.
+The helper preserves legacy inline state without interpreting it. Retain this
+`Pending` unchanged after an uncertain response, including its read basis.
+Expiry is an explicit rejection; never silently reopen a newer view for an
+uncertain commit. `prepareCloseStateView` releases an abandoned, known-uncommitted
+view; maintenance and ownership changes also release expired/stale views.
+
+All data and view metadata own their bytes. There is no hidden cache, automatic
+transaction retry, background worker or second state authority. The first
+profile materializes bounded KV data in the authority and supports only one
+writer PID per resource. `just test::state` qualifies the public HTTP boundary.

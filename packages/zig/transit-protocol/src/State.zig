@@ -104,11 +104,23 @@ pub const Query = struct {
     after: u16 = 0,
 };
 pub const SignedQuery = struct { query: Query, signature: [64]u8 };
+pub const Capabilities = struct {
+    resources: u16 = max_resources,
+    keys_per_resource: u16 = max_entries,
+    associations: u16 = max_associations,
+    active_views: u16 = max_views,
+    mutations_per_turn: u16 = max_mutations,
+    key_bytes: u16 = max_key_bytes,
+    value_bytes: u16 = p.Value.max_bytes,
+    page_entries: u16 = page_size,
+    view_ms: u32 = max_view_ms,
+};
 pub const Page = struct {
     version: u32 = version,
     realm: u64,
     principal_sequence: u64,
     cut: p.Inspection.Cut,
+    capabilities: ?Capabilities = null,
     next: ?u16 = null,
     resources: [page_size]?Resource = @splat(null),
     associations: [page_size]?Association = @splat(null),

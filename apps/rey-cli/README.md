@@ -50,3 +50,14 @@ The CLI uses [bounded telemetry](../../packages/zig/telemetry/README.md) on stde
 default verbosity reports failures. Signed requests, public-key output and receipts
 remain machine-readable stdout; secrets, request bodies and URLs are excluded
 from diagnostics. An uncertain submission still requires the same saved request.
+
+## State queries
+
+`rey-cli state SEED QUERY.json URL` reads the signed state-resource API;
+`sign-state SEED QUERY.json` emits its envelope. For example,
+`{"realm":72,"principal":1,"kind":"resources"}` lists authorized metadata.
+Use `kind: "associations"` with `pid`, or `kind: "entries"` with `resource` for
+bounded KV reads. Value reads require a resource read grant independently of
+PID inspection. See [state v1](../../contracts/STATE_V1.md) for pagination,
+capabilities and lifecycle outcomes. Mutations use the existing `submit` command
+with the nested `state` command family.

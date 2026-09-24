@@ -6,8 +6,11 @@ const s = p.State;
 const Memory = struct {
     entries: std.ArrayList(core.Entry) = .empty,
     fail_ack: bool = false,
+    tail_calls: usize = 0,
+    race_at: ?usize = null,
     pub fn tail(self: *Memory) !u64 {
-        return self.entries.items.len;
+        self.tail_calls += 1;
+        return self.entries.items.len + @as(u64, if (self.race_at == self.tail_calls) 1 else 0);
     }
     pub fn read(self: *Memory, at: u64) !?core.Entry {
         return if (at < self.entries.items.len) self.entries.items[@intCast(at)] else null;
@@ -22,6 +25,37 @@ const Memory = struct {
         return true;
     }
 };
+
+test "state metadata, values and PID associations have independent disclosure scopes" {
+    const f = try Fixture.init(.{ .writer = 0 });
+    defer f.deinit();
+    const read = core.resource_read.read;
+    const caps = try read(&f.engine, try s.sign(.{ .realm = 42, .principal = 0, .kind = .capabilities }, f.root));
+    try t.expectEqual(s.max_resources, caps.capabilities.?.resources);
+    _ = try f.submit(0, .{ .grant = .{ .subject = 2, .public_key = f.worker.public_key.toBytes(), .permissions = p.permission(.inspect), .pid = f.pid } });
+    const query: s.Query = .{ .realm = 42, .principal = 2, .kind = .associations, .pid = f.pid };
+    var page = try read(&f.engine, try s.sign(query, f.worker));
+    try t.expectEqual(@as([s.page_size]?s.Association, @splat(null)), page.associations);
+    const values: s.Query = .{ .realm = 42, .principal = 2, .kind = .entries, .resource = f.resource };
+    try t.expectError(error.Forbidden, read(&f.engine, try s.sign(values, f.worker)));
+    _ = try f.submit(0, .{ .state = .{ .grant = .{ .resource = f.resource, .subject = 2, .permissions = s.permission(.inspect) } } });
+    page = try read(&f.engine, try s.sign(query, f.worker));
+    try t.expectEqual(f.resource, page.associations[0].?.resource);
+    try t.expectError(error.Forbidden, read(&f.engine, try s.sign(values, f.worker)));
+    var continued = query;
+    continued.cut = page.cut;
+    _ = try f.submit(0, .{ .revoke = 2 });
+    try t.expectError(error.Forbidden, read(&f.engine, try s.sign(continued, f.worker)));
+}
+
+test "state read authorization rejects a concurrent authority change" {
+    const f = try Fixture.init(.{ .writer = 0 });
+    defer f.deinit();
+    const query = try s.sign(.{ .realm = 42, .principal = 0, .kind = .resources }, f.root);
+    f.store.tail_calls = 0;
+    f.store.race_at = 2;
+    try t.expectError(error.Conflict, core.resource_read.read(&f.engine, query));
+}
 const Engine = core.Engine(Memory);
 const Fixture = struct {
     store: Memory = .{},

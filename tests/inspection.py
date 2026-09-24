@@ -11,11 +11,12 @@ from storage import Fixture, free_port, wait_ready
 
 
 class System:
-    def __init__(self, node, cli):
+    def __init__(self, node, cli, clock_error_ms=None):
         self.node, self.cli = node, cli
         self.store = Fixture()
         self.children, self.logs = [], []
         self.sequence = 0
+        self.clock_error_ms = clock_error_ms
 
     def __enter__(self):
         self.store.__enter__()
@@ -24,7 +25,7 @@ class System:
         self.port = free_port()
         self.url = f"http://127.0.0.1:{self.port}"
         self.config = self.root / "node.json"
-        self.config.write_text(json.dumps({"genesis": {"realm": 72, "root_key": public, "retry_policy": "last_per_principal"},
+        self.config.write_text(json.dumps({"genesis": {"realm": 72, "root_key": public, "retry_policy": "last_per_principal", "max_clock_error_ms": self.clock_error_ms},
                                          "ursula_url": self.store.url, "bucket": "inspection", "journal": "authority",
                                          "port": self.port, "request_timeout_ms": 800}))
         self.authority = self.start(self.node, self.config, "--bootstrap")

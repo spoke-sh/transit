@@ -19,10 +19,13 @@ pub fn main(init: std.process.Init) !void {
         .application_bytes = "lowercase hexadecimal, at most 256 decoded bytes per value",
         .limits = .{ .body_bytes = p.max_body, .record_bytes = p.max_entry_bytes, .turn_outputs = p.max_turn_outputs, .counter_maximum = p.max_counter },
         .routes = .{
+            .{ .path = "/v2/state", .method = "POST", .request = "SignedStateQuery", .response = "StatePage", .failure = "ErrorResponse" },
             .{ .path = "/v2/inspect", .method = "POST", .request = "SignedInspectionQuery", .response = "InspectionPage", .failure = "ErrorResponse" },
             .{ .path = "/v2/command", .method = "POST", .request = "SignedRequest", .response = "Receipt", .failure = "ErrorResponse" },
             .{ .path = "/v2/view", .method = "POST", .request = "SignedRequest", .response = "View", .failure = "ErrorResponse" },
         },
+        .state_signing_domain_hex = "7265792e7472616e7369742e73746174652e763100",
+        .state_version = p.State.version,
         .inspection_signing_domain_hex = "7265792e7472616e7369742e696e7370656374696f6e2e763100",
         .permissions = .{ .admin = p.permission(.admin), .spawn = p.permission(.spawn), .send = p.permission(.send), .execute = p.permission(.execute), .inspect = p.permission(.inspect), .effect = p.permission(.effect), .publish = p.permission(.publish) },
     });
