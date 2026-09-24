@@ -12,6 +12,7 @@ unit:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-observability && zig build test
     cd packages/zig/telemetry && zig build test
     cd packages/zig/board-api && zig build test
     cd packages/zig/transit-protocol && zig build test
@@ -44,3 +45,7 @@ inspection:
 # Prove bounded diagnostics, independent metrics and cancelable log sinks.
 telemetry:
     zig build test-telemetry
+
+# Prove Board/client/node correlation and protocol-aware diagnostic outcomes.
+observability:
+    zig build test-observability

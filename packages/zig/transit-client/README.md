@@ -4,8 +4,10 @@ Zig caller library, exported as `transit_client`. Applications receive ordered
 input and committed state, compute their own logic, and submit signed proposals.
 The authority validates the protocol without executing application code.
 
-Its only package dependency is [transit-protocol](../transit-protocol/README.md),
-re-exported as `protocol`. It does not import the kernel, Ursula, or a provider.
+Its package dependencies are [transit-protocol](../transit-protocol/README.md),
+re-exported as `protocol`, and optional runtime instrumentation through
+[transit-observability](../transit-observability/README.md), re-exported as
+`observability`. It does not import the kernel, Ursula, or a provider.
 [Client](src/root.zig) owns bounded HTTP exchange; [Session](src/Session.zig)
 adds activation-aware receive/prepare/submit operations. This is an experimental
 v2 API. For the architectural boundary, read [the caller model](../../../docs/CLIENT.md).
@@ -76,6 +78,21 @@ The fixed representation keeps ownership and response bounds explicit, at the
 cost of copying and small payloads. Large body references require a later
 retention/dependency contract. HTTP bodies/responses are bounded by 256 KiB;
 accepted journal entries by 8 KiB, and checkpoints by 1 MiB.
+
+## Instrumentation
+
+An embedding service can set `Client.observer` to its borrowed telemetry runtime
+and `Client.parent_context` to the operation making the call. Each call then
+records a separate `transit.client.request` span and propagates `traceparent` to
+the configured authority, without changing signed bytes. Both fields default to
+null; imports and client construction perform no telemetry I/O. Successful poll
+requests use debug logs; failed attempts are warnings. Metrics count every
+completed attempt, independently of log filtering/loss.
+
+`last_status` and `last_rejection` describe a completed exchange when available,
+not a timeout's server outcome. Mutation failures can remain `uncertain`; a
+successful response is a `receipt`, not proof of a newly committed transition.
+Instrumentation finishes after cancellation joins, before call state is reused.
 
 ## Wire compatibility
 

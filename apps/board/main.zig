@@ -116,6 +116,8 @@ const Server = struct {
         var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
         defer upstream.deinit();
         upstream.timeout_ms = self.config.upstream_timeout_ms;
+        upstream.observer = self.observation.span.runtime;
+        upstream.parent_context = self.observation.span.context;
         var key = client.readKey(self.allocator, self.io, self.config.seed_file) catch return self.failure(&req, .service_unavailable, .Unavailable);
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
         const page = upstream.inspect(q, key) catch |err| {

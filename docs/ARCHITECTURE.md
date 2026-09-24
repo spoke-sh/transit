@@ -141,10 +141,11 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 
 | Package / module | Owns | Direct package dependencies |
 | --- | --- | --- |
+| [transit-observability](../packages/zig/transit-observability/README.md) / `transit_observability` | Transit diagnostic vocabulary and optional instrumentation | transit-protocol, telemetry |
 | [telemetry](../packages/zig/telemetry/README.md) / `telemetry` | Bounded diagnostic sinks, local metrics and trace context | None |
 | [transit-protocol](../packages/zig/transit-protocol/README.md) / `transit_protocol` | Public types, signatures, opaque values, schema, shared fixtures | None |
 | [transit-core](../packages/zig/transit-core/README.md) / `transit_core` | Protocol state, validation, conditional authority, recovery | transit-protocol |
-| [transit-client](../packages/zig/transit-client/README.md) / `transit_client` | Signed HTTP calls, activation sessions, retry material | transit-protocol |
+| [transit-client](../packages/zig/transit-client/README.md) / `transit_client` | Signed HTTP calls, activation sessions, retry material | transit-protocol, transit-observability |
 | [transit-backend-ursula](../packages/zig/transit-backend-ursula/README.md) / `transit_backend_ursula` | Storage/transport, checkpoint, trim, deletion | transit-core, upstream ursula-zig |
 | [board-api](../packages/zig/board-api/README.md) / `board_api` | Board response types, OpenAPI generation, evidence projections and lenses | transit-protocol |
 | [board-client](../packages/ts/board-client/README.md) (TypeScript) | Generated Board models/runtime validators and bounded browser transport | AJV runtime helper |
@@ -174,10 +175,6 @@ and protocol assertions belong under [tests/](../tests/README.md).
 
 ### Planned components
 
-- `packages/zig/transit-observability`, module `transit_observability`: shared
-  Transit event vocabulary and instrumentation interfaces. Board owns its HTTP
-  instrumentation; neutral formatting/sink/context plumbing has a separate
-  [design gate](OBSERVABILITY.md#ownership-and-package-boundaries).
 - `packages/zig/station`, module `station`: GenServer, supervision, registries,
   request/reply, and retention helpers over the public client.
 - `packages/zig/station-http`, module `station_http`: exchange contracts, capture,

@@ -1,5 +1,7 @@
 //! Bounded protocol HTTP client. No storage or provider credentials.
 const std = @import("std");
+pub const observability = @import("transit_observability");
+const telemetry = observability.telemetry;
 pub const Session = @import("Session.zig");
 pub const Value = protocol.Value;
 pub const protocol = @import("transit_protocol");
@@ -13,6 +15,10 @@ pub const Client = struct {
     http: std.http.Client,
     url: []const u8,
     timeout_ms: u32 = 5000,
+    observer: ?*telemetry.Runtime = null,
+    parent_context: ?telemetry.Context = null,
+    call_context: ?telemetry.Context = null,
+    last_status: ?std.http.Status = null,
     /// Last validated wire rejection; reset on every call. One caller per Client.
     last_rejection: ?protocol.ErrorCode = null,
 
@@ -26,6 +32,38 @@ pub const Client = struct {
     /// The caller owns deadlines and retry policy. Never follow redirects with
     /// signed requests; the configured endpoint is the trusted authority.
     pub fn call(self: *Client, comptime T: type, path: []const u8, signed: anytype) !T {
+        const command = if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else "inspect";
+        var observation = observability.begin(self.observer, .client_request, command, self.parent_context);
+        observation.event.route = if (std.mem.eql(u8, path, "/v2/view")) "/v2/view" else if (std.mem.eql(u8, path, "/v2/inspect")) "/v2/inspect" else if (std.mem.eql(u8, path, "/v2/command")) "/v2/command" else "unmatched";
+        observation.event.method = "POST";
+        const mutation = std.mem.eql(u8, path, "/v2/command");
+        if (mutation) observation.event.protocol_outcome = .uncertain;
+        defer observation.finish();
+        self.call_context = observation.span.context;
+        defer self.call_context = null;
+        self.last_status = null;
+        const value = self.boundedCall(T, path, signed) catch |err| {
+            observation.fail(err);
+            if (self.last_status) |status| observation.event.status = @backingInt(status);
+            if (self.last_rejection) |rejection| observation.event.error_type = @tagName(rejection);
+            if (err == error.AccessDenied or err == error.Rejected or err == error.Conflict) observation.event.protocol_outcome = .rejected;
+            return err;
+        };
+        if (self.last_status) |status| observation.event.status = @backingInt(status);
+        observation.event.protocol_outcome = if (mutation) .receipt else .read;
+        if (@hasField(@TypeOf(signed), "request")) {
+            observation.event.realm = signed.request.realm;
+            observation.event.sequence = signed.request.sequence;
+            observation.event.pid = observability.pid(signed.request.command);
+        } else if (@hasField(@TypeOf(signed), "query")) {
+            observation.event.realm = signed.query.realm;
+            observation.event.pid = signed.query.pid;
+        }
+        if (T == Receipt) observation.event.position = value.position;
+        return value;
+    }
+
+    fn boundedCall(self: *Client, comptime T: type, path: []const u8, signed: anytype) !T {
         self.last_rejection = null;
         const Result = union(enum) { response: anyerror!T, timeout: anyerror!void };
         var results: [2]Result = undefined;
@@ -58,15 +96,19 @@ pub const Client = struct {
         defer allocator.free(body);
         var buffer: [max_body]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&buffer);
+        const parent_header = if (self.call_context) |context| context.header() else @as([55]u8, @splat(0));
+        const trace_headers = [_]std.http.Header{.{ .name = "traceparent", .value = &parent_header }};
         const response = try self.http.fetch(.{
             .location = .{ .url = url },
             .method = .POST,
             .payload = body,
             .headers = .{ .content_type = .{ .override = "application/json" } },
             .redirect_behavior = .not_allowed,
+            .extra_headers = if (self.call_context != null) &trace_headers else &.{},
             .keep_alive = false,
             .response_writer = &writer,
         });
+        self.last_status = response.status;
         if (response.status != .ok) {
             var failure = std.json.parseFromSlice(protocol.ErrorResponse, allocator, writer.buffered(), .{}) catch return error.InvalidAuthorityResponse;
             defer failure.deinit();

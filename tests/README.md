@@ -358,3 +358,8 @@ These are measured proof results, not throughput targets or arbitrary I/O guaran
 `just board::test` also asserts fixed routes, request/timeout outcomes, ignored
 public trace headers, quiet successful probes and credential/query redaction in
 real service logs. See [telemetry](../packages/zig/telemetry/README.md) for limits.
+
+`just test::observability` follows a real Board request through the public client
+and node, checking distinct correlated spans, existing receipt retries, revoked
+reads, duplicate/untrusted trace headers and absence of credentials/state.
+No raw storage dependency is introduced into Board and no durable schema changes.

@@ -2,7 +2,8 @@
 
 Status: [M2 follow-up](roadmap/M2-OBSERVABILITY.md) in progress before Station.
 Board request logs and the bounded [telemetry primitives](../packages/zig/telemetry/README.md)
-are implemented; Transit coverage and launcher qualification follow. This document owns cross-component rules.
+are implemented, along with Transit node/client correlation. Dependency/caller
+coverage and launcher qualification follow. This document owns cross-component rules.
 Exact event schemas and configuration belong with the implementation as it lands.
 
 ## Purpose and authority
@@ -42,8 +43,8 @@ Each owner emits observations where it knows their meaning. Board owns its HTTP
 instrumentation even though it also calls Transit. Reserve
 `packages/zig/transit-observability` / `transit_observability` for the shared
 **Transit-specific** event vocabulary and instrumentation interfaces used by
-Transit services, adapters, and clients. It is planned, not an existing package
-or a name for all telemetry in Rey. Board's generic HTTP events do not belong in it.
+Transit services, adapters, and clients. It is implemented as a separate library;
+it does not name all telemetry in Rey. Board's generic HTTP events do not belong in it.
 
 Formatting, severity, resource identity, bounded sinks, metric instruments and
 trace context are common plumbing with no Board or Transit domain dependency.

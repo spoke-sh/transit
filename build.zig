@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const observations = b.dependency("transit_observability", .{ .target = target, .optimize = optimize });
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
@@ -21,6 +22,7 @@ pub fn build(b: *std.Build) void {
     telemetry_test.has_side_effects = true;
     telemetry_test.stdio = .inherit;
     b.step("test-telemetry", "Prove bounded telemetry under stalled and closed sinks").dependOn(&telemetry_test.step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = observations.module("transit_observability") })).step);
     const core = b.dependency("transit_core", .{ .target = target, .optimize = optimize });
     const protocol = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize });
     const exporter = b.addExecutable(.{ .name = "transit-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-protocol/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }} }) });
@@ -73,6 +75,7 @@ pub fn build(b: *std.Build) void {
             .link_libc = true,
             .imports = &.{
                 .{ .name = "transit_client", .module = client.module("transit_client") },
+                .{ .name = "transit_observability", .module = observations.module("transit_observability") },
             },
         }) });
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_core", core.module("transit_core"));
@@ -149,6 +152,14 @@ pub fn build(b: *std.Build) void {
     board_tests.has_side_effects = true;
     board_tests.stdio = .inherit;
     b.step("test-board", "Qualify Board against disk-backed Transit").dependOn(&board_tests.step);
+    const observation_tests = b.addSystemCommand(&.{ "python3", "-B" });
+    observation_tests.addFileArg(b.path("tests/observability.py"));
+    observation_tests.addArtifactArg(node_artifact);
+    observation_tests.addArtifactArg(cli_artifact);
+    observation_tests.addArtifactArg(board);
+    observation_tests.has_side_effects = true;
+    observation_tests.stdio = .inherit;
+    b.step("test-observability", "Prove cross-service correlation and diagnostic semantics").dependOn(&observation_tests.step);
     const inspection = b.addSystemCommand(&.{ "python3", "-B" });
     inspection.addFileArg(b.path("tests/inspection.py"));
     inspection.addArtifactArg(node_artifact);

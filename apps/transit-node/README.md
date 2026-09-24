@@ -112,3 +112,21 @@ The additive `/v2/inspect` read boundary supplies discovery and filtered retaine
 history with fixed page/scan bounds. [Inspection v1](../../contracts/INSPECTION_V1.md)
 defines authentication, two-endpoint link filtering, cuts and reclamation errors.
 It exposes neither raw storage nor administrative journal records.
+
+## Service diagnostics
+
+`LOG_LEVEL` / `LOG_FORMAT` select bounded stderr diagnostics; see
+[telemetry](../../packages/zig/telemetry/README.md) for schema, defaults and limits.
+`transit.http.request` separates HTTP status/local write completion from protocol
+`read`, `receipt`, `rejected` or `uncertain` outcomes. Command names and authorized
+realm/PID/sequence/position explain the affected boundary. A receipt may recover
+an earlier acceptance; these records do not count exact fresh commits. Successful
+view/inspection/health polling is debug-only; commands and failures are visible
+at normal verbosity. Credentials, raw requests and application state are omitted.
+
+The optional JSON setting `accept_trace_parent` defaults to false. Enable it only
+at an explicitly trusted internal diagnostic boundary to correlate caller spans.
+Even then headers are untrusted hints, never authentication or proof of causality;
+malformed/duplicate context is ignored, and no baggage is forwarded. Board always
+starts a fresh context for public requests. `/health` refreshes authority storage
+before success; it is a role-readiness observation, not proof of workload progress.
