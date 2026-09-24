@@ -59,9 +59,9 @@ else:
         config = {"url": s.url, "realm": 72, "principal": 2, "seed_file": str(key), "pid": pid, "worker": 1,
                   "provider": {"cli": str(fake), "kubeconfig": "explicit", "context": "proof", "instance": [1]*16, "atespace": "proof", "actor": "counter", "template": "old", "template_uid": list(old_uid.bytes), "image": image, "egress_policy_file": "unused", "authority_host": "authority"}}
         path = s.root / "controller.json"
-        def scan(error=None):
+        def scan(error=None, mode="--once"):
             path.write_text(json.dumps(config))
-            result = subprocess.run([controller, path, "--once"], capture_output=True, text=True, timeout=40)
+            result = subprocess.run([controller, path, mode], capture_output=True, text=True, timeout=40)
             if error:
                 assert result.returncode != 0 and error in result.stderr, result
             else:
@@ -69,6 +69,10 @@ else:
             return result.stdout
         scan("BindingMismatch")  # Old controller cannot mutate the new binding.
         config["provider"].update(template="new", template_uid=list(new_uid.bytes), previous_workload={"template": "old", "template_uid": list(old_uid.bytes), "image": image})
+        cut = s.inspect("process", pid)["cut"]
+        scan(mode="--check")
+        assert s.inspect("process", pid)["cut"] == cut
+        assert json.loads(provider.read_text())["switches"] == 0
         data["actor"]["metadata"]["uid"] = str(uuid.uuid4())
         provider.write_text(json.dumps(data))
         scan("ProviderIncarnationMismatch")

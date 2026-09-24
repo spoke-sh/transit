@@ -75,6 +75,12 @@ stdout. Provider progress is not proof of Transit ownership or remote cancellati
 
 ## Workload updates
 
+`transit-runtime-controller CONFIG --check` validates provider trust/template
+configuration, current Transit read access and any existing binding's identity.
+It performs no protocol or provider mutations. The chart uses it for readiness;
+a running container alone cannot establish that its provider client works.
+Readiness remains an observation, not a grant of execution authority.
+
 The controller reconciles a recorded `runtime_upgrade`; it never infers upgrade
 authority from a changed configuration. Set the target provider template/UID/image
 and `previous_workload: {template, template_uid, image}` while that transition is

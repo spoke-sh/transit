@@ -168,7 +168,8 @@ pub fn main(init: std.process.Init) !void {
 }
 fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len < 2 or args.len > 3 or (args.len == 3 and !std.mem.eql(u8, args[2], "--once"))) return error.ExpectedConfigAndOptionalOnce;
+    const check = args.len == 3 and std.mem.eql(u8, args[2], "--check");
+    if (args.len < 2 or args.len > 3 or (args.len == 3 and !check and !std.mem.eql(u8, args[2], "--once"))) return error.ExpectedConfigAndOptionalMode;
     const body = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(wire.max_body));
     defer init.gpa.free(body);
     var parsed = try std.json.parseFromSlice(Config, init.gpa, body, .{});
@@ -184,6 +185,15 @@ fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         .key = try wire.readKey(init.gpa, init.io, config.seed_file),
     };
     try controller.provider.validate();
+    if (check) {
+        const view = try client.view(.{ .realm = config.realm, .principal = config.principal, .sequence = 0, .command = .{ .inspect = config.pid } }, controller.key);
+        if (view.process.binding) |binding| {
+            if (!std.meta.eql(binding.instance, config.provider.instance) or
+                !std.meta.eql(binding.resource, controller.provider.resource()) or
+                !std.meta.eql(binding.workload, controller.provider.workload())) return error.BindingMismatch;
+        }
+        return; // Readiness never advances the protocol or provider lifecycle.
+    }
     while (true) {
         var observation = observations.begin(diagnostics, .runtime_step, "reconcile", null);
         observation.event.realm = config.realm;

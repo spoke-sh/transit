@@ -97,6 +97,12 @@ spec:
                   value: {{ regexReplaceAll "^https?://" $settings.config.public_origin "" | quote }}
               {{- end }}
             periodSeconds: 2
+          {{- else if eq $component "controller" }}
+          readinessProbe:
+            exec:
+              command: [/bin/transit-runtime-controller, /config/config.json, --check]
+            periodSeconds: 15
+            timeoutSeconds: 35
           {{- end }}
           volumeMounts:
             - {name: config, mountPath: /config, readOnly: true}
