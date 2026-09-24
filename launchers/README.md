@@ -17,6 +17,11 @@ The reference remains an owned cluster **proof harness**: `up` provisions
 infrastructure, `images` builds runtime artifacts, and `test` exercises the
 workload. It is not yet a persistent reference application launcher.
 
+The [incremental development plan](../docs/roadmap/M2-LAUNCHERS.md) proposes a
+persistent reference application plus consistent `build`, `update` and `restart`
+semantics. `update` and `watch` are not implemented yet; current commands below
+describe the existing behavior.
+
 ## Start locally
 
 From the repository root:

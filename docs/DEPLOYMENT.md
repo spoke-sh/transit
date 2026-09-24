@@ -17,6 +17,10 @@ These trusted development profiles use direct recorded ownership; the reference
 adds provider reconciliation and sandbox isolation. Its current launcher remains
 a qualification harness, not a persistent application installer.
 
+The [launcher development plan](roadmap/M2-LAUNCHERS.md) closes that gap and
+separates building artifacts, updating services and upgrading the code assigned
+to a durable process. Those workflows are planned, not current launcher behavior.
+
 [Service instrumentation](OBSERVABILITY.md) uses the same event meanings
 across these profiles, with executable-owned configuration and bounded sinks.
 Service, launcher and provider diagnostics identify their own instances; telemetry

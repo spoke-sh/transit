@@ -29,6 +29,10 @@ The [Kubernetes tooling and operator CLI follow-up](M2-KUBECTL.md) plans the ful
 `kubectl transit` interface, starting with an inspection-only implementation and
 an accessible Kind/Substrate development environment.
 
+The planned [persistent launchers and incremental development follow-up](M2-LAUNCHERS.md)
+adds a usable reference application and consistent build/update/restart behavior
+across local, Compose and Kubernetes, with explicit workload-upgrade boundaries.
+
 ## Application milestones after the foundation
 
 Use the evidence above to scope trading, LLM/tool connectors, richer agent
