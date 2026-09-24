@@ -19,7 +19,12 @@ pub const Edge = struct {
     to_coverage: Coverage,
 };
 pub const Response = struct { observation: i.Page, edges: [max_edges]?Edge = @splat(null) };
-pub const StateResponse = struct { observation: p.State.Page };
+pub const Lens = struct {
+    version: u8 = 1,
+    source: struct { realm: u64, pid: u64, resource: u64, key: p.Value, entry_revision: u64, resource_revision: u64, position: u64 },
+    declaration: @import("transit_station").Metadata.Detail,
+};
+pub const StateResponse = struct { observation: p.State.Page, framework: [p.State.page_size]?Lens = @splat(null) };
 pub const Capabilities = struct {
     version: u32 = 1,
     realm: u64,
@@ -32,7 +37,7 @@ pub const Capabilities = struct {
     min_refresh_ms: u32 = 5000,
     max_request_bytes: u32 = 4096,
     state_resources: bool = true,
-    station: bool = false,
+    station: bool = true,
     http_connector: bool = false,
     push: bool = false,
 };
@@ -125,7 +130,17 @@ pub fn projectState(page: p.State.Page) !StateResponse {
             for (@field(page, name)) |slot| if (slot != null) return error.InvalidObservation;
         }
     }
-    return .{ .observation = page };
+    var response: StateResponse = .{ .observation = page };
+    if (page.kind == .entries) {
+        const resource = page.resources[0] orelse return error.InvalidObservation;
+        for (page.resources[1..]) |slot| if (slot != null) return error.InvalidObservation;
+        for (page.entries, 0..) |slot, index| if (slot) |entry| {
+            if (@import("transit_station").Metadata.decode(resource.writer, resource.id, entry)) |declaration| {
+                response.framework[index] = .{ .source = .{ .realm = page.realm, .pid = resource.writer, .resource = resource.id, .key = entry.key, .entry_revision = entry.revision, .resource_revision = resource.revision, .position = page.cut.position }, .declaration = declaration };
+            }
+        };
+    }
+    return response;
 }
 
 test "state projection cannot mix metadata-only associations with opaque values" {

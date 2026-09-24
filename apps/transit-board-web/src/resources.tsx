@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStateObservation } from "./state";
 import { present } from "./components";
+import { Framework } from "./framework";
 
 export function StateEvidence({ view }: { view: ReturnType<typeof useStateObservation> }) {
   const page = view.data?.observation;
@@ -55,7 +56,7 @@ export function Resources({ resource }: { resource?: number }) {
       {resource !== undefined && (
         <div className="actions">
           <button onClick={() => setValues((v) => !v)}>
-            {values ? "Show metadata only" : "Read opaque entries"}
+            {values ? "Show resource metadata" : "Read framework and opaque entries"}
           </button>
         </div>
       )}
@@ -114,35 +115,38 @@ export function Resources({ resource }: { resource?: number }) {
         </article>
       ))}
       {values && (
-        <section>
-          <h2>Opaque KV entries</h2>
-          <p>
-            Keys and values below are exact hexadecimal bytes. Application encoding is outside
-            Board. An empty page is distinct from an expired or inaccessible resource.
-          </p>
-          <table>
-            <thead>
-              <tr>
-                <th>Key (hex)</th>
-                <th>Value (hex)</th>
-                <th>Revision</th>
-              </tr>
-            </thead>
-            <tbody>
-              {page?.entries.filter(present).map((e) => (
-                <tr key={e.key}>
-                  <td>
-                    <code>{e.key}</code>
-                  </td>
-                  <td>
-                    <code>{e.value}</code>
-                  </td>
-                  <td>{e.revision}</td>
+        <>
+          {view.data && <Framework lenses={view.data.framework} />}
+          <section>
+            <h2>Opaque KV entries</h2>
+            <p>
+              Keys and values below are exact hexadecimal bytes. Application encoding is outside
+              Board. An empty page is distinct from an expired or inaccessible resource.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Key (hex)</th>
+                  <th>Value (hex)</th>
+                  <th>Revision</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+              </thead>
+              <tbody>
+                {page?.entries.filter(present).map((e) => (
+                  <tr key={e.key}>
+                    <td>
+                      <code>{e.key}</code>
+                    </td>
+                    <td>
+                      <code>{e.value}</code>
+                    </td>
+                    <td>{e.revision}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </>
       )}
     </>
   );

@@ -15,7 +15,7 @@ from storage import free_port, wait_ready
 
 
 def run(node, cli, board, browser=False):
-    with System(node, cli) as s:
+    with System(node, cli, clock_error_ms=10000) as s:
         pids = [s.command({"spawn": {"code": 101, "initial_state": b"0".hex(), "allow_trim": True}}),
                 s.command({"spawn": {"initial_state": b"sink".hex(), "allow_trim": True}}),
                 s.command({"spawn": {"initial_state": b"<script>window.pwned=true</script>".hex(), "allow_trim": True}})]
@@ -103,7 +103,7 @@ def run(node, cli, board, browser=False):
         request("/api/v1/processes", method="POST", status=404)
         request("/v2/command", method="POST", status=404)
         caps = api("capabilities")
-        assert caps["read_only"] and caps["realm"] == 72 and caps["station"] is False
+        assert caps["read_only"] and caps["realm"] == 72 and caps["station"] is True
         snapshot = api("processes")
         assert [p["pid"] for p in snapshot["observation"]["processes"] if p] == pids
         detail = api(f"processes/{pids[0]}")
@@ -114,6 +114,24 @@ def run(node, cli, board, browser=False):
         api(f"resources/{resource}/entries", status=403)
         s.command({"state": {"grant": {"resource": resource, "subject": 1, "permissions": 3}}})
         assert not any(api(f"resources/{resource}/entries")["observation"]["entries"])
+        writer_generation = s.inspect("process", pids[1])["processes"][0]["generation"]
+        s.command({"own": {"pid": pids[1], "worker": 0, "expected_generation": writer_generation}})
+        writer_generation += 1
+        resource_revision = api(f"resources/{resource}")["observation"]["resources"][0]["revision"]
+        opened = s.command({"state": {"open": {"pid": pids[1], "generation": writer_generation, "input": delivered,
+            "expected_revision": 0, "resource": resource, "revision": resource_revision, "deadline_ms": int(time.time()*1000)+30000}}})
+        s.command({"state": {"turn": {"turn": {"pid": pids[1], "generation": writer_generation, "input": delivered,
+            "expected_revision": 0, "result": b"sink".hex()}, "views": [opened, None, None, None], "write_view": opened,
+            "mutations": [{"key": b"\x00station".hex(), "value": b"station.genserver.v1".hex()},
+                          {"key": (b"\x00t"+(1).to_bytes(4,"little")).hex(), "value": b"TBL1\x01\x02id\x06amount".hex()},
+                          {"key": b"application".hex(), "value": b"station.genserver.v1".hex()}, None]}}})
+        framework = api(f"resources/{resource}/entries")
+        lenses = [item for item in framework["framework"] if item]
+        assert len(lenses) == 2 and {next(iter(item["declaration"])) for item in lenses} == {"behavior", "table"}
+        assert all(item["source"]["pid"] == pids[1] and item["source"]["resource"] == resource for item in lenses)
+        s.command({"state": {"grant": {"resource": resource, "subject": 1, "permissions": 1}}})
+        api(f"resources/{resource}/entries", status=403)  # lenses cannot bypass read revocation
+        s.command({"state": {"grant": {"resource": resource, "subject": 1, "permissions": 3}}})
         process = detail["observation"]["processes"][0]
         assert process["failure"]["input"] == blocked and process["admitted"] - process["consumed"] == 1
         subprocess.run(["vp", "exec", "node", "tests/board_client.mjs"], input=json.dumps(detail), text=True, check=True, timeout=30)

@@ -10,6 +10,7 @@ pub const Registry = @import("Registry.zig");
 pub const Waiting = @import("Waiting.zig");
 pub const Supervisor = @import("Supervisor.zig");
 pub const Controller = @import("Controller.zig");
+pub const Metadata = @import("Metadata.zig");
 pub const fuze = @import("transit_fuze");
 test {
     _ = Frame;
@@ -20,4 +21,5 @@ test {
     _ = Registry;
     _ = Waiting;
     _ = Supervisor;
+    _ = Metadata;
 }

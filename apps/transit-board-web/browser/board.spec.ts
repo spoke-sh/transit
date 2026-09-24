@@ -53,9 +53,12 @@ test("state associations disclose resources without interpreting application dat
   await page.getByRole("link", { name: `Resource ${resource}`, exact: true }).click();
   await expect(page.getByRole("heading", { name: `KV resource ${resource}` })).toBeVisible();
   await expect(page.getByText("Application interpretation")).toHaveCount(0);
-  await page.getByRole("button", { name: "Read opaque entries" }).click();
+  await page.getByRole("button", { name: "Read framework and opaque entries" }).click();
   await expect(page.getByRole("heading", { name: "Opaque KV entries" })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Value (hex)" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Station GenServer" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Table 1", exact: true })).toBeVisible();
+  await expect(page.getByText(/Source:.*PID/)).toHaveCount(2);
 });
 
 test("opaque hostile payloads remain text, denial clears observations", async ({ page }) => {

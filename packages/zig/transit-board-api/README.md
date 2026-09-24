@@ -1,7 +1,8 @@
 # transit-board-api
 
-The typed Board v1 response contract, exported as `transit_board_api`. Depends only on
-[transit-protocol](../transit-protocol/README.md). It does not read stores, execute
+The typed Board v1 response contract, exported as `transit_board_api`. Depends on
+[transit-protocol](../transit-protocol/README.md) and
+[Station's metadata codecs](../transit-station/src/Metadata.zig). It does not read stores, execute
 handlers, or authenticate viewers; the Board executable composes those boundaries.
 
 `try project(page)` rejects malformed mixed-resource or inconsistent
@@ -13,7 +14,13 @@ below the retained floor are marked reclaimed, never reconstructed.
 `projectState(page)` preserves authorized resource/association metadata and
 bounded opaque entries, rejecting mixed projections. Resource read grants are
 separate from metadata grants. M7 removed the application counter lens and its
-response field; Board contains no application state decoder.
+response field; Board contains no application state decoder. M9 adds a bounded
+`framework` array of recognized versioned declarations: GenServers, Tables,
+registry scopes/bindings, supervised children, calls and captured Arrow results.
+Every lens carries its writer PID, resource, exact key/revisions and observation
+position. Only an authorized entries read can produce these lenses. Unknown or
+malformed versions remain opaque; names and executable code IDs never select a
+decoder. Table row values and Arrow data are not interpreted.
 
 ## Public API and extension workflow
 

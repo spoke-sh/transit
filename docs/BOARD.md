@@ -196,11 +196,14 @@ interfaces belong to applications.
 M7 removed M2's experimental application counter decoder and its mapping and
 API field. Generic [state-resource inspection](STATE.md#ownership-in-the-stack-and-inspection)
 now shows associations, lifetime/retention policy, revisions, and committing-turn
-evidence. Opaque entry reads require a separate resource grant. Runtime/framework
-interpretations remain future work.
+evidence. Opaque entry reads require a separate resource grant. M9 adds Station
+framework declarations to those authorized reads, with exact PID/resource/key
+and revision provenance. The [API package](../packages/zig/transit-board-api/README.md)
+owns the implemented lens set and unknown-version behavior.
 
-Later Station supplies descriptors/fixtures for GenServers, supervisors, and
-registries; the HTTP connector adds exchange and attempt views. Identification
+Station supplies descriptors for GenServers, Tables, supervisors, registries,
+waits and captured Arrow queries; the later HTTP connector adds exchange and
+attempt views. Identification
 must come from explicit, versioned runtime/framework declarations or an
 operator-configured mapping with visible provenance. A numeric `code` tag,
 process name, or payload shape alone cannot prove a behavior's identity.

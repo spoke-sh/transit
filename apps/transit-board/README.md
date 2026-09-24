@@ -113,6 +113,12 @@ The UI links these from **State resources** and the process **State** tab.
 Resource pages show identity, writer, lifetime owner, revision, lifecycle,
 retention policy and last committing turn. Coverage marks reclaimed turn detail.
 Entry reads are explicit and display hexadecimal bytes without application decoding.
+Recognized Station declarations on the same page also show GenServers, typed
+Table schemas, registry bindings, supervisor retry state, waits and captured
+query progress. Each view links its source PID and exact record/revisions.
+Unknown versions stay opaque. Table rows and Arrow result data retain their
+application boundary. These read-only views require the same resource grants
+and disappear on read revocation.
 
 Provision resource `inspect` (1) for metadata, or `inspect | read` (3) to also
 allow entry reads. Coarse PID `inspect` alone discloses no resource. Association
