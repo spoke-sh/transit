@@ -77,6 +77,13 @@ manifest tying member streams to one exchange/effect identity and lifecycle.
 It does not imply a native Ursula consumer group or an atomic multi-stream write.
 See [CONNECTORS.md](CONNECTORS.md) for the HTTP exchange design.
 
+[State resources](STATE.md) add versioned KV mutations and process associations
+in M7. Their current-state indexes derive from committed records/checkpoints;
+resource identity and lifetime remain independent of physical stream layout.
+Only a validated turn decision publishes staged mutations. A KV projection may
+compact superseded values under its policy, but cannot discard unfinished
+mailbox inputs or supply an independent source of execution authority.
+
 Before implementation, fix record encoding, length framing, commit visibility,
 size limits, stream naming, ownership permissions, and sequence assignment.
 An HTTP transport chunk is not a kernel record boundary. Only validated complete

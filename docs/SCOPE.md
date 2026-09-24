@@ -31,10 +31,17 @@ The same primitives must support ordinary stateful distributed programs.
 - Board is the first operator/agent inspection surface, before Station. Its
   TanStack Router frontend uses Vite+ and is embedded in the Zig `transit-board` API
   executable. OpenAPI supports further clients; read-only views expose kernel
-  evidence and optional higher-level interpretations. See [BOARD.md](BOARD.md).
+  evidence and optional interpretations of runtime/framework primitives.
+  Application value decoding belongs in application interfaces. The existing M2
+  counter lens will be removed in M7. See [BOARD.md](BOARD.md).
 - Ursula supplies durable streams; `ursula-zig` supplies the Zig client.
 - Strong protocol enforcement: effects and committed state follow valid durable
   sequences. Worker memory and scheduling caches cannot override that history.
+- Develop durable state resources and recorded process associations before
+  Station. Start with a versioned KV resource; keep mutations, input progress,
+  and outputs under one commit decision. Resource lifetime, entry lifetime,
+  history retention, association, and access rights remain distinct. This is
+  planned work beyond the current inline-state profile; see [STATE.md](STATE.md).
 - Authenticate every protocol caller and enforce explicit realm/action/resource
   grants in Transit. Station APIs, provider credentials, and PIDs do not confer
   those rights. Reads, replay, supervision, and retention administration are
@@ -90,9 +97,11 @@ Board, Transit services and their dependencies before Station so operators can
 diagnose the running system. Logs, metrics and trace context remain derived
 signals; collector/export infrastructure is later scope.
 
-Then add GenServer behavior, supervision, and scoped name registration, and
-implement an HTTP connector using those primitives. A caller records a request; a fetch
-worker executes an authorized attempt; response data and timing are recorded;
+Next prove [M7 state resources and associations](roadmap/M7.md), including
+fenced KV mutation, efficient recoverable reads, dependency lifetimes, and
+generic Board inspection. Build GenServer behavior, supervision, and scoped name
+registration on those primitives, followed by an HTTP connector. A caller
+records a request; a fetch worker executes an authorized attempt; response data and timing are recorded;
 the caller resumes from a correlated mailbox message. Replay uses the transcript.
 Station and connectors add versioned Board lenses as their own primitives land.
 These outcomes define the [roadmap](roadmap/README.md).
@@ -154,6 +163,7 @@ connector questions are still open.
 | What are registry scope lifetimes and lookup consistency guarantees? | Concurrent registration, rebind/termination races, recovery, and cluster partition tests |
 | What constitutes an HTTP attempt, its capture boundary, and safe retry? | Connector transcripts and injected network/worker failures |
 | Which snapshot and code-version rules preserve replay through upgrades? | Replay and migration fixtures |
+| How do associated resources commit and expire with process work? | Atomic visibility, revisioned reads, dependency/retirement races, and compaction proofs in [M7](roadmap/M7.md) |
 | How can inspection expose enough evidence without leaking data or inventing certainty? | Authorized discovery/history, revocation/trim races, bounded reads, and Board API/UI agreement |
 | What workload and recovery targets matter? | Measurements from the kernel and connector slices |
 

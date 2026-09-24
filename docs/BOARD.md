@@ -23,6 +23,7 @@ new execution semantics. Always expose the corresponding Transit term and ID.
 | Arrivals | What has entered this mailbox and what remains unfinished? | Durable admission, ordered input, consumption/cancellation |
 | Departures | What has this process committed for delivery or execution? | Outbox destinations and delivery outcomes; effect intent, authorization, and observations |
 | Process detail | What can we establish about this process now? | State revision, activation, runtime binding, deadlines, recovery/retention coverage |
+| State resources (planned M7) | Which data does this process depend on, and can it recover? | Associations, resource identity/revision, ownership, lifetime, retained coverage, and committing-turn references |
 | Journey | How did this input lead to later work? | Recorded input-to-turn, output-to-admission, and effect-to-result links |
 
 Start with a readable table, a process detail page, and a bounded journey view.
@@ -191,24 +192,32 @@ must never cache inspection API responses or embed installation secrets.
 
 ## Higher-level interpretation
 
-A **lens** is a versioned Board interpretation of authorized kernel evidence.
-It declares a namespaced kind/version, required capabilities, and how presented
-facts link back to their source. M2 implements a statically registered counter lens, with unknown-version and
-malformed-data fallback. No Station
-implementation is needed to establish this boundary.
+A **lens** is a versioned Board interpretation of authorized runtime/framework
+evidence. It declares a namespaced kind/version, required capabilities, and how
+presented facts link back to their source. Board explains Transit/Station
+primitives and their relationships; application-specific value meaning and
+interfaces belong to applications.
+
+M2 implemented a statically registered counter lens to prove source provenance
+and unknown-version/malformed-data fallback. That decoder remains in the current
+API/UI, but is outside the revised boundary. [M7](roadmap/M7.md) removes it and
+its launcher mapping while adding generic [state-resource inspection](STATE.md#ownership-in-the-stack-and-inspection).
+This plan does not claim the existing lens has already been removed.
 
 Later Station supplies descriptors/fixtures for GenServers, supervisors, and
 registries; the HTTP connector adds exchange and attempt views. Identification
-must come from explicit, versioned application/framework declarations or an
+must come from explicit, versioned runtime/framework declarations or an
 operator-configured mapping with visible provenance. A numeric `code` tag,
 process name, or payload shape alone cannot prove a behavior's identity.
 
-Lenses may explain opaque bytes and recorded relationships but cannot overwrite
-core lifecycle, invent causal edges, broaden access, or create execution rights.
-An unrecognized schema still has a useful kernel view. Keep enrichment optional
-and available as structured API data as well as UI presentation. Dynamically
-loaded code, remote plugins, and executing application handlers to interpret
-history are outside M2.
+Lenses may decode defined framework records and explain recorded relationships,
+but do not interpret opaque application values. Generic authorized byte previews
+are distinct from declaring a business meaning. No lens may overwrite core
+lifecycle, invent causal edges, broaden access, or create execution rights.
+An unrecognized framework schema still has a useful kernel view. Keep enrichment
+optional and available as structured API data as well as UI presentation.
+Dynamically loaded code, remote plugins, and executing application handlers to
+interpret history are outside the supported inspection model.
 
 ## Qualification and later scope
 

@@ -6,7 +6,8 @@ immutable payload deletion, and finite admission with a physical reserve proof.
 [Core](../packages/zig/transit-core/README.md), [backend](../packages/zig/transit-backend-ursula/README.md),
 and [maintenance](../apps/transit-node/README.md) own the mechanisms;
 [tests](../tests/README.md) own evidence. General resource dependencies, finite
-body lifetimes, and keyed compaction remain planned.
+body lifetimes, and keyed compaction remain planned. [M7](roadmap/M7.md) adds the
+first KV resource/association profile; [STATE.md](STATE.md) owns its state model.
 
 ## Application contract
 
@@ -39,6 +40,9 @@ accepts terminal expiry if it cannot finish or recover within that contract.
 | --- | --- |
 | Process lifetime | When the PID may accept new work, followed by any explicitly bounded settlement period before final retirement |
 | Mailbox lifetime | How long the logical mailbox and required unprocessed inputs remain valid for the process |
+| State resource lifetime | How long an associated resource remains usable; required state constrains process recovery |
+| Entry lifetime | A separately declared key/value expiry policy, not inferred from history age; outside the first KV profile |
+| Association lifetime | How long a PID uses or requires a resource; association does not imply ownership or permission |
 | Settlement window | Bounded permission to finish specifically authorized work after the cutoff for starting new work |
 | Reconciliation lifetime | How long a connector may establish an attempt's outcome before its acceptance path closes |
 | Suspension limit | The latest permitted resumption boundary, constrained by process and recovery-resource lifetimes |
@@ -208,6 +212,13 @@ ordering; it does not silently turn an ordinary mailbox into a lossy state view.
 Keeping the latest value forever and expiring it after 30 days are distinct
 application contracts, even when both use compaction.
 
+For [M7 state resources](STATE.md#lifetimes-and-retention), a live value written
+40 days ago survives a 30-day history window through a validated recovery basis.
+Required-resource expiry permanently ends the dependent PID's recovery window;
+optional-resource expiry is an explicit read outcome. Associations cannot renew
+resource lifetime or pin every historical revision. PID-owned and independent
+resources have distinct retirement rules, even when they share the same storage.
+
 Retain tombstones until supported consumers and recovery paths cannot resurrect
 older values. A consumer beyond the supported horizon must reset from a valid
 state snapshot or fail explicitly. State resynchronization is available only
@@ -304,6 +315,7 @@ has been physically reclaimed. Report the boundary actually observed. Garbage
 collection can run after process expiry without prolonging its execution rights.
 
 M1 proves the lifetime contract, deadline fencing, durable recovery basis, and
-basic trim/delete recovery. M7 makes those semantics explicit in suspension and
-supervision. Later milestones add connector dependency handling and broader
-compaction/retention operations; see [roadmap](roadmap/README.md).
+basic trim/delete recovery. M7 proves associated-state dependencies, KV compaction,
+and resource expiry. M8 exposes those semantics through Station suspension and
+supervision. M9 adds connector dependency handling; M10 extends the proofs to
+distributed consumers and broader recovery operations. See [roadmap](roadmap/README.md).

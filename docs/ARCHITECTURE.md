@@ -1,8 +1,9 @@
 # Architecture
 
 Status: experimental M1 kernel, client, storage adapter, and reference runtime
-implemented and verified. Board supplies the qualified M2 inspection UI/API. Station, production
-connectors, and trading applications follow. Use the [roadmap](roadmap/README.md)
+implemented and verified. Board supplies the qualified M2 inspection UI/API.
+State resources and associations are the next planned prerequisite for Station;
+production connectors and trading applications follow. Use the [roadmap](roadmap/README.md)
 for scope and the [test guide](../tests/README.md) for proved behavior and limits.
 
 ## Execution model
@@ -41,9 +42,9 @@ Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 | Layer | Owns | Design |
 | --- | --- | --- |
 | Identity adapters and protocol ingress | Credential verification, authenticated request provenance, and mapping external identities to principals | [SECURITY.md](SECURITY.md) |
-| Transit — kernel | Processes/PIDs, lifecycle, legal sequences, ordered commits, realm/grant checks, ownership and effect authority | [TRANSIT.md](TRANSIT.md), [SECURITY.md](SECURITY.md) |
+| Transit — kernel | Processes/PIDs, lifecycle, legal sequences, ordered commits, realm/grant checks, ownership and effect authority; planned resource/association contracts | [TRANSIT.md](TRANSIT.md), [STATE.md](STATE.md), [SECURITY.md](SECURITY.md) |
 | Durable transport | Persistent history, continuation positions, mailbox storage and delivery | [STREAMS.md](STREAMS.md), [URSULA.md](URSULA.md) |
-| Station — framework | GenServer behaviors, scoped name registries, request/reply, supervision, timers, worker-pool patterns | [STATION.md](STATION.md) |
+| Station — framework | GenServer behaviors, Table/association helpers, scoped name registries, request/reply, supervision, timers, worker-pool patterns | [STATION.md](STATION.md) |
 | Connectors | Authorized external attempts, request/response capture, bounded reconciliation, outcome and retry/cancellation policy | [CONNECTORS.md](CONNECTORS.md) |
 | Runtime adapter | Durable PID-to-provider bindings and reconciliation of lifecycle intents with provider resources/observations | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | Retention reconciliation | Enforce Transit-authorized policies and retained boundaries; coordinate checkpoints, dependency checks, and adapter reclamation | [RETENTION.md](RETENTION.md) |
@@ -128,6 +129,14 @@ application state without running or verifying the handler's computation.
 [CLIENT.md](CLIENT.md) defines that programming model; [SECURITY.md](SECURITY.md)
 and [CONFORMANCE.md](CONFORMANCE.md) define trust and bypass obligations.
 
+[M7](roadmap/M7.md) evolves inline application state into versioned resources
+accessed through recorded process associations. Core enforces identity,
+revision, commit, grants, and lifetime; application values stay opaque. The
+client supplies bounded KV access, the backend supplies recoverable indexes,
+and Station builds behavior/Table APIs above them. [STATE.md](STATE.md) owns
+the design and proof gates; it introduces no separate authoritative database
+or automatic cross-resource transaction.
+
 Runtime isolation and restricted credentials must prevent direct effects and
 raw journal writes. A well-behaved SDK alone cannot enforce this boundary.
 Trusted connectors execute recorded attempts. Replay restores recorded state
@@ -186,7 +195,7 @@ and protocol assertions belong under [tests/](../tests/README.md).
 - Extend `kubectl-transit` with authorized logical inspection and, later, operator
   controls as scoped in the [full plugin plan](roadmap/M5.md).
 - `packages/zig/transit-station`, module `transit_station`: GenServer, supervision, registries,
-  request/reply, and retention helpers over the public client.
+  request/reply, Table, association, and retention helpers over the public client.
 - `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,
   caller helpers, and trusted dispatch over Station/Transit.
 - `apps/transit-station-worker` and `apps/transit-station-http-worker`: compose behaviors or connector
@@ -200,6 +209,11 @@ library must not acquire credentials or start work. Workload-specific images can
 compile behavior selection; dynamic plugins are not implied. Add directories
 when implementation starts. Do not duplicate public protocol definitions or
 create a generic utility package without a concrete owner.
+
+M7's resource contracts, validation, client operations, storage/index mechanisms,
+and inspection initially extend those existing owners. A separate state package
+or executable needs a concrete dependency or runtime boundary; this plan does
+not create empty packages or require a new state service.
 
 ## Observation and repository ownership
 

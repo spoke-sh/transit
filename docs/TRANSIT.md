@@ -16,6 +16,9 @@ sequences. A record is authoritative only when it satisfies protocol validation
 and commit rules; storing arbitrary bytes does not authorize an action.
 
 The kernel knows processes, messages, turns, ownership, capabilities, and effects.
+The planned [state contract](STATE.md) adds durable resource identities,
+associations, revisions, and lifetime dependencies; application value semantics
+remain outside the kernel.
 It does not know prompts, reasoning loops, goals, agent delegation strategies,
 HTTP semantics, or trading policy. Those compose the protocol through
 [Station, the framework](STATION.md), and [connectors](CONNECTORS.md).
@@ -29,7 +32,9 @@ persistence, hosting, and configuration; see the
 ## Processes and identity
 
 A **process** is Transit's logical execution primitive: an identity, ordered
-mailbox, committed state, execution sequence, and lifecycle. A **PID** identifies
+mailbox, committed control state and application-state associations, execution
+sequence, and lifecycle. M1 stores application state inline; associations are
+planned in [M7](roadmap/M7.md). A **PID** identifies
 that process independently of its worker, OS process, pod, or sandbox. An actor
 is a programming-model participant implemented by a process; a Station GenServer
 is a behavior running in one. Raw processes and other behaviors can use Transit
@@ -167,7 +172,7 @@ simple, but must recover exclusively from validated durable control state.
 
 ## A turn
 
-Conceptually, a handler computes:
+The current inline-state model is:
 
 ```text
 (state, admitted_message) -> (next_state, outgoing_messages, effect_intents)
@@ -195,6 +200,14 @@ The [implemented turn format](../contracts/TRANSIT_V2.md) makes opaque state and
 outputs atomically visible in one journal record. Pending cross-process delivery
 uses durable outboxes with stable identities and deduplicated admission; this
 provides no general multi-stream transaction. See [STREAMS.md](STREAMS.md).
+
+[M7](roadmap/M7.md) introduces associated resource views and mutation proposals
+under that same turn boundary. A process can locate its state through named,
+versioned associations instead of replacing all application data per message.
+The kernel validates the resources and commit preconditions without interpreting
+their values. [STATE.md](STATE.md#turn-and-commit-boundary) owns atomic visibility,
+read/replay coverage, and lifetime rules; storing an arbitrary resource ID in
+today's opaque state does not implement those guarantees.
 
 ## Enforcement
 

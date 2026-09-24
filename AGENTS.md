@@ -15,6 +15,7 @@ Follow the contracts for the area you change:
 | Protocol, processes, ownership | [Transit](docs/TRANSIT.md), [v2 profile](contracts/TRANSIT_V2.md) |
 | Authentication, grants, credentials, trust | [Security](docs/SECURITY.md), [service contract](contracts/SERVICE_V2.md) |
 | Storage, delivery, producer/consumer behavior | [Streams](docs/STREAMS.md), [Ursula boundary](docs/URSULA.md) |
+| State resources, associations, KV/Table APIs | [State](docs/STATE.md), [M7](docs/roadmap/M7.md) |
 | Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/RETENTION.md) |
 | Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [public protocol package](packages/zig/transit-protocol/README.md) |
 | Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [M2 plan](docs/roadmap/M2.md) |
@@ -52,6 +53,10 @@ expanding framework or real-effect integrations.
 - Retention defaults to unlimited and requires application opt-in. Keep expiry,
   reconciliation closure, and physical cleanup distinct. Quota pressure and
   storage outages never authorize expiry; preserve control/recovery evidence.
+- Follow the planned state-resource contract: associations do not grant access
+  or imply lifetime ownership. Preserve the commit boundary between mutations,
+  input progress, and outputs; do not claim the current inline-state profile
+  implements resource references or multi-resource transactions.
 - Put effects behind recorded intents, authorization, and outcomes. Replay must
   not dispatch. Unknown remote outcomes require connector policy; closure cannot
   promise external cancellation or make retry safe. Keep secrets as references
@@ -61,7 +66,9 @@ expanding framework or real-effect integrations.
   package. Use disk-backed Ursula for durability tests.
 - Keep Board inspection-only for M2. Use public `transit-client` read surfaces;
   no raw storage/provider access, hidden mutations, or unqualified cached views.
-  Preserve source evidence and kernel facts when adding interpretation lenses.
+  Interpret runtime/framework primitives with source evidence; keep application
+  value decoding out of Board. The existing counter lens is scheduled for removal
+  in M7, not a pattern for new integrations.
   Board admits viewers through its private deployment boundary without access
   keys or sessions; its upstream Transit identity still requires a read-only grant.
 - Keep instrumentation with its domain owner and I/O outside deterministic core.

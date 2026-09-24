@@ -16,6 +16,7 @@ are experimental; their bounded implementation does not imply support for every 
 | [Caller model](CLIENT.md) | Application computation and the public client boundary |
 | [Security](SECURITY.md) | Identity, authorization, revocation, and trust boundaries |
 | [Streams](STREAMS.md) | Mailboxes, ordering, durable admission, and delivery |
+| [State](STATE.md) | Planned durable resources, process associations, KV/Table boundary, and state lifetimes |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
 | [Board](BOARD.md) | Planned inspection UI/API, observation semantics, and higher-level lenses |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |

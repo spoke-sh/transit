@@ -2,6 +2,7 @@
 
 Status: an OTP-inspired layer above the kernel is established direction. The
 behavior API and lifecycle policies below are proposed, with no implementation.
+[M8](roadmap/M8.md) depends on [M7 state resources and associations](roadmap/M7.md).
 
 ## Purpose
 
@@ -33,25 +34,41 @@ and [GenServer documentation](https://www.erlang.org/doc/system/gen_server_conce
 ## GenServer
 
 GenServer is a behavior running in a Transit process. It uses that process's
-PID, versioned state, and ordered durable mailbox; it introduces no second actor
-identity. A worker executes one handler turn at a time. Recovery restores
-committed state and resumes the mailbox under a fresh activation; worker
-replacement does not create a new logical server.
+PID, state associations, and ordered durable mailbox; it introduces no second
+actor identity. A worker executes one handler turn at a time. Recovery restores
+committed associations and eligible resource views, then resumes the mailbox
+under a fresh activation. Worker replacement does not create a new logical server.
 
 | Operation | Protocol meaning |
 | --- | --- |
-| Initialize | Establish initial state under a process lifecycle transition |
+| Initialize | Establish resources and named associations under validated lifecycle/commit operations |
 | Send/cast | Commit an outgoing message for durable admission to a resolved PID |
 | Request/call | Send with correlation and the caller's PID as a durable reply destination |
-| Handle | Consume the next mailbox input and propose state/output changes |
+| Handle | Read explicit resource revisions; consume the next mailbox input and propose mutations/outputs within the supported commit scope |
 | Reply | Commit a correlated message to the caller's mailbox |
 | Request an effect | Commit an intent for an authorized connector worker |
 | Suspend/recover | Validate the process/mailbox lifetime and resumption deadline, preserving the eligible PID while changing activation ownership |
 | Terminate/replace | Retire the PID under explicit policy; a replacement is a new process |
 
 Callback names and Zig signatures remain open. The semantic unit is the
-kernel turn, with private proposed state until commit. Framework helpers cannot
+kernel turn, with private proposed mutations until commit. Handlers do not have
+to return a replacement for all application state. Framework helpers cannot
 publish outputs early or move checkpoints independently of that commit.
+
+## State resources and Table helpers
+
+[STATE.md](STATE.md) owns resource identity, associations, revisions, commit
+visibility, read coverage, and lifetimes. Station uses those public primitives
+for handler state, durable waiting/correlation records, registry entries, and
+supervisor records. Its minimal typed Table interface adds declared record
+schemas and bounded access over KV; it introduces no second database or broader
+transaction guarantee. Application serializers/validation run in callers.
+
+Association, lifetime ownership, writer authority, and access permission remain
+distinct. Shared mutation initially goes through the resource's writer PID;
+Station must expose that request/reply boundary instead of presenting it as a
+local transaction. Resource creation/recovery belongs to the logical process
+contract, not a worker-local initialization callback that resets data on restart.
 
 A request/reply helper may present an awaitable API, but waiting must be durable.
 Commit the waiting state and request, release the turn, and process the eventual
@@ -65,6 +82,12 @@ Station exposes application-selected retention contracts with unlimited defaults
 and explicit process/stream overrides. Validate the effective contract before
 creating resources or admitting dependent work. See [RETENTION.md](RETENTION.md)
 for process, mailbox, history, and workload-scope lifetimes.
+
+Named associations declare required and optional state dependencies. The M7
+profile makes required-resource expiry terminal for the dependent PID; Station
+cannot detach or initialize empty state to bypass that outcome. A history
+retention window alone does not expire a current table value. Workload-scoped
+helpers extend the proven PID/independent resource ownership rules explicitly.
 
 Expose the cutoff for new work separately from final retirement. A settling
 process can finish only specifically preauthorized work within a finite window;
@@ -102,12 +125,14 @@ operations. Registry state and lookup caches are recoverable projections of
 those operations or validated durable checkpoints, with no separate authoritative
 task or naming store. Registry history can be trimmed only while preserving
 live bindings, conditional-update revisions, and required retirement evidence.
+Use associated state resources for those records; a registry's logical binding
+revision is distinct from its resource revision and its writer's activation.
 
 Every namespace declares its authority, visibility, and lifetime. Local and
 cluster-wide registration must identify the logical scope in which a name is
 unique and how that scope survives worker replacement. Neither means an
 unqualified worker-memory map, a Kubernetes namespace, or a Substrate atespace.
-M7 defines the minimal scoped registry; M9 proves cluster-wide conflict and
+M8 defines the minimal scoped registry; M10 proves cluster-wide conflict and
 partition behavior.
 
 Serialize changes for each name under one fenced authority. Conditional updates
@@ -137,7 +162,7 @@ memory, execution time, and retries. On repeated failure, keep the process visib
 blocked or apply an authorized ordered rejection/termination policy, recording
 the input disposition before progress advances. Quarantine is observable retained
 work with its own lifetime, not silent acknowledgement. M1 needs the minimal
-failure policy; Station supplies reusable supervision helpers in M7.
+failure policy; Station supplies reusable supervision helpers in M8.
 
 Requests, replies, timeout observations, and cancellations retain correlation
 and authenticated origin. Client disconnection is not cancellation of accepted

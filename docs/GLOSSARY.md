@@ -42,17 +42,17 @@ distinction explicit when both appear in the same discussion.
 
 | Term | Meaning |
 | --- | --- |
-| Process | Transit's logical execution primitive: identity, mailbox, committed state, ordered sequence, and lifecycle. It is independent of an OS process, worker, or sandbox. |
+| Process | Transit's logical execution primitive: identity, mailbox, committed control state, ordered sequence, and lifecycle. Application state is inline in M1 and associated through resources in planned M7. It is independent of an OS process, worker, or sandbox. |
 | PID | Opaque, durably scoped process identity. It survives eligible worker recovery, suspension, and migration; logical termination or process expiry retires it permanently. |
 | Actor | A programming-model participant implemented by a Transit process. It adds no separate identity layer. Use **Substrate Actor** when referring to the external runtime resource. |
-| GenServer | A Station behavior running in a Transit process, providing sequential message handling, explicit state, and request/reply under that process's PID. |
+| GenServer | A planned Station behavior running in a Transit process, providing sequential message handling, state associations, and request/reply under that process's PID. |
 | Mailbox | The process's ordered view of durably admitted input messages. Admission and processing progress are distinct. |
 | Unbounded mailbox | A logically unbounded durable backlog that can outlive a worker and exceed its RAM. Read windows, storage capacity, and admission still have explicit limits. |
 | Process sequence | The process's ordered protocol history, including admitted messages and execution/lifecycle records. It establishes no global order across processes. |
 | Admission | Durable acceptance of a message's identity and place in the target PID's mailbox. It does not mean handling or an external effect has completed. |
-| Turn | Handling one admitted input against committed process state and proposing the next state, outgoing messages, and effect intents. |
-| Application state | Opaque caller-owned bytes recorded by Transit. Protocol acceptance does not prove application computation correct. |
-| State revision | The version of committed application state used as a turn precondition. In M1 it starts at zero and advances to the successful turn position; it is distinct from ownership generation. |
+| Turn | Handling one admitted input against an explicit committed state/read basis and proposing state changes, outgoing messages, and effect intents. |
+| Application state | Caller-defined data with opaque business meaning. M1 records an inline value; planned M7 adds durable associated resources. Protocol acceptance does not prove computation correct. |
+| State revision | In M1, the process's committed inline-state version used as a turn precondition; it starts at zero and advances to the successful turn position. Distinct from ownership generation and planned resource revisions. |
 | Turn commit | The durable boundary that makes a turn's state transition and pending outputs authoritative together. |
 | Settlement | Completion of specifically authorized work within recorded finite limits after the cutoff for starting new work; it cannot grant more work or revive a retired PID. |
 | Worker | A replaceable executor that hosts process or connector work. A worker is distinct from the logical process it executes. |
@@ -66,6 +66,27 @@ distinction explicit when both appear in the same discussion.
 
 See [Transit](TRANSIT.md), [Station](STATION.md), and [Streams](STREAMS.md) for
 ordering, ownership, and behavior requirements.
+
+## State resources and associations
+
+These concepts are planned in [M7](roadmap/M7.md); [STATE.md](STATE.md) owns
+their contracts. Existing inline-state values and immutable payload IDs do not
+implement resource associations.
+
+| Term | Meaning |
+| --- | --- |
+| Process control state | Durable protocol facts governing lifecycle, ownership, mailbox progress, associations, and outstanding obligations; distinct from application values |
+| State resource | Realm-scoped durable identity with a kind/version, committed revisions, data, and explicit lifecycle policy |
+| State association | A versioned named relationship from a PID to an exact resource, declaring intended access and whether recovery requires it; grants neither permission nor lifetime ownership |
+| Required state association | A dependency whose availability constrains the PID's recovery window; expiry is terminal under the first resource profile |
+| Lifetime owner | The logical PID or explicitly independent/workload scope whose policy governs resource retirement; not necessarily its writer or reader |
+| Writer PID | The process whose fenced turns serialize mutations to a resource; execution ownership and resource grants are still required |
+| Resource revision | An immutable committed state version used for reads and mutation preconditions, independent of PID progress and activation generation |
+| Read basis | The exact resource identities/revisions observed by a turn and the evidence supporting its recovery/replay contract |
+| KV | The initial versioned resource interface for opaque key/value lookup, put, delete, and bounded enumeration |
+| Table | A planned Station abstraction for typed records over the resource model; it does not imply arbitrary queries or wider transactions |
+| Materialized index | A rebuildable lookup structure derived from committed resource history/checkpoints; not a second state authority |
+| Staged data | Durably prepared data that remains unpublished until referenced by an accepted commit decision |
 
 ## Identity and authority
 
@@ -173,7 +194,7 @@ and replay requirements.
 | --- | --- |
 | Observation basis | The source, read position, policy revision, retained boundary, and coverage supporting an inspected view. Different sources need not share one consistent cut. |
 | Journey | A bounded view of recorded causal relationships between inputs, turns, outputs, admissions, and effects. It introduces no new execution identity and may contain explicit gaps. |
-| Lens | A versioned Board interpretation of authorized evidence, adding application/framework meaning without replacing kernel facts, broadening access, or executing application handlers. |
+| Lens | A versioned Board interpretation of authorized runtime/framework evidence, without decoding application business values, replacing kernel facts, or broadening access. The M2 counter decoder is scheduled for removal in M7. |
 
 Arrivals and departures are presentation terms mapped to mailbox admissions,
 committed outputs, and effect stages. They do not change those stages' guarantees.
