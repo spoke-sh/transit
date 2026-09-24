@@ -67,3 +67,8 @@ bounded KV reads. Value reads require a resource read grant independently of
 PID inspection. See [state v1](../../contracts/STATE_V1.md) for pagination,
 capabilities and lifecycle outcomes. Mutations use the existing `submit` command
 with the nested `state` command family.
+
+`delivery KEY QUERY URL` reads minimal courier status using a dedicated delivery
+grant; `sign-delivery KEY QUERY` emits its signed query. See the
+[courier guide](../transit-delivery/README.md) for pending counts, sequence ownership
+and readiness semantics. These reads require no general inspection grant.

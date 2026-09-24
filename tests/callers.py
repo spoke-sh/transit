@@ -165,6 +165,10 @@ def run(node, cli, counter, byte_log, probe, delivery):
             # Readiness and a restarted idle courier do not append or redeliver.
             subprocess.run([str(delivery), str(courier_config), "--check"], check=True, timeout=10)
             subprocess.run([str(delivery), str(courier_config), "--once"], check=True, timeout=10)
+            status_query = store.root / "delivery-status.json"
+            status_query.write_text(json.dumps({"realm": 61, "principal": 3}))
+            status = json.loads(subprocess.check_output([str(cli), "delivery", str(seed), str(status_query), url], timeout=10))
+            assert status["pending"] == 0 and status["principal_sequence"] == 2, status
             source = sink_view["input"]["origin"]["source"]["process"]
             assert source["pid"] == pids[1] and source["output"] == 2
             assert sink_view["process"]["admitted"] == 1
