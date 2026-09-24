@@ -111,8 +111,11 @@ nix build .#kubectl-transit
 
 Root `apps` builds also install the executable. The Nix package builds this
 stdlib-only app without fetching the kernel's dependencies. Reenter `nix develop`
-after changing its source to refresh the packaged command; the `zig-out` executable
-is useful during iteration. No language bindings or protocol dependencies are
+after changing its source to refresh the packaged command. With direnv, the
+checked-in `.envrc` watches the plugin source and package definition so the
+cached shell refreshes when they change; approve `.envrc` changes with
+`direnv allow` after reviewing them. The `zig-out` executable is useful during
+iteration. No language bindings or protocol dependencies are
 introduced for this infrastructure-only slice.
 
 The [offline proof](../../tests/kubectl_transit.py) exercises selection, native

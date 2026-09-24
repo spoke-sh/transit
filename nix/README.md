@@ -29,6 +29,11 @@ for per-checkout development settings. Copy [.env.example](../.env.example) for
 Board listener/origin settings; `.env` stays out of Git. Nix remains the source
 of tool versions; direnv is optional and is not installed by this shell.
 
+The plugin source and its Nix package definition are watched before `use flake`
+so nix-direnv refreshes the packaged `kubectl transit` when either changes.
+After a checked-in `.envrc` change, review it and run `direnv allow` to reload.
+With plain `nix develop`, exit and reenter the shell to refresh packaged commands.
+
 ## Vite+
 
 The shell includes a checksummed upstream `vp` binary and its matching JavaScript
