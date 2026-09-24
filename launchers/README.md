@@ -205,6 +205,59 @@ with `nix develop --command just …` too. `nix develop` by itself does not load
 `.env`. These settings apply to the selected launcher; when running local and
 Compose simultaneously, give their Board instances distinct ports/origins.
 
+### Service diagnostics
+
+Board logs completed HTTP requests at `info`, including route templates, elapsed
+time and local response outcome. Successful health probes and frequent Transit
+reads are `debug`. Failures remain visible at normal verbosity. For correlated
+Board/client/node/storage detail, set these in `.env` before the next `up`:
+
+```dotenv
+REY_BOARD_LOG_LEVEL=debug
+REY_NODE_LOG_LEVEL=debug
+```
+
+`REY_LOG_LEVEL` and `REY_LOG_FORMAT` set installation-wide defaults. Override
+either field per service with `REY_BOARD_LOG_*`, `REY_NODE_LOG_*`,
+`REY_MAINTENANCE_LOG_*`, or `REY_COUNTER_LOG_*`. Levels are `debug`, `info`,
+`warn`, `error`, and `off`; formats are `text` and `json`. Precedence is the
+per-service variable, global variable, saved service value, then the default:
+`info` with text locally and JSON in Compose. As with listener settings, `up`
+validates and persists these choices; `restart` uses the saved configuration.
+The launcher maps them to each executable's `LOG_LEVEL` and `LOG_FORMAT`.
+Ursula and the process/container managers keep their upstream logging controls.
+
+Services write diagnostics to stderr; bootstrap and CLI results keep their
+machine-readable stdout. The private node accepts validated diagnostic trace
+parents so Board calls can be followed across services. Public Board ingress
+starts its own context. Neither trace context nor logs grant Transit permission.
+See the [signal contract and bounds](../packages/zig/telemetry/README.md) and
+[Transit event vocabulary](../packages/zig/transit-observability/README.md).
+
+### Log storage and rotation
+
+Local service files use Process Compose's
+[rotation settings](https://github.com/F1bonacc1/process-compose/blob/v1.110.0/www/docs/logging.md):
+5 MiB per file, two backups, and a seven-day backup age limit. The separate
+`log-retention` process checks `manager.log` and `manager-client.log` every second,
+keeping two backups of at most 5 MiB each. It preserves the manager's open file
+by copying a bounded tail and truncating in place. The active file can exceed
+5 MiB between checks, and writes racing the copy/truncate can be lost. These
+are rotation targets, not a hard filesystem quota. No protocol data is removed.
+
+`logs manager` shows current manager output; older files remain in the private
+installation directory after `down`. A new start archives the previous manager
+log before Process Compose opens it. Rotation failure is visible as a service
+exit; inspect `logs log-retention` and use `restart log-retention` after resolving
+the cause. Diagnostic retention failure does not stop Transit control work.
+
+Compose configures Docker's `json-file` driver with `max-size=5m` and `max-file=2`
+for every service. Logs survive container restart but disappear on Compose
+`down`; export any needed diagnostics first. External collectors, crash dumps,
+build/test logs and Substrate-owned storage need separate operator policies.
+Never publish installation directories containing credentials with diagnostic
+reports. These budgets are independent of mailbox/history retention.
+
 ### Installation selection
 
 To run another independent installation, set `REY_LAUNCHER_NAME` and
@@ -222,9 +275,10 @@ REY_LAUNCHER_NAME=experiment just launchers::local::down
 ```
 
 [main.py](main.py) implements the command boundary;
-[settings.py](settings.py) validates Board listener and public-origin settings;
+[settings.py](settings.py) validates Board listener, public-origin and diagnostic settings;
 [common.py](common.py) owns provisioning, private files and exact operator retries;
 [local.py](local.py) and [compose.py](compose.py) wire their process managers.
+[logs.py](logs.py) owns native manager-log rotation.
 Python is development infrastructure glue; the actual services and caller stay
 in Zig. Service config semantics belong to the
 [node](../apps/transit-node/README.md), [Board](../apps/board/README.md), and

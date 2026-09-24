@@ -111,14 +111,27 @@ def run(node, cli, counter, byte_log, probe):
                 path = store.root / f"example-{index}.json"
                 options = {k: v for k, v in configs[index].items() if k not in ("expected_state", "consumed")}
                 path.write_text(json.dumps(options))
+                first_turn = index + 1 not in verified_retries
                 result = subprocess.run([str([counter, byte_log][index]), "--once", str(path)],
-                                        capture_output=True, text=True, timeout=20)
+                                        capture_output=True, text=True, timeout=20,
+                                        env=os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "debug"})
                 if expected_error:
                     assert result.returncode != 0 and expected_error in result.stderr, result
                     return
                 assert result.returncode == 0, result.stderr
                 receipt = json.loads(result.stdout)
                 assert receipt["position"] > 0
+                if first_turn:
+                    attempts = [r for line in result.stderr.splitlines()
+                                if (r := json.loads(line)).get("event", {}).get("name") == "transit.client.request"
+                                and r["event"].get("operation") == "turn"]
+                    # The proxy committed before dropping the first response.
+                    # Neither transport loss nor a malformed 503 is a rejection.
+                    assert len(attempts) == 3, attempts
+                    assert [r["event"]["protocol_outcome"] for r in attempts] == ["uncertain", "uncertain", "receipt"]
+                    assert attempts[-1]["event"]["position"] == receipt["position"]
+                    assert len({r["span_id"] for r in attempts}) == 3
+                    assert len({r["parent_span_id"] for r in attempts}) == 1
             for index in range(2):
                 check(index, "reject")
                 malformed_views.add(index + 1)

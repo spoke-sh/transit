@@ -85,9 +85,9 @@ authorized read APIs. Operators and agents should follow mailbox input, turns,
 outputs, effects, ownership, and retention with visible freshness and gaps.
 The static frontend and API ship in one executable; M2 adds no control actions.
 
-Complete the [M2 observability follow-up](roadmap/M2-OBSERVABILITY.md) before
-Station: instrument Board, Transit services and their dependencies so operators
-can diagnose the running system. Logs, metrics and trace context remain derived
+The completed [M2 observability follow-up](roadmap/M2-OBSERVABILITY.md) instruments
+Board, Transit services and their dependencies before Station so operators can
+diagnose the running system. Logs, metrics and trace context remain derived
 signals; collector/export infrastructure is later scope.
 
 Then add GenServer behavior, supervision, and scoped name registration, and

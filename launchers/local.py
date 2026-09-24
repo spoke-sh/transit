@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import time
+import logs as log_retention
 
 from common import ROOT, SERVICES, healthy, lock, run, wait_for, write
 
@@ -18,7 +19,7 @@ class Local:
         self.manager_log = None
 
     def pc(self, *args, manager=False, spawn=False, **kwargs):
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_", "PC_"))}
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_", "PC_")) and k not in ("LOG_LEVEL", "LOG_FORMAT")}
         env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2", XDG_CONFIG_HOME=str(self.path / "xdg"))
         (self.path / "xdg/process-compose").mkdir(parents=True, exist_ok=True, mode=0o700)
         # Every Process Compose invocation truncates its own log. Client calls
@@ -51,6 +52,7 @@ class Local:
             raise RuntimeError("Checkout path is too long for the private Unix socket")
         launcher = [sys.executable, "-B", ROOT / "launchers/main.py", "local", "service", "--name", installation.name]
         commands = {
+            "log-retention": [*launcher, "log-retention"],
             "ursula": ["ursula", "server", "--config", self.path / "ursula.toml"],
             "node": [*launcher, "node"], "provision": [*launcher, "provision"],
             "counter": [*launcher, "counter"],
@@ -61,8 +63,13 @@ class Local:
         for name, command in commands.items():
             processes[name] = {"command": shlex.join(list(map(str, command))), "working_dir": str(self.path),
                 "log_location": str(self.path / (name + ".log")), "availability": {"restart": "no"},
+                "log_configuration": {"rotation": {"max_size_mb": 5, "max_backups": 2, "max_age_days": 7}, "flush_each_line": True, "no_metadata": True},
                 "shutdown": {"signal": 15, "timeout_seconds": 5}}
-            if name != "ursula":
+            if name in ("node", "board", "counter", "maintenance"):
+                processes[name]["environment"] = [f"{key}={value}" for key, value in installation.service_environment(name).items()]
+            if name == "ursula":
+                processes[name]["depends_on"] = {"log-retention": {"condition": "process_started"}}
+            elif name != "log-retention":
                 dependency = "ursula" if name == "node" else "node" if name == "provision" else "provision"
                 processes[name]["depends_on"] = {dependency: {"condition": "process_completed_successfully" if dependency == "provision" else "process_healthy"}}
         for name, offset, route in (("ursula", 0, "/__ursula/ready"), ("node", 1, "/health"), ("board", 2, "/health")):
@@ -76,6 +83,7 @@ class Local:
             "period_seconds": 1, "timeout_seconds": 3, "failure_threshold": 30}
         write(self.path / "process-compose.json", {"version": "0.5", "is_strict": True, "processes": processes})
         args = ("up", "-f", self.path / "process-compose.json", "--disable-dotenv")
+        log_retention.rotate(self.path / "manager.log", force=True)
         if detached:
             self.pc(*args, "-D", manager=True, capture=True)
         else:
@@ -101,6 +109,8 @@ class Local:
 
     def drain_manager_log(self):
         if self.manager_log is not None:
+            if os.fstat(self.manager_log.fileno()).st_size < self.manager_log.tell():
+                self.manager_log.seek(0)
             # Stream bounded chunks alongside the manager's live, prefixed
             # service output. Lifecycle/probe messages otherwise go only to disk.
             chunk = self.manager_log.read(65536)
@@ -154,7 +164,7 @@ class Local:
                 raise RuntimeError("Local manager did not finish shutdown")
 
     def restart(self, name):
-        if name not in SERVICES:
+        if name not in SERVICES and name != "log-retention":
             raise ValueError("Unknown service")
         if not self.services():
             raise RuntimeError("Local manager is stopped; use up")
@@ -178,7 +188,7 @@ class Local:
             wait_for(f'http://127.0.0.1:{port}' + ("/__ursula/ready" if name == "ursula" else "/health"))
 
     def logs(self, name):
-        if name not in SERVICES and name not in ("provision", "manager"):
+        if name not in SERVICES and name not in ("provision", "manager", "log-retention"):
             raise ValueError("Unknown service")
         if name != "manager" and self.services():
             # The manager also records probe failures here; they are absent
@@ -195,6 +205,9 @@ class Local:
         self.pc("attach", timeout=None)
 
     def service(self, name):
+        if name == "log-retention":
+            log_retention.maintain(self.path)
+            return
         if name == "board-probe":
             if not healthy(self.installation.board_url + "/health", self.installation.board_headers):
                 raise RuntimeError("Board readiness failed for the configured public Host")

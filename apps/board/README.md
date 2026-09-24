@@ -137,6 +137,13 @@ owns the schema, local metric snapshots, context and bounded sink behavior.
 normal execution; abrupt exits and signals are reported by the process manager.
 Board's `/health` checks its HTTP/Host boundary, not upstream Transit availability.
 
+Upstream client attempts get their own spans parented to the Board request;
+successful attempts are debug-only, failures remain visible at normal verbosity.
+An explicitly configured private node can continue that context across ingress
+and storage. Local/Compose launchers enable it without forwarding browser-supplied
+parents. Use their [per-service settings](../../launchers/README.md#service-diagnostics)
+to turn on debug detail while navigating.
+
 ## Verification
 
 `just board::check` checks contracts, generated client, strict types, formatting,

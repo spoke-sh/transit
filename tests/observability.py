@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import time
 from inspection import System
@@ -15,6 +16,8 @@ def records(path):
 
 
 def run(node, cli, board):
+    if hasattr(os, "sched_setaffinity"):
+        os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
     env = os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "debug"}
     with System(node, cli) as s:
         s.authority.kill()
@@ -86,6 +89,37 @@ def run(node, cli, board):
             assert access not in data and seed.read_text().strip() not in data
             assert "private-state-marker" not in data and "private-state-marker".encode().hex() not in data
             assert "private-header-marker" not in data
+        # The same one-CPU node must still serve and enforce its HTTP deadline
+        # with an actually full, unread diagnostic pipe.
+        if sys.platform == "linux":
+            import fcntl
+            import array
+            import termios
+            s.authority.kill()
+            s.authority.wait(timeout=10)
+            stalled_node = subprocess.Popen([str(node), str(s.config)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env=env)
+            s.children.append(stalled_node)
+            fcntl.fcntl(stalled_node.stderr.fileno(), fcntl.F_SETPIPE_SZ, 4096)
+            try:
+                wait_ready(s.store.http, stalled_node, s.url + "/health")
+                for _ in range(60):
+                    s.post("/v2/command", {}, status=400)
+                time.sleep(.1)
+                unread = array.array("i", [0])
+                fcntl.ioctl(stalled_node.stderr.fileno(), termios.FIONREAD, unread)
+                assert unread[0] > 2048, unread
+                with socket.create_connection(("127.0.0.1", s.port), timeout=3) as stream:
+                    stream.sendall(b"POST /v2/command HTTP/1.1\r\nHost:")
+                    time.sleep(1.0)
+                    assert stream.recv(32) == b""
+                operation = {"send": {"pid": receipt["position"], "value": b"control".hex()}}
+                position = s.command(operation)
+                assert s.post("/v2/command", s.signed(operation, s.sequence)) == {"position": position}
+                assert stalled_node.poll() is None
+            finally:
+                stalled_node.kill()
+                stalled_node.wait(timeout=10)
+                stalled_node.stderr.close()
         print("Observability: separate correlated Board/client/node spans, receipt retries, revoked reads and trace/secret boundaries passed.")
 
 

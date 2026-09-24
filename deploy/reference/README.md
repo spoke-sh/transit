@@ -75,6 +75,33 @@ injection. Keep version changes deliberate and rerun the recovery/isolation
 proof. Ursula uses the official upstream image with explicit disk configuration,
 not a separately compiled Nix image. Local Ursula binaries come from the overlay.
 
+## Service diagnostics
+
+The proof configures `LOG_FORMAT=json` and `LOG_LEVEL=info` for Board, node,
+maintenance, the host runtime controller and the counter's Actor template.
+Change those explicit environment entries to select per-service verbosity;
+the local/Compose `REY_*` configuration is not a reference installer API.
+Read service stderr through `kubectl logs` with the owned kubeconfig/context,
+and controller/provider diagnostics in the private proof directory. Substrate
+worker logs remain accessible through its provider log interface; bootstrap
+consumers recognize their machine record among diagnostic records.
+
+The owned Kind cluster sets kubelet `containerLogMaxSize=5Mi` and
+`containerLogMaxFiles=3`; the proof checks the effective kubelet configuration.
+[Kubernetes rotation](https://kubernetes.io/docs/concepts/cluster-administration/logging/#log-rotation)
+is periodic and can overshoot its target; `kubectl logs` exposes the current
+file, not all rotated history. Pod deletion and cluster teardown remove local
+diagnostics. This budget covers CRI container logs, not Substrate's separate
+sandbox/log/snapshot storage or the harness's host files. Those retain their
+provider/operator lifecycle; no global disk bound or telemetry backend is claimed.
+
+Node ingress accepts validated trace parents only as diagnostic hints; Board's
+public ingress still starts a local context. JSON events, metrics and context
+have the same meanings as the native and Compose profiles. See
+[telemetry](../../packages/zig/telemetry/README.md) for schema, privacy, rate limits
+and loss behavior. Probe success is quiet at `info`; failures and lifecycle
+changes remain visible independently of the durable protocol history.
+
 ## Board qualification
 
 The reference images include the standalone `board` binary. The workload proof

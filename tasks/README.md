@@ -27,7 +27,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just` | Lists available recipes |
 | `just doctor` | Prints tool versions, including Ursula and Kubernetes tooling, without contacting a cluster |
 | `just check` | Checks Nix/Zig formatting, the toolchain smoke check, Zig unit tests, generated public-contract drift, local Markdown links, and diff whitespace |
-| `just ci` | Runs foundation, package, recovery, caller, inspection, Board API and frontend checks in the same development shell |
+| `just ci` | Runs foundation, package, telemetry, recovery, caller, inspection, Board API/frontend and local launcher checks in the same development shell |
 | `just fmt` | Formats Nix and Zig files |
 | `just build` | Installs platform executables: node, runtime controller, CLI and embedded Board (requires `board::install`) |
 | `just examples::build` | Installs `example-counter` and `example-byte-log` |
@@ -43,6 +43,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just launchers::local::test`, `just launchers::compose::test` | Qualify persistence, duplicate-safe provisioning, fresh ownership and missing-store refusal in isolated installations |
 | `just test::unit` | Runs Zig unit/protocol tests without a service |
 | `just test::packages` | Checks each library independently of root build orchestration |
+| `just test::telemetry` | Checks bounded log emission and independent metrics with disabled, drained, stalled and closed sinks on one CPU |
+| `just test::observability` | Proves real Board/client/node correlation, privacy, receipt semantics and Transit progress with a blocked log pipe |
 | `just test::storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
 | `just test::service` | Proves signed HTTP ingress, scoped/revoked reads, worker replacement and authority/storage restart on loopback |
 | `just test::callers` | Runs the actual counter and byte-log example binaries through the public client against the same node, including dropped commit responses, stale owners and restart recovery |

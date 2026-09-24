@@ -67,6 +67,8 @@ class Compose:
             "counter": service("example-counter", ["/counter/config.json"], [mount("counter", "/counter")], ["client"]),
             "board": service("board", ["/board/config.json"], [mount("board", "/board")], ["client"]),
         }
+        for name, service_config in services.items():
+            service_config["environment"] = self.installation.service_environment(name)
         pins = json.loads((ROOT / "deploy/reference/versions.json").read_text())
         services["ursula"] = {"image": pins["ursula"], "command": ["server", "--config", "/ursula.toml"],
             "user": f"{os.getuid()}:{os.getgid()}", "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],

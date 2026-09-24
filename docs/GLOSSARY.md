@@ -184,8 +184,9 @@ See [Board](BOARD.md) for the visual language and evidence rules.
 | Liveness / readiness / progress | Respectively, ability to make required local progress, ability to serve a declared role now, and advancement of workload or maintenance work. None proves ownership. |
 
 See [Observability](OBSERVABILITY.md) for signal ownership, interpretation and
-resource bounds. `transit-observability` is the planned Transit-specific
-instrumentation package; Board owns its service instrumentation separately.
+resource bounds. `transit-observability` is the Transit-specific instrumentation
+package; Board owns its service instrumentation separately. The neutral
+`telemetry` package supplies bounded sinks, metrics and trace context to both.
 
 ## Monorepo and deployment
 

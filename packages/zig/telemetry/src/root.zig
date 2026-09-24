@@ -328,3 +328,21 @@ test "completed spans correlate distinct operations and never borrow event buffe
     _ = Context;
     _ = Http;
 }
+
+test "failed response write cannot erase known receipt; restart resets local counters" {
+    var runtime = Runtime.init(std.testing.io, "test", .{ .format = .json });
+    var request: Http = .{ .span = runtime.begin(.server, null), .status = 200, .protocol_outcome = .receipt, .position = 7 };
+    request.finish("http.request", error.WriteFailed, false, false);
+    const record = runtime.pop().?;
+    var parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, record.bytes[0..record.len], .{});
+    defer parsed.deinit();
+    const event = parsed.value.object.get("event").?.object;
+    try std.testing.expectEqualStrings("failed", event.get("outcome").?.string);
+    try std.testing.expectEqualStrings("receipt", event.get("protocol_outcome").?.string);
+    try std.testing.expectEqual(7, event.get("position").?.integer);
+    try std.testing.expect(!event.get("response_written").?.bool);
+    try std.testing.expectEqual(1, runtime.snapshot(.server).outcomes[@backingInt(Outcome.failed)]);
+    const restarted = Runtime.init(std.testing.io, "test", .{ .format = .json });
+    try std.testing.expect(!std.mem.eql(u8, &runtime.instance, &restarted.instance));
+    try std.testing.expectEqual(0, restarted.snapshot(.server).outcomes[@backingInt(Outcome.failed)]);
+}

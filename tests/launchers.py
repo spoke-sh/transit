@@ -50,7 +50,7 @@ def proof(profile):
             command.append("--detach")
         # A developer's .env must never redirect proof resources or publish
         # credentials on their chosen development listener.
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("REY_BOARD_", "REY_LAUNCHER_"))}
+        env = {k: v for k, v in os.environ.items() if not k.startswith("REY_") and k not in ("LOG_LEVEL", "LOG_FORMAT")}
         env.update(settings or {})
         result = subprocess.run(list(map(str, command)), cwd=ROOT, env=env, text=True, capture_output=True, timeout=600)
         if (result.returncode == 0) != success:
@@ -80,8 +80,29 @@ def proof(profile):
             occupied.listen()
             invoke("up", success=False)
             assert not launcher.services()
-        invoke("up")
+        invoke("up", settings={"REY_LOG_FORMAT": "json", "REY_NODE_LOG_LEVEL": "debug"})
         first = observe(12)
+        assert installation.load()["observability"]["node"]["level"] == "debug"
+        time.sleep(.1)
+        visible = invoke("logs", "board")
+        assert 'board.http.request' in visible and '"route":"/api/v1/processes"' in visible
+        if profile == "local":
+            config = json.loads((installation.path / "process-compose.json").read_text())
+            assert config["processes"]["board"]["log_configuration"]["rotation"]["max_size_mb"] == 5
+            # Exercise the owned background manager-log retention process.
+            for _ in range(3):
+                with (installation.path / "manager.log").open("ab") as log:
+                    log.write(b"rotation-proof\n" * 400000)
+                limit = time.monotonic() + 5
+                while (installation.path / "manager.log").stat().st_size >= 5 * 1024 * 1024:
+                    assert time.monotonic() < limit
+                    time.sleep(.05)
+            assert (installation.path / "manager.log.1").stat().st_size <= 5 * 1024 * 1024
+            assert (installation.path / "manager.log.2").stat().st_size <= 5 * 1024 * 1024
+        else:
+            config = json.loads((installation.path / "compose.json").read_text())
+            assert config["services"]["node"]["environment"]["LOG_LEVEL"] == "debug"
+            assert config["services"]["board"]["logging"]["options"]["max-size"] == "5m"
         assert first["consumed"] == first["admitted"] == 2 and first["binding"] is None
         endpoints = json.loads(invoke("endpoints"))
         assert endpoints["board"] == installation.origin
@@ -248,7 +269,7 @@ def proof(profile):
 def foreground_proof():
     installation = Installation("local", "foreground-" + secrets.token_hex(3), ports())
     launcher = Local(installation)
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("REY_BOARD_", "REY_LAUNCHER_"))}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("REY_") and k not in ("LOG_LEVEL", "LOG_FORMAT")}
     command = [sys.executable, "-B", str(ROOT / "launchers/main.py"), "local"]
     selection = ["--name", installation.name, "--base-port", str(installation.base_port)]
     output = ROOT / ".cache" / (installation.name + ".log")
@@ -277,6 +298,7 @@ def foreground_proof():
             wait_for(lambda: "Local stack ready." in output.read_text())
             assert child.poll() is None
             first = next(p for p in installation.inspect()["observation"]["processes"] if p)
+            wait_for(lambda: "board.http.request" in output.read_text())
             invoke("send", "3", "--request-id", "foreground-input")
             wait_for(lambda: next(p for p in installation.inspect()["observation"]["processes"] if p)["state"] == b"15".hex())
             # A real child signal exit must be visible even without stderr,

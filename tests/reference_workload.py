@@ -15,6 +15,17 @@ import reference as ref
 from storage import free_port
 
 
+def diagnostic_records(text):
+    # Mixed provider/host logs can include a partially written final record.
+    for line in text.splitlines():
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict) and record.get("schema_version") == 1:
+            yield record
+
+
 def run():
     s = ref.state()
     images = json.loads((ref.CACHE / "images.json").read_text())
@@ -30,7 +41,7 @@ def run():
     def start(argv, name):
         log = (directory / (name + ".log")).open("w+")
         logs.append(log)
-        child = subprocess.Popen(list(map(str, argv)), stdout=log, stderr=subprocess.STDOUT)
+        child = subprocess.Popen(list(map(str, argv)), stdout=log, stderr=subprocess.STDOUT, env=os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "info"})
         children.append(child)
         return child, log
 
@@ -99,6 +110,7 @@ def run():
             "automountServiceAccountToken": False,
             "securityContext": {"runAsNonRoot": True, "runAsUser": 65532, "runAsGroup": 65532, "fsGroup": 65532},
             "containers": [{"name": app, "image": image, "args": args,
+                            "env": [{"name": "LOG_FORMAT", "value": "json"}, {"name": "LOG_LEVEL", "value": "info"}],
                             "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}},
                             "resources": {"requests": {"cpu": "100m", "memory": "128Mi"}, "limits": {"cpu": "2", "memory": "1Gi"}},
                             "volumeMounts": [{"name": "config", "mountPath": "/config", "readOnly": True}]}],
@@ -117,7 +129,7 @@ def run():
                          "template": {"metadata": {"labels": {"app": app}}, "spec": spec}}}
 
     config = {"genesis": {"realm": 49, "root_key": root_public, "retry_policy": "last_per_principal", "max_clock_error_ms": 2000}, "ursula_url": f"http://ursula.{namespace}.svc.cluster.local:8080",
-              "bucket": "rey-reference", "journal": "authority", "listen": "0.0.0.0", "port": 8080, "request_timeout_ms": 3000}
+              "bucket": "rey-reference", "journal": "authority", "listen": "0.0.0.0", "port": 8080, "request_timeout_ms": 3000, "accept_trace_parent": True}
     maintenance_config = dict(config, maintenance={"principal": 3, "seed_file": "/secrets/seed", "interval_ms": 200,
                                                   "operation_timeout_ms": 5000, "checkpoint_every_records": 16})
     wal = '''[server]
@@ -167,7 +179,8 @@ backend = "inline"
                         "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"cpu": "1", "memory": "1Gi"}}}}})
         ref.ate(s, ["create", "atespace", namespace])
         template = {"metadata": {"atespace": namespace, "name": "counter"}, "workerSelector": {"matchLabels": {"workload": namespace}},
-                    "containers": [{"name": "counter", "image": images["example-counter"], "command": ["/example-counter", "--bootstrap-json",
+                    "containers": [{"name": "counter", "image": images["example-counter"],
+                                    "env": [{"name": "LOG_FORMAT", "value": "json"}, {"name": "LOG_LEVEL", "value": "info"}], "command": ["/example-counter", "--bootstrap-json",
                                      json.dumps({"url": authority_url, "realm": 49, "principal": 1, "pid": pid})],
                                     "volumeMounts": [{"name": "runtime-data", "mountPath": "/runtime-data"}]}],
                     "volumes": [{"name": "runtime-data", "durableDir": {}}],
@@ -190,7 +203,9 @@ backend = "inline"
         first, first_log = start([controller_bin, controller_config], "first-controller")
         deadline = time.monotonic() + 60
         while True:
-            if "created\n" in Path(first_log.name).read_text():
+            if any(record.get("event", {}).get("name") == "transit.runtime.step" and
+                   record["event"].get("operation") == "created"
+                   for record in diagnostic_records(Path(first_log.name).read_text())):
                 first.kill()
                 first.wait(timeout=10)
                 break
@@ -276,7 +291,19 @@ backend = "inline"
         assert board.process(pid)["lifecycle"] == "terminated"
         board_history = board.read(f"processes/{pid}/history")["observation"]
         board.evidence["retained_history"] = {key: board_history[key] for key in ("cut", "history", "complete")}
-        evidence = {"board": board.evidence, "namespace": namespace, "pid": pid, "actor_uid": first_actor_uid,
+        diagnostic_evidence = {}
+        for deployment_name, container_name, event in (("transit", "transit", "transit.http.request"), ("maintenance", "maintenance", "transit.maintenance.step"), ("board", "board", "board.http.request")):
+            output = ref.kube(s, ["-n", namespace, "logs", "deployment/" + deployment_name, "-c", container_name, "--tail=500"], capture=True)
+            parsed_logs = [json.loads(line) for line in output.splitlines() if line.startswith('{"schema_version":')]
+            assert any(r.get("event", {}).get("name") == event for r in parsed_logs), (deployment_name, output[-3000:])
+            assert board.access not in output and root_key.read_text().strip() not in output
+            diagnostic_evidence[deployment_name] = len(parsed_logs)
+        assert any('"name":"transit.runtime.step"' in Path(log.name).read_text() for log in logs)
+        nodes = json.loads(ref.kube(s, ["get", "nodes", "-o", "json"], capture=True))
+        kubelet = json.loads(ref.kube(s, ["get", "--raw", "/api/v1/nodes/" + nodes["items"][0]["metadata"]["name"] + "/proxy/configz"], capture=True))["kubeletconfig"]
+        assert kubelet["containerLogMaxSize"] == "5Mi" and kubelet["containerLogMaxFiles"] == 3
+        diagnostic_evidence["container_log_budget"] = {"size": "5Mi", "files": 3}
+        evidence = {"observability": diagnostic_evidence, "board": board.evidence, "namespace": namespace, "pid": pid, "actor_uid": first_actor_uid,
                     "first_worker_uid": old_worker["workerPodUid"], "replacement_worker_uid": replacement["status"]["workerAssignment"]["workerPodUid"],
                     "state": 1153, "expired_pid": finite_pid, "isolation": isolation_evidence, "images": images, "pins": ref.PINS}
         (directory / "evidence.json").write_text(json.dumps(evidence, indent=2))

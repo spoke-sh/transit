@@ -2,9 +2,9 @@
 
 [Roadmap](README.md) · [M2](M2.md) · [Observability design](../OBSERVABILITY.md)
 
-Status: implementation in progress. Board request visibility and bounded common
-primitives, node/client correlation and dependency/caller instrumentation are
-implemented; launcher/deployment qualification follows.
+Status: implemented and qualified on Linux x86_64. Board request visibility,
+bounded common primitives, node/client correlation, dependency/caller signals
+and local/Compose/Kubernetes-Substrate qualification are complete.
 The completed M2 inspection profile retains its documented qualification.
 
 ## Outcome and scope
@@ -78,15 +78,15 @@ already implemented. Remote OpenTelemetry export is a separately scoped follow-u
 | Storage outage, expiry, stale ownership or uncertain provider result | Named failure boundaries and supported progress measurements explain the issue without inferring expiry, cancellation or new authority from telemetry. |
 | Service restart, crash, probe failure and log rotation | Instance identity and counter resets are visible; manager diagnostics survive normal use, machine stdout stays parseable and retained logs follow the configured budget. |
 
-- [ ] Board HTTP instrumentation and Transit-specific instrumentation have clear
+- [x] Board HTTP instrumentation and Transit-specific instrumentation have clear
   ownership, public interfaces, manifests and dependency checks where applicable.
-- [ ] Tests cover logs, metric values/reset behavior and span relationships;
+- [x] Tests cover logs, metric values/reset behavior and span relationships;
   disabled or lost telemetry cannot affect protocol decisions or control progress.
-- [ ] The scenarios above pass against real service/caller binaries, including
+- [x] The scenarios above pass against real service/caller binaries, including
   running Transit without Board and Board with only its public client access.
-- [ ] Local, Compose and reference profiles expose the same event meanings and
+- [x] Local, Compose and reference profiles expose the same event meanings and
   declare differences in provider signals, buffering, persistence and limits.
-- [ ] Documentation distinguishes implemented instruments from deferred export;
+- [x] Documentation distinguishes implemented instruments from deferred export;
   protected telemetry has a finite resource and retention policy.
 
 Use `just check` plus affected `board::test`, `test::service`, `test::callers`,
@@ -95,3 +95,20 @@ existing launcher proofs for log visibility, rotation and failure behavior; run
 Compose/reference qualification when their configuration or runtime coverage
 changes. Record actual commands, measurements and remaining limits in
 [tests/README.md](../../tests/README.md), without claiming unrun deployment proofs.
+
+Implemented contracts live in [telemetry](../../packages/zig/telemetry/README.md),
+[transit-observability](../../packages/zig/transit-observability/README.md), and
+the instrumented components. Qualification includes the actual node with a full
+unread log pipe on one CPU, real Board/client/node span relationships, local and
+Compose restart/log configuration, and the Kubernetes/Substrate recovery and
+isolation proof. [Recorded evidence](../../tests/README.md#service-instrumentation-qualification)
+includes overhead measurements and the packaging issue exposed by qualification.
+
+The supported profile has local aggregate metrics and short correlated span
+records, not remote distributed-trace storage. Receipts do not identify fresh
+commits, so no fresh-commit counter is claimed. Shutdown bounds require cancelable
+I/O (proved with the pinned Linux pipe implementation); abrupt exits may lose
+records. Rotation budgets can overshoot between checks and do not cover every
+external provider store. Other host platforms, a collector/exporter, public
+scraping, browser telemetry and Station/connector-specific instruments remain
+outside this completed profile.

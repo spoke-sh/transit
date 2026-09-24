@@ -87,6 +87,11 @@ networking:
   ipFamily: ipv4
 nodes:
 - role: control-plane
+kubeadmConfigPatches:
+- |
+  kind: KubeletConfiguration
+  containerLogMaxSize: "5Mi"
+  containerLogMaxFiles: 3
 containerdConfigPatches:
 - |-
   [plugins."io.containerd.cri.v1.images".registry]
@@ -136,6 +141,9 @@ def images(s):
         context = CACHE / (name + "-image")
         context.mkdir(exist_ok=True)
         shutil.copy2(CACHE / "bin/bin" / name, context / name)
+        # Zig's shared cache can originate in a private launcher (umask 077).
+        # Published executables must also run as the image's non-root user.
+        (context / name).chmod(0o755)
         (context / "Dockerfile").write_text(f'FROM scratch\nCOPY {name} /{name}\nUSER 65532:65532\nENTRYPOINT ["/{name}"]\n')
         tag = f"{host}/{name}:m1"
         run(["docker", "build", "-t", tag, context])

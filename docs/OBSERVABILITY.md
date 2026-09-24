@@ -1,10 +1,11 @@
 # Observability
 
-Status: [M2 follow-up](roadmap/M2-OBSERVABILITY.md) in progress before Station.
+Status: [M2 follow-up](roadmap/M2-OBSERVABILITY.md) implemented before Station.
 Board request logs and the bounded [telemetry primitives](../packages/zig/telemetry/README.md)
 are implemented across Board, Transit, storage, maintenance, runtime and callers.
-Launcher/deployment qualification is in progress. This document owns cross-component rules.
-Exact event schemas and configuration belong with the implementation as it lands.
+Local, Compose and Kubernetes/Substrate profiles are qualified within their
+documented Linux bounds. This document owns cross-component rules.
+Exact event schemas and configuration belong with the owning components.
 
 ## Purpose and authority
 
@@ -144,7 +145,8 @@ select structured JSON using the same event fields and meanings. Emit diagnostic
 to stderr and preserve machine-readable stdout used by CLI receipts, caller
 bootstrap and controller one-shot output. Configure verbosity/format per service;
 launchers pass configuration and display output without interpreting authority.
-Exact configuration names/defaults will be documented with each executable.
+Exact configuration names/defaults are documented with each executable and in
+the [launcher guide](../launchers/README.md#service-diagnostics).
 
 At normal verbosity, show Board/API request completions, meaningful lifecycle and
 progress changes, and actionable failures. Successful health probes and repetitive
@@ -177,8 +179,11 @@ pinned Zig concurrency behavior on one CPU so a blocked writer cannot prevent
 deadlines, cancellation or control work. Bounded shutdown may lose queued data;
 a crash can lose it too. No telemetry WAL is required.
 
-Launcher log storage also needs a declared finite rotation/retention budget;
-its current streaming and persistent files do not establish bounded disk use.
+Launchers configure finite rotation/retention budgets for service logs and
+native manager files. Periodic rotation can overshoot its target; it is not a
+hard disk quota. See the [native/Compose policy](../launchers/README.md#log-storage-and-rotation)
+and [reference policy](../deploy/reference/README.md#service-diagnostics) for
+loss windows, provider-owned storage and proof-harness exclusions.
 Operational log retention is independent of application-opted-in mailbox/history
 retention and cannot authorize protocol cleanup. Later external telemetry
 storage needs its own access, retention and capacity policy.
@@ -188,7 +193,8 @@ storage needs its own access, retention and capacity policy.
 Start with service instrumentation: tested local log sinks, bounded metric
 snapshots and span/context hooks. Metrics and spans need a test consumer even
 before remote export; merely adding IDs to text logs is not distributed tracing.
-Pin the chosen semantic-convention/schema version when implementation begins.
+The local schema and OpenTelemetry mapping are pinned in the
+[telemetry package](../packages/zig/telemetry/README.md#record-schema-v1-and-spans).
 Keep provider/export choices outside core and public command contracts.
 
 A later change can connect those instruments to an OpenTelemetry SDK/exporter
@@ -200,5 +206,5 @@ Protect any later diagnostic endpoint independently; Board inspection grants do
 not automatically grant access to all service telemetry.
 
 The [follow-up plan](roadmap/M2-OBSERVABILITY.md) owns sequencing, implementation
-gates and acceptance evidence. Component READMEs will own exact event/metric
-catalogs, configuration, operating examples and measured limits as code lands.
+gates and acceptance evidence. Component READMEs own exact event/metric catalogs,
+configuration, operating examples and measured limits.

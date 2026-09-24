@@ -132,7 +132,13 @@ class Installation:
         config = self.load()
         board = settings.resolve(self.board, self.board_overrides, config["base_port"])
         self.check_ports(board)
-        write(self.manifest, {**config, "board": board})
+        diagnostics = settings.observability(config.get("observability", {}), self.profile)
+        write(self.manifest, {**config, "board": board, "observability": diagnostics})
+
+    def service_environment(self, name):
+        values = self.load().get("observability", {}).get(name, {})
+        return {"LOG_LEVEL": values.get("level", "info"),
+                "LOG_FORMAT": values.get("format", "text" if self.profile == "local" else "json")}
 
     def key(self, relative):
         path = self.path / relative
@@ -170,7 +176,7 @@ class Installation:
         storage = "http://ursula:8080" if container else f"http://127.0.0.1:{base}"
         self.upstream = "http://node:8080" if container else self.url
         node = {"genesis": {"realm": config["realm"], "root_key": config["root_public"]},
-                "ursula_url": storage, "bucket": "development", "journal": "authority",
+                "ursula_url": storage, "bucket": "development", "journal": "authority", "accept_trace_parent": True,
                 "listen": "0.0.0.0" if container else "127.0.0.1", "port": 8080 if container else base + 1}
         write(self.path / "node.json", node)
         write(self.path / "host-node.json", {**node, "ursula_url": f"http://127.0.0.1:{base}"})

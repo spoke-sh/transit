@@ -206,11 +206,12 @@ storage. UI and agent consumers share a versioned OpenAPI contract. Views remain
 derived, permissioned, bounded, and explicit about freshness and missing history.
 See [BOARD.md](BOARD.md) and [M2](roadmap/M2.md) for the design and proof gates.
 
-[Service observability](OBSERVABILITY.md) is a planned M2 follow-up across Board,
+[Service observability](OBSERVABILITY.md) is implemented across Board,
 Transit services, clients, adapters and callers. Owners define their signals;
 executables configure bounded sinks and correlation. Core stays deterministic,
 and telemetry remains lossy operational evidence with no execution authority.
-Instrumentation comes first; collectors and remote export are later scope.
+The M2 follow-up owns its [qualification evidence](roadmap/M2-OBSERVABILITY.md).
+Collectors and remote export are later scope.
 Measure latency, throughput, recovery time, and resident memory before choosing
 scaling or latency targets.
 

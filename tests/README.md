@@ -372,3 +372,37 @@ while the provider reader continues to identify bootstrap records in combined lo
 The stalled-writer proof shrinks its Linux pipe to 4 KiB and asserts the writer
 is actually blocked before shutdown; it cannot pass merely by fitting all logs
 into the OS buffer.
+
+The observability proof also runs the real node on one CPU with unread stderr:
+after filling its 4 KiB pipe, an incomplete HTTP request still hits the 800 ms
+deadline, and a signed input plus exact retry still returns one durable receipt.
+This qualifies control progress under diagnostic pressure, not just logger exit.
+Replay and retries are observed as recovery or receipts; no metric claims they
+are fresh commits. No protocol, signature, or durable-history schema changed.
+The caller proxy proof drops a response after a real commit, then injects a
+malformed 503. Both attempts remain `uncertain`; only the exact successful retry
+reports `receipt`. Each attempt has a distinct span linked to the same proposal.
+A focused invariant test preserves a known receipt when the response write fails
+and checks that a new service instance resets its local counters.
+
+`just launchers::local::test` and `just launchers::compose::test` passed with JSON
+request records and saved per-service settings across restart. The native proof
+checks visible foreground Board logs, manager-log rotation through three cycles,
+two bounded backups and configured child-log rotation. Compose checks each
+service's environment and Docker log budget. Native copy/truncate can lose
+diagnostics and overshoot between checks; it is not a filesystem quota.
+
+The Kubernetes/Substrate observability run passed the existing controller-crash,
+worker replacement, disk Ursula/authority recovery, expiry and isolation proof.
+It also checked JSON events from Board, Transit, maintenance and the controller,
+and the effective kubelet rotation settings (5 MiB, three files). Evidence is
+in ignored `.cache/reference/proof-7f71fb4c/evidence.json`; its enclosing directory
+contains private test keys. Provider-owned log/snapshot stores and host proof
+files are outside the CRI log budget.
+
+Qualification exposed a packaging assumption: a Zig artifact reused from a
+private launcher cache can have mode `0700`. Reference image assembly now sets
+published executable modes explicitly to `0755`, so the non-root container user
+can execute them. The controller-crash fixture now waits for the structured
+`created` progress observation; continuous controller stdout is no longer used
+as a diagnostic interface. `--once` retains its single machine-readable result.

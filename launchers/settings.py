@@ -5,6 +5,21 @@ import re
 from urllib.parse import urlsplit
 
 
+def observability(previous, profile):
+    result = {}
+    for service in ("board", "node", "maintenance", "counter"):
+        values = {}
+        for field, default, allowed in (("level", "info", ("debug", "info", "warn", "error", "err", "off")),
+                                         ("format", "text" if profile == "local" else "json", ("text", "json"))):
+            value = os.environ.get(f"REY_{service.upper()}_LOG_{field.upper()}",
+                    os.environ.get(f"REY_LOG_{field.upper()}", previous.get(service, {}).get(field, default)))
+            if value not in allowed:
+                raise ValueError(f"Invalid {service} log {field}")
+            values[field] = value
+        result[service] = values
+    return result
+
+
 def boolean(value):
     if value in ("true", "1"):
         return True

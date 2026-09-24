@@ -70,7 +70,7 @@ ip6tables -w -A OUTPUT -j REJECT
                "securityContext": {"runAsNonRoot": True, "runAsUser": 65532, "runAsGroup": 65532, "fsGroup": 65532},
                "initContainers": [{"name": "egress", "image": ref.PINS["kind_node"], "command": ["sh", "-ec", rules],
                                    "securityContext": {"runAsNonRoot": False, "runAsUser": 0, "allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"], "add": ["NET_ADMIN"]}}}],
-               "containers": [{"name": "board", "image": images["board"], "args": ["/board-config/board.json"], "securityContext": hardened,
+               "containers": [{"name": "board", "image": images["board"], "env": [{"name": "LOG_FORMAT", "value": "json"}, {"name": "LOG_LEVEL", "value": "info"}], "args": ["/board-config/board.json"], "securityContext": hardened,
                                "resources": {"requests": {"cpu": "100m", "memory": "64Mi"}, "limits": {"cpu": "1", "memory": "256Mi"}},
                                "volumeMounts": [{"name": "config", "mountPath": "/board-config", "readOnly": True}, {"name": "secrets", "mountPath": "/board-secrets", "readOnly": True}],
                                "readinessProbe": {"httpGet": {"path": "/health", "port": 8080, "httpHeaders": [{"name": "Host", "value": "board.reference.invalid"}]}, "periodSeconds": 2}},
