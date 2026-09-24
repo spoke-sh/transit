@@ -142,6 +142,12 @@ const Controller = struct {
             return .intent;
         }
         if (b.activation != null) return .idle;
+        // A cold boot may reuse a Substrate worker pod. This profile binds
+        // activation to a fresh pod UID, so placement must replace that worker
+        // before bootstrap logs can identify an eligible activation.
+        if (b.last_worker_incarnation) |previous| {
+            if (std.meta.eql(actor.worker, @as(?[16]u8, previous))) return error.StaleWorkerIncarnation;
+        }
         const registration = try self.provider.bootstrap(actor);
         if (registration.realm != self.config.realm or registration.pid != self.config.pid) return error.BootstrapMismatch;
         try self.send(view, .{ .activate = .{

@@ -87,7 +87,38 @@ else:
         assert binding["incarnation"] == list(uuid.UUID(actor_uid).bytes)
         assert scan().strip() == "idle"
         assert json.loads(provider.read_text())["switches"] == 1
-    print("Runtime upgrade: stale controller/Actor rejection and lost provider response recovery passed.")
+        # Cold boot is not a new pod incarnation. Reject before reading logs,
+        # whose earlier bootstrap lines can no longer identify a unique boot.
+        _, worker_public = s.key("worker")
+        _, active_public = s.key("active-worker")
+        s.command({"grant": {"subject": 1, "public_key": worker_public, "permissions": 24, "pid": pid}})
+        intent = {"pid": pid, "expected_revision": binding["revision"], "instance": [1]*16,
+                  "resource": resource, "workload": workload(new_uid), "desired": "running"}
+        running = s.command({"runtime_intent": intent})
+        revision = intent["expected_revision"] + 1
+        s.command({"runtime_observe": {"pid": pid, "revision": revision, "operation": running,
+                  "incarnation": list(uuid.UUID(actor_uid).bytes), "outcome": "ready"}})
+        process = s.inspect("process", pid)["processes"][0]
+        worker_uid = uuid.uuid4()
+        s.command({"activate": {"pid": pid, "revision": revision, "expected_generation": process["generation"],
+                  "worker": 1, "public_key": active_public, "worker_incarnation": list(worker_uid.bytes)}})
+        intent.update(expected_revision=revision, desired="stopped")
+        stop = s.command({"runtime_intent": intent})
+        revision += 1
+        s.command({"runtime_observe": {"pid": pid, "revision": revision, "operation": stop,
+                  "incarnation": list(uuid.UUID(actor_uid).bytes), "outcome": "stopped"}})
+        intent.update(expected_revision=revision, desired="running")
+        running = s.command({"runtime_intent": intent})
+        revision += 1
+        s.command({"runtime_observe": {"pid": pid, "revision": revision, "operation": running,
+                  "incarnation": list(uuid.UUID(actor_uid).bytes), "outcome": "ready"}})
+        data = json.loads(provider.read_text())
+        data["actor"]["status"] = {"state": "ACTOR_STATE_RUNNING", "currentActorTemplateUid": str(new_uid),
+                                  "workerAssignment": {"workerPodUid": str(worker_uid)}}
+        provider.write_text(json.dumps(data))
+        scan("StaleWorkerIncarnation")  # The fake rejects any unexpected log call.
+        assert s.inspect("process", pid)["processes"][0]["owner"] is None
+    print("Runtime upgrade: stale controller/Actor rejection and lost provider response recovery and cold-boot pod reuse rejection passed.")
 
 
 if __name__ == "__main__":

@@ -94,3 +94,11 @@ readback. It complements, rather than substitutes for, the real Substrate proof.
 M8 initialization and suspension phases also stop activation. A recorded retry or
 resume requires a confirmed stopped binding, then records a fresh running intent
 for this controller to reconcile. See [lifecycle controls](../../contracts/LIFECYCLE_V1.md).
+
+Logical resume/retry requires fresh worker placement in this reference profile.
+Substrate can cold-boot an Actor inside the same worker pod; that does not satisfy
+Transit's fresh-pod activation contract. Replace the prior worker capacity after
+confirmed stop (the reference launcher does this on restart), then resume the
+recorded binding. The controller detects `StaleWorkerIncarnation` before reading
+bootstrap logs; it cannot infer a new activation from accumulated log entries.
+The controller has no pod-deletion rights and does not recycle pools itself.

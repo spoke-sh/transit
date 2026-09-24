@@ -92,3 +92,11 @@ upgrade transition. `Config.previous_workload` supplies old template identity;
 the adapter checks it against the recorded hash, and the packaged CLI supplies
 UID/version guarded UpdateActor. Readback, not the CLI exit status, closes the
 provider operation. See the [upgrade contract](../../../contracts/RUNTIME_SUBSTRATE_V1.md#same-pid-workload-changes).
+
+Logical resume/retry requires fresh worker placement in this reference profile.
+Substrate can cold-boot an Actor inside the same worker pod; that does not satisfy
+Transit's fresh-pod activation contract. Replace the prior worker capacity after
+confirmed stop (the reference launcher does this on restart), then resume the
+recorded binding. The controller detects `StaleWorkerIncarnation` before reading
+bootstrap logs; it cannot infer a new activation from accumulated log entries.
+The controller has no pod-deletion rights and does not recycle pools itself.

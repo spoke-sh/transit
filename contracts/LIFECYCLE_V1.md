@@ -75,6 +75,12 @@ that recorded intent and obtains a fresh activation; the lifecycle command itsel
 does not prove physical stop/start. Initializing/suspended/blocked/retired processes
 make the runtime controller stop instead of reactivating them.
 
+The pinned Substrate profile requires a fresh worker pod UID as well as a new
+signing key. Cold boot alone can reuse the same pod and is insufficient. Placement
+must replace the old worker capacity before resumption; the reference launcher
+and qualification do this explicitly. The controller reports `StaleWorkerIncarnation`
+if it observes reuse. Automatic pool replacement is not part of logical resume.
+
 ## Compatibility and evidence
 
 `ProcessView.control` is null for legacy processes. New control state and catalog
