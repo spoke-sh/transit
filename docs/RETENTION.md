@@ -237,6 +237,10 @@ solution. A forgotten retry receipt must not make an old request eligible as
 new work. Reject requests outside the supported retry horizon when their
 established outcome can no longer be proven. Retired PIDs are never reused.
 
+[Board](BOARD.md#consistency-freshness-and-retention) is a derived reader. Its
+caches cannot extend history availability or silently pin data; inspection must
+show retained gaps and reauthorize reads after policy changes.
+
 Snapshots, exchange bodies, and referenced payloads must have compatible
 lifetimes. Preserve or explicitly retire dependencies before deleting their
 data. Expiring a caller does not prove that an HTTP request was never sent;
@@ -300,6 +304,6 @@ has been physically reclaimed. Report the boundary actually observed. Garbage
 collection can run after process expiry without prolonging its execution rights.
 
 M1 proves the lifetime contract, deadline fencing, durable recovery basis, and
-basic trim/delete recovery. M2 makes those semantics explicit in suspension and
+basic trim/delete recovery. M3 makes those semantics explicit in suspension and
 supervision. Later milestones add connector dependency handling and broader
 compaction/retention operations; see [roadmap](roadmap/README.md).

@@ -6,8 +6,9 @@ durable message sequences.
 [Transit](docs/TRANSIT.md) is the kernel. Each process has a durable PID and an
 ordered mailbox; its recorded sequence governs ownership, progress, and effects.
 [Station](docs/STATION.md) is the planned OTP-inspired framework for GenServer
-behaviors, supervision, and registries. Trading is one intended application;
-the primitives are generic.
+behaviors, supervision, and registries. [Board](docs/BOARD.md) is the planned
+inspection UI and API for operators and agents, starting with kernel primitives.
+Trading is one intended application; the primitives are generic.
 
 Rey is a monorepo of Zig libraries and executables, with TypeScript and Vite+
 for future frontends. Ursula supplies durable storage and transport. Kubernetes
@@ -17,7 +18,7 @@ remain independent of those providers.
 **Status:** experimental M1 is implemented, including signed ingress, fenced
 turns, recovery, bounded effect reconciliation, and opt-in retention. Application
 code runs in callers; the node validates the protocol and stores opaque state.
-Station, the HTTP connector, and trading applications remain planned. See the
+Board is next; Station, the HTTP connector, and trading applications follow. See the
 [roadmap](docs/roadmap/README.md) and [proof coverage and limits](tests/README.md).
 
 ## Get started

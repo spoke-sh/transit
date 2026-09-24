@@ -8,6 +8,10 @@ The [synthetic executor proof](../tests/README.md#authority-effects-and-outbox-e
 exercises real loopback I/O and its external limits; it is not a general HTTP
 connector implementation.
 
+The HTTP milestone will add [Board](BOARD.md) enrichment for exchanges and
+attempts, respecting transcript permissions, secret omissions, retained-body
+gaps, and the distinction between authorization and observed remote outcomes.
+
 ## Effect boundary
 
 A connector executes a committed effect intent, records its external observations,

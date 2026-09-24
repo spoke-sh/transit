@@ -10,6 +10,11 @@ It makes the protocol convenient to compose in Zig. Producers and consumers can
 be stateful actors implemented by Transit processes, using shared behaviors for
 mailbox handling, recovery, correlation, and supervision.
 
+[Board](BOARD.md) precedes Station and already plans kernel-level inspection.
+Station will supply versioned descriptors and lenses for its behaviors and
+registries, preserving underlying PID/history evidence rather than requiring
+Board to infer behavior from names or payload shapes.
+
 The planned `station` Zig library uses `transit-client` and the public protocol,
 without importing the kernel implementation. It exposes behaviors and
 composition helpers. Connector libraries and worker executables build on it;
@@ -100,7 +105,7 @@ Every namespace declares its authority, visibility, and lifetime. Local and
 cluster-wide registration must identify the logical scope in which a name is
 unique and how that scope survives worker replacement. Neither means an
 unqualified worker-memory map, a Kubernetes namespace, or a Substrate atespace.
-M2 defines the minimal scoped registry; M4 proves cluster-wide conflict and
+M3 defines the minimal scoped registry; M5 proves cluster-wide conflict and
 partition behavior.
 
 Serialize changes for each name under one fenced authority. Conditional updates
@@ -130,7 +135,7 @@ memory, execution time, and retries. On repeated failure, keep the process visib
 blocked or apply an authorized ordered rejection/termination policy, recording
 the input disposition before progress advances. Quarantine is observable retained
 work with its own lifetime, not silent acknowledgement. M1 needs the minimal
-failure policy; Station supplies reusable supervision helpers in M2.
+failure policy; Station supplies reusable supervision helpers in M3.
 
 Requests, replies, timeout observations, and cancellations retain correlation
 and authenticated origin. Client disconnection is not cancellation of accepted

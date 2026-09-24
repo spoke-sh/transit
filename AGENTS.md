@@ -17,6 +17,7 @@ Follow the contracts for the area you change:
 | Storage, delivery, producer/consumer behavior | [Streams](docs/STREAMS.md), [Ursula boundary](docs/URSULA.md) |
 | Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/RETENTION.md) |
 | Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [public protocol package](packages/zig/transit-protocol/README.md) |
+| Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [M2 plan](docs/roadmap/M2.md) |
 | Behaviors, supervision, names | [Station](docs/STATION.md) |
 | Effects, capture, secret interpolation | [Connectors](docs/CONNECTORS.md) |
 | Kubernetes, provider bindings, recovery | [Deployment](docs/DEPLOYMENT.md), [runtime contract](contracts/RUNTIME_SUBSTRATE_V1.md) |
@@ -50,6 +51,9 @@ expanding framework or real-effect integrations.
 - Use the pinned `ursula`/`ursulactl` overlay tools and upstream `ursula-zig` only
   inside the Ursula backend. Pin external Zig revisions/hashes in the consuming
   package. Use disk-backed Ursula for durability tests.
+- Keep Board inspection-only for M2. Use public `transit-client` read surfaces;
+  no raw storage/provider access, hidden mutations, or unqualified cached views.
+  Preserve source evidence and kernel facts when adding interpretation lenses.
 - Keep Kubernetes/Substrate as the reference runtime and AX excluded. Providers
   handle physical lifecycle; durable Transit history remains execution authority.
 - Give real libraries their own manifests, direct dependencies, modules, and

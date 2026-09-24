@@ -49,6 +49,13 @@ redirect following. Rate fairness is not promised; the separate maintenance
 process has its own bounded loop. Unauthenticated `GET /health` reveals only
 readiness after storage refresh.
 
+## Planned inspection expansion
+
+[Board M2](../docs/roadmap/M2.md) requires additional scoped discovery, mailbox,
+outbox, and retained-history reads through the public client. These are planned
+extensions, not routes implemented by this service profile. Their schemas,
+authorization, continuation, and compatibility rules must land with the code.
+
 ## Transport and time limits
 
 Local proofs use loopback HTTP and a trusted host. Signatures authenticate

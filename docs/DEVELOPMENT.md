@@ -26,6 +26,10 @@ histories and signatures is not implemented.
 | Set up or tear down Kubernetes/Substrate | [Reference runbook](../deploy/reference/README.md) |
 | Contribute code or documentation | [Agent instructions](../AGENTS.md), [documentation ownership](README.md#where-documentation-lives) |
 
+Board will establish the first application Vite+/pnpm workspace in [M2](roadmap/M2.md).
+Its frontend, generated API client, and embedded Zig build remain planned; no
+Board recipes or application manifests are available yet.
+
 ## Package workflow
 
 Each implemented Zig library owns `build.zig`, `build.zig.zon`, direct dependencies,
@@ -37,8 +41,8 @@ Package READMEs give focused commands and integration requirements.
 All packages use the Nix-pinned compiler. External dependencies belong to their
 consumer's manifest with immutable revision/hash pins. Libraries become static
 or shared artifacts only when needed; independent releases and stable public
-APIs remain future work. Frontend tooling will live in a separate Vite+/pnpm
-workspace, connected through language-neutral contracts.
+APIs remain future work. Board frontend tooling will live in a Vite+/pnpm
+workspace, connected through generated OpenAPI and shared Transit contracts.
 
 ## Verification
 

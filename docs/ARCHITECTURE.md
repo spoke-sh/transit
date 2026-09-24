@@ -1,9 +1,9 @@
 # Architecture
 
 Status: experimental M1 kernel, client, storage adapter, and reference runtime
-implemented. Station, production connectors, frontends, and trading applications
-remain planned. Use the [roadmap](roadmap/README.md) for scope and the
-[test guide](../tests/README.md) for proved behavior and limits.
+implemented. Board is the next planned inspection UI/API; Station, production
+connectors, and trading applications follow. Use the [roadmap](roadmap/README.md)
+for scope and the [test guide](../tests/README.md) for proved behavior and limits.
 
 ## Execution model
 
@@ -43,7 +43,8 @@ Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 | Connectors | Authorized external attempts, request/response capture, bounded reconciliation, outcome and retry/cancellation policy | [CONNECTORS.md](CONNECTORS.md) |
 | Runtime adapter | Durable PID-to-provider bindings and reconciliation of lifecycle intents with provider resources/observations | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | Retention reconciliation | Enforce Transit-authorized policies and retained boundaries; coordinate checkpoints, dependency checks, and adapter reclamation | [RETENTION.md](RETENTION.md) |
-| Applications and UI | Workload policy, agent composition, trading, inspection and operator commands | [SCOPE.md](SCOPE.md) |
+| Board — inspection | Authorized operator/agent API, embedded frontend, evidence-linked views, and optional framework lenses | [BOARD.md](BOARD.md) |
+| Applications | Workload policy, agent composition, trading, and application-specific views | [SCOPE.md](SCOPE.md) |
 
 Zig implements Rey's kernel, framework, connectors, runtime adapters, and
 application backends. TypeScript/Vite+ supplies frontend code and tooling.
@@ -78,6 +79,7 @@ principal/realm grants alongside ownership and lifecycle. Station helpers and
 provider RBAC cannot replace these checks. Read APIs, projections, transcripts,
 and administrative operations need their own scoped permissions. Revocation
 and replay semantics are defined in [SECURITY.md](SECURITY.md).
+
 ## Source of truth
 
 Validated durable history is authoritative for process creation/termination,
@@ -168,6 +170,11 @@ and protocol assertions belong under [tests/](../tests/README.md).
 
 ### Planned components
 
+- `apps/board`: Zig application hosting an OpenAPI inspection service and embedded
+  static UI; composes `transit-client` and planned `packages/zig/board-api`.
+- `apps/board-web`: TypeScript/TanStack Router frontend built with Vite+, using
+  a generated `packages/ts/board-client`. The browser is its first API consumer; agents
+  and other clients use the same contract. See [the Board boundary](BOARD.md#boundary-and-packaging).
 - `packages/zig/station`, module `station`: GenServer, supervision, registries,
   request/reply, and retention helpers over the public client.
 - `packages/zig/station-http`, module `station_http`: exchange contracts, capture,
@@ -175,8 +182,8 @@ and protocol assertions belong under [tests/](../tests/README.md).
 - `apps/station-worker` and `apps/http-worker`: compose behaviors or connector
   execution with explicitly supplied runtime capabilities.
 - Application libraries and entry points: compose these primitives without
-  adding application policy to core. TypeScript/Vite+ frontends and shared
-  `packages/ts` libraries follow concrete consumers.
+  adding application policy to core. Further TypeScript/Vite+ frontends and
+  shared libraries follow concrete consumers.
 
 Keep request/transcript construction separate from effect dispatch. Importing a
 library must not acquire credentials or start work. Workload-specific images can
@@ -186,10 +193,14 @@ create a generic utility package without a concrete owner.
 
 ## Observation and repository ownership
 
-A future operator UI should expose PID/activation identity, runtime and registry
-bindings, backlog, failures, effect attempts, and retention/reclamation status.
+Board starts with kernel identities and lifecycle evidence, then gains optional
+Station/connector lenses as those layers land. It reads through the public client;
+required discovery/history surfaces belong to Transit, not a Board backdoor into
+storage. UI and agent consumers share a versioned OpenAPI contract. Views remain
+derived, permissioned, bounded, and explicit about freshness and missing history.
+See [BOARD.md](BOARD.md) and [M2](roadmap/M2.md) for the design and proof gates.
 Measure latency, throughput, recovery time, and resident memory before choosing
-scaling or latency targets. Views remain derived and permissioned.
+scaling or latency targets.
 
 `packages/zig/` owns libraries; `apps/` owns platform/application entry points;
 `examples/` owns complete sample callers. Exact versioned specifications live in

@@ -8,16 +8,17 @@ capabilities. Detailed contracts live in the linked design documents.
 
 | Term | Meaning |
 | --- | --- |
-| Rey | The monorepo containing Transit, Station, connectors, runtime adapters, executables, and applications. Trading is an intended application. |
+| Rey | The monorepo containing Transit, Board, Station, connectors, runtime adapters, executables, and applications. Trading is an intended application. |
 | Transit | The agentic streaming kernel: the foundational execution protocol enforced by durable message sequences. See [TRANSIT.md](TRANSIT.md). |
+| Board | The operator/agent inspection surface: a static UI and OpenAPI service hosted by the Zig `board` executable. Its views derive from authorized Transit evidence; it grants no execution authority. See [BOARD.md](BOARD.md). |
 | Station | The OTP-inspired framework above Transit, providing GenServer behaviors, supervision, registries, and composition. See [STATION.md](STATION.md). |
 | Agentic | The class of workloads the system is intended to support. It does not place reasoning loops, goals, or agent/task delegation in the kernel. |
 | Ursula | The selected durable stream storage and transport implementation. See [URSULA.md](URSULA.md). |
 | ursula-zig | The upstream Zig client used by Rey's Ursula adapter. It handles transport/protocol operations; Transit defines execution semantics. |
 | Agent Substrate | The recommended sandbox execution target on Kubernetes. It manages runtime infrastructure and lifecycle; Transit's durable history governs process execution. See [DEPLOYMENT.md](DEPLOYMENT.md). |
 
-Use **Transit** and **Station** in prose, with **kernel** and **framework** as
-their roles. The kernel implementation library lives in `packages/zig/transit-core`
+Use **Transit**, **Board**, and **Station** in prose, with **kernel**,
+**inspection surface**, and **framework** as their roles. The kernel implementation library lives in `packages/zig/transit-core`
 and exports the `transit_core` Zig module. `transit-protocol` owns public wire
 contracts; `transit-client` is the application entry point. The planned Station
 library exports `station`. See the
@@ -156,6 +157,18 @@ checkpoint authority, and reclamation guarantees.
 
 See [CONNECTORS.md](CONNECTORS.md) for HTTP text, capture completeness, timing,
 and replay requirements.
+
+## Inspection and interpretation
+
+| Term | Meaning |
+| --- | --- |
+| Observation basis | The source, read position, policy revision, retained boundary, and coverage supporting an inspected view. Different sources need not share one consistent cut. |
+| Journey | A bounded view of recorded causal relationships between inputs, turns, outputs, admissions, and effects. It introduces no new execution identity and may contain explicit gaps. |
+| Lens | A versioned Board interpretation of authorized evidence, adding application/framework meaning without replacing kernel facts, broadening access, or executing application handlers. |
+
+Arrivals and departures are presentation terms mapped to mailbox admissions,
+committed outputs, and effect stages. They do not change those stages' guarantees.
+See [Board](BOARD.md) for the visual language and evidence rules.
 
 ## Monorepo and deployment
 

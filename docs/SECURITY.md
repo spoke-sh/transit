@@ -19,6 +19,7 @@ decides which activation may commit. None substitutes for the other two.
 | Trusted protocol ingress | Authenticate every caller, bind verified identity to the request, limit input size/rate, and prevent forged identity headers |
 | Transit authority | Enforce realm, action/resource grants, delegation bounds, policy revisions, ownership, and lifecycle at authoritative operations |
 | Station and applications | Express policies and apply workload/domain rules; framework helpers cannot grant privileges or replace kernel checks |
+| Board inspection boundary | Authenticate browser/agent access, bind the configured read identity, enforce current upstream permission, and protect derived views and caches; no M2 mutation authority |
 | Trusted effect executor | Authorize each attempt, enforce destination/secret scope, perform external I/O, and authenticate outcome submissions |
 | Storage/runtime adapters | Use separate service credentials for authorized infrastructure operations; translate identities without inheriting provider-wide privileges |
 
@@ -164,6 +165,18 @@ Specify that bound and the point at which revocation prevents the next read
 authorization; bytes already released cannot be recalled. This distinguishes
 bounded subscription shutdown from an unsupported claim of instantaneous
 revocation across every open connection.
+
+## Board inspection profile
+
+[M2](roadmap/M2.md) adds protected discovery/history and an inspection-only UI/API.
+The proposed first Board deployment maps authenticated viewers to one explicitly
+configured read-only Transit principal per instance. It exposes that shared scope,
+not individual user delegation. Transit rechecks current permission for each
+bounded read; Board sessions and cached projections cannot extend it. The
+[Board design](BOARD.md#access-and-trust) owns the proposed ingress/session profile
+and qualification gate. Per-user policy, federation, and operational controls
+require later explicit scope. Lists, relationship edges, counts, and previews
+must not disclose resources outside the read grant.
 
 ## Trusted computing base and provider boundaries
 

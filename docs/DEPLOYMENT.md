@@ -41,7 +41,10 @@ The initial reference topology should include:
 - Rebuildable inspection views and failure/lag metrics.
 
 Kernel/control services and Ursula need not themselves be sandboxed as
-application processes.
+application processes. Planned [Board](BOARD.md) is an optional inspection service
+with private authenticated ingress and access only to the Transit read boundary.
+It hosts the embedded frontend and API together and needs no Ursula, Substrate,
+or Kubernetes credentials. M2 will qualify this separately from worker isolation.
 
 ## Bootstrap and disaster recovery
 
@@ -63,7 +66,7 @@ records with separate administrative grants and retention rules described in
 Restoring an old backup is different from replacing a worker against current
 storage. The backup may predate revocation, process expiry, or an externally
 completed effect. M1 does not support automatic live restore from rolled-back
-history. M4 must prove an explicit procedure that fences the old deployment,
+history. M5 must prove an explicit procedure that fences the old deployment,
 establishes a new recovery generation/trust state, and reconciles external work
 before activation. A clone used for inspection is read-only; a new live import
 needs explicit identity and effect lineage. Neither may redispatch old attempts

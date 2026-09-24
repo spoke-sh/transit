@@ -2,7 +2,7 @@
 
 Start with [scope](SCOPE.md), [architecture](ARCHITECTURE.md), and the
 [glossary](GLOSSARY.md). The [roadmap](roadmap/README.md) distinguishes completed M1 work
-from planned framework, connector, and application milestones. M1 is experimental;
+from planned Board, framework, connector, and application milestones. M1 is experimental;
 its bounded implementation does not imply support for every target requirement.
 
 ## Foundations
@@ -17,6 +17,7 @@ its bounded implementation does not imply support for every target requirement.
 | [Security](SECURITY.md) | Identity, authorization, revocation, and trust boundaries |
 | [Streams](STREAMS.md) | Mailboxes, ordering, durable admission, and delivery |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
+| [Board](BOARD.md) | Planned inspection UI/API, observation semantics, and higher-level lenses |
 | [Station](STATION.md) | Planned behaviors, supervision, and registries |
 | [Connectors](CONNECTORS.md) | Planned HTTP capture, attempts, and bounded reconciliation |
 | [Deployment](DEPLOYMENT.md) | Runtime bindings, recovery, isolation, and portability |

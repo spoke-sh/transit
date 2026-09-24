@@ -2,7 +2,7 @@
 
 Status: kernel direction and deployment reference established. The bounded
 [M1 profile](../contracts/TRANSIT_V2.md) is implemented, with evidence in the
-[roadmap](roadmap/README.md). Broader framework, connector and application outcomes
+[roadmap](roadmap/README.md). Board and broader framework, connector and application outcomes
 below remain planned; they are not implied by the bounded M1 workloads.
 
 ## Purpose
@@ -27,6 +27,10 @@ The same primitives must support ordinary stateful distributed programs.
 - Application code calls the public Transit protocol; the node never runs handlers.
   Rey's current callers are Zig. Language-neutral contracts allow future clients
   in other languages without changing kernel execution semantics.
+- Board is the first operator/agent inspection surface, before Station. Its
+  TanStack Router frontend uses Vite+ and is embedded in the Zig `board` API
+  executable. OpenAPI supports further clients; read-only views expose kernel
+  evidence and optional higher-level interpretations. See [BOARD.md](BOARD.md).
 - Ursula supplies durable streams; `ursula-zig` supplies the Zig client.
 - Strong protocol enforcement: effects and committed state follow valid durable
   sequences. Worker memory and scheduling caches cannot override that history.
@@ -75,16 +79,23 @@ Authentication, grant/revocation enforcement, and recovery of the control catalo
 are part of that same slice. Its concrete authority, execution-isolation, time,
 and capacity mechanisms must pass the [M1 design gates](roadmap/M1.md#design-gates-before-expanding-the-slice).
 
+Next, build Board to discover and explain the running kernel through public,
+authorized read APIs. Operators and agents should follow mailbox input, turns,
+outputs, effects, ownership, and retention with visible freshness and gaps.
+The static frontend and API ship in one executable; M2 adds no control actions.
+
 Then add GenServer behavior, supervision, and scoped name registration, and
 implement an HTTP connector using those primitives. A caller records a request; a fetch
 worker executes an authorized attempt; response data and timing are recorded;
 the caller resumes from a correlated mailbox message. Replay uses the transcript.
+Station and connectors add versioned Board lenses as their own primitives land.
 These outcomes define the [roadmap](roadmap/README.md).
 
 ## Boundaries
 
-The initial work proves the kernel, a small framework, and the connector model.
-It does not require a trading loop, model integration, or frontend. Cluster
+The foundation proves the kernel, Board, a small framework, and the connector
+model. Board introduces the first frontend; a trading loop or model integration
+is not required. Cluster
 deployment and worker recovery are included; multi-region operation and broad
 cloud support follow evidence from the reference deployment.
 
@@ -137,6 +148,7 @@ connector questions are still open.
 | What are registry scope lifetimes and lookup consistency guarantees? | Concurrent registration, rebind/termination races, recovery, and cluster partition tests |
 | What constitutes an HTTP attempt, its capture boundary, and safe retry? | Connector transcripts and injected network/worker failures |
 | Which snapshot and code-version rules preserve replay through upgrades? | Replay and migration fixtures |
+| How can inspection expose enough evidence without leaking data or inventing certainty? | Authorized discovery/history, revocation/trim races, bounded reads, and Board API/UI agreement |
 | What workload and recovery targets matter? | Measurements from the kernel and connector slices |
 
 Resolve new choices through the corresponding kernel, framework, and connector milestones.
