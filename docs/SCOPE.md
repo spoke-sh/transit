@@ -3,8 +3,8 @@
 Status: kernel direction and deployment reference established. The bounded
 [M1 profile](../contracts/TRANSIT_V2.md) is implemented, with evidence in the
 [roadmap](roadmap/README.md). [Board M2](roadmap/M2.md) is implemented and qualified
-for bounded inspection. Broader framework, connector and application outcomes
-below remain planned; they are not implied by those profiles.
+for bounded inspection. The [M7 KV profile](roadmap/M7.md) is also implemented.
+Broader framework, connector and application outcomes below remain planned; they are not implied by those profiles.
 
 ## Purpose
 
@@ -26,19 +26,19 @@ The same primitives must support ordinary stateful distributed programs.
   [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition) defines
   implemented and planned package responsibilities and dependency direction.
 - Application code calls the public Transit protocol; the node never runs handlers.
-  Rey's current callers are Zig. Language-neutral contracts allow future clients
+  Transit's current callers are Zig. Language-neutral contracts allow future clients
   in other languages without changing kernel execution semantics.
 - Board is the first operator/agent inspection surface, before Station. Its
   TanStack Router frontend uses Vite+ and is embedded in the Zig `transit-board` API
   executable. OpenAPI supports further clients; read-only views expose kernel
   evidence and optional interpretations of runtime/framework primitives.
-  Application value decoding belongs in application interfaces. M7 removes the
+  Application value decoding belongs in application interfaces. M7 removed the
   experimental M2 counter lens. See [BOARD.md](BOARD.md).
 - Ursula supplies durable streams; `ursula-zig` supplies the Zig client.
 - Strong protocol enforcement: effects and committed state follow valid durable
   sequences. Worker memory and scheduling caches cannot override that history.
-- Develop durable state resources and recorded process associations before
-  Station. Start with a versioned KV resource; keep mutations, input progress,
+- Use the implemented durable state resources and recorded process associations
+  as Station's starting point. Start with a versioned KV resource; keep mutations, input progress,
   and outputs under one commit decision. Resource lifetime, entry lifetime,
   history retention, association, and access rights remain distinct. The bounded
   M7 profile coexists with inline-state callers; see [STATE.md](STATE.md).
@@ -100,7 +100,8 @@ signals; collector/export infrastructure is later scope.
 [M7 state resources and associations](roadmap/M7.md) provide fenced KV mutation,
 bounded recoverable reads, dependency lifetimes, and generic Board inspection.
 Next build GenServer behavior, supervision, and scoped name registration on those
-primitives, followed by an HTTP connector. A caller
+primitives, resolving the [pre-Station gaps](reviews/PRE_STATION.md) through
+[M8 entry gates](roadmap/M8.md#entry-gates). An HTTP connector follows. A caller
 records a request; a fetch worker executes an authorized attempt; response data and timing are recorded;
 the caller resumes from a correlated mailbox message. Replay uses the transcript.
 Station and connectors add versioned Board lenses as their own primitives land.

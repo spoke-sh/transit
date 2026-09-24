@@ -152,14 +152,14 @@ independent sandbox isolation.
 ## Why AX is excluded
 
 AX introduces a task store and controller work queue backed by Redis, as described
-in its [design](https://github.com/google/ax/blob/main/DESIGN.md). Rey will own
+in its [design](https://github.com/google/ax/blob/main/DESIGN.md). Transit owns
 those execution semantics through the kernel protocol and durable streams.
 Adopting AX would introduce another source of task authority to reconcile, so
 it is excluded from the architecture.
 
 Substrate and Kubernetes may keep their own infrastructure and sandbox state.
 That operational state is legitimate within their boundary; it must not become
-the authority for Rey message acceptance, completed turns, or effect eligibility.
+the authority for Transit message acceptance, completed turns, or effect eligibility.
 
 ## Reconciliation and recovery
 

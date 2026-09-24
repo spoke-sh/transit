@@ -11,7 +11,7 @@ It makes the protocol convenient to compose in Zig. Producers and consumers can
 be stateful actors implemented by Transit processes, using shared behaviors for
 mailbox handling, recovery, correlation, and supervision.
 
-[Board](BOARD.md) precedes Station and already plans kernel-level inspection.
+[Board](BOARD.md) already provides kernel and resource inspection.
 Station will supply versioned descriptors and lenses for its behaviors and
 registries, preserving underlying PID/history evidence rather than requiring
 Board to infer behavior from names or payload shapes.
@@ -30,6 +30,21 @@ Transit and Station. Transit's PID survives worker recovery; this is a durable
 logical identity, not a claim that an Erlang PID survives process termination.
 See the upstream [process documentation](https://www.erlang.org/doc/system/ref_man_processes.html)
 and [GenServer documentation](https://www.erlang.org/doc/system/gen_server_concepts.html).
+
+## Preconditions for the first framework slice
+
+The [pre-Station review](reviews/PRE_STATION.md) identifies gaps between the
+proved kernel operations and a recoverable framework. [M8](roadmap/M8.md) must
+close its entry gates before finalizing callback signatures: authenticated input
+origins, automatic delivery and lifecycle observations, recoverable initialization,
+least-privilege lifecycle control, and a capacity budget for the example topology.
+
+A handler has one writable resource per turn. Behavior state and framework
+waiting/correlation data that must commit atomically need to share that resource
+under a versioned key layout, or use an explicitly asynchronous protocol between
+writer PIDs. A Table wrapper cannot make separate resources transactional.
+After a crash, Station must resolve the previous proposal before deciding to
+recompute; SDK-owned in-memory retry bytes are not durable waiting state.
 
 ## GenServer
 
@@ -95,7 +110,9 @@ supervision cannot turn that permission into ordinary activation or more work.
 Connector reconciliation has its own recorded owner, window, and budget. Its
 closure is terminal even if the original request later returns a response.
 
-Suspension returns an explicit resumption bound when lifetime is finite. Reject
+The Station API must return an explicit resumption bound when lifetime is finite.
+Current provider stop operations do not accept a requested resume time; M8 must
+specify that check and cannot infer it from a successful stop. Reject
 requested suspension beyond the process's validated recovery window; automatic
 sandbox suspension has the same constraint. Worker failure may prevent timely
 resumption, so activation must revalidate eligibility. A known expired process
@@ -152,8 +169,12 @@ Accepted work and late effects follow the original process's retirement policy.
 
 Registry lookup and mutation require separate scoped permissions. A resolved
 PID does not grant send, inspect, supervision, or runtime-control privileges.
-Recorded caller provenance is available to application handlers, but delegation
-is explicit rather than inherited from receiving a message. See [SECURITY.md](SECURITY.md).
+Station requires authenticated caller provenance at the handler boundary.
+The current public input contains only position/value; M8 must expose trusted
+origin evidence before treating a framework reply or registry mutation as
+authenticated. A sender field inside opaque application bytes is insufficient.
+Delegation remains explicit rather than inherited from receiving a message.
+See [SECURITY.md](SECURITY.md).
 
 ## Failure and progress
 
@@ -161,8 +182,10 @@ A failing head message cannot disappear behind a checkpoint. Bound handler CPU,
 memory, execution time, and retries. On repeated failure, keep the process visibly
 blocked or apply an authorized ordered rejection/termination policy, recording
 the input disposition before progress advances. Quarantine is observable retained
-work with its own lifetime, not silent acknowledgement. M1 needs the minimal
-failure policy; Station supplies reusable supervision helpers in M8.
+work with its own lifetime, not silent acknowledgement. M1 records a handler
+failure as a durable block and fences ownership; it has no clear-failure or retry transition. Station must distinguish retries before a
+terminal failure report from any future authorized recovery operation. It cannot
+implement restart by repeatedly requesting ownership of a blocked PID.
 
 Requests, replies, timeout observations, and cancellations retain correlation
 and authenticated origin. Client disconnection is not cancellation of accepted

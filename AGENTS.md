@@ -1,4 +1,4 @@
-# Working in Rey
+# Working on Transit
 
 ## Before changing code
 
@@ -27,15 +27,16 @@ Follow the contracts for the area you change:
 
 Read [conformance](docs/CONFORMANCE.md) for adversarial obligations and tie work
 to a [roadmap milestone](docs/roadmap/README.md). Preserve the proved M1 gates before
-expanding framework or real-effect integrations.
+expanding framework or real-effect integrations. Before Station, address the
+[review findings](docs/reviews/PRE_STATION.md) through the M8 entry gates.
 
 ## Implementation rules
 
 - Keep the Transit kernel generic and Station above it. Reasoning loops, goals,
   delegation, and trading policy belong to applications; LLM/tool access belongs
   in connectors.
-- Name streaming-runtime artifacts and deployments Transit; Rey is the monorepo
-  and application context. Board and Station belong to the Transit subsystem;
+- Name streaming-runtime artifacts and deployments Transit; Rey is the intended
+  downstream trading application. Board and Station belong to Transit;
   use `transit-board*` and `transit-station*` for their artifact names. Keep Board
   and Station as readable names in prose. Follow the [glossary](docs/GLOSSARY.md)
   for roles.
@@ -53,10 +54,11 @@ expanding framework or real-effect integrations.
 - Retention defaults to unlimited and requires application opt-in. Keep expiry,
   reconciliation closure, and physical cleanup distinct. Quota pressure and
   storage outages never authorize expiry; preserve control/recovery evidence.
-- Follow the planned state-resource contract: associations do not grant access
+- Follow the implemented state-resource profile: associations do not grant access
   or imply lifetime ownership. Preserve the commit boundary between mutations,
-  input progress, and outputs; do not claim the current inline-state profile
-  implements resource references or multi-resource transactions.
+  input progress, and outputs. M7 supports one mutated KV resource per turn;
+  inline values do not acquire resource dependencies implicitly. Consult the
+  [state contract](contracts/STATE_V1.md) for exact bounds and compatibility.
 - Put effects behind recorded intents, authorization, and outcomes. Replay must
   not dispatch. Unknown remote outcomes require connector policy; closure cannot
   promise external cancellation or make retry safe. Keep secrets as references
@@ -67,8 +69,7 @@ expanding framework or real-effect integrations.
 - Keep Board inspection-only for M2. Use public `transit-client` read surfaces;
   no raw storage/provider access, hidden mutations, or unqualified cached views.
   Interpret runtime/framework primitives with source evidence; keep application
-  value decoding out of Board. M7 removes the counter lens;
-  do not add application value decoders.
+  value decoding out of Board; the experimental counter lens was removed in M7.
   Board admits viewers through its private deployment boundary without access
   keys or sessions; its upstream Transit identity still requires a read-only grant.
 - Keep instrumentation with its domain owner and I/O outside deterministic core.
@@ -98,6 +99,8 @@ operations, set `GIT_COMMITTER_DATE` to that commit's author date.
 Follow the [documentation ownership guide](docs/README.md#where-documentation-lives).
 Keep scope/design in `docs/`, wire specifications in `contracts/`, implementation
 and usage beside their package/app, and proof details in `tests/README.md`.
+Keep component READMEs navigable; place substantial configuration, recovery, or
+integration guides in that component's `docs/` and link them from its README.
 Update the owning document with meaningful changes and distinguish implemented,
 proposed, and unverified behavior. Keep rationale with its topic. Do not add ADRs
 yet; preserve `docs/decisions/README.md` and `TEMPLATE.md` for future use.

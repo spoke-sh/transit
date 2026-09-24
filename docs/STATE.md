@@ -77,7 +77,7 @@ independent resource readable under its policy, with no automatic new writer.
 
 ## Turn and commit boundary
 
-The proposed calling model is:
+The implemented calling model is:
 
 ```text
 (admitted input, associated resource views at explicit revisions)
@@ -89,32 +89,41 @@ ownership, input order, resource identity/revision, and lifetime dependencies.
 The accepted turn makes its input progress, state mutations, and pending
 outputs/effects authoritative through one durable commit decision.
 
-A candidate mechanism is to persist immutable staged data, then commit a
-manifest identifying its base revision, mutations, and dependencies with the
-turn. Staged data alone is invisible to ordinary resource reads and cannot
-authorize output delivery. A materializer only applies committed mutations;
-if it has not reached a requested revision, reads wait within a bound or report
-unavailability rather than serving old data as current. Publication of the
-resource head cannot be an independent authoritative write.
+M7 puts the bounded mutation batch and turn proposal in one conditional realm
+journal append. Validation changes a private candidate; failed validation or a
+lost append race publishes none of it. The accepted record determines both
+process progress and resource revision. Recovery rebuilds the bounded catalog
+from committed records and checkpoints. There is no separate durable staging
+allocation, independently published resource head, or asynchronous index service.
+See [core](../packages/zig/transit-core/README.md) and the
+[state contract](../contracts/STATE_V1.md) for the implemented mechanism.
 
-This mechanism is a design gate, not an assumption about Ursula. Prove its
-durability, commit visibility, fencing, and dependency admission under crashes
-and competing operations before building the higher-level API. Keep the first
-profile in one authority domain; splitting resource and process authority must
-not accidentally imply an atomic multi-stream transaction.
+Larger resources may eventually need durable staging and a manifest commit.
+That would require new proofs for abandoned uploads, dependency protection and
+index lag. It cannot inherit atomicity from the current single-record design.
+Splitting resource and process authority also requires an explicit coordination
+contract; independently successful stream appends are insufficient.
 
 | Failure point | Required outcome |
 | --- | --- |
-| Data staged, turn not committed | No visible mutation, input completion, or output; abandoned staging is reclaimable under a bounded policy |
+| Candidate prepared, turn not committed | No visible mutation, input completion, or output; discard the private candidate |
 | Commit accepted, acknowledgement lost | Reconcile the same operation identity; no second mutation or duplicate output |
-| Commit accepted, index not updated | Rebuild/catch up to the committed revision; never infer rollback from index lag |
+| Commit accepted, authority crashes before updating memory | Recover the committed revision; never infer rollback from a lost materialization |
 | Old activation submits after replacement | Reject through current PID fencing even if it retained a valid resource reference |
 | Resource retires while a dependency is proposed | Serialize retirement with dependency admission; reject the losing proposal without partial publication |
 
-Creation, initialization, and association installation also need recoverable
-operation identities. A process must not become executable with a required
-association to an uninitialized resource. Rejected or interrupted creation
-must not leave invisible permanent allocations or silently create a replacement.
+Creation initializes an empty resource; it does not initialize application data.
+Creation, grants, association installation and activation are separate recoverable
+commands. The launchers provision their required association before activating
+the caller. Core rejects invalid installed dependencies, but spawn declares no
+required-association set: a PID with no associations can execute. M7 therefore
+proves ordered trusted provisioning, not an atomic framework initialization gate.
+
+Station must durably record initialization intent and completion, reconcile lost
+receipts, and keep ordinary handlers from running early. A rejected or interrupted
+initialization must expose partial allocations and their policy; it cannot mint
+replacement resource IDs on each retry. Resource creation consumes a lifetime
+catalog slot even when later retired.
 
 ## Reads, replay, and lookup cost
 
@@ -214,18 +223,18 @@ Board may show bounded authorized raw values without decoding their business
 meaning. Resource metadata access does not imply value access, and inspecting a
 PID must not disclose otherwise hidden associated resources. Board should explain
 why a dependency constrains recovery, with source evidence and current grants.
-It must not label a value as a counter, balance, or strategy state. M7 removes the
-M2 counter lens;
-Station and connector views remain interpretations of runtime primitives.
+It must not label a value as a counter, balance, or strategy state. M7 removed the
+M2 counter lens; Station and connector views remain interpretations of runtime
+primitives.
 
 ## Implementation gates
 
-[M7](roadmap/M7.md) owns the sequence and exit criteria. First specify the public
-contract, authority/storage mechanism, read-view limits, and compatibility path
-from inline state. Then prove one KV resource end to end before Station depends
-on it. [Conformance](CONFORMANCE.md) owns adversarial obligations.
+[M7](roadmap/M7.md) records the completed bounded profile and qualification.
+[Conformance](CONFORMANCE.md) owns adversarial obligations; the
+[pre-Station review](reviews/PRE_STATION.md) identifies limits relevant to M8.
 
-Exact record encoding, storage segmentation, index layout, and numerical budgets
-remain implementation choices that require measured evidence. Table/index APIs,
-writer transfer, cross-authority transactions, per-key TTL, and automatic data
-migration need separate scope; none follows from this foundational design.
+The [state v1 contract](../contracts/STATE_V1.md) specifies current encoding,
+limits, and compatibility. Changes to storage layout or numerical budgets need
+new measured evidence. Table/index APIs, writer transfer, cross-authority
+transactions, per-key TTL, and automatic data migration need separate scope;
+none follows from this foundational design.

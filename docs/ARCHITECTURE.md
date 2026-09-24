@@ -2,13 +2,13 @@
 
 Status: experimental M1 kernel, client, storage adapter, and reference runtime
 implemented and verified. Board supplies the qualified M2 inspection UI/API.
-State resources and associations are the next planned prerequisite for Station;
-production connectors and trading applications follow. Use the [roadmap](roadmap/README.md)
-for scope and the [test guide](../tests/README.md) for proved behavior and limits.
+M7 state resources and associations are implemented in a bounded KV profile.
+Station is next; production connectors and downstream applications follow. Use
+the [roadmap](roadmap/README.md) for scope and the [test guide](../tests/README.md) for proved behavior and limits.
 
 ## Execution model
 
-Rey is the monorepo. Transit is the reusable streaming runtime subsystem: its
+This monorepo develops Transit, the reusable streaming runtime: its
 generic agentic kernel, supporting services, clients, storage/runtime adapters,
 Board inspection surface, and planned Station framework. `transit-core` implements
 the deterministic kernel; the runtime's deployment is packaged in
@@ -42,7 +42,7 @@ Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 | Layer | Owns | Design |
 | --- | --- | --- |
 | Identity adapters and protocol ingress | Credential verification, authenticated request provenance, and mapping external identities to principals | [SECURITY.md](SECURITY.md) |
-| Transit — kernel | Processes/PIDs, lifecycle, legal sequences, ordered commits, realm/grant checks, ownership and effect authority; planned resource/association contracts | [TRANSIT.md](TRANSIT.md), [STATE.md](STATE.md), [SECURITY.md](SECURITY.md) |
+| Transit — kernel | Processes/PIDs, lifecycle, legal sequences, ordered commits, realm/grant checks, ownership and effect authority; resource/association contracts | [TRANSIT.md](TRANSIT.md), [STATE.md](STATE.md), [SECURITY.md](SECURITY.md) |
 | Durable transport | Persistent history, continuation positions, mailbox storage and delivery | [STREAMS.md](STREAMS.md), [URSULA.md](URSULA.md) |
 | Station — framework | GenServer behaviors, Table/association helpers, scoped name registries, request/reply, supervision, timers, worker-pool patterns | [STATION.md](STATION.md) |
 | Connectors | Authorized external attempts, request/response capture, bounded reconciliation, outcome and retry/cancellation policy | [CONNECTORS.md](CONNECTORS.md) |
@@ -56,27 +56,32 @@ application backends. TypeScript/Vite+ supplies frontend code and tooling.
 Shared contracts use language-neutral schemas and fixtures. Ursula and Agent
 Substrate are external infrastructure with their own implementation languages.
 
-## Proposed flow
+## Implemented topology and planned composition
+
+The running profile exposes all application reads and writes through the public
+node. The separate maintenance process is trusted infrastructure with storage
+access. Clients and provider controllers do not read the journal directly.
 
 ```mermaid
 flowchart LR
-    Caller[Producer or Transit process] -->|Message proposal addressed to PID| Kernel[Transit admission and commit]
-    Kernel -->|Validated records| History[(Ursula durable history and mailboxes)]
-    History -->|Ordered input| Process[Transit process running a Station behavior]
-    Process -->|Turn and output proposals| Kernel
-    History -->|Committed effect intent| Fetch[Zig connector worker]
-    Fetch -->|Authorized request| External[HTTP service or tool]
-    External -->|Response| Fetch
-    Fetch -->|Outcome proposal and capture| Kernel
-    History -->|Lifecycle intent and backlog| Adapter[Runtime adapter]
-    Adapter -->|Bind / activate / recover| Runtime[Agent Substrate on Kubernetes]
-    Runtime -.->|Hosts activation| Process
-    Runtime -.->|Hosts| Fetch
+    Caller[Zig application caller] -->|Signed reads and proposals| Node[transit-node]
+    Board[transit-board] -->|Signed inspection| Node
+    Controller[transit-runtime-controller] -->|Signed lifecycle operations| Node
+    Node -->|Validated history and conditional append| Store[(Ursula realm journal)]
+    Maintenance[transit-node --maintain] -->|Validated maintenance and recovery| Store
+    Controller -->|Reconcile physical lifecycle| Runtime[Agent Substrate on Kubernetes]
+    Runtime -.->|Hosts reference caller| Caller
 ```
 
-The diagram shows authority boundaries, not a singleton kernel service. M1 must
-prove how admission and commits are serialized per process and how that authority
-recovers. Scale across process sequences without implying a global message order.
+Current authority operations serialize across the entire realm, including
+processes, grants, and state resources. This supplies the initial atomicity domain;
+replicating the HTTP service does not create independent write shards. Mailbox
+semantics promise per-process order, not a portable global order between PIDs.
+
+Station will run in callers and connectors will submit observations through the
+same public boundary. Automatic outbox delivery, framework timers, and lifecycle
+notifications need runtime services and recovery contracts in M8; the existing
+`deliver` command and synthetic effect proof are not those services.
 
 Every ingress establishes authenticated provenance before the kernel accepts
 an operation. Credential providers stay behind adapters; Transit validates
@@ -88,8 +93,9 @@ and replay semantics are defined in [SECURITY.md](SECURITY.md).
 ## Source of truth
 
 Validated durable history is authoritative for process creation/termination,
-mailbox admission, ownership changes, completed turns, pending outputs, and
-effects. Registry operations and runtime bindings also have durable histories.
+mailbox admission, ownership changes, completed turns, pending outputs/effects,
+state-resource mutations, and runtime bindings. Planned registry
+operations must use that same authority through ordinary process turns.
 State indexes, name lookup caches, ready queues, and UI views are derived; their
 loss must not erase accepted work or invent completed work.
 
@@ -161,7 +167,7 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 | [transit-core](../packages/zig/transit-core/README.md) / `transit_core` | Protocol state, validation, conditional authority, recovery | transit-protocol |
 | [transit-client](../packages/zig/transit-client/README.md) / `transit_client` | Signed HTTP calls, activation sessions, retry material | transit-protocol, transit-observability |
 | [transit-backend-ursula](../packages/zig/transit-backend-ursula/README.md) / `transit_backend_ursula` | Storage/transport, checkpoint, trim, deletion | transit-core, transit-observability, upstream ursula-zig |
-| [transit-board-api](../packages/zig/transit-board-api/README.md) / `transit_board_api` | Board response types, OpenAPI generation, evidence projections and lenses | transit-protocol |
+| [transit-board-api](../packages/zig/transit-board-api/README.md) / `transit_board_api` | Board response types, OpenAPI generation and evidence projections | transit-protocol |
 | [transit-board-client](../packages/ts/transit-board-client/README.md) (TypeScript) | Generated Board models/runtime validators and bounded browser transport | AJV runtime helper |
 | [transit-runtime-substrate](../packages/zig/transit-runtime-substrate/README.md) / `transit_runtime_substrate` | Provider identity, template validation, sandbox lifecycle operations | transit-observability; invokes pinned external CLI |
 
@@ -212,7 +218,7 @@ when implementation starts. Do not duplicate public protocol definitions or
 create a generic utility package without a concrete owner.
 
 M7's resource contracts, validation, client operations, storage/index mechanisms,
-and inspection initially extend those existing owners. A separate state package
+and inspection extend those existing owners. A separate state package
 or executable needs a concrete dependency or runtime boundary; this plan does
 not create empty packages or require a new state service. The implemented M7
 profile uses those boundaries; numerical limits and wire details live in the
@@ -240,7 +246,8 @@ and telemetry remains lossy operational evidence with no execution authority.
 [M4](roadmap/M4.md) owns its qualification evidence.
 Collectors and remote export are later scope.
 Measure latency, throughput, recovery time, and resident memory before choosing
-scaling or latency targets.
+scaling or latency targets. The [pre-Station review](reviews/PRE_STATION.md) maps
+current limits and missing framework prerequisites to the next milestone.
 
 `packages/zig/` owns libraries; `apps/` owns platform/application entry points;
 `examples/` owns complete sample callers. Exact versioned specifications live in

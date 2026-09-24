@@ -37,7 +37,7 @@ Teardown checks recorded Docker identities before deleting owned resources.
 Run it after a failed setup/test too. Build caches and proof logs remain for
 inspection. Proof directories are private and contain disposable test keys;
 do not publish them. The shell supplies pinned Kind and `kubectl ate`; the harness compiles the
-upstream Substrate runtime, builds Rey's static Zig images, and pulls the official Ursula
+upstream Substrate runtime, builds Transit's static Zig images, and pulls the official Ursula
 release by its [pinned digest](versions.json).
 
 After infrastructure setup, `kubectl get nodes` and `kubectl ate get workers`

@@ -4,8 +4,8 @@ Status: foundational requirements established; record names and mechanisms below
 are the target protocol outline. An experimental signed-request/ownership/replay
 slice is implemented; its supported surface and limits are specified in
 [the v2 profile](../contracts/TRANSIT_V2.md), with evidence in the
-[test guide](../tests/README.md). General payloads, framework behaviors and migrations are
-not implied by this bounded inline-value profile.
+[test guide](../tests/README.md). M7 adds the [bounded associated KV profile](../contracts/STATE_V1.md). General
+payloads, framework behaviors and migrations remain planned.
 
 ## Boundary
 
@@ -16,7 +16,7 @@ sequences. A record is authoritative only when it satisfies protocol validation
 and commit rules; storing arbitrary bytes does not authorize an action.
 
 The kernel knows processes, messages, turns, ownership, capabilities, and effects.
-The planned [state contract](STATE.md) adds durable resource identities,
+The implemented [state profile](STATE.md) adds durable resource identities,
 associations, revisions, and lifetime dependencies; application value semantics
 remain outside the kernel.
 It does not know prompts, reasoning loops, goals, agent delegation strategies,
@@ -127,8 +127,8 @@ PID. A new send to a replacement requires a new authorized decision.
 
 ## Proposed protocol vocabulary
 
-These are semantic record families to refine into schemas and valid/invalid
-trace fixtures in M1, not published API names.
+These semantic families describe the target vocabulary, not published API names.
+Use the linked versioned contracts for the implemented M1–M7 operations.
 
 | Family | Required meaning |
 | --- | --- |
@@ -165,14 +165,14 @@ and payload validation follow [SECURITY.md](SECURITY.md) and [STREAMS.md](STREAM
 Per-process acceptance is serialized and fenced. Policy/revocation changes and
 retention dependency admission must have defined ordering against affected
 operations as well. Listing records from separate streams does not create a
-transaction between them. M1 must prove the conditional-append or coordination
-mechanism under authority crashes and competing writers; transport deduplication
+transaction between them. M1 proves conditional realm append; any replacement
+coordination mechanism needs its own authority-crash and competing-writer proofs; transport deduplication
 and Kubernetes leases do not establish it. The first authority topology may be
 simple, but must recover exclusively from validated durable control state.
 
 ## A turn
 
-The current inline-state model is:
+The supported inline-state model is:
 
 ```text
 (state, admitted_message) -> (next_state, outgoing_messages, effect_intents)
@@ -231,7 +231,8 @@ today's opaque state does not implement those guarantees.
   language choice does not change the protocol or require code in the node.
 
 A client API alone cannot enforce these requirements on arbitrary native code.
-M1 must specify the handler execution boundary and test attempted bypasses.
+The [caller proof](../tests/README.md#independent-caller-evidence) and reference
+isolation checks qualify a reviewed native workload, not arbitrary code.
 Transport credentials, network policy, and sandboxing support protocol checks;
 none independently proves legal execution. Trusted kernel/storage administrators
 remain outside the workload isolation boundary.
@@ -255,9 +256,9 @@ number after two workers already committed is insufficient: admission, ownership
 changes, and commits need a serialized, fenced authority. A pod lease or timeout
 alone does not establish that property.
 
-The Ursula mapping and authority recovery protocol are M1 proof obligations.
-Test competing authority instances, partitioned old workers, and restoration of
-old sandbox snapshots. On resume, revalidate ownership and history before any
+The Ursula mapping and authority recovery protocol have bounded M1 proofs.
+Broader topologies must extend competing-authority, partitioned-worker, and
+stale-snapshot tests. On resume, revalidate ownership and history before any
 new commit or dispatch authorization. Enforce this outside the restored workload
 as well: a resume hook alone cannot fence code running with stale memory or
 credentials. Unavailability of authority blocks progress safely.

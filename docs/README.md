@@ -1,4 +1,4 @@
-# Project documentation
+# Transit documentation
 
 Start with [scope](SCOPE.md), [architecture](ARCHITECTURE.md), and the
 [glossary](GLOSSARY.md). The [roadmap](roadmap/README.md) distinguishes completed bounded profiles
@@ -16,9 +16,9 @@ are experimental; their bounded implementation does not imply support for every 
 | [Caller model](CLIENT.md) | Application computation and the public client boundary |
 | [Security](SECURITY.md) | Identity, authorization, revocation, and trust boundaries |
 | [Streams](STREAMS.md) | Mailboxes, ordering, durable admission, and delivery |
-| [State](STATE.md) | Planned durable resources, process associations, KV/Table boundary, and state lifetimes |
+| [State](STATE.md) | Durable resources, process associations, KV/Table boundary, and state lifetimes |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
-| [Board](BOARD.md) | Planned inspection UI/API, observation semantics, and higher-level lenses |
+| [Board](BOARD.md) | Inspection UI/API, observation semantics, and planned framework lenses |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |
 | [Station](STATION.md) | Planned behaviors, supervision, and registries |
 | [Connectors](CONNECTORS.md) | Planned HTTP capture, attempts, and bounded reconciliation |
@@ -37,8 +37,10 @@ For hands-on work, use [development](DEVELOPMENT.md) and the
 | Root [README](../README.md) | Orientation, status, and a short runnable start |
 | `docs/` | Scope, cross-component design, invariants, and tradeoffs |
 | [docs/roadmap/](roadmap/README.md) | Milestone index and individual scope, criteria, and status files |
-| Package/app READMEs | Implemented APIs, dependencies, configuration, operations, and local limits |
-| [contracts/](../contracts/) | Exact versioned wire/provider specifications and generated schema |
+| Package/app READMEs | Purpose, public entry points, dependencies, quick start, limits, and links to deeper guides |
+| Package/app `docs/` | Substantial component configuration, caller workflows, storage mappings, and operational details |
+| [Reviews](reviews/PRE_STATION.md) | Dated comparisons of documented guarantees, implementation, evidence, and upcoming gates |
+| [contracts/](../contracts) | Exact versioned wire/provider specifications and generated schema |
 | [examples/](../examples/README.md) | Complete calling programs and how to run them |
 | [launchers/](../launchers/README.md) | Running and inspecting persistent development environments; lifecycle and trust limits |
 | [tests/](../tests/README.md) | Proof commands, failure schedules, results, and qualification limits |
@@ -51,6 +53,8 @@ Document a fact where it is owned and link to it from the broader design. Keep
 technical choices and rationale alongside that topic. Preserve failure findings
 and validation limits when moving details; avoid duplicate specifications.
 Future components stay in the design docs until they have real implementation.
+Review findings reference their code/contract owners and distinguish missing
+capabilities from defects. They do not replace current contracts or milestone plans.
 
 ## Planning a change
 

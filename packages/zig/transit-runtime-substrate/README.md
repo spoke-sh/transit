@@ -1,7 +1,8 @@
 # transit-runtime-substrate
 
 Substrate provider adapter, exported as `transit_runtime_substrate`. This Zig
-library depends only on the standard library. It invokes the pinned upstream
+library depends on [transit-observability](../transit-observability/README.md)
+for optional instrumentation. It invokes the pinned upstream
 `kubectl-ate` CLI for authenticated TLS/gRPC and Kubernetes log access; it does
 not grant Transit ownership or implement a second task queue.
 
@@ -24,6 +25,8 @@ explicit argument arrays, bounded output (64 KiB stdout / 8 KiB stderr), and a
 | `template`, `template_uid` | Expected template name and 16-byte incarnation UUID |
 | `image` | Immutable workload image reference with `@sha256:` digest |
 | `egress_policy_file`, `authority_host` | Default-deny policy and allowed Transit hostname |
+| `endpoint`, `token_file` | Optional direct Substrate API endpoint and token file; supply both together |
+| `previous_workload` | Optional prior template/UID/image during an authorized same-PID upgrade |
 
 The exact CLI revision is enforced by the adapter and tracked with the
 [reference pins](../../../deploy/reference/versions.json). A changed or dirty

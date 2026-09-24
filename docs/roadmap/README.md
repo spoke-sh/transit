@@ -19,6 +19,10 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M9](M9.md) | HTTP connector and exchange transcripts | Planned |
 | [M10](M10.md) | Clustered execution and portability | Planned |
 
+The [pre-Station review](../reviews/PRE_STATION.md) records the current code/doc
+comparison and the [M8 entry gates](M8.md#entry-gates). M7 supplies the resource
+commit primitive; it does not already supply a production behavior runtime.
+
 Each milestone owns its scope, acceptance criteria, and completion status.
 Preserve the [M1 design gates](M1.md#design-gates-before-expanding-the-slice)
 as later milestones expand the supported profiles. Detailed proof results stay

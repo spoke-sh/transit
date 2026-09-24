@@ -44,18 +44,15 @@ installation and shell profiles alone. Node.js and package-manager preferences
 use the tools from Nix. Fetching/building the Nix shell requires network access
 on a cold cache; Vite+ does not need to download its own toolchain on first use.
 
-The npm manifest under `nix/` is internal tool packaging, not the frontend
-workspace. When the frontend is scaffolded, pin
-`vite-plus` in `package.json`, choose/pin the pnpm version, commit the workspace
-and lockfile, and use `vp install --frozen-lockfile` in CI. Use the project-local
-toolchain for builds and checks. See the upstream
-[global CLI](https://viteplus.dev/guide/global-cli) and
-[package management](https://viteplus.dev/guide/install) documentation.
+The npm manifest under `nix/` is internal tool packaging, separate from the
+implemented Vite+/pnpm frontend workspace. Root manifests and the lockfile pin
+project dependencies. Use `just transit-board::install` for the locked install,
+`just transit-board::check` for validation, and `just transit-board::build` for
+the embedded UI/API build. The [frontend guide](../apps/transit-board-web/README.md)
+owns application workflow.
 
-The intended frontend workflow, once it is scaffolded, is `vp install`, `vp dev`,
-`vp check`, `vp test`, and `vp build`. Those are not yet Rey application commands.
-Use the Nix package definition to update the CLI instead of `vp upgrade`, which
-changes mutable installation state outside the pinned tool definition.
+Use the Nix package definition to update the global CLI instead of `vp upgrade`,
+which changes mutable installation state outside the pinned tool definition.
 
 ## Launcher tools
 

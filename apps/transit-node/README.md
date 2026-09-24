@@ -6,6 +6,13 @@ The Transit authority executable. It composes
 ingress, and a trusted clock. It validates and commits protocol operations;
 application handlers run in client programs.
 
+## Operations guide
+
+[Configuration and operations](docs/operations.md) covers bootstrap, the separate
+maintenance process, trusted clock requirements, deadlines, and diagnostics.
+The HTTP node and maintenance use the same binary with different roles; neither
+executes application handlers.
+
 ## Build and run
 
 From the repository root in `nix develop`:
@@ -22,44 +29,6 @@ or the [reference runbook](../../deploy/reference/README.md) for Kubernetes.
 [main.zig](main.zig) owns startup/HTTP configuration;
 [Maintenance.zig](Maintenance.zig) owns background reconciliation.
 
-## Configuration and bootstrap
-
-`transit-node CONFIG.json [--bootstrap|--initialize|--maintain]` accepts:
-
-| Field | Meaning |
-| --- | --- |
-| `genesis` | Exact expected [v2 genesis](../../contracts/TRANSIT_V2.md), including root public key |
-| `ursula_url`, `bucket`, `journal` | Private authoritative storage endpoint/location |
-| `listen`, `port` | IPv4 address (default `127.0.0.1`) and port (default 8080) |
-| `request_timeout_ms` | Whole-request deadline, default 2000, maximum 60000 |
-| `maintenance` | Optional settings for the separate `--maintain` process below |
-
-Only explicit `--bootstrap` or `--initialize` creates storage; the latter exits
-after validating initialization. Ordinary startup requires validated
-existing history/checkpoint; an outage is not an empty installation. The node
-needs no root signing seed. Bootstrap configuration is an operator trust input.
-
-`--maintain` runs a separate trusted process without an HTTP listener. Its config
-requires `principal` and `seed_file`, with realm-wide `admin` and `effect` grants.
-It scans at most 64 PIDs, 128 effects and 16 payloads, commits at most one due
-transition per iteration, and reconciles recorded checkpoint/deletion intents.
-Payload deletion requires verified publication, owner retirement and explicit
-opt-in; its tombstone stays in control history. Default interval is
-1000 ms and whole-operation timeout is 5000 ms; both are configurable up to
-60000 ms. Incoming HTTP load cannot occupy this process's execution loop.
-Lost acknowledgements are reconciled from history before the next operation.
-
-History remains unlimited by default. Optional `checkpoint_every_records` (at
-least 2) asks maintenance to checkpoint quiescent opted-in processes after that
-many records since the retained floor. Realm retry policy must permit removal,
-and every PID must have `allow_trim`; pending input still blocks trimming.
-Publication is read back before retention advances. Clock failure blocks timed
-expiry/closure but permits authorized checkpoint/deletion recovery. Maintenance
-credentials and raw storage access stay outside worker sandboxes. The separate
-[capacity proof](../../tests/README.md#physical-capacity-profile) exercises a
-physically reserved finite realm; enabling the node alone does not provision that
-reserve or promise full-store recovery for an arbitrary storage deployment.
-
 ## Topology and scaling
 
 The current profile has one realm journal and a sequential HTTP server, with one
@@ -74,25 +43,21 @@ The [runtime controller](../transit-runtime-controller/README.md) manages their
 provider resources when deploying through Substrate. Neither it nor an example
 worker is required for standalone client-driven use.
 
-## Time and deadlines
+## Public surfaces and service roles
 
-Deadline races require `Io.Select.concurrent` for both the operation and timer.
-Zig's `async` may execute inline when its worker budget is exhausted, preventing
-the caller from observing the timer. Failure to allocate concurrency fails the
-operation instead of running it without a working deadline. On Linux, the
-service proof restricts itself and its children to one CPU and exercises stalled
-request headers/bodies, an authority that never replies, and paused storage
-across successive maintenance deadlines.
+| Surface | Meaning |
+| --- | --- |
+| `POST /v2/command` | Signed mutation or reconciliation of an existing receipt |
+| `POST /v2/view` | Signed current process and next-input view for callers |
+| `POST /v2/inspect` | Signed bounded discovery, relationships and retained history |
+| `POST /v2/state` | Signed state capabilities, resources, associations and value reads |
+| `GET /health` | Refresh storage and report role readiness; no workload progress guarantee |
 
-Finite lifetimes opt into `genesis.max_clock_error_ms`. On Linux, the node reads
-`adjtimex` in read-only mode, rejects unsynchronized/error status, and records the
-kernel-reported maximum error rounded conservatively to milliseconds. Platform
-C headers supply ABI offsets; clock policy is Zig. Transit checks the configured
-error bound and durable time floor. Other platforms fail finite clock use closed.
-A trusted synchronization service and honest reported UTC error bound remain
-deployment assumptions; reading a clock does not prove them. Controlled-clock
-tests prove the deadline rules. The `--maintain` mode hosts background expiry,
-closure, checkpoint/trim and eligible payload deletion in a separate process.
+[main.zig](main.zig) owns configuration, ingress and response projections;
+[Clock.zig](Clock.zig) supplies host time and [Maintenance.zig](Maintenance.zig)
+owns background lifetime/checkpoint/reclamation work. Neither mode automatically
+pumps committed outboxes or emits framework timers/lifecycle messages. Those
+runtime roles are [M8 prerequisites](../../docs/roadmap/M8.md#entry-gates).
 
 ## API, trust, and validation
 
@@ -112,30 +77,6 @@ The additive `/v2/inspect` read boundary supplies discovery and filtered retaine
 history with fixed page/scan bounds. [Inspection v1](../../contracts/INSPECTION_V1.md)
 defines authentication, two-endpoint link filtering, cuts and reclamation errors.
 It exposes neither raw storage nor administrative journal records.
-
-## Service diagnostics
-
-`LOG_LEVEL` / `LOG_FORMAT` select bounded stderr diagnostics; see
-[telemetry](../../packages/zig/telemetry/README.md) for schema, defaults and limits.
-`transit.http.request` separates HTTP status/local write completion from protocol
-`read`, `receipt`, `rejected` or `uncertain` outcomes. Command names and authorized
-realm/PID/sequence/position explain the affected boundary. A receipt may recover
-an earlier acceptance; these records do not count exact fresh commits. Successful
-view/inspection/health polling is debug-only; commands and failures are visible
-at normal verbosity. Credentials, raw requests and application state are omitted.
-
-The optional JSON setting `accept_trace_parent` defaults to false. Enable it only
-at an explicitly trusted internal diagnostic boundary to correlate caller spans.
-Even then headers are untrusted hints, never authentication or proof of causality;
-malformed/duplicate context is ignored, and no baggage is forwarded. Board always
-starts a fresh context for public requests. `/health` refreshes authority storage
-before success; it is a role-readiness observation, not proof of workload progress.
-
-Maintenance emits `transit.maintenance.step` for the actual command or
-checkpoint/trim action, with idle scans at debug and clock/storage/deadline errors
-at warning. Storage calls and authority open/bootstrap have their own correlated
-observations. Recovery reports the recovered position; it does not re-emit turns.
-The separate maintenance process uses service name `transit-maintenance`.
 
 ## State-resource reads
 

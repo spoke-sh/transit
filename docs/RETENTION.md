@@ -143,15 +143,16 @@ Ordinary age retention uses trusted admission time; producer event timestamps
 do not determine deletion unless the application selects that interpretation.
 An idle-time policy would need its own recorded definition of activity.
 
-M1 must specify authoritative time, clock error bounds, and failover behavior.
-Record effective deadlines and expiry decisions for deterministic replay;
+The bounded profile specifies authoritative time and clock error bounds;
+new runtime topologies must qualify their failover behavior. Record effective
+deadlines and expiry decisions for deterministic replay;
 replaying a trace does not evaluate it against today's clock. Timer notifications
 are scheduling hints, not the sole enforcement mechanism. Clock rollback,
 partitions, and stale ownership must not extend an expired lifetime.
 
 The implemented M1 contract uses trusted authorization time and conditional
 ordering of acceptance versus closure, keeping the upstream Ursula API unchanged.
-See [core deadline enforcement](../packages/zig/transit-core/README.md#deadline-enforcement)
+See [core deadline enforcement](../packages/zig/transit-core/docs/authority.md#deadline-enforcement)
 for the mechanism, clock assumptions, and physical-write timing limit.
 
 ### Bounded connector reconciliation
@@ -270,20 +271,25 @@ does not starve admission or recovery.
 Admission must leave reserved capacity for bounded control progress: terminal
 outcomes, revocations, expiry, delivery bookkeeping, and maintenance checkpoints.
 Filling the same store that must record permission to reclaim it creates a
-deadlock. M1 must quantify the reserve and per-operation amplification, cap
-pending work and maintenance concurrency, and test full-store recovery. If the
+deadlock. Each supported capacity profile must quantify the reserve and
+per-operation amplification, cap pending work and maintenance concurrency, and
+test full-store recovery. If the
 reserve or authority is unavailable, stop new work safely; quotas alone do not
 prove that cleanup can make progress.
 
-The implemented [finite admission profile](../packages/zig/transit-core/README.md#finite-admission-and-control-capacity)
-bounds control work after admission closes. Its [physical-capacity proof](../tests/README.md#physical-capacity-profile)
+The implemented [finite admission profile](../packages/zig/transit-core/docs/authority.md#finite-admission-and-control-capacity)
+bounds control work after admission closes. It preserves terminal/maintenance
+progress, not guaranteed application drain: a queued state-backed input needing
+a new read view cannot open one from the reserve. Station must expose that
+blocked condition without treating capacity pressure as expiry. Its [physical-capacity proof](../tests/README.md#physical-capacity-profile)
 records reserve sizing and measured limits. Enabling an admission ceiling alone
 does not provision physical capacity or authorize expiry.
 
-The M1 [immutable payload profile](../packages/zig/transit-backend-ursula/README.md#immutable-payload-deletion)
+The M1 [immutable payload profile](../packages/zig/transit-backend-ursula/docs/storage.md#immutable-payload-deletion)
 implements opted-in whole-stream deletion after permanent owner retirement,
 with tombstones in separate control history. General payload dependencies and
-keyed compaction remain future work.
+distributed compaction remain future work; M7 implements bounded KV checkpoint
+compaction within the shared realm.
 
 ## Logical storage and background reclamation
 
@@ -297,7 +303,7 @@ A logical stream may span physical segments. Adapter contracts must describe
 append/read, checkpoint publication, retained-boundary advancement, deletion,
 incarnation detection, and observable reclamation capabilities. Reject unsupported
 guarantees; do not silently substitute weaker expiry or durability semantics.
-Ursula is the first adapter, with concrete mappings in the [backend README](../packages/zig/transit-backend-ursula/README.md#retention-adapter).
+Ursula is the first adapter, with concrete mappings in the [backend README](../packages/zig/transit-backend-ursula/docs/storage.md#retention-adapter).
 Its cursors and physical stream names do not define Transit's process identity
 or retention policy.
 

@@ -1,7 +1,7 @@
 # Protocol conformance and implementation gates
 
 Status: adversarial requirements with executable evidence for the bounded M1
-profile. [tests/README.md](../tests/README.md) maps commands to recorded results,
+profile and its M2–M7 extensions. [tests/README.md](../tests/README.md) maps commands to recorded results,
 failure schedules, and limits. The [roadmap](roadmap/README.md) owns milestone gates.
 Results apply to their pinned topology, reviewed workload, and failure boundary;
 passing a subset does not establish every target guarantee.
@@ -48,6 +48,11 @@ tests as appropriate. A happy-path example alone does not satisfy a row.
 | A name is rebound while replies or retries are pending | Fixed destination PID and conditional cleanup; no permission inherited from a lookup or alias | [Station](STATION.md), M8 |
 | A tombstone or retry receipt is collected before a late consumer returns | Explicit horizon failure/resynchronization with no resurrection or duplicate admission | [Retention](RETENTION.md), retry boundary M1; KV compaction M7; distributed extension M10 |
 | A new image/schema interprets retained state differently | Authorized, versioned migration with a defined failure path; old and new owners cannot commit concurrently | [Transit](TRANSIT.md#replay-and-versions), reject unsupported changes M1; migration M10 |
+
+The [pre-Station review](reviews/PRE_STATION.md) maps current implementation gaps
+to [M8 entry gates](roadmap/M8.md#entry-gates). In particular, the handler-facing
+origin envelope, automatic delivery, initialization barrier and lifecycle
+notifications are not established by the existing command-level proofs.
 
 ## Evidence and limits
 

@@ -66,7 +66,7 @@ proof establishes network and credential isolation on its pinned baseline.
 Raw Ursula and provider APIs must remain unreachable by workloads.
 
 Finite lifetimes require realm opt-in to a trusted, bounded-error time source.
-The node's [time integration](../apps/transit-node/README.md#time-and-deadlines)
+The node's [time integration](../apps/transit-node/docs/operations.md#time-and-deadlines)
 describes Linux support and rejection on unsupported/unsynchronized sources.
 The [protocol time contract](TRANSIT_V2.md#authority-time-and-bounded-settlement)
 defines acceptance, uncertainty, and durable time-floor rules.

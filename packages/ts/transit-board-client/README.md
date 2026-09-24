@@ -23,6 +23,30 @@ pages on `QueryExpired`/`HistoryReclaimed`, clear sensitive views on denial, and
 label connection failures instead of returning empty data. API errors are typed
 `BoardError` values, distinct from empty authorized results.
 
+## Reading state resources
+
+`readState(resource, id?, continuation?, signal?)` validates the state response
+at runtime. `resource` is `resources`, `associations` or `entries`. For
+`associations`, the ID is a PID; for `entries`, it is a resource ID. `resources`
+without an ID lists authorized metadata, and with an ID reads one resource.
+
+```ts
+import { readState } from "@rey/transit-board-client";
+
+const page = await readState("resources");
+const visible = page.observation.resources.filter((resource) => resource !== null);
+```
+
+Values remain exact hexadecimal bytes. Resource metadata grants and entry-read
+grants differ; a denied entry read does not erase unrelated authorized process
+views. Follow `next` with its original cut; never combine pages after a cut
+expires. Framework enrichment is a future versioned contract, not a decoder for
+application values.
+
+[src/index.ts](src/index.ts) owns transport and error handling. Generated types,
+schemas and validators live beside it; edit the Zig owner and generator rather
+than patching their output.
+
 Dependencies are installed with `vp` from the root pnpm workspace. Generated
 models/schemas/validators are committed; the generator deliberately supports only
 the JSON Schema vocabulary emitted by the shared Zig writer and fails on unknown

@@ -23,7 +23,7 @@ new execution semantics. Always expose the corresponding Transit term and ID.
 | Arrivals | What has entered this mailbox and what remains unfinished? | Durable admission, ordered input, consumption/cancellation |
 | Departures | What has this process committed for delivery or execution? | Outbox destinations and delivery outcomes; effect intent, authorization, and observations |
 | Process detail | What can we establish about this process now? | State revision, activation, runtime binding, deadlines, recovery/retention coverage |
-| State resources (planned M7) | Which data does this process depend on, and can it recover? | Associations, resource identity/revision, ownership, lifetime, retained coverage, and committing-turn references |
+| State resources (M7) | Which data does this process depend on, and can it recover? | Associations, resource identity/revision, ownership, lifetime, retained coverage, and committing-turn references |
 | Journey | How did this input lead to later work? | Recorded input-to-turn, output-to-admission, and effect-to-result links |
 
 Start with a readable table, a process detail page, and a bounded journey view.
@@ -57,12 +57,9 @@ kernel-internal, or provider API access. Its observations and indexes are derive
 Board cannot grant ownership, dispatch effects, advance consumer progress, or
 run application handlers. Transit remains the execution authority.
 
-Use TypeScript and TanStack Router with Vite+. React with file-based routes is
-the implemented frontend. TanStack documents a Vite router plugin, and
-Vite+ supports the Vite build/configuration model; the embedded build and browser checks qualify Rey's
-pinned 0.3.3 toolchain. See
-[TanStack's Vite integration](https://tanstack.com/router/latest/docs/framework/react/installation/with-vite)
-and [Vite+ production builds](https://viteplus.dev/guide/build).
+The [frontend](../apps/transit-board-web/README.md) uses strict TypeScript,
+React, TanStack Router and the pinned Vite+ toolchain. Its component guide owns
+source organization, build integration, browser behavior and qualification.
 
 Build frontend assets first, then embed the complete asset manifest and bytes
 into the Zig binary. Shipping the binary must suffice to serve UI and API without
@@ -103,18 +100,16 @@ Board's resource API should be useful independently of its screen layouts.
 Implemented resources under `/api/v1/` are capabilities and authorized processes in
 the configured realm,
 process details, mailbox entries, outbox entries, effects, retained history, and
-bounded journeys. Resource references preserve realm/PID, activation generation,
+bounded journeys. M7 adds resources, entries, and PID associations through
+the separately authorized state-read contract. Resource references preserve realm/PID, activation generation,
 state revision, and effect/output identity. Lists have stable IDs, bounded
 pagination/filtering, explicit coverage, and machine-readable reasons/errors.
 Agents can retrieve evidence for a condition instead of relying on prose alone.
 
-Generate an OpenAPI 3.1 document from Board's typed contract and reuse generated
-Transit schemas for shared values, IDs, enums, and errors. This keeps one owner
-for each wire definition. OpenAPI 3.1 supports JSON Schema 2020-12; generator and
-validator compatibility must be proved, including integer ranges and union
-encoding. See the [OpenAPI specification](https://spec.openapis.org/oas/v3.1.1.html).
-Serve the versioned schema from the binary and generate the browser client from
-that same artifact. CI must detect schema/client drift; TypeScript typing alone
+The [API package](../packages/zig/transit-board-api/README.md) generates OpenAPI
+from Board's typed contract and reuses Transit schemas for shared definitions. This keeps one owner
+for each wire definition. The binary serves that versioned schema, and the browser client
+is generated from the same artifact. CI must detect schema/client drift; TypeScript typing alone
 is not runtime validation. This is a Board SDK, not a complete TypeScript Transit
 execution client or a replacement for canonical Transit signing rules.
 
@@ -198,7 +193,7 @@ presented facts link back to their source. Board explains Transit/Station
 primitives and their relationships; application-specific value meaning and
 interfaces belong to applications.
 
-M7 removes M2's experimental application counter decoder and its mapping and
+M7 removed M2's experimental application counter decoder and its mapping and
 API field. Generic [state-resource inspection](STATE.md#ownership-in-the-stack-and-inspection)
 now shows associations, lifetime/retention policy, revisions, and committing-turn
 evidence. Opaque entry reads require a separate resource grant. Runtime/framework

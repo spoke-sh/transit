@@ -3,12 +3,13 @@
 [Transit](../../docs/TRANSIT.md) is the streaming runtime subsystem. This chart
 packages its current single-realm deployment: a node, disk-backed Ursula,
 optional maintenance, [Board](../../apps/transit-board/README.md), a runtime controller, and
-Agent Substrate worker capacity. Rey is the containing monorepo and application
-context; it is not the chart's name.
+Agent Substrate worker capacity. Rey is the intended downstream trading
+application.
 
 The [reference proof](../../deploy/reference/README.md) installs this chart and
 qualifies controller/worker recovery, persistent storage, maintenance, and Board
-isolation. This is the experimental M1/M2 profile, not an HA production installer.
+isolation. It packages the current bounded reference profile through M7;
+it is not an HA production installer.
 
 ## Resources and values
 
@@ -86,9 +87,10 @@ procedure or a Transit process-retention policy.
 
 ## Security and runtime boundary
 
-Services run without a service-account token, as non-root, with a read-only root
-filesystem and dropped capabilities. Credentials are read-only mounts from
-existing Secrets; never put private seeds in Helm values,
+Services run as non-root with a read-only root filesystem and dropped
+capabilities. Ordinary services receive no service-account token; the optional
+controller receives the explicitly projected tokens described below. Credentials
+are read-only mounts from existing Secrets; never put private seeds in Helm values,
 ConfigMaps, extra-container arguments or release history. The initializer needs
 only public genesis. Maintenance and Board receive distinct credentials.
 
@@ -109,11 +111,11 @@ default. Do not copy their privileged network initializer into a different
 architecture without reviewing its boundary.
 
 Substrate itself is installed separately from its pinned upstream source.
-The reference runs `transit-runtime-controller` on the host with an explicit
-kubeconfig/provider tool and kills it to test reconciliation. This chart does
-not yet package that controller as a pod, install provider-wide RBAC, or turn
-`example-counter` into a required runtime component. WorkerPool capacity alone
-does not authorize or launch a Transit process; Actor templates, grants and
+The isolated recovery proof runs `transit-runtime-controller` on the host so
+it can interrupt provider reconciliation. The persistent reference launcher
+uses this chart's optional in-cluster controller with projected credentials.
+Neither profile makes `example-counter` a required runtime component. WorkerPool
+capacity alone does not authorize or launch a Transit process; Actor templates, grants and
 recorded bindings remain necessary. See [deployment](../../docs/DEPLOYMENT.md).
 
 ## Validation

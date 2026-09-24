@@ -2,8 +2,8 @@
 
 Status: Ursula is the selected durable storage and transport implementation.
 [transit-backend-ursula](../packages/zig/transit-backend-ursula/README.md) integrates
-the pinned server through upstream `ursula-zig`. Its README owns concrete API
-mappings, persistence setup, dependency pins, cursor findings, and recovery limits.
+the pinned server through upstream `ursula-zig`. Its [component guides](../packages/zig/transit-backend-ursula/README.md#guides) own
+API mappings, persistence setup, dependency pins, cursor findings, and recovery limits.
 
 ## Why an adapter
 
@@ -36,7 +36,7 @@ not proof of process expiry or authorization to recreate its identity. See
 Use disk-backed Ursula for persistence/recovery work. The pinned in-memory preset
 is suitable only for disposable experiments. Container deployments use the
 upstream image; the development shell uses the overlay binaries. Follow the
-[backend startup instructions](../packages/zig/transit-backend-ursula/README.md#conditional-authority-and-startup)
+[backend startup instructions](../packages/zig/transit-backend-ursula/docs/storage.md#conditional-authority-and-startup)
 and [reference runbook](../deploy/reference/README.md).
 
 ## Evidence
@@ -44,6 +44,6 @@ and [reference runbook](../deploy/reference/README.md).
 The [test guide](../tests/README.md) records single-node disk interruption,
 conditional authority, bounded reads, checkpoint/trim, and deletion proofs.
 Multi-node routing, host/disk loss, backups, and broader provider durability
-claims require separate qualification. The backend README records the corrected
+claims require separate qualification. The [upstream integration guide](../packages/zig/transit-backend-ursula/docs/upstream.md) records the corrected
 client cursor API and the separately reported upstream server behavior; those
 findings must inform future dependency upgrades.

@@ -47,13 +47,16 @@ implicitly. Worker loss or suspension does not reset its identity or deadline.
 | Retention | Enforce the accepted policy, lifetime, and logical retained boundary; expiry is explicit and physical cleanup can follow later |
 | Recovery | Validate lifetime and restore a durable checkpoint plus retained history, preserving required pending work and control evidence |
 
-## Proposed storage mapping
+## Storage mapping
 
-Start by evaluating one logical process journal containing admitted inputs,
-lifecycle/ownership records, and turn commits. The mailbox is its ordered input
-view; a processing checkpoint identifies which inputs have completed. This keeps
-each PID's execution facts in one ordering domain. Physical streams or shards
-may serve multiple processes only if the same protocol properties are preserved.
+The implemented backend uses one realm journal for admitted inputs, process
+lifecycle/ownership, turns, state resources, and policy operations. Each mailbox
+is its PID-filtered ordered input view; process progress identifies completed
+inputs. This intentionally shares one authority ordering across PIDs.
+
+Separate per-process journals or shards are a future storage mapping. They must
+preserve policy fencing, resource commit boundaries, delivery order and recovery;
+none follows automatically from splitting physical streams.
 
 The journal is a logical stream, independent of Ursula naming and cursor format.
 It may span physical segments with a durable mapping and stable logical sequence
@@ -72,7 +75,7 @@ binding changes and provider observations also require validated durable records
 Their indexes are rebuildable; a stream name, pod label, or provider database row
 cannot substitute for a PID or authoritative process history.
 
-Bulk connector data may occupy related streams. A **stream group** is a Rey
+Bulk connector data may occupy related streams. A **stream group** is a Transit
 manifest tying member streams to one exchange/effect identity and lifecycle.
 It does not imply a native Ursula consumer group or an atomic multi-stream write.
 See [CONNECTORS.md](CONNECTORS.md) for the HTTP exchange design.
@@ -80,12 +83,13 @@ See [CONNECTORS.md](CONNECTORS.md) for the HTTP exchange design.
 [State resources](STATE.md) add versioned KV mutations and process associations
 in M7. Their current-state indexes derive from committed records/checkpoints;
 resource identity and lifetime remain independent of physical stream layout.
-Only a validated turn decision publishes staged mutations. A KV projection may
+Only a validated turn decision publishes proposed mutations. A KV projection may
 compact superseded values under its policy, but cannot discard unfinished
 mailbox inputs or supply an independent source of execution authority.
 
-Before implementation, fix record encoding, length framing, commit visibility,
-size limits, stream naming, ownership permissions, and sequence assignment.
+The [v2 contract](../contracts/TRANSIT_V2.md) and backend guides fix current
+encoding, framing, commit visibility, bounds, naming and sequence assignment.
+Any new mapping must specify those choices again before implementation.
 An HTTP transport chunk is not a kernel record boundary. Only validated complete
 records contribute to authoritative protocol history.
 
@@ -101,8 +105,8 @@ observed time, and duration units; timestamps do not establish mailbox order.
 
 A finite deduplication horizon needs verifiable identity age or a durable
 sequence/epoch rejection floor. Forgetting arbitrary UUID receipts cannot
-distinguish an old retry from new work. M1 must choose a scoped identity scheme
-that proves this distinction; a client-supplied timestamp cannot renew an old
+distinguish an old retry from new work. M1 uses sequenced principal operations
+and explicit retry policy to make this distinction; a client-supplied timestamp cannot renew an old
 operation. If validity cannot be established, refuse ambiguous admission.
 
 Treat Ursula offsets/cursors as opaque transport metadata, passing them back

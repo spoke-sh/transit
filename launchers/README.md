@@ -173,7 +173,7 @@ The checked-in [docker-compose.yaml](../docker-compose.yaml) defines the service
 mounts, networks and log budgets. The printed state directory contains saved
 interpolation values (`compose.env.json`), service configurations, and disk
 WAL. Project names are unique and persisted. Containers run with the invoking
-user's numeric UID/GID so private bind mounts remain owner-readable. Rey
+user's numeric UID/GID so private bind mounts remain owner-readable. Transit
 containers have read-only root filesystems, dropped capabilities, and only their
 own configuration/credential mounts. The root signing seed is never mounted.
 

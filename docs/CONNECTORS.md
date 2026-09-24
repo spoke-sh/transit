@@ -50,7 +50,7 @@ binary bodies are preserved as bytes. Large bodies use ordered stream records
 and bounded worker buffers.
 
 An **exchange stream group** ties one logical request to its attempts, responses,
-and metadata. This is a Rey protocol concept over Ursula streams, not an assumed
+and metadata. This is a Transit protocol concept over Ursula streams, not an assumed
 Ursula API or consumer-group facility. Proposed group members are:
 
 | Member | Content |

@@ -1,6 +1,6 @@
 # Glossary
 
-Shared vocabulary for Rey's foundational documents. Official names are
+Shared vocabulary for Transit's foundational documents. Official names are
 established; definitions describe the intended architecture, not implemented
 capabilities. Detailed contracts live in the linked design documents.
 
@@ -8,7 +8,7 @@ capabilities. Detailed contracts live in the linked design documents.
 
 | Term | Meaning |
 | --- | --- |
-| Rey | The monorepo containing the Transit subsystem and applications that use it. Trading is an intended application. |
+| Rey | The intended downstream trading application built using Transit. The repository retains its historical `rey` name; that name does not own runtime semantics. |
 | Transit | The reusable streaming runtime subsystem: the agentic streaming kernel, supporting services, clients, storage/runtime adapters, Board inspection surface, and planned Station framework. Its foundational execution protocol is enforced by durable message sequences. See [TRANSIT.md](TRANSIT.md). |
 | Board | Transit's operator/agent inspection surface: a static UI and OpenAPI service hosted by the Zig `transit-board` executable. Its views derive from authorized Transit evidence; it grants no execution authority. See [BOARD.md](BOARD.md). |
 | Station | Transit's planned OTP-inspired framework above the kernel, providing GenServer behaviors, supervision, registries, and composition. Its artifacts use the `transit-station*` name family. See [STATION.md](STATION.md). |
@@ -20,7 +20,7 @@ capabilities. Detailed contracts live in the linked design documents.
 
 Use **Transit** for the streaming runtime and its deployment artifacts, including
 the [Helm chart](../charts/transit/README.md) at `charts/transit`. Rey names the
-monorepo/application context, not the runtime subsystem. Calling Transit the
+downstream application. Calling Transit the
 **kernel** describes its foundational protocol role; `transit-core` is specifically
 the deterministic kernel library. **Board** is the **inspection surface** and
 **Station** the **framework** above the kernel; both belong to Transit. Use
@@ -37,6 +37,12 @@ and proposed packages.
 "Durable streams" or "streaming substrate" refers to message transport and
 persistence. **Agent Substrate** names the external execution project. Keep the
 distinction explicit when both appear in the same discussion.
+
+Existing compatibility identifiers include the `rey-cli` executable, `@rey/`
+frontend workspace scope, and `rey.transit.*` signature domains. They remain
+unchanged by the documentation orientation. Renaming wire domains would change
+signatures and needs an explicit compatibility plan; repository branding does
+not authorize that change.
 
 ## Processes, actors, and execution
 
@@ -176,7 +182,7 @@ checkpoint authority, and reclamation guarantees.
 | Fetch worker | A connector executor authorized to issue HTTP requests and record response data and attempt metadata. |
 | Attempt | One authorized execution attempt of an effect, with its own identity. Retries and redirects remain individually observable. |
 | Dispatch authorization | The durable decision permitting one external attempt after current checks. From that point it may be in flight even if its worker has not yet sent. |
-| Exchange stream group | A Rey manifest and related durable records/streams representing one HTTP request, its attempts, responses, and metadata. It does not imply a native Ursula group or multi-stream transaction. |
+| Exchange stream group | A Transit manifest and related durable records/streams representing one HTTP request, its attempts, responses, and metadata. It does not imply a native Ursula group or multi-stream transaction. |
 | Transcript | The recorded request/response data and observations, with explicit capture boundaries and omissions. |
 | Interpolation | Rendering request variables from recorded bindings or authorized secret references, with field-specific encoding rules. |
 | Secret reference | A credential binding/version resolved by an authorized executor, allowing transcripts to identify substitutions without storing the secret value. |
@@ -195,7 +201,7 @@ and replay requirements.
 | --- | --- |
 | Observation basis | The source, read position, policy revision, retained boundary, and coverage supporting an inspected view. Different sources need not share one consistent cut. |
 | Journey | A bounded view of recorded causal relationships between inputs, turns, outputs, admissions, and effects. It introduces no new execution identity and may contain explicit gaps. |
-| Lens | A versioned Board interpretation of authorized runtime/framework evidence, without decoding application business values, replacing kernel facts, or broadening access. The M2 counter decoder is scheduled for removal in M7. |
+| Lens | A versioned Board interpretation of authorized runtime/framework evidence, without decoding application business values, replacing kernel facts, or broadening access. The experimental M2 counter decoder was removed in M7. |
 
 Arrivals and departures are presentation terms mapped to mailbox admissions,
 committed outputs, and effect stages. They do not change those stages' guarantees.

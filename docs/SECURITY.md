@@ -2,7 +2,8 @@
 
 Status: required security boundaries with a bounded M1 implementation. The
 [v2 protocol](../contracts/TRANSIT_V2.md) and [service contract](../contracts/SERVICE_V2.md)
-specify signed requests, grants, revocation, and scoped reads.
+specify signed requests, grants, revocation, and scoped reads; [state v1](../contracts/STATE_V1.md) adds
+resource grants and read-view authority.
 [The proof guide](../tests/README.md#service-and-reference-evidence) records
 loopback and reference-runtime evidence. Public ingress TLS, federation,
 arbitrary native handlers, and broader topologies remain outside that proof.
@@ -51,14 +52,19 @@ as any PID it names. Credential renewal cannot renew revoked ownership, extend
 process lifetime, or revive a retired PID. Sender provenance comes from the
 trusted boundary, not workload-supplied envelope claims.
 
-Grants describe subject, allowed actions, resource scope, validity, and policy
-revision; exact representation remains open. Default deny applies to spawn,
+The target grant model covers subject, actions, scope, validity and policy
+revision. The current contracts use Ed25519 principals, permission bits, optional
+PID scope, ordered policy revisions, and separate resource grants; federation
+and general delegation are not implemented. Default deny applies to spawn,
 send, inspect/read/tail, name lookup/mutation, supervision, effect request and
 dispatch, secret use, runtime control, retention/GC, and policy administration.
 Permission to send is not permission to inspect a mailbox, fetch a referenced
 body, change its lifetime, or delegate the receiver's rights.
 
-Messages retain authenticated origin and any explicit delegation reference.
+Durable admission records retain authenticated request origin. The target
+handler envelope must expose authenticated source evidence and any explicitly
+supported delegation reference. The current public input exposes only position
+and value; [M8](roadmap/M8.md#entry-gates) must close that gap for framework calls.
 Receiving a message does not automatically grant the sender's permissions to
 the receiver or let the sender use all of the receiver's privileges. Delegation
 must be explicit, bounded, and no broader than the delegator's current grant.
@@ -172,7 +178,7 @@ existence or old receipts. Audit privileged accepted operations durably; bound
 and rate-limit rejection telemetry so unauthenticated traffic cannot fill the
 authoritative journal. Audit records omit credentials and unnecessary payloads.
 
-The [observability design](OBSERVABILITY.md) applies these boundaries to planned
+The [observability design](OBSERVABILITY.md) applies these boundaries to implemented
 service instrumentation. Use allowlisted fields and protected sinks; omit
 payloads, credentials and raw URLs. Trace context and diagnostic request IDs are
 untrusted correlation hints, never principals, grants or proof of an outcome.
@@ -217,8 +223,9 @@ claim protection against a compromised administrator or trusted executor.
 
 Transit validates protocol legality. That alone cannot prove a native handler
 computed an honest state transition, is deterministic, or reported an external
-response faithfully. M1 must choose and demonstrate the execution mechanism for
-deterministic handlers. Recovery from recorded committed state and deterministic
+response faithfully. The reference qualifies a reviewed native caller and its
+I/O boundary; it does not supply an arbitrary deterministic-code executor.
+Recovery from recorded committed state and deterministic
 re-execution are distinct claims; business correctness remains application
 validation. Unrestricted nondeterministic code belongs behind a recorded effect
 boundary. Package boundaries and network isolation alone do not establish this.

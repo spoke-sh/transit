@@ -45,7 +45,7 @@ instrumentation even though it also calls Transit. Reserve
 `packages/zig/transit-observability` / `transit_observability` for the shared
 **Transit-specific** event vocabulary and instrumentation interfaces used by
 Transit services, adapters, and clients. It is implemented as a separate library;
-it does not name all telemetry in Rey. Board's generic HTTP events do not belong in it.
+it does not name all telemetry in this repository. Board's generic HTTP events do not belong in it.
 
 Formatting, severity, resource identity, bounded sinks, metric instruments and
 trace context are common plumbing with no Board or Transit domain dependency.

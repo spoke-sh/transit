@@ -17,7 +17,9 @@ for other modes, component selection and output paths. Use
 counter example, then `status`, `inspect`, `logs`, `send`, `update`, or `restart` in that
 same task group. `down` preserves data; `reset` explicitly deletes a stopped
 installation. The [launcher guide](../launchers/README.md) owns the workflow,
-configuration and recovery limits.
+configuration and recovery limits. New resource-backed installations require
+Linux and a synchronized trusted clock; other declared toolchain platforms do
+not yet qualify that runtime profile.
 
 `launchers::compose` exercises the same development scenario in containers.
 `launchers::reference` provides a persistent Kubernetes/Substrate installation

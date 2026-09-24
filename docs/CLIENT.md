@@ -24,7 +24,11 @@ the application failed. See [conformance](CONFORMANCE.md).
 provider-neutral evidence. Both kernel and client depend on it. `transit-client`
 has no kernel, Ursula or deployment-provider implementation dependency. Its
 explicit process view excludes the kernel's internal journal scan cursor.
-Future Station behaviors build on this client boundary.
+Future Station behaviors build on this client boundary. The current `Input`
+exposes position and value, without authenticated sender/effect provenance.
+That evidence must be added to the public contract before Station uses replies,
+registry commands, or lifecycle notifications as authenticated framework inputs.
+See the [review](reviews/PRE_STATION.md#authenticated-inputs-and-framework-permissions).
 
 ## One caller turn
 
@@ -42,14 +46,14 @@ belong to the [transit-client README](../packages/zig/transit-client/README.md).
 
 ## Associated-state model
 
-[State](STATE.md) evolves the caller API toward named associations, versioned
+[State](STATE.md) provides named associations, versioned
 resource reads, and proposed KV mutations. It must be usable by ordinary Transit
 callers before Station exists. A turn commits mutations with input progress and
 outputs; direct storage writes and independent mutable state stores cannot
 substitute for that decision. References grant neither access nor implicit
 retention, and reads must declare their revision and coverage.
 
-M7 defines versioned coexistence for inline-state callers and stored histories.
+M7 defines coexistence for inline-state callers and stored histories.
 The implemented `transit-client` operations capture bounded read views and freeze
 mutation proposals for exact retry. Station will build behavior ergonomics on
 that public contract without importing core.

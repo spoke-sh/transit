@@ -238,7 +238,7 @@ outside this profile.
 
 ## Capacity and deletion evidence
 
-The [bounded capacity profile](../packages/zig/transit-core/README.md#finite-admission-and-control-capacity) has a
+The [bounded capacity profile](../packages/zig/transit-core/docs/authority.md#finite-admission-and-control-capacity) has a
 real ext4/ENOSPC proof in `just test::capacity`. Closed admissions survive restart;
 accepted input is preserved, and releasing only a preallocated reserve enables
 revocation, opted-in expiry, unknown closure, backlog completion and checkpoint/
@@ -300,7 +300,7 @@ an error bound within two seconds; the fixture explicitly permits that bound
 because a synchronized host can exceed one second between NTP polls. Controlled
 clock tests retain exact rejection boundaries. Other platforms exercise explicit
 retirement and cleanup without claiming a supported finite-time source.
-The [deadline investigation](../packages/zig/transit-core/README.md#deadline-enforcement)
+The [deadline investigation](../packages/zig/transit-core/docs/authority.md#deadline-enforcement)
 defines the tested acceptance-time and closure contract. A physical
 storage-write cutoff at the earlier work deadline is no longer the target.
 
@@ -311,7 +311,7 @@ results. Extending them to general behaviors, connectors or another storage/
 runtime profile requires preserving these contracts and adding its own evidence.
 A failed proof requires revising the owning design, not relabeling a weaker
 implementation as conformant. The client cursor-model bug and separate upstream
-documentation mismatch are recorded in the [backend README](../packages/zig/transit-backend-ursula/README.md#client-integration-surface). The corrected
+documentation mismatch are recorded in the [backend README](../packages/zig/transit-backend-ursula/docs/upstream.md#client-integration-surface). The corrected
 client proof verifies offset-plus-cursor and record-plus-cursor continuation;
 Transit's journal reads use record positions.
 
@@ -366,7 +366,7 @@ during reads/recovery, so raw WAL equality is not a valid no-mutation assertion.
 The fixture records adapter HTTP methods and stores measurements in the ignored
 `.cache/capacity-evidence.json`.
 
-The [core capacity contract](../packages/zig/transit-core/README.md#finite-admission-and-control-capacity)
+The [core capacity contract](../packages/zig/transit-core/docs/authority.md#finite-admission-and-control-capacity)
 defines the admission ceiling, permitted drain work, and accepted-record bound.
 
 ## Recording new evidence

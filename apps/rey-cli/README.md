@@ -5,6 +5,12 @@ Small signed Transit operator client, built on
 keys, signs requests, submits mutations, and reads a PID-scoped view. It has no
 raw Ursula or provider access; operators still need current Transit grants.
 
+The executable keeps its historical `rey-cli` name for compatibility. Its role
+is Transit protocol administration; it contains no trading application logic.
+`kubectl transit` instead observes Kubernetes resources, while Board exposes
+shared read-only system inspection. These tools have different credentials and
+authority boundaries.
+
 ## Build and use
 
 From the repository root in `nix develop`, run `just build::debug apps`, then:

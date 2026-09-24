@@ -34,6 +34,22 @@ refer to the latest observation; no duration or ETA is inferred. State resources
 and associations have generic views with explicit coverage, lifecycle and revision
 evidence. Resource entries render as exact hex bytes after an explicit read.
 
+## Working in the frontend
+
+| Source | Owns |
+| --- | --- |
+| [routes/](src/routes/) | Overview, resource and PID/journey routes; stable URLs and route validation |
+| [state.tsx](src/state.tsx) | Shared process inspection state and polling lifecycle |
+| [resources.tsx](src/resources.tsx) | Resource/association/entry reads and generic state presentation |
+| [components.tsx](src/components.tsx) | Evidence, status and process views |
+| [model.test.ts](src/model.test.ts) | Model/client boundary tests |
+
+Import public types and transports from `@rey/transit-board-client`; do not copy
+wire types into a route. Generated route trees and client validators are not
+hand-maintained APIs. Make API changes in the Zig owner, run
+`just transit-board::generate`, and use `just transit-board::check` before the
+real embedded-browser proof. Keep business-value decoding in downstream UIs.
+
 `just transit-board::browser` requires `just transit-board::browser-install` first. It starts the
 actual embedded binary against a disposable realm; checks direct access, deep
 links, lazy assets, keyboard focus across polling, causal/effect explanations,
