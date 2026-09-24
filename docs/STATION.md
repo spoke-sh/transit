@@ -107,7 +107,7 @@ Every namespace declares its authority, visibility, and lifetime. Local and
 cluster-wide registration must identify the logical scope in which a name is
 unique and how that scope survives worker replacement. Neither means an
 unqualified worker-memory map, a Kubernetes namespace, or a Substrate atespace.
-M3 defines the minimal scoped registry; M5 proves cluster-wide conflict and
+M7 defines the minimal scoped registry; M9 proves cluster-wide conflict and
 partition behavior.
 
 Serialize changes for each name under one fenced authority. Conditional updates
@@ -137,7 +137,7 @@ memory, execution time, and retries. On repeated failure, keep the process visib
 blocked or apply an authorized ordered rejection/termination policy, recording
 the input disposition before progress advances. Quarantine is observable retained
 work with its own lifetime, not silent acknowledgement. M1 needs the minimal
-failure policy; Station supplies reusable supervision helpers in M3.
+failure policy; Station supplies reusable supervision helpers in M7.
 
 Requests, replies, timeout observations, and cancellations retain correlation
 and authenticated origin. Client disconnection is not cancellation of accepted

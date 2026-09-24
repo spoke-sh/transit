@@ -4,7 +4,7 @@ Zig inspection CLI for Transit installations on Kubernetes. The Nix shell instal
 it on PATH, so kubectl discovers it as `kubectl transit`. It delegates Kubernetes
 authentication and transport to the pinned `kubectl`; no Transit credentials,
 raw Ursula access, or provider execution privileges are required or acquired.
-The [full plugin plan](../../docs/roadmap/M2-KUBECTL.md) covers future logical
+The [full plugin plan](../../docs/roadmap/M5.md) covers future logical
 inspection and operator controls. Only its first phase is implemented.
 
 ## Use

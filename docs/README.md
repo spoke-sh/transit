@@ -1,7 +1,7 @@
 # Project documentation
 
 Start with [scope](SCOPE.md), [architecture](ARCHITECTURE.md), and the
-[glossary](GLOSSARY.md). The [roadmap](roadmap/README.md) distinguishes completed M1/M2 profiles
+[glossary](GLOSSARY.md). The [roadmap](roadmap/README.md) distinguishes completed bounded profiles
 from planned framework, connector, and application milestones. These profiles
 are experimental; their bounded implementation does not imply support for every target requirement.
 
@@ -56,6 +56,8 @@ Future components stay in the design docs until they have real implementation.
 1. Define its use case and limits in scope, then identify the architecture owner.
 2. Update that owner's design and adversarial requirements before claiming a guarantee.
 3. Tie implementation to a roadmap milestone with observable exit criteria.
+   Insert newly scoped work into the [linear sequence](roadmap/README.md#maintaining-the-sequence)
+   and renumber upcoming milestones and their references.
 4. Update component usage and proof evidence with the code. Mark proposals and
    unsupported cases explicitly; update the glossary when terminology changes.
 

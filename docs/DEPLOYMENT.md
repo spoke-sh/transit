@@ -18,7 +18,7 @@ adds provider reconciliation and sandbox execution. Reference `up` installs the
 complete persistent application, including its in-cluster controller; recovery
 and isolation proofs use separate installations.
 
-The implemented [launcher follow-up](roadmap/M2-LAUNCHERS.md) separates candidate
+The implemented [M6 launcher milestone](roadmap/M6.md) separates candidate
 builds, service updates and same-PID workload upgrades. Each installation selects
 identified artifacts and retains its durable state. Application stop/start is
 separate from destroying the reference cluster.
@@ -95,7 +95,7 @@ records with separate administrative grants and retention rules described in
 Restoring an old backup is different from replacing a worker against current
 storage. The backup may predate revocation, process expiry, or an externally
 completed effect. M1 does not support automatic live restore from rolled-back
-history. M5 must prove an explicit procedure that fences the old deployment,
+history. M9 must prove an explicit procedure that fences the old deployment,
 establishes a new recovery generation/trust state, and reconciles external work
 before activation. A clone used for inspection is read-only; a new live import
 needs explicit identity and effect lineage. Neither may redispatch old attempts

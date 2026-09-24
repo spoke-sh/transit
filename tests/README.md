@@ -73,7 +73,7 @@ ambiguous resources, output bounds, a hanging child after both pipes close,
 and SIGINT/SIGTERM cleanup for log following and Board forwarding.
 
 The plugin's [runbook](../apps/kubectl-transit/README.md) and
-[full plan](../docs/roadmap/M2-KUBECTL.md) define its inspection-only scope.
+[full plan](../docs/roadmap/M5.md) define its inspection-only scope.
 Toolchain smoke checks verify Kind and both kubectl plugins offline.
 
 `just launchers::reference::test-plugin` passed on Linux x86_64 against the

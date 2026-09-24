@@ -184,7 +184,7 @@ and protocol assertions belong under [tests/](../tests/README.md).
 ### Planned components
 
 - Extend `kubectl-transit` with authorized logical inspection and, later, operator
-  controls as scoped in the [full plugin plan](roadmap/M2-KUBECTL.md).
+  controls as scoped in the [full plugin plan](roadmap/M5.md).
 - `packages/zig/transit-station`, module `transit_station`: GenServer, supervision, registries,
   request/reply, and retention helpers over the public client.
 - `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,
@@ -220,7 +220,7 @@ See [BOARD.md](BOARD.md) and [M2](roadmap/M2.md) for the design and proof gates.
 Transit services, clients, adapters and callers. Owners define their signals;
 executables configure bounded sinks and correlation. Core stays deterministic,
 and telemetry remains lossy operational evidence with no execution authority.
-The M2 follow-up owns its [qualification evidence](roadmap/M2-OBSERVABILITY.md).
+[M4](roadmap/M4.md) owns its qualification evidence.
 Collectors and remote export are later scope.
 Measure latency, throughput, recovery time, and resident memory before choosing
 scaling or latency targets.

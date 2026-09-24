@@ -1,6 +1,6 @@
 # Observability
 
-Status: [M2 follow-up](roadmap/M2-OBSERVABILITY.md) implemented before Station.
+Status: [M4](roadmap/M4.md) implemented before Station.
 Board request logs and the bounded [telemetry primitives](../packages/zig/telemetry/README.md)
 are implemented across Board, Transit, storage, maintenance, runtime and callers.
 Local, Compose and Kubernetes/Substrate profiles are qualified within their
@@ -209,6 +209,6 @@ Board telemetry-query API, dashboards, alerting system or browser analytics.
 Protect any later diagnostic endpoint independently; Board inspection grants do
 not automatically grant access to all service telemetry.
 
-The [follow-up plan](roadmap/M2-OBSERVABILITY.md) owns sequencing, implementation
+The [M4 plan](roadmap/M4.md) owns sequencing, implementation
 gates and acceptance evidence. Component READMEs own exact event/metric catalogs,
 configuration, operating examples and measured limits.

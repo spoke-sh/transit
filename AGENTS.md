@@ -18,7 +18,7 @@ Follow the contracts for the area you change:
 | Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/RETENTION.md) |
 | Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [public protocol package](packages/zig/transit-protocol/README.md) |
 | Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [M2 plan](docs/roadmap/M2.md) |
-| Service logs, metrics, traces, probes | [Observability](docs/OBSERVABILITY.md), [M2 follow-up](docs/roadmap/M2-OBSERVABILITY.md) |
+| Service logs, metrics, traces, probes | [Observability](docs/OBSERVABILITY.md), [M4](docs/roadmap/M4.md) |
 | Behaviors, supervision, names | [Station](docs/STATION.md) |
 | Effects, capture, secret interpolation | [Connectors](docs/CONNECTORS.md) |
 | Kubernetes, provider bindings, recovery | [Deployment](docs/DEPLOYMENT.md), [runtime contract](contracts/RUNTIME_SUBSTRATE_V1.md) |
@@ -92,6 +92,10 @@ and usage beside their package/app, and proof details in `tests/README.md`.
 Update the owning document with meaningful changes and distinguish implemented,
 proposed, and unverified behavior. Keep rationale with its topic. Do not add ADRs
 yet; preserve `docs/decisions/README.md` and `TEMPLATE.md` for future use.
+
+Keep the roadmap linear: give additional work its own numbered milestone and
+renumber upcoming milestones and references, following the
+[sequencing rule](docs/roadmap/README.md#maintaining-the-sequence).
 
 Enter `nix develop` and use [just tasks](tasks/README.md). Use the pinned Zig 0.17
 compiler and standard library, not examples from older releases. Run `just check`

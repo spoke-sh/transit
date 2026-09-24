@@ -9,10 +9,14 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | --- | --- | --- |
 | [M0](M0.md) | Foundations and pinned development tools | Established; remaining platform validation open |
 | [M1](M1.md) | Transit sequence enforcement and Kubernetes recovery | Bounded reference profile implemented and verified |
-| [M2](M2.md) | Board: inspection UI and OpenAPI surface for operators/agents | Bounded inspection profile and [service observability follow-up](M2-OBSERVABILITY.md) verified |
-| [M3](M3.md) | Station GenServer, supervision, and registries | Planned |
-| [M4](M4.md) | HTTP connector and exchange transcripts | Planned |
-| [M5](M5.md) | Clustered execution and portability | Planned |
+| [M2](M2.md) | Board: inspection UI and OpenAPI surface for operators/agents | Bounded inspection profile implemented and verified |
+| [M3](M3.md) | Local and Compose development launchers | Persistent development profiles implemented and verified |
+| [M4](M4.md) | Board and Transit observability | Bounded service instrumentation implemented and verified |
+| [M5](M5.md) | Kubernetes tooling and the Transit operator CLI | Inspection-only profile implemented and verified; broader CLI direction remains future scope |
+| [M6](M6.md) | Persistent reference and incremental development | Shared build/update loop and same-PID workload upgrades implemented and verified |
+| [M7](M7.md) | Station GenServer, supervision, and registries | Planned |
+| [M8](M8.md) | HTTP connector and exchange transcripts | Planned |
+| [M9](M9.md) | Clustered execution and portability | Planned |
 
 Each milestone owns its scope, acceptance criteria, and completion status.
 Preserve the [M1 design gates](M1.md#design-gates-before-expanding-the-slice)
@@ -20,18 +24,19 @@ as later milestones expand the supported profiles. Detailed proof results stay
 in the [test guide](../../tests/README.md); implementation and operating details
 stay with their [owning components](../ARCHITECTURE.md#planned-monorepo-decomposition).
 
-The completed [M2 observability follow-up](M2-OBSERVABILITY.md) adds
-Board request visibility, Transit/client correlation, service/dependency progress,
-and launcher/deployment qualification to the inspection profile before Station.
-Telemetry export infrastructure follows separately.
+## Maintaining the sequence
 
-The [Kubernetes tooling and operator CLI follow-up](M2-KUBECTL.md) plans the full
-`kubectl transit` interface, starting with an inspection-only implementation and
-an accessible Kind/Substrate development environment.
+Milestones form one linear lineage, with one `M<number>.md` file per milestone.
+When new work belongs before an upcoming milestone, insert a numbered milestone
+and renumber the upcoming milestones. Update filenames, headings, this index,
+and references throughout the repository in the same change. Completed milestones
+retain their scope and evidence; additional work gets its own milestone rather
+than a follow-up file or section attached to an earlier milestone.
 
-The implemented [persistent launchers and incremental development follow-up](M2-LAUNCHERS.md)
-adds a usable reference application and consistent build/update/restart behavior
-across local, Compose and Kubernetes, including recorded same-PID workload upgrades.
+Deferred capabilities remain explicitly outside a completed profile. When they
+are selected for implementation, give them a new place in this sequence before
+starting the work. A milestone's completion never implies that all future design
+directions in its document have been implemented.
 
 ## Application milestones after the foundation
 

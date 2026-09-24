@@ -85,7 +85,7 @@ authorized read APIs. Operators and agents should follow mailbox input, turns,
 outputs, effects, ownership, and retention with visible freshness and gaps.
 The static frontend and API ship in one executable; M2 adds no control actions.
 
-The completed [M2 observability follow-up](roadmap/M2-OBSERVABILITY.md) instruments
+The completed [M4 observability milestone](roadmap/M4.md) instruments
 Board, Transit services and their dependencies before Station so operators can
 diagnose the running system. Logs, metrics and trace context remain derived
 signals; collector/export infrastructure is later scope.
