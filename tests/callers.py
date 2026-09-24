@@ -193,6 +193,21 @@ def run(node, cli, counter, byte_log, probe, delivery):
             authority = start()
             for index in range(2):
                 check(index, "verify")
+            # A delayed controller must still be able to read bootstrap evidence.
+            # Expected pre-grant denials must not flood its bounded log transport.
+            bootstrap_log = (store.root / "bootstrap.log").open("w+b")
+            logs.append(bootstrap_log)
+            waiting = subprocess.Popen([str(counter), "--bootstrap-json", json.dumps({
+                "url": url, "realm": 61, "principal": 4, "pid": sink})],
+                stdout=bootstrap_log, stderr=bootstrap_log,
+                env=os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "debug"})
+            children.append(waiting)
+            time.sleep(5)
+            assert waiting.poll() is None
+            waiting.kill()
+            waiting.wait(timeout=5)
+            captured = Path(bootstrap_log.name).read_bytes()
+            assert captured.count(b'"bootstrap":') == 1 and len(captured) < 8192, len(captured)
             print("Runnable counter and byte-log examples: authenticated automatic delivery, courier recovery, opaque state, atomic outputs, lost/malformed responses, stale activation and authority/storage recovery passed.")
         except BaseException:
             for log in logs:

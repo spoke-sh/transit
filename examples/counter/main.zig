@@ -111,6 +111,11 @@ fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer client.deinit();
     client.observer = diagnostics;
     if (config.seed_file == null) {
+        // Access denial is expected until the controller accepts this key.
+        // Per-poll diagnostics would fill the bounded bootstrap log transport
+        // and prevent a delayed controller from ever reading the registration.
+        client.observer = null;
+        defer client.observer = diagnostics;
         // Public evidence only. The controller must read this from the current
         // provider worker and verify its incarnation before granting authority.
         var buffer: [1024]u8 = undefined;

@@ -81,7 +81,10 @@ example-counter --bootstrap-json '{"url":"http://transit.example:8080","realm":4
 
 Those are illustrative public settings; the harness supplies the real authority
 and process. Bootstrap generates a fresh private key in memory, prints public
-registration evidence, and waits for the controller's verified activation. No
+registration evidence, and waits for the controller's verified activation.
+Expected pre-grant polling is deliberately quiet even at debug level so a delayed
+controller can still retrieve registration within its bounded log transport.
+Normal client diagnostics resume after activation. No
 signing seed is embedded in the image or template. The counter pins the accepted
 generation and cannot acquire a newer one itself. See
 [reference setup and tests](../../deploy/reference/README.md#prerequisites-and-lifecycle).
