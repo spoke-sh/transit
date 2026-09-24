@@ -360,3 +360,37 @@ test "full view capacity refuses admission but closing one dependency restores b
         _ = try f.submit(1, command);
     }
 }
+
+test "KV capacity rejection preserves committed values and pending input" {
+    const f = try Fixture.init(.{ .writer = 0 });
+    defer f.deinit();
+    for (0..s.max_entries / s.max_mutations) |batch| {
+        var proposal = try f.proposal(try f.open(), .{});
+        for (&proposal.request.command.state.turn.mutations, 0..) |*mutation, index| {
+            var key: [32]u8 = undefined;
+            mutation.* = .{ .key = try p.Value.init(try std.fmt.bufPrint(&key, "key-{d}", .{batch * s.max_mutations + index})), .value = p.Value.integer(1) };
+        }
+        _ = try f.engine.submit(try p.sign(proposal.request, f.worker));
+    }
+    const request = try f.proposal(try f.open(), p.Value.integer(99));
+    const consumed = (try f.engine.state.process(f.pid)).consumed;
+    const position = f.engine.state.position;
+    try t.expectError(error.StateEntryCapacity, f.engine.submit(request));
+    try t.expectEqual(position, f.engine.state.position);
+    try t.expectEqual(consumed, (try f.engine.state.process(f.pid)).consumed);
+    for ((try f.data()).entries) |slot| try t.expectEqual(1, try slot.?.value.asInteger());
+    for (1..s.max_resources) |_| _ = try f.submit(0, .{ .state = .{ .create = .{ .writer = f.pid } } });
+    try t.expectError(error.StateResourceCapacity, f.submit(0, .{ .state = .{ .create = .{ .writer = f.pid } } }));
+    try t.expectEqual(.running, (try f.engine.state.process(f.pid)).lifecycle);
+    try t.expectEqual(.active, (try f.data()).meta.phase);
+}
+
+test "state reads reject foreign realms and unsupported query profiles" {
+    const f = try Fixture.init(.{ .writer = 0 });
+    defer f.deinit();
+    const foreign = try s.sign(.{ .realm = 43, .principal = 0, .kind = .capabilities }, f.root);
+    try t.expectError(error.Unauthorized, core.resource_read.read(&f.engine, foreign));
+    const query: s.Query = .{ .version = 2, .realm = 42, .principal = 0, .kind = .capabilities };
+    const unsupported: s.SignedQuery = .{ .query = query, .signature = (try f.root.sign(&s.digest(query), null)).toBytes() };
+    try t.expectError(error.InvalidRead, core.resource_read.read(&f.engine, unsupported));
+}

@@ -215,3 +215,12 @@ test "keys and read shape reject malformed or ambiguous access" {
     try std.testing.expectError(error.InvalidRead, validateQuery(.{ .realm = 1, .principal = 0, .kind = .view, .pid = 1 }));
     try std.testing.expectError(error.InvalidRead, validateQuery(.{ .realm = 1, .principal = 0, .kind = .entries, .resource = 1, .after = 1 }));
 }
+
+test "state profile rejects mutation arrays beyond one bounded resource batch" {
+    try std.testing.expectError(error.UnexpectedToken, std.json.parseFromSlice(Turn, std.testing.allocator,
+        \\{"turn":{"pid":1,"generation":1,"input":2,"result":""},"write_view":[3,4]}
+    , .{}));
+    try std.testing.expectError(error.UnknownField, std.json.parseFromSlice(Turn, std.testing.allocator,
+        \\{"turn":{"pid":1,"generation":1,"input":2,"result":""},"write_resources":[3,4]}
+    , .{}));
+}
