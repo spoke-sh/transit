@@ -124,8 +124,11 @@ watermarks, late-data policy, joins and spill require their own budgets and proo
 Build on `zarrow` for Arrow representation/IPC and `zarrow-compute` for selected
 kernels. They are preferred dependencies for M9, subject to an integration proof.
 The preferred zarrow candidate is now the `rupurt/zarrow` Zig 0.17 upgrade. This
-review inspected source on 2026-09-24; neither library has been compiled or
-qualified against Transit's pinned compiler as part of this design pass.
+review inspected source on 2026-09-24. The
+[integration proof](../packages/zig/transit-fuze/docs/integration.md) now qualifies
+the exact dependencies, IPC and C interfaces. The
+[Station Table guide](../packages/zig/transit-station/docs/tables.md) owns the
+implemented layout, capacity, query policy and captured-reply profile.
 
 | Source reviewed | Finding and consequence |
 | --- | --- |

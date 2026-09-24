@@ -1,8 +1,8 @@
 # Station ledger
 
 `example-station-ledger` is a Zig Station service, currently demonstrating a
-ledger and requester exchanging durable calls through associated KV state.
-It is being extended with Tables and Arrow queries during
+ledger and requester exchanging durable calls through two associated Tables.
+It captures and delivers finite Arrow queries during
 [M9](../../docs/roadmap/M9.md).
 
 Build with `just build::debug`; run the isolated end-to-end example/proof with
@@ -10,6 +10,10 @@ Build with `just build::debug`; run the isolated end-to-end example/proof with
 scoped worker identities and an automatic courier against disk-backed Ursula.
 It checks 7 + 5 - 2 = 10, a lost receipt, worker/store restart, stale ownership
 and a poisoned input that remains inspectable after its handler is blocked.
+It also updates an audit Table atomically with the total, independently reads
+the query's Arrow IPC, replaces both query hosts mid-delivery, and orders query
+policy revocation ahead of publication. Root-origin `allow-query`/`deny-query`
+casts configure the demo's explicit sharing policy for `destination`.
 
 The executable accepts a JSON configuration path, or `--once <path>` to stop
 after one committed turn. Configuration fields are `url`, `realm`, `principal`,

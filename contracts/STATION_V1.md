@@ -8,7 +8,11 @@ The [framework design](../docs/STATION.md) describes the intended full surface.
 
 A Station message is `STN1`, a one-byte kind, a little-endian unsigned 64-bit
 correlation, and at most 243 payload bytes. Kind 1 is cast (correlation zero),
-2 is call and 3 is reply (nonzero correlation). Unknown versions/kinds and
+2 is call, 3 is reply, 4 is result fragment, 5 is result completion, 6 is result
+acknowledgement, 7 is cancellation and 8 is timeout (nonzero correlation).
+The [Table guide](../packages/zig/transit-station/docs/tables.md) records the
+implemented result framing; cancellation and timeout are reserved pending the
+next M9 implementation slice. Unknown versions/kinds and
 oversize frames are rejected. Correlation is opaque and preserves all 64 bits;
 Transit identities still obey the public protocol's narrower admitted range.
 

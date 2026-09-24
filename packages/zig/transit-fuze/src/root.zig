@@ -2,6 +2,12 @@
 const std = @import("std");
 pub const arrow = @import("zarrow");
 pub const compute = @import("zarrow_compute");
+pub const model = @import("model.zig");
+pub const Plan = @import("Plan.zig");
+pub const execution = @import("execute.zig");
+test {
+    _ = @import("tests.zig");
+}
 
 /// Serialize a complete, finite result into a caller-owned bounded buffer.
 /// Arrow allocations belong to allocator; the returned bytes borrow output.
@@ -29,6 +35,14 @@ test "Arrow IPC and compute share the same arrays and release their ownership" {
     defer column.release();
     var batch = try arrow.RecordBatch.initBorrowed(allocator, schema, &.{column});
     defer batch.deinit();
+    var c_stream = try arrow.exportRecordBatchStreamToC(allocator, schema, &.{batch});
+    defer if (c_stream.release) |release| release(&c_stream);
+    var stream_import = try arrow.importRecordBatchStreamFromC(allocator, &c_stream);
+    defer stream_import.deinit();
+    try std.testing.expect(c_stream.release == null);
+    try std.testing.expectEqual(@as(usize, 1), stream_import.batches.len);
+    try std.testing.expectEqual(@as(usize, 3), stream_import.batches[0].numRows());
+    try std.testing.expectError(error.Released, arrow.importRecordBatchStreamFromC(allocator, &c_stream));
     var buffer: [4096]u8 = undefined;
     const bytes = try encode(allocator, batch, &buffer);
     var source = std.Io.Reader.fixed(bytes);

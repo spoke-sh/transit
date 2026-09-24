@@ -1,8 +1,9 @@
 # Fuze — query and compute engine
 
 Status: M9 implementation in progress. The [package](../packages/zig/transit-fuze/README.md)
-currently proves Arrow dependency integration and bounded IPC encoding; planning
-and query execution remain proposed. [M9](roadmap/M9.md) introduces Fuze's
+implements the [v1 bounded query profile](../contracts/FUZE_V1.md), Arrow
+dependency integration and finite IPC encoding. Broader capabilities below
+remain design direction. [M9](roadmap/M9.md) introduces Fuze's
 bounded Table execution profile alongside Station. The shared query model targets
 KV, Table and Document sources; Document storage, collaborative editing and CRDT
 qualification belong to [M10](roadmap/M10.md). [M13](roadmap/M13.md) adds the first

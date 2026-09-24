@@ -2,11 +2,14 @@
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import hashlib
 from pathlib import Path
 import struct
 import sys
 import threading
 import time
+
+import pyarrow as pa
 
 from inspection import System
 from storage import wait_ready
@@ -41,6 +44,11 @@ def run(node, cli, worker, courier):
             return pid, resource, config
         ledger, ledger_resource, ledger_config = create(1, "ledger")
         requester, requester_resource, requester_config = create(2, "requester", ledger)
+        ledger_config["destination"] = requester
+        def total():
+            key = b"\x00r" + (1).to_bytes(4, "little") + ((1 << 63) + 1).to_bytes(8, "big")
+            row = value(ledger_resource, key)
+            return 0 if row is None else int.from_bytes(row[2:], "little", signed=True)
         serial = 0
         def launch(config, once=True):
             nonlocal serial
@@ -53,7 +61,7 @@ def run(node, cli, worker, courier):
             assert (child.wait(timeout=20) == 0) == success
         once(ledger_config)
         once(requester_config)
-        assert value(ledger_resource, b"total") == b"0"
+        assert total() == 0
         assert value(ledger_resource, b"\x00station") == b"station.genserver.v1"
 
         delivery_seed, public = s.key("courier")
@@ -61,7 +69,7 @@ def run(node, cli, worker, courier):
         delivery_config = s.root / "courier.json"
         delivery_config.write_text(json.dumps({"url": s.url, "realm": 72, "principal": 3,
                                                "seed_file": str(delivery_seed), "interval_ms": 10}))
-        s.start(courier, delivery_config)
+        delivery_daemon = s.start(courier, delivery_config)
         def await_input(pid):
             for _ in range(200):
                 if s.post("/v2/view", s.signed({"inspect": pid}))["input"] is not None:
@@ -111,7 +119,7 @@ def run(node, cli, worker, courier):
             assert len(control["bodies"]) == 2 and control["bodies"][0] == control["bodies"][1]
             await_input(requester)
             once(requester_config)
-            assert value(ledger_resource, b"total") == value(requester_resource, b"answer") == b"7"
+            assert total() == 7 and value(requester_resource, b"answer") == b"7"
 
             # Crash after the authority accepted a reply-producing turn, before
             # its worker received a receipt. Then lose the authority and storage.
@@ -136,25 +144,89 @@ def run(node, cli, worker, courier):
             once(ledger_config, success=False)
             await_input(requester)
             once(requester_config)
-            assert value(ledger_resource, b"total") == value(requester_resource, b"answer") == b"12"
+            assert total() == 12 and value(requester_resource, b"answer") == b"12"
             s.command({"send": {"pid": requester, "value": frame(b"-2")}})
             once(requester_config)
             await_input(ledger)
             once(current)
             await_input(requester)
             once(requester_config)
-            assert value(ledger_resource, b"total") == value(requester_resource, b"answer") == b"10"
+            assert total() == 10 and value(requester_resource, b"answer") == b"10"
+
+            # Send permission alone cannot disclose Table data.
+            s.command({"send": {"pid": requester, "value": frame(b"query")}})
+            once(requester_config)
+            await_input(ledger)
+            once(current)
+            await_input(requester)
+            once(requester_config)
+            assert value(requester_resource, b"answer") == b"station.query.error.QueryDenied"
+            s.command({"send": {"pid": ledger, "value": frame(b"allow-query")}})
+            once(current)
+
+            query_input = s.command({"send": {"pid": requester, "value": frame(b"query")}})
+            once(requester_config)
+            await_input(ledger)
+            # Capture a finite snapshot; no Arrow fragment is sent in this turn.
+            once(current)
+            await_input(ledger)
+            s.command({"own": {"pid": ledger, "worker": 1, "expected_generation": 4}})
+            current["generation"] = 5
+            once(current)  # a new host publishes only previously captured bytes
+            await_input(requester)
+            once(requester_config)  # consume one fragment, then replace its host
+            s.command({"own": {"pid": requester, "worker": 2, "expected_generation": 3}})
+            requester_config["generation"] = 4
+            for _ in range(4):
+                if value(requester_resource, b"last-query") is not None:
+                    break
+                await_input(requester)
+                once(requester_config)
+            assert value(requester_resource, b"last-query") is not None
+            incoming = lambda ordinal: b"\x00i" + query_input.to_bytes(8, "little") + bytes([ordinal])
+            manifest = value(requester_resource, incoming(3))
+            assert manifest[:4] == b"AIR1"
+            size = int.from_bytes(manifest[112:114], "little")
+            data = b"".join(value(requester_resource, incoming(i))[13:]
+                            for i in range((size + 223) // 224))
+            assert len(data) == size and hashlib.sha256(data).digest() == manifest[80:112]
+            with pa.ipc.open_stream(data) as reader:
+                table = reader.read_all()
+            assert table.to_pylist() == [{"id": 1, "amount": 10}]
+            assert table.schema == pa.schema([pa.field("id", pa.int64(), nullable=False), pa.field("amount", pa.int64())])
+            await_input(ledger)
+            once(current)  # durable acknowledgement; result retention is unlimited
+            result_id = int.from_bytes(manifest[4:12], "little")
+            stored = value(ledger_resource, b"\x00q" + result_id.to_bytes(8, "little") + b"\x00")
+            assert stored[123] == 3
+
+            # Stop delivery long enough to order revocation ahead of continuation.
+            # Captured bytes remain retained but may no longer be disclosed.
+            s.command({"send": {"pid": requester, "value": frame(b"query")}})
+            once(requester_config)
+            await_input(ledger)
+            delivery_daemon.terminate()
+            delivery_daemon.wait(timeout=10)
+            once(current)
+            s.command({"send": {"pid": ledger, "value": frame(b"deny-query")}})
+            once(current)
+            delivery_daemon = s.start(courier, delivery_config)
+            await_input(ledger)
+            once(current)
+            await_input(requester)
+            once(requester_config)
+            assert value(requester_resource, b"answer") == b"station.query.denied.v1"
 
             bad_input = s.command({"send": {"pid": ledger, "value": frame(b"invalid")}})
             once(current, success=False)
             process = s.inspect("process", ledger)["processes"][0]
             assert process["failure"] is not None
             assert any(item and item["position"] == bad_input for item in s.inspect("mailbox", ledger)["events"])
-            assert value(ledger_resource, b"total") == b"10"
+            assert total() == 10
             # Lifecycle control stays available after a recorded handler block.
             s.command({"terminate": ledger})
             assert s.inspect("process", ledger)["processes"][0]["lifecycle"] == "terminated"
-            print("Station: private state, durable call/reply, exact retries, worker/store recovery, fencing and blocked-handler control passed.")
+            print("Station: two-table turns, call/reply, exact retries, worker/store recovery, authorized captured Arrow replies, fencing and blocked-handler control passed.")
         finally:
             release.set()
             proxy.shutdown()

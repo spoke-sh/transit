@@ -119,6 +119,7 @@ fn dispatch(turn: *Turn, handler: Handler) !void {
         try turn.write(descriptor_key, descriptor);
     }
     const frame = try Frame.decode(turn.delivery.input.value);
+    if (try @import("Query.zig").dispatch(turn, frame)) return turn.validate();
     if (frame.kind == .reply) switch (try turn.acceptReply()) {
         .accepted => {},
         .closed => {

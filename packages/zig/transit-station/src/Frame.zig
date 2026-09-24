@@ -5,7 +5,7 @@ const Frame = @This();
 pub const version = 1;
 pub const header_bytes = 13;
 pub const max_payload = p.Value.max_bytes - header_bytes;
-pub const Kind = enum(u8) { cast = 1, call = 2, reply = 3 };
+pub const Kind = enum(u8) { cast = 1, call = 2, reply = 3, result_chunk = 4, result_complete = 5, result_ack = 6, cancel = 7, timeout = 8 };
 kind: Kind,
 correlation: u64 = 0,
 payload: p.Value = .{},

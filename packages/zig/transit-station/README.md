@@ -4,6 +4,8 @@ Station is the caller-side framework above Transit. This package uses
 [`transit-client`](../transit-client/README.md); the authority never imports a
 behavior or runs its handler. The initial implementation provides a host-pumped
 GenServer, private KV mutations, durable calls and authenticated replies.
+Typed Tables and captured Arrow queries share the same private turn and state
+budget; see the [Table implementation guide](docs/tables.md).
 [M9](../../../docs/roadmap/M9.md) tracks the remaining framework surface.
 
 `GenServer.step(handler, proposed_read_deadline_ms)` does bounded client work,
