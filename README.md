@@ -23,7 +23,8 @@ turns, recovery, bounded effect reconciliation, and opt-in retention. Applicatio
 code runs in callers; the node validates the protocol and stores opaque state.
 Board provides an embedded inspection UI and OpenAPI service, qualified against
 the Kubernetes/Substrate reference. [State resources and associations](docs/STATE.md)
-are next, before Station, the HTTP connector, and trading applications. See the
+are implemented in a bounded KV profile. Station, the HTTP connector, and trading
+applications follow. See the
 [roadmap](docs/roadmap/README.md) and [proof coverage and limits](tests/README.md).
 
 ## Get started

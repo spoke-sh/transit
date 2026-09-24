@@ -42,7 +42,7 @@ distinction explicit when both appear in the same discussion.
 
 | Term | Meaning |
 | --- | --- |
-| Process | Transit's logical execution primitive: identity, mailbox, committed control state, ordered sequence, and lifecycle. Application state is inline in M1 and associated through resources in planned M7. It is independent of an OS process, worker, or sandbox. |
+| Process | Transit's logical execution primitive: identity, mailbox, committed control state, ordered sequence, and lifecycle. Application state is inline in M1 and associated through resources in M7. It is independent of an OS process, worker, or sandbox. |
 | PID | Opaque, durably scoped process identity. It survives eligible worker recovery, suspension, and migration; logical termination or process expiry retires it permanently. |
 | Actor | A programming-model participant implemented by a Transit process. It adds no separate identity layer. Use **Substrate Actor** when referring to the external runtime resource. |
 | GenServer | A planned Station behavior running in a Transit process, providing sequential message handling, state associations, and request/reply under that process's PID. |
@@ -51,8 +51,8 @@ distinction explicit when both appear in the same discussion.
 | Process sequence | The process's ordered protocol history, including admitted messages and execution/lifecycle records. It establishes no global order across processes. |
 | Admission | Durable acceptance of a message's identity and place in the target PID's mailbox. It does not mean handling or an external effect has completed. |
 | Turn | Handling one admitted input against an explicit committed state/read basis and proposing state changes, outgoing messages, and effect intents. |
-| Application state | Caller-defined data with opaque business meaning. M1 records an inline value; planned M7 adds durable associated resources. Protocol acceptance does not prove computation correct. |
-| State revision | In M1, the process's committed inline-state version used as a turn precondition; it starts at zero and advances to the successful turn position. Distinct from ownership generation and planned resource revisions. |
+| Application state | Caller-defined data with opaque business meaning. M1 records an inline value; M7 adds durable associated resources. Protocol acceptance does not prove computation correct. |
+| State revision | In M1, the process's committed inline-state version used as a turn precondition; it starts at zero and advances to the successful turn position. Distinct from ownership generation and resource revisions. |
 | Turn commit | The durable boundary that makes a turn's state transition and pending outputs authoritative together. |
 | Settlement | Completion of specifically authorized work within recorded finite limits after the cutoff for starting new work; it cannot grant more work or revive a retired PID. |
 | Worker | A replaceable executor that hosts process or connector work. A worker is distinct from the logical process it executes. |
@@ -69,8 +69,9 @@ ordering, ownership, and behavior requirements.
 
 ## State resources and associations
 
-These concepts are planned in [M7](roadmap/M7.md); [STATE.md](STATE.md) owns
-their contracts. Existing inline-state values and immutable payload IDs do not
+[M7](roadmap/M7.md) implements the first bounded KV/association profile;
+[STATE.md](STATE.md) owns the broader design. Table helpers and workload scope
+remain planned. Inline-state values and immutable payload IDs alone do not
 implement resource associations.
 
 | Term | Meaning |

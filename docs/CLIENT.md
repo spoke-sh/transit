@@ -1,8 +1,8 @@
 # Caller programming model
 
-Status: experimental v2 Zig client implemented. [M7 state resources](roadmap/M7.md),
-Station, additional language bindings, general payload references, and migration
-helpers remain planned.
+Status: experimental v2 Zig client and [M7 state-resource API](roadmap/M7.md)
+implemented. Station, additional language bindings, general payload references,
+and migration helpers remain planned.
 
 ## The caller boundary
 
@@ -40,7 +40,7 @@ repeating an external effect. Current permission is required even when reading
 a historical receipt. Concrete retry, sequencing, byte ownership, and API rules
 belong to the [transit-client README](../packages/zig/transit-client/README.md).
 
-## Planned associated-state model
+## Associated-state model
 
 [State](STATE.md) evolves the caller API toward named associations, versioned
 resource reads, and proposed KV mutations. It must be usable by ordinary Transit
@@ -49,10 +49,10 @@ outputs; direct storage writes and independent mutable state stores cannot
 substitute for that decision. References grant neither access nor implicit
 retention, and reads must declare their revision and coverage.
 
-M7 must specify a versioned coexistence or migration path for today's inline-state
-callers and stored histories. These are planned public operations, not helpers
-already available in `transit-client`. Station will build behavior ergonomics
-on that contract without importing core.
+M7 defines versioned coexistence for inline-state callers and stored histories.
+The implemented `transit-client` operations capture bounded read views and freeze
+mutation proposals for exact retry. Station will build behavior ergonomics on
+that public contract without importing core.
 
 ## Inspection clients
 

@@ -65,5 +65,5 @@ queries and owned bounded pages without changing command signatures.
 [`State`](src/State.zig) defines the M7 v1 resource, association, mutation and
 revision-read types, limits, and shared canonical fixture. The
 [state contract](../../../contracts/STATE_V1.md) records compatibility and proof
-obligations. These types are defined ahead of service integration; their schema
-presence alone does not advertise a running authority's state capability.
+obligations. The signed `capabilities` state query advertises a running
+authority’s supported limits; schema presence alone does not.

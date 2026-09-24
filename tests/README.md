@@ -4,20 +4,13 @@ This directory owns conformance harnesses, fault injection, test-only executors,
 and proof results. Application examples live under [examples](../examples/README.md);
 tests launch those real binaries rather than a separate implementation of their
 logic. The [conformance design](../docs/CONFORMANCE.md) owns the required adversarial
-scenarios. Results below describe the recorded bounded M1 proof, not a claim that
-all commands have been rerun on every documentation change.
+scenarios. Results below describe the recorded bounded milestone profiles, not
+a claim that all commands are rerun on every documentation change.
 
 ## Running checks
 
-M7 state work is in progress. `just test::unit` now covers atomic KV proposals,
-lost acknowledgements, independent grants, bounded view expiry, required-state
-retirement, independent resource lifetime, and current-value preservation through
-history compaction. `just test::storage` also runs [state.zig](state.zig) against
-disk-backed Ursula: competing conditional commits, abandoned preparations,
-durable read-view recovery, 32 live keys beyond the replay/read page bounds,
-checkpoint publication/trim interruptions, and expiry with retained retirement
-evidence. These proofs passed together with all existing storage phases; HTTP,
-Board, example and launcher qualification for state remain outstanding.
+M7 evidence is recorded in [the state proof](#m7-state-resources). The ordinary
+suite includes the public state API and real resource-backed Zig caller.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
@@ -27,6 +20,7 @@ suite. Capacity and reference proofs have extra prerequisites and are separate.
 | `just check`, `just test::packages` | Independent package composition; signed requests/current grants; one conditional successor; ordered input, invalid proposals and blocked failures; runtime fencing; bounded clocks, settlement, closure and outboxes; shared valid/invalid JSON traces and bounded view encoding |
 | `just test::callers`, `just contract::check` | Runnable counter and byte-log examples use the same generic node; opaque bytes, state revisions, atomic outputs, denied effects, lost commit responses, ownership replacement and restart recovery; generated schema matches public types |
 | `just test::storage` | Disk WAL SIGKILL/restart; competing authorities, lost receipts and revoked grants; 100 inputs beyond the 16-record window; checkpoint/trim with pending effect/outbox/control evidence; live authority catch-up; immutable payload deletion after a lost receipt; native long-poll/offset continuation |
+| `just test::state` | Signed KV/association reads, current independent grants, immutable read views, exact retry, two Zig caller activations, disk recovery, and clock-independent opted-in background reclamation |
 | `just test::service` | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
 | `just test::capacity` | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations |
 | `just test::deployments` | Rendered/linted Transit Helm chart; explicit bootstrap, existing credential references, retained/reused PVCs, private services and network policies; unsupported values fail before deployment |
@@ -514,3 +508,64 @@ published executable modes explicitly to `0755`, so the non-root container user
 can execute them. The controller-crash fixture now waits for the structured
 `created` progress observation; continuous controller stdout is no longer used
 as a diagnostic interface. `--once` retains its single machine-readable result.
+
+## M7 state resources
+
+The bounded [state v1 profile](../contracts/STATE_V1.md) is qualified through
+`just ci`, `just transit-board::browser`, `just launchers::compose::test` and
+`just launchers::reference::test-launcher` on x86_64 Linux (2026-09-24).
+`just test::capacity` also passes with the expanded 3,917-record control reserve: real
+ENOSPC, control progress, checkpoint/trim and disk restart. Focused
+state, unit and disk proofs were rerun after final authorization/recovery fixes.
+
+Coverage includes:
+
+- Core adversarial tests: atomic mutations/input/outputs/effects; uncertain
+  receipts and competing revisions; stale ownership; association CAS; writer
+  exclusivity and shared snapshot reads; hidden metadata/value permissions;
+  revocation before commits, reads and receipt disclosure; required/optional
+  expiry; full read-view capacity and reserved retirement/reclamation progress.
+- [state.zig](state.zig), included in `just test::storage`: real disk Ursula,
+  competing conditional appends, abandoned private preparations, lost receipts,
+  SIGKILL/restart, durable view recovery, checkpoint publication/trim, and 32 live
+  keys beyond the eight-entry page and 16-record replay buffer. It preserves
+  unchanged values, deletes/recreates a key, permanently retires required
+  dependents and reclaims opted-in data. Receipt permissions survive checkpoint
+  recovery even after their view-opening records are trimmed.
+- [state_api.py](state_api.py), `just test::state`: the real HTTP/CLI boundary and
+  counter executable; metadata/value grants, exact view revisions, pagination,
+  changed cuts, state retention across two activations and unchanged legacy
+  inline bytes. A clockless realm proves zero-age opted-in background cleanup
+  and maintainer restart without rediscovering or resurrecting removed data.
+- Board service/browser proofs: no application lens/configuration/API field;
+  generic resource and association pages, explicit hex entry reads, independent
+  disclosure permissions and filtered relationships. Existing effect, journey,
+  stale-observation, safe-rendering and accessibility checks continue to pass.
+- Local, Compose and reference launcher proofs: new installations provision a
+  required KV resource; worker replacement, compatible same-PID upgrades, queued
+  inputs, authority/storage recovery and stop/start preserve its data. Existing
+  manifests retain inline-state behavior; this is not an automatic migration.
+
+On the pinned x86_64 Linux Debug profile, fixed structure sizes are 158,560 bytes
+for the complete catalog (four resources, four captured views and receipt rights),
+364,848 bytes for core state, 17,224 bytes for one captured view, 7,800 bytes for
+one public state page and 67,688 bytes for the Ursula replay store. These are
+layout measurements, not total RSS or throughput claims. Parsing, candidate
+copies and serialized I/O need additional bounded memory. Maximum record and
+checkpoint tests retain the 8 KiB / 1 MiB limits.
+
+The first larger catalog exhausted Debug stack frames in checkpoint verification.
+The selected profile remains four resource identities / 32 live keys each;
+large checkpoint fields now parse into allocated storage and the backend returns
+an owned parsed checkpoint. The service and storage recovery proofs exercise
+that path with default stack sizes. No stack-limit override hides the failure.
+Simultaneous launcher builds also exposed shared frontend-output deletion;
+embedded Board builds now use separate temporary output directories.
+
+M7 does not prove an unbounded KV index, per-key TTL, writer transfer, multiple
+resources in one transaction, online migration, arbitrary native determinism,
+or global distributed transactions. History trimming still requires quiescent
+or explicitly cancelled mailboxes and every resource's opt-in/minimum age.
+Resource identity/tombstone evidence is retained permanently within the bounded
+realm profile. Expiry can make data unavailable while unlimited history keeps
+its bytes; it never promises erasure of external copies.

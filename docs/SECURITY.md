@@ -66,13 +66,14 @@ Authority delegation is distinct from application-level agent/task delegation.
 Applications still validate domain rules, such as which account a command may
 affect, even when Transit permits delivery to their process.
 
-The planned [M7 state-resource profile](STATE.md) requires independent grants
-for resource creation, association changes, reads, mutation, inspection, and
-lifecycle administration. Association, writer PID, and lifetime ownership do
-not substitute for those grants. Current PID inspection must not implicitly
-reveal associated resources or their values. Metadata/value disclosure and
-revocation ordering must be explicit in the new public contract; today's coarse
-inline-state inspection grant does not establish those finer boundaries.
+The implemented [M7 state-resource profile](STATE.md) uses current administrator
+rights for creation, association changes and lifecycle operations, with separate
+resource inspect/read/write grants for disclosure and turn access. Association
+changes also require target inspection; root authority issues resource grants.
+Association, writer PID, and lifetime ownership do not substitute for permission.
+PID inspection alone reveals neither associated resources nor their values.
+Resource revocation fences reads, commits and receipt reconciliation even after
+a read view has been released; see the [state contract](../contracts/STATE_V1.md).
 
 ## Authorization over time
 
@@ -80,7 +81,7 @@ inline-state inspection grant does not establish those finer boundaries.
 | --- | --- |
 | Message admission | Authenticate and authorize the sender, target PID/realm, message class, and lifetime; record the accepted provenance |
 | Turn commit | Validate the process principal, current execution grant, ownership, prior state, and proposed outputs under the applicable policy |
-| Associated-state read or mutation (planned M7) | Check current resource grant, identity/revision and lifetime; mutation additionally requires the fenced writer and accepted turn decision |
+| Associated-state read or mutation (M7) | Check current resource grant, identity/revision and lifetime; mutation additionally requires the fenced writer and accepted turn decision |
 | Outbox delivery | Preserve source provenance and fixed target PID; validate current destination admission policy before first acceptance |
 | Effect dispatch authorization | Validate committed intent, current grant/revocation state, attempt identity, destination, secret scope, and deadline |
 | History/receipt read or live tail | Enforce current read authority, including referenced payloads; revalidate long-lived access at a defined bounded interval |

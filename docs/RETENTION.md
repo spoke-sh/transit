@@ -5,9 +5,10 @@ M1 implements a bounded subset: finite execution/settlement, checkpoint/trim,
 immutable payload deletion, and finite admission with a physical reserve proof.
 [Core](../packages/zig/transit-core/README.md), [backend](../packages/zig/transit-backend-ursula/README.md),
 and [maintenance](../apps/transit-node/README.md) own the mechanisms;
-[tests](../tests/README.md) own evidence. General resource dependencies, finite
-body lifetimes, and keyed compaction remain planned. [M7](roadmap/M7.md) adds the
-first KV resource/association profile; [STATE.md](STATE.md) owns its state model.
+[tests](../tests/README.md) own evidence. [M7](roadmap/M7.md) implements bounded
+KV dependencies, resource expiry and keyed checkpoint compaction;
+[STATE.md](STATE.md) owns that model. General resource graphs, finite external
+body lifetimes, per-key TTL and distributed compaction remain planned.
 
 ## Application contract
 

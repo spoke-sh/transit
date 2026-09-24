@@ -1,9 +1,9 @@
 # State resources v1
 
-Status: M7 authority transitions pass unit and disk-recovery proofs; service,
-client, and inspection implementation is in progress. Until the state route is implemented, exported
-types are not a capability advertisement. [STATE.md](../docs/STATE.md) owns the
-design; [M7](../docs/roadmap/M7.md) owns completion and qualification.
+Status: implemented bounded M7 protocol, service and Zig client. See
+[STATE.md](../docs/STATE.md) for the design and [M7](../docs/roadmap/M7.md) for
+qualification. Query `capabilities` on the running authority; schema presence
+alone does not advertise its support.
 
 ## Compatibility and authority
 

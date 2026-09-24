@@ -33,8 +33,8 @@ persistence, hosting, and configuration; see the
 
 A **process** is Transit's logical execution primitive: an identity, ordered
 mailbox, committed control state and application-state associations, execution
-sequence, and lifecycle. M1 stores application state inline; associations are
-planned in [M7](roadmap/M7.md). A **PID** identifies
+sequence, and lifecycle. M1 stores application state inline; [M7](roadmap/M7.md)
+adds durable resource associations. A **PID** identifies
 that process independently of its worker, OS process, pod, or sandbox. An actor
 is a programming-model participant implemented by a process; a Station GenServer
 is a behavior running in one. Raw processes and other behaviors can use Transit

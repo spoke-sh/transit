@@ -132,7 +132,8 @@ and [CONFORMANCE.md](CONFORMANCE.md) define trust and bypass obligations.
 [M7](roadmap/M7.md) evolves inline application state into versioned resources
 accessed through recorded process associations. Core enforces identity,
 revision, commit, grants, and lifetime; application values stay opaque. The
-client supplies bounded KV access, the backend supplies recoverable indexes,
+client supplies bounded KV access, core rebuilds its bounded materialized catalog
+from backend journals/checkpoints,
 and Station builds behavior/Table APIs above them. [STATE.md](STATE.md) owns
 the design and proof gates; it introduces no separate authoritative database
 or automatic cross-resource transaction.
@@ -213,7 +214,9 @@ create a generic utility package without a concrete owner.
 M7's resource contracts, validation, client operations, storage/index mechanisms,
 and inspection initially extend those existing owners. A separate state package
 or executable needs a concrete dependency or runtime boundary; this plan does
-not create empty packages or require a new state service.
+not create empty packages or require a new state service. The implemented M7
+profile uses those boundaries; numerical limits and wire details live in the
+[state contract](../contracts/STATE_V1.md).
 
 ## Observation and repository ownership
 

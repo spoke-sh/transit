@@ -1,12 +1,15 @@
 # State — resources and process associations
 
-Status: foundational design for [M7](roadmap/M7.md), before Station. The bounded
-authority resource/association transitions pass unit and disk-recovery proofs;
-service/client, Board, and launcher integration remain in progress. The existing
-[v2 profile](../contracts/TRANSIT_V2.md) commits an opaque inline value with each
-turn; its standalone immutable payloads are not enforced state references.
-The initial [wire contract](../contracts/STATE_V1.md) defines bounds and a
-compatibility path; full M7 qualification remains outstanding.
+Status: bounded M7 profile implemented and verified, before Station. The
+[wire contract](../contracts/STATE_V1.md) and component READMEs own exact APIs,
+numerical bounds and compatibility. [M7](roadmap/M7.md) and the
+[proof guide](../tests/README.md#m7-state-resources) record qualification.
+
+The broader design below includes future capabilities. The first profile has
+opaque KV values, one writer PID, bounded materialization, and one mutated
+resource per turn in the existing realm journal. Inline-state callers coexist;
+no existing realm is automatically migrated. Table abstractions, per-key TTL,
+writer transfer and transactions across resources are outside this profile.
 
 ## Purpose
 

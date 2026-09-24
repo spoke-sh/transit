@@ -123,7 +123,7 @@ switch; it does not perform state migration. Unit tests cover stale owners,
 permissions, incompatible declarations, lost acknowledgements and expiry; the
 disk runtime proof checkpoints and trims with a switch outstanding.
 
-## State resources (M7 in progress)
+## State resources (M7)
 
 [`resources.zig`](src/resources.zig) implements the deterministic catalog,
 independent resource grants, named associations, bounded revision views, and
@@ -143,8 +143,9 @@ grants never replace process execution authority; replacing/revoking a principal
 clears its resource grants, while same-PID activation credential rotation keeps
 the workload's grants. Required-resource expiry fences execution before delayed
 maintenance and records permanent dependent-PID retirement. Compaction preserves
-current values independently of their write age. Service/client and Board
-integration remain in progress; this is not a completed M7 qualification claim.
+current values independently of their write age. The public service/client,
+Board and three launcher profiles are qualified; see the
+[proof guide](../../../tests/README.md#m7-state-resources).
 
 State-turn receipt dependencies are retained in the catalog after read-view
 release. Returning a known receipt rechecks current resource inspect/read/write
