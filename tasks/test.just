@@ -34,3 +34,7 @@ callers:
 capacity:
     zig build capacity-proof
     nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-capacity-proof
+
+# Exercise bounded discovery and retained inspection through the public client.
+inspection:
+    zig build test-inspection

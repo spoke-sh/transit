@@ -104,3 +104,10 @@ See the [test guide](../../../tests/README.md) for integration evidence and limi
 `just test::unit` covers legal and rejected transitions. `just test::storage`
 proves conditional authority, uncertain writes, bounded replay, and retained
 control evidence through actual disk WAL interruption.
+
+## Inspection projections
+
+`inspection.read` builds bounded public pages from validated state/history and
+checks the final authority tail before disclosure. It filters every PID and both
+endpoints of outbox relationships; no raw administrative records escape. The
+[inspection contract](../../../contracts/INSPECTION_V1.md) owns wire guarantees.

@@ -3,6 +3,7 @@ const std = @import("std");
 pub const version = 2;
 pub const Value = @import("Value.zig");
 pub const Ed25519 = std.crypto.sign.Ed25519;
+pub const Inspection = @import("Inspection.zig");
 pub const Runtime = @import("Runtime.zig");
 pub const max_principals = 16;
 pub const max_processes = 64;
@@ -195,6 +196,8 @@ pub const ErrorCode = enum {
     Forbidden,
     FreshKeyRequired,
     HistoryPinned,
+    HistoryReclaimed,
+    QueryExpired,
     IdentityElement,
     InvalidAttempt,
     InvalidBinding,

@@ -43,7 +43,7 @@ check:
     git diff --check
 
 # Run the hosted CI checks within one already-entered development environment.
-ci: check test::packages test::storage test::service test::callers
+ci: check test::packages test::storage test::service test::callers test::inspection
 
 # Compile the platform executables: node, runtime controller and CLI.
 build:

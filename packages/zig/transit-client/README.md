@@ -98,3 +98,11 @@ See the [test guide](../../../tests/README.md) for integration evidence and limi
 `just test::callers` exercises the real counter and byte-log programs against the
 same authority, including lost receipts, stale owners, malformed responses, and
 restart recovery. `just test::service` also covers client request deadlines.
+
+## Inspection
+
+`Client.inspect(query, key)` reads authorized process discovery, current facts,
+mailbox, outbox, effects, payload metadata, and filtered retained history. Pages
+own their bytes. Keep the resource/PID/cut when following `next`; on `QueryExpired`
+or `HistoryReclaimed`, discard assembled pages and refresh with explicit gap
+handling. See [inspection v1](../../../contracts/INSPECTION_V1.md).

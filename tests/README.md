@@ -237,3 +237,10 @@ keys, transcripts, and private proof files out of Git.
 Benchmarks record compiler/tool versions, hardware, dataset, concurrency,
 durability settings, and p50/p95/p99 latency together with throughput and memory.
 A failed proof requires revising the owning design, not weakening its label.
+
+## Public inspection
+
+`just test::inspection` checks scoped discovery, signed queries, fixed pages, cut
+expiry, revocation, and disk recovery through the node and public client. Core
+unit tests inject final-tail and trim races, test bounded sparse scans, and verify
+that scoped outbox/history projections do not disclose hidden endpoints.

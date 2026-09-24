@@ -834,3 +834,5 @@ pub fn Engine(comptime Store: type) type {
 test {
     _ = @import("tests.zig");
 }
+
+pub const inspection = @import("inspection.zig");

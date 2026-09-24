@@ -25,7 +25,7 @@ pub const Client = struct {
 
     /// The caller owns deadlines and retry policy. Never follow redirects with
     /// signed requests; the configured endpoint is the trusted authority.
-    pub fn call(self: *Client, comptime T: type, path: []const u8, signed: transit.SignedRequest) !T {
+    pub fn call(self: *Client, comptime T: type, path: []const u8, signed: anytype) !T {
         self.last_rejection = null;
         const Result = union(enum) { response: anyerror!T, timeout: anyerror!void };
         var results: [2]Result = undefined;
@@ -33,7 +33,7 @@ pub const Client = struct {
         defer select.cancelDiscard();
         try select.concurrent(.timeout, timeout, .{ self.http.io, self.timeout_ms });
         const Task = struct {
-            fn run(client: *Client, route: []const u8, command: transit.SignedRequest) anyerror!T {
+            fn run(client: *Client, route: []const u8, command: @TypeOf(signed)) anyerror!T {
                 return client.perform(T, route, command);
             }
         };
@@ -50,7 +50,7 @@ pub const Client = struct {
         try io.sleep(.fromMilliseconds(milliseconds), .awake);
     }
 
-    fn perform(self: *Client, comptime T: type, path: []const u8, signed: transit.SignedRequest) anyerror!T {
+    fn perform(self: *Client, comptime T: type, path: []const u8, signed: anytype) anyerror!T {
         const allocator = self.http.allocator;
         const url = try allocator.print("{s}{s}", .{ self.url, path });
         defer allocator.free(url);
@@ -87,6 +87,9 @@ pub const Client = struct {
     pub fn view(self: *Client, request: transit.Request, key: transit.Ed25519.KeyPair) !View {
         if (request.command != .inspect or request.sequence != 0) return error.InvalidRead;
         return self.call(View, "/v2/view", try transit.sign(request, key));
+    }
+    pub fn inspect(self: *Client, query: protocol.Inspection.Query, key: protocol.Ed25519.KeyPair) !protocol.Inspection.Page {
+        return self.call(protocol.Inspection.Page, "/v2/inspect", try protocol.Inspection.sign(query, key));
     }
     pub fn submit(self: *Client, signed: transit.SignedRequest) !Receipt {
         return self.call(Receipt, "/v2/command", signed);
@@ -143,4 +146,7 @@ test "a full metadata view fits the bounded HTTP response" {
 
 test {
     _ = Session;
+    const bytes = try std.json.Stringify.valueAlloc(std.testing.allocator, largestFields(protocol.Inspection.Page), .{});
+    defer std.testing.allocator.free(bytes);
+    try std.testing.expect(bytes.len + 1024 <= max_body);
 }

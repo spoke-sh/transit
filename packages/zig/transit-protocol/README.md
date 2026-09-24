@@ -53,3 +53,9 @@ just test::packages
 ```
 
 See the [test guide](../../../tests/README.md) for integration evidence and limits.
+
+## Inspection
+
+[Inspection v1](../../../contracts/INSPECTION_V1.md) adds domain-separated signed
+queries and owned bounded pages without changing command signatures.
+`Inspection` owns the types and limits; the generated contract includes them.

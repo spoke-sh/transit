@@ -5,10 +5,15 @@ const core = @import("root.zig");
 const Memory = struct {
     entries: std.ArrayList(core.Entry) = .empty,
     fail_ack: bool = false,
+    tail_calls: usize = 0,
+    race_at: ?usize = null,
+    reclaimed: bool = false,
     pub fn tail(self: *Memory) !u64 {
-        return self.entries.items.len;
+        self.tail_calls += 1;
+        return self.entries.items.len + @as(u64, if (self.race_at == self.tail_calls) 1 else 0);
     }
     pub fn read(self: *Memory, at: u64) !?core.Entry {
+        if (self.reclaimed) return error.HistoryReclaimed;
         return if (at < self.entries.items.len) self.entries.items[@intCast(at)] else null;
     }
     pub fn append(self: *Memory, expected: u64, entry: core.Entry) !bool {
@@ -921,4 +926,85 @@ test "all lifetime catalogs with maximum inline values fit the checkpoint bound"
     defer parsed.deinit();
     try t.expectEqual(value.state.position, parsed.value.state.position);
     try t.expect(value.state.effects[core.max_effects - 1].?.payload.eql(parsed.value.state.effects[core.max_effects - 1].?.payload));
+}
+
+test "inspection filters discovery, history and links under current permission with bounded scans" {
+    const i = core.protocol.Inspection;
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    const hidden = try f.submit(&e, 0, .{ .spawn = .{} });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.inspect), .pid = pid } });
+    var q: i.Query = .{ .realm = 42, .principal = 1, .resource = .processes };
+    var page = try core.inspection.read(&e, try i.sign(q, f.worker));
+    try t.expectEqual(pid, page.processes[0].?.pid);
+    try t.expectEqual(null, page.processes[1]);
+    q.resource = .history;
+    q.pid = hidden;
+    try t.expectError(error.Forbidden, core.inspection.read(&e, try i.sign(q, f.worker)));
+    q.pid = pid;
+    const first_cut = page.cut;
+    for (0..140) |_| _ = try f.submit(&e, 0, .{ .send = .{ .pid = hidden, .value = core.Value.integer(123) } });
+    page = try core.inspection.read(&e, try i.sign(q, f.worker));
+    try t.expectEqual(i.scan_limit, page.scanned);
+    try t.expect(!page.complete);
+    for (page.events) |slot| if (slot) |event| try t.expectEqual(pid, event.pid);
+    q.cut = first_cut;
+    try t.expectError(error.QueryExpired, core.inspection.read(&e, try i.sign(q, f.worker)));
+    q.cut = page.cut;
+    q.after = page.next.?;
+    const end = try core.inspection.read(&e, try i.sign(q, f.worker));
+    try t.expect(end.complete);
+    try t.expectEqual(null, end.events[0]);
+    // The final HEAD detects a writer/revocation racing the projection.
+    f.store.race_at = f.store.tail_calls + 2;
+    try t.expectError(error.Conflict, core.inspection.read(&e, try i.sign(q, f.worker)));
+    f.store.race_at = null;
+    e.state.history_floor = 10;
+    try t.expectError(error.HistoryReclaimed, core.inspection.read(&e, try i.sign(q, f.worker)));
+    q.cut = null;
+    q.after = 0;
+    page = try core.inspection.read(&e, try i.sign(q, f.worker));
+    try t.expectEqual(.prefix_reclaimed, page.history);
+    f.store.reclaimed = true;
+    try t.expectError(error.HistoryReclaimed, core.inspection.read(&e, try i.sign(q, f.worker)));
+    f.store.reclaimed = false;
+    _ = try f.submit(&e, 0, .{ .revoke = 1 });
+    // Old continuations and even nonexistent PIDs do not bypass revocation.
+    q.cut = page.cut;
+    q.pid = 999;
+    try t.expectError(error.Forbidden, core.inspection.read(&e, try i.sign(q, f.worker)));
+}
+
+test "inspection links only disclosed endpoints and distinguishes mailbox completion" {
+    const i = core.protocol.Inspection;
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    const dest = try f.submit(&e, 0, .{ .spawn = .{} });
+    _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 0 } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(4) } });
+    var outputs: [4]?core.Output = @splat(null);
+    outputs[0] = .{ .pid = dest, .value = core.Value.integer(9) };
+    const turn = try f.submit(&e, 0, .{ .turn = .{ .pid = pid, .generation = 2, .input = input, .result = core.Value.integer(4), .outputs = outputs } });
+    const delivered = try f.submit(&e, 0, .{ .deliver = .{ .pid = dest, .output = 1, .courier = 0 } });
+    var q: i.Query = .{ .realm = 42, .principal = 0, .resource = .outbox, .pid = pid };
+    const full = try core.inspection.read(&e, try i.sign(q, f.root));
+    try t.expectEqual(turn, full.outbox[0].?.turn);
+    try t.expectEqual(delivered, full.outbox[0].?.resolved_at);
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.inspect), .pid = pid } });
+    q.principal = 1;
+    const scoped = try core.inspection.read(&e, try i.sign(q, f.worker));
+    try t.expectEqual(null, scoped.outbox[0]);
+    q.resource = .mailbox;
+    const mailbox = try core.inspection.read(&e, try i.sign(q, f.worker));
+    try t.expectEqual(.consumed, mailbox.events[0].?.mailbox_status.?);
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.inspect), .pid = dest } });
+    q.pid = dest;
+    const arrivals = try core.inspection.read(&e, try i.sign(q, f.worker));
+    try t.expectEqual(.pending, arrivals.events[0].?.mailbox_status.?);
+    try t.expectEqual(null, arrivals.events[0].?.output);
+    try t.expectEqual(delivered, arrivals.events[0].?.position);
 }

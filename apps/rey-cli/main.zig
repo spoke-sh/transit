@@ -21,6 +21,15 @@ pub fn main(init: std.process.Init) !void {
     const key = try wire.readKey(init.gpa, init.io, args[2]);
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.gpa, .limited(wire.max_body));
     defer init.gpa.free(bytes);
+    if (std.mem.eql(u8, command, "inspect") or std.mem.eql(u8, command, "sign-inspection")) {
+        var query = try std.json.parseFromSlice(transit.Inspection.Query, init.gpa, bytes, .{});
+        defer query.deinit();
+        if (std.mem.eql(u8, command, "sign-inspection") and args.len == 4) return print(init.io, try transit.Inspection.sign(query.value, key));
+        if (args.len != 5) return error.ExpectedAuthorityUrl;
+        var client = wire.Client.init(init.gpa, init.io, args[4]);
+        defer client.deinit();
+        return print(init.io, try client.inspect(query.value, key));
+    }
     var request = try std.json.parseFromSlice(transit.Request, init.gpa, bytes, .{});
     defer request.deinit();
     const signed = try transit.sign(request.value, key);

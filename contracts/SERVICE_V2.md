@@ -36,8 +36,8 @@ The node checks current keys and PID-scoped `inspect`, reads a bounded batch,
 and verifies the journal tail has not changed. That last check is the read
 authorization point. An intervening revocation forces 409/retry; a later
 revocation prevents the next read authorization. Already authorized bytes can
-finish within the request deadline. There are no public raw history, snapshot,
-catalog, subscription, or storage administration routes. Historical signatures
+finish within the request deadline. There are no public raw history, snapshot, subscription, or storage administration
+routes. The additive inspection surface exposes filtered catalogs and history. Historical signatures
 cannot bypass key replacement or grant revocation.
 
 Authentication/permission failures return 403 with `AccessDenied`, without
@@ -49,12 +49,12 @@ redirect following. Rate fairness is not promised; the separate maintenance
 process has its own bounded loop. Unauthenticated `GET /health` reveals only
 readiness after storage refresh.
 
-## Planned inspection expansion
+## Inspection expansion
 
-[Board M2](../docs/roadmap/M2.md) requires additional scoped discovery, mailbox,
-outbox, and retained-history reads through the public client. These are planned
-extensions, not routes implemented by this service profile. Their schemas,
-authorization, continuation, and compatibility rules must land with the code.
+`POST /v2/inspect` implements signed, scoped discovery, mailbox/outbox/effect and
+retained-history queries. [Inspection v1](INSPECTION_V1.md) specifies its separate
+signature domain, bounded scans, expired cuts, and filtered disclosure contract.
+Existing command and view signatures remain compatible.
 
 ## Transport and time limits
 

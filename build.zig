@@ -105,6 +105,13 @@ pub fn build(b: *std.Build) void {
     integration.has_side_effects = true;
     integration.stdio = .inherit;
     b.step("test-storage", "Prove conditional writes and disk recovery against Ursula").dependOn(&integration.step);
+    const inspection = b.addSystemCommand(&.{ "python3", "-B" });
+    inspection.addFileArg(b.path("tests/inspection.py"));
+    inspection.addArtifactArg(node_artifact);
+    inspection.addArtifactArg(cli_artifact);
+    inspection.has_side_effects = true;
+    inspection.stdio = .inherit;
+    b.step("test-inspection", "Prove scoped public inspection against disk Ursula").dependOn(&inspection.step);
     const callers = b.addSystemCommand(&.{ "python3", "-B", "-c", "import sys; sys.path.insert(0, 'tests'); from pathlib import Path; from callers import run; run(*[Path(p).resolve() for p in sys.argv[1:]])" });
     // Both callers use the exact same authority and public CLI artifacts.
     callers.addArtifactArg(node_artifact);

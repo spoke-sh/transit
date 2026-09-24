@@ -35,3 +35,10 @@ or history browser.
 [main.zig](main.zig) owns argument parsing and secret-file handling.
 `just test::service` exercises the CLI through real signed ingress. Complete
 setup and caller workflows are available under [examples](../../examples/README.md).
+
+## Inspection queries
+
+`rey-cli inspect SEED QUERY.json URL` uses the public bounded inspection client.
+For example, `{"realm":72,"principal":1,"resource":"processes"}` discovers the
+processes allowed by that principal. `sign-inspection SEED QUERY.json` emits a
+signed envelope for other transports. See [inspection v1](../../contracts/INSPECTION_V1.md).

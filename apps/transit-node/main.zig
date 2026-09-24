@@ -41,12 +41,28 @@ const Server = struct {
             try self.engine.refresh();
             return self.json(&request, .ok, .{ .ready = true });
         }
+        const is_inspection = std.mem.eql(u8, request.head.target, "/v2/inspect");
         const is_view = std.mem.eql(u8, request.head.target, "/v2/view");
-        if (request.head.method != .POST or (!is_view and !std.mem.eql(u8, request.head.target, "/v2/command")))
+        if (request.head.method != .POST or (!is_view and !is_inspection and !std.mem.eql(u8, request.head.target, "/v2/command")))
             return self.json(&request, .not_found, .{ .err = "NotFound" });
         const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch
             return self.json(&request, .bad_request, .{ .err = "InvalidBody" });
         defer self.allocator.free(bytes);
+        if (is_inspection) {
+            var query = std.json.parseFromSlice(wire.protocol.Inspection.SignedQuery, self.allocator, bytes, .{}) catch
+                return self.json(&request, .bad_request, .{ .err = "InvalidRequest" });
+            defer query.deinit();
+            const page = core.inspection.read(self.engine, query.value) catch |err| {
+                const status: std.http.Status = switch (err) {
+                    error.Unauthorized, error.Forbidden => .forbidden,
+                    error.QueryExpired, error.HistoryReclaimed, error.Conflict => .conflict,
+                    error.InvalidRead, error.UnknownProcess => .unprocessable_entity,
+                    else => .service_unavailable,
+                };
+                return self.json(&request, status, .{ .err = if (status == .forbidden) wire.protocol.ErrorCode.AccessDenied else std.meta.stringToEnum(wire.protocol.ErrorCode, @errorName(err)) orelse .AuthorityUnavailable });
+            };
+            return self.json(&request, .ok, page);
+        }
         var parsed = std.json.parseFromSlice(core.SignedRequest, self.allocator, bytes, .{}) catch
             return self.json(&request, .bad_request, .{ .err = "InvalidRequest" });
         defer parsed.deinit();

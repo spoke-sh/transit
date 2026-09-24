@@ -104,3 +104,10 @@ Ursula and provider APIs inaccessible to workloads.
 Run `just test::service` for signed ingress, deadlines, revocation, paused callers,
 maintenance, and restart; `just reference::test` separately checks deployment
 isolation. See [proof coverage and limits](../../tests/README.md).
+
+## Inspection
+
+The additive `/v2/inspect` read boundary supplies discovery and filtered retained
+history with fixed page/scan bounds. [Inspection v1](../../contracts/INSPECTION_V1.md)
+defines authentication, two-endpoint link filtering, cuts and reclamation errors.
+It exposes neither raw storage nor administrative journal records.

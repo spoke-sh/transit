@@ -47,3 +47,6 @@ corresponding module. Add runnable work, not placeholder success.
 For prerequisites, proof boundaries, and troubleshooting, use the
 [test guide](../tests/README.md), [reference runbook](../deploy/reference/README.md),
 [toolchain guide](../nix/README.md), or [examples](../examples/README.md).
+
+`just test::inspection` exercises the signed, bounded public read surface against
+isolated disk-backed Ursula.

@@ -11,5 +11,5 @@ if actual != expected:
 contract = json.loads(actual)
 assert contract["x-transit"]["version"] == 2
 assert bytes.fromhex(contract["x-transit"]["signing_domain_hex"]) == b"rey.transit.request.v2\0"
-assert set(contract["$defs"]) == {"Request", "SignedRequest", "View", "Receipt", "ErrorResponse"}
+assert set(contract["$defs"]) == {"Request", "SignedRequest", "View", "Receipt", "ErrorResponse", "InspectionQuery", "SignedInspectionQuery", "InspectionPage"}
 print("Public protocol JSON Schema matches the Zig contract.")
