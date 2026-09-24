@@ -1,5 +1,7 @@
 # Transit
 
+[![CI](https://github.com/rupurt/rey/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/rupurt/rey/actions/workflows/ci.yml)
+
 An agentic streaming kernel: a foundational execution protocol enforced by
 durable message sequences.
 
