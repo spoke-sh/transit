@@ -2,23 +2,34 @@
 import json
 import os
 import shlex
+import signal
+import subprocess
 import sys
 import time
 
-from common import ROOT, SERVICES, healthy, run, wait_for, write
+from common import ROOT, SERVICES, healthy, lock, run, wait_for, write
 
 
 class Local:
     def __init__(self, installation):
         self.installation = installation
         self.path = installation.path
+        self.manager = None
+        self.manager_log = None
 
-    def pc(self, *args, **kwargs):
+    def pc(self, *args, manager=False, spawn=False, **kwargs):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_", "PC_"))}
         env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2", XDG_CONFIG_HOME=str(self.path / "xdg"))
         (self.path / "xdg/process-compose").mkdir(parents=True, exist_ok=True, mode=0o700)
-        return run(["process-compose", "-U", "-u", self.path / "pc.sock", "-L", self.path / "manager.log",
-                    "--ordered-shutdown", *args], cwd=self.path, env=env, **kwargs)
+        # Every Process Compose invocation truncates its own log. Client calls
+        # must never erase the daemon's startup, readiness or exit evidence.
+        log = self.path / ("manager.log" if manager else "manager-client.log")
+        command = ["process-compose", "-U", "-u", self.path / "pc.sock", "-L", log,
+                   "--log-no-color", "--ordered-shutdown", *args]
+        if spawn:
+            return subprocess.Popen(list(map(str, command)), cwd=self.path, env=env,
+                                    stdin=subprocess.DEVNULL, start_new_session=True)
+        return run(command, cwd=self.path, env=env, **kwargs)
 
     def services(self):
         if not (self.path / "pc.sock").exists():
@@ -27,7 +38,7 @@ class Local:
         # or delete files under potentially live processes.
         return json.loads(self.pc("process", "list", "-o", "json", capture=True, timeout=5))
 
-    def up(self):
+    def up(self, detached=True):
         if self.services():
             raise RuntimeError("Local manager is already running; use status, restart or down")
         installation = self.installation
@@ -64,11 +75,21 @@ class Local:
             "exec": {"command": shlex.join(map(str, [*launcher, "board-probe"]))},
             "period_seconds": 1, "timeout_seconds": 3, "failure_threshold": 30}
         write(self.path / "process-compose.json", {"version": "0.5", "is_strict": True, "processes": processes})
-        self.pc("up", "-f", self.path / "process-compose.json", "--disable-dotenv", "-D", capture=True)
+        args = ("up", "-f", self.path / "process-compose.json", "--disable-dotenv")
+        if detached:
+            self.pc(*args, "-D", manager=True, capture=True)
+        else:
+            write(self.path / "manager.log", "")
+            self.manager_log = (self.path / "manager.log").open("rb")
+            self.manager = self.pc(*args, "-t=false", manager=True, spawn=True)
         deadline = time.monotonic() + 45
         while time.monotonic() < deadline:
+            self.drain_manager_log()
+            if self.manager is not None and self.manager.poll() is not None:
+                raise RuntimeError(f"Local manager exited during startup ({self.manager.returncode}); data and logs retained")
             rows = self.services()
-            for process in rows:
+            # Report the failed dependency before services skipped because of it.
+            for process in sorted(rows, key=lambda row: row["status"] == "Skipped"):
                 if not process["is_running"] and process["exit_code"] != 0:
                     raise RuntimeError(f"{process['name']} failed; inspect {process['name']}.log. Data has been preserved.")
             ready = {p["name"] for p in rows if p["is_running"] and
@@ -77,6 +98,51 @@ class Local:
                 return
             time.sleep(.2)
         raise RuntimeError("A local service did not start; use status and logs. Data has been preserved.")
+
+    def drain_manager_log(self):
+        if self.manager_log is not None:
+            # Stream bounded chunks alongside the manager's live, prefixed
+            # service output. Lifecycle/probe messages otherwise go only to disk.
+            chunk = self.manager_log.read(65536)
+            if chunk:
+                print(chunk.decode(errors="replace"), end="", flush=True)
+
+    def foreground(self):
+        def interrupted(signum, frame):
+            raise KeyboardInterrupt
+
+        signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+        previous = {sig: signal.signal(sig, interrupted) for sig in signals}
+        try:
+            # Hold the lifecycle lock only through startup. Other terminals
+            # must be able to inspect, send, restart services, or run down.
+            with lock(self.installation.lifecycle_lock):
+                self.installation.prepare()
+                self.up(detached=False)
+                print(json.dumps(self.installation.endpoints(), indent=2), flush=True)
+                print("Local stack ready. Streaming logs; Ctrl-C stops services and preserves data.", flush=True)
+            while self.manager.poll() is None:
+                self.drain_manager_log()
+                time.sleep(.2)
+            if self.manager.returncode != 0:
+                raise RuntimeError(f"Local manager exited ({self.manager.returncode}); data and logs retained")
+        except KeyboardInterrupt:
+            print("\nStopping local services; data and keys retained.", flush=True)
+        finally:
+            # Signal only this invocation's manager. A later installation must
+            # never be stopped through a reused socket or PID from a state file.
+            for sig in signals:
+                signal.signal(sig, signal.SIG_IGN)
+            try:
+                if self.manager is not None and self.manager.poll() is None:
+                    self.manager.terminate()
+                    self.manager.wait(timeout=40)
+                self.drain_manager_log()
+                if self.manager_log is not None:
+                    self.manager_log.close()
+            finally:
+                for sig, handler in previous.items():
+                    signal.signal(sig, handler)
 
     def down(self):
         if self.services():
@@ -112,9 +178,9 @@ class Local:
             wait_for(f'http://127.0.0.1:{port}' + ("/__ursula/ready" if name == "ursula" else "/health"))
 
     def logs(self, name):
-        if name not in SERVICES and name != "provision":
+        if name not in SERVICES and name not in ("provision", "manager"):
             raise ValueError("Unknown service")
-        if self.services():
+        if name != "manager" and self.services():
             # The manager also records probe failures here; they are absent
             # from the child process's stdout/stderr file.
             self.pc("process", "logs", name, "--tail", "200")

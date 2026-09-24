@@ -25,6 +25,7 @@ From the repository root:
 nix develop
 just board::install
 just launchers::local::up
+# In another terminal:
 just launchers::local::status
 just launchers::local::inspect
 ```
@@ -36,7 +37,11 @@ inspection-only; development inputs go through the separately privileged
 launcher CLI, not through Board.
 
 `up` builds the native binaries, provisions the installation on first use, and
-starts services in the background. Closing the terminal leaves them running.
+stays in the foreground streaming service logs plus manager startup/exit events.
+Ctrl-C stops the owned services in dependency order and preserves data and keys;
+SIGTERM and terminal hangup also request shutdown. Use another terminal for
+inspection and commands, or run `just launchers::local::up --detach` (`-d`) to
+start in the background. Detached services remain running when that terminal closes.
 The counter receives `7` and `5` once, reaches state `12`, then waits for input.
 Native processes are managed by the Nix-pinned
 [Process Compose](https://f1bonacc1.github.io/process-compose/), using a private
@@ -64,6 +69,14 @@ services running. Stopping the project there has the same data semantics as
 and ownership generation. A running OS process or container is not proof of
 current Transit permission or progress.
 
+A service exit remains visible in the foreground even when it produces no stderr.
+As with Compose's attached logs, other services keep running so you can inspect
+and restart the failed service; there is no automatic restart policy. Startup
+failure exits nonzero, and foreground startup cleans up its own manager. Use
+`logs SERVICE` for recent output, including manager-generated probe failures,
+and `logs manager` for the native manager's persisted lifecycle events. Status
+and other control calls use a separate client log so they cannot erase that evidence.
+
 ## Use Compose
 
 Install/run Docker Engine or Docker Desktop with the Compose v2 plugin. The
@@ -85,6 +98,8 @@ upstream Ursula image, with no Node.js or Python application runtime. The
 launcher builds static Linux binaries for the Docker engine architecture.
 The official Ursula digest comes from the same
 [version pins](../deploy/reference/versions.json) as the reference deployment.
+This launcher currently starts Compose detached; the foreground default described
+above applies to the native local launcher.
 
 Generated `compose.json` is a Docker Compose document (JSON is accepted as YAML).
 The printed state directory contains it, the service configurations, and disk
@@ -105,11 +120,11 @@ so the launcher uses regular bridges explicitly.
 
 | Task | Local and Compose behavior |
 | --- | --- |
-| `up` | Create an installation once, or recover its saved history; fail if it is already running or resources need cleanup |
+| `up` | Create an installation once, or recover its saved history; local streams logs until stopped (`--detach` opts out), Compose starts detached; fail if already running or resources need cleanup |
 | `status` | JSON endpoints, realm/PID, state path and manager/container observations; these observations do not grant authority |
 | `endpoints` | JSON URLs and credential-file location, without secrets |
 | `inspect` | Authenticated current Board discovery; unavailable/denied reads fail |
-| `logs SERVICE` | Recent service output; native files survive `down`, container logs disappear when Compose removes containers |
+| `logs SERVICE` | Recent service output; local also accepts `manager` for lifecycle/probe evidence. Native files survive `down`; container logs disappear when Compose removes containers |
 | `restart SERVICE` | Replace that service; replacing `counter` rotates credentials and records fresh ownership for the same PID |
 | `down` | Stop owned services; preserve WAL, configuration, keys, PID and admitted work |
 | `reset` | Delete that stopped installation's data and keys permanently; refuses while managed resources exist |

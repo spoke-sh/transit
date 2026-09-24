@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import secrets
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -45,6 +46,8 @@ def proof(profile):
     def invoke(action, *args, success=True, settings=None):
         command = [sys.executable, "-B", ROOT / "launchers/main.py", profile, action,
                    "--name", installation.name, "--base-port", str(installation.base_port), *args]
+        if profile == "local" and action == "up":
+            command.append("--detach")
         # A developer's .env must never redirect proof resources or publish
         # credentials on their chosen development listener.
         env = {k: v for k, v in os.environ.items() if not k.startswith(("REY_BOARD_", "REY_LAUNCHER_"))}
@@ -242,5 +245,95 @@ def proof(profile):
                 print(f"Failure evidence retained at {installation.path}", file=sys.stderr)
 
 
+def foreground_proof():
+    installation = Installation("local", "foreground-" + secrets.token_hex(3), ports())
+    launcher = Local(installation)
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("REY_BOARD_", "REY_LAUNCHER_"))}
+    command = [sys.executable, "-B", str(ROOT / "launchers/main.py"), "local"]
+    selection = ["--name", installation.name, "--base-port", str(installation.base_port)]
+    output = ROOT / ".cache" / (installation.name + ".log")
+    child = None
+    completed = False
+
+    def invoke(action, *args):
+        return subprocess.check_output([*command, action, *selection, *args], env=env, text=True, timeout=30)
+
+    def wait_for(predicate):
+        deadline = time.monotonic() + 45
+        while time.monotonic() < deadline:
+            try:
+                if predicate():
+                    return
+            except (urllib.error.URLError, ConnectionError, TimeoutError):
+                pass
+            assert child.poll() is None, output.read_text()[-5000:]
+            time.sleep(.1)
+        raise AssertionError(output.read_text()[-5000:])
+
+    try:
+        with output.open("w") as log:
+            child = subprocess.Popen([*command, "up", *selection], env=env,
+                                     stdout=log, stderr=log, start_new_session=True)
+            wait_for(lambda: "Local stack ready." in output.read_text())
+            assert child.poll() is None
+            first = next(p for p in installation.inspect()["observation"]["processes"] if p)
+            invoke("send", "3", "--request-id", "foreground-input")
+            wait_for(lambda: next(p for p in installation.inspect()["observation"]["processes"] if p)["state"] == b"15".hex())
+            # A real child signal exit must be visible even without stderr,
+            # and status/client calls must not truncate the manager's evidence.
+            board = next(row for row in launcher.services() if row["name"] == "board")
+            os.kill(board["pid"], signal.SIGKILL)
+            wait_for(lambda: "Exited exit_code=-1 process=board" in output.read_text())
+            invoke("status")
+            assert "Exited exit_code=-1 process=board" in (installation.path / "manager.log").read_text()
+            assert "Exited exit_code=-1 process=board" in invoke("logs", "manager")
+            invoke("restart", "board")
+            assert child.poll() is None
+            assert next(p for p in installation.inspect()["observation"]["processes"] if p)["pid"] == first["pid"]
+            child.send_signal(signal.SIGINT)
+            assert child.wait(timeout=30) == 0
+            assert not launcher.services()
+            assert installation.manifest.exists() and (installation.path / "wal").exists()
+
+        # A startup failure must stream actual service stderr, exit nonzero,
+        # and clean up its own manager without deleting the saved installation.
+        wal = installation.path / "wal"
+        saved_wal = installation.path / "saved-wal"
+        wal.rename(saved_wal)
+        wal.mkdir()
+        with output.open("w") as log:
+            child = subprocess.Popen([*command, "up", *selection], env=env,
+                                     stdout=log, stderr=log, start_new_session=True)
+            assert child.wait(timeout=60) != 0
+        assert "error:" in output.read_text() and "node failed" in output.read_text(), output.read_text()[-5000:]
+        assert not launcher.services()
+        shutil.rmtree(wal)
+        saved_wal.rename(wal)
+
+        # Termination during startup also stops the owned foreground manager.
+        with output.open("w") as log:
+            child = subprocess.Popen([*command, "up", *selection], env=env,
+                                     stdout=log, stderr=log, start_new_session=True)
+            wait_for(lambda: "Process Compose v" in output.read_text())
+            child.send_signal(signal.SIGTERM)
+            assert child.wait(timeout=30) == 0
+        assert not launcher.services()
+        invoke("reset")
+        completed = True
+        print("local foreground: live logs, visible signal exit, unlocked controls, Ctrl-C, startup failure and termination cleanup passed.")
+    finally:
+        if child is not None and child.poll() is None:
+            child.terminate()
+            child.wait(timeout=45)
+        if installation.manifest.exists():
+            launcher.down()
+        if completed:
+            output.unlink()
+        else:
+            print(f"Foreground proof evidence: {output}, {installation.path}", file=sys.stderr)
+
+
 if __name__ == "__main__":
     proof(sys.argv[1])
+    if sys.argv[1] == "local":
+        foreground_proof()

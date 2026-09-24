@@ -83,6 +83,10 @@ Docker-dependent check. The proof checks:
   unauthenticated reads still fail. Ursula/Transit keep loopback publication.
   Native Board must become ready in Process Compose and stay alive beyond the
   original 30-second probe-failure window.
+- Native foreground startup streams service output and manager exits; a killed
+  Board stays diagnosable across status calls. Other terminals can send and
+  restart while `up` is attached. Ctrl-C, termination during startup, and failed
+  recovery stop only the owned manager and preserve the installation's data.
 
 Successful proofs stop/remove only their owned resources and delete their test
 state. Failed proofs preserve private evidence for inspection after cleanup.

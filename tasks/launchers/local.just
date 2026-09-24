@@ -9,9 +9,10 @@ _default:
 build:
     zig build apps examples board
 
-# Start an owned persistent development stack and print endpoints/access-key path.
-up: build
-    python3 -B launchers/main.py local up
+# Stream a persistent local stack's logs; pass --detach (or -d) for background use.
+[positional-arguments]
+up *args: build
+    python3 -B launchers/main.py local up "$@"
 
 # Stop owned services while preserving history, configuration and credentials.
 down:
@@ -29,7 +30,7 @@ endpoints:
 inspect:
     python3 -B launchers/main.py local inspect
 
-# Show recent logs for one service.
+# Show recent service logs (or manager for native lifecycle/probe evidence).
 logs service="node":
     python3 -B launchers/main.py local logs {{quote(service)}}
 

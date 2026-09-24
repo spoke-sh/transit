@@ -23,9 +23,15 @@ def main():
     parser.add_argument("--name", default=os.environ.get("REY_LAUNCHER_NAME", "default"))
     parser.add_argument("--base-port", type=int, default=os.environ.get("REY_LAUNCHER_BASE_PORT"))
     parser.add_argument("--request-id")
+    parser.add_argument("-d", "--detach", action="store_true", help="Start local services in the background")
     args = parser.parse_intermixed_args()
+    if args.detach and (args.profile != "local" or args.action != "up"):
+        parser.error("--detach is only supported by local up")
     installation = Installation(args.profile, args.name, args.base_port, environment() if args.action == "up" else {})
     launcher = Local(installation) if args.profile == "local" else Compose(installation)
+    if args.profile == "local" and args.action == "up" and not args.detach:
+        launcher.foreground()
+        return
     if args.action == "service":
         if args.profile != "local":
             raise ValueError("Internal service command is local-only")
