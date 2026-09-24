@@ -2,7 +2,7 @@
 const std = @import("std");
 pub const telemetry = @import("telemetry");
 const protocol = @import("transit_protocol");
-pub const Kind = enum { client_request, storage_operation, maintenance_step, recovery, runtime_step, provider_operation, caller_turn, caller_activation };
+pub const Kind = enum { client_request, storage_operation, maintenance_step, delivery_step, recovery, runtime_step, provider_operation, caller_turn, caller_activation };
 pub const Observation = struct {
     span: telemetry.Span,
     event: telemetry.Event,
@@ -27,7 +27,7 @@ pub fn begin(runtime: ?*telemetry.Runtime, kind: Kind, operation: ?[]const u8, p
     const scope: telemetry.Scope = switch (kind) {
         .client_request => .client,
         .storage_operation, .recovery => .storage,
-        .maintenance_step => .maintenance,
+        .maintenance_step, .delivery_step => .maintenance,
         .runtime_step, .provider_operation => .runtime,
         .caller_turn, .caller_activation => .application,
     };
@@ -35,6 +35,7 @@ pub fn begin(runtime: ?*telemetry.Runtime, kind: Kind, operation: ?[]const u8, p
         .client_request => "transit.client.request",
         .storage_operation => "transit.storage.operation",
         .maintenance_step => "transit.maintenance.step",
+        .delivery_step => "transit.delivery.step",
         .recovery => "transit.recovery",
         .runtime_step => "transit.runtime.step",
         .provider_operation => "transit.provider.operation",

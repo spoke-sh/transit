@@ -55,6 +55,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = runtime.module("transit_runtime_substrate") })).step);
     var node_artifact: *std.Build.Step.Compile = undefined;
     var cli_artifact: *std.Build.Step.Compile = undefined;
+    var delivery_artifact: *std.Build.Step.Compile = undefined;
     var controller_artifact: *std.Build.Step.Compile = undefined;
     const services = b.addSystemCommand(&.{ "python3", "-B" });
     const apps_step = b.step("apps", "Install platform executables");
@@ -83,7 +84,7 @@ pub fn build(b: *std.Build) void {
     b.step("probe", "Install the adversarial reference sandbox executable").dependOn(&install_probe.step);
     test_step.dependOn(&probe.step);
     services.addFileArg(b.path("tests/service.py"));
-    for ([_][]const u8{ "transit-node", "rey-cli", "transit-runtime-controller" }) |name| {
+    for ([_][]const u8{ "transit-node", "rey-cli", "transit-runtime-controller", "transit-delivery" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
@@ -98,6 +99,7 @@ pub fn build(b: *std.Build) void {
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_ursula", adapter.module("transit_backend_ursula"));
         if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
         if (std.mem.eql(u8, name, "rey-cli")) cli_artifact = app;
+        if (std.mem.eql(u8, name, "transit-delivery")) delivery_artifact = app;
         if (std.mem.eql(u8, name, "transit-runtime-controller")) controller_artifact = app;
         const install = b.addInstallArtifact(app, .{});
         b.getInstallStep().dependOn(&install.step);
@@ -215,6 +217,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
     }) });
     callers.addArtifactArg(client_probe);
+    callers.addArtifactArg(delivery_artifact);
     test_step.dependOn(&client_probe.step);
     callers.has_side_effects = true;
     callers.stdio = .inherit;

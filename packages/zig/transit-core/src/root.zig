@@ -77,7 +77,9 @@ pub const Record = struct {
     time: ?Time.Sample = null,
     admission: ?Message = null,
     origin: ?protocol.Origin = null,
+    delivery: ?DeliveryRef = null,
 };
+pub const DeliveryRef = struct { id: u64, source: u64, destination: u64 };
 pub const RetryPolicy = enum { unlimited, last_per_principal };
 pub const Genesis = struct {
     version: u32 = protocol.version,
@@ -163,11 +165,32 @@ pub const State = struct {
         return &self.outputs[@intCast(id - 1)].?;
     }
 
+    /// Lowest immutable output ID in the caller's destination scope. No payload
+    /// read grant is needed to route an already committed opaque output.
+    pub fn nextDelivery(self: *const State, caller: u8) !?Outbox {
+        const grant = (try self.principal(caller)).grant;
+        var next: ?Outbox = null;
+        for (self.outputs) |slot| if (slot) |out| {
+            if (out.phase != .pending or (grant.pid != null and grant.pid != out.destination)) continue;
+            if (next == null or out.id < next.?.id) next = out;
+        };
+        return next;
+    }
+
+    pub fn deliveryFor(self: *State, request: Request) !?DeliveryRef {
+        const out: Outbox = switch (request.command) {
+            .deliver => |c| (try self.output(c.output)).*,
+            .deliver_next => (try self.nextDelivery(request.principal)) orelse return error.NoPendingOutput,
+            else => return null,
+        };
+        return .{ .id = out.id, .source = out.source, .destination = out.destination };
+    }
+
     pub fn originOf(self: *State, record: Record) !protocol.Origin {
         return .{ .source = switch (record.request.command) {
             .send => .{ .external = .{ .principal = record.request.principal, .policy_revision = record.policy_revision } },
-            .deliver => |c| blk: {
-                const out = try self.output(c.output);
+            .deliver, .deliver_next => blk: {
+                const out = try self.output((try self.deliveryFor(record.request)).?.id);
                 break :blk .{ .process = .{ .pid = out.source, .turn = out.turn, .output = out.id } };
             },
             .observe => |c| .{ .effect = .{ .id = c.effect, .attempt = c.attempt, .executor = record.request.principal } },
@@ -210,6 +233,7 @@ pub const State = struct {
                 .close => if (p.grant.permissions & permission(.admin) != 0) .admin else .execute,
                 else => .admin,
             },
+            .deliver_next => .delivery,
             .spawn => .spawn,
             .send => .send,
             .turn, .begin_turn => .execute,
@@ -236,6 +260,7 @@ pub const State = struct {
             .send => |c| c.pid,
             .turn => |c| c.pid,
             .begin_turn => |c| c.pid,
+            .deliver_next => p.grant.pid,
             .deliver => |c| c.pid,
             .dispatch => |c| c.pid,
             .observe => |c| c.pid,
@@ -489,36 +514,10 @@ pub const State = struct {
                 p.turn_permit = .{ .id = record.position, .input = c.input };
             },
             .turn => |c| try self.applyTurn(c, record, input),
-            .deliver => |c| {
-                const out = try self.output(c.output);
-                if (out.destination != c.pid) return error.InvalidOutput;
-                if (out.phase != .pending) return error.OutputAlreadyResolved;
-                for (self.outputs) |slot| if (slot) |earlier| {
-                    if (earlier.id < out.id and earlier.source == out.source and earlier.destination == out.destination and earlier.phase == .pending) return error.RouteBlocked;
-                };
-                const destination = try self.process(c.pid);
-                // The controller resolves delivery under a named courier's
-                // current destination grant. Historical source acceptance alone
-                // is not permission to deliver after that grant is revoked.
-                const courier = self.principal(c.courier) catch null;
-                const allowed = if (courier) |p| p.grant.permissions & permission(.send) != 0 and (p.grant.pid == null or p.grant.pid == c.pid) else false;
-                out.courier = c.courier;
-                out.policy_revision = if (courier) |p| p.revision else null;
-                out.phase = if (!allowed) .denied else if (destination.lifecycle == .expired) .expired else if (destination.lifecycle == .terminated) .retired else .delivered;
-                if (out.phase == .delivered) resources.checkProcess(self, destination.pid, record.time) catch |err| {
-                    if (err == error.StateResourceExpired) out.phase = .expired else return err;
-                };
-                if (out.phase == .delivered) if (destination.work_before_ms) |deadline| {
-                    const time = try self.trustedTime(record);
-                    if (time.lower() >= deadline) {
-                        out.phase = .expired;
-                    } else try time.before(deadline);
-                };
-                if (out.phase == .delivered) {
-                    destination.admitted = try std.math.add(u64, destination.admitted, 1);
-                    admission = .{ .pid = c.pid, .value = out.value };
-                }
-                out.resolved_at = record.position;
+            .deliver => |c| admission = try self.deliver(c, record),
+            .deliver_next => {
+                const out = (try self.nextDelivery(req.principal)) orelse return error.NoPendingOutput;
+                admission = try self.deliver(.{ .pid = out.destination, .output = out.id, .courier = req.principal }, record);
             },
             .dispatch => |c| {
                 const e = try self.effect(c.effect);
@@ -612,6 +611,40 @@ pub const State = struct {
         return admission;
     }
 
+    fn deliver(self: *State, c: @FieldType(Command, "deliver"), record: Record) !?Message {
+        var admission: ?Message = null;
+        const out = try self.output(c.output);
+        if (out.destination != c.pid) return error.InvalidOutput;
+        if (out.phase != .pending) return error.OutputAlreadyResolved;
+        for (self.outputs) |slot| if (slot) |earlier| {
+            if (earlier.id < out.id and earlier.source == out.source and earlier.destination == out.destination and earlier.phase == .pending) return error.RouteBlocked;
+        };
+        const destination = try self.process(c.pid);
+        // The controller resolves delivery under a named courier's
+        // current destination grant. Historical source acceptance alone
+        // is not permission to deliver after that grant is revoked.
+        const courier = self.principal(c.courier) catch null;
+        const allowed = if (courier) |p| p.grant.permissions & permission(.send) != 0 and (p.grant.pid == null or p.grant.pid == c.pid) else false;
+        out.courier = c.courier;
+        out.policy_revision = if (courier) |p| p.revision else null;
+        out.phase = if (!allowed) .denied else if (destination.lifecycle == .expired) .expired else if (destination.lifecycle == .terminated) .retired else .delivered;
+        if (out.phase == .delivered) resources.checkProcess(self, destination.pid, record.time) catch |err| {
+            if (err == error.StateResourceExpired) out.phase = .expired else return err;
+        };
+        if (out.phase == .delivered) if (destination.work_before_ms) |deadline| {
+            const time = try self.trustedTime(record);
+            if (time.lower() >= deadline) {
+                out.phase = .expired;
+            } else try time.before(deadline);
+        };
+        if (out.phase == .delivered) {
+            destination.admitted = try std.math.add(u64, destination.admitted, 1);
+            admission = .{ .pid = c.pid, .value = out.value };
+        }
+        out.resolved_at = record.position;
+        return admission;
+    }
+
     pub fn applyTurn(self: *State, c: protocol.Turn, record: Record, input: ?Record) !void {
         try resources.checkProcess(self, c.pid, record.time);
         const p = try self.process(c.pid);
@@ -694,7 +727,7 @@ pub const State = struct {
                 .turn => |turn| try self.checkCapacity(.{ .turn = turn.turn }),
                 else => return error.AdmissionClosed,
             },
-            .begin_turn, .observe, .close_effect, .terminate, .expire, .deliver, .payload_ready, .retire_payload, .payload_deleted => {},
+            .begin_turn, .observe, .close_effect, .terminate, .expire, .deliver, .deliver_next, .payload_ready, .retire_payload, .payload_deleted => {},
             .turn => |c| {
                 if (c.effect != null) return error.AdmissionClosed;
                 for (c.outputs) |output_value| if (output_value != null) return error.AdmissionClosed;
@@ -729,6 +762,12 @@ pub const State = struct {
     pub fn requiresTime(self: *State, command: Command) !bool {
         const pid: u64 = switch (command) {
             .state => |c| return resources.needsTime(self, c),
+            .deliver_next => {
+                for (self.outputs) |slot| if (slot) |out| {
+                    if (out.phase == .pending and try self.requiresTime(.{ .deliver = .{ .pid = out.destination, .output = out.id, .courier = 0 } })) return true;
+                };
+                return false;
+            },
             .checkpoint => return resources.historyNeedsTime(self),
             .spawn => |c| return c.deadline_ms != null,
             .expire => return true,
@@ -903,6 +942,9 @@ pub fn Engine(comptime Store: type) type {
                     },
                     else => null,
                 };
+                if (r.delivery != null or r.request.command == .deliver_next) {
+                    if (!std.meta.eql(r.delivery, try self.state.deliveryFor(r.request))) return error.InvalidAdmission;
+                }
                 if (r.origin) |origin| {
                     if (r.admission == null or !std.meta.eql(origin, try self.state.originOf(r))) return error.InvalidAdmission;
                 }
@@ -920,7 +962,12 @@ pub fn Engine(comptime Store: type) type {
             try self.state.authenticate(signed);
             const req = signed.request;
             if (try self.state.duplicate(req) != null) return error.AlreadyCommitted;
-            const needs_time = try self.state.requiresTime(req.command);
+            const delivery_ref = try self.state.deliveryFor(req);
+            const time_command: Command = if (req.command == .deliver_next)
+                .{ .deliver = .{ .pid = delivery_ref.?.destination, .output = delivery_ref.?.id, .courier = req.principal } }
+            else
+                req.command;
+            const needs_time = try self.state.requiresTime(time_command);
             var r: Record = .{ .position = self.state.position, .policy_revision = (try self.state.principal(req.principal)).revision, .request = req, .time = if (needs_time) (if (self.clock) |clock| try clock.sample() else null) else null };
             const input = switch (req.command) {
                 .turn => |c| try self.nextInput(c.pid, r.position),
@@ -932,6 +979,7 @@ pub fn Engine(comptime Store: type) type {
                 },
                 else => null,
             };
+            r.delivery = delivery_ref;
             var next = self.state;
             r.admission = try next.apply(r, input);
             if (r.admission != null) r.origin = try self.state.originOf(r);
@@ -980,3 +1028,5 @@ test {
 
 pub const inspection = @import("inspection.zig");
 pub const resource_read = @import("resource_read.zig");
+
+pub const delivery_read = @import("delivery_read.zig");

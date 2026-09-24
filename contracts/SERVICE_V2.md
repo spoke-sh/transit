@@ -102,3 +102,27 @@ reclamation must not remove evidence needed by an unconsumed legacy admission.
 Clients must understand this required envelope; signed v2 mutation encodings are
 unchanged. A received effect result is a recorded connector claim, not independent
 proof of the external system's state.
+
+## Courier status and delivery (M8)
+
+`POST /v2/delivery` accepts `Delivery.SignedQuery`: typed `query` fields
+`version=1, realm, principal`, signed with
+`Ed25519(SHA256("rey.transit.delivery.v1\0" || canonical-query-json))`.
+It returns version, realm, authoritative position, principal sequence and pending
+outbox count within the principal's destination scope. Authentication, current
+`delivery` permission (bit 128), and a final tail fence precede disclosure. No
+payload, source catalog or general inspection grant is exposed.
+
+`Command.deliver_next: {}` requires that same capability. It chooses the lowest
+pending output ID in scope and uses the calling principal as courier. Current
+`send` permission independently decides delivery versus recorded denial. The
+existing administrative `deliver` operation remains available. `NoPendingOutput`
+is a definitive rejection with no sequence advance. Both paths persist selection
+evidence; successful admissions also carry authenticated process origins.
+
+A dedicated principal may issue identical `deliver_next` requests at a sequence,
+including after restart. A transport-uncertain live attempt retries exact bytes.
+After restart, authoritative status determines whether the sequence advanced;
+with no application selection parameters, a delayed old request cannot disagree
+with a reconstructed request at that sequence. Other mutation kinds must not
+share this principal. See [the service guide](../apps/transit-delivery/README.md).

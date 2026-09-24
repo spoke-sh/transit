@@ -183,6 +183,7 @@ follow a second concrete implementation, not a speculative plugin system.
 | Entry point | Role |
 | --- | --- |
 | [transit-node](../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
+| [transit-delivery](../apps/transit-delivery/README.md) | Public-client courier for ordered committed outboxes; no storage or handler authority |
 | [transit-runtime-controller](../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
 | [transit-board](../apps/transit-board/README.md) | Inspection-only API host with embedded [TanStack Router frontend](../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |

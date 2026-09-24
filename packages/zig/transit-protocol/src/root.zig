@@ -7,6 +7,7 @@ pub const Schema = @import("Schema.zig");
 pub const Inspection = @import("Inspection.zig");
 pub const Runtime = @import("Runtime.zig");
 pub const State = @import("State.zig");
+pub const Delivery = @import("Delivery.zig");
 pub const max_principals = 16;
 pub const max_processes = 64;
 pub const max_effects = 128;
@@ -20,8 +21,8 @@ pub const max_admission_ceiling = 65536;
 pub const max_entry_bytes = 8192;
 pub const max_checkpoint_bytes = 1024 * 1024;
 
-pub const Permission = enum(u4) { admin, spawn, send, execute, inspect, effect, publish };
-pub const all_permissions: u16 = 0x7f;
+pub const Permission = enum(u4) { admin, spawn, send, execute, inspect, effect, publish, delivery };
+pub const all_permissions: u16 = 0xff;
 pub fn permission(p: Permission) u16 {
     return @as(u16, 1) << @backingInt(p);
 }
@@ -86,6 +87,7 @@ pub const Command = union(enum) {
     send: struct { pid: u64, value: Value },
     begin_turn: struct { pid: u64, generation: u64, input: u64 },
     turn: Turn,
+    deliver_next: void,
     deliver: struct { pid: u64, output: u64, courier: u8 },
     dispatch: struct { pid: u64, effect: u64, reconcile_before_ms: ?u64 = null, max_observations: u16 = max_effect_observations },
     observe: struct { pid: u64, effect: u64, attempt: u64, result: ?Value },
@@ -193,6 +195,7 @@ test {
 
 /// Stable wire rejection codes. Unknown internal failures map to AuthorityUnavailable.
 pub const ErrorCode = enum {
+    NoPendingOutput,
     InvalidStateKey,
     InvalidStateMutation,
     InvalidStateView,

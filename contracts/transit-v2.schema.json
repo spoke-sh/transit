@@ -15,6 +15,13 @@
     },
     "routes": [
       {
+        "path": "/v2/delivery",
+        "method": "POST",
+        "request": "SignedDeliveryQuery",
+        "response": "DeliveryStatus",
+        "failure": "ErrorResponse"
+      },
+      {
         "path": "/v2/state",
         "method": "POST",
         "request": "SignedStateQuery",
@@ -53,7 +60,8 @@
       "execute": 8,
       "inspect": 16,
       "effect": 32,
-      "publish": 64
+      "publish": 64,
+      "delivery": 128
     }
   },
   "$defs": {
@@ -785,6 +793,19 @@
                       null
                     ]
                   }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "deliver_next"
+              ],
+              "properties": {
+                "deliver_next": {
+                  "type": "object",
+                  "maxProperties": 0
                 }
               }
             },
@@ -2705,6 +2726,19 @@
                           null
                         ]
                       }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "deliver_next"
+                  ],
+                  "properties": {
+                    "deliver_next": {
+                      "type": "object",
+                      "maxProperties": 0
                     }
                   }
                 },
@@ -5029,6 +5063,7 @@
         "err": {
           "type": "string",
           "enum": [
+            "NoPendingOutput",
             "InvalidStateKey",
             "InvalidStateMutation",
             "InvalidStateView",
@@ -6079,6 +6114,7 @@
                       "send",
                       "begin_turn",
                       "turn",
+                      "deliver_next",
                       "deliver",
                       "dispatch",
                       "observe",
@@ -8399,6 +8435,168 @@
           null
         ],
         "view": null
+      }
+    },
+    "DeliveryQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "version",
+        "realm",
+        "principal"
+      ],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "realm": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "principal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "x-transit-bits": 8,
+          "x-transit-signed": false
+        }
+      },
+      "required": [
+        "realm",
+        "principal"
+      ],
+      "x-transit-defaults": {
+        "version": 1
+      }
+    },
+    "SignedDeliveryQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "query",
+        "signature"
+      ],
+      "properties": {
+        "query": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "version",
+            "realm",
+            "principal"
+          ],
+          "properties": {
+            "version": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295,
+              "x-transit-bits": 32,
+              "x-transit-signed": false
+            },
+            "realm": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "x-transit-bits": 64,
+              "x-transit-signed": false
+            },
+            "principal": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255,
+              "x-transit-bits": 8,
+              "x-transit-signed": false
+            }
+          },
+          "required": [
+            "realm",
+            "principal"
+          ],
+          "x-transit-defaults": {
+            "version": 1
+          }
+        },
+        "signature": {
+          "type": "array",
+          "minItems": 64,
+          "maxItems": 64,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "x-transit-bits": 8,
+            "x-transit-signed": false
+          }
+        }
+      },
+      "required": [
+        "query",
+        "signature"
+      ],
+      "x-transit-defaults": {}
+    },
+    "DeliveryStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "version",
+        "realm",
+        "position",
+        "principal_sequence",
+        "pending"
+      ],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "realm": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "principal_sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "pending": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "x-transit-bits": 16,
+          "x-transit-signed": false
+        }
+      },
+      "required": [
+        "realm",
+        "position",
+        "principal_sequence",
+        "pending"
+      ],
+      "x-transit-defaults": {
+        "version": 1
       }
     }
   }

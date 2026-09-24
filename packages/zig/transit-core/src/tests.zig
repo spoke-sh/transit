@@ -1143,3 +1143,37 @@ test "authenticated input origins survive recovery and cannot be chosen by paylo
     f.store.entries.items[@intCast(delivered.position)].operation.origin.?.source.process.pid = destination;
     try t.expectError(error.InvalidAdmission, Engine.open(&f.store, f.genesis));
 }
+
+test "dedicated courier scopes delivery and reconciles lost receipts without admin or inspection" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const source = try f.submit(&e, 0, .{ .spawn = .{} });
+    const destination = try f.submit(&e, 0, .{ .spawn = .{} });
+    const other = try f.submit(&e, 0, .{ .spawn = .{} });
+    _ = try f.submit(&e, 0, .{ .own = .{ .pid = source, .expected_generation = 0, .worker = 0 } });
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = source, .value = .{} } });
+    _ = try f.submit(&e, 0, .{ .turn = .{ .pid = source, .generation = 1, .input = input, .result = .{}, .outputs = .{ .{ .pid = other, .value = .{} }, .{ .pid = destination, .value = .{} }, .{ .pid = destination, .value = .{} }, null } } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.delivery) | core.permission(.send), .pid = destination } });
+    const query: core.protocol.Delivery.Query = .{ .realm = 42, .principal = 1 };
+    const before = try core.delivery_read.read(&e, try core.protocol.Delivery.sign(query, f.worker));
+    try t.expectEqual(@as(u16, 2), before.pending);
+    try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .inspect = destination }));
+    try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .terminate = destination }));
+    const pending = try f.request(&e, 1, .{ .deliver_next = {} });
+    f.store.fail_ack = true;
+    try t.expectError(error.LostAcknowledgement, e.submit(pending));
+    var recovered = try Engine.open(&f.store, f.genesis);
+    _ = try recovered.submit(pending);
+    try t.expectEqual(@as(u64, 1), (try recovered.state.process(destination)).admitted);
+    try t.expectEqual(.pending, (try recovered.state.output(1)).phase);
+    try t.expectEqual(.delivered, (try recovered.state.output(2)).phase);
+    // Removing send rights records denial, while removing delivery rights stops
+    // the courier entirely. Neither historical acceptance nor a cached read wins.
+    _ = try f.submit(&recovered, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.delivery), .pid = destination } });
+    _ = try f.submit(&recovered, 1, .{ .deliver_next = {} });
+    try t.expectEqual(.denied, (try recovered.state.output(3)).phase);
+    _ = try f.submit(&recovered, 0, .{ .revoke = 1 });
+    try t.expectError(error.Forbidden, core.delivery_read.read(&recovered, try core.protocol.Delivery.sign(query, f.worker)));
+    try t.expectError(error.Forbidden, recovered.submit(pending));
+}

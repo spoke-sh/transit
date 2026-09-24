@@ -6,10 +6,11 @@ import os
 from pathlib import Path
 import subprocess
 import threading
+import time
 from storage import Fixture, free_port, wait_ready
 
 
-def run(node, cli, counter, byte_log, probe):
+def run(node, cli, counter, byte_log, probe, delivery):
     with Fixture() as store:
         children, logs = [], []
         def start():
@@ -53,7 +54,8 @@ def run(node, cli, counter, byte_log, probe):
                 self.wfile.write(body)
             def do_POST(self):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
-                request = json.loads(body)["request"]
+                envelope = json.loads(body)
+                request = envelope.get("request", envelope.get("query"))
                 principal = request["principal"]
                 if self.path == "/v2/view" and principal in malformed_views:
                     malformed_views.remove(principal)
@@ -64,7 +66,7 @@ def run(node, cli, counter, byte_log, probe):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    if response.status == 200 and "turn" in request["command"]:
+                    if response.status == 200 and any(kind in request.get("command", {}) for kind in ("turn", "deliver_next")):
                         if principal not in dropped:
                             dropped[principal] = (body, data, request["sequence"])
                             self.close_connection = True
@@ -139,12 +141,32 @@ def run(node, cli, counter, byte_log, probe):
                 check(index, "verify")
             assert set(dropped) == verified_retries == malformed_receipts == {1, 2}
             assert not malformed_views
-            # Atomic turn outputs appear once despite lost acknowledgements.
-            command({"deliver": {"pid": pids[1], "output": 1, "courier": 0}})
-            command({"deliver": {"pid": sink, "output": 2, "courier": 0}})
+            # The runnable courier, not the harness, advances committed outputs.
+            seed, courier_public = key("courier.key")
+            command({"grant": {"subject": 3, "public_key": courier_public, "permissions": 132}})
+            courier_config = store.root / "courier.json"
+            courier_config.write_text(json.dumps({"url": f"http://127.0.0.1:{proxy.server_port}", "realm": 61,
+                                                 "principal": 3, "seed_file": str(seed), "interval_ms": 20}))
+            courier_log = (store.root / "courier.log").open("w+")
+            logs.append(courier_log)
+            courier = subprocess.Popen([str(delivery), str(courier_config)], stdout=courier_log, stderr=subprocess.STDOUT)
+            children.append(courier)
             read = store.root / "sink.json"
             read.write_text(json.dumps({"realm": 61, "principal": 0, "sequence": 0, "command": {"inspect": sink}}))
-            sink_view = json.loads(subprocess.check_output([str(cli), "view", str(root), str(read), url], timeout=10))
+            deadline = time.monotonic() + 20
+            while True:
+                sink_view = json.loads(subprocess.check_output([str(cli), "view", str(root), str(read), url], timeout=10))
+                if sink_view["process"]["admitted"] == 1 and 3 in verified_retries:
+                    break
+                assert courier.poll() is None and time.monotonic() < deadline, "courier failed to make progress"
+                time.sleep(.05)
+            courier.kill()
+            courier.wait(timeout=10)
+            # Readiness and a restarted idle courier do not append or redeliver.
+            subprocess.run([str(delivery), str(courier_config), "--check"], check=True, timeout=10)
+            subprocess.run([str(delivery), str(courier_config), "--once"], check=True, timeout=10)
+            source = sink_view["input"]["origin"]["source"]["process"]
+            assert source["pid"] == pids[1] and source["output"] == 2
             assert sink_view["process"]["admitted"] == 1
             assert sink_view["input"]["value"] == b"seed:alpha\0".hex()
             command({"send": {"pid": pids[0], "value": b"5".hex()}})
@@ -167,7 +189,7 @@ def run(node, cli, counter, byte_log, probe):
             authority = start()
             for index in range(2):
                 check(index, "verify")
-            print("Runnable counter and byte-log examples: opaque state, atomic outputs, lost/malformed responses, stale activation and authority/storage recovery passed.")
+            print("Runnable counter and byte-log examples: authenticated automatic delivery, courier recovery, opaque state, atomic outputs, lost/malformed responses, stale activation and authority/storage recovery passed.")
         except BaseException:
             for log in logs:
                 log.flush()

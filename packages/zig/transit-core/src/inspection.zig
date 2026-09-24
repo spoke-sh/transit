@@ -17,6 +17,7 @@ fn event(state: *core.State, record: core.Record, grant: p.Grant, pid: u64) !?i.
     const subject: ?u64 = switch (command) {
         .grant, .revoke, .checkpoint, .inspect => null,
         .state => |c| if (c == .turn) c.turn.turn.pid else null,
+        .deliver_next => if (record.delivery) |ref| ref.destination else null,
         .spawn => record.position,
         .terminate, .expire => |id| id,
         inline else => |c| c.pid,
@@ -54,9 +55,13 @@ fn event(state: *core.State, record: core.Record, grant: p.Grant, pid: u64) !?i.
             if (c.effect != null) result.effect = record.position;
         },
         inline .dispatch, .observe, .close_effect => |c| result.effect = c.effect,
-        .deliver => |c| {
-            const output = try state.output(c.output);
-            if (allowed(grant, output.source)) result.output = c.output;
+        .deliver, .deliver_next => {
+            if (record.delivery) |ref| {
+                if (allowed(grant, ref.source)) result.output = ref.id;
+            } else if (command == .deliver) {
+                const output = state.output(command.deliver.output) catch return result;
+                if (allowed(grant, output.source)) result.output = output.id;
+            }
         },
         else => {},
     }

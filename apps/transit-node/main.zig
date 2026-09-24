@@ -50,7 +50,7 @@ const Server = struct {
         var http = std.http.Server.init(&reader.interface, &writer.interface);
         var request = try http.receiveHead();
         const route: []const u8 = route: {
-            inline for (.{ "/health", "/v2/command", "/v2/view", "/v2/inspect", "/v2/state" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
+            inline for (.{ "/health", "/v2/command", "/v2/view", "/v2/inspect", "/v2/state", "/v2/delivery" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
             break :route "unmatched";
         };
         self.observation.received(&request, route, self.accept_trace_parent);
@@ -60,14 +60,34 @@ const Server = struct {
             try self.engine.refresh();
             return self.json(&request, .ok, .{ .ready = true });
         }
+        const is_delivery = std.mem.eql(u8, request.head.target, "/v2/delivery");
         const is_state = std.mem.eql(u8, request.head.target, "/v2/state");
         const is_inspection = std.mem.eql(u8, request.head.target, "/v2/inspect");
         const is_view = std.mem.eql(u8, request.head.target, "/v2/view");
-        if (request.head.method != .POST or (!is_view and !is_inspection and !is_state and !std.mem.eql(u8, request.head.target, "/v2/command")))
+        if (request.head.method != .POST or (!is_view and !is_inspection and !is_state and !is_delivery and !std.mem.eql(u8, request.head.target, "/v2/command")))
             return self.json(&request, .not_found, .{ .err = "NotFound" });
         const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch
             return self.json(&request, .bad_request, .{ .err = "InvalidBody" });
         defer self.allocator.free(bytes);
+        if (is_delivery) {
+            var query = std.json.parseFromSlice(wire.protocol.Delivery.SignedQuery, self.allocator, bytes, .{}) catch
+                return self.json(&request, .bad_request, .{ .err = "InvalidRequest" });
+            defer query.deinit();
+            const status = core.delivery_read.read(self.engine, query.value) catch |err| {
+                const code: std.http.Status = switch (err) {
+                    error.Unauthorized, error.Forbidden => .forbidden,
+                    error.Conflict => .conflict,
+                    error.InvalidRead => .unprocessable_entity,
+                    else => .service_unavailable,
+                };
+                return self.json(&request, code, .{ .err = if (code == .forbidden) wire.protocol.ErrorCode.AccessDenied else std.meta.stringToEnum(wire.protocol.ErrorCode, @errorName(err)) orelse .AuthorityUnavailable });
+            };
+            self.observation.protocol_outcome = .read;
+            self.observation.realm = status.realm;
+            self.observation.position = status.position;
+            self.observation.operation = "delivery";
+            return self.json(&request, .ok, status);
+        }
         if (is_state) {
             var query = std.json.parseFromSlice(wire.protocol.State.SignedQuery, self.allocator, bytes, .{}) catch
                 return self.json(&request, .bad_request, .{ .err = "InvalidRequest" });
@@ -121,7 +141,7 @@ const Server = struct {
                 error.Unauthorized, error.Forbidden, error.WrongProtocolRealm, error.SignatureVerificationFailed, error.IdentityElement, error.NonCanonical, error.InvalidEncoding => .forbidden,
                 error.Conflict => .conflict,
                 error.RuntimeActivationRequired, error.StaleBinding, error.PendingProviderOperation, error.BindingReplacementUnsupported, error.InvalidBinding, error.ResourceAlreadyBound, error.ProviderOperationClosed, error.ProviderIncarnationMismatch, error.ProviderNotReady, error.AlreadyActivated, error.StaleWorkerIncarnation, error.FreshKeyRequired => .unprocessable_entity,
-                error.InvalidRead, error.ConflictingRetry, error.InvalidSequence, error.SequenceGap, error.RetryHorizonExceeded, error.InvalidGrant, error.UnknownPrincipal, error.UnknownProcess, error.UnknownEffect, error.UnknownOutput, error.InvalidLifetime, error.UnsupportedDeadline, error.UnsupportedWorkload, error.StaleGeneration, error.RetiredProcess, error.InvalidInput, error.MissingInput, error.InvalidTurnPermit, error.MissingTurnPermit, error.TurnAlreadyAuthorized, error.InvalidOutput, error.OutputAlreadyResolved, error.RouteBlocked, error.InvalidEffect, error.InvalidAttempt, error.AttemptAlreadyAuthorized, error.InvalidBudget, error.ReconciliationClosed, error.DeadlineExpired, error.NoDeadline, error.DeadlineNotReached, error.HistoryPinned, error.PendingWork, error.RetentionNotEnabled, error.ProcessCapacity, error.EffectCapacity, error.OutputCapacity, error.Overflow => .unprocessable_entity,
+                error.NoPendingOutput, error.InvalidRead, error.ConflictingRetry, error.InvalidSequence, error.SequenceGap, error.RetryHorizonExceeded, error.InvalidGrant, error.UnknownPrincipal, error.UnknownProcess, error.UnknownEffect, error.UnknownOutput, error.InvalidLifetime, error.UnsupportedDeadline, error.UnsupportedWorkload, error.StaleGeneration, error.RetiredProcess, error.InvalidInput, error.MissingInput, error.InvalidTurnPermit, error.MissingTurnPermit, error.TurnAlreadyAuthorized, error.InvalidOutput, error.OutputAlreadyResolved, error.RouteBlocked, error.InvalidEffect, error.InvalidAttempt, error.AttemptAlreadyAuthorized, error.InvalidBudget, error.ReconciliationClosed, error.DeadlineExpired, error.NoDeadline, error.DeadlineNotReached, error.HistoryPinned, error.PendingWork, error.RetentionNotEnabled, error.ProcessCapacity, error.EffectCapacity, error.OutputCapacity, error.Overflow => .unprocessable_entity,
                 else => .service_unavailable,
             };
             // Never disclose resource existence on authentication/permission failure.
