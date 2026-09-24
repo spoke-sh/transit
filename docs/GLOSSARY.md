@@ -171,6 +171,22 @@ Arrivals and departures are presentation terms mapped to mailbox admissions,
 committed outputs, and effect stages. They do not change those stages' guarantees.
 See [Board](BOARD.md) for the visual language and evidence rules.
 
+## Operational observability
+
+| Term | Meaning |
+| --- | --- |
+| Instrumentation | Code observing service operations through logs, metrics and traces; it does not authorize execution or replace durable evidence. |
+| Operational log | A diagnostic event with an owner, time and structured fields. Delivery and retention can be incomplete; it is not the protocol audit record. |
+| Metric | An aggregated measurement with defined units, labels, scope, freshness and reset behavior. Service-local counts are not automatically exact durable totals. |
+| Trace / span | A trace relates observed operations; a span describes a bounded operation with timing and context. Neither is a complete durable process journey. |
+| Trace context | Identifiers and permitted metadata relating spans/logs across boundaries. Remote context is untrusted and grants no permission. |
+| Service instance | One running incarnation of an executable, used to attribute telemetry and counter resets. Distinct from a Transit PID, activation and provider runtime instance. |
+| Liveness / readiness / progress | Respectively, ability to make required local progress, ability to serve a declared role now, and advancement of workload or maintenance work. None proves ownership. |
+
+See [Observability](OBSERVABILITY.md) for signal ownership, interpretation and
+resource bounds. `transit-observability` is the planned Transit-specific
+instrumentation package; Board owns its service instrumentation separately.
+
 ## Monorepo and deployment
 
 | Term | Meaning |

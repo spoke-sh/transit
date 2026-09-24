@@ -18,6 +18,7 @@ Follow the contracts for the area you change:
 | Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/RETENTION.md) |
 | Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [public protocol package](packages/zig/transit-protocol/README.md) |
 | Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [M2 plan](docs/roadmap/M2.md) |
+| Service logs, metrics, traces, probes | [Observability](docs/OBSERVABILITY.md), [M2 follow-up](docs/roadmap/M2-OBSERVABILITY.md) |
 | Behaviors, supervision, names | [Station](docs/STATION.md) |
 | Effects, capture, secret interpolation | [Connectors](docs/CONNECTORS.md) |
 | Kubernetes, provider bindings, recovery | [Deployment](docs/DEPLOYMENT.md), [runtime contract](contracts/RUNTIME_SUBSTRATE_V1.md) |
@@ -55,6 +56,10 @@ expanding framework or real-effect integrations.
 - Keep Board inspection-only for M2. Use public `transit-client` read surfaces;
   no raw storage/provider access, hidden mutations, or unqualified cached views.
   Preserve source evidence and kernel facts when adding interpretation lenses.
+- Keep instrumentation with its domain owner and I/O outside deterministic core.
+  Bound telemetry work, cardinality and sinks; exclude credentials and payloads.
+  Preserve machine stdout and distinguish transport attempts from durable results.
+  Telemetry loss or failure must not change authority or stall control progress.
 - Keep Kubernetes/Substrate as the reference runtime and AX excluded. Providers
   handle physical lifecycle; durable Transit history remains execution authority.
 - Give real libraries their own manifests, direct dependencies, modules, and

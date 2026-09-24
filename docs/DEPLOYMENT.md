@@ -17,6 +17,11 @@ These trusted development profiles use direct recorded ownership; the reference
 adds provider reconciliation and sandbox isolation. Its current launcher remains
 a qualification harness, not a persistent application installer.
 
+Planned [service instrumentation](OBSERVABILITY.md) uses the same event meanings
+across these profiles, with executable-owned configuration and bounded sinks.
+Service, launcher and provider diagnostics identify their own instances; telemetry
+availability never determines Transit ownership or changes retention authority.
+
 ## Reference architecture
 
 Kubernetes manages the infrastructure that hosts Rey, persistent Ursula, and

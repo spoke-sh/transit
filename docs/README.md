@@ -18,6 +18,7 @@ are experimental; their bounded implementation does not imply support for every 
 | [Streams](STREAMS.md) | Mailboxes, ordering, durable admission, and delivery |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
 | [Board](BOARD.md) | Planned inspection UI/API, observation semantics, and higher-level lenses |
+| [Observability](OBSERVABILITY.md) | Planned Board/Transit instrumentation, correlation, signal semantics, and resource limits |
 | [Station](STATION.md) | Planned behaviors, supervision, and registries |
 | [Connectors](CONNECTORS.md) | Planned HTTP capture, attempts, and bounded reconciliation |
 | [Deployment](DEPLOYMENT.md) | Runtime bindings, recovery, isolation, and portability |

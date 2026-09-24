@@ -173,6 +173,10 @@ and protocol assertions belong under [tests/](../tests/README.md).
 
 ### Planned components
 
+- `packages/zig/transit-observability`, module `transit_observability`: shared
+  Transit event vocabulary and instrumentation interfaces. Board owns its HTTP
+  instrumentation; neutral formatting/sink/context plumbing has a separate
+  [design gate](OBSERVABILITY.md#ownership-and-package-boundaries).
 - `packages/zig/station`, module `station`: GenServer, supervision, registries,
   request/reply, and retention helpers over the public client.
 - `packages/zig/station-http`, module `station_http`: exchange contracts, capture,
@@ -203,6 +207,12 @@ required discovery/history surfaces belong to Transit, not a Board backdoor into
 storage. UI and agent consumers share a versioned OpenAPI contract. Views remain
 derived, permissioned, bounded, and explicit about freshness and missing history.
 See [BOARD.md](BOARD.md) and [M2](roadmap/M2.md) for the design and proof gates.
+
+[Service observability](OBSERVABILITY.md) is a planned M2 follow-up across Board,
+Transit services, clients, adapters and callers. Owners define their signals;
+executables configure bounded sinks and correlation. Core stays deterministic,
+and telemetry remains lossy operational evidence with no execution authority.
+Instrumentation comes first; collectors and remote export are later scope.
 Measure latency, throughput, recovery time, and resident memory before choosing
 scaling or latency targets.
 

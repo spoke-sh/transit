@@ -160,6 +160,13 @@ existence or old receipts. Audit privileged accepted operations durably; bound
 and rate-limit rejection telemetry so unauthenticated traffic cannot fill the
 authoritative journal. Audit records omit credentials and unnecessary payloads.
 
+The [observability design](OBSERVABILITY.md) applies these boundaries to planned
+service instrumentation. Use allowlisted fields and protected sinks; omit
+payloads, credentials and raw URLs. Trace context and diagnostic request IDs are
+untrusted correlation hints, never principals, grants or proof of an outcome.
+Future telemetry endpoints/exporters need their own scoped access and retention
+policy; Board read access does not grant access to every service's diagnostics.
+
 A live read authorizes a bounded batch or interval, not unlimited future access.
 Specify that bound and the point at which revocation prevents the next read
 authorization; bytes already released cannot be recalled. This distinguishes

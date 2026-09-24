@@ -211,6 +211,11 @@ history are outside M2.
 
 M2's [implementation sequence and exit criteria](roadmap/M2.md) cover the API,
 embedded build, live UI, access control, retention gaps, and lens fallback.
+The planned [M2 observability follow-up](roadmap/M2-OBSERVABILITY.md) instruments
+Board's HTTP/session lifecycle and correlates its public client calls with Transit.
+These operational signals follow the shared [observability rules](OBSERVABILITY.md)
+and do not change Board's evidence-backed inspection API or require a collector.
+
 Operational controls, multi-user delegation/federation, a complete Transit SDK
 in another language, arbitrary dashboards, and full observability infrastructure
 remain separate work. Metrics or deployment telemetry may enrich later views;
