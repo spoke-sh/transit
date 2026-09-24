@@ -19,7 +19,9 @@ def main():
     revision = run("git", "rev-parse", "HEAD", capture_output=True, text=True).stdout.strip()
     # A separate clone leaves the user's working tree, worktree registrations,
     # launchers and build outputs alone. Keep paths short for Unix sockets.
-    directory = tempfile.mkdtemp(prefix="transit-ci-")
+    # nix develop's TMPDIR disappears with the shell, even after a failure.
+    # Use a stable, short path so retained evidence survives that shell exit.
+    directory = tempfile.mkdtemp(prefix="transit-ci-", dir="/tmp")
     try:
         checkout = Path(directory) / "src"
         run("git", "clone", "--quiet", "--local", "--no-hardlinks", "--no-checkout", str(ROOT), str(checkout))
