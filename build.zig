@@ -112,6 +112,14 @@ pub fn build(b: *std.Build) void {
         }
         test_step.dependOn(&app.step);
     }
+    const readiness_caller = b.addExecutable(.{ .name = "transit-readiness-caller", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/readiness_client.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
+    }) });
+    b.step("readiness-caller", "Install the runtime readiness caller proof").dependOn(&b.addInstallArtifact(readiness_caller, .{}).step);
+    test_step.dependOn(&readiness_caller.step);
     const examples_step = b.step("examples", "Install runnable example applications");
     const upgrade_tests = b.addSystemCommand(&.{ "python3", "-B" });
     upgrade_tests.addFileArg(b.path("tests/runtime_upgrade.py"));

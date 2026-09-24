@@ -47,7 +47,12 @@ count, authoritative position and principal sequence, without payloads. A scope
 whose oldest output needs unavailable trusted time can stall that courier; clock
 health and scope partitioning remain operational concerns.
 
+Inspect pending count and sequence with `rey-cli delivery SEED QUERY URL`, where
+QUERY contains `{"realm": 42, "principal": 5}` for the configured identity. The
+CLI signs this read in its separate delivery domain; it consumes no sequence.
+
 `just test::callers` runs real Zig applications with this service, drops receipts,
 checks byte-identical retries and restarts it. Core tests prove scope restrictions,
-revocation and terminal denial. Launcher integration belongs to
-[M8 qualification](../../docs/roadmap/M8.md).
+revocation and terminal denial. Local, Compose and reference launchers deploy
+this service; the same public Zig caller checks a queued output across courier
+and authority restarts in [M8 qualification](../../docs/roadmap/M8.md).

@@ -6,7 +6,7 @@ environment's tasks. Use double colons between task groups.
 
 | Environment | Purpose | Services and limits |
 | --- | --- | --- |
-| `local` | Fast iteration without Docker or Kubernetes | Native disk Ursula, Transit node, maintenance, counter example and embedded Board, managed by Process Compose |
+| `local` | Fast iteration without Docker or Kubernetes | Native disk Ursula, Transit node, maintenance, delivery courier, counter example and embedded Board, managed by Process Compose |
 | `compose` | Check container packaging, mounts, service discovery and restart | The same scenario in Docker Compose; official pinned Ursula image and static Zig images |
 | `reference` | Qualify the deployment target | Kubernetes/Substrate, real provider controller, gVisor workers and recovery/isolation proofs; [reference runbook](../deploy/reference/README.md) |
 
@@ -54,8 +54,9 @@ Restart is refused while an update is pending. Readiness failure remains visible
 there is no automatic image/history rollback.
 
 Updates read supported `.env` settings for the selected roles. Restarts reuse
-saved configuration. Topology changes to Process Compose require `down`/`up`;
-`update` replaces existing services, not arbitrary manager topology. Source
+saved configuration. General topology changes to Process Compose require `down`/`up`.
+The coordinated M8 upgrade explicitly replaces a pre-M8 manager to add delivery;
+its foreground attachment ends, so use `attach` afterward. Source
 watching and frontend HMR remain future work.
 
 The example counter's update contract is `code=1` with the same state encoding.
@@ -71,6 +72,16 @@ a fresh pod/key/generation. Retrying does not redispatch effects.
 An existing local/Compose installation from before identified artifacts needs
 one `down`/`up` cycle to select binaries and load the new manager configuration.
 Its durable data and keys are retained.
+
+Pre-M8 identified installations need a coordinated `update` with no service
+names: read envelopes changed and node, callers, Board and the courier must match.
+Partial upgrades are refused until delivery is selected. Run this while the
+reference installation is running on its previous version; a stopped reference
+installation must first be started with that version, because its bound workload
+requires the recorded image-upgrade protocol. Stopped local/Compose installations
+can run `update` to select compatible artifacts, then `up`. Existing genesis,
+state and creation policy stay unchanged; new installations opt into the M8
+initialization barrier. Downgrading a realm that accepted M8 commands is unsupported.
 
 ## Start locally
 
@@ -268,7 +279,9 @@ startup failures can leave resources for inspection; run `down` before trying
 
 The counter has PID-scoped execute/inspect permission. Board has a separate
 realm-wide inspection-only principal, and maintenance has its separate
-admin/effect principal. The host provisioner retains the root seed and serializes
+admin/effect principal. Delivery uses principal 5 with delivery/send only and
+receives no storage credentials. It runs in every profile, has a signed status
+probe, and resumes committed outboxes after restart. The host provisioner retains the root seed and serializes
 its signed operations. Do not concurrently issue unrelated commands with that
 root identity. Native programs run as your user and share that user's filesystem
 and network access: their credential files are not a sandbox boundary.
@@ -369,7 +382,7 @@ or rate-limited.
 
 `REY_LOG_LEVEL` and `REY_LOG_FORMAT` set installation-wide defaults. Override
 either field per service with `REY_BOARD_LOG_*`, `REY_NODE_LOG_*`,
-`REY_MAINTENANCE_LOG_*`, `REY_COUNTER_LOG_*`, or reference `REY_CONTROLLER_LOG_*`.
+`REY_MAINTENANCE_LOG_*`, `REY_DELIVERY_LOG_*`, `REY_COUNTER_LOG_*`, or reference `REY_CONTROLLER_LOG_*`.
 Levels are `debug`, `info`,
 `warn`, `error`, and `off`; formats are `text` and `json`. Precedence is the
 per-service variable, global variable, saved service value, then the default:
@@ -442,7 +455,8 @@ builds; [updates.py](updates.py) saves and resumes deployment plans.
 [logs.py](logs.py) owns native manager-log rotation.
 Python is development infrastructure glue; the actual services and caller stay
 in Zig. Service config semantics belong to the
-[node](../apps/transit-node/README.md), [Board](../apps/transit-board/README.md), and
+[node](../apps/transit-node/README.md), [delivery](../apps/transit-delivery/README.md),
+[Board](../apps/transit-board/README.md), and
 [counter](../examples/counter/README.md) guides.
 
 Keep defaults and scenario provisioning shared rather than maintaining divergent
@@ -453,7 +467,11 @@ work. The current launcher exercises the kernel and Board before Station lands.
 ## Example state resources
 
 New installations provision a PID-owned, required KV resource named `counter`
-before the first activation. Lifetime and history retention remain unlimited.
+before the first activation. New manifests additionally record `runtime_profile: 1`:
+creation declares the required name, provisioning retries exact requests, and an
+explicit initialization operation releases the handler barrier. Lifetime and
+history retention remain unlimited; launchers do not opt applications into catalog
+collection. Manifests predating that profile retain their original creation request.
 The caller receives resource inspect/read/write; Board receives metadata inspect
 only. The process **State** tab links to its resource, and Board does not decode
 the counter value. Operator scripts can use the signed CLI state endpoint to

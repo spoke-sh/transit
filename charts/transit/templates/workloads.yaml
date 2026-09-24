@@ -1,4 +1,4 @@
-{{- range $component := list "node" "ursula" "maintenance" "board" "initialize" "controller" }}
+{{- range $component := list "node" "ursula" "maintenance" "board" "initialize" "controller" "delivery" }}
 {{- $settings := index $.Values $component }}
 {{- if $settings.enabled }}
 {{- $ctx := dict "root" $ "component" $component }}
@@ -97,6 +97,12 @@ spec:
                   value: {{ regexReplaceAll "^https?://" $settings.config.public_origin "" | quote }}
               {{- end }}
             periodSeconds: 2
+          {{- else if eq $component "delivery" }}
+          readinessProbe:
+            exec:
+              command: [/bin/transit-delivery, /config/config.json, --check]
+            periodSeconds: 5
+            timeoutSeconds: 6
           {{- else if eq $component "controller" }}
           readinessProbe:
             exec:
@@ -108,7 +114,7 @@ spec:
             - {name: config, mountPath: /config, readOnly: true}
             {{- if eq $component "ursula" }}
             - {name: data, mountPath: /data}
-            {{- else if has $component (list "maintenance" "board" "controller") }}
+            {{- else if has $component (list "maintenance" "board" "controller" "delivery") }}
             - {name: secrets, mountPath: /secrets, readOnly: true}
             {{- if eq $component "controller" }}
             - {name: provider, mountPath: /provider, readOnly: true}
@@ -127,7 +133,7 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: {{ default (include "transit.name" $ctx) $settings.persistence.existingClaim }}
-        {{- else if has $component (list "maintenance" "board" "controller") }}
+        {{- else if has $component (list "maintenance" "board" "controller" "delivery") }}
         - name: secrets
           secret:
             secretName: {{ required (printf "%s.existingSecret is required; never put credentials in values" $component) $settings.existingSecret }}

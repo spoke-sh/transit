@@ -70,6 +70,20 @@ processes:
     depends_on:
       provision: {condition: process_completed_successfully}
 
+  delivery:
+    <<: *managed
+    command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} delivery 2>&1'
+    log_location: '{{.STATE_DIR}}/delivery.log'
+    environment: ['LOG_LEVEL={{.DELIVERY_LOG_LEVEL}}', 'LOG_FORMAT={{.DELIVERY_LOG_FORMAT}}']
+    depends_on:
+      provision: {condition: process_completed_successfully}
+    readiness_probe:
+      exec:
+        command: '{{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} delivery-probe'
+      period_seconds: 2
+      timeout_seconds: 6
+      failure_threshold: 15
+
   board:
     <<: *managed
     command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} board 2>&1'

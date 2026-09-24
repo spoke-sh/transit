@@ -24,8 +24,13 @@ class Compose:
             # their first up selects immutable image identities.
             prefix = values.get("REY_COMPOSE_IMAGE_PREFIX")
             if prefix:
-                for role, artifact in (("NODE", "transit-node"), ("BOARD", "transit-board"), ("COUNTER", "example-counter")):
+                for role, artifact in (("NODE", "transit-node"), ("BOARD", "transit-board"), ("COUNTER", "example-counter"), ("DELIVERY", "transit-delivery")):
                     values.setdefault("REY_COMPOSE_" + role + "_IMAGE", prefix + "/" + artifact)
+            # New topology must not strand pre-M8 installations. These defaults
+            # permit status/down only; startup/update writes identified images.
+            values.setdefault("REY_COMPOSE_DELIVERY_IMAGE", "transit-delivery:unselected")
+            values.setdefault("REY_COMPOSE_DELIVERY_LOG_LEVEL", "info")
+            values.setdefault("REY_COMPOSE_DELIVERY_LOG_FORMAT", "json")
             env.update(values)
             config = ROOT / "docker-compose.yaml"
         else:
@@ -69,9 +74,9 @@ class Compose:
                   "URSULA_PORT": str(base), "TRANSIT_PORT": str(base + 1),
                   "BOARD_HOST": self.installation.board["host"], "BOARD_PORT": str(self.installation.board["port"])}
         selected = self.installation.artifacts.read("selected")
-        for role, artifact in (("NODE", "transit-node"), ("BOARD", "transit-board"), ("COUNTER", "example-counter")):
+        for role, artifact in (("NODE", "transit-node"), ("BOARD", "transit-board"), ("COUNTER", "example-counter"), ("DELIVERY", "transit-delivery")):
             values[role + "_IMAGE"] = selected[artifact]["image"]
-        for role in ("node", "board", "counter", "maintenance"):
+        for role in ("node", "board", "counter", "maintenance", "delivery"):
             values.update({role.upper() + "_" + key: value for key, value in self.installation.service_environment(role).items()})
         write(self.path / "compose.env.json", {"REY_COMPOSE_" + key: value for key, value in values.items()})
         self.docker("config", "--quiet")
@@ -90,7 +95,7 @@ class Compose:
         self.ready("node", self.installation.url + "/health")
         self.installation.provision()
         self.installation.activate()
-        self.docker("up", "-d", "maintenance", "counter", "board")
+        self.docker("up", "-d", "maintenance", "delivery", "counter", "board")
         if not detached:
             self.manager = self.docker("logs", "--follow", "--tail", "200", spawn=True)
         self.ready("board", self.installation.board_url + "/health", self.installation.board_headers)
@@ -226,6 +231,7 @@ class Compose:
                 self.ready(role, self.installation.board_url + "/health", self.installation.board_headers)
             elif role == "node":
                 self.ready(role, self.installation.url + "/health")
+                self.installation.provision()
             else:
                 time.sleep(.5)
                 if not any(r["Service"] == role and r["State"] == "running" for r in self.services()):

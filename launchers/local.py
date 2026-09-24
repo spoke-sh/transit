@@ -56,7 +56,7 @@ class Local:
                   "STATE_DIR_Q": shlex.quote(str(self.path)),
                   "URSULA_PORT": installation.load()["base_port"],
                   "TRANSIT_PORT": installation.load()["base_port"] + 1}
-        for role in ("node", "board", "counter", "maintenance"):
+        for role in ("node", "board", "counter", "maintenance", "delivery"):
             values.update({role.upper() + "_" + key: value for key, value in installation.service_environment(role).items()})
         # Only values are generated. Disable Process Compose's environment
         # expansion so literal dollars in quoted paths cannot be reinterpreted.
@@ -183,7 +183,16 @@ class Local:
 
     def apply_update(self, operation):
         from updates import publish, completed
+        topology_upgrade = not any(p["name"] == "delivery" for p in self.services())
         publish(self, operation)
+        if topology_upgrade:
+            # Process Compose cannot add a service to a live manager. Replace
+            # the owned topology and recover the same durable PID with new code.
+            self.down()
+            self.up(detached=True)
+            for role in operation["services"]:
+                completed(self, operation, role)
+            return
         for role in operation["services"]:
             if role not in operation["completed"]:
                 self.restart(role)
@@ -225,6 +234,9 @@ class Local:
             command = [self.installation.artifacts.binary("example-counter"), self.path / "counter/config.json"]
         elif name == "board":
             command = [self.installation.artifacts.binary("transit-board"), self.path / "board/config.json"]
+        elif name in ("delivery", "delivery-probe"):
+            command = [self.installation.artifacts.binary("transit-delivery"), self.path / "delivery/config.json"]
+            if name == "delivery-probe": command.append("--check")
         elif name == "maintenance":
             command = [self.installation.artifacts.binary("transit-node"), self.path / "maintenance/config.json", "--maintain"]
         else:

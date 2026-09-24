@@ -2,13 +2,13 @@
 
 [Transit](../../docs/TRANSIT.md) is the streaming runtime subsystem. This chart
 packages its current single-realm deployment: a node, disk-backed Ursula,
-optional maintenance, [Board](../../apps/transit-board/README.md), a runtime controller, and
+optional maintenance, [delivery](../../apps/transit-delivery/README.md), [Board](../../apps/transit-board/README.md), a runtime controller, and
 Agent Substrate worker capacity. Rey is the intended downstream trading
 application.
 
 The [reference proof](../../deploy/reference/README.md) installs this chart and
 qualifies controller/worker recovery, persistent storage, maintenance, and Board
-isolation. It packages the current bounded reference profile through M7;
+isolation. It packages the current bounded reference profile through M8;
 it is not an HA production installer.
 
 ## Resources and values
@@ -24,15 +24,16 @@ and validated by their binaries; the chart does not duplicate those schemas.
 | `ursula` | One Recreate Deployment, private Service, disk-WAL ConfigMap and retained PVC. Uses the official pinned image. Supply `persistence.existingClaim` to reuse storage; otherwise `size` and optional `storageClass` configure a new claim. |
 | `initialize` | Explicit one-time Job using the node image/config. Disabled by default and never an automatic Helm hook. |
 | `maintenance` | Optional separate single-replica Deployment and ConfigMap. Supply `existingSecret` containing `seed` and `config.principal` with its recorded admin/effect grant. Uses the node image with `--maintain`. |
+| `delivery` | Optional single-replica Recreate courier. Supply `image`, `existingSecret` with `seed`, `config.realm` and a dedicated `config.principal` granted delivery/send. Its signed exec probe reads status; it has no storage mount or Kubernetes token. |
 | `board` | Optional Deployment, private Service and ConfigMap. Supply `image`, `existingSecret` containing the Transit `seed`, and `config` with realm, inspection principal and public origin. |
 | `controller` | Optional one-PID Recreate Deployment with a PID-scoped Transit seed, projected provider/API tokens, public trust-bundle read permission and namespace-local worker-log access. Supply its packaged image and provider configuration. |
 | `workerPools` | Named version-specific pools; keep old capacity until a recorded workload switch has reconciled and a fresh activation is established. |
 | `workerPool` | Optional Substrate WorkerPool. Supply `spec` and any workload selector labels. Requires the pinned Substrate CRD/controller already installed. |
 
 Names default to `<release>-<component>` and can be overridden per component.
-All services listen on port 8080. The chart fixes listener/credential paths and
+HTTP services listen on port 8080; the courier has no listener. The chart fixes listener/credential paths and
 sets internal service URLs; disable Ursula and provide `node.config.ursula_url`
-for an external backend. Board requires the chart's node. Log level/format and
+for an external backend. Board and delivery require the chart's node. Log level/format and
 resource requests/limits are per component. Config changes trigger replacement
 through a checksum; externally rotated Secrets require an explicit rollout.
 
@@ -48,8 +49,8 @@ Choose an explicit Kubernetes context and namespace. Prepare a private values
 file with the public genesis, node image, bucket/journal and any desired options.
 Keep the root seed outside Helm. Generate its public key with `rey-cli public-key`
 as described in the [CLI guide](../../apps/rey-cli/README.md). Create Board and
-maintenance Secrets separately, and record their grants through the signed
-Transit API before enabling either service. The chart creates no principals,
+maintenance/delivery Secrets separately, and record their grants through the
+signed Transit API before enabling those services. The chart creates no principals,
 grants, example processes, Actor templates or runtime bindings.
 
 With `TRANSIT_CONTEXT`, `TRANSIT_NAMESPACE` and `TRANSIT_VALUES` pointing to that
@@ -59,12 +60,12 @@ context, namespace and values file, install a **new** realm in three phases:
 # Wait for storage before bootstrap. Keep Board and maintenance disabled.
 helm upgrade --install transit charts/transit \
   --kube-context "$TRANSIT_CONTEXT" -n "$TRANSIT_NAMESPACE" --create-namespace \
-  -f "$TRANSIT_VALUES" --set node.enabled=false,initialize.enabled=false,board.enabled=false,maintenance.enabled=false --wait
+  -f "$TRANSIT_VALUES" --set node.enabled=false,initialize.enabled=false,board.enabled=false,maintenance.enabled=false,delivery.enabled=false --wait
 
 # Deliberately initialize once; the job fails rather than hiding a failure.
 helm upgrade transit charts/transit \
   --kube-context "$TRANSIT_CONTEXT" -n "$TRANSIT_NAMESPACE" \
-  -f "$TRANSIT_VALUES" --set node.enabled=false,initialize.enabled=true,board.enabled=false,maintenance.enabled=false --wait --wait-for-jobs
+  -f "$TRANSIT_VALUES" --set node.enabled=false,initialize.enabled=true,board.enabled=false,maintenance.enabled=false,delivery.enabled=false --wait --wait-for-jobs
 
 # Normal service startup and all subsequent upgrades use recovery only.
 helm upgrade transit charts/transit \

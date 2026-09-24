@@ -22,7 +22,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-SERVICES = ("ursula", "node", "maintenance", "counter", "board")
+SERVICES = ("ursula", "node", "maintenance", "delivery", "counter", "board")
 
 
 def read_json(response, limit=256 * 1024):
@@ -173,7 +173,7 @@ class Installation:
         write(self.path / "operator/sequence.json", {"sequence": 0, "pending": None})
         (self.path / "wal").mkdir(mode=0o700)
         write(self.manifest, {"version": 1, "profile": self.profile, "name": self.name,
-              "state_profile": 1,
+              "state_profile": 1, "runtime_profile": 1,
               "project": "rey-" + self.profile + "-" + secrets.token_hex(6),
               "realm": secrets.randbelow(2**31 - 1) + 1, "base_port": base, "root_public": root_public})
         self.configs()
@@ -193,6 +193,9 @@ class Installation:
         write(self.path / "host-node.json", {**node, "ursula_url": f"http://127.0.0.1:{base}"})
         write(self.path / "maintenance/config.json", {**node, "maintenance": {
               "principal": 3, "seed_file": "/maintenance/seed.key" if container else str(self.path / "maintenance/seed.key")}})
+        self.key("delivery/seed.key")
+        write(self.path / "delivery/config.json", {"url": self.upstream, "realm": config["realm"],
+              "principal": 5, "seed_file": "/delivery/seed.key" if container else str(self.path / "delivery/seed.key")})
         pid_file = self.path / "pid.json"
         pid = json.loads(pid_file.read_text()) if pid_file.exists() else None
         write(self.path / "board/config.json", {"upstream": self.upstream, "realm": config["realm"],
@@ -290,9 +293,11 @@ backend = "inline"
             return json.loads(receipt.read_text())["receipt"]["position"]
 
     def provision(self):
-        pid = self.command("spawn-counter", {"spawn": {"initial_state": b"0".hex()}})
+        managed = self.load().get("runtime_profile") == 1
+        creation = {"lifecycle": {"create": {"initial_state": b"0".hex(), "required": [b"counter".hex(), None, None, None]}}} if managed else {"spawn": {"initial_state": b"0".hex()}}
+        pid = self.command("spawn-counter", creation)
         write(self.path / "pid.json", pid)
-        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 33)):
+        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 33), (5, "delivery", 132)):
             self.command("grant-" + label, {"grant": {"subject": principal,
                 "public_key": self.key(label + "/seed.key"), "permissions": permissions}})
         if self.load().get("state_profile") == 1:
@@ -301,6 +306,8 @@ backend = "inline"
             self.command("inspect-counter-state", {"state": {"grant": {"resource": resource, "subject": 0, "permissions": 7}}})
             self.command("associate-counter-state", {"state": {"associate": {"pid": pid, "name": b"counter".hex(), "resource": resource}}})
             self.command("board-counter-state", {"state": {"grant": {"resource": resource, "subject": 2, "permissions": 1}}})
+        if managed:
+            self.command("initialize-counter", {"lifecycle": {"initialize": {"pid": pid, "expected_generation": 1}}})
         for value in (7, 5):
             self.command(f"seed-{value}", {"send": {"pid": pid, "value": str(value).encode().hex()}})
         self.configs()

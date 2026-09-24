@@ -1,3 +1,6 @@
+{{- if and .Values.delivery.enabled (not .Values.node.enabled) }}
+{{- fail "delivery requires node.enabled in this chart" }}
+{{- end }}
 {{- if and .Values.initialize.enabled .Values.node.enabled }}
 {{- fail "disable node while initialize.enabled; bootstrap is an explicit separate phase" }}
 {{- end }}
@@ -7,7 +10,7 @@
 {{- if and .Values.board.enabled (not .Values.node.enabled) }}
 {{- fail "board requires node.enabled in this chart" }}
 {{- end }}
-{{- range $component := list "node" "ursula" "maintenance" "board" "controller" }}
+{{- range $component := list "node" "ursula" "maintenance" "board" "controller" "delivery" }}
 {{- $settings := index $.Values $component }}
 {{- if or $settings.enabled (and (eq $component "node") $.Values.initialize.enabled) }}
 {{- $ctx := dict "root" $ "component" $component }}

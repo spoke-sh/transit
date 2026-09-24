@@ -96,3 +96,18 @@ controller:
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: "1", memory: 512Mi}
+
+# Public-client outbox courier; no storage or Kubernetes credentials.
+delivery:
+  enabled: false
+  nameOverride: ""
+  image: ""
+  existingSecret: ""
+  config:
+    principal: 5
+    interval_ms: 100
+    request_timeout_ms: 5000
+  logging: {level: info, format: json}
+  resources:
+    requests: {cpu: 50m, memory: 32Mi}
+    limits: {cpu: "1", memory: 128Mi}

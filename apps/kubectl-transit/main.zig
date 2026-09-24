@@ -17,7 +17,7 @@ const help =
     \\  --timeout SECONDS  Query deadline, 1..120 (default: 15)
     \\  --help / -h        --version
     \\
-    \\Components: node, board, maintenance, controller, ursula, initialize.
+    \\Components: node, board, maintenance, delivery, controller, ursula, initialize.
     \\Select with the NAMESPACE and RELEASE columns from get installations -A.
     \\--release is the Helm release name, not a namespace suffix or Transit PID.
     \\Namespace defaults to the selected kubeconfig context's namespace.
@@ -118,7 +118,7 @@ fn parse(args: []const []const u8) !Options {
         options.command = .board;
     } else if (count == 2 and eql(words[0], "logs")) {
         options.command = .logs;
-        for ([_][]const u8{ "node", "board", "maintenance", "controller", "ursula", "initialize" }) |component| {
+        for ([_][]const u8{ "node", "board", "maintenance", "delivery", "controller", "ursula", "initialize" }) |component| {
             if (eql(words[1], component)) options.component = component;
         }
         if (options.component == null) return error.UnknownComponent;

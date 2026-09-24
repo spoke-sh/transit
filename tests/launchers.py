@@ -121,7 +121,7 @@ def proof(profile):
         for path in installation.path.rglob("*.key"):
             assert path.stat().st_mode & 0o077 == 0, path
             credentials.append(path.read_text())
-        for service in ("ursula", "node", "maintenance", "counter", "board"):
+        for service in ("ursula", "node", "maintenance", "delivery", "counter", "board"):
             output = invoke("logs", service)
             assert all(key not in output for key in credentials)
         admitted = json.loads(invoke("send", "9", "--request-id", "same-input"))
@@ -163,6 +163,14 @@ def proof(profile):
         root_key = (installation.path / "operator/root.key").read_bytes()
         invoke("down")
         assert installation.manifest.exists() and not launcher.services()
+        # A stopped pre-M8 artifact manifest can select the coordinated upgrade
+        # without starting services, changing identity or dropping retained data.
+        selection = installation.artifacts.read("selected")
+        installation.artifacts.select({k: v for k, v in selection.items() if k != "transit-delivery"})
+        invoke("update", "board", "--no-build", success=False)
+        assert "Coordinated artifacts selected" in invoke("update", "--no-build")
+        assert not launcher.services()
+        assert (installation.path / "operator/root.key").read_bytes() == root_key
         invoke("up")
         recovered = observe(25)
         assert recovered["pid"] == first["pid"] and recovered["generation"] > current["generation"]
@@ -244,6 +252,8 @@ def proof(profile):
         assert observe()["lifecycle"] == "terminated"
         invoke("restart", "counter", success=False)
         assert observe()["lifecycle"] == "terminated"
+        from launcher_readiness import exercise as readiness
+        readiness(installation, launcher)
         invoke("down")
         invoke("reset")
         assert not installation.path.exists()

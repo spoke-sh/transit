@@ -16,6 +16,8 @@ VALUES = {
     "board": {"enabled": True, "image": "example.invalid/transit-board:proof", "existingSecret": "board-credentials",
               "config": {"realm": 49, "principal": 4, "public_origin": "https://board.example.invalid:8443"}},
     "maintenance": {"enabled": True, "existingSecret": "maintenance-credentials"},
+    "delivery": {"enabled": True, "image": "example.invalid/transit-delivery:proof", "existingSecret": "delivery-credentials",
+                 "config": {"realm": 49, "principal": 5}},
 }
 
 
@@ -42,7 +44,7 @@ def run():
         assert not any(kind in ("Secret", "Job", "RoleBinding", "ClusterRoleBinding") for kind, _ in manifests)
         pvc = manifests["PersistentVolumeClaim", "test-runtime-ursula"]
         assert pvc["metadata"]["annotations"]["helm.sh/resource-policy"] == "keep"
-        for component in ("node", "ursula", "board", "maintenance"):
+        for component in ("node", "ursula", "board", "maintenance", "delivery"):
             deployment = manifests["Deployment", "test-runtime-" + component]
             assert deployment["spec"]["replicas"] == 1 and deployment["spec"]["strategy"]["type"] == "Recreate"
             spec = deployment["spec"]["template"]["spec"]
@@ -51,7 +53,14 @@ def run():
             assert spec["containers"][0]["securityContext"]["capabilities"]["drop"] == ["ALL"]
             assert "--initialize" not in spec["containers"][0]["args"]
             secrets = [v["secret"]["secretName"] for v in spec["volumes"] if "secret" in v]
-            assert secrets == ([component + "-credentials"] if component in ("board", "maintenance") else [])
+            assert secrets == ([component + "-credentials"] if component in ("board", "maintenance", "delivery") else [])
+        courier = manifests["Deployment", "test-runtime-delivery"]["spec"]["template"]["spec"]
+        assert courier["containers"][0]["readinessProbe"]["exec"]["command"][-1] == "--check"
+        courier_config = json.loads(manifests["ConfigMap", "test-runtime-delivery"]["data"]["config.json"])
+        assert courier_config["url"] == "http://test-runtime-node:8080"
+        assert courier_config["seed_file"] == "/secrets/seed" and "ursula_url" not in courier_config
+        egress = manifests["NetworkPolicy", "test-runtime-delivery"]["spec"]["egress"]
+        assert egress[0]["to"][0]["podSelector"]["matchLabels"]["app.kubernetes.io/component"] == "node"
         board = manifests["Deployment", "test-runtime-board"]["spec"]["template"]["spec"]
         assert {v["name"] for v in board["volumes"]} == {"config", "secrets"}
         assert board["containers"][0]["readinessProbe"]["httpGet"]["httpHeaders"] == [{"name": "Host", "value": "board.example.invalid:8443"}]
@@ -86,7 +95,7 @@ def run():
         assert ("PersistentVolumeClaim", "test-runtime-ursula") in rendered
 
         minimal = copy.deepcopy(VALUES)
-        minimal["board"]["enabled"] = minimal["maintenance"]["enabled"] = False
+        minimal["board"]["enabled"] = minimal["maintenance"]["enabled"] = minimal["delivery"]["enabled"] = False
         boot = copy.deepcopy(minimal)
         boot["node"]["enabled"] = False
         boot["initialize"] = {"enabled": True}
@@ -110,7 +119,7 @@ def run():
         rendered = render(existing)
         assert not any(kind == "PersistentVolumeClaim" for kind, _ in rendered)
         assert rendered["Deployment", "test-runtime-ursula"]["spec"]["template"]["spec"]["volumes"][1]["persistentVolumeClaim"]["claimName"] == "retained-data"
-        for component in ("board", "maintenance"):
+        for component in ("board", "maintenance", "delivery"):
             invalid = copy.deepcopy(VALUES)
             invalid[component]["existingSecret"] = ""
             render(invalid, component + ".existingSecret is required")

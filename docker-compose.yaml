@@ -56,6 +56,20 @@ services:
       - {type: bind, source: '${REY_COMPOSE_STATE:?}/counter', target: /counter, read_only: true, bind: {create_host_path: false}}
     networks: [client]
 
+  delivery:
+    <<: *service
+    image: '${REY_COMPOSE_DELIVERY_IMAGE:?}'
+    command: [/delivery/config.json]
+    environment: {LOG_LEVEL: '${REY_COMPOSE_DELIVERY_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_DELIVERY_LOG_FORMAT:?}'}
+    volumes:
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/delivery', target: /delivery, read_only: true, bind: {create_host_path: false}}
+    networks: [client]
+    healthcheck:
+      test: [CMD, /bin/transit-delivery, /delivery/config.json, --check]
+      interval: 5s
+      timeout: 6s
+      retries: 5
+
   board:
     <<: *service
     image: '${REY_COMPOSE_BOARD_IMAGE:?}'

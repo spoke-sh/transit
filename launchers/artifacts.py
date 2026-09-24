@@ -7,7 +7,7 @@ import shutil
 
 from common import ROOT, run, write
 
-ROLES = {"node": "transit-node", "maintenance": "transit-node", "counter": "example-counter",
+ROLES = {"node": "transit-node", "maintenance": "transit-node", "delivery": "transit-delivery", "counter": "example-counter",
          "board": "transit-board", "controller": "transit-runtime-controller"}
 
 
@@ -115,6 +115,8 @@ class Artifacts:
 
     def initialize(self):
         if self.read("selected"):
+            if "transit-delivery" not in self.read("selected"):
+                raise RuntimeError("Pre-M8 artifacts require a coordinated launcher update without service names; see launchers/README.md")
             return
         candidates = self.build()
         write(self.path / "selected.json", candidates)

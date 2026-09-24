@@ -85,6 +85,8 @@ def run():
         assert recovered["binding"]["incarnation"] == first["binding"]["incarnation"]
         assert recovered["binding"]["workload"] == upgraded["binding"]["workload"]
         assert recovered["binding"]["activation"]["worker_incarnation"] != upgraded["binding"]["activation"]["worker_incarnation"]
+        from launcher_readiness import exercise as readiness
+        readiness(installation, launcher)
         invoke("down")
         invoke("reset")
     except BaseException:

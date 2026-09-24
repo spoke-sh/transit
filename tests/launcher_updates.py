@@ -51,6 +51,7 @@ def exercise(installation, launcher, invoke, observe):
         file = installation.path / "compose.env.json"
         current = json.loads(file.read_text())
         legacy = {key: value for key, value in current.items() if key not in ("REY_COMPOSE_NODE_IMAGE", "REY_COMPOSE_BOARD_IMAGE", "REY_COMPOSE_COUNTER_IMAGE")}
+        legacy = {key: value for key, value in legacy.items() if not key.startswith("REY_COMPOSE_DELIVERY_")}
         legacy["REY_COMPOSE_IMAGE_PREFIX"] = installation.load()["project"]
         try:
             write(file, legacy)

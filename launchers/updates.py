@@ -11,7 +11,16 @@ def update(launcher, names, no_build=False, replace_pending=False):
     installation = launcher.installation
     artifacts = installation.artifacts
     pending = installation.path / "update.json"
-    if not launcher.services():
+    running = bool(launcher.services())
+    legacy_topology = bool(artifacts.read("selected")) and "transit-delivery" not in artifacts.read("selected")
+    if legacy_topology and set(artifacts.roles(names)) != set(artifacts.roles([])):
+        raise RuntimeError("The M8 protocol/topology upgrade requires update without service names")
+    if not running and not (pending.exists() and installation.profile == "local"):
+        if legacy_topology and installation.profile in ("local", "compose") and not pending.exists():
+            target, _ = artifacts.plan([], no_build)
+            publish(launcher, {"selection": target, "configuration": installation.load()})
+            print("Coordinated artifacts selected; run up to recover the stopped installation.")
+            return
         raise RuntimeError("Start the installation before updating it")
     if not artifacts.read("selected"):
         raise RuntimeError("This installation predates identified artifacts; run down then up once")
