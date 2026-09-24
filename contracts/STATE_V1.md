@@ -29,7 +29,7 @@ or multi-stream commit. Larger upload-backed resources require another profile.
 
 | Item | v1 bound |
 | --- | --- |
-| Resource identities | 4 per realm lifetime; retired identities are never reused |
+| Resource identities | 4 working slots; lifetime by default; opt-in collection never reuses identities |
 | Live keys | 32 per resource |
 | Key or association-name bytes | 1–32, opaque byte equality |
 | Value bytes | 0–256, existing canonical lowercase-hex `Value` |
@@ -175,3 +175,7 @@ requirements per principal; unlimited older receipts resolve their at-most-four
 view-opening records in retained history. Revocation denies receipt disclosure
 without undoing the original durable decision. Restoring permission can reveal
 the same original receipt, never a fresh mutation.
+
+[M8 catalog retention](CATALOG_V1.md) can release a reclaimed resource slot only
+after its separate payload/history policy and association/view dependencies allow
+it. This does not relax the four-resource simultaneous bound.

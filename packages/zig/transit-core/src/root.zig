@@ -6,6 +6,7 @@ pub const Ed25519 = protocol.Ed25519;
 pub const Time = @import("Time.zig");
 pub const Runtime = protocol.Runtime;
 pub const resources = @import("resources.zig");
+pub const collection = @import("collection.zig");
 pub const max_principals = protocol.max_principals;
 pub const max_processes = protocol.max_processes;
 pub const max_effects = protocol.max_effects;
@@ -40,7 +41,7 @@ pub const sign = protocol.sign;
 /// provider reconciliation/retirement, revocation, and one final checkpoint.
 pub fn controlRecordBudget(ceiling: u64) u64 {
     return 2 * (ceiling + max_outputs + max_effects) +
-        max_effects * (max_effect_observations + 1) + max_processes * 6 + max_principals + max_payloads * 3 + protocol.State.max_views + protocol.State.max_resources * 2 + 1;
+        max_effects * (max_effect_observations + 1) + max_processes * 6 + max_principals + max_payloads * 3 + protocol.State.max_views + protocol.State.max_resources * 2 + max_outputs + max_effects + max_processes + protocol.State.max_resources + max_payloads + 1;
 }
 pub const Principal = struct {
     grant: Grant,
@@ -50,9 +51,26 @@ pub const Principal = struct {
     receipt: u64 = 0,
 };
 pub const Process = struct {
+    pub fn jsonStringify(self: Process, out: anytype) !void {
+        try out.beginObject();
+        inline for (@typeInfo(Process).@"struct".field_names) |name| {
+            if (comptime std.mem.eql(u8, name, "collection")) {
+                if (self.collection) {
+                    try out.objectField(name);
+                    try out.write(self.collection);
+                }
+            } else {
+                try out.objectField(name);
+                try out.write(@field(self, name));
+            }
+        }
+        try out.endObject();
+    }
+
     pid: u64,
     code: u32,
     allow_trim: bool = false,
+    collection: bool = false,
     owner: ?u8 = null,
     generation: u64 = 0,
     lifecycle: @FieldType(protocol.ProcessView, "lifecycle") = .running,
@@ -161,8 +179,10 @@ pub const State = struct {
     }
 
     pub fn output(self: *State, id: u64) !*Outbox {
-        if (id == 0 or id > self.output_count) return error.UnknownOutput;
-        return &self.outputs[@intCast(id - 1)].?;
+        for (&self.outputs) |*slot| if (slot.*) |*out| {
+            if (out.id == id) return out;
+        };
+        return error.UnknownOutput;
     }
 
     /// Lowest immutable output ID in the caller's destination scope. No payload
@@ -226,7 +246,7 @@ pub const State = struct {
         if (request.version != protocol.version or request.realm != self.realm) return error.WrongProtocolRealm;
         const p = try self.principal(request.principal);
         const required: Permission = switch (request.command) {
-            .grant, .revoke, .own, .terminate, .expire, .checkpoint, .deliver, .runtime_intent, .runtime_observe, .activate, .runtime_upgrade => .admin,
+            .catalog_retention, .collect, .grant, .revoke, .own, .terminate, .expire, .checkpoint, .deliver, .runtime_intent, .runtime_observe, .activate, .runtime_upgrade => .admin,
             .declare_payload, .payload_ready, .retire_payload, .payload_deleted => .admin,
             .state => |c| switch (c) {
                 .open, .turn => .execute,
@@ -250,6 +270,7 @@ pub const State = struct {
                 .turn => |v| v.turn.pid,
                 else => null,
             },
+            inline .catalog_retention, .collect => |c| c.pid,
             .declare_payload => |c| c.pid,
             .payload_ready, .retire_payload, .payload_deleted => |c| c.pid,
             .own => |c| c.pid,
@@ -322,6 +343,8 @@ pub const State = struct {
         if (dependency_pid) |pid| try resources.checkProcess(self, pid, record.time);
         var admission: ?Message = null;
         switch (req.command) {
+            .catalog_retention => |c| try collection.enable(self, c.pid),
+            .collect => |c| try collection.apply(self, c, input),
             .state => |c| try resources.apply(self, c, record, input),
             .declare_payload => |c| {
                 const p = try self.process(c.pid);
@@ -675,8 +698,11 @@ pub const State = struct {
             try self.newWork(p, record);
             if ((try self.principal(record.request.principal)).grant.permissions & permission(.publish) == 0) return error.Forbidden;
             _ = try self.process(out.pid);
-            if (self.output_count == max_outputs) return error.OutputCapacity;
-            self.outputs[@intCast(self.output_count)] = .{ .id = self.output_count + 1, .source = p.pid, .turn = record.position, .index = @intCast(index), .destination = out.pid, .value = out.value };
+            if (self.output_count >= max_counter) return error.Overflow;
+            const free = for (&self.outputs) |*output_slot| {
+                if (output_slot.* == null) break output_slot;
+            } else return error.OutputCapacity;
+            free.* = .{ .id = self.output_count + 1, .source = p.pid, .turn = record.position, .index = @intCast(index), .destination = out.pid, .value = out.value };
             self.output_count += 1;
         };
         if (c.effect) |effect_payload| {
@@ -727,7 +753,7 @@ pub const State = struct {
                 .turn => |turn| try self.checkCapacity(.{ .turn = turn.turn }),
                 else => return error.AdmissionClosed,
             },
-            .begin_turn, .observe, .close_effect, .terminate, .expire, .deliver, .deliver_next, .payload_ready, .retire_payload, .payload_deleted => {},
+            .collect, .begin_turn, .observe, .close_effect, .terminate, .expire, .deliver, .deliver_next, .payload_ready, .retire_payload, .payload_deleted => {},
             .turn => |c| {
                 if (c.effect != null) return error.AdmissionClosed;
                 for (c.outputs) |output_value| if (output_value != null) return error.AdmissionClosed;
@@ -906,6 +932,13 @@ pub fn Engine(comptime Store: type) type {
             return error.MissingInput;
         }
 
+        fn collectionEvidence(self: *Self, c: protocol.Collection) !?Record {
+            const position = (try collection.evidence(&self.state, c)) orelse return null;
+            const entry = (try self.store.read(position)) orelse return error.IncompleteHistory;
+            if (entry != .operation) return error.InvalidHistory;
+            return entry.operation;
+        }
+
         pub fn refresh(self: *Self) !void {
             self.replayTail() catch |err| {
                 if (err != error.HistoryReclaimed) return err;
@@ -933,6 +966,7 @@ pub fn Engine(comptime Store: type) type {
                 if (entry != .operation) return error.InvalidHistory;
                 const r = entry.operation;
                 const input = switch (r.request.command) {
+                    .collect => |c| try self.collectionEvidence(c),
                     .turn => |c| try self.nextInput(c.pid, r.position),
                     .begin_turn => |c| try self.nextInput(c.pid, r.position),
                     .state => |c| switch (c) {
@@ -970,6 +1004,7 @@ pub fn Engine(comptime Store: type) type {
             const needs_time = try self.state.requiresTime(time_command);
             var r: Record = .{ .position = self.state.position, .policy_revision = (try self.state.principal(req.principal)).revision, .request = req, .time = if (needs_time) (if (self.clock) |clock| try clock.sample() else null) else null };
             const input = switch (req.command) {
+                .collect => |c| try self.collectionEvidence(c),
                 .turn => |c| try self.nextInput(c.pid, r.position),
                 .begin_turn => |c| try self.nextInput(c.pid, r.position),
                 .state => |c| switch (c) {

@@ -326,3 +326,13 @@ basic trim/delete recovery. M7 proves associated-state dependencies, KV compacti
 and resource expiry. M9 exposes those semantics through Station suspension and
 supervision. M10 adds connector dependency handling; M11 extends the proofs to
 distributed consumers and broader recovery operations. See [roadmap](roadmap/README.md).
+
+## Working catalog reclamation
+
+[M8 catalog retention](../contracts/CATALOG_V1.md) separates bounded working slots
+from permanent logical identities. Applications opt in before execution; only
+settled/retired entries with resolved dependencies can leave the working catalog.
+Durable allocation frontiers and the retained live set prevent identity reuse
+after checkpoint/trim. This preserves non-revival while explicitly allowing old
+detailed explanations to disappear under the selected history policy. Default
+unlimited retention and quota backpressure remain unchanged.

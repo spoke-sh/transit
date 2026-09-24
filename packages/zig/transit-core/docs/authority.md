@@ -61,7 +61,10 @@ retirement/deletion, and one checkpoint.
 Typed journal entries are capped at 8 KiB and checkpoints at 1 MiB.
 M7 adds at most four view-release and eight resource-retirement/reclamation
 records to that reserve; creation, view opening, association changes and grants
-are refused after admission closes. State turns retain the ordinary turn budget
+are refused after admission closes. M8 adds at most 468 catalog-collection records (256 outputs, 128 effects,
+64 processes, four resources and sixteen payloads). At N=256 the combined
+bound is 4,385 records. New retention opt-ins and lifecycle activations are not
+allowed in the reserve. State turns retain the ordinary turn budget
 and cannot publish new outputs/effects from the reserve.
 Pending preauthorized payload creation can additionally write at most sixteen
 64 KiB bodies (1 MiB total); those bytes need their own reserved headroom.

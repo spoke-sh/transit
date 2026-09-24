@@ -110,6 +110,85 @@
               "type": "object",
               "additionalProperties": false,
               "required": [
+                "catalog_retention"
+              ],
+              "properties": {
+                "catalog_retention": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "pid"
+                  ],
+                  "properties": {
+                    "pid": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 18446744073709551615,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    }
+                  },
+                  "required": [
+                    "pid"
+                  ],
+                  "x-transit-defaults": {}
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "collect"
+              ],
+              "properties": {
+                "collect": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "pid",
+                    "kind",
+                    "id"
+                  ],
+                  "properties": {
+                    "pid": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 18446744073709551615,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "output",
+                        "effect",
+                        "process",
+                        "resource",
+                        "payload"
+                      ]
+                    },
+                    "id": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 18446744073709551615,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "kind",
+                    "id"
+                  ],
+                  "x-transit-defaults": {}
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
                 "grant"
               ],
               "properties": {
@@ -2039,6 +2118,85 @@
             },
             "command": {
               "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "catalog_retention"
+                  ],
+                  "properties": {
+                    "catalog_retention": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "pid"
+                      ],
+                      "properties": {
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 18446744073709551615,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "pid"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "collect"
+                  ],
+                  "properties": {
+                    "collect": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "pid",
+                        "kind",
+                        "id"
+                      ],
+                      "properties": {
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 18446744073709551615,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "output",
+                            "effect",
+                            "process",
+                            "resource",
+                            "payload"
+                          ]
+                        },
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 18446744073709551615,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "pid",
+                        "kind",
+                        "id"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
                 {
                   "type": "object",
                   "additionalProperties": false,
@@ -3975,6 +4133,7 @@
             "pid",
             "code",
             "allow_trim",
+            "collection",
             "owner",
             "generation",
             "lifecycle",
@@ -4005,6 +4164,9 @@
               "x-transit-signed": false
             },
             "allow_trim": {
+              "type": "boolean"
+            },
+            "collection": {
               "type": "boolean"
             },
             "owner": {
@@ -4382,6 +4544,7 @@
           ],
           "x-transit-defaults": {
             "allow_trim": false,
+            "collection": false,
             "owner": null,
             "generation": 0,
             "lifecycle": "running",
@@ -5633,6 +5796,7 @@
                   "pid",
                   "code",
                   "allow_trim",
+                  "collection",
                   "owner",
                   "generation",
                   "lifecycle",
@@ -5663,6 +5827,9 @@
                     "x-transit-signed": false
                   },
                   "allow_trim": {
+                    "type": "boolean"
+                  },
+                  "collection": {
                     "type": "boolean"
                   },
                   "owner": {
@@ -6040,6 +6207,7 @@
                 ],
                 "x-transit-defaults": {
                   "allow_trim": false,
+                  "collection": false,
                   "owner": null,
                   "generation": 0,
                   "lifecycle": "running",
@@ -6104,6 +6272,8 @@
                   "kind": {
                     "type": "string",
                     "enum": [
+                      "catalog_retention",
+                      "collect",
                       "grant",
                       "revoke",
                       "spawn",

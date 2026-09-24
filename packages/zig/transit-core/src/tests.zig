@@ -1177,3 +1177,75 @@ test "dedicated courier scopes delivery and reconciles lost receipts without adm
     try t.expectError(error.Forbidden, core.delivery_read.read(&recovered, try core.protocol.Delivery.sign(query, f.worker)));
     try t.expectError(error.Forbidden, recovered.submit(pending));
 }
+
+test "opt-in collection sustains exchanges beyond lifetime limits without identity reuse" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.retry_policy = .last_per_principal;
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const source = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
+    const destination = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
+    for ([_]u64{ source, destination }) |pid| {
+        _ = try f.submit(&e, 0, .{ .catalog_retention = .{ .pid = pid } });
+        _ = try f.submit(&e, 0, .{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } });
+    }
+    var first_effect: u64 = 0;
+    for (0..core.max_outputs + 1) |index| {
+        const input = try f.submit(&e, 0, .{ .send = .{ .pid = source, .value = core.Value.integer(@intCast(index)) } });
+        const effect = try f.submit(&e, 0, .{ .turn = .{ .pid = source, .generation = 1, .input = input, .result = .{}, .effect = .{}, .outputs = .{ .{ .pid = destination, .value = .{} }, null, null, null } } });
+        if (index == 0) first_effect = effect;
+        const output = e.state.output_count;
+        try t.expectEqual(index + 1, output);
+        try t.expectError(error.PendingWork, f.submit(&e, 0, .{ .collect = .{ .pid = source, .kind = .output, .id = output } }));
+        _ = try f.submit(&e, 0, .{ .deliver_next = {} });
+        // Collection can precede consumption only with self-contained durable
+        // origin evidence. The mailbox remains readable without its outbox slot.
+        _ = try f.submit(&e, 0, .{ .collect = .{ .pid = source, .kind = .output, .id = output } });
+        const delivered = (try e.nextInput(destination, e.state.position)).?;
+        try t.expectEqual(output, (try e.state.inputOf(delivered)).origin.source.process.output);
+        _ = try f.submit(&e, 0, .{ .turn = .{ .pid = destination, .generation = 1, .input = delivered.position, .result = .{} } });
+        const attempt = try f.submit(&e, 0, .{ .dispatch = .{ .pid = source, .effect = effect } });
+        try t.expectError(error.PendingWork, f.submit(&e, 0, .{ .collect = .{ .pid = source, .kind = .effect, .id = effect } }));
+        _ = try f.submit(&e, 0, .{ .close_effect = .{ .pid = source, .effect = effect, .attempt = attempt } });
+        _ = try f.submit(&e, 0, .{ .collect = .{ .pid = source, .kind = .effect, .id = effect } });
+        try t.expectError(error.UnknownEffect, f.submit(&e, 0, .{ .observe = .{ .pid = source, .effect = effect, .attempt = attempt, .result = .{} } }));
+    }
+    var old_pid: u64 = 0;
+    var old_resource: u64 = 0;
+    for (0..core.max_processes + 1) |_| {
+        const pid = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
+        if (old_pid == 0) old_pid = pid;
+        _ = try f.submit(&e, 0, .{ .catalog_retention = .{ .pid = pid } });
+        const resource = try f.submit(&e, 0, .{ .state = .{ .create = .{ .writer = pid, .history_ms = 0 } } });
+        if (old_resource == 0) old_resource = resource;
+        try t.expectError(error.PendingWork, f.submit(&e, 0, .{ .collect = .{ .pid = pid, .kind = .process, .id = pid } }));
+        _ = try f.submit(&e, 0, .{ .terminate = pid });
+        _ = try f.submit(&e, 0, .{ .state = .{ .reclaim = resource } });
+        _ = try f.submit(&e, 0, .{ .collect = .{ .pid = pid, .kind = .resource, .id = resource } });
+        _ = try f.submit(&e, 0, .{ .collect = .{ .pid = pid, .kind = .process, .id = pid } });
+    }
+    var recovered = try Engine.open(&f.store, f.genesis);
+    try t.expectEqual(e.state.position, recovered.state.position);
+    try t.expectEqual(core.max_outputs + 1, recovered.state.output_count);
+    try t.expectError(error.UnknownProcess, f.submit(&recovered, 0, .{ .own = .{ .pid = old_pid, .expected_generation = 0, .worker = 0 } }));
+    try t.expectError(error.UnknownEffect, recovered.state.effect(first_effect));
+    try t.expectError(error.UnknownOutput, recovered.state.output(1));
+    try t.expectError(error.UnknownStateResource, recovered.state.resources.?.resource(old_resource));
+    _ = try f.submit(&recovered, 0, .{ .checkpoint = {} });
+    const checkpoint = try core.Checkpoint.create(t.allocator, f.genesis, &recovered.state);
+    try checkpoint.validate(t.allocator, f.genesis);
+    var restored = checkpoint.state;
+    try t.expectError(error.UnknownProcess, restored.process(old_pid));
+    try t.expectError(error.UnknownOutput, restored.output(1));
+}
+
+test "collection never weakens unlimited retention or retroactively changes accepted work" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.submit(&e, 0, .{ .spawn = .{ .allow_trim = true } });
+    try t.expectError(error.RetentionNotEnabled, f.submit(&e, 0, .{ .catalog_retention = .{ .pid = pid } }));
+    _ = try f.submit(&e, 0, .{ .terminate = pid });
+    try t.expectError(error.RetentionNotEnabled, f.submit(&e, 0, .{ .collect = .{ .pid = pid, .kind = .process, .id = pid } }));
+    try t.expectEqual(.terminated, (try e.state.process(pid)).lifecycle);
+}

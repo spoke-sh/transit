@@ -54,6 +54,17 @@ fn step(engine: anytype, config: Config, key: core.Ed25519.KeyPair, allocator: s
             return .transition;
         }
     };
+    if (core.collection.next(&engine.state)) |command| {
+        _ = try engine.submit(try core.sign(.{
+            .realm = engine.state.realm,
+            .principal = config.principal,
+            .sequence = (try engine.state.principal(config.principal)).sequence + 1,
+            .command = command,
+        }, key));
+        observation.event.operation = "collect";
+        observation.event.pid = command.collect.pid;
+        return .transition;
+    }
     // Resource retirement is independent of clock health. Only immutable,
     // positively published standalone payloads can enter deletion in M1.
     for (engine.state.payloads) |slot| if (slot) |payload| {
@@ -155,6 +166,6 @@ pub fn run(init: std.process.Init, engine: anytype, config: Config, diagnostics:
         observation.event.level = if (outcome == .idle) .debug else .info;
         observation.event.outcome = if (outcome == .idle) .idle else .ok;
         observation.finish();
-        try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+        try init.io.sleep(.fromMilliseconds(if (outcome == .idle) config.interval_ms else 1), .awake);
     }
 }

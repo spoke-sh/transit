@@ -76,7 +76,10 @@ pub const Outbox = struct {
     policy_revision: ?u64 = null,
 };
 pub const Turn = struct { pid: u64, generation: u64, input: u64, expected_revision: u64 = 0, result: Value, failed: bool = false, effect: ?Value = null, permit: ?u64 = null, outputs: [max_turn_outputs]?Output = @splat(null) };
+pub const Collection = struct { pid: u64, kind: enum { output, effect, process, resource, payload }, id: u64 };
 pub const Command = union(enum) {
+    catalog_retention: struct { pid: u64 },
+    collect: Collection,
     grant: Grant,
     revoke: u8,
     spawn: struct { code: u32 = 1, initial_state: Value = .{}, deadline_ms: ?u64 = null, settle_before_ms: ?u64 = null, allow_trim: bool = false },
@@ -115,6 +118,7 @@ pub const ProcessView = struct {
     pid: u64,
     code: u32,
     allow_trim: bool = false,
+    collection: bool = false,
     owner: ?u8 = null,
     generation: u64 = 0,
     lifecycle: enum { running, terminated, expired } = .running,

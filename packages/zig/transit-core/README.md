@@ -45,8 +45,9 @@ An embedding host must resolve uncertain writes through history and serialize
 its own engine access. The node supplies transport deadlines; the deterministic
 state machine does not run a scheduler, delivery worker, timer or handler.
 
-The bounded catalog retains retired PIDs, completed effects and resolved outputs.
-Those are lifetime allocations, not only concurrent-work limits. M7 resources
+The bounded catalog retains retired PIDs, completed effects and resolved outputs
+by default. [Explicit catalog retention](../../../contracts/CATALOG_V1.md) can
+release eligible working slots while preserving non-reusable identities. M7 resources
 also retain their identity slots after reclamation. Checkpoint/trim cannot reset
 these limits; the [Station review](../../../docs/reviews/PRE_STATION.md#capacity-and-progress-under-pressure)
 explains the consequence for repeated calls and child replacement.
@@ -89,7 +90,7 @@ mutation batch and input progress/outputs share that decision; prepared copies
 are private. Resource data remains opaque, and core executes no application code.
 
 The [v1 state contract](../../../contracts/STATE_V1.md) owns the exact bounds:
-four lifetime resources, 32 live keys each, four finite views, and four mutations
+four working resources (lifetime allocations without explicit collection), 32 live keys each, four finite views, and four mutations
 per turn. Current data and view copies are bounded materializations recoverable
 from the journal/checkpoint. The [proof guide](../../../tests/README.md#m7-state-resources)
 records serialized/layout limits, stack findings and disk-recovery evidence.

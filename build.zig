@@ -153,7 +153,7 @@ pub fn build(b: *std.Build) void {
     const integration = b.addSystemCommand(&.{ "python3", "-B" });
     integration.addFileArg(b.path("tests/storage.py"));
     const proofs_step = b.step("proofs", "Install disk conformance proof executables");
-    for ([_][]const u8{ "storage", "kernel", "effects", "lifetime", "outbox", "runtime", "deletion", "state" }) |name| {
+    for ([_][]const u8{ "storage", "kernel", "effects", "lifetime", "outbox", "runtime", "deletion", "state", "readiness" }) |name| {
         const proof = b.addExecutable(.{
             .name = b.fmt("transit-{s}-proof", .{name}),
             .root_module = b.createModule(.{

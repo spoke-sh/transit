@@ -112,10 +112,11 @@ Two distinct Zig applications exercise the same unchanged node through
 Mailbox bodies remain in storage. State holds counts and a scan position;
 the Ursula adapter caches at most 16 records. This trades scanning cost for a
 small, provable recovery mechanism. A deployment is currently limited to 16
-principals, 64 lifetime process identities, 128 lifetime effect identities, and
-256 lifetime output identities, and 16 standalone payload identities. Typed journal
+principals, 64 working process slots, 128 effect slots, 256 output slots and
+16 standalone payload slots. These remain lifetime allocations by default;
+[M8 catalog retention](CATALOG_V1.md) permits explicit safe slot reclamation. Typed journal
 entries are bounded by 8 KiB and checkpoints by 1 MiB. Reaching quotas fails
-before admission. Scaling these catalogs requires a later persistent index.
+before admission. Larger simultaneous catalogs require a later capacity/index design.
 
 ## Runtime bindings and activation
 
