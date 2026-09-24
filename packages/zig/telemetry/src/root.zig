@@ -54,6 +54,35 @@ pub const Snapshot = struct {
     outcomes: [outcome_count]u64,
     buckets: [bucket_ns.len]u64,
     duration_seconds: f64,
+
+    /// Keep fixed arrays for collection, but make every serialized count named.
+    pub fn jsonStringify(self: Snapshot, out: anytype) !void {
+        try out.beginObject();
+        try out.objectField("active");
+        try out.write(self.active);
+        try out.objectField("outcomes");
+        try out.beginObject();
+        inline for (std.meta.tags(Outcome)) |outcome| {
+            try out.objectField(@tagName(outcome));
+            try out.write(self.outcomes[@backingInt(outcome)]);
+        }
+        try out.endObject();
+        try out.objectField("buckets");
+        try out.write(.{
+            .le_1ms = self.buckets[0],
+            .gt_1ms_le_5ms = self.buckets[1],
+            .gt_5ms_le_10ms = self.buckets[2],
+            .gt_10ms_le_50ms = self.buckets[3],
+            .gt_50ms_le_100ms = self.buckets[4],
+            .gt_100ms_le_500ms = self.buckets[5],
+            .gt_500ms_le_1s = self.buckets[6],
+            .gt_1s_le_5s = self.buckets[7],
+            .gt_5s = self.buckets[8],
+        });
+        try out.objectField("duration_seconds");
+        try out.write(self.duration_seconds);
+        try out.endObject();
+    }
 };
 const Record = struct { bytes: [2048]u8 = undefined, len: usize = 0 };
 
@@ -144,8 +173,12 @@ pub const Runtime = struct {
         self.emit(.service, null, null, value);
     }
 
+    fn enabled(self: *const Runtime, level: Level) bool {
+        return self.config.level != .off and level != .off and @backingInt(level) >= @backingInt(self.config.level);
+    }
+
     fn emit(self: *Runtime, scope: Scope, context: ?Context, duration_ns: ?u64, value: Event) void {
-        if (self.config.level == .off or @backingInt(value.level) < @backingInt(self.config.level)) return;
+        if (!self.enabled(value.level)) return;
         var record: Record = .{};
         var output: std.Io.Writer = .fixed(&record.bytes);
         const now = std.Io.Clock.real.now(self.io).toMilliseconds();
@@ -214,14 +247,26 @@ pub const Runtime = struct {
         return result;
     }
 
-    fn report(self: *Runtime, name: []const u8, value: anytype) !void {
+    fn report(self: *Runtime, level: Level, comptime name: []const u8, value: anytype) !void {
+        if (!self.enabled(level)) return;
         var buffer: [2048]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&buffer);
         const instance = std.fmt.bytesToHex(self.instance, .lower);
-        if (self.config.format == .text) try writer.print("[{s}] info {s} ", .{ self.service, name });
-        try std.json.Stringify.value(.{ .schema_version = 1, .service_name = self.service, .service_instance_id = instance[0..], .time_unix_ms = std.Io.Clock.real.now(self.io).toMilliseconds(), .name = name, .measurement = value }, .{}, &writer);
+        if (self.config.format == .text) try writer.print("[{s}] {s} {s} ", .{ self.service, @tagName(level), name });
+        try std.json.Stringify.value(.{ .schema_version = if (comptime std.mem.eql(u8, name, "telemetry.metrics")) @as(u8, 2) else @as(u8, 1), .service_name = self.service, .service_instance_id = instance[0..], .time_unix_ms = std.Io.Clock.real.now(self.io).toMilliseconds(), .level = level, .name = name, .measurement = value }, .{}, &writer);
         try writer.writeByte('\n');
         try self.sink.writeStreamingAll(self.io, writer.buffered());
+    }
+
+    fn reportMetrics(self: *Runtime) !void {
+        if (!self.enabled(.debug)) return;
+        inline for (0..scope_count) |index| {
+            const scope: Scope = @fromBackingInt(@intCast(index));
+            const value = self.snapshot(scope);
+            var count: u64 = 0;
+            for (value.outcomes) |n| count +%= n;
+            if (count != 0 or value.active != 0) try self.report(.debug, "telemetry.metrics", .{ .scope = scope, .snapshot = value });
+        }
     }
 
     fn drain(self: *Runtime) void {
@@ -246,19 +291,13 @@ pub const Runtime = struct {
             const dropped = self.dropped.load(.monotonic);
             const suppressed = self.suppressed.load(.monotonic);
             if (dropped != last_dropped or suppressed != last_suppressed) {
-                try self.report("telemetry.loss", .{ .dropped = dropped, .suppressed = suppressed });
+                try self.report(.warn, "telemetry.loss", .{ .dropped = dropped, .suppressed = suppressed });
                 last_dropped = dropped;
                 last_suppressed = suppressed;
             }
             const now = std.Io.Clock.awake.now(self.io).toMilliseconds();
             if (now - reported_at >= 30000) {
-                inline for (0..scope_count) |index| {
-                    const scope: Scope = @fromBackingInt(@intCast(index));
-                    const snapshot_value = self.snapshot(scope);
-                    var count: u64 = 0;
-                    for (snapshot_value.outcomes) |n| count +%= n;
-                    if (count != 0 or snapshot_value.active != 0) try self.report("telemetry.metrics", .{ .scope = scope, .snapshot = snapshot_value });
-                }
+                try self.reportMetrics();
                 reported_at = now;
             }
         }
@@ -345,4 +384,41 @@ test "failed response write cannot erase known receipt; restart resets local cou
     const restarted = Runtime.init(std.testing.io, "test", .{ .format = .json });
     try std.testing.expect(!std.mem.eql(u8, &runtime.instance, &restarted.instance));
     try std.testing.expectEqual(0, restarted.snapshot(.server).outcomes[@backingInt(Outcome.failed)]);
+}
+
+test "periodic metrics honor log level while measurement continues" {
+    const io = std.testing.io;
+    var temporary = std.testing.tmpDir(.{});
+    defer temporary.cleanup();
+    for ([_]Format{ .json, .text }) |format| {
+        for (std.meta.tags(Level)) |level| {
+            const file = try temporary.dir.createFile(io, "reports.log", .{});
+            defer file.close(io);
+            var runtime = Runtime.init(io, "test", .{ .level = level, .format = format });
+            runtime.sink = file;
+            var span = runtime.begin(.maintenance, null);
+            span.finish(.{ .name = "maintenance.step", .outcome = .idle, .level = .debug });
+            try runtime.reportMetrics();
+            try runtime.report(.warn, "telemetry.loss", .{ .dropped = 1, .suppressed = 2 });
+            const output = try temporary.dir.readFileAlloc(io, "reports.log", std.testing.allocator, .limited(4096));
+            defer std.testing.allocator.free(output);
+            try std.testing.expectEqual(1, runtime.snapshot(.maintenance).outcomes[@backingInt(Outcome.idle)]);
+            try std.testing.expectEqual(level == .debug, std.mem.indexOf(u8, output, "telemetry.metrics") != null);
+            try std.testing.expectEqual(level == .debug or level == .info or level == .warn, std.mem.indexOf(u8, output, "telemetry.loss") != null);
+            if (level != .debug) continue;
+            if (format == .text) try std.testing.expect(std.mem.startsWith(u8, output, "[test] debug telemetry.metrics "));
+            const json_start = std.mem.indexOfScalar(u8, output, '{').?;
+            const json_end = std.mem.indexOfScalar(u8, output, '\n').?;
+            var parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, output[json_start..json_end], .{});
+            defer parsed.deinit();
+            const report = parsed.value.object;
+            try std.testing.expectEqual(2, report.get("schema_version").?.integer);
+            try std.testing.expectEqualStrings("debug", report.get("level").?.string);
+            const snapshot_value = report.get("measurement").?.object.get("snapshot").?.object;
+            try std.testing.expectEqual(8, snapshot_value.get("outcomes").?.object.count());
+            try std.testing.expectEqual(1, snapshot_value.get("outcomes").?.object.get("idle").?.integer);
+            try std.testing.expectEqual(9, snapshot_value.get("buckets").?.object.count());
+            try std.testing.expect(snapshot_value.get("buckets").?.object.contains("gt_1ms_le_5ms"));
+        }
+    }
 }

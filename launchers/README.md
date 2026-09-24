@@ -217,6 +217,11 @@ REY_BOARD_LOG_LEVEL=debug
 REY_NODE_LOG_LEVEL=debug
 ```
 
+Periodic `telemetry.metrics` snapshots are also debug-only. Their outcomes and
+duration buckets are named JSON objects; counters still accumulate at every
+log level. `telemetry.loss` warnings indicate diagnostic records were dropped
+or rate-limited.
+
 `REY_LOG_LEVEL` and `REY_LOG_FORMAT` set installation-wide defaults. Override
 either field per service with `REY_BOARD_LOG_*`, `REY_NODE_LOG_*`,
 `REY_MAINTENANCE_LOG_*`, or `REY_COUNTER_LOG_*`. Levels are `debug`, `info`,

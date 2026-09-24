@@ -153,6 +153,10 @@ progress changes, and actionable failures. Successful health probes and repetiti
 idle/poll diagnostics belong at debug or in bounded aggregates. Failed probes
 and unexpected exits remain visible. Repeated errors can be coalesced with a
 count and time range. Debug mode never enables secret or payload dumping.
+Routine metric snapshots are debug output with named outcomes and duration
+ranges; accumulation remains independent of log verbosity. Reports honor the
+configured threshold, including loss warnings. A snapshot's availability is
+distinct from whether the service is still collecting measurements.
 
 Allowlist structured fields and escape untrusted text. Exclude authorization
 headers, session/access keys, cookies, request/response bodies, opaque application

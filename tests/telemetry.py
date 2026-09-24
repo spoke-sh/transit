@@ -31,8 +31,8 @@ def run(binary):
             assert child.returncode == 0, (mode, child.returncode, stderr[-2000:])
         value = json.loads(stdout)
         assert value["snapshot"]["active"] == 0
-        assert value["snapshot"]["outcomes"][0] == 10000
-        assert sum(value["snapshot"]["buckets"]) == 10000
+        assert value["snapshot"]["outcomes"]["ok"] == 10000
+        assert sum(value["snapshot"]["buckets"].values()) == 10000
         if mode == "closed":
             assert value["sink_errors"] > 0
         if mode == "stalled" and sys.platform == "linux":

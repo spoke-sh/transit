@@ -29,7 +29,7 @@ log loss do not filter metric instruments. `off` starts no writer.
 
 ## Record schema v1 and spans
 
-Structured records have `schema_version: 1`, `service_name`, a random per-start
+Operation records have `schema_version: 1`, `service_name`, a random per-start
 32-hex `service_instance_id`, and wall `time_unix_ms`. Operation records also have
 `scope`, monotonic `duration_ns`, `trace_id`, `span_id`, optional `parent_span_id`
 and an `event` object. Absent optional fields are omitted. Fields are described
@@ -60,15 +60,25 @@ Seven fixed scopes (`service`, `server`, `client`, `storage`, `maintenance`,
 (`ok`, `rejected`, `conflict`, `failed`, `timeout`, `canceled`, `uncertain`, `idle`),
 duration sum in seconds and nine noncumulative histogram buckets with inclusive
 upper bounds 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, infinity seconds. No request,
-PID, trace, route or arbitrary string creates another metric series.
+PID, trace, route or arbitrary string creates another metric series. JSON
+serializes `outcomes` as an object keyed by those outcome names. `buckets` is an
+object with explicit, nonoverlapping ranges: `le_1ms`, `gt_1ms_le_5ms`,
+`gt_5ms_le_10ms`, `gt_10ms_le_50ms`, `gt_50ms_le_100ms`, `gt_100ms_le_500ms`,
+`gt_500ms_le_1s`, `gt_1s_le_5s`, and `gt_5s`. `gt` means greater than; `le`
+means less than or equal to. Each completion increments exactly one bucket.
 
 `snapshot(scope)` reads atomic local counters, which reset per service instance.
 A concurrent snapshot can straddle an update; it is not an atomic cut of the
 application or an exact durable total. The writer reports used scopes every
-30 seconds as `telemetry.metrics` with `measurement.scope` and
-`measurement.snapshot`. These bounded local reports are independent of event
-level (except `off`); remote scraping/export is not implemented. Completion
-metrics continue even when records are filtered, suppressed or dropped.
+30 seconds as `telemetry.metrics` at **debug** level, with `measurement.scope`
+and `measurement.snapshot`. Both text and JSON honor `LOG_LEVEL`; routine
+snapshots are absent at the default `info`. Metrics reports use `schema_version: 2`
+to distinguish these named objects from the old positional arrays, and include
+`level: "debug"`. Operation and loss records remain schema v1.
+Remote scraping/export is not implemented. Completion metrics continue even
+when reports are filtered or operation records are suppressed/dropped, including
+at `off`. Configuration changes require restarting the service, which starts a
+new instance and resets its counters as usual.
 
 | Resource | Bound / policy |
 | --- | --- |
@@ -79,8 +89,9 @@ metrics continue even when records are filtered, suppressed or dropped.
 | Writer | One guaranteed-concurrent task; 10 ms idle polling; no network, WAL or file ownership |
 | Shutdown | Up to 200 ms flush attempt, then cancel/join; requires cancelable sink I/O |
 
-`telemetry.loss` reports cumulative dropped/suppressed counts when the writer can
-make progress. A failed sink stops the writer and increments `sink_errors`,
+`telemetry.loss` reports cumulative dropped/suppressed counts at **warn** level
+when the writer can make progress, honoring `LOG_LEVEL` and including `level`
+in JSON. A failed sink stops the writer and increments `sink_errors`,
 available to the embedding caller; it cannot report its own permanent failure to
 that same sink. Abrupt termination can lose queued records or a trailing record.
 File/pipe retention is the launcher's/operator's responsibility. Diagnostic loss
@@ -92,5 +103,7 @@ does not authorize mailbox loss, retries, or different protocol decisions.
 stderr, including one-CPU affinity on Linux. It checks 10,000 operation completions,
 independent metrics, loss and bounded exit while stdout stays parseable. Unit tests
 cover reserved queue capacity, context validation/parentage and escaped JSON.
+Report tests cover text/JSON severity filtering, named histogram ranges and
+continued metric collection at every log level.
 The current proof qualifies the pinned Linux I/O runtime and pipes; arbitrary
 custom I/O implementations must supply cancelable writes before using this sink.
