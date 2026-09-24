@@ -18,12 +18,20 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M8](M8.md) | Transit runtime readiness | Bounded origins, automatic delivery, catalog reclamation and lifecycle controls implemented and verified |
 | [M9](M9.md) | Station behaviors, language bindings, and Arrow Tables | Planned |
 | [M10](M10.md) | HTTP connector and exchange transcripts | Planned |
-| [M11](M11.md) | Clustered execution and portability | Planned |
+| [M11](M11.md) | gRPC connector and streaming calls | Planned |
+| [M12](M12.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned |
+| [M13](M13.md) | Clustered execution and portability | Planned |
 
 The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
 commit primitive and these runtime contracts; a production behavior runtime is
 not implied by either bounded profile.
+
+Station establishes the native Table/compute and language-binding contracts.
+HTTP proves shared effect capture; gRPC extends it to bidirectional calls; Arrow
+interoperability then adds a remote query surface over the same Tables. Clustering
+qualifies those boundaries across broader topologies. The native query engine
+remains Zig throughout; SQL or RPC transport never replaces durable authority.
 
 Each milestone owns its scope, acceptance criteria, and completion status.
 Preserve the [M1 design gates](M1.md#design-gates-before-expanding-the-slice)

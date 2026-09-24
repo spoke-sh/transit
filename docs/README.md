@@ -18,11 +18,13 @@ are experimental; their bounded implementation does not imply support for every 
 | [Streams](STREAMS.md) | Mailboxes, ordering, durable admission, and delivery |
 | [State](STATE.md) | Durable resources, process associations, KV/Table boundary, and state lifetimes |
 | [Tables](TABLES.md) | Planned Station Table operations, Arrow results, materialization and transaction scope |
+| [Arrow](ARROW.md) | Planned Zig batch engine, IPC/C interfaces, Flight/Flight SQL and ADBC boundaries |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
 | [Board](BOARD.md) | Inspection UI/API, observation semantics, and planned framework lenses |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |
 | [Station](STATION.md) | Planned behaviors, language bindings, Tables, supervision, and registries |
-| [Connectors](CONNECTORS.md) | Planned HTTP capture, attempts, and bounded reconciliation |
+| [Connectors](CONNECTORS.md) | Shared effect/attempt/reconciliation contract and planned HTTP capture |
+| [gRPC](GRPC.md) | Planned second connector: typed calls, streaming authority, transcripts and recovery |
 | [Deployment](DEPLOYMENT.md) | Runtime bindings, recovery, isolation, and portability |
 | [Ursula](URSULA.md) | Storage-provider choice and authority boundary |
 | [Conformance](CONFORMANCE.md) | Adversarial obligations and limits on guarantees |

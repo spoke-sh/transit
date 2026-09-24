@@ -16,12 +16,13 @@ Follow the contracts for the area you change:
 | Authentication, grants, credentials, trust | [Security](docs/SECURITY.md), [service contract](contracts/SERVICE_V2.md) |
 | Storage, delivery, producer/consumer behavior | [Streams](docs/STREAMS.md), [Ursula boundary](docs/URSULA.md) |
 | State resources, associations, KV/Table APIs | [State](docs/STATE.md), [M7](docs/roadmap/M7.md) |
+| Arrow/query engine, IPC, Flight/Flight SQL, ADBC | [Tables](docs/TABLES.md), [Arrow](docs/ARROW.md) |
 | Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/RETENTION.md) |
 | Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [public protocol package](packages/zig/transit-protocol/README.md) |
 | Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [M2 plan](docs/roadmap/M2.md) |
 | Service logs, metrics, traces, probes | [Observability](docs/OBSERVABILITY.md), [M4](docs/roadmap/M4.md) |
 | Behaviors, supervision, names | [Station](docs/STATION.md) |
-| Effects, capture, secret interpolation | [Connectors](docs/CONNECTORS.md) |
+| Effects, capture, secret interpolation | [Connectors](docs/CONNECTORS.md), [gRPC](docs/GRPC.md) for RPC work |
 | Kubernetes, provider bindings, recovery | [Deployment](docs/DEPLOYMENT.md), [runtime contract](contracts/RUNTIME_SUBSTRATE_V1.md) |
 | Local/Compose lifecycle and developer environments | [Launchers](launchers/README.md) |
 
@@ -46,7 +47,8 @@ building Station; the [pre-Station review](docs/reviews/PRE_STATION.md) records 
   M9's language bindings, host adapters, examples and conformance tests may use
   their target languages; share the Zig client/framework through the
   [binding boundary](docs/CLIENT.md#language-neutral-boundary) instead of duplicating
-  protocol semantics. Follow [Tables](docs/TABLES.md) for Arrow/query work.
+  protocol semantics. Keep query execution Zig native and outside kernel authority;
+  [Acero is design inspiration](docs/ARROW.md#a-bounded-zig-engine), not a runtime dependency.
 - Respect the architecture's dependency direction. Core depends on the public
   protocol, never Station or a provider. Applications use the client; the node
   must not import handlers or claim protocol validation proves honest computation.

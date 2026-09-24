@@ -198,6 +198,16 @@ authorization; bytes already released cannot be recalled. This distinguishes
 bounded subscription shutdown from an unsupported claim of instantaneous
 revocation across every open connection.
 
+## Planned RPC and query boundaries
+
+The planned [Flight gateway](ARROW.md#identity-lifetime-and-failure) is a separate
+ingress with an explicitly qualified credential-to-principal and Table-service
+mapping. Its catalog, tickets and result caches require current scoped read
+checks; a query handle cannot act as an implicit bearer grant. The
+[gRPC connector](GRPC.md#security-inspection-and-qualification) separately
+authorizes external destination/method/credential use. Neither inherits Board's
+shared-viewer access model or supplies general delegation.
+
 ## Board inspection profile
 
 [M2](roadmap/M2.md) adds protected discovery/history and an inspection-only UI/API.

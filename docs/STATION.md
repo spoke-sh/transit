@@ -109,8 +109,9 @@ A Table identifies a schema and keyspace within an associated resource. The
 proposed API offers typed insert/update/upsert/delete, get/scan, and a bounded
 query plan. Requests to another writer travel through its PID's mailbox;
 local operations contribute to the current handler's proposal. The first query
-surface uses versioned structured operations. SQL remains a possible frontend
-to that same contract, with dialect and planning semantics to be scoped later.
+surface uses versioned structured operations. SQL is planned as a frontend
+to that same contract: [M12](roadmap/M12.md) scopes the first bounded read-only
+subset, with an explicit grammar and capability matrix.
 
 Tabular results use Apache Arrow: bounded record batches in memory and Arrow IPC
 for cross-process exchange. Plan to build on `zarrow` and `zarrow-compute` after
@@ -118,6 +119,13 @@ compiler, ownership and interoperability qualification. The Table design separat
 an Arrow batch stream from a durable Transit stream: Arrow supplies representation
 and compute building blocks; Station supplies ordering, recovery, result framing,
 retention and transactional visibility.
+
+[Arrow execution and interoperability](ARROW.md) defines the wider direction:
+an Acero-inspired Zig-native engine, IPC and C data interchange, then Flight RPC,
+Flight SQL and ADBC clients. Query operators stay outside kernel authority;
+network batch streams cannot confer durability or broaden transactions. HTTP is
+the first connector and [gRPC](GRPC.md) the second, sharing the
+[effect/reconciliation contract](CONNECTORS.md).
 
 M9 starts with current-state materialization and finite snapshot queries.
 Updates and deletes change the visible row set before a query evaluates it;
@@ -198,7 +206,7 @@ Every namespace declares its authority, visibility, and lifetime. Local and
 cluster-wide registration must identify the logical scope in which a name is
 unique and how that scope survives worker replacement. Neither means an
 unqualified worker-memory map, a Kubernetes namespace, or a Substrate atespace.
-M9 defines the minimal scoped registry; M11 proves cluster-wide conflict and
+M9 defines the minimal scoped registry; M13 proves cluster-wide conflict and
 partition behavior.
 
 Serialize changes for each name under one fenced authority. Conditional updates

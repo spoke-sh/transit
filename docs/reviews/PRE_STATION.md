@@ -193,7 +193,7 @@ and outdated application-lens references are corrected.
 [M9 Station](../roadmap/M9.md#entry-gates) owns behavior policies and subscriptions.
 [M10](../roadmap/M10.md) must additionally specify large-body references,
 transcript/secret permissions, capture completeness and bounded external retry;
-the immutable payload proof is not that dependency model. [M11](../roadmap/M11.md)
+the immutable payload proof is not that dependency model. [M13](../roadmap/M13.md)
 needs measured recovery/scaling, portable runtime conformance, distributed
 retention and explicit live-restore/migration procedures. If an expansion needs
 its own delivery milestone, insert it into the linear roadmap before its consumer.

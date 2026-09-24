@@ -45,6 +45,7 @@ Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 | Transit — kernel | Processes/PIDs, lifecycle, legal sequences, ordered commits, realm/grant checks, ownership and effect authority; resource/association contracts | [TRANSIT.md](TRANSIT.md), [STATE.md](STATE.md), [SECURITY.md](SECURITY.md) |
 | Durable transport | Persistent history, continuation positions, mailbox storage and delivery | [STREAMS.md](STREAMS.md), [URSULA.md](URSULA.md) |
 | Station — framework | GenServer behaviors, Table/association helpers, scoped name registries, request/reply, supervision, timers, worker-pool patterns | [STATION.md](STATION.md) |
+| Arrow engine and query adapters (planned) | Zig-native finite batch execution over authorized Table snapshots; IPC, Flight/Flight SQL gateway and ADBC interoperability | [TABLES.md](TABLES.md), [ARROW.md](ARROW.md) |
 | Connectors | Authorized external attempts, request/response capture, bounded reconciliation, outcome and retry/cancellation policy | [CONNECTORS.md](CONNECTORS.md) |
 | Runtime adapter | Durable PID-to-provider bindings and reconciliation of lifecycle intents with provider resources/observations | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | Retention reconciliation | Enforce Transit-authorized policies and retained boundaries; coordinate checkpoints, dependency checks, and adapter reclamation | [RETENTION.md](RETENTION.md) |
@@ -214,14 +215,23 @@ and protocol assertions belong under [tests/](../tests/README.md).
   Python, Node.js, Java, .NET and Elixir/Erlang. Station adds its own ABI/contracts
   above that base; raw Transit clients stay independent of Station.
 - Station's Table implementation composes `zarrow` and `zarrow-compute` for
-  bounded Arrow results and caller-side computation after dependency qualification.
-  Core stays independent of both libraries. [TABLES.md](TABLES.md) owns query,
+  bounded Arrow results and a Zig-native query engine after dependency qualification.
+  It borrows execution-model ideas from Acero without embedding C++ code.
+  Core stays independent of both Arrow libraries. [TABLES.md](TABLES.md) owns query,
   materialization and transaction scope; choose a separate Table package only
   when the implementation needs that dependency boundary.
 - `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,
   caller helpers, and trusted dispatch over Station/Transit.
-- `apps/transit-station-worker` and `apps/transit-station-http-worker`: compose behaviors or connector
-  execution with explicitly supplied runtime capabilities.
+- `packages/zig/transit-station-grpc`, module `transit_station_grpc`: typed call
+  contracts/helpers and capture/reconciliation for authorized external RPCs.
+  Keep reusable Zig HTTP/2/protobuf transport separate from dispatch authority.
+- `packages/zig/transit-station-flight` and `apps/transit-station-flight`: Flight/
+  Flight SQL query ingress and gateway composition over Station/public client,
+  with an explicit identity boundary and no direct storage access. Existing ADBC
+  clients connect through Flight SQL; [ARROW.md](ARROW.md) owns this M12 profile.
+- `apps/transit-station-worker`, `apps/transit-station-http-worker` and
+  `apps/transit-station-grpc-worker`: compose behaviors or connector execution
+  with explicitly supplied runtime capabilities.
 - Application libraries and entry points: compose these primitives without
   adding application policy to core. Further TypeScript/Vite+ frontends and
   shared libraries follow concrete consumers.

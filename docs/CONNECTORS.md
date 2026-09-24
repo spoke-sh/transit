@@ -1,6 +1,7 @@
-# Connectors and HTTP exchanges
+# Connectors and external exchanges
 
-Status: HTTP is the first planned connector. Stream groups, interpolation,
+Status: [HTTP M10](roadmap/M10.md) is the first planned connector;
+[gRPC M11](roadmap/M11.md) is the second. Stream groups, interpolation,
 and connector attempt policy below remain design work. Transit already has
 opaque intents, dispatch authorization, observations, and bounded closure in its
 [effect contract](../contracts/TRANSIT_V2.md#effect-intents-and-observations).
@@ -8,25 +9,31 @@ The [synthetic executor proof](../tests/README.md#authority-effects-and-outbox-e
 exercises real loopback I/O and its external limits; it is not a general HTTP
 connector implementation.
 
-The HTTP milestone will add [Board](BOARD.md) enrichment for exchanges and
+The connector milestones will add [Board](BOARD.md) enrichment for exchanges and
 attempts, respecting transcript permissions, secret omissions, retained-body
 gaps, and the distinction between authorization and observed remote outcomes.
 
 ## Effect boundary
 
 A connector executes a committed effect intent, records its external observations,
-and delivers a correlated outcome through the caller's mailbox. Fetch workers
-have the HTTP capability and credentials needed for the request. Caller handlers
+and delivers correlated observations/outcomes through the caller's mailbox.
+Protocol-specific workers have the network capability and credentials needed
+for authorized requests. Caller handlers
 only produce messages and consume results through [Station](STATION.md), the
-framework above [Transit](TRANSIT.md). The proposed HTTP connector library and
-fetch-worker executable have separate responsibilities in the
+framework above [Transit](TRANSIT.md). Connector libraries and worker executables
+have separate responsibilities in the
 [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition).
+
+This document owns the common attempt/reconciliation boundary and HTTP design.
+[GRPC.md](GRPC.md) adds binary call descriptors, per-direction messages, half-close,
+trailers and bounded streaming authority. [ARROW.md](ARROW.md) separates outbound
+Flight calls through that connector from the later inbound Flight query gateway.
 
 Each effect has a stable identity; each dispatch attempt has its own identity
 and authority. A trusted executor validates committed intent and current policy
 at a durable dispatch authorization boundary before I/O. A second attempt
 requires an explicit retry decision under connector policy. Ursula transport
-retries and HTTP effect retries are separate.
+retries and external HTTP/gRPC effect retries are separate.
 
 An authorized attempt is potentially in flight even if the worker pauses before
 sending. Revocation or expiry prevents new dispatch authorizations; it cannot

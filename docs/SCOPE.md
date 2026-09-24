@@ -67,10 +67,14 @@ The same primitives must support ordinary stateful distributed programs.
   rebinding a name cannot redirect accepted work or replies.
 - Station Tables add typed state access and Arrow results over durable resources.
   M9 scopes stream-input materialization, finite queries and atomic batches within
-  one resource. SQL, continuous queries and separate-resource transactions remain
-  later work; [TABLES.md](TABLES.md) owns those boundaries and the Arrow integration plan.
-- HTTP is the first connector: request/response messages and timing metadata
-  travel through exchange stream groups, with explicit variable/secret handling.
+  one resource. [TABLES.md](TABLES.md) owns those boundaries; [ARROW.md](ARROW.md)
+  scopes a Zig-native engine inspired by Acero and later Flight/Flight SQL/ADBC
+  interoperability. M12 adds a read-only SQL subset; continuous queries and
+  separate-resource transactions remain later work. No foreign query engine
+  runs behind the interface or inside Transit authority.
+- HTTP is the first connector; gRPC is the second. Request/response messages and
+  timing travel through durable exchange groups, with explicit credential scope,
+  capture, retry and closure. A live RPC stream is not a durable mailbox.
 - Kubernetes is part of the first executable milestone. Agent Substrate is the
   recommended execution target and reference architecture. Preserve portability
   to other cloud runtimes through durable PID-to-provider runtime bindings.
@@ -114,6 +118,9 @@ contracts. An HTTP connector follows. A caller
 records a request; a fetch worker executes an authorized attempt; response data and timing are recorded;
 the caller resumes from a correlated mailbox message. Replay uses the transcript.
 Station and connectors add versioned Board lenses as their own primitives land.
+Next, [gRPC](roadmap/M11.md) proves bounded streaming calls, then
+[Arrow interoperability](roadmap/M12.md) exposes the same Tables through Flight,
+Flight SQL and tested ADBC clients. These precede the broader clustering milestone.
 These outcomes define the [roadmap](roadmap/README.md).
 
 ## Boundaries

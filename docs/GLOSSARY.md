@@ -105,6 +105,22 @@ See [Tables](TABLES.md) for the proposed M9 surface, materialization and
 transaction limits. A finite Arrow batch stream and a durable Transit stream
 have different responsibilities.
 
+## Arrow execution and interchange
+
+These are planned interfaces above the kernel; [ARROW.md](ARROW.md) owns their
+separation and the M9/M12 qualification profiles.
+
+| Term | Meaning |
+| --- | --- |
+| Logical query plan | Versioned, schema-checked Table operations independent of SQL spelling, execution scheduling or transport |
+| Physical operator | A bounded local scan/transform/aggregate/sink in the Zig query engine; not a Transit PID or durable commit |
+| Arrow C Data / C Stream | Native array and batch-stream ownership interfaces for in-process interoperability; distinct from the Transit/Station command ABI |
+| Flight RPC | Remote Arrow discovery/transfer protocol; a live connection and a Flight ticket do not supply durable mailbox or execution authority |
+| Flight SQL | SQL query/metadata protocol over Flight; the server still defines its supported SQL and transaction capabilities |
+| ADBC | Arrow-oriented database client/driver API; planned access through existing Flight SQL drivers, separate from general Transit clients |
+| Flight ticket | Opaque reference to a query result; our gateway must bind it to exact evidence, current read permission and availability, not treat possession as a grant |
+| Acero | Apache Arrow's C++ execution engine, used as design inspiration for bounded batch execution; Transit implements its engine in Zig |
+
 ## Identity and authority
 
 | Term | Meaning |
@@ -193,9 +209,11 @@ checkpoint authority, and reclamation guarantees.
 | Capability | Scoped authority to request or perform particular operations, enforced by the protocol and runtime boundaries. |
 | Connector | Library and executor logic for a particular effect family, including its capture, retry, and reconciliation semantics. |
 | Fetch worker | A connector executor authorized to issue HTTP requests and record response data and attempt metadata. |
+| gRPC connector worker | Trusted executor of committed, authorized RPC sends with durable captures, finite streaming budgets and bounded reconciliation. |
 | Attempt | One authorized execution attempt of an effect, with its own identity. Retries and redirects remain individually observable. |
 | Dispatch authorization | The durable decision permitting one external attempt after current checks. From that point it may be in flight even if its worker has not yet sent. |
-| Exchange stream group | A Transit manifest and related durable records/streams representing one HTTP request, its attempts, responses, and metadata. It does not imply a native Ursula group or multi-stream transaction. |
+| Exchange stream group | A Transit manifest and related durable records/streams representing one external exchange, its attempts, messages and metadata. HTTP and gRPC have distinct framing; neither implies a native Ursula group or multi-stream transaction. |
+| RPC half-close | The caller ends its request-message direction while the response direction can continue; not terminal success or a durable outcome. |
 | Transcript | The recorded request/response data and observations, with explicit capture boundaries and omissions. |
 | Interpolation | Rendering request variables from recorded bindings or authorized secret references, with field-specific encoding rules. |
 | Secret reference | A credential binding/version resolved by an authorized executor, allowing transcripts to identify substitutions without storing the secret value. |
@@ -205,8 +223,8 @@ checkpoint authority, and reclamation guarantees.
 | Reconciliation closure | The irreversible end of an attempt's result-acceptance path. Late submissions are rejected; historical receipts remain receipts. |
 | Closed with outcome unknown | A terminal local disposition ending reconciliation without claiming remote success, failure, or cancellation. |
 
-See [CONNECTORS.md](CONNECTORS.md) for HTTP text, capture completeness, timing,
-and replay requirements.
+See [CONNECTORS.md](CONNECTORS.md) for shared attempt/reconciliation and HTTP
+capture, and [GRPC.md](GRPC.md) for streaming RPC authority and transcripts.
 
 ## Inspection and interpretation
 

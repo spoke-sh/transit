@@ -123,20 +123,28 @@ watermarks, late-data policy, joins and spill require their own budgets and proo
 
 Build on `zarrow` for Arrow representation/IPC and `zarrow-compute` for selected
 kernels. They are preferred dependencies for M9, subject to an integration proof.
-This review inspected source on 2026-09-24; neither library has been compiled or
+The preferred zarrow candidate is now the `rupurt/zarrow` Zig 0.17 upgrade. This
+review inspected source on 2026-09-24; neither library has been compiled or
 qualified against Transit's pinned compiler as part of this design pass.
 
 | Source reviewed | Finding and consequence |
 | --- | --- |
-| [zarrow at c40b4cb](https://github.com/tylitianrui/zarrow/tree/c40b4cb3afa2e6fecf9c55e9501c61caa55216a1) | Advertises record batches, IPC and Arrow C Data/C Stream interoperability; its README targets Zig 0.15.x. Qualify/adapt it for the pinned 0.17 compiler before selecting a dependency revision. |
+| [rupurt/zarrow at 4276ac3](https://github.com/rupurt/zarrow/tree/4276ac30d63d1af159490b7dc70e15d749b8d01b) (`update-zig-0.17`) | The [manifest](https://github.com/rupurt/zarrow/blob/4276ac30d63d1af159490b7dc70e15d749b8d01b/build.zig.zon) and CI target `0.17.0-dev.2267+48abf1a34`; Transit currently pins `0.17.0-dev.2251+1175a3e99`. Align deliberately and qualify record batches, IPC and C Data/C Stream; a branch name is not a dependency pin. |
 | [zarrow-compute at 357fbf4](https://github.com/tylitianrui/zarrow-compute/tree/357fbf421c77785cd972fe5589918cb3bd39a92e) | Provides selected filtering, comparison, arithmetic and aggregate kernels over zarrow. Its [manifest](https://github.com/tylitianrui/zarrow-compute/blob/357fbf421c77785cd972fe5589918cb3bd39a92e/build.zig.zon) references a moving zarrow master archive; our integration must resolve immutable, compatible revisions and one shared zarrow type universe. |
 | [Aggregate implementation](https://github.com/tylitianrui/zarrow-compute/blob/357fbf421c77785cd972fe5589918cb3bd39a92e/src/kernels/aggregate.zig) | Stateful row counting accumulates batches; this is not a durable incremental view with update/delete retractions. Station owns that distinction. |
 
 Pin revisions and package hashes deliberately after testing. Do not downgrade
 Transit or introduce a second client/compiler policy implicitly. Any compatibility
 patches and selected upstream tests need recorded evidence with the eventual
-owning package. The compute library is not assumed to supply SQL, recovery,
+owning package. Resolve zarrow-compute against this same qualified zarrow module;
+the fork's compiler upgrade alone does not establish compute compatibility.
+The compute library is not assumed to supply SQL, recovery,
 authorization, a durable stream scheduler or transactional materialization.
+
+[ARROW.md](ARROW.md) places these dependencies in a Zig-native batch engine,
+inspired by Acero, with explicit plan/source/operator/sink boundaries. M9 proves
+finite execution and IPC; [M12](roadmap/M12.md) adds Flight, a bounded Flight SQL
+frontend and ADBC interoperability over the same Table/query contract.
 
 M9 starts with a small published capability matrix: nullable booleans, signed
 64-bit integers, UTF-8 strings and binary values; primary-key lookup, bounded
@@ -244,6 +252,9 @@ Full SQL, separate-resource transactions, continuous queries/retractions,
 multi-source snapshot coordination, historical time travel, large results,
 disk-scale indexes/spill, per-row TTL, migrations and writer transfer are outside
 M9. When selected, give this work a new numbered milestone in the linear roadmap.
+The selected remote interoperability work is [M12](roadmap/M12.md), including a
+small read-only SQL subset; it does not promise full SQL, continuous queries or
+broader transaction scope.
 For transactions, first investigate a bounded multi-resource write/read-set
 commit within one authority; cross-authority atomicity additionally needs durable
 coordination, isolation, participant fencing, recovery and blocked-capacity

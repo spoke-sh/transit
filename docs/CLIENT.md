@@ -148,6 +148,11 @@ host supports them. Do not convert results into JSON rows as the sole API.
 result completeness, snapshots and cleanup independently of host-language
 garbage collection.
 
+[Arrow interoperability M12](roadmap/M12.md) adds Flight/Flight SQL access and
+qualification with existing ADBC drivers. Those are Table query clients, distinct
+from these process/behavior bindings. The shared Zig engine remains behind both
+surfaces; neither an Arrow C interface nor an ADBC handle grants Transit rights.
+
 Qualification uses shared signing/encoding fixtures, cross-language messages
 and replies, exact retries after lost responses, host restart, stale activation,
 revocation, finite lifetimes, malformed data and explicit buffer release. Include
