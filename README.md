@@ -37,7 +37,8 @@ just transit-board::install
 just launchers::local::up
 ```
 
-Open the printed Board URL and sign in with the key from the printed file path.
+Open the printed Board URL to inspect the system. Board relies on the private
+deployment boundary for viewer access; it has no sign-in screen.
 The [launchers](launchers/README.md) run a persistent local stack, a Docker Compose
 waypoint, and the Kubernetes/Substrate reference. Use `just launchers::local::down`
 or Ctrl-C to stop local services while preserving your data. Local and Compose

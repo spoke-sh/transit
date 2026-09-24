@@ -10,8 +10,6 @@ import {
 import {
   BoardError,
   capabilities,
-  login,
-  logout,
   read,
   type Capabilities,
   type Response,
@@ -27,15 +25,19 @@ export function Access({ children }: { children: ReactNode }) {
   const [scope, setScope] = useState<Capabilities | null>(null);
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(true);
+  const [retry, setRetry] = useState(0);
   const denied = useCallback(() => {
     setScope(null);
-    setError("Access ended. Sign in with the current Board access key.");
+    setError("Transit denied inspection. Check Board’s configured read grant, then retry.");
   }, []);
   const check = useCallback(async (signal?: AbortSignal) => {
+    setChecking(true);
     try {
       for (let attempt = 0; ; attempt++) {
         try {
-          setScope(await capabilities(signal));
+          const next = await capabilities(signal);
+          if (signal?.aborted) return;
+          setScope(next);
           setError("");
           break;
         } catch (cause) {
@@ -59,7 +61,7 @@ export function Access({ children }: { children: ReactNode }) {
     const controller = new AbortController();
     void check(controller.signal);
     return () => controller.abort();
-  }, [check]);
+  }, [check, retry]);
   return (
     <Context.Provider value={{ scope, denied }}>
       <header>
@@ -67,52 +69,16 @@ export function Access({ children }: { children: ReactNode }) {
           <span aria-hidden="true">▥</span> Board <small>REY / TRANSIT</small>
         </a>
         <span className="profile">INSPECTION ONLY</span>
-        {scope && (
-          <button
-            onClick={async () => {
-              try {
-                await logout();
-              } finally {
-                denied();
-              }
-            }}
-          >
-            Sign out
-          </button>
-        )}
       </header>
       {!scope ? (
         <main className="access">
           <p className="eyebrow">SYSTEM INSPECTION</p>
           <h1>See the sequence.</h1>
           <p>Arrivals, departures, and the evidence between them.</p>
-          <form
-            onSubmit={async (event) => {
-              event.preventDefault();
-              const form = event.currentTarget;
-              const credential = String(new FormData(form).get("credential") ?? "");
-              form.reset();
-              try {
-                await login(credential);
-                await check();
-              } catch (cause) {
-                setError(message(cause));
-              }
-            }}
-          >
-            <label htmlFor="credential">Board access key</label>
-            <input
-              id="credential"
-              name="credential"
-              type="password"
-              autoComplete="off"
-              required
-              maxLength={64}
-              minLength={64}
-            />
-            <button type="submit">Open board</button>
-          </form>
-          <p role="status">{checking ? "Checking session…" : error}</p>
+          <p role="status">{checking ? "Connecting to Board…" : error}</p>
+          {!checking && (
+            <button onClick={() => setRetry((value) => value + 1)}>Retry connection</button>
+          )}
           <p className="muted">
             Viewers share this installation’s configured inspection scope. No operational controls
             are available.
@@ -137,8 +103,8 @@ export function message(cause: unknown): string {
       return "The authority changed. Refresh to start a new observation; these pages cannot be combined.";
     if (cause.code === "HistoryReclaimed")
       return "Retention overtook this observation. Refresh and inspect the retained boundary.";
-    if (cause.code === "Forbidden" || cause.code === "Unauthorized")
-      return "Inspection access denied or session expired.";
+    if (cause.code === "Forbidden")
+      return "Transit denied inspection. Check Board’s configured read grant, then retry.";
     if (cause.code === "RateLimited")
       return "Inspection rate limit reached. Waiting before retrying.";
     if (cause.code === "UnsafePrincipal")
@@ -177,7 +143,7 @@ export function useObservation(resource: Resource, pid?: number) {
         if (controller.signal.aborted) return;
         failures.current++;
         setError(message(cause));
-        if (cause instanceof BoardError && (cause.status === 401 || cause.status === 403)) {
+        if (cause instanceof BoardError && cause.status === 403) {
           setData(null);
           denied();
           return;

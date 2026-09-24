@@ -1,5 +1,5 @@
-import type { Response, Capabilities, Session, Error as ErrorBody } from "./types";
-export type { Response, Capabilities, Session } from "./types";
+import type { Response, Capabilities, Error as ErrorBody } from "./types";
+export type { Response, Capabilities } from "./types";
 export type Page = Response["observation"];
 export type Process = NonNullable<Page["processes"][number]>;
 export type Event = NonNullable<Page["events"][number]>;
@@ -10,7 +10,6 @@ export type Cut = Page["cut"];
 import {
   Response as responseValidator,
   Capabilities as capabilitiesValidator,
-  Session as sessionValidator,
   Error as errorValidator,
 } from "./validators.js";
 
@@ -28,17 +27,17 @@ export const validateCapabilities = (value: unknown): value is Capabilities =>
 export async function request<T>(
   path: string,
   validate: (value: unknown) => value is T,
-  options?: { method?: string; credential?: string; signal?: AbortSignal },
+  options?: { signal?: AbortSignal },
 ): Promise<T> {
   if (!path.startsWith("/api/v1/")) throw new BoardError(0, "InvalidPath");
   const abort = AbortSignal.timeout(4000);
   const response = await fetch(path, {
-    method: options?.method ?? "GET",
+    method: "GET",
+    // Board owns no credentials; allow a deployment's same-origin ingress.
     credentials: "same-origin",
     cache: "no-store",
     redirect: "error",
     signal: options?.signal ? AbortSignal.any([abort, options.signal]) : abort,
-    headers: options?.credential ? { Authorization: `Bearer ${options.credential}` } : {},
   });
   // Bound decoded bytes, including chunked responses, before parsing.
   const reader = response.body?.getReader();
@@ -94,12 +93,3 @@ export function read(
 }
 export const capabilities = (signal?: AbortSignal) =>
   request("/api/v1/capabilities", validateCapabilities, { signal });
-export const login = (credential: string) =>
-  request<Session>("/api/v1/session", (value): value is Session => sessionValidator(value), {
-    method: "POST",
-    credential,
-  });
-export const logout = () =>
-  request<Session>("/api/v1/logout", (value): value is Session => sessionValidator(value), {
-    method: "POST",
-  });

@@ -1,4 +1,4 @@
-"""Board's real API, embedded distribution, auth and recovery qualification."""
+"""Board's real API, embedded distribution, private access and recovery qualification."""
 from concurrent.futures import ThreadPoolExecutor
 from http.client import HTTPConnection
 import json
@@ -35,13 +35,9 @@ def run(node, cli, board, browser=False):
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16}})
         port = free_port()
         origin = f"http://127.0.0.1:{port}"
-        credential = s.root / "board-access"
-        access = os.urandom(32).hex()
-        credential.write_text(access)
-        credential.chmod(0o600)
         config = s.root / "board.json"
         options = {"upstream": s.url, "realm": 72, "principal": 1, "seed_file": str(seed),
-                   "credential_file": str(credential), "public_origin": origin, "port": port,
+                   "public_origin": origin, "port": port,
                    "lenses": [{"pid": pids[0], "kind": "rey.example.counter", "version": 1},
                               {"pid": pids[1], "kind": "unrecognized.example", "version": 9},
                               {"pid": pids[2], "kind": "rey.example.counter", "version": 1}]}
@@ -55,9 +51,8 @@ def run(node, cli, board, browser=False):
         board_log = Path(s.logs[-1].name)
         wait_ready(s.store.http, running, origin + "/health")
 
-        def request(path, method="GET", auth=True, headers=None, status=200, retry=True):
-            extra = {"Authorization": f"Bearer {access}"} if auth else {}
-            extra.update(headers or {})
+        def request(path, method="GET", headers=None, status=200, retry=True):
+            extra = headers or {}
             for _ in range(20):
                 conn = HTTPConnection("127.0.0.1", port, timeout=5)
                 try:
@@ -73,6 +68,7 @@ def run(node, cli, board, browser=False):
                     continue
                 assert actual == status, (path, actual, body[:500], status)
                 assert values["cache-control"] == "no-store"
+                assert "set-cookie" not in values and "access-control-allow-origin" not in values
                 return body, values
             raise AssertionError("Rate limit did not clear")
 
@@ -82,21 +78,21 @@ def run(node, cli, board, browser=False):
 
         # The only running file in this cwd is the binary. Static dependencies
         # are loaded from it, including lazy chunks and the versioned OpenAPI.
-        html, headers = request("/processes/1/journey", auth=False)
+        html, headers = request("/processes/1/journey")
         assert "text/html" in headers["content-type"]
         assert b"<script" in html and b"cdn" not in html
         assert "unsafe-eval" not in headers["content-security-policy"]
-        openapi = json.loads(request("/openapi/v1.json", auth=False)[0])
+        openapi = json.loads(request("/openapi/v1.json")[0])
         assert openapi == json.loads((Path(__file__).resolve().parents[1] / "contracts/transit-board-v1.openapi.json").read_text())
         assets = re.findall(rb'(?:src|href)="(/assets/[^"]+)"', html)
         assert assets
         for asset in assets:
-            content, _ = request(asset.decode(), auth=False)
-            assert access.encode() not in content and seed.read_bytes().strip() not in content
+            content, _ = request(asset.decode())
+            assert seed.read_bytes().strip() not in content
         for path in ("/assets/missing.js", "/unknown", "/api/missing"):
             body, _ = request(path, status=400 if path == "/api/missing" else 404)
             assert b"<!doctype" not in body
-        request("/api/v1/capabilities", auth=False, status=401)
+        request("/api/v1/capabilities")
         request("/api/v1/capabilities", headers={"Host": "evil.example"}, status=403)
         request("/api/v1/capabilities", headers={"Origin": "https://evil.example"}, status=403)
         request("/api/v1/capabilities", headers={"X-Forwarded-Host": "evil.example"}, status=403)
@@ -119,31 +115,21 @@ def run(node, cli, board, browser=False):
         assert api(f"processes/{pids[0]}/effects")["observation"]["effects"][0]["phase"] == "closed_unknown"
         journey = api(f"processes/{pids[0]}/journey")
         assert any(edge and edge["from"]["id"] == admission and edge["to"]["id"] == turn for edge in journey["edges"])
-        # Browser runtime tests also run against this real authenticated binary.
+        # Browser runtime tests open the real binary directly, without credentials.
         if browser:
-            env = os.environ | {"BOARD_TEST_URL": origin, "BOARD_TEST_ACCESS": access,
+            env = os.environ | {"BOARD_TEST_URL": origin,
                                 "BOARD_TEST_PID": str(pids[0]), "BOARD_TEST_SINK": str(pids[1]), "BOARD_TEST_MALFORMED": str(pids[2]),
                                 "BOARD_SCREENSHOT": str(Path(".cache/board.png").resolve())}
             subprocess.run(["vp", "exec", "--filter", "@rey/transit-board-web", "playwright", "test"], env=env, check=True, timeout=180)
 
-        body, headers = request("/api/v1/session", method="POST", headers={"Origin": origin})
-        cookie = headers["set-cookie"].split(";", 1)[0]
-        assert "HttpOnly" in headers["set-cookie"] and "SameSite=Strict" in headers["set-cookie"]
-        api("capabilities", auth=False, headers={"Cookie": cookie})
-        request("/api/v1/session", method="POST", auth=False, headers={"Cookie": cookie}, status=401)
-        # Rotate atomically: both old bearer and every old browser session fail.
-        rotated = os.urandom(32).hex()
-        replacement = s.root / "rotated-access"
-        replacement.write_text(rotated)
-        replacement.replace(credential)
-        api("capabilities", status=401)
-        api("capabilities", auth=False, headers={"Cookie": cookie}, status=401)
-        access = rotated
-        api("capabilities")
-        _, headers = request("/api/v1/session", method="POST")
-        cookie = headers["set-cookie"].split(";", 1)[0]
-        request("/api/v1/logout", method="POST", auth=False, headers={"Cookie": cookie})
-        api("capabilities", auth=False, headers={"Cookie": cookie}, status=401)
+        # The removed session endpoints cannot create or revoke Board access.
+        request("/api/v1/session", method="POST", status=404)
+        request("/api/v1/logout", method="POST", status=404)
+        # Stale cookies and arbitrary bearer headers confer no authority. They
+        # neither block private access nor bypass Host/Origin or Transit grants.
+        ignored = {"Authorization": "Bearer ignored-bearer-marker", "Cookie": "board_session=ignored-cookie-marker"}
+        api("capabilities", headers=ignored)
+        api("capabilities", headers={**ignored, "Origin": "https://evil.example"}, status=403)
         # Principal scope applies to catalogs, edges, and current reads.
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16, "pid": pids[0]}})
         assert [p["pid"] for p in api("processes")["observation"]["processes"] if p] == pids[:1]
@@ -151,6 +137,7 @@ def run(node, cli, board, browser=False):
         api(f"processes/{pids[1]}", status=403)
         s.command({"revoke": 1})
         api("processes", status=403)
+        api("processes", headers=ignored, status=403)
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 17}})
         assert api("capabilities", status=503)["err"] == "UnsafePrincipal"
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16}})
@@ -174,7 +161,7 @@ def run(node, cli, board, browser=False):
         def flood():
             for _ in range(25):
                 conn = HTTPConnection("127.0.0.1", port, timeout=5)
-                conn.request("GET", "/api/v1/processes", headers={"Authorization": f"Bearer {access}"})
+                conn.request("GET", "/api/v1/processes")
                 response = conn.getresponse()
                 statuses.append(response.status)
                 response.read()
@@ -199,35 +186,32 @@ def run(node, cli, board, browser=False):
         assert trimmed["history"] == "prefix_reclaimed" and not any(trimmed["events"])
         assert api(f"processes/{pids[0]}")["observation"]["processes"][0]["lifecycle"] == "terminated"
         # Request diagnostics contain only fixed routes and outcomes, not secrets.
-        request("/?secret=private-query-marker", auth=False)
-        request("/", auth=False, headers={"traceparent": "00-" + "a" * 32 + "-" + "b" * 16 + "-01"})
+        request("/?secret=private-query-marker")
+        request("/", headers={"traceparent": "00-" + "a" * 32 + "-" + "b" * 16 + "-01"})
         with socket.create_connection(("127.0.0.1", port), timeout=3) as stalled:
             stalled.sendall(b"GET / HTTP/1.1\r\nHost:")
             time.sleep(1.7)
         time.sleep(.1)
         diagnostics = board_log.read_text()
-        assert access not in diagnostics and cookie not in diagnostics and seed.read_text().strip() not in diagnostics
+        assert "ignored-bearer-marker" not in diagnostics and "ignored-cookie-marker" not in diagnostics
+        assert seed.read_text().strip() not in diagnostics
         assert "private-query-marker" not in diagnostics and "metadata" not in diagnostics
         records = [json.loads(line) for line in diagnostics.splitlines()]
         requests = [r for r in records if r.get("event", {}).get("name") == "board.http.request"]
-        assert any(r["event"]["status"] == 401 for r in requests if "status" in r["event"])
+        assert any(r["event"]["status"] == 403 for r in requests if "status" in r["event"])
         assert any(r["event"]["route"] == "/api/v1/processes/{pid}" for r in requests)
         assert any(r["event"]["outcome"] == "timeout" and not r["event"]["response_written"] for r in requests)
         assert not any(r["event"]["route"] == "/health" and r["event"]["outcome"] == "ok" for r in requests)
         assert all(r["trace_id"] != "a" * 32 for r in requests)
         assert len({r["span_id"] for r in requests}) == len(requests)
-        # Real session timeout and restart invalidation, using a shorter profile.
+        # Restart needs only the Transit signing seed; no access-key file or
+        # session establishment is part of recovery.
         running.kill()
         running.wait(timeout=10)
-        options["session_seconds"] = 1
-        config.write_text(json.dumps(options))
         running = s.start(binary, config, cwd=isolated, env={"PATH": "/no-executables", "LOG_FORMAT": "json"})
         wait_ready(s.store.http, running, origin + "/health")
-        _, headers = request("/api/v1/session", method="POST")
-        cookie = headers["set-cookie"].split(";", 1)[0]
-        time.sleep(1.05)
-        api("capabilities", auth=False, headers={"Cookie": cookie}, status=401)
-        print(f"Board: embedded assets, auth/rotation/expiry, scope, gaps, effects, outage and load passed; max control latency {max(latencies):.3f}s.")
+        assert api("capabilities")["realm"] == 72
+        print(f"Board: embedded assets, direct private access, scope/revocation, gaps, effects, outage and load passed; max control latency {max(latencies):.3f}s.")
 
 
 if __name__ == "__main__":

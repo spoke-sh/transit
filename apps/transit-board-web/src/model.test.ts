@@ -24,7 +24,6 @@ describe("inspection semantics", () => {
       max_edges: 32,
       min_refresh_ms: 5000,
       max_request_bytes: 4096,
-      session_seconds: 900,
       station: false,
       http_connector: false,
       push: false,

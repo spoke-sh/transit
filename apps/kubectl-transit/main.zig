@@ -23,7 +23,7 @@ const help =
     \\Namespace defaults to the selected kubeconfig context's namespace.
     \\Readiness and logs are Kubernetes observations, not Transit execution authority.
     \\Reference up deploys Transit; reference infra-up creates only provider infrastructure.
-    \\Board authentication remains required. No Secrets are fetched or contexts changed.
+    \\Board uses its private deployment boundary. No Secrets are fetched or contexts changed.
     \\
 ;
 
@@ -365,7 +365,7 @@ const App = struct {
         if (!self.options.port_forward) return self.out.print("{s}\n", .{origin});
         const port = uri.port orelse 80;
         if (!eql(uri.scheme, "http") or !eql(uri.host.?.percent_encoded, "127.0.0.1") or port == 0) {
-            try self.err.print("Board advertises {s}. Port-forward requires an http://127.0.0.1[:PORT] origin; use the advertised ingress. Board Host/Origin checks and authentication are preserved.\n", .{origin});
+            try self.err.print("Board advertises {s}. Port-forward requires an http://127.0.0.1[:PORT] origin; use the advertised ingress. Board Host/Origin checks are preserved.\n", .{origin});
             return error.BoardOriginCannotBeForwarded;
         }
         const service = try one((try self.query("services", "board")).value);
@@ -392,7 +392,7 @@ const App = struct {
         argv.items.len -= 2;
         try argv.insert(self.allocator, 1, "port-forward");
         try argv.appendSlice(self.allocator, &.{ "--namespace", namespace, "--address=127.0.0.1", try self.allocator.print("service/{s}", .{name}), try self.allocator.print("{d}:{d}", .{ port, remote }) });
-        try self.err.print("Board: {s} (existing sign-in required). Ctrl-C closes the tunnel.\n", .{origin});
+        try self.err.print("Board: {s}. Ctrl-C closes the tunnel.\n", .{origin});
         try self.replace(argv.items);
     }
 };

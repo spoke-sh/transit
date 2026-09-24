@@ -169,7 +169,6 @@ class Installation:
         self.path.mkdir(parents=True, mode=0o700)
         root_public = self.key("operator/root.key")
         self.key("board/seed.key")
-        write(self.path / "board/access.key", secrets.token_hex(32))
         self.key("maintenance/seed.key")
         write(self.path / "operator/sequence.json", {"sequence": 0, "pending": None})
         (self.path / "wal").mkdir(mode=0o700)
@@ -195,7 +194,6 @@ class Installation:
         pid = json.loads(pid_file.read_text()) if pid_file.exists() else None
         write(self.path / "board/config.json", {"upstream": self.upstream, "realm": config["realm"],
               "principal": 2, "seed_file": "/board/seed.key" if container else str(self.path / "board/seed.key"),
-              "credential_file": "/board/access.key" if container else str(self.path / "board/access.key"),
               "public_origin": self.origin, "listen": "0.0.0.0" if container else self.board["host"],
               "port": 8080 if container else self.board["port"],
               "development_allow_insecure_http": self.board["allow_insecure_http"],
@@ -337,11 +335,9 @@ backend = "inline"
         return {"profile": self.profile, "name": self.name, "realm": self.load()["realm"],
                 "pid": json.loads((self.path / "pid.json").read_text()) if (self.path / "pid.json").exists() else None,
                 "board": self.origin, "transit": self.url, "state": str(self.path),
-                "board_host": self.board["host"], "board_port": self.board["port"],
-                "access_key_file": str(self.path / "board/access.key")}
+                "board_host": self.board["host"], "board_port": self.board["port"]}
 
     def inspect(self):
-        request = urllib.request.Request(self.board_url + "/api/v1/processes", headers={**self.board_headers,
-            "Authorization": "Bearer " + (self.path / "board/access.key").read_text().strip()})
+        request = urllib.request.Request(self.board_url + "/api/v1/processes", headers=self.board_headers)
         with HTTP.open(request, timeout=5) as response:
             return read_json(response)

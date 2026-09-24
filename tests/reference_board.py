@@ -1,6 +1,5 @@
 """Board pod: read-only principal, namespace egress confinement and public views."""
 import json
-import os
 from pathlib import Path
 import time
 import urllib.error
@@ -15,7 +14,6 @@ class Board:
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         seed, public = key("board")
         command({"grant": {"subject": 4, "public_key": public, "permissions": 16}})
-        self.access = os.urandom(32).hex()
         self.port = free_port()
         self.origin = "https://board.reference.invalid"
         authority = f"transit.{namespace}.svc.cluster.local"
@@ -35,12 +33,12 @@ class Board:
         pods = json.loads(ref.kube(s, ["-n", namespace, "get", "pods", "-l", "app=ursula", "-o", "json"], capture=True))["items"]
         raw_ip = pods[0]["status"]["podIP"]
         config = {"upstream": f"http://{authority}:8080", "realm": 49, "principal": 4,
-                  "seed_file": "/secrets/seed", "credential_file": "/secrets/access",
+                  "seed_file": "/secrets/seed",
                   "public_origin": self.origin, "listen": "0.0.0.0", "port": 8080,
                   "request_timeout_ms": 3000, "upstream_timeout_ms": 2000,
                   "lenses": [{"pid": pid, "kind": "rey.example.counter", "version": 1}]}
         apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "board", "namespace": namespace},
-               "stringData": {"seed": seed.read_text(), "access": self.access}})
+               "stringData": {"seed": seed.read_text()}})
         # Kind's default CNI does not enforce NetworkPolicy. Apply rules in this
         # owned pod network namespace, then drop NET_ADMIN from both containers.
         # This is reference-fixture plumbing, not a claimed portable K8s policy.
@@ -93,7 +91,7 @@ ip6tables -w -A OUTPUT -j REJECT
     def read(self, resource):
         for _ in range(30):
             request = urllib.request.Request(f"http://127.0.0.1:{self.port}/api/v1/{resource}",
-                                            headers={"Host": "board.reference.invalid", "Authorization": f"Bearer {self.access}"})
+                                            headers={"Host": "board.reference.invalid"})
             try:
                 with self.http.open(request, timeout=5) as response:
                     return json.load(response)

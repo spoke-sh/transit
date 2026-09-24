@@ -19,12 +19,14 @@ decides which activation may commit. None substitutes for the other two.
 | Trusted protocol ingress | Authenticate every caller, bind verified identity to the request, limit input size/rate, and prevent forged identity headers |
 | Transit authority | Enforce realm, action/resource grants, delegation bounds, policy revisions, ownership, and lifecycle at authoritative operations |
 | Station and applications | Express policies and apply workload/domain rules; framework helpers cannot grant privileges or replace kernel checks |
-| Board inspection boundary | Authenticate browser/agent access, bind the configured read identity, enforce current upstream permission, and protect derived views and caches; no M2 mutation authority |
+| Board inspection boundary | Admit viewers through the private deployment boundary, bind the configured read identity, enforce current upstream permission, and protect derived views and caches; no viewer identity or M2 mutation authority |
 | Trusted effect executor | Authorize each attempt, enforce destination/secret scope, perform external I/O, and authenticate outcome submissions |
 | Storage/runtime adapters | Use separate service credentials for authorized infrastructure operations; translate identities without inheriting provider-wide privileges |
 
-Authentication belongs at all entry points, including internal worker and
-controller APIs. An edge proxy can authenticate clients, but the receiving
+Authentication belongs at protocol entry points, including internal worker and
+controller APIs. Board’s private inspection endpoint is the explicit viewer
+admission exception described below; its upstream Transit calls authenticate.
+An edge proxy can authenticate clients, but the receiving
 service must trust the authenticated channel and its identity binding; a public
 `sender` field or forwarded header is not proof. Transit core consumes verified
 identity and policy facts through interfaces. It does not implement an identity
@@ -176,20 +178,24 @@ revocation across every open connection.
 ## Board inspection profile
 
 [M2](roadmap/M2.md) adds protected discovery/history and an inspection-only UI/API.
-The first Board deployment maps authenticated viewers to one explicitly
-configured read-only Transit principal per instance. It exposes that shared scope,
-not individual user delegation. Transit rechecks current permission for each
-bounded read; Board sessions and cached projections cannot extend it. The
+Board exposes one explicitly configured read-only Transit principal per
+instance to everyone who can reach its private UI/API. Viewer admission belongs
+to the network/deployment boundary; Board has no access keys or sessions.
+It exposes that shared scope, not individual user delegation. Transit rechecks
+current permission for each bounded read; network access and cached projections
+cannot extend it. The
 [Board design](BOARD.md#access-and-trust) and [application guide](../apps/transit-board/README.md) specify the implemented
-ingress/session profile and qualification boundary. Per-user policy, federation, and operational controls
+private access profile and qualification boundary. Per-user policy, federation, and operational controls
 require later explicit scope. Lists, relationship edges, counts, and previews
 must not disclose resources outside the read grant.
 
 The [development launchers](../launchers/README.md#local-development-configuration)
 can explicitly enable unencrypted HTTP for a trusted LAN origin. This is a
 development transport exception, not relaxed authentication or authorization:
-the public origin remains exact, credentials are still required, and Transit
-and Ursula listeners remain private. Normal remote Board deployments require TLS.
+the public origin remains exact, the upstream Transit signing credential is
+still required, and Transit and Ursula listeners remain private. Inspection
+data is available to every caller admitted by the private network boundary.
+Normal remote Board deployments require TLS.
 
 ## Trusted computing base and provider boundaries
 

@@ -33,15 +33,27 @@ def run():
         return {p["metadata"]["labels"].get("app.kubernetes.io/component"): p["metadata"]["uid"]
             for p in json.loads(launcher.kube("get", "pods", "-l", "app.kubernetes.io/instance=transit", "-o", "json", capture=True))["items"]}
 
+    def board_secret():
+        return json.loads(launcher.kube("get", "secret", "board-credentials", "-o", "json", capture=True))["data"]
+
     try:
         invoke("up")
+        original_secret = board_secret()
+        assert set(original_secret) == {"seed"}
+        assert not (installation.path / "board/access.key").exists()
         first = observe(12)
         before = pods()
         invoke("build", "board")
         assert pods() == before
         assert "no changes" in invoke("update", "board", "--no-build")
+        # Simulate the previous Board profile's Secret. A new Board rollout must
+        # remove its obsolete viewer key while preserving the signing seed.
+        launcher.kube("patch", "secret", "board-credentials", "--type=merge", "--patch",
+                      json.dumps({"stringData": {"access": "obsolete-test-viewer-key"}}))
         candidate(installation, "transit-board")
         invoke("update", "board", "--no-build")
+        assert board_secret() == original_secret
+        assert json.loads(invoke("inspect"))["observation"]["processes"][0]["pid"] == first["pid"]
         after = pods()
         assert after["board"] != before["board"]
         assert all(after[role] == before[role] for role in ("node", "ursula", "maintenance", "controller"))

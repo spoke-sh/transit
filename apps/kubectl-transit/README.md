@@ -71,14 +71,15 @@ available through `kubectl ate`. Service logs are not durable protocol history.
 ## Board access
 
 `board` reads the labelled ConfigMap's configured `public_origin` and prints it.
-It never fetches Secrets, access keys, signing seeds, or service credentials.
+It never fetches Secrets, signing seeds, or service credentials.
 Multiple matching configurations/services fail as ambiguous.
 
 `--port-forward` requires a configured `http://127.0.0.1[:PORT]` origin. It finds
 the labelled Service's `http` port, honors name overrides, and forwards the exact
 origin port on `127.0.0.1`. This needs Kubernetes port-forward RBAC in addition to
 read permissions. A port conflict remains a visible kubectl failure. Ctrl-C
-closes the foreground tunnel. Existing Board sign-in remains required.
+closes the foreground tunnel. Board opens directly within its private deployment
+boundary, using its configured shared inspection scope.
 
 Remote or HTTPS origins must be accessed through their advertised ingress. A TCP
 tunnel does not rewrite Host/Origin or terminate TLS; the plugin rejects that

@@ -142,12 +142,19 @@ class Reference:
         write(self.path / "process-compose.vars.json", values)
         self.forwarder.pc("up", "-f", ROOT / "deploy/reference/process-compose.yaml", "-f", self.path / "process-compose.vars.json", "--disable-dotenv", "-D", manager=True, capture=True)
 
-    def credentials(self):
-        for role, data in (("board", {"seed": "board/seed.key", "access": "board/access.key"}),
+    def credentials(self, roles=None):
+        for role, data in (("board", {"seed": "board/seed.key"}),
                            ("maintenance", {"seed": "maintenance/seed.key"}), ("controller", {"seed": "controller/seed.key"})):
+            if roles is not None and role not in roles:
+                continue
             # Structured stdin prevents credentials entering argv or Helm history.
             self.kube("apply", "-f", "-", input=json.dumps({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": role + "-credentials"},
                 "stringData": {key: (self.path / relative).read_text().strip() for key, relative in data.items()}}))
+            if role == "board":
+                # stringData is write-only: omitting a former field from apply
+                # does not remove its stored data entry. Delete that entry only.
+                self.kube("patch", "secret", "board-credentials", "--type=merge",
+                          "--patch", json.dumps({"data": {"access": None}}))
 
     def workload(self, image, configuration=None):
         i = self.installation
@@ -372,6 +379,9 @@ class Reference:
             values["workerPools"] = [operation["new_pool"]]
             self.deploy(values)
         if "board" in operation["services"]:
+            # Reapply the seed-only Secret after the new Board is ready, so an
+            # earlier access-key field is removed without interrupting old pods.
+            self.credentials(("board",))
             self.forwarder.down()
             self.forwards()
         wait_for(self.installation.url + "/health")

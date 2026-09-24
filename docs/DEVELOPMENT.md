@@ -48,7 +48,7 @@ histories and signatures is not implemented.
 Board's Vite+/pnpm workspace is implemented. Use `just transit-board::demo` to inspect a
 running disposable realm, `just transit-board::check` for frontend/contract checks, and
 `just transit-board::browser` for the real UI proof. [Board's app guide](../apps/transit-board/README.md)
-owns configuration, authentication and runnable commands.
+owns configuration, private access boundaries and runnable commands.
 
 ## Package workflow
 

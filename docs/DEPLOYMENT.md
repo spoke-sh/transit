@@ -71,7 +71,8 @@ The initial reference topology should include:
 
 Kernel/control services and Ursula need not themselves be sandboxed as
 application processes. [Board](BOARD.md) is an optional inspection service
-with private authenticated ingress and access only to the Transit read boundary.
+whose deployment controls private viewer access. It uses its own authenticated,
+read-only Transit identity; Board itself has no viewer keys or sessions.
 It hosts the embedded frontend and API together and needs no Ursula, Substrate,
 or Kubernetes credentials. M2 qualifies this separately from worker isolation.
 

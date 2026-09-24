@@ -24,7 +24,6 @@ fn route(out: *std.json.Stringify, path: []const u8, method: []const u8, name: [
     try out.objectField(method);
     try out.beginObject();
     try field(out, "summary", name);
-    if (std.mem.eql(u8, path, "/api/v1/session")) try field(out, "security", .{.{ .bearer = [0][]const u8{} }});
     try out.objectField("parameters");
     try out.beginArray();
     if (pid) try out.write(.{ .name = "pid", .in = "path", .required = true, .schema = .{ .type = "integer", .minimum = 1, .maximum = api.protocol.max_counter } });
@@ -33,7 +32,7 @@ fn route(out: *std.json.Stringify, path: []const u8, method: []const u8, name: [
     try out.objectField("responses");
     try out.beginObject();
     try response(out, "200", name);
-    for ([_][]const u8{ "400", "401", "403", "404", "409", "429", "503" }) |status| try response(out, status, "Error");
+    for ([_][]const u8{ "400", "403", "404", "409", "429", "503" }) |status| try response(out, status, "Error");
     try out.endObject();
     try out.endObject();
     try out.endObject();
@@ -44,9 +43,9 @@ pub fn main(init: std.process.Init) !void {
     var out: std.json.Stringify = .{ .writer = &writer.interface, .options = .{ .whitespace = .indent_2 } };
     try out.beginObject();
     try field(&out, "openapi", "3.1.1");
-    try field(&out, "info", .{ .title = "Rey Board inspection API", .version = "1.0.0", .description = "One shared read-only Transit principal; current permission checked on every data read. No execution controls." });
+    try field(&out, "info", .{ .title = "Transit Board inspection API", .version = "1.0.0", .description = "Private deployment: no Board keys or sessions. Every reachable viewer shares one read-only Transit principal; current permission is checked on every data read. No execution controls." });
     try field(&out, "jsonSchemaDialect", "https://json-schema.org/draft/2020-12/schema");
-    try field(&out, "security", .{ .{ .bearer = [0][]const u8{} }, .{ .session = [0][]const u8{} } });
+    try field(&out, "security", [0][]const u8{});
     try out.objectField("paths");
     try out.beginObject();
     try route(&out, "/api/v1/capabilities", "get", "Capabilities", false, false);
@@ -56,15 +55,12 @@ pub fn main(init: std.process.Init) !void {
         var path: [128]u8 = undefined;
         try route(&out, try std.fmt.bufPrint(&path, "/api/v1/processes/{{pid}}/{s}", .{resource}), "get", "Response", true, true);
     }
-    try route(&out, "/api/v1/session", "post", "Session", false, false);
-    try route(&out, "/api/v1/logout", "post", "Session", false, false);
     try out.endObject();
     try out.objectField("components");
     try out.beginObject();
-    try field(&out, "securitySchemes", .{ .bearer = .{ .type = "http", .scheme = "bearer" }, .session = .{ .type = "apiKey", .in = "cookie", .name = "board_session" } });
     try out.objectField("schemas");
     try out.beginObject();
-    inline for (.{ "Response", "Capabilities", "Error", "Session" }, .{ api.Response, api.Capabilities, api.Error, api.Session }) |name, T| {
+    inline for (.{ "Response", "Capabilities", "Error" }, .{ api.Response, api.Capabilities, api.Error }) |name, T| {
         try out.objectField(name);
         try s.write(T, &out, .{ .output = true, .safe_integers = true });
     }

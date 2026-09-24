@@ -85,10 +85,9 @@ just launchers::local::status
 just launchers::local::inspect
 ```
 
-Open the printed Board URL (by default `http://127.0.0.1:18102`). Read the
-printed access-key **file** locally and paste its contents into Board's sign-in
-form. The launcher never prints credentials or puts them in URLs. Board remains
-inspection-only; development inputs go through the separately privileged
+Open the printed Board URL (by default `http://127.0.0.1:18102`) directly.
+Board has no access key or sign-in; everyone who can reach its private listener
+shares the configured inspection scope. Board remains inspection-only; development inputs go through the separately privileged
 launcher CLI, not through Board.
 
 `up` builds/selects binaries on first use, recovers saved selections later, and
@@ -115,7 +114,7 @@ just launchers::local::up
 `send` reports durable admission, not turn completion. Repeating the same input
 and request ID returns the same receipt. Reusing the ID with different content
 fails. Omitting the ID generates and prints one before submission; save it to
-retry an uncertain result. `inspect` reads through Board's authenticated API;
+retry an uncertain result. `inspect` reads through Board's read-only API;
 the UI also shows the current state and retained history.
 
 `attach` opens Process Compose's service/log TUI; use its detach action to leave
@@ -240,8 +239,8 @@ network-isolation fixture.
 | --- | --- |
 | `up` | Create once or recover saved history/artifacts; local/Compose stream logs (`--detach` opts out), reference returns after readiness |
 | `status` | JSON endpoints, realm/PID, state path and manager/container observations; these observations do not grant authority |
-| `endpoints` | JSON URLs and credential-file location, without secrets |
-| `inspect` | Authenticated current Board discovery; unavailable/denied reads fail |
+| `endpoints` | JSON URLs and listener settings, without secrets |
+| `inspect` | Current Board discovery under its Transit read grant; unavailable/denied reads fail |
 | `logs SERVICE` | Recent service output; local also accepts `manager` for lifecycle/probe evidence. Native files survive `down`; container logs disappear when Compose removes containers |
 | `build [SERVICE...]` | Build candidates without deploying |
 | `update [SERVICE...]` | Apply compatible candidates/configuration and verify readiness |
@@ -340,8 +339,9 @@ configured Host header, so the server does not need to resolve the browser's DNS
 name or contact a TLS proxy to check its own health. The native manager uses an
 exec probe because its pinned HTTP checker cannot override the Host header;
 startup waits for the manager's readiness result. Ursula and Transit remain
-private. Remote HTTP still requires Board sign-in, but credentials and sessions
-are unencrypted; this option is for a trusted development network. Use a trusted
+private. Board has no viewer authentication; the network/deployment boundary
+controls who can read its inspection data. Remote HTTP sends that data without
+encryption; this option is for a trusted development network. Use a trusted
 TLS ingress with an `https://` origin for other remote use.
 
 Direnv is optional: exported environment variables or inline assignments work

@@ -97,7 +97,7 @@ def run(binary):
 
         def setup(origin="http://127.0.0.1:18102"):
             config["data"] = {"config.json": json.dumps({"public_origin": origin,
-                "credential_file": "/secrets/access", "seed_file": "/secrets/seed"})}
+                "seed_file": "/secrets/seed"})}
             fixtures.write_text(json.dumps({
                 "deployments": listed(node),
                 "deployments,statefulsets,jobs,pods": listed(node),

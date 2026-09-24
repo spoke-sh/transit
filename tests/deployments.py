@@ -57,7 +57,8 @@ def run():
         assert board["containers"][0]["readinessProbe"]["httpGet"]["httpHeaders"] == [{"name": "Host", "value": "board.example.invalid:8443"}]
         config = json.loads(manifests["ConfigMap", "test-runtime-board"]["data"]["config.json"])
         assert config["upstream"] == "http://test-runtime-node:8080"
-        assert config["seed_file"] == "/secrets/seed" and config["credential_file"] == "/secrets/access"
+        assert config["seed_file"] == "/secrets/seed"
+        assert "credential_file" not in config and "session_seconds" not in config
         egress = manifests["NetworkPolicy", "test-runtime-board"]["spec"]["egress"]
         assert egress[0]["to"][0]["podSelector"]["matchLabels"]["app"] == "test-runtime-node"
         assert all("ipBlock" not in to for rule in egress for to in rule["to"])

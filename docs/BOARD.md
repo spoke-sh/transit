@@ -74,7 +74,7 @@ Implemented ownership:
 
 | Location | Responsibility |
 | --- | --- |
-| [apps/transit-board](../apps/transit-board/README.md) | Zig executable, authenticated API hosting, bounded observations, static asset embedding, and lens composition |
+| [apps/transit-board](../apps/transit-board/README.md) | Zig executable, private inspection API hosting, bounded observations, static asset embedding, and lens composition |
 | [apps/transit-board-web](../apps/transit-board-web/README.md) | TanStack Router application and browser interaction tests |
 | [transit-board-api](../packages/zig/transit-board-api/README.md) | Board response/route definitions and OpenAPI generation, reusing public Transit types |
 | [transit-board-client](../packages/ts/transit-board-client/README.md) | Generated typed Board API client shared by the browser and future TypeScript consumers |
@@ -150,41 +150,44 @@ qualify Board's load against the current sequential authority server.
 M2 needs no durable Board database or second event archive. Small caches are
 rebuildable and do not pin Transit history or extend its retention contract.
 Do not serve cached sensitive results to a new request when current permission
-cannot be checked. Browser data caches are bounded and cleared on logout or
-known denial; previously disclosed bytes cannot be recalled. Retained snapshots,
+cannot be checked. Browser data caches are bounded and cleared on known denial;
+previously disclosed bytes cannot be recalled. Retained snapshots,
 exports, offline operation, and resumable push subscriptions need separate scope.
 
 ## Access and trust
 
 Implemented first deployment profile: one configured realm and one read-only Transit
-principal per Board instance. Operators/agents admitted to that instance share
+principal per Board instance. Operators/agents who can reach that instance share
 that principal's explicit inspection scope; this does not claim per-user Transit
 isolation. Bind upstream endpoints and identity in trusted server configuration,
 not request-supplied URLs or principal IDs. Store signing seeds only on the server.
 Board receives only read grants, with no admin, spawn, execute, send, publish,
 or effect authority.
 
-Browser/agent ingress uses a separate configured access key. A bounded HttpOnly
-session follows authenticated exchange; each API call rereads the key file,
-invalidating sessions after rotation. Credentials never enter URLs or bundles.
-Host/Origin checks, private HTTP with remote TLS ingress, request limits and the
-session lifetime are specified in the [app guide](../apps/transit-board/README.md).
-Trusted LAN development can explicitly opt into a configured remote HTTP origin;
-this relaxes transport encryption only, while preserving authentication and
-exact Host/Origin validation. The default remote deployment still requires TLS.
-Loopback binding alone is not authentication. These guarantees are qualified by
-API and real-browser tests; the deployment proof checks the runtime boundary.
+Board relies on a private deployment boundary for viewer admission. It has no
+viewer access key, sign-in screen, session cookie, or per-viewer identity. Anyone
+who can reach it can inspect the configured shared scope. Network restrictions
+or a separately managed authenticated ingress belong to the deployment.
+Board's signing identity and Transit read authorization remain independent.
 
-The node applies current Transit authorization at each read boundary. Board
-additionally checks its ingress identity; a valid Board session cannot bypass a
-revoked Transit grant. No Transit mutation routes, broad credentialed proxy,
+Host/Origin checks, request limits and transport configuration are specified in
+the [app guide](../apps/transit-board/README.md). Host/Origin validation is not
+authentication. Trusted LAN development can explicitly opt into remote HTTP;
+other remote deployments require TLS. API and browser tests qualify direct
+access, bounded reads, denial clearing and upstream revocation. The app guide
+records the deliberate migration from the original experimental key/session
+profile; later operational controls must define their own attributable access.
+
+The node applies current Transit authorization at each read boundary. A reachable
+Board endpoint cannot bypass a revoked Transit grant. No Transit mutation routes,
+broad credentialed proxy,
 provider diagnostics proxy, or automatic remediation are part of M2. Later
 controls require attributable principals, explicit grants, preserved retry
 identity, and their own adversarial proofs. See [SECURITY.md](SECURITY.md).
 
 Treat payloads, names, and enrichment metadata as untrusted data: render text
 safely, constrain previews, and fetch details explicitly. Static asset caching
-must never cache authenticated API responses or embed installation secrets.
+must never cache inspection API responses or embed installation secrets.
 
 ## Higher-level interpretation
 
@@ -212,7 +215,7 @@ history are outside M2.
 M2's [implementation sequence and exit criteria](roadmap/M2.md) cover the API,
 embedded build, live UI, access control, retention gaps, and lens fallback.
 The completed [M4 observability milestone](roadmap/M4.md) instruments
-Board's HTTP/session lifecycle and correlates its public client calls with Transit.
+Board's HTTP/service lifecycle and correlates its public client calls with Transit.
 These operational signals follow the shared [observability rules](OBSERVABILITY.md)
 and do not change Board's evidence-backed inspection API or require a collector.
 

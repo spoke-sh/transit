@@ -53,7 +53,7 @@ board:
   enabled: false
   nameOverride: ""
   image: ""
-  # Keys: seed (Transit inspection principal) and access (Board ingress key).
+  # Key: seed (Transit inspection principal). Board has no viewer credential.
   existingSecret: ""
   # Board JSON fields, including realm, principal, public_origin and lenses.
   # The chart fixes the listener, credential paths and internal node upstream.

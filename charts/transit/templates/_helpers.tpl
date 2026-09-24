@@ -30,7 +30,6 @@ app: {{ include "transit.name" . | quote }}
 {{- $_ := set $config "listen" "0.0.0.0" -}}
 {{- $_ := set $config "port" 8080 -}}
 {{- $_ := set $config "seed_file" "/secrets/seed" -}}
-{{- $_ := set $config "credential_file" "/secrets/access" -}}
 {{- toJson $config -}}
 {{- end -}}
 

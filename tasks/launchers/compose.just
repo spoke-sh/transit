@@ -28,11 +28,11 @@ down:
 status:
     python3 -B launchers/main.py compose status
 
-# Print endpoint and credential-file locations; never print the credential.
+# Print endpoint URLs and listener settings.
 endpoints:
     python3 -B launchers/main.py compose endpoints
 
-# Inspect the realm through Board's authenticated public API.
+# Inspect the realm through Board's read-only API.
 inspect:
     python3 -B launchers/main.py compose inspect
 

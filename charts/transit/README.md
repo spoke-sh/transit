@@ -23,7 +23,7 @@ and validated by their binaries; the chart does not duplicate those schemas.
 | `ursula` | One Recreate Deployment, private Service, disk-WAL ConfigMap and retained PVC. Uses the official pinned image. Supply `persistence.existingClaim` to reuse storage; otherwise `size` and optional `storageClass` configure a new claim. |
 | `initialize` | Explicit one-time Job using the node image/config. Disabled by default and never an automatic Helm hook. |
 | `maintenance` | Optional separate single-replica Deployment and ConfigMap. Supply `existingSecret` containing `seed` and `config.principal` with its recorded admin/effect grant. Uses the node image with `--maintain`. |
-| `board` | Optional Deployment, private Service and ConfigMap. Supply `image`, `existingSecret` containing `seed` and `access`, and `config` with realm, inspection principal and public origin. |
+| `board` | Optional Deployment, private Service and ConfigMap. Supply `image`, `existingSecret` containing the Transit `seed`, and `config` with realm, inspection principal and public origin. |
 | `controller` | Optional one-PID Recreate Deployment with a PID-scoped Transit seed, projected provider/API tokens, public trust-bundle read permission and namespace-local worker-log access. Supply its packaged image and provider configuration. |
 | `workerPools` | Named version-specific pools; keep old capacity until a recorded workload switch has reconciled and a fresh activation is established. |
 | `workerPool` | Optional Substrate WorkerPool. Supply `spec` and any workload selector labels. Requires the pinned Substrate CRD/controller already installed. |
@@ -88,7 +88,7 @@ procedure or a Transit process-retention policy.
 
 Services run without a service-account token, as non-root, with a read-only root
 filesystem and dropped capabilities. Credentials are read-only mounts from
-existing Secrets; never put private seeds or Board access keys in Helm values,
+existing Secrets; never put private seeds in Helm values,
 ConfigMaps, extra-container arguments or release history. The initializer needs
 only public genesis. Maintenance and Board receive distinct credentials.
 
@@ -97,8 +97,9 @@ initialization pods, and Board egress to Transit and cluster DNS. They require
 an enforcing CNI; rendered policy alone does not establish isolation. Review DNS
 selectors for your cluster and enforce equivalent restrictions around external
 Ursula. Node/controller services are trusted control infrastructure. Services
-are ClusterIP-only; TLS ingress, browser access, and authentication provisioning
-remain deployment responsibilities. No public ingress or telemetry collector is
+are ClusterIP-only. Board has no viewer key/session layer: every reachable
+caller shares its configured read scope. Network admission, any authenticated
+ingress, and TLS termination remain deployment responsibilities. No public ingress or telemetry collector is
 installed. A Board health probe preserves the configured public Host.
 
 The Kind reference supplies `board.extraInitContainers` and `extraContainers`

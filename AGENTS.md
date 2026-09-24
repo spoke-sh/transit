@@ -62,6 +62,8 @@ expanding framework or real-effect integrations.
 - Keep Board inspection-only for M2. Use public `transit-client` read surfaces;
   no raw storage/provider access, hidden mutations, or unqualified cached views.
   Preserve source evidence and kernel facts when adding interpretation lenses.
+  Board admits viewers through its private deployment boundary without access
+  keys or sessions; its upstream Transit identity still requires a read-only grant.
 - Keep instrumentation with its domain owner and I/O outside deterministic core.
   Bound telemetry work, cardinality and sinks; exclude credentials and payloads.
   Preserve machine stdout and distinguish transport attempts from durable results.

@@ -36,19 +36,16 @@ def run(node, cli, board):
         seed, public = s.key("board")
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16}})
         port = free_port()
-        credential = s.root / "access.key"
-        access = os.urandom(32).hex()
-        credential.write_text(access)
         board_config = s.root / "board.json"
         board_config.write_text(json.dumps({"upstream": s.url, "realm": 72, "principal": 1,
-            "seed_file": str(seed), "credential_file": str(credential), "port": port,
+            "seed_file": str(seed), "port": port,
             "public_origin": f"http://127.0.0.1:{port}"}))
         running = s.start(board, board_config, env=env)
         board_log = Path(s.logs[-1].name)
         wait_ready(s.store.http, running, f"http://127.0.0.1:{port}/health")
         forged = "00-" + "a" * 32 + "-" + "b" * 16 + "-01"
         conn = HTTPConnection("127.0.0.1", port, timeout=5)
-        conn.request("GET", "/api/v1/processes", headers={"Authorization": f"Bearer {access}", "traceparent": forged})
+        conn.request("GET", "/api/v1/processes", headers={"Authorization": "Bearer ignored-private-marker", "traceparent": forged})
         response = conn.getresponse()
         assert response.status == 200
         response.read()
@@ -61,7 +58,7 @@ def run(node, cli, board):
         s.command({"revoke": 1})
         time.sleep(.12)
         conn = HTTPConnection("127.0.0.1", port, timeout=5)
-        conn.request("GET", "/api/v1/processes", headers={"Authorization": f"Bearer {access}", "traceparent": forged})
+        conn.request("GET", "/api/v1/processes", headers={"Authorization": "Bearer ignored-private-marker", "traceparent": forged})
         response = conn.getresponse()
         assert response.status == 403
         response.read()
@@ -86,7 +83,7 @@ def run(node, cli, board):
         assert not any(r.get("trace_id") == "a" * 32 for r in node_records)
         for path in (node_log, board_log):
             data = path.read_text()
-            assert access not in data and seed.read_text().strip() not in data
+            assert "ignored-private-marker" not in data and seed.read_text().strip() not in data
             assert "private-state-marker" not in data and "private-state-marker".encode().hex() not in data
             assert "private-header-marker" not in data
         # The same one-CPU node must still serve and enforce its HTTP deadline

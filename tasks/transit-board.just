@@ -36,7 +36,7 @@ build:
 run config: build
     zig-out/bin/transit-board {{quote(config)}}
 
-# Prove bounded auth, scopes, embedded delivery, retention and failure handling.
+# Prove private access, upstream scopes, embedded delivery, retention and failures.
 test:
     zig build test-transit-board-unit test-transit-board
 

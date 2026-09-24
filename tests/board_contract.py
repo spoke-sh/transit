@@ -8,11 +8,14 @@ if actual != expected:
     raise SystemExit("Board OpenAPI drift: run just transit-board::generate")
 spec = json.loads(actual)
 assert spec["openapi"] == "3.1.1"
-assert spec["security"] == [{"bearer": []}, {"session": []}]
-assert spec["paths"]["/api/v1/session"]["post"]["security"] == [{"bearer": []}]
+assert spec["security"] == []
+assert "securitySchemes" not in spec["components"]
+assert "Session" not in spec["components"]["schemas"]
+assert "session_seconds" not in spec["components"]["schemas"]["Capabilities"]["properties"]
+assert "/api/v1/session" not in spec["paths"] and "/api/v1/logout" not in spec["paths"]
 for path, methods in spec["paths"].items():
     assert path.startswith("/api/v1/")
-    assert set(methods) == ({"post"} if path.endswith(("/session", "/logout")) else {"get"})
+    assert set(methods) == {"get"}
     for route in methods.values():
         for status in route["responses"].values():
             ref = status["content"]["application/json"]["schema"]["$ref"]

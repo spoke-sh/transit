@@ -85,7 +85,7 @@ names into a uniquely created namespace, uses an inert node Deployment plus a
 CoreDNS HTTP health responder in place of Board, and verifies native discovery,
 status/workload views, prefixed logs, configured origin, real port-forward traffic
 and listener shutdown after interruption. The fixture proves Kubernetes wiring,
-not Board authentication or Transit execution. Cleanup verifies the namespace
+not Transit read authorization or execution. Cleanup verifies the namespace
 UID before deleting only test resources. Existing reference workloads are not
 restarted. Plain `kubectl get nodes` and packaged `kubectl ate get workers` also
 succeeded through the environment's default reference kubeconfig.
@@ -112,7 +112,7 @@ the actual node, maintenance process, counter and Board. Both passed on Linux
 x86_64. The native proof is part of `just ci`; Compose remains an explicit
 Docker-dependent check. The proof checks:
 
-- Board authentication and the inspection-only upstream principal; private
+- Direct Board access and the inspection-only upstream principal; private
   credential files and secret-free status/log output.
 - Seed inputs admitted once, same-ID send retries returning the same receipt,
   conflicting retry rejection, and resumption after a lost operator receipt.
@@ -124,8 +124,8 @@ Docker-dependent check. The proof checks:
   installation, or reactivate a permanently retired PID.
 - Reconfigure an existing Board listener/public origin without resetting its
   realm or keys; probe through the correct Host header without public DNS.
-  Remote HTTP requires explicit development opt-in; wrong Host/Origin and
-  unauthenticated reads still fail. Ursula/Transit keep loopback publication.
+  Remote HTTP requires explicit development opt-in; wrong Host/Origin still
+  fails while direct reads succeed without a Board credential. Ursula/Transit keep loopback publication.
   Native Board must become ready in Process Compose and stay alive beyond the
   original 30-second probe-failure window.
 - Local and Compose foreground startup stream service output and manager/container
@@ -175,7 +175,9 @@ UID/template/suspension validation and version conflicts.
 
 `just launchers::reference::test-launcher` uses a newly owned namespace on the
 existing reference cluster. It provisions the complete stack, changes Board
-without replacing the node/Ursula/maintenance/controller pods, admits input while
+without replacing the node/Ursula/maintenance/controller pods, removes an old
+Board viewer-key Secret field while preserving its Transit seed, verifies direct
+inspection without a viewer credential, admits input while
 the Actor is suspended, and deploys a different counter image through the real
 guarded Substrate API. PID and Actor UID remain stable; worker UID and activation
 generation change. The queued input commits once. Authority restart and full
@@ -394,11 +396,12 @@ JS validators consume actual Zig responses and reject malformed identities/data.
 
 The API proof checks current grants, scoped lists and edges, unsafe deployment
 principals, missing API/asset routes, Host/Origin/forwarded-header rejection,
-HttpOnly cookies, key rotation, session expiry/logout, no mutation/proxy routes,
+direct reads without viewer credentials, no cookies or session/mutation/proxy routes,
 closed-unknown effects, blocked inputs, history cut/trim gaps and storage restart.
 Core tests deterministically inject revocation/tail and physical-trim races.
 Board projection tests reject mixed-resource pages before they could overflow
-the 32-edge budget, and session-capacity tests forbid eviction to admit a new viewer.
+the 32-edge budget. Revoked Transit grants reject reads even with old Board
+cookies or arbitrary bearer headers; these headers stay out of diagnostics.
 The initial local load run (Linux x86_64, pinned tools) completed five control
 writes during 25 refresh requests; the maximum observed latency was 43 ms.
 Requests exceeding Board's 10 upstream reads/second admission rate were rejected.
@@ -406,10 +409,10 @@ A slow incomplete Board request also left the authority available. This is a
 bounded reference measurement, not a throughput/fairness or latency guarantee.
 
 `just transit-board::browser-install` and `just transit-board::browser` run pinned Chromium against
-that same real binary/API. Checks cover login, typed runtime validation, nested
+that same real binary/API. Checks cover direct access, typed runtime validation, nested
 routes/lazy assets, arrivals/departures and uncertainty, keyboard focus through
-polling, escaped payloads/lens fallback, denial/logout clearing and absence of
-credentials in URLs/browser storage. Axe checks the journey against WCAG A/AA;
+polling, escaped payloads/lens fallback, denial clearing and connection retry,
+and absence of Board cookies or browser storage. Axe checks the journey against WCAG A/AA;
 this does not replace a full assistive-technology audit. Local screenshots/traces
 remain ignored under `.cache/`. Remote TLS termination and identity federation
 are outside this private/loopback profile.

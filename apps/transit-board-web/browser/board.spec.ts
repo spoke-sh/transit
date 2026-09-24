@@ -8,8 +8,6 @@ test("real embedded UI explains kernel evidence and retains focus while polling"
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
-  await page.getByLabel("Board access key").fill(process.env.BOARD_TEST_ACCESS!);
-  await page.getByRole("button", { name: "Open board" }).click();
   await expect(page.getByRole("heading", { name: "Departure board" })).toBeVisible();
   const link = page.getByRole("link", { name: `PID ${pid}`, exact: true });
   await expect(link).toBeVisible();
@@ -31,7 +29,7 @@ test("real embedded UI explains kernel evidence and retains focus while polling"
   await page.getByRole("link", { name: "Journey", exact: true }).click();
   await expect(page.getByRole("heading", { name: `PID ${pid} · journey` })).toBeVisible();
   await expect(page.getByText("input to turn", { exact: true }).first()).toBeVisible();
-  await page.reload(); // Nested route, lazy assets, and HttpOnly session survive.
+  await page.reload(); // Nested routes and lazy assets open directly, too.
   await expect(page.getByRole("heading", { name: `PID ${pid} · journey` })).toBeVisible();
   await expect(page.getByText("input to turn", { exact: true }).first()).toBeVisible();
   expect(
@@ -39,12 +37,10 @@ test("real embedded UI explains kernel evidence and retains focus while polling"
       .violations,
   ).toEqual([]);
   await page.screenshot({ path: process.env.BOARD_SCREENSHOT, fullPage: true });
-  expect(page.url()).not.toContain(process.env.BOARD_TEST_ACCESS!);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
-  expect(await page.evaluate(() => document.cookie)).not.toContain("board_session");
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByLabel("Board access key")).toBeVisible();
-  await expect(page.getByRole("table")).toHaveCount(0);
+  expect(await page.context().cookies()).toEqual([]);
+  await expect(page.getByLabel("Board access key")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -52,8 +48,6 @@ test("unknown lenses and hostile payloads remain text, denial clears observation
   page,
 }) => {
   await page.goto(`/processes/${sink}`);
-  await page.getByLabel("Board access key").fill(process.env.BOARD_TEST_ACCESS!);
-  await page.getByRole("button", { name: "Open board" }).click();
   await expect(page.getByText(/Unsupported or malformed interpretation/)).toBeVisible();
   await page.goto(`/processes/${process.env.BOARD_TEST_MALFORMED!}`);
   await expect(page.getByText(/malformed · operator mapping/)).toBeVisible();
@@ -70,16 +64,17 @@ test("unknown lenses and hostile payloads remain text, denial clears observation
     });
   });
   await page.getByRole("button", { name: "Refresh from start" }).click();
-  await expect(page.getByLabel("Board access key")).toBeVisible();
+  await expect(page.getByText(/Transit denied inspection/)).toBeVisible();
   await expect(page.getByText(/Source: PID/)).toHaveCount(0);
+  await page.unroute("**/api/v1/processes/**");
+  await page.getByRole("button", { name: "Retry connection" }).click();
+  await expect(page.getByText(/malformed · operator mapping/)).toBeVisible();
 });
 
 test("disconnection preserves an explicitly stale observation instead of an empty view", async ({
   page,
 }) => {
   await page.goto(`/processes/${pid}`);
-  await page.getByLabel("Board access key").fill(process.env.BOARD_TEST_ACCESS!);
-  await page.getByRole("button", { name: "Open board" }).click();
   await expect(page.getByText("Counter value:")).toContainText("7");
   await page.route("**/api/v1/processes/**", (route) =>
     route.fulfill({ status: 503, contentType: "application/json", body: '{"err":"Unavailable"}' }),
@@ -89,4 +84,17 @@ test("disconnection preserves an explicitly stale observation instead of an empt
   });
   await expect(page.getByText("Counter value:")).toContainText("7");
   await expect(page.getByText("Stale", { exact: true })).toBeVisible();
+});
+
+test("an unavailable initial connection can be retried without signing in", async ({ page }) => {
+  await page.route("**/api/v1/capabilities", (route) =>
+    route.fulfill({ status: 503, contentType: "application/json", body: '{"err":"Unavailable"}' }),
+  );
+  await page.goto("/");
+  await expect(page.getByText("Observation unavailable (Unavailable).")).toBeVisible();
+  await expect(page.getByLabel("Board access key")).toHaveCount(0);
+  await page.unroute("**/api/v1/capabilities");
+  await page.getByRole("button", { name: "Retry connection" }).click();
+  await expect(page.getByRole("heading", { name: "Departure board" })).toBeVisible();
+  await expect(page.getByRole("link", { name: `PID ${pid}`, exact: true })).toBeVisible();
 });

@@ -114,8 +114,8 @@ def proof(profile):
         invoke("reset", success=False)
         invoke("up", success=False)
         # Credentials must stay out of machine-readable output and service logs.
-        access = (installation.path / "board/access.key").read_text()
-        assert access not in json.dumps(endpoints)
+        assert not (installation.path / "board/access.key").exists()
+        assert "access_key_file" not in endpoints
         assert installation.path.stat().st_mode & 0o077 == 0
         credentials = []
         for path in installation.path.rglob("*.key"):
@@ -168,7 +168,7 @@ def proof(profile):
         assert recovered["pid"] == first["pid"] and recovered["generation"] > current["generation"]
         assert recovered["consumed"] == recovered["admitted"] == 4
         assert (installation.path / "operator/root.key").read_bytes() == root_key
-        assert (installation.path / "board/access.key").read_text() == access
+        assert not (installation.path / "board/access.key").exists()
         for service in ("ursula", "node", "board"):
             invoke("restart", service)
             assert observe(25)["pid"] == first["pid"]
@@ -208,10 +208,8 @@ def proof(profile):
             for service in ("node", "ursula"):
                 assert topology["services"][service]["ports"][0]["host_ip"] == "127.0.0.1"
         authority = f"devbox.local:{board_port}"
-        def remote_request(path, *, host=authority, origin=remote_origin, method="GET", auth=True):
+        def remote_request(path, *, host=authority, origin=remote_origin, method="GET"):
             headers = {"Host": host, "Origin": origin}
-            if auth:
-                headers["Authorization"] = "Bearer " + access
             connection = HTTPConnection("127.0.0.1", board_port, timeout=5)
             try:
                 connection.request(method, path, headers=headers)
@@ -220,13 +218,12 @@ def proof(profile):
                 return response.status, dict(response.getheaders())
             finally:
                 connection.close()
-        assert remote_request("/health", auth=False)[0] == 200
+        assert remote_request("/health")[0] == 200
         assert remote_request("/health", host="evil.example")[0] == 403
         assert remote_request("/health", origin="http://evil.example")[0] == 403
-        assert remote_request("/api/v1/processes", auth=False)[0] == 401
-        status, headers = remote_request("/api/v1/session", method="POST")
-        assert status == 200 and "HttpOnly" in headers["set-cookie"] and "SameSite=Strict" in headers["set-cookie"]
-        assert "Secure" not in headers["set-cookie"]
+        status, headers = remote_request("/api/v1/processes")
+        assert status == 200 and "set-cookie" not in headers
+        assert remote_request("/api/v1/session", method="POST")[0] == 404
         assert (installation.path / "operator/root.key").read_bytes() == root_key
         invoke("restart", "board")
         assert observe(25)["pid"] == first["pid"]
@@ -250,7 +247,7 @@ def proof(profile):
         invoke("down")
         invoke("reset")
         assert not installation.path.exists()
-        print(f"{profile}: persistence, retries, fencing, retirement, missing-store refusal and configurable Board origin/auth passed.")
+        print(f"{profile}: persistence, retries, fencing, retirement, missing-store refusal and configurable Board origin and direct access passed.")
         completed = True
     finally:
         if installation.manifest.exists():

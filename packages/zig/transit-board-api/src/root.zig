@@ -39,13 +39,11 @@ pub const Capabilities = struct {
     max_edges: u32 = max_edges,
     min_refresh_ms: u32 = 5000,
     max_request_bytes: u32 = 4096,
-    session_seconds: u32,
     station: bool = false,
     http_connector: bool = false,
     push: bool = false,
 };
-pub const Error = struct { err: enum { Unauthorized, Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal } };
-pub const Session = struct { expires_in: u32 };
+pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal } };
 
 fn reference(page: i.Page, pid: u64, kind: @FieldType(Reference, "kind"), id: u64) Reference {
     return .{ .realm = page.realm, .pid = pid, .kind = kind, .id = id };

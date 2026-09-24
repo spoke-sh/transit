@@ -2,7 +2,7 @@
 
 Strict TypeScript, React, and TanStack Router file routes built with the pinned
 Vite+ 0.3.3 toolchain, packaged as `@rey/transit-board-web`. The static output is
-embedded by the [Board executable](../transit-board/README.md), which hosts the authenticated API on the
+embedded by the [Board executable](../transit-board/README.md), which hosts the private inspection API on the
 same origin. There is no production JavaScript server.
 
 From the repository root:
@@ -15,9 +15,11 @@ just transit-board::demo
 
 The [generated Board client](../../packages/ts/transit-board-client/README.md) supplies
 wire models and CSP-compatible runtime validation. No signing seed or provider
-access reaches the browser. Access keys are transient form data; the only stored
-authentication is the HttpOnly session cookie. No local/session storage or offline
-cache is used. Logout/known denial unmounts and clears data views.
+access reaches the browser. Views open directly without a sign-in form or
+Board session. Board sets no cookies and uses no local/session storage or offline
+cache.
+Known denial unmounts and clears data views; a retry rechecks the configured
+Transit read grant. Startup failures also expose a retry action.
 
 The overview, process tabs and journey use readable tables and sequence lanes.
 Stable routes carry PID, tab, sort and lifecycle filters. Filtering applies to
@@ -32,8 +34,9 @@ refer to the latest observation; no duration or ETA is inferred. Optional lenses
 show mapping provenance and source revision alongside unchanged kernel facts.
 
 `just transit-board::browser` requires `just transit-board::browser-install` first. It starts the
-actual embedded binary against a disposable realm; checks login, deep links,
-lazy assets, keyboard focus across polling, causal/effect explanations and logout;
+actual embedded binary against a disposable realm; checks direct access, deep
+links, lazy assets, keyboard focus across polling, causal/effect explanations,
+denial clearing and connection retries;
 and saves a local screenshot/failed traces under `.cache/`. Chromium needs its
 host libraries; on supported CI Linux images Playwright can provision them with
 `vp exec --filter @rey/transit-board-web playwright install --with-deps chromium`.

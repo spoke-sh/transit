@@ -1,19 +1,12 @@
 {
   "openapi": "3.1.1",
   "info": {
-    "title": "Rey Board inspection API",
+    "title": "Transit Board inspection API",
     "version": "1.0.0",
-    "description": "One shared read-only Transit principal; current permission checked on every data read. No execution controls."
+    "description": "Private deployment: no Board keys or sessions. Every reachable viewer shares one read-only Transit principal; current permission is checked on every data read. No execution controls."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
-  "security": [
-    {
-      "bearer": []
-    },
-    {
-      "session": []
-    }
-  ],
+  "security": [],
   "paths": {
     "/api/v1/capabilities": {
       "get": {
@@ -31,16 +24,6 @@
             }
           },
           "400": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
             "description": "Error",
             "content": {
               "application/json": {
@@ -164,16 +147,6 @@
             }
           },
           "400": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
             "description": "Error",
             "content": {
               "application/json": {
@@ -316,16 +289,6 @@
               }
             }
           },
-          "401": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Error",
             "content": {
@@ -450,16 +413,6 @@
             }
           },
           "400": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
             "description": "Error",
             "content": {
               "application/json": {
@@ -602,16 +555,6 @@
               }
             }
           },
-          "401": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Error",
             "content": {
@@ -736,16 +679,6 @@
             }
           },
           "400": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
             "description": "Error",
             "content": {
               "application/json": {
@@ -888,16 +821,6 @@
               }
             }
           },
-          "401": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Error",
             "content": {
@@ -1022,16 +945,6 @@
             }
           },
           "400": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
             "description": "Error",
             "content": {
               "application/json": {
@@ -1174,197 +1087,6 @@
               }
             }
           },
-          "401": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/session": {
-      "post": {
-        "summary": "Session",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/logout": {
-      "post": {
-        "summary": "Session",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "403": {
             "description": "Error",
             "content": {
@@ -1420,17 +1142,6 @@
     }
   },
   "components": {
-    "securitySchemes": {
-      "bearer": {
-        "type": "http",
-        "scheme": "bearer"
-      },
-      "session": {
-        "type": "apiKey",
-        "in": "cookie",
-        "name": "board_session"
-      }
-    },
     "schemas": {
       "Response": {
         "type": "object",
@@ -3197,7 +2908,6 @@
           "max_edges",
           "min_refresh_ms",
           "max_request_bytes",
-          "session_seconds",
           "station",
           "http_connector",
           "push"
@@ -3272,13 +2982,6 @@
             "x-transit-bits": 32,
             "x-transit-signed": false
           },
-          "session_seconds": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 4294967295,
-            "x-transit-bits": 32,
-            "x-transit-signed": false
-          },
           "station": {
             "type": "boolean"
           },
@@ -3300,7 +3003,6 @@
           "max_edges",
           "min_refresh_ms",
           "max_request_bytes",
-          "session_seconds",
           "station",
           "http_connector",
           "push"
@@ -3329,7 +3031,6 @@
           "err": {
             "type": "string",
             "enum": [
-              "Unauthorized",
               "Forbidden",
               "NotFound",
               "InvalidQuery",
@@ -3344,26 +3045,6 @@
         },
         "required": [
           "err"
-        ],
-        "x-transit-defaults": {}
-      },
-      "Session": {
-        "type": "object",
-        "additionalProperties": false,
-        "x-transit-field-order": [
-          "expires_in"
-        ],
-        "properties": {
-          "expires_in": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 4294967295,
-            "x-transit-bits": 32,
-            "x-transit-signed": false
-          }
-        },
-        "required": [
-          "expires_in"
         ],
         "x-transit-defaults": {}
       }

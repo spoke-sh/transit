@@ -4,19 +4,16 @@ const telemetry = @import("telemetry");
 const client = @import("transit_client");
 const api = @import("transit_board_api");
 const assets = @import("assets");
-const Auth = @import("Auth.zig");
 const i = client.protocol.Inspection;
 const Config = struct {
     upstream: []const u8,
     realm: u64,
     principal: u8,
     seed_file: []const u8,
-    credential_file: []const u8,
     public_origin: []const u8,
     development_allow_insecure_http: bool = false,
     listen: []const u8 = "127.0.0.1",
     port: u16 = 8090,
-    session_seconds: u32 = 900,
     request_timeout_ms: u32 = 1500,
     upstream_timeout_ms: u32 = 800,
     read_interval_ms: u32 = 100,
@@ -27,37 +24,34 @@ const Server = struct {
     allocator: std.mem.Allocator,
     config: Config,
     host: []const u8,
-    auth: Auth = .{},
     observation: telemetry.Http = .{},
     next_read_ms: i64 = 0,
 
     fn now(self: *Server) i64 {
         return std.Io.Clock.boot.now(self.io).toMilliseconds();
     }
-    fn respond(self: *Server, req: *std.http.Server.Request, status: std.http.Status, body: []const u8, mime: []const u8, cookie: ?[]const u8) !void {
+    fn respond(self: *Server, req: *std.http.Server.Request, status: std.http.Status, body: []const u8, mime: []const u8) !void {
         self.observation.status = @backingInt(status);
-        var headers: [9]std.http.Header = .{
+        const headers: [7]std.http.Header = .{
             .{ .name = "content-type", .value = mime },
             .{ .name = "cache-control", .value = "no-store" },
             .{ .name = "x-content-type-options", .value = "nosniff" },
             .{ .name = "content-security-policy", .value = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" },
             .{ .name = "referrer-policy", .value = "no-referrer" },
             .{ .name = "permissions-policy", .value = "camera=(), microphone=(), geolocation=()" },
-            .{ .name = "vary", .value = "Cookie, Authorization" },
             .{ .name = "x-frame-options", .value = "DENY" },
-            .{ .name = "set-cookie", .value = cookie orelse "" },
         };
-        try req.respond(body, .{ .status = status, .keep_alive = false, .extra_headers = headers[0..if (cookie != null) 9 else 8] });
+        try req.respond(body, .{ .status = status, .keep_alive = false, .extra_headers = &headers });
         self.observation.written = true;
     }
-    fn json(self: *Server, req: *std.http.Server.Request, status: std.http.Status, value: anytype, cookie: ?[]const u8) !void {
+    fn json(self: *Server, req: *std.http.Server.Request, status: std.http.Status, value: anytype) !void {
         const body = try std.json.Stringify.valueAlloc(self.allocator, value, .{});
         defer self.allocator.free(body);
-        return self.respond(req, status, body, "application/json", cookie);
+        return self.respond(req, status, body, "application/json");
     }
     fn failure(self: *Server, req: *std.http.Server.Request, status: std.http.Status, code: @FieldType(api.Error, "err")) !void {
         self.observation.error_type = @tagName(code);
-        return self.json(req, status, api.Error{ .err = code }, null);
+        return self.json(req, status, api.Error{ .err = code });
     }
     fn handle(self: *Server, stream: std.Io.net.Stream) anyerror!void {
         var rb: [8192]u8 = undefined;
@@ -73,41 +67,21 @@ const Server = struct {
         for ([_][]const u8{ "forwarded", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-for" }) |name| if (try header(&req, name) != null) return self.failure(&req, .forbidden, .InvalidOrigin);
         const target = try self.allocator.dupe(u8, req.head.target);
         defer self.allocator.free(target);
-        // Reading a body changes the HTTP reader state and may reuse its head
-        // buffer. Copy/decode everything needed from headers first.
-        const token = Auth.cookie(try header(&req, "cookie"));
-        const authorization = try header(&req, "authorization");
-        const presented = if (authorization) |value| if (std.mem.startsWith(u8, value, "Bearer ")) Auth.decode(value[7..]) else null else null;
         if (target.len > 1024) return self.failure(&req, .bad_request, .InvalidQuery);
         const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
         defer self.allocator.free(body);
         if (body.len != 0) return self.failure(&req, .bad_request, .InvalidQuery);
-        if (std.mem.eql(u8, target, "/health") and req.head.method == .GET) return self.json(&req, .ok, .{ .ready = true }, null);
-        if (std.mem.eql(u8, target, "/openapi/v1.json") and req.head.method == .GET) return self.respond(&req, .ok, assets.openapi, "application/json", null);
+        if (std.mem.eql(u8, target, "/health") and req.head.method == .GET) return self.json(&req, .ok, .{ .ready = true });
+        if (std.mem.eql(u8, target, "/openapi/v1.json") and req.head.method == .GET) return self.respond(&req, .ok, assets.openapi, "application/json");
         if (!std.mem.startsWith(u8, target, "/api/")) {
             if (req.head.method != .GET) return self.failure(&req, .not_found, .NotFound);
-            if (assets.get(target)) |asset| return self.respond(&req, .ok, asset.bytes, asset.mime, null);
+            if (assets.get(target)) |asset| return self.respond(&req, .ok, asset.bytes, asset.mime);
             const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
-            if (browserRoute(path)) return self.respond(&req, .ok, assets.index, "text/html; charset=utf-8", null);
+            if (browserRoute(path)) return self.respond(&req, .ok, assets.index, "text/html; charset=utf-8");
             return self.failure(&req, .not_found, .NotFound);
         }
-        var credential = Auth.credential(self.allocator, self.io, self.config.credential_file) catch return self.failure(&req, .service_unavailable, .Unavailable);
-        defer std.crypto.secureZero(u8, &credential);
-        const bearer = if (presented) |value| Auth.equal(value, credential) else false;
-        const authorized = self.auth.authorized(token, credential, self.now());
-        if (!bearer and !authorized) return self.failure(&req, .unauthorized, .Unauthorized);
-        if (req.head.method == .POST and std.mem.eql(u8, target, "/api/v1/session")) {
-            // Cookie replay cannot renew a session. Only the current access key can.
-            if (!bearer) return self.failure(&req, .unauthorized, .Unauthorized);
-            const issued = self.auth.issue(self.io, credential, self.now(), self.config.session_seconds) catch return self.failure(&req, .too_many_requests, .RateLimited);
-            var cookie: [256]u8 = undefined;
-            const value = try std.fmt.bufPrint(&cookie, "board_session={s}; Path=/api/v1/; HttpOnly; SameSite=Strict; Max-Age={d}{s}", .{ std.fmt.bytesToHex(issued, .lower), self.config.session_seconds, if (std.mem.startsWith(u8, self.config.public_origin, "https://")) "; Secure" else "" });
-            return self.json(&req, .ok, api.Session{ .expires_in = self.config.session_seconds }, value);
-        }
-        if (req.head.method == .POST and std.mem.eql(u8, target, "/api/v1/logout")) {
-            self.auth.logout(token);
-            return self.json(&req, .ok, api.Session{ .expires_in = 0 }, "board_session=; Path=/api/v1/; HttpOnly; SameSite=Strict; Max-Age=0");
-        }
+        // The deployment boundary admits viewers. Transit still authenticates
+        // this instance's read-only principal and authorizes every data read.
         if (req.head.method != .GET) return self.failure(&req, .not_found, .NotFound);
         const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
         const q = if (capabilities) i.Query{ .realm = self.config.realm, .principal = self.config.principal, .resource = .processes } else parseQuery(target, self.config.realm, self.config.principal) catch return self.failure(&req, .bad_request, .InvalidQuery);
@@ -132,15 +106,15 @@ const Server = struct {
         };
         if (page.reader.permissions != client.protocol.permission(.inspect)) return self.failure(&req, .service_unavailable, .UnsafePrincipal);
         if (page.realm != q.realm or page.resource != q.resource or page.pid != q.pid or page.reader.principal != q.principal) return self.failure(&req, .service_unavailable, .Unavailable);
-        if (capabilities) return self.json(&req, .ok, api.Capabilities{ .realm = page.realm, .scope_pid = page.reader.pid, .session_seconds = self.config.session_seconds }, null);
+        if (capabilities) return self.json(&req, .ok, api.Capabilities{ .realm = page.realm, .scope_pid = page.reader.pid });
         const projection = api.project(page, self.config.lenses) catch return self.failure(&req, .service_unavailable, .Unavailable);
-        return self.json(&req, .ok, projection, null);
+        return self.json(&req, .ok, projection);
     }
 };
 // Route vocabulary is finite; never log a raw path, query or user-provided PID.
 fn logRoute(target: []const u8) []const u8 {
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
-    inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/session", "/api/v1/logout", "/api/v1/capabilities", "/api/v1/processes" }) |known| if (std.mem.eql(u8, path, known)) return known;
+    inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes" }) |known| if (std.mem.eql(u8, path, known)) return known;
     if (assets.get(path) != null) return "/assets/{asset}";
     if (browserRoute(path)) return if (std.mem.endsWith(u8, path, "/journey")) "/processes/{pid}/journey" else "/processes/{pid}";
     const query = parseQuery(path, 1, 1) catch return "unmatched";
@@ -245,7 +219,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
     defer parsed.deinit();
     const config = parsed.value;
-    if (config.principal == 0 or config.principal >= client.protocol.max_principals or config.realm == 0 or config.realm > client.protocol.max_counter or config.session_seconds == 0 or config.session_seconds > 3600 or config.request_timeout_ms < 100 or config.request_timeout_ms > 5000 or config.upstream_timeout_ms == 0 or config.upstream_timeout_ms >= config.request_timeout_ms or config.read_interval_ms < 100 or config.read_interval_ms > 5000 or config.lenses.len > 64) return error.InvalidConfig;
+    if (config.principal == 0 or config.principal >= client.protocol.max_principals or config.realm == 0 or config.realm > client.protocol.max_counter or config.request_timeout_ms < 100 or config.request_timeout_ms > 5000 or config.upstream_timeout_ms == 0 or config.upstream_timeout_ms >= config.request_timeout_ms or config.read_interval_ms < 100 or config.read_interval_ms > 5000 or config.lenses.len > 64) return error.InvalidConfig;
     const host = try originHost(config.public_origin, config.development_allow_insecure_http);
     for (config.lenses, 0..) |mapping, index| {
         if (mapping.kind.len > 128 or !std.unicode.utf8ValidateSlice(mapping.kind)) return error.InvalidLens;
@@ -297,5 +271,4 @@ test "routes and query bounds reject ambiguous or unsafe identity" {
     try std.testing.expectError(error.InvalidQuery, parseQuery("/api/v1/processes?position=3", 1, 1));
     try std.testing.expectError(error.InvalidQuery, parseQuery("/api/v1/processes?after=0&after=0", 1, 1));
     try std.testing.expectError(error.InvalidQuery, parseQuery("/api/v1/processes?url=http://evil", 1, 1));
-    _ = Auth;
 }

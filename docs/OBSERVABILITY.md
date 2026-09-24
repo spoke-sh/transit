@@ -31,7 +31,7 @@ change a transition, block control progress, or trigger effect redispatch.
 
 | Owner | Observations it can explain |
 | --- | --- |
-| Board executable | HTTP handling, authentication/session outcomes, API projection failures, upstream call timing, startup and shutdown |
+| Board executable | HTTP handling, origin/permission failures, API projection failures, upstream call timing, startup and shutdown |
 | Transit node | Signed ingress, scoped read/command outcomes, validation and fencing failures, durable acceptance or receipt recovery, authority recovery |
 | Transit client | Each transport attempt, deadline/disconnection, received response or rejection, correlation with its caller; no invented server outcome |
 | Node maintenance | Work performed, clock/storage failures, retirement, reconciliation closure, checkpoint and reclamation outcomes |

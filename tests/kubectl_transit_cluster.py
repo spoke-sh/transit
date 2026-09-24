@@ -33,7 +33,7 @@ def run(binary):
                               check=True, timeout=25).stdout
 
     # Reuse the cluster's installed CoreDNS image as a disposable HTTP health
-    # responder. This tests forwarding, not Board's authentication/protocol.
+    # responder. This tests forwarding, not Board's Transit read authorization/protocol.
     dns = json.loads(ref.kube(state, ["get", "deployment", "coredns", "-n", "kube-system", "-o", "json"], capture=True))
     image = dns["spec"]["template"]["spec"]["containers"][0]["image"]
     created = json.loads(ref.kube(state, ["create", "namespace", namespace, "-o", "json"], capture=True))
