@@ -2,9 +2,9 @@
 
 [Roadmap](README.md) · [M2](M2.md) · [Observability design](../OBSERVABILITY.md)
 
-Status: planned. The completed M2 inspection profile and launcher work remain
-qualified as documented; consistent service instrumentation is new work before
-Station M3. No implementation or observability qualification is implied here.
+Status: implementation in progress. Board request visibility and bounded common
+primitives are implemented and tested; Transit and deployment coverage follow.
+The completed M2 inspection profile retains its documented qualification.
 
 ## Outcome and scope
 

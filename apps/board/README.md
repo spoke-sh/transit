@@ -120,6 +120,23 @@ Coverage is explicit after trimming, and no Board cache pins history. A running
 lifecycle is not worker liveness; delivered is admission, and closed-unknown is
 not external failure. This bounded experimental profile is not a throughput SLA.
 
+## Service diagnostics
+
+Board emits `board.http.request` records on stderr with method, fixed route
+template, status when available, local response-write completion and monotonic
+duration. Failed/unauthorized requests and deadlines are visible; successful
+`/health` probes are debug-only. Session creation/logout use their own route
+templates. Public trace headers are ignored, and credentials, cookies, raw paths,
+queries and payloads never appear in these records.
+
+Use `LOG_FORMAT=json` for machine records or the default `text` for foreground
+launchers. `LOG_LEVEL` defaults to `info`; `debug`, `warn`, `error` and `off` are
+also supported. The [telemetry package](../../packages/zig/telemetry/README.md)
+owns the schema, local metric snapshots, context and bounded sink behavior.
+`service.starting`, `service.ready`, `service.failed` and `service.stopped` describe
+normal execution; abrupt exits and signals are reported by the process manager.
+Board's `/health` checks its HTTP/Host boundary, not upstream Transit availability.
+
 ## Verification
 
 `just board::check` checks contracts, generated client, strict types, formatting,

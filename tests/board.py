@@ -51,7 +51,8 @@ def run(node, cli, board, browser=False):
         binary = isolated / "board"
         shutil.copyfile(board, binary)
         binary.chmod(0o755)
-        running = s.start(binary, config, cwd=isolated, env={"PATH": "/no-executables"})
+        running = s.start(binary, config, cwd=isolated, env={"PATH": "/no-executables", "LOG_FORMAT": "json"})
+        board_log = Path(s.logs[-1].name)
         wait_ready(s.store.http, running, origin + "/health")
 
         def request(path, method="GET", auth=True, headers=None, status=200, retry=True):
@@ -197,12 +198,30 @@ def run(node, cli, board, browser=False):
         trimmed = api(f"processes/{pids[0]}/history")["observation"]
         assert trimmed["history"] == "prefix_reclaimed" and not any(trimmed["events"])
         assert api(f"processes/{pids[0]}")["observation"]["processes"][0]["lifecycle"] == "terminated"
+        # Request diagnostics contain only fixed routes and outcomes, not secrets.
+        request("/?secret=private-query-marker", auth=False)
+        request("/", auth=False, headers={"traceparent": "00-" + "a" * 32 + "-" + "b" * 16 + "-01"})
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as stalled:
+            stalled.sendall(b"GET / HTTP/1.1\r\nHost:")
+            time.sleep(1.7)
+        time.sleep(.1)
+        diagnostics = board_log.read_text()
+        assert access not in diagnostics and cookie not in diagnostics and seed.read_text().strip() not in diagnostics
+        assert "private-query-marker" not in diagnostics and "metadata" not in diagnostics
+        records = [json.loads(line) for line in diagnostics.splitlines()]
+        requests = [r for r in records if r.get("event", {}).get("name") == "board.http.request"]
+        assert any(r["event"]["status"] == 401 for r in requests if "status" in r["event"])
+        assert any(r["event"]["route"] == "/api/v1/processes/{pid}" for r in requests)
+        assert any(r["event"]["outcome"] == "timeout" and not r["event"]["response_written"] for r in requests)
+        assert not any(r["event"]["route"] == "/health" and r["event"]["outcome"] == "ok" for r in requests)
+        assert all(r["trace_id"] != "a" * 32 for r in requests)
+        assert len({r["span_id"] for r in requests}) == len(requests)
         # Real session timeout and restart invalidation, using a shorter profile.
         running.kill()
         running.wait(timeout=10)
         options["session_seconds"] = 1
         config.write_text(json.dumps(options))
-        running = s.start(binary, config, cwd=isolated, env={"PATH": "/no-executables"})
+        running = s.start(binary, config, cwd=isolated, env={"PATH": "/no-executables", "LOG_FORMAT": "json"})
         wait_ready(s.store.http, running, origin + "/health")
         _, headers = request("/api/v1/session", method="POST")
         cookie = headers["set-cookie"].split(";", 1)[0]

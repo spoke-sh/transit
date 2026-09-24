@@ -1,5 +1,6 @@
 //! Inspection-only application: all live data crosses the public Transit client.
 const std = @import("std");
+const telemetry = @import("telemetry");
 const client = @import("transit_client");
 const api = @import("board_api");
 const assets = @import("assets");
@@ -27,13 +28,14 @@ const Server = struct {
     config: Config,
     host: []const u8,
     auth: Auth = .{},
+    observation: telemetry.Http = .{},
     next_read_ms: i64 = 0,
 
     fn now(self: *Server) i64 {
         return std.Io.Clock.boot.now(self.io).toMilliseconds();
     }
     fn respond(self: *Server, req: *std.http.Server.Request, status: std.http.Status, body: []const u8, mime: []const u8, cookie: ?[]const u8) !void {
-        _ = self;
+        self.observation.status = @backingInt(status);
         var headers: [9]std.http.Header = .{
             .{ .name = "content-type", .value = mime },
             .{ .name = "cache-control", .value = "no-store" },
@@ -46,6 +48,7 @@ const Server = struct {
             .{ .name = "set-cookie", .value = cookie orelse "" },
         };
         try req.respond(body, .{ .status = status, .keep_alive = false, .extra_headers = headers[0..if (cookie != null) 9 else 8] });
+        self.observation.written = true;
     }
     fn json(self: *Server, req: *std.http.Server.Request, status: std.http.Status, value: anytype, cookie: ?[]const u8) !void {
         const body = try std.json.Stringify.valueAlloc(self.allocator, value, .{});
@@ -53,6 +56,7 @@ const Server = struct {
         return self.respond(req, status, body, "application/json", cookie);
     }
     fn failure(self: *Server, req: *std.http.Server.Request, status: std.http.Status, code: @FieldType(api.Error, "err")) !void {
+        self.observation.error_type = @tagName(code);
         return self.json(req, status, api.Error{ .err = code }, null);
     }
     fn handle(self: *Server, stream: std.Io.net.Stream) anyerror!void {
@@ -62,6 +66,7 @@ const Server = struct {
         var writer = stream.writer(self.io, &wb);
         var http = std.http.Server.init(&reader.interface, &writer.interface);
         var req = try http.receiveHead();
+        self.observation.received(&req, logRoute(req.head.target), false);
         const host = (try header(&req, "host")) orelse return self.failure(&req, .forbidden, .InvalidOrigin);
         if (!std.mem.eql(u8, host, self.host)) return self.failure(&req, .forbidden, .InvalidOrigin);
         if (try header(&req, "origin")) |origin| if (!std.mem.eql(u8, origin, self.config.public_origin)) return self.failure(&req, .forbidden, .InvalidOrigin);
@@ -130,6 +135,23 @@ const Server = struct {
         return self.json(&req, .ok, projection, null);
     }
 };
+// Route vocabulary is finite; never log a raw path, query or user-provided PID.
+fn logRoute(target: []const u8) []const u8 {
+    const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
+    inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/session", "/api/v1/logout", "/api/v1/capabilities", "/api/v1/processes" }) |known| if (std.mem.eql(u8, path, known)) return known;
+    if (assets.get(path) != null) return "/assets/{asset}";
+    if (browserRoute(path)) return if (std.mem.endsWith(u8, path, "/journey")) "/processes/{pid}/journey" else "/processes/{pid}";
+    const query = parseQuery(path, 1, 1) catch return "unmatched";
+    return switch (query.resource) {
+        .process => "/api/v1/processes/{pid}",
+        .mailbox => "/api/v1/processes/{pid}/mailbox",
+        .outbox => "/api/v1/processes/{pid}/outbox",
+        .effects => "/api/v1/processes/{pid}/effects",
+        .payloads => "/api/v1/processes/{pid}/payloads",
+        .history => if (std.mem.endsWith(u8, path, "/history")) "/api/v1/processes/{pid}/history" else "/api/v1/processes/{pid}/journey",
+        .processes => "/api/v1/processes",
+    };
+}
 fn header(req: *std.http.Server.Request, name: []const u8) !?[]const u8 {
     var iter = req.iterateHeaders();
     var found: ?[]const u8 = null;
@@ -203,6 +225,17 @@ fn originHost(origin: []const u8, development_allow_insecure_http: bool) ![]cons
     return host;
 }
 pub fn main(init: std.process.Init) !void {
+    var diagnostics = telemetry.Runtime.init(init.io, "board", try telemetry.Config.environment(init.environ_map));
+    diagnostics.start();
+    defer diagnostics.stop();
+    defer diagnostics.event(.{ .name = "service.stopped" });
+    diagnostics.event(.{ .name = "service.starting" });
+    run(init, &diagnostics) catch |err| {
+        diagnostics.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
+        return err;
+    };
+}
+fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 2) return error.ExpectedBoardConfig;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(16384));
@@ -220,9 +253,14 @@ pub fn main(init: std.process.Init) !void {
     const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);
     var listener = try address.listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);
+    diagnostics.event(.{ .name = "service.ready" });
     while (true) {
         const stream = try listener.accept(init.io);
         defer stream.close(init.io);
+        server.observation = .{ .span = diagnostics.begin(.server, null) };
+        var request_error: ?anyerror = null;
+        var timed_out = false;
+        defer server.observation.finish("board.http.request", request_error, timed_out, std.mem.eql(u8, server.observation.route, "/health"));
         const Result = union(enum) { handled: anyerror!void, timeout: anyerror!void };
         var results: [2]Result = undefined;
         var select: std.Io.Select(Result) = .init(init.io, &results);
@@ -230,8 +268,12 @@ pub fn main(init: std.process.Init) !void {
         try select.concurrent(.timeout, timeout, .{ init.io, config.request_timeout_ms });
         try select.concurrent(.handled, Server.handle, .{ &server, stream });
         switch (try select.await()) {
-            .handled => |value| value catch {},
-            .timeout => {},
+            .handled => |value| value catch |err| {
+                request_error = err;
+            },
+            .timeout => {
+                timed_out = true;
+            },
         }
     }
 }

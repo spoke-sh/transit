@@ -1,9 +1,8 @@
 # Observability
 
-Status: planned service instrumentation, delivered as an
-[M2 follow-up](roadmap/M2-OBSERVABILITY.md) before Station. Launchers already
-stream service and manager output; consistent request logs, metrics, and trace
-correlation are not yet implemented. This document owns cross-component rules.
+Status: [M2 follow-up](roadmap/M2-OBSERVABILITY.md) in progress before Station.
+Board request logs and the bounded [telemetry primitives](../packages/zig/telemetry/README.md)
+are implemented; Transit coverage and launcher qualification follow. This document owns cross-component rules.
 Exact event schemas and configuration belong with the implementation as it lands.
 
 ## Purpose and authority
@@ -48,8 +47,8 @@ or a name for all telemetry in Rey. Board's generic HTTP events do not belong in
 
 Formatting, severity, resource identity, bounded sinks, metric instruments and
 trace context are common plumbing with no Board or Transit domain dependency.
-Define their interface using the Board and Transit consumers before extracting
-and naming a shared package. Do not create an umbrella utility package first.
+The `telemetry` package implements this interface, established against Board and
+Transit HTTP call sites. It owns no application or protocol event vocabulary.
 `transit-observability` may depend on the public protocol and that neutral
 interface; it must not depend on Board, core, providers, or an exporter SDK.
 Executable composition supplies sinks, clocks, configuration and shutdown policy.

@@ -3,10 +3,24 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
     test_step.dependOn(&b.addRunArtifact(tests).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = telemetry.module("telemetry") })).step);
+    const telemetry_proof = b.addExecutable(.{ .name = "telemetry-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/telemetry.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "telemetry", .module = telemetry.module("telemetry") }},
+    }) });
+    const telemetry_test = b.addSystemCommand(&.{ "python3", "-B" });
+    telemetry_test.addFileArg(b.path("tests/telemetry.py"));
+    telemetry_test.addArtifactArg(telemetry_proof);
+    telemetry_test.has_side_effects = true;
+    telemetry_test.stdio = .inherit;
+    b.step("test-telemetry", "Prove bounded telemetry under stalled and closed sinks").dependOn(&telemetry_test.step);
     const core = b.dependency("transit_core", .{ .target = target, .optimize = optimize });
     const protocol = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize });
     const exporter = b.addExecutable(.{ .name = "transit-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-protocol/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }} }) });
@@ -29,6 +43,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "transit_client", .module = client.module("transit_client") },
         .{ .name = "board_api", .module = board_api.module("board_api") },
         .{ .name = "assets", .module = asset_module },
+        .{ .name = "telemetry", .module = telemetry.module("telemetry") },
     } }) });
     const install_board = b.addInstallArtifact(board, .{});
     b.step("board", "Build the standalone Board API and embedded UI").dependOn(&install_board.step);

@@ -12,6 +12,7 @@ unit:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/telemetry && zig build test
     cd packages/zig/board-api && zig build test
     cd packages/zig/transit-protocol && zig build test
     cd packages/zig/transit-core && zig build test
@@ -39,3 +40,7 @@ capacity:
 # Exercise bounded discovery and retained inspection through the public client.
 inspection:
     zig build test-inspection
+
+# Prove bounded diagnostics, independent metrics and cancelable log sinks.
+telemetry:
+    zig build test-telemetry

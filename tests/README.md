@@ -345,3 +345,16 @@ needs a loopback exception inside the confined pod; and Substrate's headless API
 service must resolve to a ready EndpointSlice address for a valid denial probe.
 The probe rejects DNS errors/timeouts as evidence of egress denial, so an invalid
 target cannot produce a passing isolation result.
+
+## Service instrumentation qualification
+
+`just test::telemetry` tests the real bounded stderr writer on one CPU (Linux):
+10,000 completions with logging disabled, drained, stalled and closed pipes.
+Every completion reaches local metrics despite log drops; stdout remains JSON.
+The initial debug build measured 0.12–0.42 seconds total per scenario, including
+100 ms of deliberate wait and up to 200 ms flushing; emission was 9–74 ms.
+These are measured proof results, not throughput targets or arbitrary I/O guarantees.
+
+`just board::test` also asserts fixed routes, request/timeout outcomes, ignored
+public trace headers, quiet successful probes and credential/query redaction in
+real service logs. See [telemetry](../packages/zig/telemetry/README.md) for limits.

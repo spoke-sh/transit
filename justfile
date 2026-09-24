@@ -47,7 +47,7 @@ check:
     git diff --check
 
 # Run the hosted CI checks within one already-entered development environment.
-ci: check test::packages test::storage test::service test::callers test::inspection board::check board::test launchers::local::test
+ci: check test::telemetry test::packages test::storage test::service test::callers test::inspection board::check board::test launchers::local::test
 
 # Compile platform executables and the standalone Board UI/API.
 build:
