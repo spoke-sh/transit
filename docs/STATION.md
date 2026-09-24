@@ -8,8 +8,11 @@ behavior API and lifecycle policies below are proposed, with no implementation.
 ## Purpose
 
 Station is Transit's OTP-inspired framework built on [the kernel](TRANSIT.md).
-It makes the protocol convenient to compose in Zig. Producers and consumers can
-be stateful actors implemented by Transit processes, using shared behaviors for
+It makes the protocol convenient to compose in Zig and other language clients.
+M9 includes bindings for C/C++, Rust, Python, Node.js, Java, .NET, and
+Elixir/Erlang, sharing the Zig implementation and versioned contracts.
+Producers and consumers can be stateful actors implemented by Transit processes,
+using shared behaviors for
 mailbox handling, recovery, correlation, and supervision.
 
 [Board](BOARD.md) already provides kernel and resource inspection.
@@ -32,6 +35,26 @@ logical identity, not a claim that an Erlang PID survives process termination.
 See the upstream [process documentation](https://www.erlang.org/doc/system/ref_man_processes.html)
 and [GenServer documentation](https://www.erlang.org/doc/system/gen_server_concepts.html).
 
+## Languages and bindings
+
+Zig owns the client and framework implementation. A versioned C ABI, generated
+declarations/codecs, and thin runtime adapters make those capabilities usable
+from the target languages without independently implementing protocol sequencing,
+signing, or retry rules. The [client design](CLIENT.md#language-neutral-boundary)
+owns that binding boundary, runtime integration, and qualification matrix.
+
+Station adds behavior, request/reply, registry and Table contracts above the
+raw Transit client. The same GenServer turn semantics must be available to a
+host-language handler: receive authenticated input, compute locally, and return
+a proposal. The node never loads that language's runtime or executes its code.
+Foreign exceptions, cancellation and garbage collection cannot implicitly commit
+or acknowledge a turn. Bindings are part of M9's deliverable, not just a schema
+that leaves each language to build its own SDK.
+
+The first reference behavior workers remain Zig. Qualifying a language client
+does not qualify its VM/native runtime for Substrate sandboxing or resource
+isolation; additional worker images need the same deployment proofs as Zig.
+
 ## Preconditions for the first framework slice
 
 [M8](roadmap/M8.md) supplies authenticated input origins, an automatic outbox
@@ -44,7 +67,8 @@ they must not depend on test-harness delivery or root credentials in handlers.
 A handler has one writable resource per turn. Behavior state and framework
 waiting/correlation data that must commit atomically need to share that resource
 under a versioned key layout, or use an explicitly asynchronous protocol between
-writer PIDs. A Table wrapper cannot make separate resources transactional.
+writer PIDs. Multiple logical tables may share one resource and its transaction
+boundary; a Table wrapper cannot make separate resources transactional.
 After a crash, Station must resolve the previous proposal before deciding to
 recompute; SDK-owned in-memory retry bytes are not durable waiting state.
 
@@ -77,9 +101,30 @@ publish outputs early or move checkpoints independently of that commit.
 [STATE.md](STATE.md) owns resource identity, associations, revisions, commit
 visibility, read coverage, and lifetimes. Station uses those public primitives
 for handler state, durable waiting/correlation records, registry entries, and
-supervisor records. Its minimal typed Table interface adds declared record
-schemas and bounded access over KV; it introduces no second database or broader
-transaction guarantee. Application serializers/validation run in callers.
+supervisor records. [TABLES.md](TABLES.md) scopes typed tables, Arrow query results,
+stream-driven materialization, and transaction limits for M9. Application
+serializers, predicates and compute kernels run in callers, outside the node.
+
+A Table identifies a schema and keyspace within an associated resource. The
+proposed API offers typed insert/update/upsert/delete, get/scan, and a bounded
+query plan. Requests to another writer travel through its PID's mailbox;
+local operations contribute to the current handler's proposal. The first query
+surface uses versioned structured operations. SQL remains a possible frontend
+to that same contract, with dialect and planning semantics to be scoped later.
+
+Tabular results use Apache Arrow: bounded record batches in memory and Arrow IPC
+for cross-process exchange. Plan to build on `zarrow` and `zarrow-compute` after
+compiler, ownership and interoperability qualification. The Table design separates
+an Arrow batch stream from a durable Transit stream: Arrow supplies representation
+and compute building blocks; Station supplies ordering, recovery, result framing,
+retention and transactional visibility.
+
+M9 starts with current-state materialization and finite snapshot queries.
+Updates and deletes change the visible row set before a query evaluates it;
+feeding every historical row version to an append-only aggregate is incorrect.
+Several tables sharing one resource may mutate in one bounded turn, including
+framework correlation records. Separate-resource transactions, continuous query
+maintenance and larger storage profiles remain outside M9.
 
 Association, lifetime ownership, writer authority, and access permission remain
 distinct. Shared mutation initially goes through the resource's writer PID;

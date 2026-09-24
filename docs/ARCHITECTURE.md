@@ -55,6 +55,10 @@ Zig implements the Transit kernel, Station framework, connectors, runtime adapte
 application backends. TypeScript/Vite+ supplies frontend code and tooling.
 Shared contracts use language-neutral schemas and fixtures. Ursula and Agent
 Substrate are external infrastructure with their own implementation languages.
+Station M9 adds host-language SDK adapters and examples over the shared Zig
+client/framework. That binding glue does not change the service language or move
+application handlers into Transit authority; [CLIENT.md](CLIENT.md#language-neutral-boundary)
+owns the generated ABI and target-language plan.
 
 ## Implemented topology and planned composition
 
@@ -206,6 +210,14 @@ and protocol assertions belong under [tests/](../tests/README.md).
   controls as scoped in the [full plugin plan](roadmap/M5.md).
 - `packages/zig/transit-station`, module `transit_station`: GenServer, supervision, registries,
   request/reply, Table, association, and retention helpers over the public client.
+- Client-owned C ABI/library exports and generated bindings for C/C++, Rust,
+  Python, Node.js, Java, .NET and Elixir/Erlang. Station adds its own ABI/contracts
+  above that base; raw Transit clients stay independent of Station.
+- Station's Table implementation composes `zarrow` and `zarrow-compute` for
+  bounded Arrow results and caller-side computation after dependency qualification.
+  Core stays independent of both libraries. [TABLES.md](TABLES.md) owns query,
+  materialization and transaction scope; choose a separate Table package only
+  when the implementation needs that dependency boundary.
 - `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,
   caller helpers, and trusted dispatch over Station/Transit.
 - `apps/transit-station-worker` and `apps/transit-station-http-worker`: compose behaviors or connector

@@ -43,6 +43,10 @@ building Station; the [pre-Station review](docs/reviews/PRE_STATION.md) records 
   for roles.
 - Write kernel, framework, connectors, and backends in Zig. Use strict TypeScript
   and Vite+ for frontends. Keep external infrastructure in its upstream language.
+  M9's language bindings, host adapters, examples and conformance tests may use
+  their target languages; share the Zig client/framework through the
+  [binding boundary](docs/CLIENT.md#language-neutral-boundary) instead of duplicating
+  protocol semantics. Follow [Tables](docs/TABLES.md) for Arrow/query work.
 - Respect the architecture's dependency direction. Core depends on the public
   protocol, never Station or a provider. Applications use the client; the node
   must not import handlers or claim protocol validation proves honest computation.

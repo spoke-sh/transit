@@ -27,8 +27,10 @@ The same primitives must support ordinary stateful distributed programs.
   [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition) defines
   implemented and planned package responsibilities and dependency direction.
 - Application code calls the public Transit protocol; the node never runs handlers.
-  Transit's current callers are Zig. Language-neutral contracts allow future clients
-  in other languages without changing kernel execution semantics.
+  Transit's current callers are Zig. Station M9 adds shared bindings for C/C++,
+  Rust, Python, Node.js, Java, .NET and Elixir/Erlang without changing kernel
+  execution semantics. Host-language binding glue, examples and conformance tests
+  are in scope; the shared client/framework and service implementations remain Zig.
 - Board is the first operator/agent inspection surface, before Station. Its
   TanStack Router frontend uses Vite+ and is embedded in the Zig `transit-board` API
   executable. OpenAPI supports further clients; read-only views expose kernel
@@ -63,6 +65,10 @@ The same primitives must support ordinary stateful distributed programs.
 - Station, the OTP-inspired framework, supplies behaviors, supervision, and
   scoped name registries above the Transit kernel. Registry changes are durable operations;
   rebinding a name cannot redirect accepted work or replies.
+- Station Tables add typed state access and Arrow results over durable resources.
+  M9 scopes stream-input materialization, finite queries and atomic batches within
+  one resource. SQL, continuous queries and separate-resource transactions remain
+  later work; [TABLES.md](TABLES.md) owns those boundaries and the Arrow integration plan.
 - HTTP is the first connector: request/response messages and timing metadata
   travel through exchange stream groups, with explicit variable/secret handling.
 - Kubernetes is part of the first executable milestone. Agent Substrate is the
@@ -102,8 +108,9 @@ signals; collector/export infrastructure is later scope.
 bounded recoverable reads, dependency lifetimes, and generic Board inspection.
 [M8 runtime readiness](roadmap/M8.md) adds authenticated input origins, automatic
 outbox delivery, opt-in working catalog reclamation and scoped lifecycle controls.
-Next build GenServer behavior, supervision, and scoped name registration in
-[Station](roadmap/M9.md), respecting those bounded contracts. An HTTP connector follows. A caller
+Next build GenServer behavior, supervision, scoped name registration, language
+bindings and bounded Arrow Tables in [Station](roadmap/M9.md), respecting those
+contracts. An HTTP connector follows. A caller
 records a request; a fetch worker executes an authorized attempt; response data and timing are recorded;
 the caller resumes from a correlated mailbox message. Replay uses the transcript.
 Station and connectors add versioned Board lenses as their own primitives land.

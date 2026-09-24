@@ -62,6 +62,11 @@ predicates, serializers, or migrations.
 
 A Table can build on the same resource model with typed records and declared
 schema/index semantics. Station owns those richer programming conveniences.
+The [M9 Table design](TABLES.md) proposes Arrow query results and typed keyspaces:
+several logical tables can share one resource and its existing atomic turn,
+permissions and lifetime. This is distinct from a transaction across resources.
+Query computation and schema validation stay in callers; the kernel does not
+become a SQL or Arrow compute engine.
 The first KV implementation does not promise arbitrary queries, secondary
 indexes, per-key TTL, distributed transactions, or automatic schema migration.
 Any small inline state retained for compatibility has an explicit versioned
@@ -235,6 +240,6 @@ primitives.
 
 The [state v1 contract](../contracts/STATE_V1.md) specifies current encoding,
 limits, and compatibility. Changes to storage layout or numerical budgets need
-new measured evidence. Table/index APIs, writer transfer, cross-authority
-transactions, per-key TTL, and automatic data migration need separate scope;
-none follows from this foundational design.
+new measured evidence. Bounded Table helpers are planned in [M9](roadmap/M9.md);
+larger indexes, writer transfer, multi-resource/cross-authority transactions,
+per-key TTL and automatic data migration require later explicit scope.
