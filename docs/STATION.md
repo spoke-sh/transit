@@ -3,8 +3,10 @@
 Status: M9 implementation is underway. The
 [Station package](../packages/zig/transit-station/README.md) implements the first
 GenServer turn loop, associated KV proposals and durable call/reply recovery.
-Typed Tables and captured Arrow replies now build on that loop; supervision,
-registries and language adapters below remain milestone work.
+Typed Tables, captured Arrow replies, scoped registries, timed waits and bounded
+supervision now build on that loop. Language adapters, Board lenses and reference
+qualification remain milestone work. The package guides define implemented bounds;
+broader behavior below remains architectural direction.
 [M9](roadmap/M9.md) builds on [M7 state resources](roadmap/M7.md) and
 [M8 runtime readiness](roadmap/M8.md).
 

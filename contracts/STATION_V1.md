@@ -11,8 +11,8 @@ correlation, and at most 243 payload bytes. Kind 1 is cast (correlation zero),
 2 is call, 3 is reply, 4 is result fragment, 5 is result completion, 6 is result
 acknowledgement, 7 is cancellation and 8 is timeout (nonzero correlation).
 The [Table guide](../packages/zig/transit-station/docs/tables.md) records the
-implemented result framing; cancellation and timeout are reserved pending the
-next M9 implementation slice. Unknown versions/kinds and
+implemented result framing; the [services guide](../packages/zig/transit-station/docs/services.md)
+records timeout, cancellation, registry and supervisor codecs. Unknown versions/kinds and
 oversize frames are rejected. Correlation is opaque and preserves all 64 bits;
 Transit identities still obey the public protocol's narrower admitted range.
 
@@ -34,11 +34,12 @@ rule, not a security boundary against arbitrary host code.
 | `00` + `w` + correlation:u64le | Durable wait record |
 | `00` + `disposition` | Last closed-reply disposition `station.closed-reply.v1` |
 
-A wait record is 26 bytes: version 1, phase byte, destination:u64le,
-deadline-ms:u64le (zero means none), resolution-input:u64le. Phases are waiting=1,
-replied=2, timed-out=3, cancelled=4. Only waiting/replied are currently driven by
-the behavior loop; timer and cancellation services are not implemented yet.
-Recording a proposed deadline alone does **not** enforce a timeout.
+A wait record is 27 bytes: version 1, phase byte, destination:u64le,
+deadline-ms:u64le (zero means none), resolution-input:u64le and observer:u8
+(255 means none). Phases are waiting=1, replied=2, timed-out=3, cancelled=4.
+Timed calls require a configured observer; its authenticated firing observation
+closes the wait in mailbox order. A proposed deadline is not a hard wall-clock
+cutoff and cannot extend a process/resource lifetime.
 
 There are 32 live keys per resource, values up to 256 bytes, four distinct-key
 mutations and four outputs per turn. Framework state shares these limits. A

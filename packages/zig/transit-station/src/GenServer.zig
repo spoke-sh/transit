@@ -100,6 +100,7 @@ pub fn step(self: *GenServer, handler: Handler, read_deadline_ms: u64) !Step {
     const fresh = (try self.session.receive()) orelse return error.InvalidAuthorityResponse;
     if (fresh.input.position != self.delivery.?.input.position or fresh.revision != self.delivery.?.revision) return error.InvalidAuthorityResponse;
     var turn = try Turn.init(fresh, view, entries);
+    turn.resource_deadline_ms = self.resource.?.deadline_ms;
     self.handler_error = null;
     dispatch(&turn, handler) catch |err| {
         self.handler_error = err;
@@ -119,6 +120,7 @@ fn dispatch(turn: *Turn, handler: Handler) !void {
         try turn.write(descriptor_key, descriptor);
     }
     const frame = try Frame.decode(turn.delivery.input.value);
+    if (try @import("Waiting.zig").dispatch(turn, frame)) return turn.validate();
     if (try @import("Query.zig").dispatch(turn, frame)) return turn.validate();
     if (frame.kind == .reply) switch (try turn.acceptReply()) {
         .accepted => {},

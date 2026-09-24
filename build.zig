@@ -102,7 +102,8 @@ pub fn build(b: *std.Build) void {
     b.step("probe", "Install the adversarial reference sandbox executable").dependOn(&install_probe.step);
     test_step.dependOn(&probe.step);
     services.addFileArg(b.path("tests/service.py"));
-    for ([_][]const u8{ "transit-node", "rey-cli", "transit-runtime-controller", "transit-delivery" }) |name| {
+    var station_controller: *std.Build.Step.Compile = undefined;
+    for ([_][]const u8{ "transit-node", "rey-cli", "transit-runtime-controller", "transit-delivery", "transit-station-controller" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
@@ -124,6 +125,10 @@ pub fn build(b: *std.Build) void {
         apps_step.dependOn(&install.step);
         b.step(name, b.fmt("Install {s}", .{name})).dependOn(&install.step);
         if (std.mem.eql(u8, name, "transit-runtime-controller")) app.root_module.addImport("transit_runtime_substrate", runtime.module("transit_runtime_substrate"));
+        if (std.mem.eql(u8, name, "transit-station-controller")) {
+            app.root_module.addImport("transit_station", station.module("transit_station"));
+            station_controller = app;
+        }
         if (std.mem.eql(u8, name, "transit-node") and target.result.os.tag == .linux) {
             const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
             app.root_module.addImport("clock_c", clock_c.createModule());
@@ -165,6 +170,7 @@ pub fn build(b: *std.Build) void {
     station_test.addArtifactArg(cli_artifact);
     station_test.addArtifactArg(station_ledger);
     station_test.addArtifactArg(delivery_artifact);
+    station_test.addArtifactArg(station_controller);
     station_test.has_side_effects = true;
     station_test.stdio = .inherit;
     b.step("test-station", "Prove recoverable Station callers against durable authority").dependOn(&station_test.step);

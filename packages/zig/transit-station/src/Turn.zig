@@ -10,29 +10,33 @@ delivery: client.Session.Delivery,
 view: p.State.View,
 entries: [p.State.max_entries]?p.State.Entry,
 decision: client.Session.StateDecision,
+resource_deadline_ms: ?u64 = null,
 
 pub const Wait = struct {
     target: u64,
     deadline_ms: ?u64 = null,
+    observer: ?u8 = null,
     phase: enum(u8) { waiting = 1, replied = 2, timed_out = 3, cancelled = 4 } = .waiting,
     resolution_input: u64 = 0,
 
     pub fn encode(self: Wait) p.Value {
-        var bytes: [26]u8 = @splat(0);
+        var bytes: [27]u8 = @splat(0);
         bytes[0] = 1;
         bytes[1] = @backingInt(self.phase);
         std.mem.writeInt(u64, bytes[2..10], self.target, .little);
         std.mem.writeInt(u64, bytes[10..18], self.deadline_ms orelse 0, .little);
         std.mem.writeInt(u64, bytes[18..26], self.resolution_input, .little);
+        bytes[26] = self.observer orelse 255;
         return p.Value.init(&bytes) catch unreachable;
     }
     pub fn decode(value: p.Value) !Wait {
         try value.validate();
-        if (value.len != 26 or value.data[0] != 1) return error.InvalidWait;
+        if (value.len != 27 or value.data[0] != 1) return error.InvalidWait;
         const deadline = std.mem.readInt(u64, value.data[10..18], .little);
         return .{
             .target = std.mem.readInt(u64, value.data[2..10], .little),
             .deadline_ms = if (deadline == 0) null else deadline,
+            .observer = if (value.data[26] == 255) null else value.data[26],
             .phase = std.enums.fromInt(@FieldType(Wait, "phase"), value.data[1]) orelse return error.InvalidWait,
             .resolution_input = std.mem.readInt(u64, value.data[18..26], .little),
         };
@@ -114,14 +118,23 @@ pub fn waiting(self: *const Turn, correlation: u64) !?Wait {
 /// One call identity per input; retain terminal evidence unless the application
 /// explicitly selects a cleanup policy. Capacity never authorizes eviction.
 pub fn call(self: *Turn, destination: u64, value: p.Value, deadline_ms: ?u64) !u64 {
+    if (deadline_ms != null) return error.TimerObserverRequired;
+    return self.callWithTimer(destination, value, null, null);
+}
+pub fn callWithTimer(self: *Turn, destination: u64, value: p.Value, deadline_ms: ?u64, observer: ?u8) !u64 {
     const correlation = self.delivery.input.position;
     if (deadline_ms == 0) return error.InvalidDeadline;
+    if ((deadline_ms == null) != (observer == null) or observer == 255) return error.InvalidTimerObserver;
+    if (observer) |principal| if (principal == 0 or principal >= p.max_principals) return error.InvalidTimerObserver;
+    var bound = self.delivery.work_before_ms;
+    if (self.resource_deadline_ms) |limit| bound = if (bound) |process_limit| @min(process_limit, limit) else limit;
+    if (bound) |limit| if (deadline_ms == null or deadline_ms.? > limit) return error.InvalidWaitLifetime;
     const key = waitKey(correlation);
     if (self.get(key) != null) return error.CorrelationAlreadyUsed;
     const before = self.decision;
     errdefer self.decision = before;
     try self.send(destination, .{ .kind = .call, .correlation = correlation, .payload = value });
-    try self.write(key, (Wait{ .target = destination, .deadline_ms = deadline_ms }).encode());
+    try self.write(key, (Wait{ .target = destination, .deadline_ms = deadline_ms, .observer = observer }).encode());
     return correlation;
 }
 pub fn reply(self: *Turn, value: p.Value) !void {
@@ -195,6 +208,16 @@ test "capacity includes framework state and a failed call restores every private
     const before = turn.decision;
     try std.testing.expectError(error.MutationBudgetExceeded, turn.call(8, .{}, null));
     try std.testing.expect(std.meta.eql(before, turn.decision));
+}
+
+test "finite waits cannot outlive the process or required state" {
+    var turn = try fixture(.{});
+    turn.delivery.work_before_ms = 200;
+    turn.resource_deadline_ms = 150;
+    try std.testing.expectError(error.InvalidWaitLifetime, turn.call(8, .{}, null));
+    try std.testing.expectError(error.InvalidWaitLifetime, turn.callWithTimer(8, .{}, 151, 3));
+    try std.testing.expectError(error.InvalidTimerObserver, turn.callWithTimer(8, .{}, 100, 0));
+    _ = try turn.callWithTimer(8, .{}, 150, 3);
 }
 
 pub fn fixture(value: p.Value) !Turn {

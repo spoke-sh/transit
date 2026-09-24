@@ -6,6 +6,8 @@ behavior or runs its handler. The initial implementation provides a host-pumped
 GenServer, private KV mutations, durable calls and authenticated replies.
 Typed Tables and captured Arrow queries share the same private turn and state
 budget; see the [Table implementation guide](docs/tables.md).
+The [services guide](docs/services.md) covers scoped names, timed waits and
+bounded supervision, including the separate controller trust boundary.
 [M9](../../../docs/roadmap/M9.md) tracks the remaining framework surface.
 
 `GenServer.step(handler, proposed_read_deadline_ms)` does bounded client work,

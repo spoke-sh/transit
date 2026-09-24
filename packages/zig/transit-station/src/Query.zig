@@ -99,6 +99,11 @@ pub fn capture(turn: *Turn, table: Table, plan: f.Plan, workspace: []u8, cancell
     const grant = try allowed(turn, peer, table.id);
     const identity = turn.delivery.input.position;
     if (turn.get(key('q', identity, 0)) != null) return error.ResultAlreadyExists;
+    for (turn.entries) |slot| if (slot) |entry| {
+        if (entry.key.len != 11 or entry.key.data[0] != 0 or entry.key.data[1] != 'q' or entry.key.data[10] != 0) continue;
+        const previous = try Manifest.decode(entry.value);
+        if (previous.correlation == request.correlation and previous.destination == peer) return error.CorrelationAlreadyUsed;
+    };
     var snapshot = try table.snapshot(turn);
     var output: [max_bytes]u8 = undefined;
     const result = try f.execution.run(try plan.bind(snapshot.source()), snapshot.source(), workspace, &output, cancellation);
@@ -218,6 +223,22 @@ pub fn validateArrow(bytes: []const u8, expected_rows: u8) !void {
 /// True means an internal message was completely handled. A verified completion
 /// returns false so application code can consume the captured IPC in this turn.
 pub fn dispatch(turn: *Turn, frame: Frame) !bool {
+    if (frame.kind == .cancel) {
+        const peer = try Frame.source(turn.delivery.input);
+        for (turn.entries) |slot| if (slot) |entry| {
+            if (entry.key.len != 11 or entry.key.data[0] != 0 or entry.key.data[1] != 'q' or entry.key.data[10] != 0) continue;
+            var manifest = try Manifest.decode(entry.value);
+            if (manifest.correlation != frame.correlation or manifest.destination != peer) continue;
+            if (manifest.phase == .captured or manifest.phase == .published) {
+                manifest.phase = .cancelled;
+                try turn.write(entry.key, manifest.encode());
+            }
+        };
+        // Cancellation is advisory at the peer; no query or completed ordinary
+        // call is undone, and no new application callback is implied.
+        try turn.write(try p.Value.init("\x00disposition"), try p.Value.init("station.cancellation.v1"));
+        return true;
+    }
     if (frame.kind == .cast and frame.payload.len == 12 and std.mem.eql(u8, frame.payload.data[0..4], "SQC1")) {
         try publish(turn, std.mem.readInt(u64, frame.payload.data[4..12], .little));
         return true;

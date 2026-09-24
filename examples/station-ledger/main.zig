@@ -15,6 +15,8 @@ const Config = struct {
     association: []const u8 = "data",
     role: @FieldType(handler.Application, "role") = .ledger,
     destination: ?u64 = null,
+    observer: ?u8 = null,
+    registry: ?u64 = null,
 };
 
 pub fn main(init: std.process.Init) !void {
@@ -51,7 +53,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         .key = key,
     }, config.association);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&behavior.session.key));
-    var application: handler.Application = .{ .role = config.role, .destination = config.destination };
+    var application: handler.Application = .{ .role = config.role, .destination = config.destination, .observer = config.observer, .registry = config.registry };
     while (true) {
         const proposed_deadline: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30_000);
         const result = behavior.step(application.behavior(), proposed_deadline) catch |err| switch (err) {

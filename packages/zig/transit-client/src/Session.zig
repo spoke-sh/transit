@@ -22,6 +22,7 @@ pub const Delivery = struct {
     state: p.Value,
     permit: ?u64,
     needs_permit: bool,
+    work_before_ms: ?u64 = null,
 };
 pub const Decision = struct {
     state: p.Value,
@@ -66,6 +67,7 @@ pub fn receive(self: *Session) !?Delivery {
         .state = process.state,
         .permit = if (process.turn_permit) |permit| permit.id else null,
         .needs_permit = process.work_before_ms != null and process.turn_permit == null,
+        .work_before_ms = process.work_before_ms,
     };
 }
 fn prepare(self: *const Session, delivery: Delivery, command: p.Command) !Pending {

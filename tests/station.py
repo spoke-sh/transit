@@ -235,4 +235,6 @@ def run(node, cli, worker, courier):
 
 
 if __name__ == "__main__":
-    run(*sys.argv[1:])
+    run(*sys.argv[1:5])
+    from station_services import run as services
+    services(*sys.argv[1:])

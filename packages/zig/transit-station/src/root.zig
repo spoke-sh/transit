@@ -6,6 +6,10 @@ pub const Turn = @import("Turn.zig");
 pub const GenServer = @import("GenServer.zig");
 pub const Table = @import("Table.zig");
 pub const Query = @import("Query.zig");
+pub const Registry = @import("Registry.zig");
+pub const Waiting = @import("Waiting.zig");
+pub const Supervisor = @import("Supervisor.zig");
+pub const Controller = @import("Controller.zig");
 pub const fuze = @import("transit_fuze");
 test {
     _ = Frame;
@@ -13,4 +17,7 @@ test {
     _ = GenServer;
     _ = Table;
     _ = Query;
+    _ = Registry;
+    _ = Waiting;
+    _ = Supervisor;
 }

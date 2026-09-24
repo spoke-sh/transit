@@ -48,8 +48,8 @@ Framework keys are `00 q <result:u64le> <slot:u8>` at the producer (manifest slo
 0–2, manifest 3), and `00 a <peer:u64le> 00` for query policy. All consume the same
 32-key resource budget as rows, schemas and waits. Result retention defaults to
 unlimited; callers eventually receive capacity errors unless they explicitly
-choose and implement a reclamation policy. Cancellation/timer handling is the
-next part of M9; process/resource expiry already retains its kernel meaning.
+choose and implement a reclamation policy. [Wait closure](services.md#waiting-and-time)
+handles cancellation and timeout; process/resource expiry retains its kernel meaning.
 
 `just test::station` exercises actual writer/requester hosts, capture/publication
 and receiver restarts, independent PyArrow consumption, denied requests and
