@@ -9,10 +9,16 @@ pub const Data = struct {
     grants: [p.max_principals]u8 = @splat(0),
 };
 pub const Snapshot = struct { meta: s.View, entries: [s.max_entries]?s.Entry };
+pub const ReceiptRights = struct {
+    sequence: u64,
+    reads: [s.max_views]?u64 = @splat(null),
+    write: ?u64 = null,
+};
 pub const Catalog = struct {
     resources: [s.max_resources]?Data = @splat(null),
     associations: [s.max_associations]?s.Association = @splat(null),
     views: [s.max_views]?Snapshot = @splat(null),
+    receipts: [p.max_principals]?ReceiptRights = @splat(null),
 
     pub fn resource(self: *Catalog, id: u64) !*Data {
         for (&self.resources) |*slot| if (slot.*) |*data| {
@@ -205,6 +211,7 @@ pub fn apply(state: *core.State, command: s.Command, record: core.Record, input:
             const process = try state.process(c.turn.pid);
             const now = try time(state, record.time);
             var write: ?*Data = null;
+            var rights: ReceiptRights = .{ .sequence = record.request.sequence };
             for (c.views, 0..) |slot, index| if (slot) |id| {
                 for (c.views[0..index]) |previous| if (previous == id) return error.InvalidStateView;
                 const view = try cat.view(id);
@@ -215,11 +222,13 @@ pub fn apply(state: *core.State, command: s.Command, record: core.Record, input:
                 };
                 if (!cat.associated(process.pid, view.meta.resource) or !cat.allowed(view.meta.resource, caller, .read) or !cat.allowed(view.meta.resource, caller, .inspect)) return error.Forbidden;
                 const data = try cat.resource(view.meta.resource);
+                rights.reads[index] = data.meta.id;
                 try usable(state, data, record.time);
                 if (c.write_view == id) {
                     if (data.meta.writer != process.pid or !cat.allowed(data.meta.id, caller, .write)) return error.Forbidden;
                     if (data.meta.revision != view.meta.revision) return error.StaleStateResource;
                     write = data;
+                    rights.write = data.meta.id;
                 }
             };
             if (c.write_view != null and write == null) return error.InvalidStateView;
@@ -253,6 +262,7 @@ pub fn apply(state: *core.State, command: s.Command, record: core.Record, input:
             }
             // All mutations above are in the engine's private candidate copy.
             try state.applyTurn(c.turn, record, input);
+            cat.receipts[caller] = rights;
             for (c.views) |slot| if (slot) |id| release(cat, id);
         },
         .retire, .expire => |id| {
@@ -277,6 +287,43 @@ pub fn apply(state: *core.State, command: s.Command, record: core.Record, input:
             data.entries = @splat(null);
             data.meta.phase = .reclaimed;
         },
+    }
+}
+
+/// Current resource rights are required to disclose a previous state receipt.
+/// Last state-turn dependencies survive view release and checkpoint/trim.
+/// Unlimited older receipts resolve at most four retained view-opening records.
+pub fn authorizeReceipt(engine: anytype, request: p.Request) !void {
+    if (request.command != .state) return;
+    const cat = try catalog(&engine.state);
+    const caller = request.principal;
+    switch (request.command.state) {
+        .open => |c| {
+            if (!cat.allowed(c.resource, caller, .inspect) or !cat.allowed(c.resource, caller, .read)) return error.Forbidden;
+        },
+        .associate => |c| if (c.resource) |id| {
+            if (!cat.allowed(id, caller, .inspect)) return error.Forbidden;
+        },
+        .turn => |c| {
+            var rights: ReceiptRights = .{ .sequence = request.sequence };
+            const saved = cat.receipts[caller];
+            if (saved != null and saved.?.sequence == request.sequence) {
+                rights = saved.?;
+            } else {
+                for (c.views, 0..) |slot, index| if (slot) |id| {
+                    const entry = (try engine.store.read(id)) orelse return error.IncompleteHistory;
+                    if (entry != .operation or entry.operation.request.command != .state or entry.operation.request.command.state != .open) return error.InvalidHistory;
+                    const resource = entry.operation.request.command.state.open.resource;
+                    rights.reads[index] = resource;
+                    if (c.write_view == id) rights.write = resource;
+                };
+            }
+            for (rights.reads) |slot| if (slot) |id| {
+                if (!cat.allowed(id, caller, .inspect) or !cat.allowed(id, caller, .read)) return error.Forbidden;
+            };
+            if (rights.write) |id| if (!cat.allowed(id, caller, .write)) return error.Forbidden;
+        },
+        else => {},
     }
 }
 fn release(cat: *Catalog, id: u64) void {

@@ -40,6 +40,20 @@ fn step(engine: anytype, config: Config, key: core.Ed25519.KeyPair, allocator: s
             return .transition;
         }
     }
+    // Zero-age state reclamation needs no clock. Never let a synchronization
+    // outage block cleanup already authorized by durable retirement/policy.
+    if (engine.state.resources) |catalog| for (catalog.resources) |slot| if (slot) |data| {
+        if (data.meta.phase == .retired and data.meta.history_ms == 0) {
+            _ = try engine.submit(try core.sign(.{
+                .realm = engine.state.realm,
+                .principal = config.principal,
+                .sequence = (try engine.state.principal(config.principal)).sequence + 1,
+                .command = .{ .state = .{ .reclaim = data.meta.id } },
+            }, key));
+            observation.event.operation = "state";
+            return .transition;
+        }
+    };
     // Resource retirement is independent of clock health. Only immutable,
     // positively published standalone payloads can enter deletion in M1.
     for (engine.state.payloads) |slot| if (slot) |payload| {

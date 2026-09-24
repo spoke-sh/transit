@@ -168,3 +168,10 @@ committing-turn evidence, while `revision` also identifies initial creation.
 Retained history normalizes a resource-backed turn to the same generic turn
 projection as an inline turn, without disclosing resource IDs, keys or values.
 Those require the separate resource grants and read surface.
+
+Receipt reconciliation also checks current resource rights after a read view has
+been released. Checkpoints retain the last state-turn receipt's resource
+requirements per principal; unlimited older receipts resolve their at-most-four
+view-opening records in retained history. Revocation denies receipt disclosure
+without undoing the original durable decision. Restoring permission can reveal
+the same original receipt, never a fresh mutation.

@@ -83,6 +83,28 @@ def run(node, cli, counter):
         assert s.inspect("process", pid)["processes"][0]["state"] == b"legacy".hex()
         metadata = query("resources", resource=resource)["resources"][0]
         assert metadata["last_turn"] == metadata["revision"] == s.inspect("process", pid)["processes"][0]["revision"]
+    # An unlimited realm without a clock can still perform opted-in cleanup.
+    with System(node, cli) as s:
+        pid = s.command({"spawn": {}})
+        resource = s.command({"state": {"create": {"writer": pid, "history_ms": 0}}})
+        s.command({"state": {"grant": {"resource": resource, "subject": 0, "permissions": 3}}})
+        s.command({"terminate": pid})
+        config = json.loads(s.config.read_text())
+        config["maintenance"] = {"principal": 0, "seed_file": str(s.seed), "interval_ms": 50}
+        s.config.write_text(json.dumps(config))
+        for _ in range(2):
+            maintenance = s.start(node, s.config, "--maintain")
+            path = s.root / "state-query.json"
+            path.write_text(json.dumps({"realm": 72, "principal": 0, "kind": "resources", "resource": resource}))
+            until = time.monotonic() + 10
+            while True:
+                page = s.invoke("state", s.seed, path, s.url)
+                if page["resources"][0]["phase"] == "reclaimed":
+                    break
+                assert time.monotonic() < until and maintenance.poll() is None
+                time.sleep(.05)
+            maintenance.kill()
+            maintenance.wait(timeout=10)
     print("State API: signed reads, independent grants, frozen views, atomic turns, exact retries, pagination and disk recovery passed.")
 
 

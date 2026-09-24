@@ -333,3 +333,12 @@ Journal create/tail/read/conditional append and checkpoint/payload operations
 emit bounded spans. Successful operations are debug; conflicts/errors are warnings.
 No stream names, bodies, credentials or provider responses are logged. Cached
 reads are not counted as network reads, and replay never creates fresh-turn metrics.
+
+## Checkpoint ownership
+
+`Store.loadCheckpoint` returns an optional owned parsed checkpoint. Its `value`
+is a pointer; callers must call `deinit()` after copying the needed state.
+Publication/verification, maintenance and core recovery release it on every
+success/error path. The bounded JSON parser writes large catalog fields into
+allocated storage, avoiding repeated large Debug stack copies. Wire bytes and
+checkpoint hashes are unchanged for inline-only histories.

@@ -66,11 +66,14 @@ const Fixture = struct {
     pid: u64 = 0,
     resource: u64 = 0,
     fn init(policy: s.Create) !*Fixture {
+        return initCapacity(policy, null);
+    }
+    fn initCapacity(policy: s.Create, ceiling: ?u64) !*Fixture {
         const self = try t.allocator.create(Fixture);
         errdefer t.allocator.destroy(self);
         const root = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
         self.* = .{ .engine = undefined, .root = root, .worker = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) };
-        self.engine = try Engine.bootstrap(&self.store, .{ .realm = 42, .root_key = root.public_key.toBytes(), .retry_policy = .last_per_principal, .max_clock_error_ms = 0 });
+        self.engine = try Engine.bootstrap(&self.store, .{ .realm = 42, .root_key = root.public_key.toBytes(), .retry_policy = .last_per_principal, .max_clock_error_ms = 0, .admission_ceiling = ceiling });
         self.engine.clock = .{ .context = self, .read = clock };
         _ = try self.submit(0, .{ .grant = .{ .subject = 1, .public_key = self.worker.public_key.toBytes(), .permissions = p.permission(.execute) | p.permission(.inspect) | p.permission(.publish) | p.permission(.effect) } });
         self.pid = try self.submit(0, .{ .spawn = .{ .allow_trim = true } });
@@ -253,4 +256,107 @@ test "inline-only checkpoint encoding remains byte compatible with omitted resou
     var parsed = try std.json.parseFromSlice(core.Checkpoint, t.allocator, bytes, .{});
     defer parsed.deinit();
     try parsed.value.validate(t.allocator, f.engine.genesis);
+}
+
+test "shared readers retain an exact revision while only the writer can mutate" {
+    const f = try Fixture.init(.{ .writer = 0, .owned = false });
+    defer f.deinit();
+    _ = try f.engine.submit(try f.proposal(try f.open(), p.Value.integer(1)));
+    const reader = try f.submit(0, .{ .spawn = .{} });
+    _ = try f.submit(0, .{ .state = .{ .associate = .{ .pid = reader, .name = try p.Value.init("shared"), .resource = f.resource } } });
+    _ = try f.submit(0, .{ .own = .{ .pid = reader, .worker = 1, .expected_generation = 1 } });
+    const input = try f.submit(0, .{ .send = .{ .pid = reader, .value = .{} } });
+    const revision = (try f.data()).meta.revision;
+    const view = try f.submit(1, .{ .state = .{ .open = .{ .pid = reader, .generation = 2, .input = input, .expected_revision = 0, .resource = f.resource, .revision = revision, .deadline_ms = 2000 } } });
+    _ = try f.engine.submit(try f.proposal(try f.open(), p.Value.integer(2)));
+    const page = try core.resource_read.read(&f.engine, try s.sign(.{ .realm = 42, .principal = 1, .kind = .view, .pid = reader, .view = view }, f.worker));
+    try t.expectEqual(1, try page.entries[0].?.value.asInteger());
+    var turn: s.Turn = .{ .turn = .{ .pid = reader, .generation = 2, .input = input, .expected_revision = 0, .result = .{} }, .views = .{ view, null, null, null }, .write_view = view };
+    try t.expectError(error.Forbidden, f.submit(1, .{ .state = .{ .turn = turn } }));
+    turn.write_view = null;
+    _ = try f.submit(1, .{ .state = .{ .turn = turn } });
+    try t.expectEqual(2, try (try f.data()).entries[0].?.value.asInteger());
+}
+
+test "optional expiry is distinct from a missing key and cannot revive required dependents" {
+    const f = try Fixture.init(.{ .writer = 0, .owned = false, .deadline_ms = 1500, .history_ms = 0 });
+    defer f.deinit();
+    const optional = try f.submit(0, .{ .spawn = .{} });
+    _ = try f.submit(0, .{ .state = .{ .associate = .{ .pid = optional, .name = try p.Value.init("optional"), .resource = f.resource, .required = false } } });
+    f.now = 1500;
+    _ = try f.submit(0, .{ .state = .{ .expire = f.resource } });
+    try t.expectEqual(.running, (try f.engine.state.process(optional)).lifecycle);
+    try t.expectEqual(.expired, (try f.engine.state.process(f.pid)).lifecycle);
+    _ = try f.submit(0, .{ .send = .{ .pid = optional, .value = .{} } });
+    const query = try s.sign(.{ .realm = 42, .principal = 0, .kind = .entries, .resource = f.resource }, f.root);
+    try t.expectError(error.StateResourceExpired, core.resource_read.read(&f.engine, query));
+    try t.expectError(error.RetiredProcess, f.submit(0, .{ .state = .{ .associate = .{ .pid = f.pid, .name = try p.Value.init("data"), .resource = null, .expected_revision = 6 } } }));
+}
+
+test "state reader pressure cannot consume the reserved retirement and reclamation budget" {
+    const f = try Fixture.initCapacity(.{ .writer = 0, .deadline_ms = 2000, .history_ms = 0 }, 20);
+    defer f.deinit();
+    const view = try f.open();
+    while (f.engine.state.position < 20) _ = try f.submit(0, .{ .send = .{ .pid = f.pid, .value = .{} } });
+    try t.expectError(error.AdmissionClosed, f.submit(0, .{ .state = .{ .create = .{ .writer = f.pid } } }));
+    _ = try f.submit(1, .{ .state = .{ .close = .{ .pid = f.pid, .view = view } } });
+    f.now = 2000;
+    const due = (try f.engine.state.nextMaintenance(.{ .unix_ms = f.now, .error_ms = 0 })).?;
+    _ = try f.submit(0, due);
+    try t.expectEqual(.expired, (try f.engine.state.process(f.pid)).lifecycle);
+    f.engine.clock = null;
+    _ = try f.submit(0, .{ .state = .{ .reclaim = f.resource } });
+    _ = try f.submit(0, .{ .checkpoint = {} });
+    try t.expectEqual(.reclaimed, (try f.data()).meta.phase);
+}
+
+test "resource revocation fences receipt reconciliation after its view is released" {
+    const f = try Fixture.init(.{ .writer = 0, .history_ms = 0 });
+    defer f.deinit();
+    const request = try f.proposal(try f.open(), p.Value.integer(9));
+    const position = try f.engine.submit(request);
+    try t.expectEqual(position, try f.engine.submit(request));
+    _ = try f.submit(0, .{ .checkpoint = {} });
+    _ = try f.submit(0, .{ .state = .{ .grant = .{ .resource = f.resource, .subject = 1, .permissions = s.permission(.inspect) | s.permission(.read) } } });
+    try t.expectError(error.Forbidden, f.engine.submit(request));
+    _ = try f.submit(0, .{ .state = .{ .grant = .{ .resource = f.resource, .subject = 1, .permissions = s.all_permissions } } });
+    try t.expectEqual(position, try f.engine.submit(request));
+    try t.expectEqual(9, try (try f.data()).entries[0].?.value.asInteger());
+}
+
+test "association CAS fences bootstrap revisions and rejects unavailable required targets" {
+    const f = try Fixture.init(.{ .writer = 0 });
+    defer f.deinit();
+    const pid = try f.submit(0, .{ .spawn = .{} });
+    var association: s.Associate = .{ .pid = pid, .name = try p.Value.init("data"), .resource = f.resource };
+    const at = try f.submit(0, .{ .state = .{ .associate = association } });
+    try t.expectError(error.StaleAssociation, f.submit(0, .{ .state = .{ .associate = association } }));
+    association.expected_revision = at;
+    association.resource = 999;
+    try t.expectError(error.Forbidden, f.submit(0, .{ .state = .{ .associate = association } }));
+    association.resource = f.resource;
+    _ = try f.submit(0, .{ .state = .{ .associate = association } });
+    try t.expectError(error.StaleGeneration, f.submit(0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 1 } }));
+    _ = try f.submit(0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 2 } });
+    association.resource = null;
+    try t.expectError(error.PendingWork, f.submit(0, .{ .state = .{ .associate = association } }));
+}
+
+test "full view capacity refuses admission but closing one dependency restores bounded progress" {
+    const f = try Fixture.init(.{ .writer = 0 });
+    defer f.deinit();
+    const first = try f.open();
+    for (0..s.max_views) |index| {
+        const pid = try f.submit(0, .{ .spawn = .{} });
+        _ = try f.submit(0, .{ .state = .{ .associate = .{ .pid = pid, .name = try p.Value.init("data"), .resource = f.resource } } });
+        _ = try f.submit(0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 1 } });
+        const input = try f.submit(0, .{ .send = .{ .pid = pid, .value = .{} } });
+        const command: p.Command = .{ .state = .{ .open = .{ .pid = pid, .generation = 2, .input = input, .expected_revision = 0, .resource = f.resource, .revision = (try f.data()).meta.revision, .deadline_ms = 2000 } } };
+        if (index == s.max_views - 1) {
+            try t.expectError(error.StateViewCapacity, f.submit(1, command));
+            try t.expectEqual(0, (try f.engine.state.process(pid)).consumed);
+            _ = try f.submit(0, .{ .state = .{ .close = .{ .pid = f.pid, .view = first } } });
+        }
+        _ = try f.submit(1, command);
+    }
 }

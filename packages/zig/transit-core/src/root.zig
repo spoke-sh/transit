@@ -113,7 +113,7 @@ pub const State = struct {
     capacity_checkpoint: bool = false,
     resources: ?resources.Catalog = null,
 
-    pub fn jsonStringify(self: State, out: anytype) !void {
+    pub fn jsonStringify(self: *const State, out: anytype) !void {
         try out.beginObject();
         inline for (@typeInfo(State).@"struct".field_names) |name| {
             if (comptime std.mem.eql(u8, name, "resources")) {
@@ -226,6 +226,19 @@ pub const State = struct {
             else => null,
         };
         if (p.grant.pid) |scope| if (pid != scope) return error.Forbidden;
+        if (request.command == .state) {
+            const command = request.command.state;
+            const resource: ?u64 = switch (command) {
+                .associate => |c| c.resource,
+                .open => |c| c.resource,
+                else => null,
+            };
+            if (resource) |id| {
+                const catalog = if (self.resources) |*value| value else return error.Forbidden;
+                if (!catalog.allowed(id, request.principal, .inspect)) return error.Forbidden;
+                if (command == .open and !catalog.allowed(id, request.principal, .read)) return error.Forbidden;
+            }
+        }
     }
 
     /// Current permission is checked even when disclosing an existing receipt.
@@ -750,6 +763,7 @@ pub const State = struct {
 };
 
 pub const Checkpoint = struct {
+    pub const Heap = @import("parse_object.zig").Owned(Checkpoint);
     pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!Checkpoint {
         return @import("parse_object.zig").parse(Checkpoint, allocator, source, options);
     }
@@ -801,7 +815,9 @@ pub fn Engine(comptime Store: type) type {
 
         pub fn open(store: *Store, genesis: Genesis) !Self {
             if (@hasDecl(Store, "loadCheckpoint")) {
-                if (try store.loadCheckpoint(genesis)) |checkpoint| {
+                if (try store.loadCheckpoint(genesis)) |loaded| {
+                    defer loaded.deinit();
+                    const checkpoint = loaded.value;
                     var self: Self = .{ .store = store, .genesis = genesis, .state = checkpoint.state };
                     try self.refresh();
                     return self;
@@ -837,7 +853,9 @@ pub fn Engine(comptime Store: type) type {
             self.replayTail() catch |err| {
                 if (err != error.HistoryReclaimed) return err;
                 if (!@hasDecl(Store, "loadCheckpoint")) return err;
-                const checkpoint = (try self.store.loadCheckpoint(self.genesis)) orelse return error.MissingCheckpoint;
+                const loaded = (try self.store.loadCheckpoint(self.genesis)) orelse return error.MissingCheckpoint;
+                defer loaded.deinit();
+                const checkpoint = loaded.value;
                 // Another maintainer may trim while this authority is idle or
                 // reading an input. Recovery must advance, never reset/revive.
                 if (checkpoint.state.position <= self.state.position or
@@ -916,6 +934,7 @@ pub fn Engine(comptime Store: type) type {
                         const request = old.operation.request;
                         if (request.principal == signed.request.principal and request.sequence == signed.request.sequence) {
                             if (!std.mem.eql(u8, &digest(request), &digest(signed.request))) return error.ConflictingRetry;
+                            try resources.authorizeReceipt(self, signed.request);
                             return at;
                         }
                     }
@@ -923,7 +942,10 @@ pub fn Engine(comptime Store: type) type {
                 },
                 else => return err,
             };
-            if (receipt) |position| return position;
+            if (receipt) |position| {
+                try resources.authorizeReceipt(self, signed.request);
+                return position;
+            }
             return self.commit(try self.prepare(signed));
         }
     };

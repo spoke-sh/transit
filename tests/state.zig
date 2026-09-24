@@ -78,6 +78,7 @@ pub fn main(init: std.process.Init) !void {
     } else if (std.mem.eql(u8, args[2], "checkpoint")) {
         try t.expectEqual(13, try (try e.state.resources.?.resource(3)).entries[0].?.value.asInteger());
         // More entries than either the public read page or adapter replay window.
+        var last_request: p.SignedRequest = undefined;
         for (0..8) |batch| {
             const view = try open(e, root, worker);
             var command = try turn(e, view, null);
@@ -86,13 +87,26 @@ pub fn main(init: std.process.Init) !void {
                 const text = try std.fmt.bufPrint(&key, "entry-{d}", .{batch * 4 + offset});
                 mutation.* = if (batch == 7 and offset == 3) null else .{ .key = try p.Value.init(text), .value = try p.Value.init(&@as([p.Value.max_bytes]u8, @splat(97))) };
             }
-            _ = try submit(e, worker, 1, command);
+            last_request = try signed(e, worker, 1, command);
+            _ = try e.submit(last_request);
         }
         _ = try submit(e, root, 0, .{ .checkpoint = {} });
         const checkpoint = try core.Checkpoint.create(init.gpa, genesis, &e.state);
         try store.maintain(&checkpoint);
         try store.maintain(&checkpoint);
         try t.expectError(error.HistoryReclaimed, store.read(0));
+        // The original view-opening record is gone, but receipt permissions
+        // survive in the checkpoint. Recovery cannot broaden those permissions.
+        const recovered = try init.gpa.create(Engine);
+        defer init.gpa.destroy(recovered);
+        recovered.* = try Engine.open(&store, genesis);
+        recovered.clock = e.clock;
+        const receipt = (try recovered.state.principal(1)).receipt;
+        try t.expectEqual(receipt, try recovered.submit(last_request));
+        _ = try submit(recovered, root, 0, .{ .state = .{ .grant = .{ .resource = 3, .subject = 1, .permissions = 1 } } });
+        try t.expectError(error.Forbidden, recovered.submit(last_request));
+        _ = try submit(recovered, root, 0, .{ .state = .{ .grant = .{ .resource = 3, .subject = 1, .permissions = 7 } } });
+        try t.expectEqual(receipt, try recovered.submit(last_request));
     } else if (std.mem.eql(u8, args[2], "trim_recover")) {
         try t.expectError(error.HistoryReclaimed, store.read(0));
         const data = try e.state.resources.?.resource(3);
@@ -117,4 +131,5 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqual(.expired, (try e.state.process(1)).lifecycle);
     } else return error.UnknownPhase;
     std.debug.print("state {s}: passed\n", .{args[2]});
+    if (std.mem.eql(u8, args[2], "checkpoint")) std.debug.print("state bounds: catalog={d} core={d} view={d} page={d} store={d} bytes; 32 live keys, page=8, replay window=16\n", .{ @sizeOf(core.resources.Catalog), @sizeOf(core.State), @sizeOf(core.resources.Snapshot), @sizeOf(s.Page), @sizeOf(adapter.Store) });
 }

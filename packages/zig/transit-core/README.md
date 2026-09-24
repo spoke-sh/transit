@@ -145,3 +145,12 @@ the workload's grants. Required-resource expiry fences execution before delayed
 maintenance and records permanent dependent-PID retirement. Compaction preserves
 current values independently of their write age. Service/client and Board
 integration remain in progress; this is not a completed M7 qualification claim.
+
+State-turn receipt dependencies are retained in the catalog after read-view
+release. Returning a known receipt rechecks current resource inspect/read/write
+grants; a revoked writer cannot use a lost-response retry to bypass revocation.
+Unlimited historical retries resolve their bounded view references from retained
+history. This check discloses the original decision and never republishes a turn.
+Large checkpoint objects use `Checkpoint.Heap` and an owned parsed result at the
+storage boundary. The parser preserves strict field and fixed-array validation
+without passing the full catalog through nested by-value parse frames.

@@ -53,7 +53,8 @@ pub fn read(self: *Store, at: u64) !?core.Entry {
     return if (self.cache_len == 0) null else self.cache[0];
 }
 
-pub fn loadCheckpoint(self: *Store, genesis: core.Genesis) !?core.Checkpoint {
+/// Caller owns the returned arena and must deinit it after copying needed state.
+pub fn loadCheckpoint(self: *Store, genesis: core.Genesis) !?std.json.Parsed(*core.Checkpoint) {
     var observation = observations.begin(self.journal.observer, .storage_operation, "loadCheckpoint", self.journal.parent_context);
     defer observation.finish();
     const parent = self.journal.parent_context;
@@ -65,7 +66,7 @@ pub fn loadCheckpoint(self: *Store, genesis: core.Genesis) !?core.Checkpoint {
     };
 }
 
-fn loadCheckpointImpl(self: *Store, genesis: core.Genesis) !?core.Checkpoint {
+fn loadCheckpointImpl(self: *Store, genesis: core.Genesis) !?std.json.Parsed(*core.Checkpoint) {
     var latest = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream } });
     defer latest.deinit();
     if (latest.head.status == .not_found) return null;
@@ -76,10 +77,10 @@ fn loadCheckpointImpl(self: *Store, genesis: core.Genesis) !?core.Checkpoint {
     var response = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream, .offset = offset } });
     defer response.deinit();
     try response.head.requireSuccess();
-    var parsed = try std.json.parseFromSlice(*core.Checkpoint, self.journal.client.http.allocator, response.body, .{});
-    defer parsed.deinit();
-    try parsed.value.validate(self.journal.client.http.allocator, genesis);
-    return parsed.value.*;
+    var parsed = try std.json.parseFromSlice(core.Checkpoint.Heap, self.journal.client.http.allocator, response.body, .{});
+    errdefer parsed.deinit();
+    try parsed.value.value.validate(self.journal.client.http.allocator, genesis);
+    return .{ .value = parsed.value.value, .arena = parsed.arena };
 }
 
 /// Reconcile an already committed checkpoint intent. Publication is verified
@@ -100,7 +101,8 @@ fn publishCheckpointImpl(self: *Store, checkpoint: *const core.Checkpoint) !void
     const allocator = self.journal.client.http.allocator;
     try checkpoint.validate(allocator, checkpoint.genesis);
     if (try self.loadCheckpoint(checkpoint.genesis)) |existing| {
-        if (existing.state.position >= checkpoint.state.position and existing.state.history_floor >= checkpoint.state.history_floor) return;
+        defer existing.deinit();
+        if (existing.value.state.position >= checkpoint.state.position and existing.value.state.history_floor >= checkpoint.state.history_floor) return;
     }
     const bytes = try std.json.Stringify.valueAlloc(allocator, checkpoint, .{});
     defer allocator.free(bytes);
@@ -114,7 +116,8 @@ fn publishCheckpointImpl(self: *Store, checkpoint: *const core.Checkpoint) !void
     defer published.deinit();
     try published.head.requireSuccess();
     const verified = (try self.loadCheckpoint(checkpoint.genesis)) orelse return error.MissingCheckpoint;
-    if (verified.state.position < checkpoint.state.position or verified.state.history_floor < checkpoint.state.history_floor) return error.StaleCheckpoint;
+    defer verified.deinit();
+    if (verified.value.state.position < checkpoint.state.position or verified.value.state.history_floor < checkpoint.state.history_floor) return error.StaleCheckpoint;
 }
 
 pub fn maintain(self: *Store, checkpoint: *const core.Checkpoint) !void {
@@ -132,10 +135,11 @@ pub fn maintain(self: *Store, checkpoint: *const core.Checkpoint) !void {
 fn maintainImpl(self: *Store, checkpoint: *const core.Checkpoint) !void {
     try checkpoint.validate(self.journal.client.http.allocator, checkpoint.genesis);
     const existing = try self.loadCheckpoint(checkpoint.genesis);
+    defer if (existing) |value| value.deinit();
     // A checkpoint covering the committed floor plus its retained tail is a
     // complete recovery basis. Restart must not republish the same maintenance
     // intent at ever-newer tails and consume reserved disk indefinitely.
-    if (existing == null or existing.?.state.history_floor < checkpoint.state.history_floor)
+    if (existing == null or existing.?.value.state.history_floor < checkpoint.state.history_floor)
         try self.publishCheckpoint(checkpoint);
     var head = try self.journal.client.send(.{ .head = .{ .stream = self.journal.stream } });
     defer head.deinit();
