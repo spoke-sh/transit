@@ -81,6 +81,8 @@ Docker-dependent check. The proof checks:
   realm or keys; probe through the correct Host header without public DNS.
   Remote HTTP requires explicit development opt-in; wrong Host/Origin and
   unauthenticated reads still fail. Ursula/Transit keep loopback publication.
+  Native Board must become ready in Process Compose and stay alive beyond the
+  original 30-second probe-failure window.
 
 Successful proofs stop/remove only their owned resources and delete their test
 state. Failed proofs preserve private evidence for inspection after cleanup.

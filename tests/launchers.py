@@ -166,6 +166,14 @@ def proof(profile):
         config = json.loads((installation.path / "node.json").read_text())
         if profile == "local":
             assert config["listen"] == "127.0.0.1"
+            # A direct health check used to succeed while the manager's probe
+            # failed with 403 and terminated Board after ~30 seconds. Require
+            # the manager's readiness and survive that original failure window.
+            deadline = time.monotonic() + 32
+            while time.monotonic() < deadline:
+                managed = next(row for row in launcher.services() if row["name"] == "board")
+                assert managed["is_running"] and managed["is_ready"] == "Ready", managed
+                time.sleep(.5)
         else:
             topology = json.loads((installation.path / "compose.json").read_text())
             assert topology["services"]["board"]["ports"][0]["host_ip"] == "0.0.0.0"

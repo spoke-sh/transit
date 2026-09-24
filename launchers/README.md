@@ -178,7 +178,9 @@ configuration; it does not apply `.env` changes.
 The bind address and browser origin are distinct: `0.0.0.0` is not a URL host.
 Health probes and agent inspection use the listener's local address with the
 configured Host header, so the server does not need to resolve the browser's DNS
-name or contact a TLS proxy to check its own health. Ursula and Transit remain
+name or contact a TLS proxy to check its own health. The native manager uses an
+exec probe because its pinned HTTP checker cannot override the Host header;
+startup waits for the manager's readiness result. Ursula and Transit remain
 private. Remote HTTP still requires Board sign-in, but credentials and sessions
 are unencrypted; this option is for a trusted development network. Use a trusted
 TLS ingress with an `https://` origin for other remote use.

@@ -57,8 +57,12 @@ class Local:
         for name, offset, route in (("ursula", 0, "/__ursula/ready"), ("node", 1, "/health"), ("board", 2, "/health")):
             processes[name]["readiness_probe"] = {"http_get": {"host": "127.0.0.1", "port": installation.load()["base_port"] + offset,
                 "scheme": "http", "path": route}, "period_seconds": 1, "timeout_seconds": 1, "failure_threshold": 30}
-        processes["board"]["readiness_probe"]["http_get"].update(
-            host=installation.board_probe_host, port=installation.board["port"], headers=installation.board_headers)
+        # The pinned manager's HTTP checker puts Host in Go's Header map,
+        # which does not override Request.Host. Use our local transport probe
+        # so a public browser hostname never depends on DNS or loses its Host.
+        processes["board"]["readiness_probe"] = {
+            "exec": {"command": shlex.join(map(str, [*launcher, "board-probe"]))},
+            "period_seconds": 1, "timeout_seconds": 3, "failure_threshold": 30}
         write(self.path / "process-compose.json", {"version": "0.5", "is_strict": True, "processes": processes})
         self.pc("up", "-f", self.path / "process-compose.json", "--disable-dotenv", "-D", capture=True)
         deadline = time.monotonic() + 45
@@ -67,8 +71,9 @@ class Local:
             for process in rows:
                 if not process["is_running"] and process["exit_code"] != 0:
                     raise RuntimeError(f"{process['name']} failed; inspect {process['name']}.log. Data has been preserved.")
-            running = {p["name"] for p in rows if p["status"] == "Running"}
-            if set(SERVICES) <= running and (self.path / "counter/config.json").exists() and healthy(installation.board_url + "/health", installation.board_headers):
+            ready = {p["name"] for p in rows if p["is_running"] and
+                     (not p["has_ready_probe"] or p["is_ready"] == "Ready")}
+            if set(SERVICES) <= ready and (self.path / "counter/config.json").exists():
                 return
             time.sleep(.2)
         raise RuntimeError("A local service did not start; use status and logs. Data has been preserved.")
@@ -109,6 +114,11 @@ class Local:
     def logs(self, name):
         if name not in SERVICES and name != "provision":
             raise ValueError("Unknown service")
+        if self.services():
+            # The manager also records probe failures here; they are absent
+            # from the child process's stdout/stderr file.
+            self.pc("process", "logs", name, "--tail", "200")
+            return
         # Logs remain inspectable after shutdown too. Bound the read to 64 KiB.
         path = self.path / (name + ".log")
         with path.open("rb") as stream:
@@ -119,7 +129,11 @@ class Local:
         self.pc("attach", timeout=None)
 
     def service(self, name):
-        if name == "node":
+        if name == "board-probe":
+            if not healthy(self.installation.board_url + "/health", self.installation.board_headers):
+                raise RuntimeError("Board readiness failed for the configured public Host")
+            return
+        elif name == "node":
             self.installation.initialize()
             command = [ROOT / "zig-out/bin/transit-node", self.path / "node.json"]
         elif name == "provision":
