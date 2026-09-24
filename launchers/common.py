@@ -173,6 +173,7 @@ class Installation:
         write(self.path / "operator/sequence.json", {"sequence": 0, "pending": None})
         (self.path / "wal").mkdir(mode=0o700)
         write(self.manifest, {"version": 1, "profile": self.profile, "name": self.name,
+              "state_profile": 1,
               "project": "rey-" + self.profile + "-" + secrets.token_hex(6),
               "realm": secrets.randbelow(2**31 - 1) + 1, "base_port": base, "root_public": root_public})
         self.configs()
@@ -186,6 +187,8 @@ class Installation:
         node = {"genesis": {"realm": config["realm"], "root_key": config["root_public"]},
                 "ursula_url": storage, "bucket": "development", "journal": "authority", "accept_trace_parent": True,
                 "listen": "0.0.0.0" if container else "127.0.0.1", "port": 8080 if container else base + 1}
+        if config.get("state_profile") == 1:
+            node["genesis"]["max_clock_error_ms"] = 10000
         write(self.path / "node.json", node)
         write(self.path / "host-node.json", {**node, "ursula_url": f"http://127.0.0.1:{base}"})
         write(self.path / "maintenance/config.json", {**node, "maintenance": {
@@ -196,8 +199,7 @@ class Installation:
               "principal": 2, "seed_file": "/board/seed.key" if container else str(self.path / "board/seed.key"),
               "public_origin": self.origin, "listen": "0.0.0.0" if container else self.board["host"],
               "port": 8080 if container else self.board["port"],
-              "development_allow_insecure_http": self.board["allow_insecure_http"],
-              "lenses": [{"pid": pid, "kind": "rey.example.counter", "version": 1}] if pid else []})
+              "development_allow_insecure_http": self.board["allow_insecure_http"]})
         address = "0.0.0.0:8080" if container else f"127.0.0.1:{base}"
         wal = "/wal" if container else str(self.path / "wal")
         write(self.path / "ursula.toml", f'''[server]
@@ -293,6 +295,12 @@ backend = "inline"
         for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 33)):
             self.command("grant-" + label, {"grant": {"subject": principal,
                 "public_key": self.key(label + "/seed.key"), "permissions": permissions}})
+        if self.load().get("state_profile") == 1:
+            resource = self.command("create-counter-state", {"state": {"create": {"writer": pid}}})
+            write(self.path / "state-resource.json", resource)
+            self.command("inspect-counter-state", {"state": {"grant": {"resource": resource, "subject": 0, "permissions": 7}}})
+            self.command("associate-counter-state", {"state": {"associate": {"pid": pid, "name": b"counter".hex(), "resource": resource}}})
+            self.command("board-counter-state", {"state": {"grant": {"resource": resource, "subject": 2, "permissions": 1}}})
         for value in (7, 5):
             self.command(f"seed-{value}", {"send": {"pid": pid, "value": str(value).encode().hex()}})
         self.configs()
@@ -313,10 +321,30 @@ backend = "inline"
             write(self.path / "counter/seed.key", secrets.token_hex(32))
             public = self.key("counter/seed.key")
             self.command("worker-grant-" + identity, {"grant": {"subject": 1, "public_key": public, "permissions": 24, "pid": pid}})
+            self.grant_counter_state(identity)
             self.command("worker-own-" + identity, {"own": {"pid": pid, "worker": 1, "expected_generation": view["generation"]}})
             write(self.path / "counter/config.json", {"url": "http://node:8080" if self.profile == "compose" else self.url,
                 "realm": self.load()["realm"], "principal": 1, "pid": pid, "generation": view["generation"] + 1,
-                "seed_file": "/counter/seed.key" if self.profile == "compose" else str(self.path / "counter/seed.key")})
+                "seed_file": "/counter/seed.key" if self.profile == "compose" else str(self.path / "counter/seed.key"),
+                **self.counter_config()})
+
+    def counter_config(self):
+        return {"state_association": "counter"} if self.load().get("state_profile") == 1 else {}
+
+    def grant_counter_state(self, identity):
+        if self.load().get("state_profile") == 1:
+            resource = json.loads((self.path / "state-resource.json").read_text())
+            self.command("worker-state-" + identity, {"state": {"grant": {"resource": resource, "subject": 1, "permissions": 7}}})
+
+    def counter_value(self):
+        # Example-specific decoding belongs in the example/operator tools, not Board.
+        if self.load().get("state_profile") != 1:
+            return int(bytes.fromhex(self.view()["state"]))
+        resource = json.loads((self.path / "state-resource.json").read_text())
+        query = self.path / "operator/state-query.json"
+        write(query, {"realm": self.load()["realm"], "principal": 0, "kind": "entries", "resource": resource, "key": b"value".hex()})
+        page = json.loads(run([self.cli, "state", self.path / "operator/root.key", query, self.url], capture=True))
+        return int(bytes.fromhex(page["entries"][0]["value"])) if page["entries"][0] else 0
 
     def view(self):
         pid = json.loads((self.path / "pid.json").read_text())

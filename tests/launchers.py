@@ -67,7 +67,7 @@ def proof(profile):
                 rows = [p for p in page["processes"] if p]
                 assert len(rows) == 1 and page["reader"]["permissions"] == 16, page
                 last = rows[0]
-                if expected is None or bytes.fromhex(last["state"]).decode() == str(expected):
+                if expected is None or installation.counter_value() == expected:
                     return last
             except (urllib.error.URLError, ConnectionError, TimeoutError):
                 pass
@@ -241,9 +241,9 @@ def proof(profile):
         invoke("up")
         assert observe(25)["pid"] == first["pid"]
         installation.command("retire-counter", {"terminate": first["pid"]})
-        assert observe(25)["lifecycle"] == "terminated"
+        assert observe()["lifecycle"] == "terminated"
         invoke("restart", "counter", success=False)
-        assert observe(25)["lifecycle"] == "terminated"
+        assert observe()["lifecycle"] == "terminated"
         invoke("down")
         invoke("reset")
         assert not installation.path.exists()
@@ -299,7 +299,7 @@ def foreground_proof(profile):
             first = next(p for p in installation.inspect()["observation"]["processes"] if p)
             wait_for(lambda: "board.http.request" in output.read_text())
             invoke("send", "3", "--request-id", "foreground-input")
-            wait_for(lambda: next(p for p in installation.inspect()["observation"]["processes"] if p)["state"] == b"15".hex())
+            wait_for(lambda: installation.counter_value() == 15)
             # A real child signal exit must be visible even without stderr,
             # and status/client calls must not truncate the manager's evidence.
             if profile == "local":
@@ -333,7 +333,7 @@ def foreground_proof(profile):
                                          stdout=log, stderr=log, start_new_session=True)
                 wait_for(lambda: "Compose stack ready." in output.read_text(), seconds=600)
                 recovered = next(p for p in installation.inspect()["observation"]["processes"] if p)
-                assert recovered["pid"] == first["pid"] and recovered["state"] == b"15".hex()
+                assert recovered["pid"] == first["pid"] and installation.counter_value() == 15
                 child.send_signal(signal.SIGSTOP)
                 try:
                     invoke("down")

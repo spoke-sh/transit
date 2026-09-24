@@ -8,8 +8,8 @@ from inspection import System
 from storage import wait_ready
 
 
-def run(node, cli):
-    with System(node, cli, clock_error_ms=1000) as s:
+def run(node, cli, counter):
+    with System(node, cli, clock_error_ms=10000) as s:
         def query(kind, principal=0, seed=None, status=200, **options):
             path = s.root / "state-query.json"
             path.write_text(json.dumps({"realm": 72, "principal": principal, "kind": kind, **options}))
@@ -67,6 +67,22 @@ def run(node, cli):
         wait_ready(s.store.http, s.authority, s.url + "/health")
         assert query("entries", resource=resource) == before
         assert s.inspect("process", pid)["processes"][0]["state"] == b"legacy".hex()
+        # The actual Zig caller uses only Session and opaque application bytes.
+        worker, public = s.key("caller")
+        config = s.root / "counter.json"
+        for generation, value in ((3, 7), (4, 5)):
+            s.command({"grant": {"subject": 2, "public_key": public, "permissions": 24, "pid": pid}})
+            s.command({"state": {"grant": {"resource": resource, "subject": 2, "permissions": 7}}})
+            s.command({"own": {"pid": pid, "worker": 2, "expected_generation": generation - 1}})
+            s.command({"send": {"pid": pid, "value": str(value).encode().hex()}})
+            config.write_text(json.dumps({"url": s.url, "realm": 72, "principal": 2, "pid": pid,
+                "generation": generation, "seed_file": str(worker), "state_association": "data"}))
+            child = s.start(counter, "--once", config)
+            assert child.wait(timeout=15) == 0
+        assert query("entries", resource=resource, key=b"value".hex())["entries"][0]["value"] == b"12".hex()
+        assert s.inspect("process", pid)["processes"][0]["state"] == b"legacy".hex()
+        metadata = query("resources", resource=resource)["resources"][0]
+        assert metadata["last_turn"] == metadata["revision"] == s.inspect("process", pid)["processes"][0]["revision"]
     print("State API: signed reads, independent grants, frozen views, atomic turns, exact retries, pagination and disk recovery passed.")
 
 

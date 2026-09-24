@@ -199,6 +199,7 @@ pub fn build(b: *std.Build) void {
     state_api.addFileArg(b.path("tests/state_api.py"));
     state_api.addArtifactArg(node_artifact);
     state_api.addArtifactArg(cli_artifact);
+    state_api.addArtifactArg(example_artifacts[0]);
     state_api.has_side_effects = true;
     state_api.stdio = .inherit;
     b.step("test-state", "Prove state resources through the public service").dependOn(&state_api.step);

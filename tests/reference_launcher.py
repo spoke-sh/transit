@@ -27,7 +27,7 @@ def run():
         return result.stdout
 
     def observe(value):
-        return launcher.await_process(lambda p: bytes.fromhex(p["state"]).decode() == str(value), "counter state " + str(value))
+        return launcher.await_process(lambda p: installation.counter_value() == value, "counter state " + str(value))
 
     def pods():
         return {p["metadata"]["labels"].get("app.kubernetes.io/component"): p["metadata"]["uid"]

@@ -173,7 +173,7 @@ class Reference:
         write(space_file, space_identity)
         template = {"metadata": {"atespace": self.namespace, "name": name}, "workerSelector": {"matchLabels": {"transit.dev/workload": name}},
             "containers": [{"name": "counter", "image": image, "env": [{"name": "LOG_FORMAT", "value": logging["format"]}, {"name": "LOG_LEVEL", "value": logging["level"]}],
-                "command": ["/bin/example-counter", "--bootstrap-json", json.dumps({"url": "http://" + host + ":8080", "realm": i.load()["realm"], "principal": 1, "pid": pid})],
+                "command": ["/bin/example-counter", "--bootstrap-json", json.dumps({"url": "http://" + host + ":8080", "realm": i.load()["realm"], "principal": 1, "pid": pid, **i.counter_config()})],
                 "volumeMounts": [{"name": "runtime-data", "mountPath": "/runtime-data"}]}],
             "volumes": [{"name": "runtime-data", "durableDir": {}}],
             "resources": {"limits": [{"name": "cpu", "quantity": "1"}, {"name": "memory", "quantity": "512Mi"}]},
@@ -261,6 +261,7 @@ class Reference:
         self.installation.provision()
         pid = json.loads((self.path / "pid.json").read_text())
         self.installation.command("grant-worker", {"grant": {"subject": 1, "public_key": self.installation.key("counter/initial.key"), "permissions": 24, "pid": pid}})
+        self.installation.grant_counter_state("initial")
         self.installation.command("grant-controller", {"grant": {"subject": 4, "public_key": self.installation.key("controller/seed.key"), "permissions": 17, "pid": pid}})
         self.credentials()
         if not values["controller"].get("config"):

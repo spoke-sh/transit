@@ -94,3 +94,24 @@ identity and short proposal-preparation spans explain local work; they do not
 claim ownership or committed progress. Each public client attempt has its own
 span linked to the prepared proposal. Receipts and bootstrap JSON remain on stdout;
 input/state bytes and keys are excluded from diagnostics. Idle polling is debug.
+
+## Resource-backed mode
+
+Set `state_association: "counter"` in the caller config to use a pre-provisioned
+KV association instead of inline process state. The application owns the
+`value` key and decimal encoding; Board sees opaque bytes and resource metadata.
+An empty resource initializes to zero on the first committed input. Resolve the
+association, capture an exact revision in a bounded view, compute the result,
+and commit its mutation with input progress/outputs. Opening and committing each
+use a frozen signed request; lost receipts retry those bytes unchanged.
+
+The caller needs resource inspect/read/write (7) as well as PID inspect/execute.
+View lifetimes require a realm with trusted time enabled. This example proposes
+a 30-second view deadline and relies on authority validation; expired or revoked
+work fails explicitly. Worker replacement receives a fresh generation and reads
+the committed resource. There is no application state in worker memory to save.
+`just test::state` runs this exact binary through two activations.
+
+New launcher installations configure this mode; older installations keep their
+inline state and existing config. No automatic migration or reset of a live
+realm occurs. Both paths use code tag 1 and remain intentionally experimental.

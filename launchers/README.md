@@ -449,3 +449,25 @@ Keep defaults and scenario provisioning shared rather than maintaining divergent
 demo realms. Other runtime adapters, frontend HMR, automatic source watching,
 artifact garbage collection and configurable application catalogs are future
 work. The current launcher exercises the kernel and Board before Station lands.
+
+## Example state resources
+
+New installations provision a PID-owned, required KV resource named `counter`
+before the first activation. Lifetime and history retention remain unlimited.
+The caller receives resource inspect/read/write; Board receives metadata inspect
+only. The process **State** tab links to its resource, and Board does not decode
+the counter value. Operator scripts can use the signed CLI state endpoint to
+read the application's `value` key under the root resource grant.
+
+The manifest records `state_profile: 1`; the realm enables the Linux synchronized
+clock with a maximum reported error of 10 seconds for bounded read views. An
+unsynchronized clock stops view acquisition/commits explicitly. This first
+resource-backed launcher profile therefore requires Linux, including for the
+native launcher; it does not simulate trusted time on other hosts.
+
+Existing manifests without this field continue using inline state. Updating
+binaries does not change genesis, allocate a resource, or migrate old values.
+Create a separately named installation to try the resource profile. Direct-owner
+replacement reissues resource grants with the fresh key; Substrate activation
+rotation preserves the existing resource grants. Compatible upgrades preserve
+the resource ID, association, data and pending mailbox under the same PID.
