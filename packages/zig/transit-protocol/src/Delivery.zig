@@ -13,7 +13,10 @@ pub fn digest(query: Query) [32]u8 {
     hash.update(writer.buffered());
     return hash.finalResult();
 }
-pub fn sign(query: Query, key: p.Ed25519.KeyPair) !SignedQuery {
+pub fn validate(query: Query) !void {
     if (query.version != 1 or query.realm == 0 or query.realm > p.max_counter or query.principal >= p.max_principals) return error.InvalidRead;
+}
+pub fn sign(query: Query, key: p.Ed25519.KeyPair) !SignedQuery {
+    try validate(query);
     return .{ .query = query, .signature = (try key.sign(&digest(query), null)).toBytes() };
 }

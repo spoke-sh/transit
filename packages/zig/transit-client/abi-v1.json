@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "statuses": {
+    "ok": 0,
+    "invalid_argument": 1,
+    "out_of_memory": 2,
+    "rejected": 3,
+    "denied": 4,
+    "conflict": 5,
+    "uncertain": 6,
+    "unavailable": 7,
+    "invalid_response": 8,
+    "busy": 9,
+    "incompatible_version": 10
+  },
+  "kinds": {
+    "command": 1,
+    "view": 2,
+    "state": 3,
+    "inspection": 4,
+    "delivery": 5
+  },
+  "functions": [
+    {
+      "name": "transit_client_abi_version",
+      "result": "uint32_t",
+      "parameters": []
+    },
+    {
+      "name": "transit_client_create",
+      "result": "uint32_t",
+      "parameters": [
+        "uint32_t",
+        "const uint8_t *",
+        "size_t",
+        "uint32_t",
+        "transit_client **"
+      ]
+    },
+    {
+      "name": "transit_client_destroy",
+      "result": "void",
+      "parameters": [
+        "transit_client *"
+      ]
+    },
+    {
+      "name": "transit_operation_prepare",
+      "result": "uint32_t",
+      "parameters": [
+        "uint32_t",
+        "const uint8_t *",
+        "const uint8_t *",
+        "size_t",
+        "transit_operation **"
+      ]
+    },
+    {
+      "name": "transit_operation_export",
+      "result": "uint32_t",
+      "parameters": [
+        "const transit_operation *",
+        "transit_buffer **"
+      ]
+    },
+    {
+      "name": "transit_operation_import",
+      "result": "uint32_t",
+      "parameters": [
+        "const uint8_t *",
+        "size_t",
+        "transit_operation **"
+      ]
+    },
+    {
+      "name": "transit_operation_destroy",
+      "result": "void",
+      "parameters": [
+        "transit_operation *"
+      ]
+    },
+    {
+      "name": "transit_client_call",
+      "result": "uint32_t",
+      "parameters": [
+        "transit_client *",
+        "const transit_operation *",
+        "transit_buffer **"
+      ]
+    },
+    {
+      "name": "transit_buffer_data",
+      "result": "const uint8_t *",
+      "parameters": [
+        "const transit_buffer *"
+      ]
+    },
+    {
+      "name": "transit_buffer_size",
+      "result": "size_t",
+      "parameters": [
+        "const transit_buffer *"
+      ]
+    },
+    {
+      "name": "transit_buffer_destroy",
+      "result": "void",
+      "parameters": [
+        "transit_buffer *"
+      ]
+    }
+  ]
+}

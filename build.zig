@@ -47,6 +47,8 @@ pub fn build(b: *std.Build) void {
     const board_contract = b.addExecutable(.{ .name = "transit-board-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-board-api/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_board_api", .module = transit_board_api.module("transit_board_api") }} }) });
     b.step("transit-board-contract", "Export Board OpenAPI to stdout").dependOn(&b.addRunArtifact(board_contract).step);
     const client = b.dependency("transit_client", .{ .target = target, .optimize = optimize });
+    b.step("client-contract", "Export reflected client ABI signatures").dependOn(&b.addRunArtifact(client.artifact("transit-client-contract")).step);
+    b.step("client-abi", "Build the shared client library").dependOn(&b.addInstallArtifact(client.artifact("transit_client"), .{}).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);
     const embed = b.addSystemCommand(&.{ "python3", "-B" });
     embed.addFileArg(b.path("apps/transit-board/embed.py"));
@@ -126,6 +128,19 @@ pub fn build(b: *std.Build) void {
         }
         test_step.dependOn(&app.step);
     }
+    const c_proof = b.addExecutable(.{ .name = "transit-client-c-proof", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
+    c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
+    c_proof.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));
+    c_proof.root_module.linkLibrary(client.artifact("transit_client"));
+    const abi_tests = b.addSystemCommand(&.{ "python3", "-B" });
+    abi_tests.addFileArg(b.path("tests/client_abi.py"));
+    abi_tests.addArtifactArg(client.artifact("transit_client"));
+    abi_tests.addArtifactArg(node_artifact);
+    abi_tests.addArtifactArg(cli_artifact);
+    abi_tests.addArtifactArg(c_proof);
+    abi_tests.has_side_effects = true;
+    abi_tests.stdio = .inherit;
+    b.step("test-client-abi", "Prove the C ABI against real authority and host loss").dependOn(&abi_tests.step);
     const readiness_caller = b.addExecutable(.{ .name = "transit-readiness-caller", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/readiness_client.zig"),
         .target = target,

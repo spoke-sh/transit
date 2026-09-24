@@ -57,9 +57,10 @@ Instrumentation finishes after cancellation joins, before call state is reused.
 The [public contract package](../transit-protocol/README.md) owns the generated
 schema, canonical signing rules, and shared vectors for future language bindings.
 v2 rejects v1 histories and requests; start a fresh development realm. Station
-behaviors and the [shared language-binding surface](../../../docs/CLIENT.md#language-neutral-boundary)
-are planned for M9. The current package exposes Zig APIs only; C ABI exports,
-generated host adapters and their conformance matrix are not implemented yet.
+behaviors and the complete [language-binding surface](../../../docs/CLIENT.md#language-neutral-boundary)
+remain M9 work. The first [C ABI](docs/bindings.md) exposes the shared client,
+generated signatures and exact-request export/import. Host adapters and their
+complete behavior/Table conformance matrix remain in progress.
 General payload references remain separately scoped future work.
 
 ## Build and verification

@@ -12,6 +12,15 @@ a claim that all commands are rerun on every documentation change.
 M7 evidence is recorded in [the state proof](#m7-state-resources). The ordinary
 suite includes the public state API and real resource-backed Zig caller.
 
+M9 entry proofs now include `just test::arrow` (independent PyArrow validation
+of Fuze IPC, including nulls, empty results and wide integers) and
+`just test::client-abi` (a generated C header, real authority calls, canonical
+signatures, receipt loss, fresh-host retry, revocation and malformed input).
+The [Fuze integration notes](../packages/zig/transit-fuze/docs/integration.md) and
+[client binding guide](../packages/zig/transit-client/docs/bindings.md) record
+their limits. These checks do not yet qualify the Station behaviors or every
+planned host-language adapter.
+
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 

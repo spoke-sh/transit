@@ -14,6 +14,10 @@ unit:
 arrow:
     zig build test-arrow
 
+# Prove the generated C ABI and exact retry after a foreign host exits.
+client-abi:
+    zig build test-client-abi
+
 # Check each library using its own declared dependencies.
 packages:
     cd packages/zig/transit-fuze && zig build test
