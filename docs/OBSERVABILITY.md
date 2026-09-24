@@ -2,8 +2,8 @@
 
 Status: [M2 follow-up](roadmap/M2-OBSERVABILITY.md) in progress before Station.
 Board request logs and the bounded [telemetry primitives](../packages/zig/telemetry/README.md)
-are implemented, along with Transit node/client correlation. Dependency/caller
-coverage and launcher qualification follow. This document owns cross-component rules.
+are implemented across Board, Transit, storage, maintenance, runtime and callers.
+Launcher/deployment qualification is in progress. This document owns cross-component rules.
 Exact event schemas and configuration belong with the implementation as it lands.
 
 ## Purpose and authority

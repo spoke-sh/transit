@@ -322,3 +322,14 @@ See the [test guide](../../../tests/README.md) for integration evidence and limi
 
 Run `just test::storage` and `just test::service` after changing backend or client
 behavior; package tests alone cannot prove persistence or server semantics.
+
+## Instrumentation
+
+`Journal.observer` optionally borrows a
+[telemetry runtime](../telemetry/README.md); `parent_context` relates storage work
+to its host operation. The adapter depends on
+[transit-observability](../transit-observability/README.md) for event vocabulary.
+Journal create/tail/read/conditional append and checkpoint/payload operations
+emit bounded spans. Successful operations are debug; conflicts/errors are warnings.
+No stream names, bodies, credentials or provider responses are logged. Cached
+reads are not counted as network reads, and replay never creates fresh-turn metrics.

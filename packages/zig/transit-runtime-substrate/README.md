@@ -71,3 +71,12 @@ See the [test guide](../../../tests/README.md) for integration evidence and limi
 
 Real provider behavior and egress isolation require `just launchers::reference::test` on the
 [pinned reference deployment](../../../deploy/reference/README.md).
+
+## Instrumentation
+
+`Adapter.observer` and `parent_context` optionally borrow the host's telemetry
+runtime/context through [transit-observability](../transit-observability/README.md).
+`transit.provider.operation` measures bounded CLI calls using a finite operation
+vocabulary. It excludes provider args/configuration, raw output and credentials.
+Success is debug; failures are warnings. A failed invocation can follow a remote
+change: diagnostics do not resolve uncertain provider intent or authorize retries.

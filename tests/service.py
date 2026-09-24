@@ -21,10 +21,14 @@ def run(node, worker, cli):
         children = []
         logs = []
 
-        def start(binary, *args):
+        def start(binary, *args, separate_stderr=False):
+            error_log = subprocess.STDOUT
+            if separate_stderr:
+                error_log = (root / f"child-{len(logs)}-stderr.log").open("w+")
+                logs.append(error_log)
             log = (root / f"child-{len(logs)}.log").open("w+")
             logs.append(log)
-            child = subprocess.Popen([str(binary), *map(str, args)], stdout=log, stderr=subprocess.STDOUT)
+            child = subprocess.Popen([str(binary), *map(str, args)], stdout=log, stderr=error_log)
             children.append(child)
             return child
 
@@ -174,7 +178,7 @@ def run(node, worker, cli):
             command({"runtime_observe": {"pid": other, "revision": 1, "operation": operation,
                                           "incarnation": [4] * 16, "outcome": "ready"}})
             command({"send": {"pid": other, "value": 11}})
-            boot = start(worker, "--bootstrap-json", json.dumps({"url": url, "realm": 47, "principal": 2, "pid": other}))
+            boot = start(worker, "--bootstrap-json", json.dumps({"url": url, "realm": 47, "principal": 2, "pid": other}), separate_stderr=True)
             log = logs[-1]
             deadline = time.monotonic() + 5
             while True:

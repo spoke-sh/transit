@@ -61,3 +61,14 @@ The adapter README owns provider-specific behavior.
 kills a worker, and checks recovery, fresh ownership, and blocked/retired shutdown.
 Unit and storage proofs cover the underlying binding protocol separately.
 See [test coverage](../../tests/README.md) for evidence and limits.
+
+## Service diagnostics
+
+`LOG_LEVEL` / `LOG_FORMAT` configure the shared
+[bounded telemetry runtime](../../packages/zig/telemetry/README.md). Reconciliation
+emits `transit.runtime.step` with the current PID, generation and binding revision
+when observed. Progress is info, idle is debug, and failures are warnings.
+Provider invocations and public client requests have separate related spans;
+provider arguments, raw stdout/stderr and credentials are never logged.
+Continuous diagnostics go to stderr. `--once` keeps its single disposition on
+stdout. Provider progress is not proof of Transit ownership or remote cancellation.

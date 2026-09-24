@@ -3,8 +3,8 @@
 [Roadmap](README.md) · [M2](M2.md) · [Observability design](../OBSERVABILITY.md)
 
 Status: implementation in progress. Board request visibility and bounded common
-primitives and node/client correlation are implemented and tested; dependency,
-caller and deployment coverage follow.
+primitives, node/client correlation and dependency/caller instrumentation are
+implemented; launcher/deployment qualification follows.
 The completed M2 inspection profile retains its documented qualification.
 
 ## Outcome and scope

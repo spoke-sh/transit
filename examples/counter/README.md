@@ -85,3 +85,12 @@ registration evidence, and waits for the controller's verified activation. No
 signing seed is embedded in the image or template. The counter pins the accepted
 generation and cannot acquire a newer one itself. See
 [reference setup and tests](../../deploy/reference/README.md#prerequisites-and-lifecycle).
+
+## Diagnostics
+
+`LOG_LEVEL` / `LOG_FORMAT` configure stderr through the
+[telemetry runtime](../../packages/zig/telemetry/README.md). Configured activation
+identity and short proposal-preparation spans explain local work; they do not
+claim ownership or committed progress. Each public client attempt has its own
+span linked to the prepared proposal. Receipts and bootstrap JSON remain on stdout;
+input/state bytes and keys are excluded from diagnostics. Idle polling is debug.

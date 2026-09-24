@@ -1,5 +1,6 @@
 //! Transit store contract over Ursula JSON record coordinates.
 const std = @import("std");
+const observations = @import("transit_observability");
 const core = @import("transit_core");
 const adapter = @import("root.zig");
 const Store = @This();
@@ -53,6 +54,18 @@ pub fn read(self: *Store, at: u64) !?core.Entry {
 }
 
 pub fn loadCheckpoint(self: *Store, genesis: core.Genesis) !?core.Checkpoint {
+    var observation = observations.begin(self.journal.observer, .storage_operation, "loadCheckpoint", self.journal.parent_context);
+    defer observation.finish();
+    const parent = self.journal.parent_context;
+    self.journal.parent_context = observation.span.context;
+    defer self.journal.parent_context = parent;
+    return self.loadCheckpointImpl(genesis) catch |err| {
+        observation.fail(err);
+        return err;
+    };
+}
+
+fn loadCheckpointImpl(self: *Store, genesis: core.Genesis) !?core.Checkpoint {
     var latest = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream } });
     defer latest.deinit();
     if (latest.head.status == .not_found) return null;
@@ -72,6 +85,18 @@ pub fn loadCheckpoint(self: *Store, genesis: core.Genesis) !?core.Checkpoint {
 /// Reconcile an already committed checkpoint intent. Publication is verified
 /// before logical retention moves; every step can be retried after a crash.
 pub fn publishCheckpoint(self: *Store, checkpoint: *const core.Checkpoint) !void {
+    var observation = observations.begin(self.journal.observer, .storage_operation, "publishCheckpoint", self.journal.parent_context);
+    defer observation.finish();
+    const parent = self.journal.parent_context;
+    self.journal.parent_context = observation.span.context;
+    defer self.journal.parent_context = parent;
+    return self.publishCheckpointImpl(checkpoint) catch |err| {
+        observation.fail(err);
+        return err;
+    };
+}
+
+fn publishCheckpointImpl(self: *Store, checkpoint: *const core.Checkpoint) !void {
     const allocator = self.journal.client.http.allocator;
     try checkpoint.validate(allocator, checkpoint.genesis);
     if (try self.loadCheckpoint(checkpoint.genesis)) |existing| {
@@ -93,6 +118,18 @@ pub fn publishCheckpoint(self: *Store, checkpoint: *const core.Checkpoint) !void
 }
 
 pub fn maintain(self: *Store, checkpoint: *const core.Checkpoint) !void {
+    var observation = observations.begin(self.journal.observer, .storage_operation, "maintain", self.journal.parent_context);
+    defer observation.finish();
+    const parent = self.journal.parent_context;
+    self.journal.parent_context = observation.span.context;
+    defer self.journal.parent_context = parent;
+    return self.maintainImpl(checkpoint) catch |err| {
+        observation.fail(err);
+        return err;
+    };
+}
+
+fn maintainImpl(self: *Store, checkpoint: *const core.Checkpoint) !void {
     try checkpoint.validate(self.journal.client.http.allocator, checkpoint.genesis);
     const existing = try self.loadCheckpoint(checkpoint.genesis);
     // A checkpoint covering the committed floor plus its retained tail is a
@@ -132,6 +169,18 @@ fn payloadStream(self: *Store, id: u64, buffer: *[45]u8) adapter.ursula.Stream {
 /// call this once. Lost receipts/restart use verifyPayload, never repeat PUT.
 /// The immutable body and closed flag are installed in a single storage call.
 pub fn createPayloadOnce(self: *Store, value: core.Payload, body: []const u8) !void {
+    var observation = observations.begin(self.journal.observer, .storage_operation, "createPayloadOnce", self.journal.parent_context);
+    defer observation.finish();
+    const parent = self.journal.parent_context;
+    self.journal.parent_context = observation.span.context;
+    defer self.journal.parent_context = parent;
+    return self.createPayloadOnceImpl(value, body) catch |err| {
+        observation.fail(err);
+        return err;
+    };
+}
+
+fn createPayloadOnceImpl(self: *Store, value: core.Payload, body: []const u8) !void {
     if (value.phase != .creating) return error.PayloadPhase;
     try validatePayload(value, body);
     var name: [45]u8 = undefined;
@@ -154,6 +203,18 @@ fn validatePayload(value: core.Payload, body: []const u8) !void {
 /// Read-only recovery of an uncertain single creation attempt. A missing stream
 /// stays uncertain; it is never recreated, published as empty, or called deleted.
 pub fn verifyPayload(self: *Store, value: core.Payload) !void {
+    var observation = observations.begin(self.journal.observer, .storage_operation, "verifyPayload", self.journal.parent_context);
+    defer observation.finish();
+    const parent = self.journal.parent_context;
+    self.journal.parent_context = observation.span.context;
+    defer self.journal.parent_context = parent;
+    return self.verifyPayloadImpl(value) catch |err| {
+        observation.fail(err);
+        return err;
+    };
+}
+
+fn verifyPayloadImpl(self: *Store, value: core.Payload) !void {
     if (value.phase != .creating and value.phase != .ready) return error.PayloadUnavailable;
     var name: [45]u8 = undefined;
     const stream = self.payloadStream(value.id, &name);
@@ -172,6 +233,18 @@ pub fn verifyPayload(self: *Store, value: core.Payload) !void {
 /// history. Its tombstone remains in the separate authority journal/checkpoint.
 /// Missing is success only for this already-authorized deletion, not for reads.
 pub fn reclaimPayload(self: *Store, value: core.Payload) !void {
+    var observation = observations.begin(self.journal.observer, .storage_operation, "reclaimPayload", self.journal.parent_context);
+    defer observation.finish();
+    const parent = self.journal.parent_context;
+    self.journal.parent_context = observation.span.context;
+    defer self.journal.parent_context = parent;
+    return self.reclaimPayloadImpl(value) catch |err| {
+        observation.fail(err);
+        return err;
+    };
+}
+
+fn reclaimPayloadImpl(self: *Store, value: core.Payload) !void {
     if (value.phase != .retiring or !value.allow_delete or value.retired_at == null) return error.PayloadPhase;
     var name: [45]u8 = undefined;
     const stream = self.payloadStream(value.id, &name);

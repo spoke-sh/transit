@@ -1,6 +1,7 @@
 //! Adapter to the pinned upstream kubectl-ate transport. It owns no Transit
 //! authority. Substrate CLI/TLS and Kubernetes credentials stay with controllers.
 const std = @import("std");
+const observations = @import("transit_observability");
 pub const revision = "d277088bc1d081ef716d81dd7986d05d0a36ad3a";
 pub const Config = struct {
     cli: []const u8,
@@ -25,6 +26,8 @@ pub const Adapter = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
     config: Config,
+    observer: ?*observations.telemetry.Runtime = null,
+    parent_context: ?observations.telemetry.Context = null,
 
     pub fn resource(self: Adapter) [32]u8 {
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
@@ -166,6 +169,21 @@ pub const Adapter = struct {
     }
 
     fn call(self: Adapter, args: []const []const u8) ![]u8 {
+        const operation: []const u8 = operation: {
+            if (args.len != 0) inline for (.{ "--version", "get", "create", "apply", "suspend", "resume", "revert", "logs" }) |known| {
+                if (std.mem.eql(u8, args[0], known)) break :operation known;
+            };
+            break :operation "other";
+        };
+        var observation = observations.begin(self.observer, .provider_operation, operation, self.parent_context);
+        defer observation.finish();
+        return self.callImpl(args) catch |err| {
+            observation.fail(err);
+            return err;
+        };
+    }
+
+    fn callImpl(self: Adapter, args: []const []const u8) ![]u8 {
         var argv: [32][]const u8 = undefined;
         const prefix = [_][]const u8{ self.config.cli, "--kubeconfig", self.config.kubeconfig, "--context", self.config.context, "-o", "json" };
         if (prefix.len + args.len > argv.len) return error.TooManyArguments;

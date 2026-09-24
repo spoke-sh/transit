@@ -70,6 +70,10 @@ def run(node, cli, board):
         authority = next(r for r in node_records if r.get("parent_span_id") == client["span_id"])
         assert server["trace_id"] == client["trace_id"] == authority["trace_id"] != "a" * 32
         assert len({server["span_id"], client["span_id"], authority["span_id"]}) == 3
+        storage = [r for r in node_records if r.get("parent_span_id") == authority["span_id"] and r.get("event", {}).get("name") == "transit.storage.operation"]
+        assert storage and all(r["trace_id"] == authority["trace_id"] for r in storage)
+        recovery = [r for r in node_records if r.get("event", {}).get("name") == "transit.recovery"]
+        assert len(recovery) == 1 and recovery[0]["event"]["protocol_outcome"] == "none"
         assert client["event"]["protocol_outcome"] == authority["event"]["protocol_outcome"] == "read"
         receipts = [r for r in node_records if r.get("event", {}).get("operation") == "spawn"]
         assert len(receipts) == 2

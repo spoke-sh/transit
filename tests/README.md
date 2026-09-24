@@ -363,3 +363,12 @@ real service logs. See [telemetry](../packages/zig/telemetry/README.md) for limi
 and node, checking distinct correlated spans, existing receipt retries, revoked
 reads, duplicate/untrusted trace headers and absence of credentials/state.
 No raw storage dependency is introduced into Board and no durable schema changes.
+
+Storage/recovery spans are checked as children of the actual authority request.
+The existing disk, service, maintenance and caller proofs run with instrumentation
+active. Maintenance deadline checks inspect the structured error field. The
+bootstrap proof separates stdout and stderr to verify the machine interface,
+while the provider reader continues to identify bootstrap records in combined logs.
+The stalled-writer proof shrinks its Linux pipe to 4 KiB and asserts the writer
+is actually blocked before shutdown; it cannot pass merely by fitting all logs
+into the OS buffer.

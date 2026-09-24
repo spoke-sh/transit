@@ -1,6 +1,7 @@
 //! Bounded, restartable maintenance in a separate trusted process. HTTP request
 //! load cannot starve this scan, and scans never create authority by themselves.
 const std = @import("std");
+const observations = @import("transit_observability");
 const core = @import("transit_core");
 const wire = @import("transit_client");
 
@@ -13,7 +14,7 @@ pub const Config = struct {
 };
 const Outcome = enum { idle, transition, checkpointed, trimmed };
 
-fn step(engine: anytype, config: Config, key: core.Ed25519.KeyPair, allocator: std.mem.Allocator, maintained: *u64) !Outcome {
+fn step(engine: anytype, config: Config, key: core.Ed25519.KeyPair, allocator: std.mem.Allocator, maintained: *u64, observation: *observations.Observation) !Outcome {
     try engine.refresh();
     var time_error: ?anyerror = null;
     if (engine.clock) |source| {
@@ -28,6 +29,8 @@ fn step(engine: anytype, config: Config, key: core.Ed25519.KeyPair, allocator: s
             };
         };
         if (due) |command| {
+            observation.event.operation = @tagName(command);
+            observation.event.pid = observations.pid(command);
             _ = try engine.submit(try core.sign(.{
                 .realm = engine.state.realm,
                 .principal = config.principal,
@@ -48,6 +51,8 @@ fn step(engine: anytype, config: Config, key: core.Ed25519.KeyPair, allocator: s
             .{ .payload_deleted = ref }
         else
             continue;
+        observation.event.operation = @tagName(command);
+        observation.event.pid = observations.pid(command);
         const signed = try core.sign(.{
             .realm = engine.state.realm,
             .principal = config.principal,
@@ -95,10 +100,10 @@ fn timeout(io: std.Io, milliseconds: u32) anyerror!void {
     try io.sleep(.fromMilliseconds(milliseconds), .awake);
 }
 
-fn boundedStep(io: std.Io, engine: anytype, config: Config, key: core.Ed25519.KeyPair, allocator: std.mem.Allocator, maintained: *u64) !Outcome {
+fn boundedStep(io: std.Io, engine: anytype, config: Config, key: core.Ed25519.KeyPair, allocator: std.mem.Allocator, maintained: *u64, observation: *observations.Observation) !Outcome {
     const Task = struct {
-        fn run(e: @TypeOf(engine), c: Config, k: core.Ed25519.KeyPair, a: std.mem.Allocator, m: *u64) anyerror!Outcome {
-            return step(e, c, k, a, m);
+        fn run(e: @TypeOf(engine), c: Config, k: core.Ed25519.KeyPair, a: std.mem.Allocator, m: *u64, o: *observations.Observation) anyerror!Outcome {
+            return step(e, c, k, a, m, o);
         }
     };
     const Result = union(enum) { completed: anyerror!Outcome, timeout: anyerror!void };
@@ -107,26 +112,35 @@ fn boundedStep(io: std.Io, engine: anytype, config: Config, key: core.Ed25519.Ke
     defer select.cancelDiscard();
     try select.concurrent(.timeout, timeout, .{ io, config.operation_timeout_ms });
     // Both sides must run concurrently even on a single-CPU runtime.
-    try select.concurrent(.completed, Task.run, .{ engine, config, key, allocator, maintained });
+    try select.concurrent(.completed, Task.run, .{ engine, config, key, allocator, maintained, observation });
     return switch (try select.await()) {
         .completed => |value| value,
         .timeout => error.MaintenanceTimeout,
     };
 }
 
-pub fn run(init: std.process.Init, engine: anytype, config: Config) !void {
+pub fn run(init: std.process.Init, engine: anytype, config: Config, diagnostics: *observations.telemetry.Runtime) !void {
     if (config.interval_ms == 0 or config.interval_ms > 60000 or
         config.operation_timeout_ms == 0 or config.operation_timeout_ms > 60000 or
         (config.checkpoint_every_records != null and config.checkpoint_every_records.? < 2)) return error.InvalidMaintenanceConfig;
     const key = try wire.readKey(init.gpa, init.io, config.seed_file);
     var maintained: u64 = 0;
     while (true) {
-        const outcome = boundedStep(init.io, engine, config, key, init.gpa, &maintained) catch |err| {
-            std.debug.print("maintenance: {s}\n", .{@errorName(err)});
+        var observation = observations.begin(diagnostics, .maintenance_step, "scan", null);
+        observation.event.realm = engine.state.realm;
+        engine.store.journal.parent_context = observation.span.context;
+        defer engine.store.journal.parent_context = null;
+        const outcome = boundedStep(init.io, engine, config, key, init.gpa, &maintained, &observation) catch |err| {
+            observation.fail(err);
+            observation.finish();
             try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
             continue;
         };
-        if (outcome != .idle) std.debug.print("maintenance: {s}\n", .{@tagName(outcome)});
+        if (std.mem.eql(u8, observation.event.operation.?, "scan")) observation.event.operation = @tagName(outcome);
+        observation.event.position = engine.state.position;
+        observation.event.level = if (outcome == .idle) .debug else .info;
+        observation.event.outcome = if (outcome == .idle) .idle else .ok;
+        observation.finish();
         try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
     }
 }

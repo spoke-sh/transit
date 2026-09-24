@@ -11,11 +11,13 @@ pub fn main(init: std.process.Init) !void {
     }
     const emitted_ns = started.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
     try init.io.sleep(.fromMilliseconds(100), .awake);
+    const writer_was_busy = runtime.busy.load(.acquire);
     runtime.stop();
     var buffer: [4096]u8 = undefined;
     var writer = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     try std.json.Stringify.value(.{
         .snapshot = runtime.snapshot(.server),
+        .writer_was_busy = writer_was_busy,
         .emitted_ns = emitted_ns,
         .dropped = runtime.dropped.load(.monotonic),
         .suppressed = runtime.suppressed.load(.monotonic),

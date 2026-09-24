@@ -1,5 +1,6 @@
 //! The only Rey package importing the upstream Ursula client.
 const std = @import("std");
+const observations = @import("transit_observability");
 pub const ursula = @import("ursula");
 pub const Store = @import("Store.zig");
 pub const max_record_bytes = 64 * 1024;
@@ -9,8 +10,20 @@ pub const read_window = 16;
 pub const Journal = struct {
     client: *ursula.Client,
     stream: ursula.Stream,
+    observer: ?*observations.telemetry.Runtime = null,
+    parent_context: ?observations.telemetry.Context = null,
 
     pub fn create(self: Journal) !void {
+        var observation = observations.begin(self.observer, .storage_operation, "journal.create", self.parent_context);
+        defer observation.finish();
+        const result = self.createImpl() catch |err| {
+            observation.fail(err);
+            return err;
+        };
+        return result;
+    }
+
+    fn createImpl(self: Journal) !void {
         var bucket = try self.client.send(.{ .create_bucket = self.stream.bucket });
         defer bucket.deinit();
         try bucket.head.requireSuccess();
@@ -22,6 +35,16 @@ pub const Journal = struct {
 
     /// HEAD is tail-sensitive. Refuse redirection instead of forwarding credentials.
     pub fn tail(self: Journal) !u64 {
+        var observation = observations.begin(self.observer, .storage_operation, "journal.tail", self.parent_context);
+        defer observation.finish();
+        const result = self.tailImpl() catch |err| {
+            observation.fail(err);
+            return err;
+        };
+        return result;
+    }
+
+    fn tailImpl(self: Journal) !u64 {
         var response = try self.client.send(.{ .head = .{ .stream = self.stream } });
         defer response.deinit();
         try response.head.requireSuccess();
@@ -34,6 +57,17 @@ pub const Journal = struct {
     /// Exactly one object is one protocol record. No producer deduplication: a
     /// conditional-write conflict must not disguise a competing payload as ours.
     pub fn append(self: Journal, expected: u64, object: []const u8) !bool {
+        var observation = observations.begin(self.observer, .storage_operation, "journal.append", self.parent_context);
+        defer observation.finish();
+        const result = self.appendImpl(expected, object) catch |err| {
+            observation.fail(err);
+            return err;
+        };
+        if (!result) observation.fail(error.Conflict);
+        return result;
+    }
+
+    fn appendImpl(self: Journal, expected: u64, object: []const u8) !bool {
         try validateObject(self.client.http.allocator, object);
         var response = try self.client.send(.{ .append = .{
             .stream = self.stream,
@@ -49,6 +83,16 @@ pub const Journal = struct {
     }
 
     pub fn read(self: Journal, position: u64) !ursula.Response {
+        var observation = observations.begin(self.observer, .storage_operation, "journal.read", self.parent_context);
+        defer observation.finish();
+        const result = self.readImpl(position) catch |err| {
+            observation.fail(err);
+            return err;
+        };
+        return result;
+    }
+
+    fn readImpl(self: Journal, position: u64) !ursula.Response {
         var response = try self.client.send(.{ .read = .{
             .stream = self.stream,
             .options = .{ .position = .{ .record = position }, .max_records = read_window },

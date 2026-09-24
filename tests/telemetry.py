@@ -16,6 +16,9 @@ def run(binary):
         env = os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "off" if mode == "off" else "info"}
         start = time.monotonic()
         with subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
+            if mode == "stalled" and sys.platform == "linux":
+                import fcntl
+                fcntl.fcntl(child.stderr.fileno(), fcntl.F_SETPIPE_SZ, 4096)
             if mode == "closed":
                 child.stderr.close()
             if mode in ("stalled", "closed"):
@@ -32,6 +35,8 @@ def run(binary):
         assert sum(value["snapshot"]["buckets"]) == 10000
         if mode == "closed":
             assert value["sink_errors"] > 0
+        if mode == "stalled" and sys.platform == "linux":
+            assert value["writer_was_busy"], value
         if mode != "off":
             assert value["dropped"] + value["suppressed"] > 0
         if mode in ("drained", "stalled"):

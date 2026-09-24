@@ -130,3 +130,9 @@ Even then headers are untrusted hints, never authentication or proof of causalit
 malformed/duplicate context is ignored, and no baggage is forwarded. Board always
 starts a fresh context for public requests. `/health` refreshes authority storage
 before success; it is a role-readiness observation, not proof of workload progress.
+
+Maintenance emits `transit.maintenance.step` for the actual command or
+checkpoint/trim action, with idle scans at debug and clock/storage/deadline errors
+at warning. Storage calls and authority open/bootstrap have their own correlated
+observations. Recovery reports the recovered position; it does not re-emit turns.
+The separate maintenance process uses service name `transit-maintenance`.

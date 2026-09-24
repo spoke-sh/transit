@@ -109,11 +109,11 @@ def run(node, cli):
             # A stalled storage peer must not trap maintenance inside a scan.
             # Observe two deadlines to prove the bounded loop resumes afterward.
             maintenance_log = Path(logs[-1].name)
-            timeouts = maintenance_log.read_text().count("maintenance: MaintenanceTimeout")
+            timeouts = maintenance_log.read_text().count('"error_type":"MaintenanceTimeout"')
             store.server.send_signal(signal.SIGSTOP)
             try:
                 limit = time.monotonic() + 8
-                while maintenance_log.read_text().count("maintenance: MaintenanceTimeout") < timeouts + 2:
+                while maintenance_log.read_text().count('"error_type":"MaintenanceTimeout"') < timeouts + 2:
                     assert maintenance.poll() is None
                     assert time.monotonic() < limit, maintenance_log.read_text()
                     time.sleep(0.05)

@@ -3,6 +3,8 @@
 const std = @import("std");
 const transit = wire.protocol;
 const wire = @import("transit_client");
+const observations = wire.observability;
+const telemetry = observations.telemetry;
 fn print(io: std.Io, value: anytype) !void {
     var buffer: [wire.max_body]u8 = undefined;
     var writer = std.Io.File.stdout().writerStreaming(io, &buffer);
@@ -11,6 +13,17 @@ fn print(io: std.Io, value: anytype) !void {
     try writer.interface.flush();
 }
 pub fn main(init: std.process.Init) !void {
+    var diagnostics = telemetry.Runtime.init(init.io, "rey-cli", try telemetry.Config.environment(init.environ_map));
+    diagnostics.start();
+    defer diagnostics.stop();
+    defer diagnostics.event(.{ .name = "service.stopped", .level = .debug });
+    diagnostics.event(.{ .name = "service.starting", .level = .debug });
+    runMain(init, &diagnostics) catch |err| {
+        diagnostics.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
+        return err;
+    };
+}
+fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 3 and std.mem.eql(u8, args[1], "public-key")) {
         const key = try wire.readKey(init.gpa, init.io, args[2]);
@@ -28,6 +41,7 @@ pub fn main(init: std.process.Init) !void {
         if (args.len != 5) return error.ExpectedAuthorityUrl;
         var client = wire.Client.init(init.gpa, init.io, args[4]);
         defer client.deinit();
+        client.observer = diagnostics;
         return print(init.io, try client.inspect(query.value, key));
     }
     var request = try std.json.parseFromSlice(transit.Request, init.gpa, bytes, .{});
@@ -37,6 +51,7 @@ pub fn main(init: std.process.Init) !void {
     if (args.len != 5) return error.ExpectedAuthorityUrl;
     var client = wire.Client.init(init.gpa, init.io, args[4]);
     defer client.deinit();
+    client.observer = diagnostics;
     if (std.mem.eql(u8, command, "submit")) return print(init.io, try client.submit(signed));
     if (std.mem.eql(u8, command, "view")) return print(init.io, try client.view(request.value, key));
     return error.UnknownCommand;

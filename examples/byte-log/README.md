@@ -62,3 +62,12 @@ authorized courier/controller delivers the committed output separately.
 
 `just test::callers` runs this binary and the counter against the same generic
 node, including binary data, lost responses, ownership replacement and restart.
+
+## Diagnostics
+
+`LOG_LEVEL` / `LOG_FORMAT` configure stderr through the
+[telemetry runtime](../../packages/zig/telemetry/README.md). Configured activation
+identity and short proposal-preparation spans explain local work; they do not
+claim ownership or committed progress. Each public client attempt has its own
+span linked to the prepared proposal. Receipts and bootstrap JSON remain on stdout;
+input/state bytes and keys are excluded from diagnostics. Idle polling is debug.

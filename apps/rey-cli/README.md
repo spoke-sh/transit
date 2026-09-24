@@ -42,3 +42,11 @@ setup and caller workflows are available under [examples](../../examples/README.
 For example, `{"realm":72,"principal":1,"resource":"processes"}` discovers the
 processes allowed by that principal. `sign-inspection SEED QUERY.json` emits a
 signed envelope for other transports. See [inspection v1](../../contracts/INSPECTION_V1.md).
+
+## Diagnostics
+
+The CLI uses [bounded telemetry](../../packages/zig/telemetry/README.md) on stderr.
+`LOG_LEVEL=debug LOG_FORMAT=json` includes client attempts and lifecycle records;
+default verbosity reports failures. Signed requests, public-key output and receipts
+remain machine-readable stdout; secrets, request bodies and URLs are excluded
+from diagnostics. An uncertain submission still requires the same saved request.

@@ -3,6 +3,8 @@
 const std = @import("std");
 const transit = wire.protocol;
 const wire = @import("transit_client");
+const observations = wire.observability;
+const telemetry = observations.telemetry;
 const substrate = @import("transit_runtime_substrate");
 const Config = struct {
     url: []const u8,
@@ -18,6 +20,8 @@ const Controller = struct {
     client: *wire.Client,
     provider: substrate.Adapter,
     key: transit.Ed25519.KeyPair,
+    generation: ?u64 = null,
+    binding_revision: ?u64 = null,
 
     fn send(self: *Controller, view: wire.View, command: transit.Command) !void {
         _ = try self.client.submit(try transit.sign(.{
@@ -55,6 +59,8 @@ const Controller = struct {
             .command = .{ .inspect = self.config.pid },
         }, self.key);
         const p = view.process;
+        self.generation = p.generation;
+        self.binding_revision = if (p.binding) |binding| binding.revision else null;
         const stopping = p.lifecycle != .running or p.failure != null;
         const backlog = p.admitted > p.consumed + p.cancelled;
         const b = p.binding orelse {
@@ -138,6 +144,17 @@ const Controller = struct {
     }
 };
 pub fn main(init: std.process.Init) !void {
+    var diagnostics = telemetry.Runtime.init(init.io, "transit-runtime-controller", try telemetry.Config.environment(init.environ_map));
+    diagnostics.start();
+    defer diagnostics.stop();
+    defer diagnostics.event(.{ .name = "service.stopped", .level = .info });
+    diagnostics.event(.{ .name = "service.starting", .level = .info });
+    runMain(init, &diagnostics) catch |err| {
+        diagnostics.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
+        return err;
+    };
+}
+fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len < 2 or args.len > 3 or (args.len == 3 and !std.mem.eql(u8, args[2], "--once"))) return error.ExpectedConfigAndOptionalOnce;
     const body = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(wire.max_body));
@@ -147,25 +164,42 @@ pub fn main(init: std.process.Init) !void {
     const config = parsed.value;
     var client = wire.Client.init(init.gpa, init.io, config.url);
     defer client.deinit();
+    client.observer = diagnostics;
     var controller: Controller = .{
         .config = config,
         .client = &client,
-        .provider = .{ .allocator = init.gpa, .io = init.io, .config = config.provider },
+        .provider = .{ .allocator = init.gpa, .io = init.io, .config = config.provider, .observer = diagnostics },
         .key = try wire.readKey(init.gpa, init.io, config.seed_file),
     };
     try controller.provider.validate();
     while (true) {
+        var observation = observations.begin(diagnostics, .runtime_step, "reconcile", null);
+        observation.event.realm = config.realm;
+        observation.event.pid = config.pid;
+        client.parent_context = observation.span.context;
+        controller.provider.parent_context = observation.span.context;
+        defer client.parent_context = null;
+        defer controller.provider.parent_context = null;
         const result = controller.step() catch |err| {
+            observation.fail(err);
+            observation.finish();
             if (args.len == 3) return err;
-            std.debug.print("runtime reconciliation: {s}\n", .{@errorName(err)});
             try init.io.sleep(.fromSeconds(1), .awake);
             continue;
         };
-        var buffer: [128]u8 = undefined;
-        var writer = std.Io.File.stdout().writerStreaming(init.io, &buffer);
-        try writer.interface.print("{s}\n", .{@tagName(result)});
-        try writer.interface.flush();
-        if (args.len == 3) return;
+        observation.event.operation = @tagName(result);
+        observation.event.generation = controller.generation;
+        observation.event.binding_revision = controller.binding_revision;
+        observation.event.level = if (result == .idle) .debug else .info;
+        observation.event.outcome = if (result == .idle) .idle else .ok;
+        observation.finish();
+        if (args.len == 3) {
+            var buffer: [128]u8 = undefined;
+            var writer = std.Io.File.stdout().writerStreaming(init.io, &buffer);
+            try writer.interface.print("{s}\n", .{@tagName(result)});
+            try writer.interface.flush();
+            return;
+        }
         try init.io.sleep(.fromSeconds(1), .awake);
     }
 }

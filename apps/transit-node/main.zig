@@ -54,6 +54,8 @@ const Server = struct {
             break :route "unmatched";
         };
         self.observation.received(&request, route, self.accept_trace_parent);
+        self.engine.store.journal.parent_context = self.observation.span.context;
+        defer self.engine.store.journal.parent_context = null;
         if (request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health")) {
             try self.engine.refresh();
             return self.json(&request, .ok, .{ .ready = true });
@@ -182,13 +184,23 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = config.ursula_url, .max_response_bytes = 2 * 1024 * 1024 });
     defer client.deinit();
-    var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = config.bucket, .name = config.journal } } };
+    var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = config.bucket, .name = config.journal }, .observer = diagnostics } };
     if (initialize or bootstrap) try store.journal.create();
-    var engine = if (initialize or bootstrap) try Engine.bootstrap(&store, config.genesis) else try Engine.open(&store, config.genesis);
+    var recovery = observations.begin(diagnostics, .recovery, if (initialize or bootstrap) "bootstrap" else "open", null);
+    store.journal.parent_context = recovery.span.context;
+    var engine = (if (initialize or bootstrap) Engine.bootstrap(&store, config.genesis) else Engine.open(&store, config.genesis)) catch |err| {
+        recovery.fail(err);
+        recovery.finish();
+        return err;
+    };
+    recovery.event.position = engine.state.position;
+    recovery.event.realm = engine.state.realm;
+    recovery.finish();
+    store.journal.parent_context = null;
     if (initialize) return;
     var clock_context: u8 = 0;
     if (config.genesis.max_clock_error_ms != null) engine.clock = .{ .context = &clock_context, .read = @import("Clock.zig").read };
-    if (maintain) return Maintenance.run(init, &engine, config.maintenance orelse return error.MissingMaintenanceConfig);
+    if (maintain) return Maintenance.run(init, &engine, config.maintenance orelse return error.MissingMaintenanceConfig, diagnostics);
     const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);
     var listener = try address.listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);

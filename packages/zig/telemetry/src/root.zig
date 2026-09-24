@@ -36,6 +36,7 @@ pub const Event = struct {
     realm: ?u64 = null,
     pid: ?u64 = null,
     generation: ?u64 = null,
+    binding_revision: ?u64 = null,
     sequence: ?u64 = null,
     position: ?u64 = null,
 };

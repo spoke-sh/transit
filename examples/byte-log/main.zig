@@ -4,6 +4,8 @@ const std = @import("std");
 const protocol = wire.protocol;
 const handler = @import("handler.zig");
 const wire = @import("transit_client");
+const observations = wire.observability;
+const telemetry = observations.telemetry;
 const Config = struct { url: []const u8, realm: u64, principal: u8, pid: u64, generation: u64, seed_file: []const u8, publish_to: ?u64 = null };
 
 fn run(client: *wire.Client, config: Config, key: protocol.Ed25519.KeyPair, io: std.Io, once: bool) !void {
@@ -19,19 +21,34 @@ fn run(client: *wire.Client, config: Config, key: protocol.Ed25519.KeyPair, io: 
         };
         if (delivery) |input| {
             var failed = false;
-            const pending = if (input.needs_permit) try session.prepareBegin(input) else commit: {
-                const result = handler.apply(input.state, input.input.value) catch null;
-                failed = result == null;
-                var outputs: [protocol.max_turn_outputs]?protocol.Output = @splat(null);
-                if (result) |value| if (config.publish_to) |pid| {
-                    outputs[0] = .{ .pid = pid, .value = value };
+            var computation = observations.begin(client.observer, .caller_turn, if (input.needs_permit) "begin_turn.prepare" else "turn.prepare", null);
+            computation.event.realm = config.realm;
+            computation.event.pid = config.pid;
+            computation.event.generation = config.generation;
+            computation.event.position = input.input.position;
+            computation.event.outcome = .failed;
+            const pending = prepared: {
+                defer computation.finish();
+                const value = if (input.needs_permit) try session.prepareBegin(input) else commit: {
+                    const result = handler.apply(input.state, input.input.value) catch null;
+                    failed = result == null;
+                    var outputs: [protocol.max_turn_outputs]?protocol.Output = @splat(null);
+                    if (result) |value| if (config.publish_to) |pid| {
+                        outputs[0] = .{ .pid = pid, .value = value };
+                    };
+                    break :commit try session.prepareCommit(input, .{
+                        .state = result orelse input.state,
+                        .failed = failed,
+                        .outputs = outputs,
+                    });
                 };
-                break :commit try session.prepareCommit(input, .{
-                    .state = result orelse input.state,
-                    .failed = failed,
-                    .outputs = outputs,
-                });
+                computation.event.outcome = if (failed) .failed else .ok;
+                computation.event.error_type = if (failed) "HandlerFailed" else null;
+                if (failed) computation.event.level = .warn;
+                break :prepared value;
             };
+            client.parent_context = computation.span.context;
+            defer client.parent_context = null;
             while (true) {
                 const receipt = pending.submit(client) catch |err| switch (err) {
                     error.AccessDenied, error.Rejected => return err,
@@ -58,6 +75,17 @@ fn run(client: *wire.Client, config: Config, key: protocol.Ed25519.KeyPair, io: 
 }
 
 pub fn main(init: std.process.Init) !void {
+    var diagnostics = telemetry.Runtime.init(init.io, "example-byte-log", try telemetry.Config.environment(init.environ_map));
+    diagnostics.start();
+    defer diagnostics.stop();
+    defer diagnostics.event(.{ .name = "service.stopped", .level = .info });
+    diagnostics.event(.{ .name = "service.starting", .level = .info });
+    runMain(init, &diagnostics) catch |err| {
+        diagnostics.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
+        return err;
+    };
+}
+fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const once = args.len == 3 and std.mem.eql(u8, args[1], "--once");
     if (args.len != 2 and !once) return error.ExpectedConfig;
@@ -69,5 +97,11 @@ pub fn main(init: std.process.Init) !void {
     const key = try wire.readKey(init.gpa, init.io, config.seed_file);
     var client = wire.Client.init(init.gpa, init.io, config.url);
     defer client.deinit();
+    client.observer = diagnostics;
+    var activation = observations.begin(diagnostics, .caller_activation, "configured", null);
+    activation.event.realm = config.realm;
+    activation.event.pid = config.pid;
+    activation.event.generation = config.generation;
+    activation.finish();
     try run(&client, config, key, init.io, once);
 }
