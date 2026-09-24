@@ -182,6 +182,9 @@ and protocol assertions belong under [tests/](../tests/README.md).
 
 ### Planned components
 
+- `apps/kubectl-transit`: Kubernetes operator interface, starting with installation
+  discovery, diagnostics and Board access. The [plugin plan](roadmap/M2-KUBECTL.md)
+  separates infrastructure inspection from later authorized protocol operations.
 - `packages/zig/transit-station`, module `transit_station`: GenServer, supervision, registries,
   request/reply, and retention helpers over the public client.
 - `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,

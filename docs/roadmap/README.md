@@ -25,6 +25,10 @@ Board request visibility, Transit/client correlation, service/dependency progres
 and launcher/deployment qualification to the inspection profile before Station.
 Telemetry export infrastructure follows separately.
 
+The [Kubernetes tooling and operator CLI follow-up](M2-KUBECTL.md) plans the full
+`kubectl transit` interface, starting with an inspection-only implementation and
+an accessible Kind/Substrate development environment.
+
 ## Application milestones after the foundation
 
 Use the evidence above to scope trading, LLM/tool connectors, richer agent
