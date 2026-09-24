@@ -48,7 +48,7 @@ def run(node, cli, board, browser=False):
         config.write_text(json.dumps(options))
         isolated = s.root / "standalone"
         isolated.mkdir()
-        binary = isolated / "board"
+        binary = isolated / "transit-board"
         shutil.copyfile(board, binary)
         binary.chmod(0o755)
         running = s.start(binary, config, cwd=isolated, env={"PATH": "/no-executables", "LOG_FORMAT": "json"})
@@ -87,7 +87,7 @@ def run(node, cli, board, browser=False):
         assert b"<script" in html and b"cdn" not in html
         assert "unsafe-eval" not in headers["content-security-policy"]
         openapi = json.loads(request("/openapi/v1.json", auth=False)[0])
-        assert openapi == json.loads((Path(__file__).resolve().parents[1] / "contracts/board-v1.openapi.json").read_text())
+        assert openapi == json.loads((Path(__file__).resolve().parents[1] / "contracts/transit-board-v1.openapi.json").read_text())
         assets = re.findall(rb'(?:src|href)="(/assets/[^"]+)"', html)
         assert assets
         for asset in assets:
@@ -124,7 +124,7 @@ def run(node, cli, board, browser=False):
             env = os.environ | {"BOARD_TEST_URL": origin, "BOARD_TEST_ACCESS": access,
                                 "BOARD_TEST_PID": str(pids[0]), "BOARD_TEST_SINK": str(pids[1]), "BOARD_TEST_MALFORMED": str(pids[2]),
                                 "BOARD_SCREENSHOT": str(Path(".cache/board.png").resolve())}
-            subprocess.run(["vp", "exec", "--filter", "@rey/board-web", "playwright", "test"], env=env, check=True, timeout=180)
+            subprocess.run(["vp", "exec", "--filter", "@rey/transit-board-web", "playwright", "test"], env=env, check=True, timeout=180)
 
         body, headers = request("/api/v1/session", method="POST", headers={"Origin": origin})
         cookie = headers["set-cookie"].split(";", 1)[0]

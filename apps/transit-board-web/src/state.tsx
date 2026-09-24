@@ -17,7 +17,7 @@ import {
   type Response,
   type Resource,
   type Cut,
-} from "@rey/board-client";
+} from "@rey/transit-board-client";
 const Context = createContext<{ scope: Capabilities | null; denied: () => void }>({
   scope: null,
   denied: () => {},

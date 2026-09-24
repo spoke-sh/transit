@@ -15,5 +15,5 @@
     "skipLibCheck": true,
     "types": ["vite-plus/client"]
   },
-  "include": ["src", "../../packages/ts/board-client/src"]
+  "include": ["src", "../../packages/ts/transit-board-client/src"]
 }

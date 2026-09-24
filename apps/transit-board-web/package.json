@@ -1,5 +1,5 @@
 {
-  "name": "@rey/board-web",
+  "name": "@rey/transit-board-web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@rey/board-client": "workspace:*",
+    "@rey/transit-board-client": "workspace:*",
     "@tanstack/react-router": "1.170.39",
     "react": "19.3.0",
     "react-dom": "19.3.0"

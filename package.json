@@ -7,6 +7,6 @@
     "vite-plus": "0.3.3"
   },
   "scripts": {
-    "board:validators": "node packages/ts/board-client/validators.mjs"
+    "transit-board:validators": "node packages/ts/transit-board-client/validators.mjs"
   }
 }

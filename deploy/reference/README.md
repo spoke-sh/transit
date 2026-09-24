@@ -21,7 +21,7 @@ required certificate feature gates and gVisor. K3s compatibility is not claimed.
 
 ```sh
 nix develop
-just board::install
+just transit-board::install
 just launchers::reference::up
 just launchers::reference::images
 just launchers::reference::test
@@ -65,7 +65,7 @@ The harness wires Board, an authority and separate maintenance process, disk Urs
 Substrate, a runtime controller, and the counter example. Configuration belongs
 to each executable:
 
-- [Board](../../apps/board/README.md): embedded UI/API, dedicated read grant, origin and session configuration.
+- [Board](../../apps/transit-board/README.md): embedded UI/API, dedicated read grant, origin and session configuration.
 - [transit-node](../../apps/transit-node/README.md): bootstrap, storage, HTTP, and maintenance.
 - [transit-runtime-controller](../../apps/transit-runtime-controller/README.md): one PID, worker principal, and provider configuration.
 - [example-counter](../../examples/counter/README.md): caller and fresh-key bootstrap.

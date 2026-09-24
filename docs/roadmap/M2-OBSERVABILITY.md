@@ -89,7 +89,7 @@ already implemented. Remote OpenTelemetry export is a separately scoped follow-u
 - [x] Documentation distinguishes implemented instruments from deferred export;
   protected telemetry has a finite resource and retention policy.
 
-Use `just check` plus affected `board::test`, `test::service`, `test::callers`,
+Use `just check` plus affected `transit-board::test`, `test::service`, `test::callers`,
 `test::storage` and `test::inspection` proofs as each surface changes. Extend the
 existing launcher proofs for log visibility, rotation and failure behavior; run
 Compose/reference qualification when their configuration or runtime coverage

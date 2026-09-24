@@ -8,7 +8,7 @@ just doctor
 just check
 ```
 
-`just board::install` installs locked frontend dependencies. `just build` lists
+`just transit-board::install` installs locked frontend dependencies. `just build` lists
 the Zig optimization profiles; `just build::debug` builds platform executables
 including the embedded Board. Use `just build::release-safe` for an optimized
 build with safety checks; see the [build profiles](../tasks/README.md#build-profiles)
@@ -43,9 +43,9 @@ histories and signatures is not implemented.
 | Set up or tear down Kubernetes/Substrate | [Reference runbook](../deploy/reference/README.md) |
 | Contribute code or documentation | [Agent instructions](../AGENTS.md), [documentation ownership](README.md#where-documentation-lives) |
 
-Board's Vite+/pnpm workspace is implemented. Use `just board::demo` to inspect a
-running disposable realm, `just board::check` for frontend/contract checks, and
-`just board::browser` for the real UI proof. [Board's app guide](../apps/board/README.md)
+Board's Vite+/pnpm workspace is implemented. Use `just transit-board::demo` to inspect a
+running disposable realm, `just transit-board::check` for frontend/contract checks, and
+`just transit-board::browser` for the real UI proof. [Board's app guide](../apps/transit-board/README.md)
 owns configuration, authentication and runnable commands.
 
 ## Package workflow

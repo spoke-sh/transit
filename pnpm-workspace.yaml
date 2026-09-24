@@ -1,5 +1,5 @@
 packages:
-  - apps/board-web
+  - apps/transit-board-web
   - packages/ts/*
 onlyBuiltDependencies:
   - esbuild

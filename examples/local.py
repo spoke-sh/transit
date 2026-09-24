@@ -23,7 +23,7 @@ def free_port():
 def run(name, board=False):
     binaries = {n: ROOT / "zig-out/bin" / n for n in ("transit-node", "rey-cli", f"example-{name}")}
     if board:
-        binaries["board"] = ROOT / "zig-out/bin/board"
+        binaries["board"] = ROOT / "zig-out/bin/transit-board"
     for binary in binaries.values():
         if not binary.is_file():
             raise RuntimeError("Build first with: nix develop --command zig build apps examples")

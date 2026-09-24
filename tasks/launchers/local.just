@@ -7,7 +7,7 @@ _default:
 
 # Compile the binaries used by this launcher; install frontend dependencies first.
 build:
-    zig build apps examples board
+    zig build apps examples transit-board
 
 # Stream a persistent local stack's logs; pass --detach (or -d) for background use.
 [positional-arguments]

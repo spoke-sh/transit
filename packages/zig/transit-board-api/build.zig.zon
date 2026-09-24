@@ -1,6 +1,6 @@
 .{
-    .name = .board_api,
-    .fingerprint = 0x5be42b6450a7df1b,
+    .name = .transit_board_api,
+    .fingerprint = 0x33da4f74436fc5a0,
     .version = "0.0.0",
     .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
     .dependencies = .{ .transit_protocol = .{ .path = "../transit-protocol" } },

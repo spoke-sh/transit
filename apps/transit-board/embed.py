@@ -8,8 +8,8 @@ import sys
 
 repo = Path(__file__).resolve().parents[2]
 output = Path(sys.argv[1]).resolve()
-subprocess.run(["vp", "build"], cwd=repo / "apps/board-web", check=True)
-dist = repo / "apps/board-web/dist"
+subprocess.run(["vp", "build"], cwd=repo / "apps/transit-board-web", check=True)
+dist = repo / "apps/transit-board-web/dist"
 assets = sorted(path for path in dist.rglob("*") if path.is_file())
 assert (dist / "index.html") in assets and len(assets) <= 128
 assert sum(path.stat().st_size for path in assets) <= 8 * 1024 * 1024
@@ -21,7 +21,7 @@ for index, path in enumerate(assets):
     lines.append(f'const a{index} = @embedFile("{name}");')
     if path.name == "index.html":
         lines.append(f'pub const index = a{index};')
-shutil.copyfile(repo / "contracts/board-v1.openapi.json", output.parent / "openapi.json")
+shutil.copyfile(repo / "contracts/transit-board-v1.openapi.json", output.parent / "openapi.json")
 lines.append('pub const openapi = @embedFile("openapi.json");')
 lines.append('pub fn get(path: []const u8) ?Asset {')
 for index, path in enumerate(assets):

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { text } from "./components";
-import { validateCapabilities, BoardError } from "@rey/board-client";
+import { validateCapabilities, BoardError } from "@rey/transit-board-client";
 import { message } from "./state";
 describe("inspection semantics", () => {
   it("preserves bytes as text and refuses invalid UTF-8 previews", () => {

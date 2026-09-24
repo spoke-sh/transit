@@ -12,11 +12,11 @@ importers:
         specifier: 0.3.3
         version: 0.3.3(jiti@2.7.0)(typescript@7.0.2)
 
-  apps/board-web:
+  apps/transit-board-web:
     dependencies:
-      '@rey/board-client':
+      '@rey/transit-board-client':
         specifier: workspace:*
-        version: link:../../packages/ts/board-client
+        version: link:../../packages/ts/transit-board-client
       '@tanstack/react-router':
         specifier: 1.170.39
         version: 1.170.39(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -49,7 +49,7 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
-  packages/ts/board-client:
+  packages/ts/transit-board-client:
     dependencies:
       ajv:
         specifier: 8.20.0

@@ -9,7 +9,7 @@ all commands have been rerun on every documentation change.
 
 ## Running checks
 
-Enter `nix develop` and run `just board::install` at the repository root. `just ci` runs the ordinary local
+Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 
 | Evidence | What it proves |
@@ -299,9 +299,9 @@ that scoped outbox/history projections do not disclose hidden endpoints.
 
 ## Board qualification
 
-`just board::check` checks exact Zig/OpenAPI regeneration, generated TypeScript and
+`just transit-board::check` checks exact Zig/OpenAPI regeneration, generated TypeScript and
 standalone validator drift, strict TypeScript, Vite+ formatting/lint and unit tests.
-`just board::test` runs Zig ingress tests and `tests/board.py` against disk-backed
+`just transit-board::test` runs Zig ingress tests and `tests/board.py` against disk-backed
 Ursula. A copy of the Board binary runs alone in an empty directory with an empty
 executable search path, serving embedded assets and the exact OpenAPI artifact.
 An independent Python consumer follows process/output/effect evidence; generated
@@ -320,7 +320,7 @@ Requests exceeding Board's 10 upstream reads/second admission rate were rejected
 A slow incomplete Board request also left the authority available. This is a
 bounded reference measurement, not a throughput/fairness or latency guarantee.
 
-`just board::browser-install` and `just board::browser` run pinned Chromium against
+`just transit-board::browser-install` and `just transit-board::browser` run pinned Chromium against
 that same real binary/API. Checks cover login, typed runtime validation, nested
 routes/lazy assets, arrivals/departures and uncertainty, keyboard focus through
 polling, escaped payloads/lens fallback, denial/logout clearing and absence of
@@ -365,7 +365,7 @@ The initial debug build measured 0.12–0.42 seconds total per scenario, includi
 100 ms of deliberate wait and up to 200 ms flushing; emission was 9–74 ms.
 These are measured proof results, not throughput targets or arbitrary I/O guarantees.
 
-`just board::test` also asserts fixed routes, request/timeout outcomes, ignored
+`just transit-board::test` also asserts fixed routes, request/timeout outcomes, ignored
 public trace headers, quiet successful probes and credential/query redaction in
 real service logs. See [telemetry](../packages/zig/telemetry/README.md) for limits.
 

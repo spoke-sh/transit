@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import sys
 root = Path(__file__).resolve().parents[3]
-source = json.loads((root / "contracts/board-v1.openapi.json").read_text())
+source = json.loads((root / "contracts/transit-board-v1.openapi.json").read_text())
 
 def ts(s):
     if "anyOf" in s or "oneOf" in s:

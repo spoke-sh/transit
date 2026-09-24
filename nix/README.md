@@ -150,9 +150,9 @@ contents.
 
 The application workspace pins Vite+ 0.3.3 to match the Nix toolchain, with strict
 TypeScript, React and TanStack Router dependencies in `pnpm-lock.yaml`. Install
-with `just board::install`; use `vp` for dependency operations. The pinned Vite+
+with `just transit-board::install`; use `vp` for dependency operations. The pinned Vite+
 package uses the `@voidzero-dev/vite-plus-core` alias and upstream Vitest 4.1.11;
 its alias version triggers a pnpm peer-version warning, qualified by actual
 frontend build/check/test and browser proofs. No Nix toolchain pins were changed.
-The [Board frontend guide](../apps/board-web/README.md) owns application workflows.
+The [Board frontend guide](../apps/transit-board-web/README.md) owns application workflows.
 CI installs the frozen lock before `just ci` and runs the pinned Chromium proof.

@@ -6,7 +6,7 @@
     .dependencies = .{
         .transit_observability = .{ .path = "packages/zig/transit-observability" },
         .telemetry = .{ .path = "packages/zig/telemetry" },
-        .board_api = .{ .path = "packages/zig/board-api" },
+        .transit_board_api = .{ .path = "packages/zig/transit-board-api" },
         .transit_protocol = .{ .path = "packages/zig/transit-protocol" },
         .transit_core = .{ .path = "packages/zig/transit-core" },
         .transit_backend_ursula = .{ .path = "packages/zig/transit-backend-ursula" },

@@ -2,7 +2,7 @@
 const std = @import("std");
 const telemetry = @import("telemetry");
 const client = @import("transit_client");
-const api = @import("board_api");
+const api = @import("transit_board_api");
 const assets = @import("assets");
 const Auth = @import("Auth.zig");
 const i = client.protocol.Inspection;
@@ -227,7 +227,7 @@ fn originHost(origin: []const u8, development_allow_insecure_http: bool) ![]cons
     return host;
 }
 pub fn main(init: std.process.Init) !void {
-    var diagnostics = telemetry.Runtime.init(init.io, "board", try telemetry.Config.environment(init.environ_map));
+    var diagnostics = telemetry.Runtime.init(init.io, "transit-board", try telemetry.Config.environment(init.environ_map));
     diagnostics.start();
     defer diagnostics.stop();
     defer diagnostics.event(.{ .name = "service.stopped" });

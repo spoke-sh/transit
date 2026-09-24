@@ -3,7 +3,7 @@ set working-directory := ".."
 
 [default]
 _default:
-    @just --list board
+    @just --list transit-board
 
 # Install the locked frontend build and test dependencies with Vite+.
 install:
@@ -11,42 +11,42 @@ install:
 
 # Regenerate Board's OpenAPI, TypeScript types, and CSP-compatible validators.
 generate:
-    zig build board-contract > contracts/board-v1.openapi.json
-    python3 -B packages/ts/board-client/generate.py
-    vp exec node packages/ts/board-client/validators.mjs
+    zig build transit-board-contract > contracts/transit-board-v1.openapi.json
+    python3 -B packages/ts/transit-board-client/generate.py
+    vp exec node packages/ts/transit-board-client/validators.mjs
 
 # Check typed contract and generated browser-resource drift.
 contract:
-    zig build board-contract | python3 -B tests/board_contract.py
-    python3 -B packages/ts/board-client/generate.py --check
-    vp exec node packages/ts/board-client/validators.mjs --check
+    zig build transit-board-contract | python3 -B tests/board_contract.py
+    python3 -B packages/ts/transit-board-client/generate.py --check
+    vp exec node packages/ts/transit-board-client/validators.mjs --check
 
 # Check frontend formatting, lint, strict types and unit tests.
 check: contract
-    cd packages/ts/board-client && vp check
-    cd apps/board-web && vp check
-    vp exec --filter @rey/board-web tsc --noEmit
-    cd apps/board-web && vp test run
+    cd packages/ts/transit-board-client && vp check
+    cd apps/transit-board-web && vp check
+    vp exec --filter @rey/transit-board-web tsc --noEmit
+    cd apps/transit-board-web && vp test run
 
 # Build the Zig API with every static frontend asset embedded.
 build:
-    zig build board
+    zig build transit-board
 
 # Serve an explicitly provisioned installation.
 run config: build
-    zig-out/bin/board {{quote(config)}}
+    zig-out/bin/transit-board {{quote(config)}}
 
 # Prove bounded auth, scopes, embedded delivery, retention and failure handling.
 test:
-    zig build test-board-unit test-board
+    zig build test-transit-board-unit test-transit-board
 
 # Install the pinned Playwright Chromium used by browser qualification.
 browser-install:
-    vp exec --filter @rey/board-web playwright install chromium
+    vp exec --filter @rey/transit-board-web playwright install chromium
 
 # Exercise the real embedded UI against an isolated disk-backed Transit node.
 browser:
-    zig build test-board -Dboard-browser=true
+    zig build test-transit-board -Dtransit-board-browser=true
 
 # Open a disposable counter realm for interactive inspection; Ctrl-C cleans it up.
 demo: build

@@ -4,11 +4,13 @@ Home of Transit, an agentic streaming runtime built around a foundational
 execution protocol enforced by durable message sequences.
 
 [Transit](docs/TRANSIT.md) is the reusable streaming runtime subsystem: the
-kernel, services, clients, and storage/runtime adapters. Each process has a durable PID and an
-ordered mailbox; its recorded sequence governs ownership, progress, and effects.
+kernel, services, clients, storage/runtime adapters, inspection surface, and planned
+framework. Each process has a durable PID and an ordered mailbox; its recorded
+sequence governs ownership, progress, and effects.
 [Station](docs/STATION.md) is the planned OTP-inspired framework for GenServer
 behaviors, supervision, and registries. [Board](docs/BOARD.md) is the
 inspection UI and API for operators and agents, starting with kernel primitives.
+Their artifacts use the `transit-station` and `transit-board` name families.
 Trading is one intended application; the primitives are generic.
 
 Rey is a monorepo of Zig libraries and executables, with TypeScript and Vite+
@@ -31,7 +33,7 @@ Install Nix with flakes and `nix-command` enabled, then:
 nix develop
 just doctor
 just check
-just board::install
+just transit-board::install
 just launchers::local::up
 ```
 

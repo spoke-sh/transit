@@ -8,11 +8,12 @@ for scope and the [test guide](../tests/README.md) for proved behavior and limit
 ## Execution model
 
 Rey is the monorepo. Transit is the reusable streaming runtime subsystem: its
-generic agentic kernel, supporting services, clients, and storage/runtime
-adapters. `transit-core` implements the deterministic kernel; the runtime's
-deployment is packaged in [charts/transit](../charts/transit/README.md). Station
-is the OTP-inspired framework above Transit. Transit's execution primitive is a
-process with a durable PID and an ordered, logically unbounded mailbox. Its
+generic agentic kernel, supporting services, clients, storage/runtime adapters,
+Board inspection surface, and planned Station framework. `transit-core` implements
+the deterministic kernel; the runtime's deployment is packaged in
+[charts/transit](../charts/transit/README.md). Station is the OTP-inspired framework
+above the kernel. Transit's execution primitive is a process with a durable PID
+and an ordered, logically unbounded mailbox. Its
 sequence determines valid execution, including lifecycle, input handling,
 progress, and authorized effects. Actors are implemented by processes; GenServer
 is a Station behavior running in one. Workers are replaceable executors.
@@ -150,8 +151,8 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 | [transit-core](../packages/zig/transit-core/README.md) / `transit_core` | Protocol state, validation, conditional authority, recovery | transit-protocol |
 | [transit-client](../packages/zig/transit-client/README.md) / `transit_client` | Signed HTTP calls, activation sessions, retry material | transit-protocol, transit-observability |
 | [transit-backend-ursula](../packages/zig/transit-backend-ursula/README.md) / `transit_backend_ursula` | Storage/transport, checkpoint, trim, deletion | transit-core, transit-observability, upstream ursula-zig |
-| [board-api](../packages/zig/board-api/README.md) / `board_api` | Board response types, OpenAPI generation, evidence projections and lenses | transit-protocol |
-| [board-client](../packages/ts/board-client/README.md) (TypeScript) | Generated Board models/runtime validators and bounded browser transport | AJV runtime helper |
+| [transit-board-api](../packages/zig/transit-board-api/README.md) / `transit_board_api` | Board response types, OpenAPI generation, evidence projections and lenses | transit-protocol |
+| [transit-board-client](../packages/ts/transit-board-client/README.md) (TypeScript) | Generated Board models/runtime validators and bounded browser transport | AJV runtime helper |
 | [transit-runtime-substrate](../packages/zig/transit-runtime-substrate/README.md) / `transit_runtime_substrate` | Provider identity, template validation, sandbox lifecycle operations | transit-observability; invokes pinned external CLI |
 
 The dependency graph stays acyclic. Core must remain testable without providers
@@ -167,22 +168,25 @@ follow a second concrete implementation, not a speculative plugin system.
 | --- | --- |
 | [transit-node](../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
 | [transit-runtime-controller](../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
-| [board](../apps/board/README.md) | Inspection-only API host with embedded [TanStack Router frontend](../apps/board-web/README.md); public client and board-api composition |
+| [transit-board](../apps/transit-board/README.md) | Inspection-only API host with embedded [TanStack Router frontend](../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [rey-cli](../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |
 | [example-counter](../examples/counter/README.md) | Complete caller, also the reference deployment workload |
 | [example-byte-log](../examples/byte-log/README.md) | Independent caller against the same generic authority |
 
-Transit service executables use the `transit-` prefix. Examples are applications,
-not required infrastructure. Tests launch their actual binaries; fault injection
+Transit artifacts use the `transit-` prefix, including the `transit-board*`
+inspection family and planned `transit-station*` framework family. These names
+denote subsystem membership; core and the public execution client do not depend
+on Board or Station. Examples are applications, not required infrastructure.
+Tests launch their actual binaries; fault injection
 and protocol assertions belong under [tests/](../tests/README.md).
 
 ### Planned components
 
-- `packages/zig/station`, module `station`: GenServer, supervision, registries,
+- `packages/zig/transit-station`, module `transit_station`: GenServer, supervision, registries,
   request/reply, and retention helpers over the public client.
-- `packages/zig/station-http`, module `station_http`: exchange contracts, capture,
+- `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,
   caller helpers, and trusted dispatch over Station/Transit.
-- `apps/station-worker` and `apps/http-worker`: compose behaviors or connector
+- `apps/transit-station-worker` and `apps/transit-station-http-worker`: compose behaviors or connector
   execution with explicitly supplied runtime capabilities.
 - Application libraries and entry points: compose these primitives without
   adding application policy to core. Further TypeScript/Vite+ frontends and

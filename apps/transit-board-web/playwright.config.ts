@@ -4,7 +4,7 @@ export default defineConfig({
   timeout: 45000,
   workers: 1,
   reporter: "list",
-  outputDir: "../../.cache/board-browser",
+  outputDir: "../../.cache/transit-board-browser",
   use: {
     baseURL: process.env.BOARD_TEST_URL,
     headless: true,

@@ -3,9 +3,9 @@ import json
 from pathlib import Path
 import sys
 actual = sys.stdin.buffer.read()
-expected = (Path(__file__).resolve().parents[1] / "contracts/board-v1.openapi.json").read_bytes()
+expected = (Path(__file__).resolve().parents[1] / "contracts/transit-board-v1.openapi.json").read_bytes()
 if actual != expected:
-    raise SystemExit("Board OpenAPI drift: run just board::generate")
+    raise SystemExit("Board OpenAPI drift: run just transit-board::generate")
 spec = json.loads(actual)
 assert spec["openapi"] == "3.1.1"
 assert spec["security"] == [{"bearer": []}, {"session": []}]

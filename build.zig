@@ -28,29 +28,29 @@ pub fn build(b: *std.Build) void {
     const exporter = b.addExecutable(.{ .name = "transit-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-protocol/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }} }) });
     b.step("contract", "Export public contract JSON Schema to stdout").dependOn(&b.addRunArtifact(exporter).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = protocol.module("transit_protocol") })).step);
-    const board_api = b.dependency("board_api", .{ .target = target, .optimize = optimize });
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = board_api.module("board_api") })).step);
-    const board_contract = b.addExecutable(.{ .name = "board-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/board-api/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "board_api", .module = board_api.module("board_api") }} }) });
-    b.step("board-contract", "Export Board OpenAPI to stdout").dependOn(&b.addRunArtifact(board_contract).step);
+    const transit_board_api = b.dependency("transit_board_api", .{ .target = target, .optimize = optimize });
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = transit_board_api.module("transit_board_api") })).step);
+    const board_contract = b.addExecutable(.{ .name = "transit-board-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-board-api/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_board_api", .module = transit_board_api.module("transit_board_api") }} }) });
+    b.step("transit-board-contract", "Export Board OpenAPI to stdout").dependOn(&b.addRunArtifact(board_contract).step);
     const client = b.dependency("transit_client", .{ .target = target, .optimize = optimize });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);
     const embed = b.addSystemCommand(&.{ "python3", "-B" });
-    embed.addFileArg(b.path("apps/board/embed.py"));
+    embed.addFileArg(b.path("apps/transit-board/embed.py"));
     const asset_source = embed.addOutputFileArg("assets.zig");
     // Vite owns its dependency graph. Always rebuild the closed asset manifest;
     // Zig still caches compilation by the resulting bytes.
     embed.has_side_effects = true;
     const asset_module = b.createModule(.{ .root_source_file = asset_source, .target = target, .optimize = optimize });
-    const board = b.addExecutable(.{ .name = "board", .root_module = b.createModule(.{ .root_source_file = b.path("apps/board/main.zig"), .target = target, .optimize = optimize, .imports = &.{
+    const board = b.addExecutable(.{ .name = "transit-board", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-board/main.zig"), .target = target, .optimize = optimize, .imports = &.{
         .{ .name = "transit_client", .module = client.module("transit_client") },
-        .{ .name = "board_api", .module = board_api.module("board_api") },
+        .{ .name = "transit_board_api", .module = transit_board_api.module("transit_board_api") },
         .{ .name = "assets", .module = asset_module },
         .{ .name = "telemetry", .module = telemetry.module("telemetry") },
     } }) });
     const install_board = b.addInstallArtifact(board, .{});
-    b.step("board", "Build the standalone Board API and embedded UI").dependOn(&install_board.step);
+    b.step("transit-board", "Build the standalone Board API and embedded UI").dependOn(&install_board.step);
     b.getInstallStep().dependOn(&install_board.step);
-    b.step("test-board-unit", "Test Board ingress and route boundaries").dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = board.root_module })).step);
+    b.step("test-transit-board-unit", "Test Board ingress and route boundaries").dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = board.root_module })).step);
     const runtime = b.dependency("transit_runtime_substrate", .{ .target = target, .optimize = optimize });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = runtime.module("transit_runtime_substrate") })).step);
     var node_artifact: *std.Build.Step.Compile = undefined;
@@ -148,10 +148,10 @@ pub fn build(b: *std.Build) void {
     board_tests.addArtifactArg(node_artifact);
     board_tests.addArtifactArg(cli_artifact);
     board_tests.addArtifactArg(board);
-    if (b.option(bool, "board-browser", "Include real browser qualification") orelse false) board_tests.addArg("--browser");
+    if (b.option(bool, "transit-board-browser", "Include real browser qualification") orelse false) board_tests.addArg("--browser");
     board_tests.has_side_effects = true;
     board_tests.stdio = .inherit;
-    b.step("test-board", "Qualify Board against disk-backed Transit").dependOn(&board_tests.step);
+    b.step("test-transit-board", "Qualify Board against disk-backed Transit").dependOn(&board_tests.step);
     const observation_tests = b.addSystemCommand(&.{ "python3", "-B" });
     observation_tests.addFileArg(b.path("tests/observability.py"));
     observation_tests.addArtifactArg(node_artifact);

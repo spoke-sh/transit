@@ -1,16 +1,16 @@
-# Board
+# transit-board
 
-Inspection-only Zig service containing the static [Board frontend](../board-web/README.md)
-and [OpenAPI v1](../../contracts/board-v1.openapi.json). Its only application
-libraries are `transit-client` and `board-api`; it has no kernel, Ursula, provider,
+Inspection-only Zig service containing the static [Board frontend](../transit-board-web/README.md)
+and [OpenAPI v1](../../contracts/transit-board-v1.openapi.json). Its only application
+libraries are `transit-client` and `transit-board-api`; it has no kernel, Ursula, provider,
 or handler dependency. [Board's design](../../docs/BOARD.md) owns the architecture.
 
 ## Try it
 
 ```sh
 nix develop
-just board::install
-just board::demo
+just transit-board::install
+just transit-board::demo
 ```
 
 The demo starts isolated disk-backed Ursula, Transit, and the real counter caller.
@@ -24,8 +24,8 @@ For a persistent development system with an actively polling caller, use
 the realm. To configure Board against another provisioned realm:
 
 ```sh
-just board::build
-zig-out/bin/board /absolute/path/board.json
+just transit-board::build
+zig-out/bin/transit-board /absolute/path/board.json
 ```
 
 `just build::debug` also installs Board; use another [build profile](../../tasks/README.md#build-profiles)
@@ -123,7 +123,8 @@ not external failure. This bounded experimental profile is not a throughput SLA.
 
 ## Service diagnostics
 
-Board emits `board.http.request` records on stderr with method, fixed route
+Board identifies itself as `transit-board` in service diagnostics. It emits
+`board.http.request` records on stderr with method, fixed route
 template, status when available, local response-write completion and monotonic
 duration. Failed/unauthorized requests and deadlines are visible; successful
 `/health` probes are debug-only. Session creation/logout use their own route
@@ -147,8 +148,8 @@ to turn on debug detail while navigating.
 
 ## Verification
 
-`just board::check` checks contracts, generated client, strict types, formatting,
-lint and frontend unit tests. `just board::test` runs Zig ingress/unit tests and
-real disk-backed service proofs. `just board::browser-install` installs the pinned
-Chromium; `just board::browser` exercises the real embedded UI with Playwright.
+`just transit-board::check` checks contracts, generated client, strict types, formatting,
+lint and frontend unit tests. `just transit-board::test` runs Zig ingress/unit tests and
+real disk-backed service proofs. `just transit-board::browser-install` installs the pinned
+Chromium; `just transit-board::browser` exercises the real embedded UI with Playwright.
 The [test guide](../../tests/README.md) records measured limits and reference evidence.

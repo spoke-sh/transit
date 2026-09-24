@@ -7,7 +7,7 @@ Run commands from the repository root inside `nix develop`.
 The root [justfile](../justfile) keeps common commands: `check`, `ci`,
 `fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
 [build](build.just), [launchers](launchers.just), [test](test.just),
-[examples](examples.just), [contract](contract.just), and [board](board.just).
+[examples](examples.just), [contract](contract.just), and [transit-board](transit-board.just).
 Use double colons, for example `just launchers::reference::up` or `just examples::run counter`.
 Space-separated module paths also work: `just build debug` is equivalent to
 `just build::debug`.
@@ -35,10 +35,10 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just build::debug`, `just build::release-safe`, `just build::release-fast`, `just build::release-small` | Builds platform executables and embedded Board with the selected optimization profile; accepts Zig steps/options |
 | `just examples::build` | Installs `example-counter` and `example-byte-log` |
 | `just examples::run counter`, `just examples::run byte-log` | Provisions disposable disk Ursula and an authority, runs the real example, and verifies its committed state |
-| `just board::install`, `just board::demo` | Install locked frontend dependencies and inspect a disposable counter realm |
-| `just board::build`, `just board::run CONFIG` | Build the embedded binary and run a provisioned installation |
-| `just board::generate`, `just board::contract`, `just board::check` | Generate/check OpenAPI and browser models, then validate frontend formatting/lint/types/tests |
-| `just board::test`, `just board::browser-install`, `just board::browser` | Qualify the real API and install/run the pinned browser proof |
+| `just transit-board::install`, `just transit-board::demo` | Install locked frontend dependencies and inspect a disposable counter realm |
+| `just transit-board::build`, `just transit-board::run CONFIG` | Build the embedded binary and run a provisioned installation |
+| `just transit-board::generate`, `just transit-board::contract`, `just transit-board::check` | Generate/check OpenAPI and browser models, then validate frontend formatting/lint/types/tests |
+| `just transit-board::test`, `just transit-board::browser-install`, `just transit-board::browser` | Qualify the real API and install/run the pinned browser proof |
 | `just launchers::local::up`, `status`, `inspect`, `logs SERVICE`, `attach` | Run a persistent native system with foreground logs and Ctrl-C shutdown; `up --detach` starts in the background, `logs manager` shows lifecycle/probe evidence |
 | `just launchers::compose::up`, `status`, `inspect`, `logs SERVICE` | Run the same scenario in Docker containers |
 | `just launchers::local::send VALUE [REQUEST_ID]`, `restart SERVICE` | Admit example input through signed ingress or replace a service; Compose has the same tasks |
@@ -80,9 +80,9 @@ The [build module](build.just) exposes Zig's four optimization modes:
 | `just build::release-small` | `-Doptimize=small` | Optimize for executable size | Disabled by default |
 
 Bare `just build` lists these choices. With no further arguments, each profile
-installs `transit-node`, `transit-runtime-controller`, `rey-cli`, and Board with
+installs `transit-node`, `transit-runtime-controller`, `rey-cli`, and `transit-board` with
 its embedded UI into `zig-out/bin`. Install frontend dependencies first with
-`just board::install`. Zig caches each optimization mode separately, but the
+`just transit-board::install`. Zig caches each optimization mode separately, but the
 default installation directory is shared: the most recent build replaces those
 binaries. Use `--prefix` to keep separate outputs.
 
@@ -91,7 +91,7 @@ Arguments after the profile pass directly to `zig build`, preserving quoting:
 ```sh
 just build::debug apps                 # Platform commands without the Board UI
 just build::release-safe examples      # The example callers
-just build::release-safe apps examples board --prefix zig-out/release-safe
+just build::release-safe apps examples transit-board --prefix zig-out/release-safe
 just build::release-small apps -Dtarget=x86_64-linux-musl
 ```
 

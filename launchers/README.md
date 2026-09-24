@@ -23,7 +23,7 @@ From the repository root:
 
 ```sh
 nix develop
-just board::install
+just transit-board::install
 just launchers::local::up
 # In another terminal:
 just launchers::local::status
@@ -314,7 +314,7 @@ REY_LAUNCHER_NAME=experiment just launchers::local::down
 [logs.py](logs.py) owns native manager-log rotation.
 Python is development infrastructure glue; the actual services and caller stay
 in Zig. Service config semantics belong to the
-[node](../apps/transit-node/README.md), [Board](../apps/board/README.md), and
+[node](../apps/transit-node/README.md), [Board](../apps/transit-board/README.md), and
 [counter](../examples/counter/README.md) guides.
 
 Keep defaults and scenario provisioning shared rather than maintaining divergent

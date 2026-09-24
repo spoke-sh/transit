@@ -1,12 +1,13 @@
-# Board client
+# transit-board-client
 
-Typed resource client for Board's inspection API. This is the browser's first
+Typed resource client for Board's inspection API, exposed in the workspace as
+`@rey/transit-board-client`. This is the browser's first
 shared TypeScript package, independent of React and Router; it is not a Transit
-execution/signing client. [Zig board-api](../../zig/board-api/README.md) owns the
-[OpenAPI contract](../../../contracts/board-v1.openapi.json).
+execution/signing client. [Zig transit-board-api](../../zig/transit-board-api/README.md) owns the
+[OpenAPI contract](../../../contracts/transit-board-v1.openapi.json).
 
-`just board::generate` derives TypeScript models, JSON schemas and standalone AJV
-validators. `just board::contract` detects drift, including validator declarations.
+`just transit-board::generate` derives TypeScript models, JSON schemas and standalone AJV
+validators. `just transit-board::contract` detects drift, including validator declarations.
 Validation executes without runtime `eval`, so the production content-security
 policy can forbid it. Numeric IDs are checked against JavaScript's safe integer
 range, values use Transit's lowercase hex representation, and unknown fields or

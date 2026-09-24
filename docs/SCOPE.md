@@ -29,7 +29,7 @@ The same primitives must support ordinary stateful distributed programs.
   Rey's current callers are Zig. Language-neutral contracts allow future clients
   in other languages without changing kernel execution semantics.
 - Board is the first operator/agent inspection surface, before Station. Its
-  TanStack Router frontend uses Vite+ and is embedded in the Zig `board` API
+  TanStack Router frontend uses Vite+ and is embedded in the Zig `transit-board` API
   executable. OpenAPI supports further clients; read-only views expose kernel
   evidence and optional higher-level interpretations. See [BOARD.md](BOARD.md).
 - Ursula supplies durable streams; `ursula-zig` supplies the Zig client.
@@ -53,7 +53,7 @@ The same primitives must support ordinary stateful distributed programs.
   fenced acceptance, and late-result rejection. An unresolved attempt can close
   with outcome unknown without pretending the remote operation was cancelled.
 - Station, the OTP-inspired framework, supplies behaviors, supervision, and
-  scoped name registries above Transit. Registry changes are durable operations;
+  scoped name registries above the Transit kernel. Registry changes are durable operations;
   rebinding a name cannot redirect accepted work or replies.
 - HTTP is the first connector: request/response messages and timing metadata
   travel through exchange stream groups, with explicit variable/secret handling.

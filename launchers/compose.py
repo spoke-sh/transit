@@ -49,9 +49,9 @@ class Compose:
         if target is None:
             raise RuntimeError("Compose currently supports Linux Docker engines on x86_64 or aarch64")
         prefix = self.path / "build"
-        run(["zig", "build", "apps", "examples", "board", "-Dtarget=" + target,
+        run(["zig", "build", "apps", "examples", "transit-board", "-Dtarget=" + target,
              "-Doptimize=ReleaseSafe", "--prefix", prefix], cwd=ROOT, timeout=600)
-        for name in ("transit-node", "example-counter", "board"):
+        for name in ("transit-node", "example-counter", "transit-board"):
             context = self.path / "images" / name
             context.mkdir(parents=True, exist_ok=True)
             shutil.copy2(prefix / "bin" / name, context / name)

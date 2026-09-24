@@ -1,7 +1,7 @@
 // Consume an actual Board response using the same generated runtime validator.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { Response as validate } from '../packages/ts/board-client/src/validators.js';
+import { Response as validate } from '../packages/ts/transit-board-client/src/validators.js';
 const value = JSON.parse(readFileSync(0, 'utf8'));
 assert(validate(value));
 for (const mutate of [

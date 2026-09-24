@@ -12,7 +12,7 @@ class Chart:
             "initialize": {"nameOverride": "initialize"},
             "ursula": {"nameOverride": "ursula", "image": images["ursula"]},
             "maintenance": {"nameOverride": "maintenance"},
-            "board": {"nameOverride": "board", "image": images["board"]},
+            "board": {"nameOverride": "board", "image": images["transit-board"]},
             "workerPool": {"nameOverride": "counter"},
         }
 

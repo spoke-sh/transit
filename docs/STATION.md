@@ -5,7 +5,7 @@ behavior API and lifecycle policies below are proposed, with no implementation.
 
 ## Purpose
 
-Station is Rey's OTP-inspired framework built on [Transit, the kernel](TRANSIT.md).
+Station is Transit's OTP-inspired framework built on [the kernel](TRANSIT.md).
 It makes the protocol convenient to compose in Zig. Producers and consumers can
 be stateful actors implemented by Transit processes, using shared behaviors for
 mailbox handling, recovery, correlation, and supervision.
@@ -15,11 +15,13 @@ Station will supply versioned descriptors and lenses for its behaviors and
 registries, preserving underlying PID/history evidence rather than requiring
 Board to infer behavior from names or payload shapes.
 
-The planned `station` Zig library uses `transit-client` and the public protocol,
+The planned `transit-station` Zig library uses `transit-client` and the public protocol,
 without importing the kernel implementation. It exposes behaviors and
 composition helpers. Connector libraries and worker executables build on it;
 Station itself stays independent of the selected transport and deployment
-provider. See the [monorepo decomposition](ARCHITECTURE.md#planned-monorepo-decomposition).
+provider. Its artifacts use the `transit-station*` family, including the planned
+`transit-station-http` connector and worker executables. Station remains the
+framework's name in prose. See the [monorepo decomposition](ARCHITECTURE.md#planned-monorepo-decomposition).
 
 Erlang creates processes with PIDs independently of optional registered names;
 `gen_server` adds a standard behavior to a process. That separation informs

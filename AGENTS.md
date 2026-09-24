@@ -30,10 +30,14 @@ expanding framework or real-effect integrations.
 
 ## Implementation rules
 
-- Keep Transit generic and Station above it. Reasoning loops, goals, delegation,
-  and trading policy belong to applications; LLM/tool access belongs in connectors.
+- Keep the Transit kernel generic and Station above it. Reasoning loops, goals,
+  delegation, and trading policy belong to applications; LLM/tool access belongs
+  in connectors.
 - Name streaming-runtime artifacts and deployments Transit; Rey is the monorepo
-  and application context. Follow the [glossary](docs/GLOSSARY.md) for roles.
+  and application context. Board and Station belong to the Transit subsystem;
+  use `transit-board*` and `transit-station*` for their artifact names. Keep Board
+  and Station as readable names in prose. Follow the [glossary](docs/GLOSSARY.md)
+  for roles.
 - Write kernel, framework, connectors, and backends in Zig. Use strict TypeScript
   and Vite+ for frontends. Keep external infrastructure in its upstream language.
 - Respect the architecture's dependency direction. Core depends on the public

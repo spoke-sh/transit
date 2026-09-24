@@ -1,6 +1,6 @@
 //! OpenAPI generated from the actual Board response types and Transit definitions.
 const std = @import("std");
-const api = @import("board_api");
+const api = @import("transit_board_api");
 const s = api.protocol.Schema;
 const field = s.field;
 fn response(out: *std.json.Stringify, status: []const u8, name: []const u8) !void {

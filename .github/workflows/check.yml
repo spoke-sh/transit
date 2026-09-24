@@ -30,13 +30,13 @@ jobs:
         # alone would let GC discard the binaries we just spent time building.
         run: nix develop --profile "$RUNNER_TEMP/rey-ci-shell" --command true
       - name: Install locked Board frontend dependencies
-        run: nix develop --command just board::install
+        run: nix develop --command just transit-board::install
       - name: Run foundation and protocol checks
         run: nix develop --command just ci
       - name: Install browser and host dependencies
-        run: nix develop --command vp exec --filter @rey/board-web playwright install --with-deps chromium
+        run: nix develop --command vp exec --filter @rey/transit-board-web playwright install --with-deps chromium
       - name: Qualify embedded Board in Chromium
-        run: nix develop --command just board::browser
+        run: nix develop --command just transit-board::browser
       - name: Save Nix store
         # Preserve expensive successful toolchain builds even if a test fails.
         if: ${{ !cancelled() && steps.shell.outcome == 'success' && steps.nix-cache.outputs.hit-primary-key != 'true' }}

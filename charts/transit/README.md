@@ -2,7 +2,7 @@
 
 [Transit](../../docs/TRANSIT.md) is the streaming runtime subsystem. This chart
 packages its current single-realm deployment: a node, disk-backed Ursula,
-optional maintenance, optional [Board](../../apps/board/README.md), and optional
+optional maintenance, optional [Board](../../apps/transit-board/README.md), and optional
 Agent Substrate worker capacity. Rey is the containing monorepo and application
 context; it is not the chart's name.
 
@@ -14,7 +14,7 @@ isolation. This is the experimental M1/M2 profile, not an HA production installe
 
 Read [values.yaml](values.yaml) for defaults and [values.schema.json](values.schema.json)
 for deployment-level validation. Application configuration remains owned by the
-[node](../../apps/transit-node/README.md) and [Board](../../apps/board/README.md)
+[node](../../apps/transit-node/README.md) and [Board](../../apps/transit-board/README.md)
 and validated by their binaries; the chart does not duplicate those schemas.
 
 | Component | Resources and configuration |

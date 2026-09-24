@@ -3,7 +3,7 @@
 Status: bounded [M2](roadmap/M2.md) inspection profile implemented and qualified
 on the reference deployment, before Station. Board is the UI and
 OpenAPI surface through which operators and agents comprehend a running Transit
-system. M2 is inspection-only; operational controls are later scope. The [Board application](../apps/board/README.md) owns configuration,
+system. M2 is inspection-only; operational controls are later scope. The [Board application](../apps/transit-board/README.md) owns configuration,
 commands and access limits; [tests](../tests/README.md#board-qualification) own evidence.
 
 ## Purpose and visual language
@@ -50,7 +50,7 @@ flowchart LR
     API -.-> Lens[Versioned interpretation lenses]
 ```
 
-`board` is a Zig executable hosting both API and embedded static assets on one
+`transit-board` is a Zig executable hosting both API and embedded static assets on one
 origin. It is an application alongside `transit-node`, with no raw Ursula,
 kernel-internal, or provider API access. Its observations and indexes are derived;
 Board cannot grant ownership, dispatch effects, advance consumer progress, or
@@ -74,15 +74,15 @@ Implemented ownership:
 
 | Location | Responsibility |
 | --- | --- |
-| [apps/board](../apps/board/README.md) | Zig executable, authenticated API hosting, bounded observations, static asset embedding, and lens composition |
-| [apps/board-web](../apps/board-web/README.md) | TanStack Router application and browser interaction tests |
-| [board-api](../packages/zig/board-api/README.md) | Board response/route definitions and OpenAPI generation, reusing public Transit types |
-| [board-client](../packages/ts/board-client/README.md) | Generated typed Board API client shared by the browser and future TypeScript consumers |
+| [apps/transit-board](../apps/transit-board/README.md) | Zig executable, authenticated API hosting, bounded observations, static asset embedding, and lens composition |
+| [apps/transit-board-web](../apps/transit-board-web/README.md) | TanStack Router application and browser interaction tests |
+| [transit-board-api](../packages/zig/transit-board-api/README.md) | Board response/route definitions and OpenAPI generation, reusing public Transit types |
+| [transit-board-client](../packages/ts/transit-board-client/README.md) | Generated typed Board API client shared by the browser and future TypeScript consumers |
 
-The Board executable composes `transit-client` and `board-api`; public Transit
-inspection contracts remain in `transit-protocol`. No dependency from Transit
-back into Board is permitted. `board` has its own application name rather than
-the `transit-` prefix reserved for kernel services.
+The Board executable composes `transit-client` and `transit-board-api`; public Transit
+inspection contracts remain in `transit-protocol`. Board belongs to the Transit
+subsystem, with `transit-board*` artifact names. The kernel and public execution
+client must not depend on Board; inspection consumes their public contracts.
 
 ## Public inspection contract
 
@@ -168,7 +168,7 @@ Browser/agent ingress uses a separate configured access key. A bounded HttpOnly
 session follows authenticated exchange; each API call rereads the key file,
 invalidating sessions after rotation. Credentials never enter URLs or bundles.
 Host/Origin checks, private HTTP with remote TLS ingress, request limits and the
-session lifetime are specified in the [app guide](../apps/board/README.md).
+session lifetime are specified in the [app guide](../apps/transit-board/README.md).
 Trusted LAN development can explicitly opt into a configured remote HTTP origin;
 this relaxes transport encryption only, while preserving authentication and
 exact Host/Origin validation. The default remote deployment still requires TLS.

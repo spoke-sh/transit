@@ -8,10 +8,10 @@ capabilities. Detailed contracts live in the linked design documents.
 
 | Term | Meaning |
 | --- | --- |
-| Rey | The monorepo containing Transit, Board, Station, connectors, runtime adapters, executables, and applications. Trading is an intended application. |
-| Transit | The reusable streaming runtime subsystem: the agentic streaming kernel and its supporting services, clients, and storage/runtime adapters. Its foundational execution protocol is enforced by durable message sequences. See [TRANSIT.md](TRANSIT.md). |
-| Board | The operator/agent inspection surface: a static UI and OpenAPI service hosted by the Zig `board` executable. Its views derive from authorized Transit evidence; it grants no execution authority. See [BOARD.md](BOARD.md). |
-| Station | The OTP-inspired framework above Transit, providing GenServer behaviors, supervision, registries, and composition. See [STATION.md](STATION.md). |
+| Rey | The monorepo containing the Transit subsystem and applications that use it. Trading is an intended application. |
+| Transit | The reusable streaming runtime subsystem: the agentic streaming kernel, supporting services, clients, storage/runtime adapters, Board inspection surface, and planned Station framework. Its foundational execution protocol is enforced by durable message sequences. See [TRANSIT.md](TRANSIT.md). |
+| Board | Transit's operator/agent inspection surface: a static UI and OpenAPI service hosted by the Zig `transit-board` executable. Its views derive from authorized Transit evidence; it grants no execution authority. See [BOARD.md](BOARD.md). |
+| Station | Transit's planned OTP-inspired framework above the kernel, providing GenServer behaviors, supervision, registries, and composition. Its artifacts use the `transit-station*` name family. See [STATION.md](STATION.md). |
 | Agentic | The class of workloads the system is intended to support. It does not place reasoning loops, goals, or agent/task delegation in the kernel. |
 | Ursula | The selected durable stream storage and transport implementation. See [URSULA.md](URSULA.md). |
 | ursula-zig | The upstream Zig client used by Transit's Ursula adapter. It handles transport/protocol operations; Transit defines execution semantics. |
@@ -23,10 +23,14 @@ the [Helm chart](../charts/transit/README.md) at `charts/transit`. Rey names the
 monorepo/application context, not the runtime subsystem. Calling Transit the
 **kernel** describes its foundational protocol role; `transit-core` is specifically
 the deterministic kernel library. **Board** is the **inspection surface** and
-**Station** the **framework** above Transit. The kernel implementation library lives in `packages/zig/transit-core`
-and exports the `transit_core` Zig module. `transit-protocol` owns public wire
+**Station** the **framework** above the kernel; both belong to Transit. Use
+`transit-board*` and `transit-station*` for their artifact names, while keeping
+Board and Station in prose. Short deployment roles such as `board` and `node`
+identify instances of those artifacts. The kernel implementation library lives
+in `packages/zig/transit-core` and exports the `transit_core` Zig module.
+`transit-protocol` owns public wire
 contracts; `transit-client` is the application entry point. The planned Station
-library exports `station`. See the
+library is `transit-station` and exports `transit_station`. See the
 [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition) for implemented
 and proposed packages.
 

@@ -58,7 +58,7 @@ services:
 
   board:
     <<: *service
-    image: '${REY_COMPOSE_IMAGE_PREFIX:?}/board'
+    image: '${REY_COMPOSE_IMAGE_PREFIX:?}/transit-board'
     command: [/board/config.json]
     environment: {LOG_LEVEL: '${REY_COMPOSE_BOARD_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_BOARD_LOG_FORMAT:?}'}
     volumes:
