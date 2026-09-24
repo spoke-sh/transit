@@ -4,7 +4,8 @@ Status: foundational design for [M7](roadmap/M7.md), before Station. State
 resources and associations are not implemented. The current
 [v2 profile](../contracts/TRANSIT_V2.md) commits an opaque inline value with each
 turn; its standalone immutable payloads are not enforced state references.
-Wire contracts and migration rules must be specified before implementation.
+The initial [wire contract](../contracts/STATE_V1.md) defines bounds and a
+compatibility path; authority/service integration and qualification are in progress.
 
 ## Purpose
 

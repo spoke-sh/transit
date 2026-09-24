@@ -59,3 +59,11 @@ See the [test guide](../../../tests/README.md) for integration evidence and limi
 [Inspection v1](../../../contracts/INSPECTION_V1.md) adds domain-separated signed
 queries and owned bounded pages without changing command signatures.
 `Inspection` owns the types and limits; the generated contract includes them.
+
+## State resources
+
+[`State`](src/State.zig) defines the M7 v1 resource, association, mutation and
+revision-read types, limits, and shared canonical fixture. The
+[state contract](../../../contracts/STATE_V1.md) records compatibility and proof
+obligations. These types are defined ahead of service integration; their schema
+presence alone does not advertise a running authority's state capability.

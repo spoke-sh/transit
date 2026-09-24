@@ -28,7 +28,7 @@ pub fn main(init: std.process.Init) !void {
     });
     try out.objectField("$defs");
     try out.beginObject();
-    inline for (.{ "Request", "SignedRequest", "View", "Receipt", "ErrorResponse", "InspectionQuery", "SignedInspectionQuery", "InspectionPage" }, .{ p.Request, p.SignedRequest, p.View, p.Receipt, p.ErrorResponse, p.Inspection.Query, p.Inspection.SignedQuery, p.Inspection.Page }) |name, T| {
+    inline for (.{ "Request", "SignedRequest", "View", "Receipt", "ErrorResponse", "InspectionQuery", "SignedInspectionQuery", "InspectionPage", "StateCommand", "StateQuery", "SignedStateQuery", "StatePage" }, .{ p.Request, p.SignedRequest, p.View, p.Receipt, p.ErrorResponse, p.Inspection.Query, p.Inspection.SignedQuery, p.Inspection.Page, p.State.Command, p.State.Query, p.State.SignedQuery, p.State.Page }) |name, T| {
         try out.objectField(name);
         try schema(T, &out);
     }

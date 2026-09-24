@@ -14,7 +14,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M4](M4.md) | Board and Transit observability | Bounded service instrumentation implemented and verified |
 | [M5](M5.md) | Kubernetes tooling and the Transit operator CLI | Inspection-only profile implemented and verified; broader CLI direction remains future scope |
 | [M6](M6.md) | Persistent reference and incremental development | Shared build/update loop and same-PID workload upgrades implemented and verified |
-| [M7](M7.md) | Durable state resources and process associations | Planned; next prerequisite for Station |
+| [M7](M7.md) | Durable state resources and process associations | In progress; public contract defined, implementation/proofs pending |
 | [M8](M8.md) | Station GenServer, supervision, and registries | Planned |
 | [M9](M9.md) | HTTP connector and exchange transcripts | Planned |
 | [M10](M10.md) | Clustered execution and portability | Planned |

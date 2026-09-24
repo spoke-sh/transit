@@ -6,6 +6,7 @@ pub const Ed25519 = std.crypto.sign.Ed25519;
 pub const Schema = @import("Schema.zig");
 pub const Inspection = @import("Inspection.zig");
 pub const Runtime = @import("Runtime.zig");
+pub const State = @import("State.zig");
 pub const max_principals = 16;
 pub const max_processes = 64;
 pub const max_effects = 128;
@@ -73,6 +74,7 @@ pub const Outbox = struct {
     courier: ?u8 = null,
     policy_revision: ?u64 = null,
 };
+pub const Turn = struct { pid: u64, generation: u64, input: u64, expected_revision: u64 = 0, result: Value, failed: bool = false, effect: ?Value = null, permit: ?u64 = null, outputs: [max_turn_outputs]?Output = @splat(null) };
 pub const Command = union(enum) {
     grant: Grant,
     revoke: u8,
@@ -83,7 +85,7 @@ pub const Command = union(enum) {
     activate: Runtime.Activate,
     send: struct { pid: u64, value: Value },
     begin_turn: struct { pid: u64, generation: u64, input: u64 },
-    turn: struct { pid: u64, generation: u64, input: u64, expected_revision: u64 = 0, result: Value, failed: bool = false, effect: ?Value = null, permit: ?u64 = null, outputs: [max_turn_outputs]?Output = @splat(null) },
+    turn: Turn,
     deliver: struct { pid: u64, output: u64, courier: u8 },
     dispatch: struct { pid: u64, effect: u64, reconcile_before_ms: ?u64 = null, max_observations: u16 = max_effect_observations },
     observe: struct { pid: u64, effect: u64, attempt: u64, result: ?Value },
@@ -173,6 +175,7 @@ pub const fixtures = struct {
 };
 test {
     _ = Inspection;
+    _ = State;
     _ = Value;
     _ = @import("tests.zig");
 }
