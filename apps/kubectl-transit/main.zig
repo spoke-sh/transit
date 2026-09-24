@@ -17,10 +17,10 @@ const help =
     \\  --timeout SECONDS  Query deadline, 1..120 (default: 15)
     \\  --help / -h        --version
     \\
-    \\Components: node, board, maintenance, ursula, initialize.
+    \\Components: node, board, maintenance, controller, ursula, initialize.
     \\Namespace defaults to the selected kubeconfig context's namespace.
     \\Readiness and logs are Kubernetes observations, not Transit execution authority.
-    \\Reference up creates infrastructure; deploy a Transit chart to discover a release.
+    \\Reference up deploys Transit; reference infra-up creates only provider infrastructure.
     \\Board authentication remains required. No Secrets are fetched or contexts changed.
     \\
 ;
@@ -116,7 +116,7 @@ fn parse(args: []const []const u8) !Options {
         options.command = .board;
     } else if (count == 2 and eql(words[0], "logs")) {
         options.command = .logs;
-        for ([_][]const u8{ "node", "board", "maintenance", "ursula", "initialize" }) |component| {
+        for ([_][]const u8{ "node", "board", "maintenance", "controller", "ursula", "initialize" }) |component| {
             if (eql(words[1], component)) options.component = component;
         }
         if (options.component == null) return error.UnknownComponent;
@@ -268,7 +268,7 @@ const App = struct {
         const list = try items(result.value);
         if (list.len == 0 and self.options.command != .installations) return error.ResourceNotFound;
         if (self.options.json) return self.out.writeAll(result.raw);
-        if (list.len == 0) return self.out.writeAll("No Transit installations found. Reference up creates infrastructure; deploy a Transit chart release to inspect it.\n");
+        if (list.len == 0) return self.out.writeAll("No Transit installations found. Reference up deploys Transit; reference infra-up creates only provider infrastructure.\n");
         try self.out.writeAll("NAMESPACE\tRELEASE\tCOMPONENT\tKIND\tNAME\tOBSERVED\n");
         for (list) |item| {
             const metadata = try member(item, "metadata");

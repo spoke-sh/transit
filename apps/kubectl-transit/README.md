@@ -21,9 +21,9 @@ kubectl transit board --namespace demo --release transit --port-forward
 ```
 
 The [project environment](../../nix/README.md#kubernetes-tools) selects the
-reference kubeconfig automatically. Reference `up` creates Substrate infrastructure;
-Transit discovery is empty until a chart release is deployed. The reference
-recovery proof's application release is temporary.
+reference kubeconfig automatically. Reference `up` deploys the persistent Transit
+application; `infra-up` creates only provider infrastructure. Transit discovery
+lists deployed chart releases. Recovery proofs use separate temporary releases.
 
 Put `--kubeconfig`, `--context`, `--namespace` / `-n`, and plugin options **after
 `transit`**. They may precede or follow the subcommand. Namespace defaults to the
@@ -47,12 +47,13 @@ json` / `-o json` returns Kubernetes' native list unchanged for `get` and `statu
 Empty discovery succeeds; an empty targeted status/view fails. Denied reads and
 connection failures preserve kubectl's diagnostic and exit status.
 
-`logs` supports `node`, `board`, `maintenance`, `ursula`, and `initialize`.
+`logs` supports `node`, `board`, `maintenance`, `controller`, `ursula`, and `initialize`.
 It prefixes pod/container names, includes all containers, and defaults to 100
 lines per container. `--tail` accepts 0–10000; live follow allows at most five
-concurrent streams. Kubernetes log rotation and deletion still apply. The host
-runtime controller is not a chart workload; Substrate Actor/worker diagnostics
-remain available through `kubectl ate`. Service logs are not durable protocol history.
+concurrent streams. Kubernetes log rotation and deletion still apply. `controller`
+reads the optional in-cluster controller; the isolated recovery proof keeps its
+fault-injected controller on the host. Substrate Actor/worker diagnostics remain
+available through `kubectl ate`. Service logs are not durable protocol history.
 
 ## Board access
 

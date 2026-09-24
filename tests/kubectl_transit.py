@@ -142,10 +142,11 @@ def run(binary):
         assert "service/custom-inspection" in args and "18102:8080" in args
         assert "--address=127.0.0.1" in args and "--selector" not in args
         assert args[args.index("--namespace") + 1] == "demo"
-        invoke("logs", "node", "--release", "example", "-n", "demo", "--tail", "42")
-        args = json.loads(calls.read_text().splitlines()[-1])
-        assert "--tail=42" in args and "--prefix=true" in args
-        assert "app.kubernetes.io/instance=example,app.kubernetes.io/component=node" in args[args.index("--selector") + 1]
+        for component in ("node", "controller"):
+            invoke("logs", component, "--release", "example", "-n", "demo", "--tail", "42")
+            args = json.loads(calls.read_text().splitlines()[-1])
+            assert "--tail=42" in args and "--prefix=true" in args
+            assert "app.kubernetes.io/instance=example,app.kubernetes.io/component=" + component in args[args.index("--selector") + 1]
         for origin in ["https://board.example.test", "http://board.example.test:18102", "http://localhost:18102"]:
             setup(origin)
             assert invoke("board", "--release", "example").stdout.strip() == origin
