@@ -245,7 +245,7 @@ its `build.zig.zon`, pinned to an immutable revision URL and Zig package hash.
 The upstream client exports the `ursula` module;
 see its
 [build integration](https://github.com/rupurt/ursula-zig/blob/2d507829429d4199f411df02df9cc937bf624144/docs/usage.md).
-The adapter now pins that revision and its Zig package hash; `just build` and
+The adapter now pins that revision and its Zig package hash; `just build::debug apps` and
 `just test::storage` compile and exercise the consuming backend. The Git URL avoids
 a tarball-root handling failure observed in this pinned compiler's build fetch.
 

@@ -40,7 +40,7 @@ zig-out/bin/example-counter counter.json
 zig-out/bin/example-byte-log byte-log.json
 ```
 
-`just build` installs platform commands (`transit-node`, `transit-runtime-controller`,
+`just build::debug apps` installs platform commands (`transit-node`, `transit-runtime-controller`,
 `rey-cli`). `just examples::build` installs the two example applications. The root
 Zig build supplies their sole library dependency, `transit-client`; no example
 imports `transit-core`, Ursula or a deployment provider.

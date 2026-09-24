@@ -4,11 +4,13 @@ Run commands from the repository root inside `nix develop`.
 
 ## Task interface
 
-The root [justfile](../justfile) keeps common commands: `build`, `check`, `ci`,
+The root [justfile](../justfile) keeps common commands: `check`, `ci`,
 `fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
-[launchers](launchers.just), [test](test.just),
+[build](build.just), [launchers](launchers.just), [test](test.just),
 [examples](examples.just), [contract](contract.just), and [board](board.just).
 Use double colons, for example `just launchers::reference::up` or `just examples::run counter`.
+Space-separated module paths also work: `just build debug` is equivalent to
+`just build::debug`.
 
 `just` lists common commands and namespaces. `just launchers` lists environment
 groups; `just launchers::local` or `just --list launchers local` lists one
@@ -29,7 +31,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just check` | Checks Nix/Zig formatting, the toolchain smoke check, Zig unit tests, generated public-contract drift, local Markdown links, and diff whitespace |
 | `just ci` | Runs foundation, package, telemetry, recovery, caller, inspection, Board API/frontend and local launcher checks in the same development shell |
 | `just fmt` | Formats Nix and Zig files |
-| `just build` | Installs platform executables: node, runtime controller, CLI and embedded Board (requires `board::install`) |
+| `just build` | Lists Zig build profiles |
+| `just build::debug`, `just build::release-safe`, `just build::release-fast`, `just build::release-small` | Builds platform executables and embedded Board with the selected optimization profile; accepts Zig steps/options |
 | `just examples::build` | Installs `example-counter` and `example-byte-log` |
 | `just examples::run counter`, `just examples::run byte-log` | Provisions disposable disk Ursula and an authority, runs the real example, and verifies its committed state |
 | `just board::install`, `just board::demo` | Install locked frontend dependencies and inspect a disposable counter realm |
@@ -64,3 +67,35 @@ For prerequisites, proof boundaries, and troubleshooting, use the
 
 `just test::inspection` exercises the signed, bounded public read surface against
 isolated disk-backed Ursula.
+
+## Build profiles
+
+The [build module](build.just) exposes Zig's four optimization modes:
+
+| Command | Pinned Zig option | Purpose | Runtime safety checks |
+| --- | --- | --- | --- |
+| `just build::debug` | `-Doptimize=debug` | Development and debugging | Enabled |
+| `just build::release-safe` | `-Doptimize=safe` | Optimized execution with safety checks | Enabled |
+| `just build::release-fast` | `-Doptimize=fast` | Optimize for speed | Disabled by default |
+| `just build::release-small` | `-Doptimize=small` | Optimize for executable size | Disabled by default |
+
+Bare `just build` lists these choices. With no further arguments, each profile
+installs `transit-node`, `transit-runtime-controller`, `rey-cli`, and Board with
+its embedded UI into `zig-out/bin`. Install frontend dependencies first with
+`just board::install`. Zig caches each optimization mode separately, but the
+default installation directory is shared: the most recent build replaces those
+binaries. Use `--prefix` to keep separate outputs.
+
+Arguments after the profile pass directly to `zig build`, preserving quoting:
+
+```sh
+just build::debug apps                 # Platform commands without the Board UI
+just build::release-safe examples      # The example callers
+just build::release-safe apps examples board --prefix zig-out/release-safe
+just build::release-small apps -Dtarget=x86_64-linux-musl
+```
+
+These profiles select Zig optimization. Board's frontend still uses its Vite+
+build pipeline in every mode. Launcher, example and Board workflows retain
+their own build defaults; choosing a profile here does not change a subsequent
+launcher's build mode or its configured binary paths.

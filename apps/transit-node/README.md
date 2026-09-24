@@ -11,7 +11,7 @@ application handlers run in client programs.
 From the repository root in `nix develop`:
 
 ```sh
-just build
+just build::debug apps
 zig-out/bin/transit-node CONFIG.json
 ```
 

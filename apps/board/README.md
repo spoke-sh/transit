@@ -28,7 +28,8 @@ just board::build
 zig-out/bin/board /absolute/path/board.json
 ```
 
-`just build` also installs Board. Building requires the locked frontend dependencies;
+`just build::debug` also installs Board; use another [build profile](../../tasks/README.md#build-profiles)
+for optimized executables. Building requires the locked frontend dependencies;
 running the resulting binary requires neither Node nor a checkout/assets directory.
 The build embeds up to 128 files / 8 MiB, with no external fonts, CDNs, or runtime
 downloads. Static assets and `/openapi/v1.json` are public; installation data is not.

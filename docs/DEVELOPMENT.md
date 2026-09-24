@@ -8,8 +8,11 @@ just doctor
 just check
 ```
 
-`just board::install` installs locked frontend dependencies. `just build` builds
-platform executables including the embedded Board. Use
+`just board::install` installs locked frontend dependencies. `just build` lists
+the Zig optimization profiles; `just build::debug` builds platform executables
+including the embedded Board. Use `just build::release-safe` for an optimized
+build with safety checks; see the [build profiles](../tasks/README.md#build-profiles)
+for other modes, component selection and output paths. Use
 `just launchers::local::up` for a persistent native system with Board and the
 counter example, then `status`, `inspect`, `logs`, `send`, or `restart` in that
 same task group. `down` preserves data; `reset` explicitly deletes a stopped

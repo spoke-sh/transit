@@ -46,8 +46,9 @@ Deployment definitions are checked in: [Process Compose](process-compose.yaml),
 [Docker Compose](docker-compose.yaml), and the [Transit Helm chart](charts/transit/README.md).
 
 The [examples](examples/README.md) also offer disposable calling-program demos.
-`just build` builds executables; `just ci` runs the local checks and proofs.
-Frontend dependencies are required by both. Run `just` to browse all tasks.
+`just build` lists the build profiles; `just build::debug` builds executables.
+`just ci` runs the local checks and proofs. Frontend dependencies are required by
+both the default executable build and CI. Run `just` to browse all tasks.
 
 ## Find your way
 

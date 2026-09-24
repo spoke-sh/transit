@@ -1,5 +1,8 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+# Compile executables with an explicit Zig optimization profile.
+mod build 'tasks/build.just'
+
 # Embedded inspection API, UI and generated browser client.
 mod board 'tasks/board.just'
 
@@ -49,10 +52,6 @@ check:
 
 # Run the hosted CI checks within one already-entered development environment.
 ci: check test::deployments test::telemetry test::observability test::packages test::storage test::service test::callers test::inspection board::check board::test launchers::local::test
-
-# Compile platform executables and the standalone Board UI/API.
-build:
-    zig build
 
 # Format Nix and Zig source.
 fmt:

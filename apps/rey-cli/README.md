@@ -7,7 +7,7 @@ raw Ursula or provider access; operators still need current Transit grants.
 
 ## Build and use
 
-From the repository root in `nix develop`, run `just build`, then:
+From the repository root in `nix develop`, run `just build::debug apps`, then:
 
 ```sh
 zig-out/bin/rey-cli public-key PRIVATE_SEED_FILE

@@ -11,7 +11,7 @@ or pod never grants ownership by itself.
 From the repository root in `nix develop`:
 
 ```sh
-just build
+just build::debug apps
 zig-out/bin/transit-runtime-controller CONFIG.json
 zig-out/bin/transit-runtime-controller CONFIG.json --once
 ```
