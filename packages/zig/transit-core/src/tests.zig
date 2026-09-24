@@ -751,6 +751,108 @@ test "provider observations cannot grant ownership; activation rotates keys atom
     try t.expectError(error.ResourceAlreadyBound, f.submit(&terminator, 0, .{ .runtime_intent = intent }));
 }
 
+test "workload upgrade preserves PID and unfinished work while fencing every prior activation" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.inspect) | core.permission(.effect), .pid = pid } });
+    const first = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(7) } });
+    const committed = try f.submit(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = first, .result = core.Value.integer(7), .effect = core.Value.integer(11) } });
+    const pending = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } });
+    _ = try f.submit(&e, 0, .{ .grant = .{ .subject = 1, .public_key = f.worker.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.inspect), .pid = pid } });
+    var intent: core.Runtime.Intent = .{ .pid = pid, .expected_revision = 0, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) };
+    const created = try f.submit(&e, 0, .{ .runtime_intent = intent });
+    _ = try f.submit(&e, 0, .{ .runtime_observe = .{ .pid = pid, .revision = 1, .operation = created, .incarnation = @splat(4), .outcome = .ready } });
+    f.worker = try core.Ed25519.KeyPair.generateDeterministic(@splat(10));
+    _ = try f.submit(&e, 0, .{ .activate = .{ .pid = pid, .revision = 1, .expected_generation = 2, .worker = 1, .public_key = f.worker.public_key.toBytes(), .worker_incarnation = @splat(5) } });
+    const permit = try f.submit(&e, 1, .{ .begin_turn = .{ .pid = pid, .generation = 3, .input = pending } });
+    const stale_turn = try f.request(&e, 1, .{ .turn = .{ .pid = pid, .generation = 3, .input = pending, .result = core.Value.integer(16), .permit = permit } });
+    var upgrade: core.Runtime.Upgrade = .{ .pid = pid, .expected_revision = 1, .expected_workload = @splat(3), .workload = @splat(6), .expected_code = 1, .expected_state_revision = committed };
+    try t.expectError(error.Forbidden, f.submit(&e, 1, .{ .runtime_upgrade = upgrade }));
+    try t.expectError(error.ProviderNotReady, f.submit(&e, 0, .{ .runtime_upgrade = upgrade }));
+    intent.expected_revision = 1;
+    intent.desired = .stopped;
+    const stopping = try f.submit(&e, 0, .{ .runtime_intent = intent });
+    try t.expectError(error.StaleGeneration, e.submit(stale_turn));
+    upgrade.expected_revision = 2;
+    try t.expectError(error.ProviderNotReady, f.submit(&e, 0, .{ .runtime_upgrade = upgrade }));
+    _ = try f.submit(&e, 0, .{ .runtime_observe = .{ .pid = pid, .revision = 2, .operation = stopping, .incarnation = @splat(4), .outcome = .stopped } });
+    upgrade.expected_code = 2;
+    try t.expectError(error.UnsupportedWorkload, f.submit(&e, 0, .{ .runtime_upgrade = upgrade }));
+    upgrade.expected_code = 1;
+    upgrade.expected_state_revision = 0;
+    try t.expectError(error.StaleState, f.submit(&e, 0, .{ .runtime_upgrade = upgrade }));
+    upgrade.expected_state_revision = committed;
+    upgrade.expected_workload = @splat(7);
+    try t.expectError(error.StaleBinding, f.submit(&e, 0, .{ .runtime_upgrade = upgrade }));
+    upgrade.expected_workload = @splat(3);
+    const signed = try f.request(&e, 0, .{ .runtime_upgrade = upgrade });
+    f.store.fail_ack = true;
+    try t.expectError(error.LostAcknowledgement, e.submit(signed));
+    var recovered = try Engine.open(&f.store, f.genesis);
+    const operation = try recovered.submit(signed);
+    const after = (try recovered.state.process(pid)).*;
+    try t.expectEqual(committed, after.revision);
+    try t.expectEqualSlices(u8, "7", after.state.slice());
+    try t.expectEqual(@as(u64, 2), after.admitted);
+    try t.expectEqual(@as(u64, 1), after.consumed);
+    try t.expectEqual(permit, after.turn_permit.?.id);
+    try t.expectEqual(.pending, (try recovered.state.effect(committed)).phase);
+    try t.expectEqual(@as(?u8, null), after.owner);
+    try t.expectEqual(@as(?[32]u8, @splat(3)), after.binding.?.upgrade_from);
+    try t.expectEqual(@as(?[16]u8, @splat(4)), after.binding.?.incarnation);
+    intent.expected_revision = 3;
+    intent.workload = @splat(6);
+    intent.desired = .running;
+    try t.expectError(error.PendingProviderOperation, f.submit(&recovered, 0, .{ .runtime_intent = intent }));
+    var observed: core.Runtime.Observation = .{ .pid = pid, .revision = 3, .operation = operation, .incarnation = @splat(4), .outcome = .ready };
+    try t.expectError(error.InvalidBinding, f.submit(&recovered, 0, .{ .runtime_observe = observed }));
+    observed.outcome = .unknown;
+    _ = try f.submit(&recovered, 0, .{ .runtime_observe = observed });
+    var again = try Engine.open(&f.store, f.genesis);
+    observed.outcome = .stopped;
+    _ = try f.submit(&again, 0, .{ .runtime_observe = observed });
+    const resuming = try f.submit(&again, 0, .{ .runtime_intent = intent });
+    observed = .{ .pid = pid, .revision = 4, .operation = resuming, .incarnation = @splat(4), .outcome = .ready };
+    _ = try f.submit(&again, 0, .{ .runtime_observe = observed });
+    const fresh = try core.Ed25519.KeyPair.generateDeterministic(@splat(11));
+    var activate: core.Runtime.Activate = .{ .pid = pid, .revision = 4, .expected_generation = 6, .worker = 1, .public_key = fresh.public_key.toBytes(), .worker_incarnation = @splat(5) };
+    try t.expectError(error.StaleWorkerIncarnation, f.submit(&again, 0, .{ .activate = activate }));
+    activate.worker_incarnation = @splat(8);
+    _ = try f.submit(&again, 0, .{ .activate = activate });
+    try t.expectError(error.SignatureVerificationFailed, again.submit(stale_turn));
+    f.worker = fresh;
+    _ = try f.submit(&again, 1, .{ .turn = .{ .pid = pid, .generation = 7, .input = pending, .result = core.Value.integer(16), .permit = permit } });
+    try t.expectEqualSlices(u8, "16", (try again.state.process(pid)).state.slice());
+    _ = try f.submit(&again, 0, .{ .terminate = pid });
+    try t.expectError(error.RetiredProcess, f.submit(&again, 0, .{ .runtime_upgrade = upgrade }));
+}
+
+test "workload upgrade cannot extend finite work or settlement lifetime" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    f.genesis.max_clock_error_ms = 0;
+    var clock: TestClock = .{ .now = .{ .unix_ms = 10 } };
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    e.clock = clock.source();
+    const pid = try f.submit(&e, 0, .{ .spawn = .{ .deadline_ms = 100, .settle_before_ms = 200 } });
+    const stop = try f.submit(&e, 0, .{ .runtime_intent = .{ .pid = pid, .expected_revision = 0, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3), .desired = .stopped } });
+    _ = try f.submit(&e, 0, .{ .runtime_observe = .{ .pid = pid, .revision = 1, .operation = stop, .incarnation = @splat(4), .outcome = .stopped } });
+    const upgrade: core.Command = .{ .runtime_upgrade = .{ .pid = pid, .expected_revision = 1, .expected_workload = @splat(3), .workload = @splat(6), .expected_code = 1, .expected_state_revision = 0 } };
+    clock.now.unix_ms = 100;
+    try t.expectError(error.DeadlineExpired, f.submit(&e, 0, upgrade));
+    // Rejection appended no time evidence. Accept before cutoff, then retire
+    // while the external template switch remains outstanding.
+    clock.now.unix_ms = 99;
+    const operation = try f.submit(&e, 0, upgrade);
+    clock.now.unix_ms = 200;
+    _ = try f.submit(&e, 0, .{ .expire = pid });
+    _ = try f.submit(&e, 0, .{ .runtime_observe = .{ .pid = pid, .revision = 2, .operation = operation, .incarnation = @splat(4), .outcome = .stopped } });
+    try t.expectError(error.RetiredProcess, f.submit(&e, 0, upgrade));
+    try t.expectEqual(.expired, (try e.state.process(pid)).lifecycle);
+}
+
 fn seedOutbox(f: *Fixture, e: anytype) !void {
     for (0..3) |_| _ = try f.submit(e, 0, .{ .spawn = .{ .allow_trim = true } });
     _ = try f.submit(e, 0, .{ .own = .{ .pid = 3, .worker = 0, .expected_generation = 0 } });

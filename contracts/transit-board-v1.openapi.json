@@ -1838,6 +1838,7 @@
                                 "incarnation",
                                 "desired",
                                 "phase",
+                                "upgrade_from",
                                 "activation",
                                 "last_worker_incarnation"
                               ],
@@ -1927,6 +1928,25 @@
                                     "stopped"
                                   ]
                                 },
+                                "upgrade_from": {
+                                  "anyOf": [
+                                    {
+                                      "type": "array",
+                                      "minItems": 32,
+                                      "maxItems": 32,
+                                      "items": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 255,
+                                        "x-transit-bits": 8,
+                                        "x-transit-signed": false
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
                                 "activation": {
                                   "anyOf": [
                                     {
@@ -2003,6 +2023,7 @@
                               "x-transit-defaults": {
                                 "incarnation": null,
                                 "phase": "pending",
+                                "upgrade_from": null,
                                 "activation": null,
                                 "last_worker_incarnation": null
                               }
@@ -2118,7 +2139,8 @@
                             "declare_payload",
                             "payload_ready",
                             "retire_payload",
-                            "payload_deleted"
+                            "payload_deleted",
+                            "runtime_upgrade"
                           ]
                         },
                         "policy_revision": {

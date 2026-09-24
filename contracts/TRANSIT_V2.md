@@ -134,12 +134,33 @@ worker before activation. Recovery preserves the process and provider resource;
 stale keys, binding revisions, and generations remain fenced. Binding and key
 evidence survive checkpoint/trim. Two PIDs cannot bind the same provider resource.
 
-M1 pins one association/workload and requires a different physical worker
-incarnation and fresh key for replacement. Migration, provider-resource
-replacement, native-code upgrades, and reusing a pod for another activation are
-rejected until their own recovery contracts exist. Unresolved provider operations
-must reconcile before starting another. An operator's provider observations are
-trusted input, not cryptographic proof of physical placement.
+`runtime_upgrade` changes a workload on the same provider resource and PID.
+It requires admin authority, the expected binding revision and old workload,
+a stopped reconciled binding with known incarnation and no active owner, and
+an exact expected application `code` and committed state revision. The target
+workload must be different and nonzero. This is a caller declaration of state
+compatibility; the kernel cannot verify arbitrary application computation or
+convert its opaque state.
+
+Acceptance advances the binding revision, operation and ownership generation,
+records `upgrade_from`, and leaves the target workload pending with desired
+state stopped. `runtime_observe` may record unknown or stopped with the same
+incarnation; ready and null-incarnation observations are rejected. Only stopped
+readback clears `upgrade_from`. An unresolved upgrade forbids another intent;
+resumption requires a subsequent running intent and fresh activation. The PID,
+state revision, unfinished turn permit, mailbox, outboxes and effects remain
+unchanged. Neither replay nor upgrading authorizes effect redispatch.
+
+An upgrade must begin before the process's work cutoff, even when an existing
+turn could still settle. Retirement during reconciliation permits stopped
+provider evidence but never renewed execution. Failed processes cannot upgrade
+through this transition. Pre-upgrade checkpoints remain readable: absent
+`upgrade_from` means no outstanding switch and is omitted from canonical output.
+
+The association remains fixed; activation requires a different physical worker
+incarnation and fresh key. Provider-resource replacement, state conversion and
+reusing a pod for another activation remain unsupported. An operator's provider
+observations are trusted input, not cryptographic proof of physical placement.
 
 ## Process outboxes
 

@@ -167,7 +167,7 @@ pub const State = struct {
         if (request.version != protocol.version or request.realm != self.realm) return error.WrongProtocolRealm;
         const p = try self.principal(request.principal);
         const required: Permission = switch (request.command) {
-            .grant, .revoke, .own, .terminate, .expire, .checkpoint, .deliver, .runtime_intent, .runtime_observe, .activate => .admin,
+            .grant, .revoke, .own, .terminate, .expire, .checkpoint, .deliver, .runtime_intent, .runtime_observe, .activate, .runtime_upgrade => .admin,
             .declare_payload, .payload_ready, .retire_payload, .payload_deleted => .admin,
             .spawn => .spawn,
             .send => .send,
@@ -181,6 +181,7 @@ pub const State = struct {
             .payload_ready, .retire_payload, .payload_deleted => |c| c.pid,
             .own => |c| c.pid,
             .runtime_intent => |c| c.pid,
+            .runtime_upgrade => |c| c.pid,
             .runtime_observe => |c| c.pid,
             .activate => |c| c.pid,
             .send => |c| c.pid,
@@ -315,9 +316,9 @@ pub const State = struct {
                 const previous = p.binding;
                 if (c.expected_revision != (if (previous) |old| old.revision else @as(u64, 0))) return error.StaleBinding;
                 if (previous) |old| {
-                    if (old.phase == .pending or old.phase == .unknown) return error.PendingProviderOperation;
-                    // M1 pins one association and workload. Provider replacement
-                    // or migration requires an explicit future retirement protocol.
+                    if (old.phase == .pending or old.phase == .unknown or old.upgrade_from != null) return error.PendingProviderOperation;
+                    // Intents never replace identity or code. Workload changes
+                    // require the separately guarded runtime_upgrade transition.
                     if (!std.meta.eql(c.instance, old.instance) or !std.meta.eql(c.resource, old.resource) or !std.meta.eql(c.workload, old.workload)) return error.BindingReplacementUnsupported;
                 }
                 if (std.mem.allEqual(u8, &c.instance, 0) or std.mem.allEqual(u8, &c.resource, 0) or std.mem.allEqual(u8, &c.workload, 0)) return error.InvalidBinding;
@@ -339,11 +340,28 @@ pub const State = struct {
                 p.owner = null;
                 p.generation = try std.math.add(u64, p.generation, 1);
             },
+            .runtime_upgrade => |c| {
+                const p = try self.process(c.pid);
+                try self.newWork(p, record);
+                const binding = if (p.binding) |*b| b else return error.InvalidBinding;
+                if (binding.revision != c.expected_revision or !std.meta.eql(binding.workload, c.expected_workload)) return error.StaleBinding;
+                if (binding.phase != .stopped or binding.desired != .stopped or binding.incarnation == null or binding.upgrade_from != null) return error.ProviderNotReady;
+                if (p.owner != null or binding.activation != null) return error.ProviderNotReady;
+                if (c.expected_state_revision != p.revision) return error.StaleState;
+                if (c.expected_code != p.code or std.meta.eql(c.workload, binding.workload) or std.mem.allEqual(u8, &c.workload, 0)) return error.UnsupportedWorkload;
+                binding.upgrade_from = binding.workload;
+                binding.workload = c.workload;
+                binding.revision = try std.math.add(u64, binding.revision, 1);
+                binding.operation = record.position;
+                binding.phase = .pending;
+                p.generation = try std.math.add(u64, p.generation, 1);
+            },
             .runtime_observe => |c| {
                 const p = try self.process(c.pid);
                 const binding = if (p.binding) |*b| b else return error.InvalidBinding;
                 if (c.revision != binding.revision or c.operation != binding.operation) return error.StaleBinding;
                 if (binding.phase != .pending and binding.phase != .unknown) return error.ProviderOperationClosed;
+                if (binding.upgrade_from != null and (c.outcome == .ready or c.incarnation == null)) return error.InvalidBinding;
                 if (c.incarnation) |id| {
                     if (std.mem.allEqual(u8, &id, 0)) return error.InvalidBinding;
                     if (binding.incarnation) |old| if (!std.meta.eql(old, id)) return error.ProviderIncarnationMismatch;
@@ -358,6 +376,7 @@ pub const State = struct {
                     .stopped => {
                         if (binding.desired != .stopped and p.lifecycle == .running) return error.InvalidBinding;
                         binding.phase = .stopped;
+                        binding.upgrade_from = null;
                     },
                 }
             },
@@ -618,6 +637,7 @@ pub const State = struct {
             .close_effect => |c| return c.reason == .deadline,
             .own => |c| c.pid,
             .activate => |c| c.pid,
+            .runtime_upgrade => |c| c.pid,
             .runtime_intent => |c| if (c.desired == .running) c.pid else return false,
             .send => |c| c.pid,
             .begin_turn => |c| c.pid,

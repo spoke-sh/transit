@@ -96,6 +96,7 @@ pub const Command = union(enum) {
     payload_ready: PayloadRef,
     retire_payload: PayloadRef,
     payload_deleted: PayloadRef,
+    runtime_upgrade: Runtime.Upgrade,
 };
 pub const Request = struct {
     version: u32 = version,

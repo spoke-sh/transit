@@ -75,3 +75,31 @@ test "every full command fits canonical signing and the bounded journal envelope
         _ = transit.digest(request);
     }
 }
+
+test "runtime binding keeps legacy checkpoint bytes and accepts optional upgrade evidence" {
+    const legacy = .{
+        .revision = @as(u64, 2),
+        .operation = @as(u64, 10),
+        .instance = @as([16]u8, @splat(1)),
+        .resource = @as([32]u8, @splat(2)),
+        .workload = @as([32]u8, @splat(3)),
+        .incarnation = @as(?[16]u8, @splat(4)),
+        .desired = "stopped",
+        .phase = "stopped",
+        .activation = @as(?transit.Runtime.Activation, null),
+        .last_worker_incarnation = @as(?[16]u8, @splat(5)),
+    };
+    const bytes = try std.json.Stringify.valueAlloc(t.allocator, legacy, .{});
+    defer t.allocator.free(bytes);
+    var parsed = try std.json.parseFromSlice(transit.Runtime.Binding, t.allocator, bytes, .{});
+    defer parsed.deinit();
+    const canonical = try std.json.Stringify.valueAlloc(t.allocator, parsed.value, .{});
+    defer t.allocator.free(canonical);
+    try t.expectEqualStrings(bytes, canonical);
+    parsed.value.upgrade_from = @splat(6);
+    const pending = try std.json.Stringify.valueAlloc(t.allocator, parsed.value, .{});
+    defer t.allocator.free(pending);
+    var recovered = try std.json.parseFromSlice(transit.Runtime.Binding, t.allocator, pending, .{});
+    defer recovered.deinit();
+    try t.expectEqual(@as(?[32]u8, @splat(6)), recovered.value.upgrade_from);
+}

@@ -67,6 +67,9 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
             try out.objectField("required");
             try out.beginArray();
             inline for (info.field_names, info.field_types, info.field_attrs) |name, F, attrs| {
+                // Runtime bindings omit absent upgrade evidence to preserve
+                // checkpoint serialization from before the upgrade extension.
+                if (comptime T == p.Runtime.Binding and std.mem.eql(u8, name, "upgrade_from")) continue;
                 if (comptime options.output or attrs.defaultValue(F) == null) try out.write(name);
             }
             try out.endArray();

@@ -111,3 +111,10 @@ control evidence through actual disk WAL interruption.
 checks the final authority tail before disclosure. It filters every PID and both
 endpoints of outbox relationships; no raw administrative records escape. The
 [inspection contract](../../../contracts/INSPECTION_V1.md) owns wire guarantees.
+
+Same-PID workload changes use the guarded `runtime_upgrade` transition in the
+[v2 contract](../../../contracts/TRANSIT_V2.md#runtime-bindings-and-activation).
+It preserves opaque state and pending work while recording a stopped provider
+switch; it does not perform state migration. Unit tests cover stale owners,
+permissions, incompatible declarations, lost acknowledgements and expiry; the
+disk runtime proof checkpoints and trims with a switch outstanding.
