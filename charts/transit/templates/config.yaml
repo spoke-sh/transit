@@ -7,7 +7,7 @@
 {{- if and .Values.board.enabled (not .Values.node.enabled) }}
 {{- fail "board requires node.enabled in this chart" }}
 {{- end }}
-{{- range $component := list "node" "ursula" "maintenance" "board" }}
+{{- range $component := list "node" "ursula" "maintenance" "board" "controller" }}
 {{- $settings := index $.Values $component }}
 {{- if or $settings.enabled (and (eq $component "node") $.Values.initialize.enabled) }}
 {{- $ctx := dict "root" $ "component" $component }}
@@ -21,5 +21,23 @@ metadata:
 data:
   {{ if eq $component "ursula" }}ursula.toml{{ else }}config.json{{ end }}: |
     {{- include "transit.config" $ctx | nindent 4 }}
+  {{- if eq $component "controller" }}
+  egress.json: {{ dict "rules" (list (dict "hostnames" (dict "patterns" (list $settings.config.provider.authority_host)))) | toJson | quote }}
+  kubeconfig: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+      - name: cluster
+        cluster:
+          server: https://kubernetes.default.svc
+          certificate-authority: /provider/ca.crt
+    users:
+      - name: controller
+        user: {tokenFile: /provider/kube-token}
+    contexts:
+      - name: controller
+        context: {cluster: cluster, user: controller}
+    current-context: controller
+  {{- end }}
 {{- end }}
 {{- end }}

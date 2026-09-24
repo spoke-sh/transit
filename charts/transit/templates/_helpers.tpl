@@ -45,6 +45,17 @@ app: {{ include "transit.name" . | quote }}
 {{- toJson $config -}}
 {{- else if eq .component "board" -}}
 {{- include "transit.boardConfig" .root -}}
+{{- else if eq .component "controller" -}}
+{{- $config := deepCopy .root.Values.controller.config -}}
+{{- $_ := required "controller.config.provider is required" $config.provider -}}
+{{- $_ := set $config "url" (printf "http://%s:8080" (include "transit.name" (dict "root" .root "component" "node"))) -}}
+{{- $_ := set $config "seed_file" "/secrets/seed" -}}
+{{- $_ := set $config.provider "kubeconfig" "/config/kubeconfig" -}}
+{{- $_ := set $config.provider "context" "controller" -}}
+{{- $_ := set $config.provider "endpoint" .root.Values.controller.providerEndpoint -}}
+{{- $_ := set $config.provider "token_file" "/provider/token" -}}
+{{- $_ := set $config.provider "egress_policy_file" "/config/egress.json" -}}
+{{- toJson $config -}}
 {{- else -}}
 [server]
 listen = "0.0.0.0:8080"

@@ -1,4 +1,4 @@
-{{- range $component := list "node" "ursula" "maintenance" "board" "initialize" }}
+{{- range $component := list "node" "ursula" "maintenance" "board" "initialize" "controller" }}
 {{- $settings := index $.Values $component }}
 {{- if $settings.enabled }}
 {{- $ctx := dict "root" $ "component" $component }}
@@ -19,7 +19,7 @@ spec:
   activeDeadlineSeconds: 120
   {{- else }}
   # The qualified profile has one authority and one maintenance reconciler.
-  replicas: 1
+  replicas: {{ ternary 1 0 $.Values.running }}
   strategy: {type: Recreate}
   selector:
     matchLabels:
@@ -33,6 +33,9 @@ spec:
         checksum/config: {{ include "transit.config" $configCtx | sha256sum }}
     spec:
       automountServiceAccountToken: false
+      {{- if eq $component "controller" }}
+      serviceAccountName: {{ include "transit.name" $ctx }}
+      {{- end }}
       {{- if eq $component "initialize" }}
       restartPolicy: Never
       {{- end }}
@@ -99,8 +102,11 @@ spec:
             - {name: config, mountPath: /config, readOnly: true}
             {{- if eq $component "ursula" }}
             - {name: data, mountPath: /data}
-            {{- else if has $component (list "maintenance" "board") }}
+            {{- else if has $component (list "maintenance" "board" "controller") }}
             - {name: secrets, mountPath: /secrets, readOnly: true}
+            {{- if eq $component "controller" }}
+            - {name: provider, mountPath: /provider, readOnly: true}
+            {{- end }}
             {{- end }}
         {{- if eq $component "board" }}
         {{- with $settings.extraContainers }}
@@ -115,11 +121,22 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: {{ default (include "transit.name" $ctx) $settings.persistence.existingClaim }}
-        {{- else if has $component (list "maintenance" "board") }}
+        {{- else if has $component (list "maintenance" "board" "controller") }}
         - name: secrets
           secret:
             secretName: {{ required (printf "%s.existingSecret is required; never put credentials in values" $component) $settings.existingSecret }}
             defaultMode: 288
+        {{- if eq $component "controller" }}
+        - name: provider
+          projected:
+            defaultMode: 288
+            sources:
+              - serviceAccountToken: {path: token, audience: {{ $settings.providerAudience | quote }}, expirationSeconds: 3600}
+              - serviceAccountToken: {path: kube-token, expirationSeconds: 3600}
+              - configMap:
+                  name: kube-root-ca.crt
+                  items: [{key: ca.crt, path: ca.crt}]
+        {{- end }}
         {{- end }}
 {{- end }}
 {{- end }}

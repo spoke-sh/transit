@@ -2,7 +2,7 @@
 
 [Transit](../../docs/TRANSIT.md) is the streaming runtime subsystem. This chart
 packages its current single-realm deployment: a node, disk-backed Ursula,
-optional maintenance, optional [Board](../../apps/transit-board/README.md), and optional
+optional maintenance, [Board](../../apps/transit-board/README.md), a runtime controller, and
 Agent Substrate worker capacity. Rey is the containing monorepo and application
 context; it is not the chart's name.
 
@@ -24,6 +24,8 @@ and validated by their binaries; the chart does not duplicate those schemas.
 | `initialize` | Explicit one-time Job using the node image/config. Disabled by default and never an automatic Helm hook. |
 | `maintenance` | Optional separate single-replica Deployment and ConfigMap. Supply `existingSecret` containing `seed` and `config.principal` with its recorded admin/effect grant. Uses the node image with `--maintain`. |
 | `board` | Optional Deployment, private Service and ConfigMap. Supply `image`, `existingSecret` containing `seed` and `access`, and `config` with realm, inspection principal and public origin. |
+| `controller` | Optional one-PID Recreate Deployment with a PID-scoped Transit seed, projected provider/API tokens, public trust-bundle read permission and namespace-local worker-log access. Supply its packaged image and provider configuration. |
+| `workerPools` | Named version-specific pools; keep old capacity until a recorded workload switch has reconciled and a fresh activation is established. |
 | `workerPool` | Optional Substrate WorkerPool. Supply `spec` and any workload selector labels. Requires the pinned Substrate CRD/controller already installed. |
 
 Names default to `<release>-<component>` and can be overridden per component.
@@ -128,3 +130,25 @@ The first command renders and lints representative values, checks credential,
 bootstrap, storage and network boundaries, and rejects unsupported configuration.
 It runs in `just ci`. The reference uses the checked-in chart for real resources;
 its Python fixture supplies values, credentials, protocol operations and faults.
+
+## Persistent reference controller
+
+The [reference launcher](../../launchers/README.md) provisions the controller's
+Transit grants and mounts only its own signing seed. The image includes the
+[pinned provider CLI](../../nix/ate-upgrade/README.md). Its kubeconfig names the
+cluster API and projected token/CA paths; it contains no administrator token or
+personal kubeconfig. A separate rotating audience-bound token authenticates
+direct calls to Substrate. Kubernetes RBAC permits only `pods/log` reads in this
+installation's namespace and listing public ClusterTrustBundles.
+
+The pinned Substrate API authenticates callers without per-Actor authorization.
+The controller remains trusted for provider administration; atespace naming is
+not an authorization boundary. Those credentials are never mounted in workers
+or Board. The controller's separate Transit grant is scoped to its PID.
+
+`running: false` scales the application Deployments to zero and retains their
+configuration and PVC. Record a stopped runtime intent and reconcile the Actor
+before applying it; Helm cannot fence a Transit activation. WorkerPool replicas
+are separately set to zero by the launcher after that reconciliation. For a
+workload version change, use the [recorded upgrade protocol](../../contracts/RUNTIME_SUBSTRATE_V1.md#same-pid-workload-changes);
+changing an image in Helm is not sufficient authorization.

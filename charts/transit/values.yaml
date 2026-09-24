@@ -1,6 +1,8 @@
 # Images for Zig services are built by the consuming project. Use immutable tags
 # or digests. This chart does not install Substrate or grant Transit permissions.
 imagePullSecrets: []
+# Stop application services without removing their PVCs/configuration.
+running: true
 node:
   enabled: true
   nameOverride: ""
@@ -77,3 +79,20 @@ workerPool:
   nameOverride: ""
   labels: {}
   spec: {}
+
+# Version-specific pools permit fresh physical worker incarnations on upgrades.
+workerPools: []
+
+controller:
+  enabled: false
+  nameOverride: ""
+  image: ""
+  existingSecret: ""
+  config: {}
+  # Direct authenticated Substrate API; bearer audience matches its serving name.
+  providerEndpoint: api.ate-system.svc:443
+  providerAudience: api.ate-system.svc
+  logging: {level: info, format: json}
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}

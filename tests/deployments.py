@@ -64,6 +64,26 @@ def run():
         ingress = manifests["NetworkPolicy", "test-runtime-ursula"]["spec"]["ingress"]
         assert {source["podSelector"]["matchLabels"]["app.kubernetes.io/component"] for source in ingress[0]["from"]} == {"node", "maintenance", "initialize"}
 
+        controlled = copy.deepcopy(VALUES)
+        controlled["controller"] = {"enabled": True, "image": "example.invalid/controller:proof", "existingSecret": "controller-key",
+            "config": {"realm": 49, "principal": 4, "pid": 1, "worker": 1, "provider": {"authority_host": "transit.proof.svc.cluster.local"}}}
+        controlled["workerPools"] = [{"name": "counter-v2", "labels": {"transit.dev/workload": "v2"}, "spec": {"replicas": 1}}]
+        rendered = render(controlled)
+        controller = rendered["Deployment", "test-runtime-controller"]["spec"]["template"]["spec"]
+        assert controller["serviceAccountName"] == "test-runtime-controller"
+        assert controller["automountServiceAccountToken"] is False
+        projected = next(v["projected"] for v in controller["volumes"] if v["name"] == "provider")
+        assert projected["sources"][0]["serviceAccountToken"]["audience"] == "api.ate-system.svc"
+        assert rendered["Role", "test-runtime-controller"]["rules"] == [{"apiGroups": [""], "resources": ["pods/log"], "verbs": ["get"]}]
+        assert rendered["ClusterRole", "proof-test-runtime-controller"]["rules"] == [{"apiGroups": ["certificates.k8s.io"], "resources": ["clustertrustbundles"], "verbs": ["list"]}]
+        config = json.loads(rendered["ConfigMap", "test-runtime-controller"]["data"]["config.json"])
+        assert config["provider"]["token_file"] == "/provider/token" and config["seed_file"] == "/secrets/seed"
+        assert ("WorkerPool", "counter-v2") in rendered
+        controlled["running"] = False
+        rendered = render(controlled)
+        assert all(d["spec"]["replicas"] == 0 for (kind, _), d in rendered.items() if kind == "Deployment")
+        assert ("PersistentVolumeClaim", "test-runtime-ursula") in rendered
+
         minimal = copy.deepcopy(VALUES)
         minimal["board"]["enabled"] = minimal["maintenance"]["enabled"] = False
         boot = copy.deepcopy(minimal)

@@ -269,6 +269,95 @@
           "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         }
       }
+    },
+    "running": {
+      "type": "boolean"
+    },
+    "controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "nameOverride": {
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "image": {
+          "type": "string"
+        },
+        "resources": {
+          "type": "object"
+        },
+        "config": {
+          "type": "object"
+        },
+        "logging": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "format"
+          ],
+          "properties": {
+            "level": {
+              "enum": [
+                "debug",
+                "info",
+                "warn",
+                "error",
+                "off"
+              ]
+            },
+            "format": {
+              "enum": [
+                "text",
+                "json"
+              ]
+            }
+          }
+        },
+        "existingSecret": {
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "providerEndpoint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "providerAudience": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "workerPools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "labels",
+          "spec"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 63,
+            "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          },
+          "labels": {
+            "type": "object"
+          },
+          "spec": {
+            "type": "object"
+          }
+        }
+      }
     }
   }
 }
