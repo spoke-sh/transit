@@ -1,0 +1,3350 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Rey Board inspection API",
+    "version": "1.0.0",
+    "description": "One shared read-only Transit principal; current permission checked on every data read. No execution controls."
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "security": [
+    {
+      "bearer": []
+    },
+    {
+      "session": []
+    }
+  ],
+  "paths": {
+    "/api/v1/capabilities": {
+      "get": {
+        "summary": "Capabilities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/processes": {
+      "get": {
+        "summary": "Response",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/processes/{pid}": {
+      "get": {
+        "summary": "Response",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/processes/{pid}/mailbox": {
+      "get": {
+        "summary": "Response",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/processes/{pid}/outbox": {
+      "get": {
+        "summary": "Response",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/processes/{pid}/effects": {
+      "get": {
+        "summary": "Response",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/processes/{pid}/payloads": {
+      "get": {
+        "summary": "Response",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/processes/{pid}/history": {
+      "get": {
+        "summary": "Response",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/processes/{pid}/journey": {
+      "get": {
+        "summary": "Response",
+        "parameters": [
+          {
+            "name": "pid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "policy_revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          },
+          {
+            "name": "retained_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Continuation: supply all cut fields together; restart explicitly after 409"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/session": {
+      "post": {
+        "summary": "Session",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/logout": {
+      "post": {
+        "summary": "Session",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "board_session"
+      }
+    },
+    "schemas": {
+      "Response": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-transit-field-order": [
+          "observation",
+          "lens",
+          "edges"
+        ],
+        "properties": {
+          "observation": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "version",
+              "realm",
+              "resource",
+              "pid",
+              "cut",
+              "reader",
+              "next",
+              "complete",
+              "history",
+              "scanned",
+              "processes",
+              "events",
+              "outbox",
+              "effects",
+              "payloads"
+            ],
+            "properties": {
+              "version": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295,
+                "x-transit-bits": 32,
+                "x-transit-signed": false
+              },
+              "realm": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "resource": {
+                "type": "string",
+                "enum": [
+                  "processes",
+                  "process",
+                  "mailbox",
+                  "outbox",
+                  "effects",
+                  "payloads",
+                  "history"
+                ]
+              },
+              "pid": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cut": {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "position",
+                  "policy_revision",
+                  "retained_from"
+                ],
+                "properties": {
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "policy_revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "retained_from": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  }
+                },
+                "required": [
+                  "position",
+                  "policy_revision",
+                  "retained_from"
+                ],
+                "x-transit-defaults": {}
+              },
+              "reader": {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "principal",
+                  "permissions",
+                  "pid"
+                ],
+                "properties": {
+                  "principal": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "x-transit-bits": 8,
+                    "x-transit-signed": false
+                  },
+                  "permissions": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 65535,
+                    "x-transit-bits": 16,
+                    "x-transit-signed": false
+                  },
+                  "pid": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "principal",
+                  "permissions",
+                  "pid"
+                ],
+                "x-transit-defaults": {}
+              },
+              "next": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "complete": {
+                "type": "boolean"
+              },
+              "history": {
+                "type": "string",
+                "enum": [
+                  "retained",
+                  "prefix_reclaimed"
+                ]
+              },
+              "scanned": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535,
+                "x-transit-bits": 16,
+                "x-transit-signed": false
+              },
+              "processes": {
+                "type": "array",
+                "minItems": 16,
+                "maxItems": 16,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "pid",
+                        "code",
+                        "allow_trim",
+                        "owner",
+                        "generation",
+                        "lifecycle",
+                        "state",
+                        "revision",
+                        "failure",
+                        "admitted",
+                        "consumed",
+                        "cancelled",
+                        "work_before_ms",
+                        "settle_before_ms",
+                        "turn_permit",
+                        "binding"
+                      ],
+                      "properties": {
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "code": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "allow_trim": {
+                          "type": "boolean"
+                        },
+                        "owner": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "generation": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "lifecycle": {
+                          "type": "string",
+                          "enum": [
+                            "running",
+                            "terminated",
+                            "expired"
+                          ]
+                        },
+                        "state": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "failure": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "input",
+                                "recorded_at"
+                              ],
+                              "properties": {
+                                "input": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "recorded_at": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                }
+                              },
+                              "required": [
+                                "input",
+                                "recorded_at"
+                              ],
+                              "x-transit-defaults": {}
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "admitted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "consumed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "cancelled": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "work_before_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "settle_before_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "turn_permit": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "id",
+                                "input"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "input": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "input"
+                              ],
+                              "x-transit-defaults": {}
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "binding": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "revision",
+                                "operation",
+                                "instance",
+                                "resource",
+                                "workload",
+                                "incarnation",
+                                "desired",
+                                "phase",
+                                "activation",
+                                "last_worker_incarnation"
+                              ],
+                              "properties": {
+                                "revision": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "operation": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "instance": {
+                                  "type": "array",
+                                  "minItems": 16,
+                                  "maxItems": 16,
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 255,
+                                    "x-transit-bits": 8,
+                                    "x-transit-signed": false
+                                  }
+                                },
+                                "resource": {
+                                  "type": "array",
+                                  "minItems": 32,
+                                  "maxItems": 32,
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 255,
+                                    "x-transit-bits": 8,
+                                    "x-transit-signed": false
+                                  }
+                                },
+                                "workload": {
+                                  "type": "array",
+                                  "minItems": 32,
+                                  "maxItems": 32,
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 255,
+                                    "x-transit-bits": 8,
+                                    "x-transit-signed": false
+                                  }
+                                },
+                                "incarnation": {
+                                  "anyOf": [
+                                    {
+                                      "type": "array",
+                                      "minItems": 16,
+                                      "maxItems": 16,
+                                      "items": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 255,
+                                        "x-transit-bits": 8,
+                                        "x-transit-signed": false
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "desired": {
+                                  "type": "string",
+                                  "enum": [
+                                    "running",
+                                    "stopped"
+                                  ]
+                                },
+                                "phase": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pending",
+                                    "unknown",
+                                    "ready",
+                                    "stopped"
+                                  ]
+                                },
+                                "activation": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "x-transit-field-order": [
+                                        "worker_incarnation",
+                                        "generation"
+                                      ],
+                                      "properties": {
+                                        "worker_incarnation": {
+                                          "type": "array",
+                                          "minItems": 16,
+                                          "maxItems": 16,
+                                          "items": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 255,
+                                            "x-transit-bits": 8,
+                                            "x-transit-signed": false
+                                          }
+                                        },
+                                        "generation": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 9007199254740991,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        }
+                                      },
+                                      "required": [
+                                        "worker_incarnation",
+                                        "generation"
+                                      ],
+                                      "x-transit-defaults": {}
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "last_worker_incarnation": {
+                                  "anyOf": [
+                                    {
+                                      "type": "array",
+                                      "minItems": 16,
+                                      "maxItems": 16,
+                                      "items": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 255,
+                                        "x-transit-bits": 8,
+                                        "x-transit-signed": false
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "revision",
+                                "operation",
+                                "instance",
+                                "resource",
+                                "workload",
+                                "incarnation",
+                                "desired",
+                                "phase",
+                                "activation",
+                                "last_worker_incarnation"
+                              ],
+                              "x-transit-defaults": {
+                                "incarnation": null,
+                                "phase": "pending",
+                                "activation": null,
+                                "last_worker_incarnation": null
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "pid",
+                        "code",
+                        "allow_trim",
+                        "owner",
+                        "generation",
+                        "lifecycle",
+                        "state",
+                        "revision",
+                        "failure",
+                        "admitted",
+                        "consumed",
+                        "cancelled",
+                        "work_before_ms",
+                        "settle_before_ms",
+                        "turn_permit",
+                        "binding"
+                      ],
+                      "x-transit-defaults": {
+                        "allow_trim": false,
+                        "owner": null,
+                        "generation": 0,
+                        "lifecycle": "running",
+                        "state": "",
+                        "revision": 0,
+                        "failure": null,
+                        "admitted": 0,
+                        "consumed": 0,
+                        "cancelled": 0,
+                        "work_before_ms": null,
+                        "settle_before_ms": null,
+                        "turn_permit": null,
+                        "binding": null
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "events": {
+                "type": "array",
+                "minItems": 16,
+                "maxItems": 16,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "position",
+                        "pid",
+                        "kind",
+                        "policy_revision",
+                        "input",
+                        "effect",
+                        "output",
+                        "value",
+                        "failed",
+                        "generation",
+                        "mailbox_status",
+                        "admitted",
+                        "unix_ms",
+                        "clock_error_ms"
+                      ],
+                      "properties": {
+                        "position": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "grant",
+                            "revoke",
+                            "spawn",
+                            "own",
+                            "runtime_intent",
+                            "runtime_observe",
+                            "activate",
+                            "send",
+                            "begin_turn",
+                            "turn",
+                            "deliver",
+                            "dispatch",
+                            "observe",
+                            "close_effect",
+                            "terminate",
+                            "expire",
+                            "inspect",
+                            "checkpoint",
+                            "declare_payload",
+                            "payload_ready",
+                            "retire_payload",
+                            "payload_deleted"
+                          ]
+                        },
+                        "policy_revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "input": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "effect": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "output": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "value": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^(?:[0-9a-f]{2})*$",
+                              "maxLength": 512,
+                              "x-transit-encoding": "lowercase-hex"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "failed": {
+                          "type": "boolean"
+                        },
+                        "generation": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "mailbox_status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "consumed",
+                                "cancelled"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "admitted": {
+                          "type": "boolean"
+                        },
+                        "unix_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "clock_error_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 4294967295,
+                              "x-transit-bits": 32,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "position",
+                        "pid",
+                        "kind",
+                        "policy_revision",
+                        "input",
+                        "effect",
+                        "output",
+                        "value",
+                        "failed",
+                        "generation",
+                        "mailbox_status",
+                        "admitted",
+                        "unix_ms",
+                        "clock_error_ms"
+                      ],
+                      "x-transit-defaults": {
+                        "input": null,
+                        "effect": null,
+                        "output": null,
+                        "value": null,
+                        "failed": false,
+                        "generation": null,
+                        "mailbox_status": null,
+                        "admitted": false,
+                        "unix_ms": null,
+                        "clock_error_ms": null
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "outbox": {
+                "type": "array",
+                "minItems": 16,
+                "maxItems": 16,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "id",
+                        "source",
+                        "turn",
+                        "index",
+                        "destination",
+                        "value",
+                        "phase",
+                        "resolved_at",
+                        "courier",
+                        "policy_revision"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "source": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "turn": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "index": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        },
+                        "destination": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "phase": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "delivered",
+                            "denied",
+                            "expired",
+                            "retired",
+                            "cancelled"
+                          ]
+                        },
+                        "resolved_at": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "courier": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "policy_revision": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "source",
+                        "turn",
+                        "index",
+                        "destination",
+                        "value",
+                        "phase",
+                        "resolved_at",
+                        "courier",
+                        "policy_revision"
+                      ],
+                      "x-transit-defaults": {
+                        "phase": "pending",
+                        "resolved_at": null,
+                        "courier": null,
+                        "policy_revision": null
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "effects": {
+                "type": "array",
+                "minItems": 16,
+                "maxItems": 16,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "id",
+                        "pid",
+                        "payload",
+                        "phase",
+                        "attempt",
+                        "executor",
+                        "result",
+                        "closed_at",
+                        "reconcile_before_ms",
+                        "max_observations",
+                        "observations"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "payload": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "phase": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "authorized",
+                            "unknown",
+                            "observed",
+                            "cancelled",
+                            "closed_unknown"
+                          ]
+                        },
+                        "attempt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "executor": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "result": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^(?:[0-9a-f]{2})*$",
+                              "maxLength": 512,
+                              "x-transit-encoding": "lowercase-hex"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "closed_at": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reconcile_before_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "max_observations": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535,
+                          "x-transit-bits": 16,
+                          "x-transit-signed": false
+                        },
+                        "observations": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535,
+                          "x-transit-bits": 16,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "pid",
+                        "payload",
+                        "phase",
+                        "attempt",
+                        "executor",
+                        "result",
+                        "closed_at",
+                        "reconcile_before_ms",
+                        "max_observations",
+                        "observations"
+                      ],
+                      "x-transit-defaults": {
+                        "phase": "pending",
+                        "attempt": null,
+                        "executor": null,
+                        "result": null,
+                        "closed_at": null,
+                        "reconcile_before_ms": null,
+                        "max_observations": 16,
+                        "observations": 0
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "payloads": {
+                "type": "array",
+                "minItems": 16,
+                "maxItems": 16,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "id",
+                        "pid",
+                        "publisher",
+                        "sha256",
+                        "bytes",
+                        "allow_delete",
+                        "phase",
+                        "retired_at",
+                        "deleted_at"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "publisher": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        },
+                        "sha256": {
+                          "type": "array",
+                          "minItems": 32,
+                          "maxItems": 32,
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 255,
+                            "x-transit-bits": 8,
+                            "x-transit-signed": false
+                          }
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "allow_delete": {
+                          "type": "boolean"
+                        },
+                        "phase": {
+                          "type": "string",
+                          "enum": [
+                            "creating",
+                            "ready",
+                            "retiring",
+                            "deleted"
+                          ]
+                        },
+                        "retired_at": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "deleted_at": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "pid",
+                        "publisher",
+                        "sha256",
+                        "bytes",
+                        "allow_delete",
+                        "phase",
+                        "retired_at",
+                        "deleted_at"
+                      ],
+                      "x-transit-defaults": {
+                        "allow_delete": false,
+                        "phase": "creating",
+                        "retired_at": null,
+                        "deleted_at": null
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "version",
+              "realm",
+              "resource",
+              "pid",
+              "cut",
+              "reader",
+              "next",
+              "complete",
+              "history",
+              "scanned",
+              "processes",
+              "events",
+              "outbox",
+              "effects",
+              "payloads"
+            ],
+            "x-transit-defaults": {
+              "version": 1,
+              "next": null,
+              "complete": true,
+              "scanned": 0,
+              "processes": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              "events": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              "outbox": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              "effects": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              "payloads": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            }
+          },
+          "lens": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "kind",
+                  "version",
+                  "provenance",
+                  "status",
+                  "source",
+                  "count"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "provenance": {
+                    "type": "string",
+                    "enum": [
+                      "operator_mapping"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "applied",
+                      "unknown",
+                      "malformed"
+                    ]
+                  },
+                  "source": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "realm",
+                      "pid",
+                      "kind",
+                      "id"
+                    ],
+                    "properties": {
+                      "realm": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "pid": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "input",
+                          "turn",
+                          "output",
+                          "effect",
+                          "event",
+                          "state"
+                        ]
+                      },
+                      "id": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "required": [
+                      "realm",
+                      "pid",
+                      "kind",
+                      "id"
+                    ],
+                    "x-transit-defaults": {}
+                  },
+                  "count": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": true
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "version",
+                  "provenance",
+                  "status",
+                  "source",
+                  "count"
+                ],
+                "x-transit-defaults": {
+                  "provenance": "operator_mapping",
+                  "count": null
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "edges": {
+            "type": "array",
+            "minItems": 32,
+            "maxItems": 32,
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "from",
+                    "to",
+                    "relation",
+                    "from_coverage",
+                    "to_coverage"
+                  ],
+                  "properties": {
+                    "from": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "realm",
+                        "pid",
+                        "kind",
+                        "id"
+                      ],
+                      "properties": {
+                        "realm": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "input",
+                            "turn",
+                            "output",
+                            "effect",
+                            "event",
+                            "state"
+                          ]
+                        },
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "realm",
+                        "pid",
+                        "kind",
+                        "id"
+                      ],
+                      "x-transit-defaults": {}
+                    },
+                    "to": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "realm",
+                        "pid",
+                        "kind",
+                        "id"
+                      ],
+                      "properties": {
+                        "realm": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "input",
+                            "turn",
+                            "output",
+                            "effect",
+                            "event",
+                            "state"
+                          ]
+                        },
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "realm",
+                        "pid",
+                        "kind",
+                        "id"
+                      ],
+                      "x-transit-defaults": {}
+                    },
+                    "relation": {
+                      "type": "string",
+                      "enum": [
+                        "input_to_turn",
+                        "turn_to_effect",
+                        "turn_to_output",
+                        "output_to_admission",
+                        "effect_to_observation"
+                      ]
+                    },
+                    "from_coverage": {
+                      "type": "string",
+                      "enum": [
+                        "retained",
+                        "reclaimed",
+                        "current_state"
+                      ]
+                    },
+                    "to_coverage": {
+                      "type": "string",
+                      "enum": [
+                        "retained",
+                        "reclaimed",
+                        "current_state"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to",
+                    "relation",
+                    "from_coverage",
+                    "to_coverage"
+                  ],
+                  "x-transit-defaults": {}
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "observation",
+          "lens",
+          "edges"
+        ],
+        "x-transit-defaults": {
+          "lens": null,
+          "edges": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        }
+      },
+      "Capabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-transit-field-order": [
+          "version",
+          "realm",
+          "scope_pid",
+          "read_only",
+          "shared_principal",
+          "page_size",
+          "scan_limit",
+          "max_edges",
+          "min_refresh_ms",
+          "max_request_bytes",
+          "session_seconds",
+          "station",
+          "http_connector",
+          "push"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          },
+          "realm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "x-transit-bits": 64,
+            "x-transit-signed": false
+          },
+          "scope_pid": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "read_only": {
+            "type": "boolean"
+          },
+          "shared_principal": {
+            "type": "boolean"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          },
+          "scan_limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          },
+          "max_edges": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          },
+          "min_refresh_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          },
+          "max_request_bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          },
+          "session_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          },
+          "station": {
+            "type": "boolean"
+          },
+          "http_connector": {
+            "type": "boolean"
+          },
+          "push": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "version",
+          "realm",
+          "scope_pid",
+          "read_only",
+          "shared_principal",
+          "page_size",
+          "scan_limit",
+          "max_edges",
+          "min_refresh_ms",
+          "max_request_bytes",
+          "session_seconds",
+          "station",
+          "http_connector",
+          "push"
+        ],
+        "x-transit-defaults": {
+          "version": 1,
+          "read_only": true,
+          "shared_principal": true,
+          "page_size": 16,
+          "scan_limit": 128,
+          "max_edges": 32,
+          "min_refresh_ms": 5000,
+          "max_request_bytes": 4096,
+          "station": false,
+          "http_connector": false,
+          "push": false
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-transit-field-order": [
+          "err"
+        ],
+        "properties": {
+          "err": {
+            "type": "string",
+            "enum": [
+              "Unauthorized",
+              "Forbidden",
+              "NotFound",
+              "InvalidQuery",
+              "QueryExpired",
+              "HistoryReclaimed",
+              "Unavailable",
+              "RateLimited",
+              "InvalidOrigin",
+              "UnsafePrincipal"
+            ]
+          }
+        },
+        "required": [
+          "err"
+        ],
+        "x-transit-defaults": {}
+      },
+      "Session": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-transit-field-order": [
+          "expires_in"
+        ],
+        "properties": {
+          "expires_in": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          }
+        },
+        "required": [
+          "expires_in"
+        ],
+        "x-transit-defaults": {}
+      }
+    }
+  }
+}

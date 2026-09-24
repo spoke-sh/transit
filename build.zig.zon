@@ -4,6 +4,7 @@
     .version = "0.0.0",
     .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
     .dependencies = .{
+        .board_api = .{ .path = "packages/zig/board-api" },
         .transit_protocol = .{ .path = "packages/zig/transit-protocol" },
         .transit_core = .{ .path = "packages/zig/transit-core" },
         .transit_backend_ursula = .{ .path = "packages/zig/transit-backend-ursula" },

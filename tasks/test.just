@@ -12,6 +12,7 @@ unit:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/board-api && zig build test
     cd packages/zig/transit-protocol && zig build test
     cd packages/zig/transit-core && zig build test
     cd packages/zig/transit-backend-ursula && zig build test

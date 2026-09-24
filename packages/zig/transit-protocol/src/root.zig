@@ -3,6 +3,7 @@ const std = @import("std");
 pub const version = 2;
 pub const Value = @import("Value.zig");
 pub const Ed25519 = std.crypto.sign.Ed25519;
+pub const Schema = @import("Schema.zig");
 pub const Inspection = @import("Inspection.zig");
 pub const Runtime = @import("Runtime.zig");
 pub const max_principals = 16;

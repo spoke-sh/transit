@@ -12,6 +12,10 @@ pub fn build(b: *std.Build) void {
     const exporter = b.addExecutable(.{ .name = "transit-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-protocol/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }} }) });
     b.step("contract", "Export public contract JSON Schema to stdout").dependOn(&b.addRunArtifact(exporter).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = protocol.module("transit_protocol") })).step);
+    const board_api = b.dependency("board_api", .{ .target = target, .optimize = optimize });
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = board_api.module("board_api") })).step);
+    const board_contract = b.addExecutable(.{ .name = "board-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/board-api/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "board_api", .module = board_api.module("board_api") }} }) });
+    b.step("board-contract", "Export Board OpenAPI to stdout").dependOn(&b.addRunArtifact(board_contract).step);
     const client = b.dependency("transit_client", .{ .target = target, .optimize = optimize });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);
     const runtime = b.dependency("transit_runtime_substrate", .{ .target = target, .optimize = optimize });
