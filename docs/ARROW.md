@@ -1,10 +1,10 @@
-# Arrow execution and interoperability
+# Arrow interchange and remote queries
 
-Status: proposed. [M9](roadmap/M9.md) supplies bounded Station Tables and a Zig
-batch engine; [M11](roadmap/M11.md) adds the gRPC connector; [M12](roadmap/M12.md)
+Status: proposed. [M9](roadmap/M9.md) supplies bounded Station Tables and the
+[Fuze](FUZE.md) query engine; [M11](roadmap/M11.md) adds gRPC; [M12](roadmap/M12.md)
 qualifies Flight, Flight SQL and ADBC interoperability. None is implemented yet.
 [TABLES.md](TABLES.md) owns Table mutations, snapshots, materialization, transactions
-and durable result delivery. This document owns the engine and interchange seams.
+and durable result delivery. This document owns the interchange and gateway seams.
 
 ## Roles in the stack
 
@@ -13,7 +13,7 @@ and durable result delivery. This document owns the engine and interchange seams
 | Arrow arrays and record batches | Typed columnar data for computation and results | Representation does not define durable state or transactional visibility |
 | C Data / C Stream | In-process array and batch-reader exchange across bindings | Explicit buffer ownership; distinct from the Transit/Station command ABI |
 | IPC | Serialized schema/batches for durable results and cross-process exchange | IPC stream/file formats do not supply admission, recovery or retention |
-| Zig query engine | Validate plans and evaluate bounded batches over an authorized Table snapshot | Runs in Station callers/workers, never in `transit-node` |
+| Fuze | Shared planning and bounded computation over authorized state views; Table first | Runs in callers/workers, never in `transit-node`; [engine design](FUZE.md) |
 | Flight RPC | Remote Arrow result discovery and transfer | Network streams/tickets do not replace durable mailboxes or grants |
 | Flight SQL | Standard SQL query/metadata interface over Flight | Needs our own planner, capability profile and transaction semantics |
 | ADBC | Client/driver API for consuming the query service | Not another wire protocol or the general Transit execution client |
@@ -28,68 +28,19 @@ Keep the engine's batch-reader interface independent of serialization. IPC strea
 bytes and Flight's `FlightData` framing need separate codecs; do not assume a
 whole IPC stream can be copied into an RPC response unchanged.
 
-The engine, planner, connectors and gateway remain Zig native. Do not embed Acero,
-DuckDB or another foreign query engine to implement them. Independent Arrow
+The engine, planner, connectors and gateway remain Zig native. Do not embed
+DataFusion, Acero or another foreign query engine to implement them. Independent Arrow
 libraries and external clients may be used for interoperability tests. Client
 driver implementation languages do not change the server language boundary.
 
-## A bounded Zig engine
+## Fuze execution boundary
 
-Take inspiration from [Acero's execution model](https://arrow.apache.org/docs/developers/cpp/acero.html):
-plans connect source, transform and sink operators; batches carry work through
-the plan; accumulating operators need explicit memory policy. Backpressure and
-cancellation must account for work already in flight, and an announced batch
-count alone does not establish that all batches have arrived. This is a design
-reference, not an Acero API compatibility commitment or runtime dependency.
-
-Start with a small engine in Station's Table implementation:
-
-1. Validate a versioned logical plan against schema, operator/type support,
-   permissions and budgets. M9 accepts structured operations; M12 lowers a
-   specified SQL subset into that same plan.
-2. Bind an authorized, exact resource revision and open a bounded snapshot
-   source. Scan committed visible rows, not every historical row version.
-3. Evaluate a physical plan of scan, filter, project, limit and selected aggregate
-   operators using qualified `zarrow-compute` kernels and `zarrow` batches.
-4. Capture the bounded result under [Table publication rules](TABLES.md#arrow-results-and-durable-replies)
-   before making it available to a remote consumer. Accepted result identity,
-   schema/revision and completeness survive loss of the worker or gateway.
-
-M9 can use a single-worker, demand-driven pipeline. Keep source, operator and
-sink interfaces separate so a later scheduler or Flight sink does not change
-Table semantics. A physical operator is a local computation object, not a new
-Transit PID. Parallel execution, distributed query scheduling and automatic
-operator placement are not implied by an execution graph.
-
-Every operator declares allocation/ownership, input/output schema, row/batch/byte
-limits and cancellation points. Bound queued batches and in-flight tasks; pause
-upstream before exhausting the declared budget and reserve control progress.
-Account for variable-width data and decoded/decompressed sizes. Reject an
-unsupported plan or oversize result explicitly. Accumulating operators must
-prove a whole-input bound; external spill and unbounded sorts/joins remain later
-scope. Finishing requires all expected input and a complete result, not merely
-EOF on one input or a transport success code.
-
-In M9, compute remains inside a valid bounded read/turn; it cannot keep an
-activation-scoped read view alive across turns. Persist the complete accepted
-result and its delivery progress, not native execution pointers. Recovery before
-acceptance may recompute under a newly validated basis; recovery after acceptance
-serves that captured result. Cancellation, retained-source loss and timeout must
-not publish partial success or substitute a newer snapshot for an accepted one.
-
-## Durable materialization is separate from batch execution
-
-The first engine queries finite snapshots of tables materialized through accepted
-turns. Arrow batch boundaries are not transaction boundaries. Source progress,
-insert/update/delete mutations and outputs still obey the one-resource commit
-domain; neither SQL nor Flight extends that domain.
-
-Continuous queries would additionally need keyed deltas/retractions, committed
-operator state and source offsets, transaction barriers, snapshot-to-tail
-handoff, gap handling and bounded lag. Joins across sources require an explicit
-consistency model; event-time windows require watermark and late-data policy.
-These remain separately scoped work. Acero-style batch processing or a long-lived
-gRPC stream cannot establish those guarantees by itself.
+[Fuze](FUZE.md) owns the Zig-native query engine: shared source/plan/operator
+interfaces, DataFusion- and Acero-inspired design, bounded execution and recovery.
+It targets KV, Table and Document queries; M9 qualifies the first Table profile.
+This document owns interchange and remote query access. SQL and Flight reuse
+Fuze's qualified semantics; neither broadens resource transactions or supplies
+continuous materialization automatically.
 
 ## Flight gateway and effect connector
 
@@ -126,7 +77,7 @@ delivery still require authorized durable bookkeeping:
   consistency promise. Define ticket validation, errors and reconnect behavior.
 - Flight SQL statement queries and catalog/schema/capability metadata. Specify a
   bounded `SELECT` grammar with projection, supported predicates, limit and the
-  qualified aggregates. Lower it to the same structured plans used by M9.
+  qualified aggregates. Lower it to the same Fuze structured plans used by M9.
 - No table writes, bulk ingestion, query federation, general SQL, transactions,
   savepoints or durable continuous `DoExchange` in this profile. Reject unsupported
   requests explicitly and report capabilities truthfully. Add prepared statements

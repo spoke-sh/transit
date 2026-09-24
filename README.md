@@ -9,6 +9,7 @@ Transit gives programs durable processes, ordered mailboxes, and associated stat
 Application code runs in callers; the kernel governs what can commit and how work
 recovers. [Board](docs/BOARD.md) makes that history inspectable. [Station](docs/STATION.md)
 will provide the higher-level interface for behaviors, supervision, and registries.
+[Fuze](docs/FUZE.md) is the planned query engine across KV, Table and Document state.
 
 This monorepo contains Transit's Zig libraries and services, TypeScript/Vite+
 frontends, and development tooling. Ursula supplies durable storage; Kubernetes

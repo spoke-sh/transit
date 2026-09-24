@@ -141,10 +141,12 @@ the fork's compiler upgrade alone does not establish compute compatibility.
 The compute library is not assumed to supply SQL, recovery,
 authorization, a durable stream scheduler or transactional materialization.
 
-[ARROW.md](ARROW.md) places these dependencies in a Zig-native batch engine,
-inspired by Acero, with explicit plan/source/operator/sink boundaries. M9 proves
+[Fuze](FUZE.md) composes these dependencies in a Zig-native query engine,
+inspired by DataFusion and Acero, with shared source, logical/physical plan and
+operator/sink boundaries across state entities. M9 proves the bounded Table path,
 finite execution and IPC; [M12](roadmap/M12.md) adds Flight, a bounded Flight SQL
-frontend and ADBC interoperability over the same Table/query contract.
+frontend and ADBC interoperability over the same Table/query contract, following
+[ARROW.md](ARROW.md).
 
 M9 starts with a small published capability matrix: nullable booleans, signed
 64-bit integers, UTF-8 strings and binary values; primary-key lookup, bounded

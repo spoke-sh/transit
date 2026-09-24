@@ -9,9 +9,10 @@ capabilities. Detailed contracts live in the linked design documents.
 | Term | Meaning |
 | --- | --- |
 | Rey | The intended downstream trading application built using Transit. The repository retains its historical `rey` name; that name does not own runtime semantics. |
-| Transit | The reusable streaming runtime subsystem: the agentic streaming kernel, supporting services, clients, storage/runtime adapters, Board inspection surface, and planned Station framework. Its foundational execution protocol is enforced by durable message sequences. See [TRANSIT.md](TRANSIT.md). |
+| Transit | The reusable streaming runtime subsystem: the agentic streaming kernel, supporting services, clients, storage/runtime adapters, Board inspection surface, and planned Station framework and Fuze engine. Its foundational execution protocol is enforced by durable message sequences. See [TRANSIT.md](TRANSIT.md). |
 | Board | Transit's operator/agent inspection surface: a static UI and OpenAPI service hosted by the Zig `transit-board` executable. Its views derive from authorized Transit evidence; it grants no execution authority. See [BOARD.md](BOARD.md). |
 | Station | Transit's planned OTP-inspired framework above the kernel, providing GenServer behaviors, supervision, registries, and composition. Its artifacts use the `transit-station*` name family. See [STATION.md](STATION.md). |
+| Fuze | Transit's planned Zig-native query and compute engine across KV, Table and Document state, inspired by DataFusion and Acero. Its artifact family is `transit-fuze*`; it runs outside kernel authority. See [FUZE.md](FUZE.md). |
 | Agentic | The class of workloads the system is intended to support. It does not place reasoning loops, goals, or agent/task delegation in the kernel. |
 | Ursula | The selected durable stream storage and transport implementation. See [URSULA.md](URSULA.md). |
 | ursula-zig | The upstream Zig client used by Transit's Ursula adapter. It handles transport/protocol operations; Transit defines execution semantics. |
@@ -23,14 +24,16 @@ the [Helm chart](../charts/transit/README.md) at `charts/transit`. Rey names the
 downstream application. Calling Transit the
 **kernel** describes its foundational protocol role; `transit-core` is specifically
 the deterministic kernel library. **Board** is the **inspection surface** and
-**Station** the **framework** above the kernel; both belong to Transit. Use
-`transit-board*` and `transit-station*` for their artifact names, while keeping
-Board and Station in prose. Short deployment roles such as `board` and `node`
+**Station** the **framework** above the kernel. **Fuze** is the **query and compute
+engine**; all belong to Transit. Use `transit-board*`, `transit-station*` and
+`transit-fuze*` for artifacts, while keeping Board, Station and Fuze in prose.
+Short deployment roles such as `board` and `node`
 identify instances of those artifacts. The kernel implementation library lives
 in `packages/zig/transit-core` and exports the `transit_core` Zig module.
 `transit-protocol` owns public wire
 contracts; `transit-client` is the application entry point. The planned Station
-library is `transit-station` and exports `transit_station`. See the
+library is `transit-station` and exports `transit_station`; the planned Fuze
+library is `transit-fuze` and exports `transit_fuze`. See the
 [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition) for implemented
 and proposed packages.
 
@@ -94,6 +97,7 @@ implement resource associations.
 | Read basis | The exact resource identities/revisions observed by a turn and the evidence supporting its recovery/replay contract |
 | KV | The initial versioned resource interface for opaque key/value lookup, put, delete, and bounded enumeration |
 | Table | A planned Station typed keyspace within a state resource, with declared schema/keys and Arrow query results; several tables can share one resource's transaction boundary |
+| Document | A proposed Station state abstraction for nested structured values and collaborative text, with versioned change/merge rules; Fuze queries its accepted materialized revisions, not speculative edits |
 | Table transaction | A bounded mutation batch committed in one resource/turn; M9 does not extend this across separate resources or writer PIDs |
 | Arrow record batch | A finite set of typed column arrays with one schema, used for tabular interchange and query computation; it is not a durable commit |
 | Arrow IPC stream | Serialized schema and record batches for cross-process interchange; durability, result framing and recovery remain Station/Transit responsibilities |
@@ -107,19 +111,21 @@ have different responsibilities.
 
 ## Arrow execution and interchange
 
-These are planned interfaces above the kernel; [ARROW.md](ARROW.md) owns their
-separation and the M9/M12 qualification profiles.
+These are planned interfaces above the kernel. [Fuze](FUZE.md) owns query
+execution; [Arrow](ARROW.md) owns interchange and the M12 remote query profile.
 
 | Term | Meaning |
 | --- | --- |
-| Logical query plan | Versioned, schema-checked Table operations independent of SQL spelling, execution scheduling or transport |
-| Physical operator | A bounded local scan/transform/aggregate/sink in the Zig query engine; not a Transit PID or durable commit |
+| Logical query plan | Versioned, typed query operations independent of entity storage, SQL spelling, execution scheduling or transport |
+| Query source adapter | Supplies an authorized versioned state view, schema/capabilities and bounded batches to Fuze; distinct from a durable storage backend |
+| Physical operator | A bounded local scan/transform/aggregate/sink in Fuze; not a Transit PID or durable commit |
 | Arrow C Data / C Stream | Native array and batch-stream ownership interfaces for in-process interoperability; distinct from the Transit/Station command ABI |
 | Flight RPC | Remote Arrow discovery/transfer protocol; a live connection and a Flight ticket do not supply durable mailbox or execution authority |
 | Flight SQL | SQL query/metadata protocol over Flight; the server still defines its supported SQL and transaction capabilities |
 | ADBC | Arrow-oriented database client/driver API; planned access through existing Flight SQL drivers, separate from general Transit clients |
 | Flight ticket | Opaque reference to a query result; our gateway must bind it to exact evidence, current read permission and availability, not treat possession as a grant |
 | Acero | Apache Arrow's C++ execution engine, used as design inspiration for bounded batch execution; Transit implements its engine in Zig |
+| DataFusion | Apache's extensible Rust query engine, used as design inspiration for Fuze's sources, expressions, logical/physical plans and optimization; not an embedded dependency |
 
 ## Identity and authority
 

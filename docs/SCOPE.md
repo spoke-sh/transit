@@ -67,9 +67,13 @@ The same primitives must support ordinary stateful distributed programs.
   rebinding a name cannot redirect accepted work or replies.
 - Station Tables add typed state access and Arrow results over durable resources.
   M9 scopes stream-input materialization, finite queries and atomic batches within
-  one resource. [TABLES.md](TABLES.md) owns those boundaries; [ARROW.md](ARROW.md)
-  scopes a Zig-native engine inspired by Acero and later Flight/Flight SQL/ADBC
-  interoperability. M12 adds a read-only SQL subset; continuous queries and
+  one resource. [TABLES.md](TABLES.md) owns those boundaries.
+- [Fuze](FUZE.md) is the Zig-native query and compute engine, inspired by Apache
+  DataFusion and Acero. It targets one query model across KV, Table and Document,
+  while Station owns their distinct mutation and merge semantics. Documents target
+  both structured state and collaborative text; their implementation needs a
+  separately scoped milestone. [Arrow](ARROW.md) owns interchange and remote access.
+  M12 adds a read-only SQL subset over qualified Tables; continuous queries and
   separate-resource transactions remain later work. No foreign query engine
   runs behind the interface or inside Transit authority.
 - HTTP is the first connector; gRPC is the second. Request/response messages and

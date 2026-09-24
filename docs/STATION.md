@@ -120,9 +120,14 @@ an Arrow batch stream from a durable Transit stream: Arrow supplies representati
 and compute building blocks; Station supplies ordering, recovery, result framing,
 retention and transactional visibility.
 
-[Arrow execution and interoperability](ARROW.md) defines the wider direction:
-an Acero-inspired Zig-native engine, IPC and C data interchange, then Flight RPC,
-Flight SQL and ADBC clients. Query operators stay outside kernel authority;
+[Fuze](FUZE.md) is the shared Zig-native query engine, inspired by DataFusion and
+Acero. Station supplies authorized KV/Table/Document source adapters and owns
+mutations, merge rules and durable result publication. The Document direction
+includes both structured state and collaborative text; its CRDT/storage profile
+needs separate qualification. Fuze queries accepted state and does not merge
+speculative edits. [Arrow interchange](ARROW.md) connects the engine to IPC/C
+interfaces and later Flight, Flight SQL and ADBC. Query operators stay outside
+kernel authority;
 network batch streams cannot confer durability or broaden transactions. HTTP is
 the first connector and [gRPC](GRPC.md) the second, sharing the
 [effect/reconciliation contract](CONNECTORS.md).

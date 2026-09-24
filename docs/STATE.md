@@ -67,6 +67,13 @@ several logical tables can share one resource and its existing atomic turn,
 permissions and lifetime. This is distinct from a transaction across resources.
 Query computation and schema validation stay in callers; the kernel does not
 become a SQL or Arrow compute engine.
+
+[Fuze](FUZE.md) names that shared query engine. Its target source model includes
+KV, Table and a proposed Station Document for structured values and collaborative
+text. Document change/CRDT semantics belong above core and need a separately
+qualified storage/lifetime profile. Shared querying does not add those semantics
+to the current KV resource or widen its transaction boundary.
+
 The first KV implementation does not promise arbitrary queries, secondary
 indexes, per-key TTL, distributed transactions, or automatic schema migration.
 Any small inline state retained for compatibility has an explicit versioned

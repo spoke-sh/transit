@@ -18,7 +18,8 @@ are experimental; their bounded implementation does not imply support for every 
 | [Streams](STREAMS.md) | Mailboxes, ordering, durable admission, and delivery |
 | [State](STATE.md) | Durable resources, process associations, KV/Table boundary, and state lifetimes |
 | [Tables](TABLES.md) | Planned Station Table operations, Arrow results, materialization and transaction scope |
-| [Arrow](ARROW.md) | Planned Zig batch engine, IPC/C interfaces, Flight/Flight SQL and ADBC boundaries |
+| [Fuze](FUZE.md) | Planned Zig query engine across KV/Table/Document, source adapters, planning and bounded execution |
+| [Arrow](ARROW.md) | IPC/C interfaces, Flight/Flight SQL and ADBC integration with Fuze |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
 | [Board](BOARD.md) | Inspection UI/API, observation semantics, and planned framework lenses |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |

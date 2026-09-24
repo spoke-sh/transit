@@ -16,7 +16,8 @@ Follow the contracts for the area you change:
 | Authentication, grants, credentials, trust | [Security](docs/SECURITY.md), [service contract](contracts/SERVICE_V2.md) |
 | Storage, delivery, producer/consumer behavior | [Streams](docs/STREAMS.md), [Ursula boundary](docs/URSULA.md) |
 | State resources, associations, KV/Table APIs | [State](docs/STATE.md), [M7](docs/roadmap/M7.md) |
-| Arrow/query engine, IPC, Flight/Flight SQL, ADBC | [Tables](docs/TABLES.md), [Arrow](docs/ARROW.md) |
+| Fuze/query planning and execution | [Fuze](docs/FUZE.md), [Tables](docs/TABLES.md) |
+| Arrow IPC/C interfaces, Flight/Flight SQL, ADBC | [Arrow](docs/ARROW.md) |
 | Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/RETENTION.md) |
 | Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [public protocol package](packages/zig/transit-protocol/README.md) |
 | Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [M2 plan](docs/roadmap/M2.md) |
@@ -38,9 +39,9 @@ building Station; the [pre-Station review](docs/reviews/PRE_STATION.md) records 
   delegation, and trading policy belong to applications; LLM/tool access belongs
   in connectors.
 - Name streaming-runtime artifacts and deployments Transit; Rey is the intended
-  downstream trading application. Board and Station belong to Transit;
-  use `transit-board*` and `transit-station*` for their artifact names. Keep Board
-  and Station as readable names in prose. Follow the [glossary](docs/GLOSSARY.md)
+  downstream trading application. Board, Station and Fuze belong to Transit;
+  use `transit-board*`, `transit-station*` and `transit-fuze*` for their artifacts.
+  Keep their readable names in prose. Follow the [glossary](docs/GLOSSARY.md)
   for roles.
 - Write kernel, framework, connectors, and backends in Zig. Use strict TypeScript
   and Vite+ for frontends. Keep external infrastructure in its upstream language.
@@ -48,7 +49,8 @@ building Station; the [pre-Station review](docs/reviews/PRE_STATION.md) records 
   their target languages; share the Zig client/framework through the
   [binding boundary](docs/CLIENT.md#language-neutral-boundary) instead of duplicating
   protocol semantics. Keep query execution Zig native and outside kernel authority;
-  [Acero is design inspiration](docs/ARROW.md#a-bounded-zig-engine), not a runtime dependency.
+  follow [Fuze](docs/FUZE.md) for DataFusion/Acero inspiration and query boundaries.
+  Neither upstream engine is a runtime dependency.
 - Respect the architecture's dependency direction. Core depends on the public
   protocol, never Station or a provider. Applications use the client; the node
   must not import handlers or claim protocol validation proves honest computation.

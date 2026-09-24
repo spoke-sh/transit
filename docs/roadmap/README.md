@@ -27,10 +27,13 @@ The historical [pre-Station review](../reviews/PRE_STATION.md) led to the comple
 commit primitive and these runtime contracts; a production behavior runtime is
 not implied by either bounded profile.
 
-Station establishes the native Table/compute and language-binding contracts.
+Station establishes Table and language-binding contracts with the first bounded
+[Fuze](../FUZE.md) query profile. Fuze's shared source model targets KV, Table and
+Document; additional entity adapters and Document/CRDT storage still need a
+numbered milestone with their own acceptance criteria before implementation.
 HTTP proves shared effect capture; gRPC extends it to bidirectional calls; Arrow
 interoperability then adds a remote query surface over the same Tables. Clustering
-qualifies those boundaries across broader topologies. The native query engine
+qualifies those boundaries across broader topologies. Fuze
 remains Zig throughout; SQL or RPC transport never replaces durable authority.
 
 Each milestone owns its scope, acceptance criteria, and completion status.
