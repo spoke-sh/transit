@@ -4,7 +4,7 @@ Run commands from the repository root inside `nix develop`.
 
 ## Task interface
 
-The root [justfile](../justfile) keeps common commands: `check`, `ci`,
+The root [justfile](../justfile) keeps common commands: `check`, `ci`, `ci-clean`,
 `fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
 [build](build.just), [launchers](launchers.just), [test](test.just),
 [examples](examples.just), [contract](contract.just), and [transit-board](transit-board.just).
@@ -28,9 +28,10 @@ reference deployment and physical-capacity tests remain explicit commands.
 | --- | --- |
 | `just` | Lists available recipes |
 | `just doctor` | Prints tool versions, including Ursula and Kubernetes tooling, without contacting a cluster |
-| `just check` | Checks Nix/Zig formatting, the toolchain smoke check, Zig unit tests, generated public-contract drift, local Markdown links, and diff whitespace |
+| `just check` | Checks Nix/Zig formatting, tooling, Zig unit tests, Transit/Board contract drift, frontend formatting/lint/types/tests, local Markdown links, and diff whitespace; install locked frontend dependencies first |
 | `just ci` | Runs foundation, package, telemetry, recovery, caller, inspection, Board API/frontend and local launcher checks in the same development shell |
-| `just fmt` | Formats Nix and Zig files |
+| `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs `just ci` without existing workspace outputs |
+| `just fmt` | Formats Nix, Zig and frontend source/Markdown; contract regeneration stays explicit |
 | `just build` | Lists Zig build profiles |
 | `just build::debug`, `just build::release-safe`, `just build::release-fast`, `just build::release-small` | Builds platform executables and embedded Board with the selected optimization profile; accepts Zig steps/options |
 | `just examples::build` | Installs `example-counter` and `example-byte-log` |
@@ -38,6 +39,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just transit-board::install`, `just transit-board::demo` | Install locked frontend dependencies and inspect a disposable counter realm |
 | `just transit-board::build`, `just transit-board::run CONFIG` | Build the embedded binary and run a provisioned installation |
 | `just transit-board::generate`, `just transit-board::contract`, `just transit-board::check` | Generate/check OpenAPI and browser models, then validate frontend formatting/lint/types/tests |
+| `just transit-board::fmt` | Formats frontend source and Markdown using the same Vite+ configuration as the checks |
 | `just transit-board::test`, `just transit-board::browser-install`, `just transit-board::browser` | Qualify the real API and install/run the pinned browser proof |
 | `just launchers::local::up`, `status`, `inspect`, `logs SERVICE`, `attach` | Run a persistent native system with foreground logs and Ctrl-C shutdown; `up --detach` starts in the background, `logs manager` shows lifecycle/probe evidence |
 | `just launchers::compose::up`, `status`, `inspect`, `logs SERVICE` | Run the same scenario in Docker containers with foreground logs and Ctrl-C shutdown; `up --detach` starts in the background |

@@ -15,6 +15,23 @@ suite includes the public state API and real resource-backed Zig caller.
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 
+`just check` includes Board contract/validator drift and frontend formatting,
+lint, types and unit tests, even for changes made only to shared Zig types or
+frontend Markdown. Regenerate deliberately with `just transit-board::generate`;
+use `just fmt` to fix formatting.
+
+Before pushing committed work, run `just ci-clean`. It refuses uncommitted source
+changes, clones the exact HEAD into a temporary directory, installs the locked
+frontend dependencies, and runs the same `just ci` as hosted CI. It inherits the
+Nix store and global compiler caches, but no checkout build outputs, launcher
+state, dotenv file or `node_modules`. Successful runs remove the temporary clone;
+failed runs retain it for diagnosis and print its location. The local launcher proof must use its
+selected artifacts; a binary left in the developer's `zig-out` cannot mask an
+undeclared dependency. Compose explicitly builds a native caller for its
+host-side stale-credential check. The browser proof remains a separate
+`just transit-board::browser` step, as it is in hosted CI; neither command
+qualifies the separate reference or physical-capacity profiles.
+
 | Evidence | What it proves |
 | --- | --- |
 | `just check`, `just test::packages` | Independent package composition; signed requests/current grants; one conditional successor; ordered input, invalid proposals and blocked failures; runtime fencing; bounded clocks, settlement, closure and outboxes; shared valid/invalid JSON traces and bounded view encoding |

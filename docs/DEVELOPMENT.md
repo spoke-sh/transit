@@ -5,6 +5,7 @@ Install Nix with flakes and `nix-command`, then work from the repository root:
 ```sh
 nix develop
 just doctor
+just transit-board::install
 just check
 ```
 
@@ -68,8 +69,10 @@ workspace, connected through generated OpenAPI and shared Transit contracts.
 
 ## Verification
 
-Run `just check` for formatting, tooling, unit tests, schema drift, and local
-Markdown links. Run `just ci` for the local package/storage/service/caller suite.
+Run `just check` for formatting, tooling, unit tests, Transit/Board contract drift,
+frontend lint/types/tests, and local Markdown links. Run `just ci` for the local
+package/storage/service/caller suite. Before pushing committed changes, use
+`just ci-clean` to run that suite in a fresh clone without workspace build outputs.
 Reference-cluster and physical-capacity proofs have explicit extra prerequisites;
 passing local checks does not establish those deployment guarantees. Choose
 additional proofs from the [test guide](../tests/README.md) for the boundary you

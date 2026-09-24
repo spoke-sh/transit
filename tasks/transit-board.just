@@ -28,6 +28,11 @@ check: contract
     vp exec --filter @rey/transit-board-web tsc --noEmit
     cd apps/transit-board-web && vp test run
 
+# Format frontend source and Markdown; generated contracts have their own recipe.
+fmt:
+    cd packages/ts/transit-board-client && vp fmt
+    cd apps/transit-board-web && vp fmt
+
 # Build the Zig API with every static frontend asset embedded.
 build:
     zig build transit-board

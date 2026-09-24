@@ -26,8 +26,8 @@ and Nix with flakes and `nix-command` enabled:
 ```sh
 nix develop
 just doctor
-just check
 just transit-board::install
+just check
 just launchers::local::up
 ```
 

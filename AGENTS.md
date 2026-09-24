@@ -111,9 +111,11 @@ renumber upcoming milestones and references, following the
 [sequencing rule](docs/roadmap/README.md#maintaining-the-sequence).
 
 Enter `nix develop` and use [just tasks](tasks/README.md). Use the pinned Zig 0.17
-compiler and standard library, not examples from older releases. Run `just check`
-and the relevant [focused/integration proofs](tests/README.md); report what ran
-and what could not. Toolchain changes also require `just doctor`, deliberate
+compiler and standard library, not examples from older releases. Install locked
+frontend dependencies with `just transit-board::install`, then run `just check`
+and the relevant [focused/integration proofs](tests/README.md). Before pushing,
+run `just ci-clean` against committed HEAD to expose dependencies hidden by local
+build outputs; report what ran and what could not. Toolchain changes also require `just doctor`, deliberate
 lockfile updates, and the [toolchain workflow](nix/README.md). Use `vp` for future
 frontend dependency operations, checks, tests, and builds. Keep onboarding
 commands runnable; never add placeholder tasks that report success.

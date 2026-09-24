@@ -43,20 +43,26 @@ doctor:
     kubectl transit --version
     kubectl plugin list
 
-# Validate tooling and the implemented Zig packages.
+# Validate tooling, generated contracts, Zig and frontend code (install dependencies first).
 check:
     nixfmt --check flake.nix nix/*.nix
     nix flake check
     zig fmt --check build.zig packages/zig apps examples tests/*.zig
-    just test::unit
     just contract::check
+    just transit-board::check
+    just test::unit
     python3 -B tests/docs.py
     git diff --check
 
 # Run the hosted CI checks within one already-entered development environment.
-ci: check test::dev-environment test::kubectl-transit test::deployments test::telemetry test::observability test::packages test::storage test::service test::runtime-upgrade test::callers test::inspection test::state transit-board::check transit-board::test launchers::local::test
+ci: check test::dev-environment test::kubectl-transit test::deployments test::telemetry test::observability test::packages test::storage test::service test::runtime-upgrade test::callers test::inspection test::state transit-board::test launchers::local::test
 
-# Format Nix and Zig source.
+# Run the committed HEAD's CI suite in a fresh clone, without local build outputs.
+ci-clean:
+    python3 -B tests/ci_clean.py
+
+# Format Nix, Zig and frontend source/documentation without regenerating contracts.
 fmt:
     nixfmt flake.nix nix/*.nix
     zig fmt build.zig packages/zig apps examples tests/*.zig
+    just transit-board::fmt

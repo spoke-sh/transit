@@ -14,6 +14,7 @@ root:
 ```sh
 nix develop
 just doctor
+just transit-board::install
 just check
 ```
 
@@ -21,6 +22,7 @@ Or run a command without an interactive shell:
 
 ```sh
 nix develop --command just doctor
+nix develop --command just transit-board::install
 nix develop --command just check
 ```
 

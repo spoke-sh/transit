@@ -138,6 +138,13 @@ def proof(profile):
         old.update(url=installation.url, seed_file=str(old_key))
         old_config = installation.path / "operator/old-worker.json"
         write(old_config, old)
+        # Launchers build into private artifact prefixes, never zig-out. Use
+        # their selected native binary; Compose needs an explicit host build
+        # because its selected executable targets the Docker engine's platform.
+        if profile == "local":
+            old_binary = installation.artifacts.binary("example-counter")
+        else:
+            old_binary = installation.artifacts.native(["example-counter"])["example-counter"]["path"]
         if profile == "local":
             launcher.pc("process", "stop", "counter", capture=True)
         else:
@@ -148,7 +155,7 @@ def proof(profile):
         invoke("restart", "counter")
         current = observe(25)
         assert current["pid"] == first["pid"] and current["generation"] > before["generation"]
-        rejected = subprocess.run([ROOT / "zig-out/bin/example-counter", "--once", old_config],
+        rejected = subprocess.run([old_binary, "--once", old_config],
                                   capture_output=True, timeout=15)
         assert rejected.returncode != 0 and b"AccessDenied" in rejected.stderr, rejected.stderr
         # Simulate interruption after durable acceptance but before the local
