@@ -61,7 +61,10 @@ class Local:
         }
         processes = {}
         for name, command in commands.items():
-            processes[name] = {"command": shlex.join(list(map(str, command))), "working_dir": str(self.path),
+            # Process Compose paints every stderr line red, regardless of its
+            # recorded severity. Merge only the launcher's human log streams;
+            # keep its colored service prefix and the program's own log levels.
+            processes[name] = {"command": "exec " + shlex.join(list(map(str, command))) + " 2>&1", "working_dir": str(self.path),
                 "log_location": str(self.path / (name + ".log")), "availability": {"restart": "no"},
                 "log_configuration": {"rotation": {"max_size_mb": 5, "max_backups": 2, "max_age_days": 7}, "flush_each_line": True, "no_metadata": True},
                 "shutdown": {"signal": 15, "timeout_seconds": 5}}

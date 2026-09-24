@@ -228,7 +228,12 @@ The launcher maps them to each executable's `LOG_LEVEL` and `LOG_FORMAT`.
 Ursula and the process/container managers keep their upstream logging controls.
 
 Services write diagnostics to stderr; bootstrap and CLI results keep their
-machine-readable stdout. The private node accepts validated diagnostic trace
+machine-readable stdout. The native launcher merges each managed service's
+stdout/stderr for display so Process Compose colors the service prefix without
+painting all diagnostics red. Severity comes from the service's log fields;
+Process Compose's outer stream classification is not severity. Direct binary
+and CLI output interfaces keep their separate streams.
+The private node accepts validated diagnostic trace
 parents so Board calls can be followed across services. Public Board ingress
 starts its own context. Neither trace context nor logs grant Transit permission.
 See the [signal contract and bounds](../packages/zig/telemetry/README.md) and
