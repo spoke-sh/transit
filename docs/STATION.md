@@ -2,7 +2,7 @@
 
 Status: an OTP-inspired layer above the kernel is established direction. The
 behavior API and lifecycle policies below are proposed, with no implementation.
-[M8](roadmap/M8.md) depends on [M7 state resources and associations](roadmap/M7.md).
+[M9](roadmap/M9.md) depends on [M7 state resources and associations](roadmap/M7.md).
 
 ## Purpose
 
@@ -34,7 +34,7 @@ and [GenServer documentation](https://www.erlang.org/doc/system/gen_server_conce
 ## Preconditions for the first framework slice
 
 The [pre-Station review](reviews/PRE_STATION.md) identifies gaps between the
-proved kernel operations and a recoverable framework. [M8](roadmap/M8.md) must
+proved kernel operations and a recoverable framework. [M9](roadmap/M9.md) must
 close its entry gates before finalizing callback signatures: authenticated input
 origins, automatic delivery and lifecycle observations, recoverable initialization,
 least-privilege lifecycle control, and a capacity budget for the example topology.
@@ -111,7 +111,7 @@ Connector reconciliation has its own recorded owner, window, and budget. Its
 closure is terminal even if the original request later returns a response.
 
 The Station API must return an explicit resumption bound when lifetime is finite.
-Current provider stop operations do not accept a requested resume time; M8 must
+Current provider stop operations do not accept a requested resume time; M9 must
 specify that check and cannot infer it from a successful stop. Reject
 requested suspension beyond the process's validated recovery window; automatic
 sandbox suspension has the same constraint. Worker failure may prevent timely
@@ -149,7 +149,7 @@ Every namespace declares its authority, visibility, and lifetime. Local and
 cluster-wide registration must identify the logical scope in which a name is
 unique and how that scope survives worker replacement. Neither means an
 unqualified worker-memory map, a Kubernetes namespace, or a Substrate atespace.
-M8 defines the minimal scoped registry; M10 proves cluster-wide conflict and
+M9 defines the minimal scoped registry; M11 proves cluster-wide conflict and
 partition behavior.
 
 Serialize changes for each name under one fenced authority. Conditional updates
@@ -170,7 +170,7 @@ Accepted work and late effects follow the original process's retirement policy.
 Registry lookup and mutation require separate scoped permissions. A resolved
 PID does not grant send, inspect, supervision, or runtime-control privileges.
 Station requires authenticated caller provenance at the handler boundary.
-The current public input contains only position/value; M8 must expose trusted
+The current public input contains only position/value; M9 must expose trusted
 origin evidence before treating a framework reply or registry mutation as
 authenticated. A sender field inside opaque application bytes is insufficient.
 Delegation remains explicit rather than inherited from receiving a message.

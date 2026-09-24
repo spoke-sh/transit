@@ -14,7 +14,7 @@ with Agent Substrate is the reference deployment. **Rey is the intended downstre
 trading application**, using the same primitives as other workloads.
 
 **Status:** experimental kernel, Board, launchers, instrumentation, and bounded
-KV state are implemented through M7. Station is next. The
+KV state are implemented through M7. Runtime readiness (M8) comes next, before Station (M9). The
 [roadmap](docs/roadmap/README.md) records the supported profiles; the
 [pre-Station review](docs/reviews/PRE_STATION.md) identifies remaining gaps.
 

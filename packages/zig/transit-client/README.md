@@ -34,7 +34,7 @@ Each client is used by one operation at a time; sessions sharing a principal als
 share its mutation sequence. The current delivered input has position and opaque
 value only. It does not expose authenticated source identity, so applications
 must not treat a claimed sender inside the value as verified. Station's public
-origin contract is an [M8 gate](../../../docs/roadmap/M8.md#entry-gates).
+origin contract is an [M9 gate](../../../docs/roadmap/M9.md#entry-gates).
 
 ## Instrumentation
 

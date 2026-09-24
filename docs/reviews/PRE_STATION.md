@@ -3,7 +3,7 @@
 Reviewed 2026-09-24 against implementation commit `96db8a9` and the documentation
 corrections accompanying this review. This is a source/contract/test-coverage
 review of M0–M7, not a production security certification or a new milestone.
-[Roadmap](../roadmap/README.md) · [Station entry gates](../roadmap/M8.md#entry-gates)
+[Roadmap](../roadmap/README.md) · [Station entry gates](../roadmap/M9.md#entry-gates)
 
 ## Assessment
 
@@ -17,7 +17,7 @@ state authority.
 M7 is sufficient to start Station's design and first implementation slice. It is
 not evidence that a general GenServer runtime can be implemented as callback
 wrappers alone. The gaps below require public contracts, service ownership, and
-failure proofs within M8 before claiming its programming interface complete.
+failure proofs in M8 runtime readiness and M9 Station before claiming its programming interface complete.
 
 ## Review coverage
 
@@ -30,7 +30,7 @@ failure proofs within M8 before claiming its programming interface complete.
 | Delivery and effects | `applyTurn`/`deliver`/`observe` in core; [outbox](../../tests/outbox.zig), [effect proof](../../tests/effect_io.py) | Legal delivery and closure are proved; no deployed general delivery loop, timer service, or HTTP connector follows from those tests. |
 | Runtime and development | [Controller](../../apps/transit-runtime-controller/README.md), [provisioning](../../launchers/common.py), [upgrade proof](../../tests/reference_launcher.py) | Same-PID recovery and compatible upgrades are distinct from logical replacement. Current controller scope is one PID; local/Compose trust differs from Substrate isolation. |
 | Inspection and operations | [Board](../../apps/transit-board/README.md), [frontend](../../apps/transit-board-web/README.md), [telemetry](../../packages/zig/telemetry/README.md) | Private shared inspection, raw-value permission boundaries, explicit cuts, and lossy diagnostics are documented. Framework descriptors and progress guarantees are future work. |
-| Roadmap and evidence ownership | [M7](../roadmap/M7.md), [M8](../roadmap/M8.md), [proof guide](../../tests/README.md) | Corrected completion wording to match the chosen bounded mechanism; new gates belong to upcoming work, not retroactive milestone follow-ons. |
+| Roadmap and evidence ownership | [M7](../roadmap/M7.md), [M9](../roadmap/M9.md), [proof guide](../../tests/README.md) | Corrected completion wording to match the chosen bounded mechanism; new gates belong to upcoming work, not retroactive milestone follow-ons. |
 
 ## Authenticated inputs and framework permissions
 
@@ -184,10 +184,11 @@ now live in nested component guides. Foundational docs link to those owners.
 Stale planned-state wording, durable-staging claims, initialization overclaims,
 and outdated application-lens references are corrected.
 
-[M8](../roadmap/M8.md#entry-gates) now owns the concrete prerequisites above.
-[M9](../roadmap/M9.md) must additionally specify large-body references,
+[M8 runtime readiness](../roadmap/M8.md) owns the generic runtime prerequisites;
+[M9 Station](../roadmap/M9.md#entry-gates) owns behavior policies and subscriptions.
+[M10](../roadmap/M10.md) must additionally specify large-body references,
 transcript/secret permissions, capture completeness and bounded external retry;
-the immutable payload proof is not that dependency model. [M10](../roadmap/M10.md)
+the immutable payload proof is not that dependency model. [M11](../roadmap/M11.md)
 needs measured recovery/scaling, portable runtime conformance, distributed
 retention and explicit live-restore/migration procedures. If an expansion needs
 its own delivery milestone, insert it into the linear roadmap before its consumer.

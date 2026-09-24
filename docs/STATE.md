@@ -231,7 +231,7 @@ primitives.
 
 [M7](roadmap/M7.md) records the completed bounded profile and qualification.
 [Conformance](CONFORMANCE.md) owns adversarial obligations; the
-[pre-Station review](reviews/PRE_STATION.md) identifies limits relevant to M8.
+[pre-Station review](reviews/PRE_STATION.md) identifies limits relevant to M9.
 
 The [state v1 contract](../contracts/STATE_V1.md) specifies current encoding,
 limits, and compatibility. Changes to storage layout or numerical budgets need

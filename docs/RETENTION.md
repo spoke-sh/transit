@@ -323,6 +323,6 @@ collection can run after process expiry without prolonging its execution rights.
 
 M1 proves the lifetime contract, deadline fencing, durable recovery basis, and
 basic trim/delete recovery. M7 proves associated-state dependencies, KV compaction,
-and resource expiry. M8 exposes those semantics through Station suspension and
-supervision. M9 adds connector dependency handling; M10 extends the proofs to
+and resource expiry. M9 exposes those semantics through Station suspension and
+supervision. M10 adds connector dependency handling; M11 extends the proofs to
 distributed consumers and broader recovery operations. See [roadmap](roadmap/README.md).

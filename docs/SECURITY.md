@@ -64,7 +64,7 @@ body, change its lifetime, or delegate the receiver's rights.
 Durable admission records retain authenticated request origin. The target
 handler envelope must expose authenticated source evidence and any explicitly
 supported delegation reference. The current public input exposes only position
-and value; [M8](roadmap/M8.md#entry-gates) must close that gap for framework calls.
+and value; [M9](roadmap/M9.md#entry-gates) must close that gap for framework calls.
 Receiving a message does not automatically grant the sender's permissions to
 the receiver or let the sender use all of the receiver's privileges. Delegation
 must be explicit, bounded, and no broader than the delegator's current grant.

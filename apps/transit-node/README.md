@@ -57,7 +57,7 @@ worker is required for standalone client-driven use.
 [Clock.zig](Clock.zig) supplies host time and [Maintenance.zig](Maintenance.zig)
 owns background lifetime/checkpoint/reclamation work. Neither mode automatically
 pumps committed outboxes or emits framework timers/lifecycle messages. Those
-runtime roles are [M8 prerequisites](../../docs/roadmap/M8.md#entry-gates).
+runtime roles are [M9 prerequisites](../../docs/roadmap/M9.md#entry-gates).
 
 ## API, trust, and validation
 

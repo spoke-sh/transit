@@ -101,7 +101,7 @@ signals; collector/export infrastructure is later scope.
 bounded recoverable reads, dependency lifetimes, and generic Board inspection.
 Next build GenServer behavior, supervision, and scoped name registration on those
 primitives, resolving the [pre-Station gaps](reviews/PRE_STATION.md) through
-[M8 entry gates](roadmap/M8.md#entry-gates). An HTTP connector follows. A caller
+[M8 runtime readiness](roadmap/M8.md) before [Station](roadmap/M9.md). An HTTP connector follows. A caller
 records a request; a fetch worker executes an authorized attempt; response data and timing are recorded;
 the caller resumes from a correlated mailbox message. Replay uses the transcript.
 Station and connectors add versioned Board lenses as their own primitives land.

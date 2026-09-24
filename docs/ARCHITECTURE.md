@@ -3,7 +3,7 @@
 Status: experimental M1 kernel, client, storage adapter, and reference runtime
 implemented and verified. Board supplies the qualified M2 inspection UI/API.
 M7 state resources and associations are implemented in a bounded KV profile.
-Station is next; production connectors and downstream applications follow. Use
+Runtime readiness precedes Station; production connectors and downstream applications follow. Use
 the [roadmap](roadmap/README.md) for scope and the [test guide](../tests/README.md) for proved behavior and limits.
 
 ## Execution model
@@ -80,7 +80,7 @@ semantics promise per-process order, not a portable global order between PIDs.
 
 Station will run in callers and connectors will submit observations through the
 same public boundary. Automatic outbox delivery, framework timers, and lifecycle
-notifications need runtime services and recovery contracts in M8; the existing
+notifications need runtime services and recovery contracts in M9; the existing
 `deliver` command and synthetic effect proof are not those services.
 
 Every ingress establishes authenticated provenance before the kernel accepts

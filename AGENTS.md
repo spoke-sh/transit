@@ -28,7 +28,7 @@ Follow the contracts for the area you change:
 Read [conformance](docs/CONFORMANCE.md) for adversarial obligations and tie work
 to a [roadmap milestone](docs/roadmap/README.md). Preserve the proved M1 gates before
 expanding framework or real-effect integrations. Before Station, address the
-[review findings](docs/reviews/PRE_STATION.md) through the M8 entry gates.
+[review findings](docs/reviews/PRE_STATION.md) through [M8 runtime readiness](docs/roadmap/M8.md).
 
 ## Implementation rules
 
