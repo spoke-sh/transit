@@ -84,6 +84,7 @@ Nix shell supplies build tools, not a Docker daemon. Then:
 
 ```sh
 just launchers::compose::up
+# In another terminal:
 just launchers::compose::status
 just launchers::compose::send 3 my-input
 just launchers::compose::inspect
@@ -98,8 +99,21 @@ upstream Ursula image, with no Node.js or Python application runtime. The
 launcher builds static Linux binaries for the Docker engine architecture.
 The official Ursula digest comes from the same
 [version pins](../deploy/reference/versions.json) as the reference deployment.
-This launcher currently starts Compose detached; the foreground default described
-above applies to the native local launcher.
+
+`up` stays in the foreground, using Docker Compose's attached output for service
+logs and container exits. Startup first brings up Ursula and the node for ordered
+provisioning, then attaches to all services as the application containers start.
+Earlier startup logs are included; failures before attachment print recent
+container logs before cleanup. An individual service exit leaves the others
+running for inspection and explicit restart.
+
+Ctrl-C, SIGTERM and terminal hangup stop this invocation's containers and remove
+its Compose resources while preserving the installation's WAL, configuration
+and keys. A subsequent `up` recovers the same realm. Other terminals can run
+`status`, `send`, `restart` or `down` while logs stream. Cleanup checks container
+identities so an old foreground session cannot stop a later replacement stack.
+Use `just launchers::compose::up --detach` (or `-d`) for background use; then
+`just launchers::compose::down` stops the installation.
 
 The checked-in [docker-compose.yaml](../docker-compose.yaml) defines the services,
 mounts, networks and log budgets. The printed state directory contains saved
@@ -121,7 +135,7 @@ so the launcher uses regular bridges explicitly.
 
 | Task | Local and Compose behavior |
 | --- | --- |
-| `up` | Create an installation once, or recover its saved history; local streams logs until stopped (`--detach` opts out), Compose starts detached; fail if already running or resources need cleanup |
+| `up` | Create an installation once, or recover its saved history; stream logs until stopped (`--detach` / `-d` opts out); fail if already running or resources need cleanup |
 | `status` | JSON endpoints, realm/PID, state path and manager/container observations; these observations do not grant authority |
 | `endpoints` | JSON URLs and credential-file location, without secrets |
 | `inspect` | Authenticated current Board discovery; unavailable/denied reads fail |
@@ -143,8 +157,10 @@ The default process and history have unlimited retention. Stopping services does
 not retire a PID or opt into history deletion. `reset` destroys a disposable
 development installation; it is not Transit's retention mechanism. Do not use
 these launchers with production data or restore rolled-back directories as live
-authority. Failed starts preserve state and logs for inspection; run `down` before
-trying `up` again. No launcher kills arbitrary processes to free a port.
+authority. Foreground startup failures clean up their own services and preserve
+state; Compose prints recent container diagnostics before removal. Detached
+startup failures can leave resources for inspection; run `down` before trying
+`up` again. No launcher kills arbitrary processes to free a port.
 
 The counter has PID-scoped execute/inspect permission. Board has a separate
 realm-wide inspection-only principal, and maintenance has its separate
@@ -286,7 +302,8 @@ the cause. Diagnostic retention failure does not stop Transit control work.
 
 Compose configures Docker's `json-file` driver with `max-size=5m` and `max-file=2`
 for every service. Logs survive container restart but disappear on Compose
-`down`; export any needed diagnostics first. External collectors, crash dumps,
+`down` or foreground shutdown; capture terminal output or export any needed
+diagnostics first. External collectors, crash dumps,
 build/test logs and Substrate-owned storage need separate operator policies.
 Never publish installation directories containing credentials with diagnostic
 reports. These budgets are independent of mailbox/history retention.

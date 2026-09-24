@@ -2,17 +2,20 @@
 import json
 import os
 import shutil
+import signal
+import subprocess
 import time
 
-from common import ROOT, SERVICES, healthy, run, write
+from common import ROOT, SERVICES, healthy, lock, run, write
 
 
 class Compose:
     def __init__(self, installation):
         self.installation = installation
         self.path = installation.path
+        self.manager = None
 
-    def docker(self, *args, **kwargs):
+    def docker(self, *args, spawn=False, **kwargs):
         values_file = self.path / "compose.env.json"
         env = dict(os.environ)
         if values_file.exists():
@@ -21,8 +24,12 @@ class Compose:
         else:
             # Allow existing installations to stop before their first new up.
             config = self.path / "compose.json"
-        return run(["docker", "compose", "--project-name", self.installation.load()["project"],
-                    "--env-file", os.devnull, "--file", config, *args], env=env, **kwargs)
+        command = ["docker", "compose", "--project-name", self.installation.load()["project"],
+                   "--env-file", os.devnull, "--file", config, *args]
+        if spawn:
+            return subprocess.Popen(list(map(str, command)), env=env,
+                                    stdin=subprocess.DEVNULL, start_new_session=True)
+        return run(command, env=env, **kwargs)
 
     def configured(self):
         return (self.path / "compose.env.json").exists() or (self.path / "compose.json").exists()
@@ -36,6 +43,8 @@ class Compose:
     def ready(self, name, url, headers=None):
         deadline = time.monotonic() + 45
         while time.monotonic() < deadline:
+            if self.manager is not None and self.manager.poll() is not None:
+                raise RuntimeError(f"Compose exited during startup ({self.manager.returncode}); data retained")
             if healthy(url, headers):
                 return
             if any(row["Service"] == name and row["State"] == "exited" for row in self.services()):
@@ -73,7 +82,7 @@ class Compose:
         write(self.path / "compose.env.json", {"REY_COMPOSE_" + key: value for key, value in values.items()})
         self.docker("config", "--quiet")
 
-    def up(self):
+    def up(self, detached=True):
         if self.services():
             raise RuntimeError("Compose resources already exist; use restart or down before up")
         self.installation.configure_board()
@@ -86,10 +95,92 @@ class Compose:
         self.ready("node", self.installation.url + "/health")
         self.installation.provision()
         self.installation.activate()
-        self.docker("up", "-d", "maintenance", "counter", "board")
+        if detached:
+            self.docker("up", "-d", "maintenance", "counter", "board")
+        else:
+            # Ursula and the node must be provisioned before application services
+            # start. Attach to all services, including their earlier startup logs.
+            self.manager = self.docker("up", "--no-recreate", "--no-build", "--menu=false",
+                                       "--timeout", "10", spawn=True)
         self.ready("board", self.installation.board_url + "/health", self.installation.board_headers)
         if {row["Service"] for row in self.services() if row["State"] == "running"} != set(SERVICES):
             raise RuntimeError("A service exited during startup; inspect status and logs")
+
+    def stop_attachment(self, graceful=False):
+        if self.manager is None or self.manager.poll() is not None:
+            return
+        if graceful:
+            self.manager.terminate()
+            try:
+                self.manager.wait(timeout=30)
+                return
+            except subprocess.TimeoutExpired:
+                pass
+        # The Docker CLI can have a Compose plugin child. Kill only this
+        # invocation's session, never a container or a reused project name.
+        try:
+            os.killpg(self.manager.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # Attachment exited between poll and signal.
+        self.manager.wait(timeout=5)
+
+    def foreground(self):
+        def interrupted(signum, frame):
+            raise KeyboardInterrupt
+
+        signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+        previous = {sig: signal.signal(sig, interrupted) for sig in signals}
+        owned = set()
+
+        def ignore_signals():
+            for sig in signals:
+                signal.signal(sig, signal.SIG_IGN)
+
+        try:
+            with lock(self.installation.lifecycle_lock):
+                self.installation.prepare()
+                if self.services():
+                    raise RuntimeError("Compose resources already exist; use restart or down before up")
+                try:
+                    self.up(detached=False)
+                    owned = {row["ID"] for row in self.services()}
+                except BaseException:
+                    # Startup still holds the lifecycle lock, so any partially
+                    # created containers belong to this invocation. Show their
+                    # diagnostics before removing them, including early failures
+                    # that happened before the attached Compose process started.
+                    ignore_signals()
+                    self.stop_attachment(graceful=True)
+                    if self.configured():
+                        try:
+                            self.docker("logs", "--tail", "200")
+                        finally:
+                            self.down()
+                    raise
+                print(json.dumps(self.installation.endpoints(), indent=2), flush=True)
+                print("Compose stack ready. Streaming logs; Ctrl-C stops services and preserves data.", flush=True)
+            # Commands in other terminals must remain usable while attached.
+            result = self.manager.wait()
+            if result != 0:
+                raise RuntimeError(f"Compose exited ({result}); data retained")
+        except KeyboardInterrupt:
+            print("\nStopping Compose services; data and keys retained.", flush=True)
+        finally:
+            ignore_signals()
+            try:
+                if owned:
+                    with lock(self.installation.lifecycle_lock):
+                        try:
+                            current = {row["ID"] for row in self.services()}
+                            # Another terminal may have run down then up. An old
+                            # foreground invocation must not stop the new stack.
+                            if current and current <= owned:
+                                self.down()
+                        finally:
+                            self.stop_attachment()
+            finally:
+                for sig, handler in previous.items():
+                    signal.signal(sig, handler)
 
     def down(self):
         if self.configured():

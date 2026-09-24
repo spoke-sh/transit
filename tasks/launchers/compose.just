@@ -9,9 +9,10 @@ _default:
 build:
     zig build apps
 
-# Start an owned persistent development stack and print endpoints/access-key path.
-up: build
-    python3 -B launchers/main.py compose up
+# Stream a persistent Compose stack's logs; pass --detach (or -d) for background use.
+[positional-arguments]
+up *args: build
+    python3 -B launchers/main.py compose up "$@"
 
 # Stop owned services while preserving history, configuration and credentials.
 down:

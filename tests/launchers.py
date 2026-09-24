@@ -47,7 +47,7 @@ def proof(profile):
     def invoke(action, *args, success=True, settings=None):
         command = [sys.executable, "-B", ROOT / "launchers/main.py", profile, action,
                    "--name", installation.name, "--base-port", str(installation.base_port), *args]
-        if profile == "local" and action == "up":
+        if action == "up":
             command.append("--detach")
         # A developer's .env must never redirect proof resources or publish
         # credentials on their chosen development listener.
@@ -264,21 +264,22 @@ def proof(profile):
                 print(f"Failure evidence retained at {installation.path}", file=sys.stderr)
 
 
-def foreground_proof():
-    installation = Installation("local", "foreground-" + secrets.token_hex(3), ports())
-    launcher = Local(installation)
+def foreground_proof(profile):
+    installation = Installation(profile, "foreground-" + secrets.token_hex(3), ports())
+    launcher = Local(installation) if profile == "local" else Compose(installation)
     env = {k: v for k, v in os.environ.items() if not k.startswith("REY_") and k not in ("LOG_LEVEL", "LOG_FORMAT")}
-    command = [sys.executable, "-B", str(ROOT / "launchers/main.py"), "local"]
+    command = [sys.executable, "-B", str(ROOT / "launchers/main.py"), profile]
     selection = ["--name", installation.name, "--base-port", str(installation.base_port)]
     output = ROOT / ".cache" / (installation.name + ".log")
     child = None
     completed = False
 
     def invoke(action, *args):
-        return subprocess.check_output([*command, action, *selection, *args], env=env, text=True, timeout=30)
+        return subprocess.check_output([*command, action, *selection, *args], env=env, text=True,
+                                       timeout=600 if action == "up" else 30)
 
-    def wait_for(predicate):
-        deadline = time.monotonic() + 45
+    def wait_for(predicate, seconds=45):
+        deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             try:
                 if predicate():
@@ -293,7 +294,7 @@ def foreground_proof():
         with output.open("w") as log:
             child = subprocess.Popen([*command, "up", *selection], env=env,
                                      stdout=log, stderr=log, start_new_session=True)
-            wait_for(lambda: "Local stack ready." in output.read_text())
+            wait_for(lambda: f"{profile.title()} stack ready." in output.read_text(), seconds=600 if profile == "compose" else 45)
             assert child.poll() is None
             first = next(p for p in installation.inspect()["observation"]["processes"] if p)
             wait_for(lambda: "board.http.request" in output.read_text())
@@ -301,12 +302,20 @@ def foreground_proof():
             wait_for(lambda: next(p for p in installation.inspect()["observation"]["processes"] if p)["state"] == b"15".hex())
             # A real child signal exit must be visible even without stderr,
             # and status/client calls must not truncate the manager's evidence.
-            board = next(row for row in launcher.services() if row["name"] == "board")
-            os.kill(board["pid"], signal.SIGKILL)
-            wait_for(lambda: "Exited exit_code=-1 process=board" in output.read_text())
-            invoke("status")
-            assert "Exited exit_code=-1 process=board" in (installation.path / "manager.log").read_text()
-            assert "Exited exit_code=-1 process=board" in invoke("logs", "manager")
+            if profile == "local":
+                board = next(row for row in launcher.services() if row["name"] == "board")
+                os.kill(board["pid"], signal.SIGKILL)
+                wait_for(lambda: "Exited exit_code=-1 process=board" in output.read_text())
+                invoke("status")
+                assert "Exited exit_code=-1 process=board" in (installation.path / "manager.log").read_text()
+                assert "Exited exit_code=-1 process=board" in invoke("logs", "manager")
+            else:
+                launcher.docker("kill", "--signal", "SIGKILL", "board")
+                wait_for(lambda: "exited with code 137" in output.read_text())
+                invoke("status")
+                # A second foreground up must fail without stopping the first.
+                duplicate = subprocess.run([*command, "up", *selection], env=env, capture_output=True, timeout=30)
+                assert duplicate.returncode != 0 and b"already exist" in duplicate.stderr
             invoke("restart", "board")
             assert child.poll() is None
             assert next(p for p in installation.inspect()["observation"]["processes"] if p)["pid"] == first["pid"]
@@ -314,6 +323,28 @@ def foreground_proof():
             assert child.wait(timeout=30) == 0
             assert not launcher.services()
             assert installation.manifest.exists() and (installation.path / "wal").exists()
+
+        if profile == "compose":
+            # Recover the same PID/state, then pause the old foreground owner
+            # while another terminal runs down and starts a new detached stack.
+            # Its eventual cleanup must not stop those replacement containers.
+            with output.open("w") as log:
+                child = subprocess.Popen([*command, "up", *selection], env=env,
+                                         stdout=log, stderr=log, start_new_session=True)
+                wait_for(lambda: "Compose stack ready." in output.read_text(), seconds=600)
+                recovered = next(p for p in installation.inspect()["observation"]["processes"] if p)
+                assert recovered["pid"] == first["pid"] and recovered["state"] == b"15".hex()
+                child.send_signal(signal.SIGSTOP)
+                try:
+                    invoke("down")
+                    invoke("up", "-d")
+                    replacements = {row["ID"] for row in launcher.services()}
+                finally:
+                    child.send_signal(signal.SIGCONT)
+                assert child.wait(timeout=30) == 0
+                assert {row["ID"] for row in launcher.services()} == replacements
+                assert all(row["State"] == "running" for row in launcher.services())
+                invoke("down")
 
         # A startup failure must stream actual service stderr, exit nonzero,
         # and clean up its own manager without deleting the saved installation.
@@ -324,8 +355,9 @@ def foreground_proof():
         with output.open("w") as log:
             child = subprocess.Popen([*command, "up", *selection], env=env,
                                      stdout=log, stderr=log, start_new_session=True)
-            assert child.wait(timeout=60) != 0
-        assert "error:" in output.read_text() and "node failed" in output.read_text(), output.read_text()[-5000:]
+            assert child.wait(timeout=600 if profile == "compose" else 60) != 0
+        failure = "node failed" if profile == "local" else "node exited"
+        assert "error:" in output.read_text() and failure in output.read_text(), output.read_text()[-5000:]
         assert not launcher.services()
         shutil.rmtree(wal)
         saved_wal.rename(wal)
@@ -334,13 +366,17 @@ def foreground_proof():
         with output.open("w") as log:
             child = subprocess.Popen([*command, "up", *selection], env=env,
                                      stdout=log, stderr=log, start_new_session=True)
-            wait_for(lambda: "Process Compose v" in output.read_text())
+            if profile == "local":
+                wait_for(lambda: "Process Compose v" in output.read_text())
+            else:
+                wait_for(lambda: any(row["Service"] == "ursula" for row in launcher.services()), seconds=600)
+                assert "Compose stack ready." not in output.read_text()
             child.send_signal(signal.SIGTERM)
             assert child.wait(timeout=30) == 0
         assert not launcher.services()
         invoke("reset")
         completed = True
-        print("local foreground: live logs, visible signal exit, unlocked controls, Ctrl-C, startup failure and termination cleanup passed.")
+        print(f"{profile} foreground: live logs, visible signal exit, unlocked controls, Ctrl-C, startup failure and termination cleanup passed.")
     finally:
         if child is not None and child.poll() is None:
             child.terminate()
@@ -355,5 +391,4 @@ def foreground_proof():
 
 if __name__ == "__main__":
     proof(sys.argv[1])
-    if sys.argv[1] == "local":
-        foreground_proof()
+    foreground_proof(sys.argv[1])

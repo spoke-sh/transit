@@ -40,8 +40,8 @@ just launchers::local::up
 Open the printed Board URL and sign in with the key from the printed file path.
 The [launchers](launchers/README.md) run a persistent local stack, a Docker Compose
 waypoint, and the Kubernetes/Substrate reference. Use `just launchers::local::down`
-or Ctrl-C to stop local services while preserving your data. Local `up` streams
-logs in the foreground; pass `--detach` for background use.
+or Ctrl-C to stop local services while preserving your data. Local and Compose
+`up` stream logs in the foreground; pass `--detach` for background use.
 `just launchers` lists the groups.
 
 Deployment definitions are checked in: [Process Compose](process-compose.yaml),
