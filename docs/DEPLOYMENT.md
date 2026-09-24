@@ -6,6 +6,17 @@ portability remains planned. Use the [reference runbook](../deploy/reference/REA
 for setup, the [controller](../apps/transit-runtime-controller/README.md) for
 operation, and the [test guide](../tests/README.md) for proved recovery/isolation.
 
+## Development path
+
+[Launchers](../launchers/README.md) expose native local, Docker Compose, and
+reference task groups. Local and Compose run persistent development systems
+through the same public protocol, with disk storage, separate inspection and
+maintenance credentials, and a real example caller. Native process management
+and container lifecycle do not substitute for Substrate runtime bindings.
+These trusted development profiles use direct recorded ownership; the reference
+adds provider reconciliation and sandbox isolation. Its current launcher remains
+a qualification harness, not a persistent application installer.
+
 ## Reference architecture
 
 Kubernetes manages the infrastructure that hosts Rey, persistent Ursula, and

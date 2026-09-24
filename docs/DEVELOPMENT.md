@@ -9,9 +9,18 @@ just check
 ```
 
 `just board::install` installs locked frontend dependencies. `just build` builds
-platform executables including the embedded Board. To try an application, run
-`just examples::run counter` or `just examples::run byte-log`; each launcher owns
-fresh local disk-backed infrastructure. See the [examples](../examples/README.md).
+platform executables including the embedded Board. Use
+`just launchers::local::up` for a persistent native system with Board and the
+counter example, then `status`, `inspect`, `logs`, `send`, or `restart` in that
+same task group. `down` preserves data; `reset` explicitly deletes a stopped
+installation. The [launcher guide](../launchers/README.md) owns the workflow,
+configuration and recovery limits.
+
+`launchers::compose` exercises the same development scenario in containers.
+`launchers::reference` owns Kubernetes/Substrate qualification. These steps
+preserve protocol semantics while adding deployment-specific evidence; they do
+not imply automatic data migration or equivalent runtime isolation.
+The [examples](../examples/README.md) also provide disposable one-shot demos.
 Protocol v2 requires a fresh development realm; automatic migration of v1
 histories and signatures is not implemented.
 
@@ -24,6 +33,7 @@ histories and signatures is not implemented.
 | Use a library or configure a service | [Component map](ARCHITECTURE.md#planned-monorepo-decomposition) |
 | Change public types or generate bindings | [transit-protocol](../packages/zig/transit-protocol/README.md) |
 | Run proofs and interpret their limits | [Tests](../tests/README.md) |
+| Run and inspect a persistent local system or Compose stack | [Launchers](../launchers/README.md) |
 | Set up or tear down Kubernetes/Substrate | [Reference runbook](../deploy/reference/README.md) |
 | Contribute code or documentation | [Agent instructions](../AGENTS.md), [documentation ownership](README.md#where-documentation-lives) |
 

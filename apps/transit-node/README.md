@@ -15,7 +15,8 @@ just build
 zig-out/bin/transit-node CONFIG.json
 ```
 
-Use the [example launcher](../../examples/README.md) for a complete local setup
+Use the [persistent launchers](../../launchers/README.md) or
+[disposable examples](../../examples/README.md) for a complete local setup
 or the [reference runbook](../../deploy/reference/README.md) for Kubernetes.
 `CONFIG.json` below is an operator-supplied file, not a checked-in fixture.
 [main.zig](main.zig) owns startup/HTTP configuration;
@@ -102,7 +103,7 @@ transport. A public deployment needs an authenticated TLS boundary. Keep raw
 Ursula and provider APIs inaccessible to workloads.
 
 Run `just test::service` for signed ingress, deadlines, revocation, paused callers,
-maintenance, and restart; `just reference::test` separately checks deployment
+maintenance, and restart; `just launchers::reference::test` separately checks deployment
 isolation. See [proof coverage and limits](../../tests/README.md).
 
 ## Inspection

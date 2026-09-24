@@ -5,6 +5,12 @@ image digest in [versions.json](versions.json). The
 [deployment design](../../docs/DEPLOYMENT.md) explains authority boundaries;
 this runbook explains how to operate the proof. It is not a production installer.
 
+Commands live under `just launchers::reference`; see the
+[launcher guide](../../launchers/README.md) for persistent native and Compose
+environments that precede this qualification step. Reference `down` deletes the
+owned cluster and its workload volumes; unlike local/Compose `down`, it does
+not preserve a running development realm for a later `up`.
+
 ## Prerequisites and lifecycle
 
 The [reference deployment](../../docs/DEPLOYMENT.md) targets Kubernetes and Agent Substrate.
@@ -16,10 +22,10 @@ required certificate feature gates and gVisor. K3s compatibility is not claimed.
 ```sh
 nix develop
 just board::install
-just reference::up
-just reference::images
-just reference::test
-just reference::down
+just launchers::reference::up
+just launchers::reference::images
+just launchers::reference::test
+just launchers::reference::down
 ```
 
 Setup creates a uniquely named cluster, local registry, and private kubeconfig

@@ -1,10 +1,10 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-set working-directory := ".."
+set working-directory := "../.."
 
 [default]
 _default:
-    @just --list reference
+    @just --list launchers reference
 
 # Create an isolated Linux/Docker Kubernetes + Substrate reference cluster.
 up:
@@ -18,6 +18,6 @@ images:
 test:
     python3 -B tests/reference_workload.py
 
-# Delete only the cluster and registry recorded by reference::up.
+# Delete only the cluster and registry recorded by launchers::reference::up.
 down:
     python3 -B tests/reference.py down

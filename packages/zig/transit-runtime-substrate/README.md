@@ -69,5 +69,5 @@ just test::packages
 
 See the [test guide](../../../tests/README.md) for integration evidence and limits.
 
-Real provider behavior and egress isolation require `just reference::test` on the
+Real provider behavior and egress isolation require `just launchers::reference::test` on the
 [pinned reference deployment](../../../deploy/reference/README.md).

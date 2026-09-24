@@ -3,8 +3,8 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 # Embedded inspection API, UI and generated browser client.
 mod board 'tasks/board.just'
 
-# Kubernetes and Substrate reference deployment.
-mod reference 'tasks/reference.just'
+# Persistent development environments and the deployment reference.
+mod launchers 'tasks/launchers.just'
 
 # Unit, package and integration proofs.
 mod test 'tasks/test.just'
@@ -25,6 +25,7 @@ doctor:
     nix --version
     just --version
     python3 --version
+    process-compose version
     zig version
     node --version
     pnpm --version
@@ -46,7 +47,7 @@ check:
     git diff --check
 
 # Run the hosted CI checks within one already-entered development environment.
-ci: check test::packages test::storage test::service test::callers test::inspection board::check board::test
+ci: check test::packages test::storage test::service test::callers test::inspection board::check board::test launchers::local::test
 
 # Compile platform executables and the standalone Board UI/API.
 build:

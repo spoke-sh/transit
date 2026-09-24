@@ -21,6 +21,7 @@ Follow the contracts for the area you change:
 | Behaviors, supervision, names | [Station](docs/STATION.md) |
 | Effects, capture, secret interpolation | [Connectors](docs/CONNECTORS.md) |
 | Kubernetes, provider bindings, recovery | [Deployment](docs/DEPLOYMENT.md), [runtime contract](contracts/RUNTIME_SUBSTRATE_V1.md) |
+| Local/Compose lifecycle and developer environments | [Launchers](launchers/README.md) |
 
 Read [conformance](docs/CONFORMANCE.md) for adversarial obligations and tie work
 to a [roadmap milestone](docs/roadmap/README.md). Preserve the proved M1 gates before

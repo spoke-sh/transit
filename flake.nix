@@ -62,6 +62,7 @@
               packages = [
                 pkgs.just
                 pkgs.python3
+                pkgs.process-compose
                 zig
                 vite-plus
                 ursula

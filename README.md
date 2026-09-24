@@ -30,15 +30,18 @@ Install Nix with flakes and `nix-command` enabled, then:
 nix develop
 just doctor
 just check
-just examples::run counter
+just board::install
+just launchers::local::up
 ```
 
-The [examples](examples/README.md) provision fresh local disk-backed infrastructure
-and run complete Zig calling programs. `just build` builds platform executables;
-`just ci` runs the local test suite.
-For Board, run `just board::install` then `just board::demo`; see the
-[Board guide](apps/board/README.md) for configuration and access. Frontend
-dependencies are required by `just build` and `just ci`. Run `just` to browse tasks.
+Open the printed Board URL and sign in with the key from the printed file path.
+The [launchers](launchers/README.md) run a persistent local stack, a Docker Compose
+waypoint, and the Kubernetes/Substrate reference. Use `just launchers::local::down`
+to stop local services while preserving your data. `just launchers` lists the groups.
+
+The [examples](examples/README.md) also offer disposable calling-program demos.
+`just build` builds executables; `just ci` runs the local checks and proofs.
+Frontend dependencies are required by both. Run `just` to browse all tasks.
 
 ## Find your way
 

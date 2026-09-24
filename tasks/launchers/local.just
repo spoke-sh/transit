@@ -1,0 +1,54 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set working-directory := "../.."
+
+[default]
+_default:
+    @just --list launchers local
+
+# Compile the binaries used by this launcher; install frontend dependencies first.
+build:
+    zig build apps examples board
+
+# Start an owned persistent development stack and print endpoints/access-key path.
+up: build
+    python3 -B launchers/main.py local up
+
+# Stop owned services while preserving history, configuration and credentials.
+down:
+    python3 -B launchers/main.py local down
+
+# Show machine-readable service status, identity and endpoints.
+status:
+    python3 -B launchers/main.py local status
+
+# Print endpoint and credential-file locations; never print the credential.
+endpoints:
+    python3 -B launchers/main.py local endpoints
+
+# Inspect the realm through Board's authenticated public API.
+inspect:
+    python3 -B launchers/main.py local inspect
+
+# Show recent logs for one service.
+logs service="node":
+    python3 -B launchers/main.py local logs {{quote(service)}}
+
+# Restart one service; counter replacement receives a fresh fenced activation.
+restart service:
+    python3 -B launchers/main.py local restart {{quote(service)}}
+
+# Admit a counter input; reuse the request ID to retry without duplicate admission.
+send value request_id="":
+    python3 -B launchers/main.py local send {{quote(value)}} --request-id {{quote(request_id)}}
+
+# Permanently delete this installation's data and keys; requires down first.
+reset:
+    python3 -B launchers/main.py local reset
+
+# Prove persistence, duplicate-safe provisioning, fencing and missing-store refusal.
+test: build
+    python3 -B tests/launchers.py local
+
+# Attach the terminal service/log viewer; detach leaves the stack running.
+attach:
+    python3 -B launchers/main.py local attach

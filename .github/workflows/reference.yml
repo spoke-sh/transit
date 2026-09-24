@@ -17,12 +17,12 @@ jobs:
         with:
           persist-credentials: false
       - run: nix develop --command just board::install
-      - run: nix develop --command just reference::up
-      - run: nix develop --command just reference::images
-      - run: nix develop --command just reference::test
+      - run: nix develop --command just launchers::reference::up
+      - run: nix develop --command just launchers::reference::images
+      - run: nix develop --command just launchers::reference::test
       - run: nix develop --command just test::capacity
       - if: always()
         run: |
           if test -f .cache/reference/state.json; then
-            nix develop --command just reference::down
+            nix develop --command just launchers::reference::down
           fi

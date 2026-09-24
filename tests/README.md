@@ -19,7 +19,7 @@ suite. Capacity and reference proofs have extra prerequisites and are separate.
 | `just test::storage` | Disk WAL SIGKILL/restart; competing authorities, lost receipts and revoked grants; 100 inputs beyond the 16-record window; checkpoint/trim with pending effect/outbox/control evidence; live authority catch-up; immutable payload deletion after a lost receipt; native long-poll/offset continuation |
 | `just test::service` | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
 | `just test::capacity` | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations |
-| `just reference::up`, `just reference::images`, `just reference::test` | Real provider setup; controller crash after creation; backlog wakeup, killed worker and fresh activation; Ursula/authority pod restart; opted-in expiry; blocked overflow stops replacement; gVisor egress/credential bypass denials |
+| `just launchers::reference::up`, `just launchers::reference::images`, `just launchers::reference::test` | Real provider setup; controller crash after creation; backlog wakeup, killed worker and fresh activation; Ursula/authority pod restart; opted-in expiry; blocked overflow stops replacement; gVisor egress/credential bypass denials |
 
 The capacity proof uses a finite allocation and a measured physical reserve;
 online expansion and arbitrary write amplification are not promised. Retention
@@ -59,6 +59,38 @@ The synthetic effect harness sets `NO_COLOR=1` for captured child logs so exact
 error checks work under interactive and forced-color builds too. Its rejection
 checks also verify the durable effect state, mailbox counts, and remote sends.
 
+## Launcher qualification
+
+`just launchers::local::test` and `just launchers::compose::test` exercise the
+real launchers in uniquely named installations, with disk-backed Ursula and
+the actual node, maintenance process, counter and Board. Both passed on Linux
+x86_64. The native proof is part of `just ci`; Compose remains an explicit
+Docker-dependent check. The proof checks:
+
+- Board authentication and the inspection-only upstream principal; private
+  credential files and secret-free status/log output.
+- Seed inputs admitted once, same-ID send retries returning the same receipt,
+  conflicting retry rejection, and resumption after a lost operator receipt.
+- Pending input surviving caller replacement, same PID with a fresh generation,
+  and rejection of the old caller's actual credentials.
+- Full stop/start with unchanged state, realm and keys; independent storage,
+  node and Board restarts; no fresh bootstrap when established WAL is missing.
+- Refusal to reset running resources, adopt an occupied port or running
+  installation, or reactivate a permanently retired PID.
+
+Successful proofs stop/remove only their owned resources and delete their test
+state. Failed proofs preserve private evidence for inspection after cleanup.
+These tests establish development workflow behavior, not Substrate isolation,
+clock accuracy, finite-capacity reserves, remote Docker support, or production
+deployment safety. Compose uses ordinary bridges with loopback publication;
+native code runs as the developer. See [launcher limits](../launchers/README.md).
+
+Initial checks caught premature local readiness using a previous activation's
+config, Docker internal networks suppressing host port publication, private build
+output permissions preventing non-root execution, and a Board config mount
+colliding with its executable path. Readiness now requires fresh worker config;
+images place executable files under `/bin` with explicit executable permissions.
+
 ## Service and reference evidence
 
 `just test::service` exercises actual signed HTTP ingress, PID-scoped reads,
@@ -67,7 +99,7 @@ against disk-backed Ursula. Authority and storage restart preserve state and
 revocations. This loopback proof does not establish deployment network isolation;
 see the [service profile](../contracts/SERVICE_V2.md).
 
-`just reference::test` runs the fixed counter via the pinned Substrate gVisor
+`just launchers::reference::test` runs the fixed counter via the pinned Substrate gVisor
 runtime on an owned Kind cluster. A controller crash after Actor creation is
 reconciled without a duplicate resource; killing the real worker preserves the
 PID/Actor and rotates worker identity and ownership. Ursula and authority pod

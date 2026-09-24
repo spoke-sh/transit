@@ -4,6 +4,7 @@
   runCommand,
   just,
   python3,
+  process-compose,
   zig,
   vite-plus,
   ursula,
@@ -19,6 +20,7 @@ runCommand "rey-toolchain-check"
     nativeBuildInputs = [
       just
       python3
+      process-compose
       zig
       vite-plus
       ursula
@@ -37,6 +39,7 @@ runCommand "rey-toolchain-check"
     mkdir -p "$out" web
     just --version > "$out/just-version"
     python3 --version > "$out/python-version"
+    process-compose version > "$out/process-compose-version"
     zig version > "$out/zig-version"
     node --version > "$out/node-version"
     pnpm --version > "$out/pnpm-version"

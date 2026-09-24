@@ -38,6 +38,7 @@ For hands-on work, use [development](DEVELOPMENT.md) and the
 | Package/app READMEs | Implemented APIs, dependencies, configuration, operations, and local limits |
 | [contracts/](../contracts/) | Exact versioned wire/provider specifications and generated schema |
 | [examples/](../examples/README.md) | Complete calling programs and how to run them |
+| [launchers/](../launchers/README.md) | Running and inspecting persistent development environments; lifecycle and trust limits |
 | [tests/](../tests/README.md) | Proof commands, failure schedules, results, and qualification limits |
 | [deploy/reference/](../deploy/reference/README.md) | Reference setup, prerequisites, and teardown |
 | [nix/](../nix/README.md), [tasks/](../tasks/README.md) | Toolchain maintenance and command reference |

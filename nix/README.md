@@ -1,7 +1,7 @@
 # Development toolchain
 
 [flake.nix](../flake.nix) supplies `just`, Zig 0.17 master through `zig-overlay`,
-Ursula/`ursulactl` through `ursula-overlay`, Vite+ (`vp`), Node.js, pnpm, Python,
+Ursula/`ursulactl` through `ursula-overlay`, Vite+ (`vp`), Node.js, pnpm, Python, Process Compose,
 and Kubernetes tools. [flake.lock](../flake.lock) pins inputs; the Vite+ release
 and checksums live in [vite-plus.nix](vite-plus.nix). Linux and macOS on x86_64
 and aarch64 are configured; native checks on every platform are not claimed.
@@ -49,6 +49,14 @@ The intended frontend workflow, once it is scaffolded, is `vp install`, `vp dev`
 `vp check`, `vp test`, and `vp build`. Those are not yet Rey application commands.
 Use the Nix package definition to update the CLI instead of `vp upgrade`, which
 changes mutable installation state outside the pinned tool definition.
+
+## Launcher tools
+
+The persistent [local launcher](../launchers/README.md) uses Process Compose
+1.110.0, selected by the existing nixpkgs lock, for OS process management and a
+terminal UI. `just doctor` and the toolchain smoke check verify its executable.
+Adding it does not update the Zig/Ursula pins. The Compose launcher separately
+requires a user-managed Docker daemon and Compose v2 plugin.
 
 ## Kubernetes tools
 

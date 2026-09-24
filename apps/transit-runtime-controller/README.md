@@ -57,7 +57,7 @@ The adapter README owns provider-specific behavior.
 
 ## Verification
 
-`just reference::test` interrupts the actual controller after Actor creation,
+`just launchers::reference::test` interrupts the actual controller after Actor creation,
 kills a worker, and checks recovery, fresh ownership, and blocked/retired shutdown.
 Unit and storage proofs cover the underlying binding protocol separately.
 See [test coverage](../../tests/README.md) for evidence and limits.

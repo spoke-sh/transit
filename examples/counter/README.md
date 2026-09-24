@@ -70,7 +70,7 @@ successful turn. Add the source PID's `publish` grant (combined permission bits
 ## Kubernetes and Substrate
 
 This is the reference deployment's sample workload, not a platform worker daemon.
-`just reference::images` packages it as `example-counter`; the runtime controller
+`just launchers::reference::images` packages it as `example-counter`; the runtime controller
 reconciles its PID and current sandbox activation.
 
 The reference template uses:

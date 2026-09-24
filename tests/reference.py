@@ -38,7 +38,7 @@ def source():
         run(["git", "fetch", "--depth=1", "origin", PINS["substrate"]], cwd=SOURCE)
         run(["git", "checkout", "--detach", PINS["substrate"]], cwd=SOURCE)
     if run(["git", "rev-parse", "HEAD"], cwd=SOURCE, capture=True) != PINS["substrate"]:
-        raise RuntimeError("Substrate cache is at another revision; move it aside before just reference::up")
+        raise RuntimeError("Substrate cache is at another revision; move it aside before just launchers::reference::up")
     if run(["git", "status", "--porcelain"], cwd=SOURCE, capture=True):
         raise RuntimeError("Substrate source cache is dirty; refusing to alter or build it")
 
@@ -62,7 +62,7 @@ def up():
     if sys.platform != "linux" or os.uname().machine != "x86_64":
         raise RuntimeError("The first reference proof supports Linux x86_64 with Docker")
     if STATE.exists():
-        raise RuntimeError("An owned reference cluster already exists; use just reference::test or just reference::down")
+        raise RuntimeError("An owned reference cluster already exists; use just launchers::reference::test or just launchers::reference::down")
     run(["docker", "info"], capture=True)
     source()
     CACHE.mkdir(parents=True, exist_ok=True)

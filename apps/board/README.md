@@ -16,7 +16,12 @@ just board::demo
 The demo starts isolated disk-backed Ursula, Transit, and the real counter caller.
 It prints a loopback URL and an access-key **file path**. Read that file locally
 and paste its contents into the login form. Ctrl-C removes the disposable realm.
-No access key enters the URL or logs. For your own realm:
+No access key enters the URL or logs.
+
+For a persistent development system with an actively polling caller, use
+`just launchers::local::up` or `just launchers::compose::up` instead. Their
+[guide](../../launchers/README.md) covers logs, inputs and restart without losing
+the realm. To configure Board against another provisioned realm:
 
 ```sh
 just board::build

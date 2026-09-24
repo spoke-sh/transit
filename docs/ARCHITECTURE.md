@@ -191,6 +191,12 @@ create a generic utility package without a concrete owner.
 
 ## Observation and repository ownership
 
+[Launchers](../launchers/README.md) compose existing executables for native local
+development, Docker Compose, and reference qualification. Their configuration,
+OS process management, and provisioning are development tooling, not new kernel
+or framework layers. Local/Compose ownership is recorded through the public
+client; only the Substrate reference supplies the implemented provider binding.
+
 Board starts with kernel identities and lifecycle evidence, then gains optional
 Station/connector lenses as those layers land. It reads through the public client;
 required discovery/history surfaces belong to Transit, not a Board backdoor into

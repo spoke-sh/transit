@@ -16,6 +16,7 @@ capabilities. Detailed contracts live in the linked design documents.
 | Ursula | The selected durable stream storage and transport implementation. See [URSULA.md](URSULA.md). |
 | ursula-zig | The upstream Zig client used by Rey's Ursula adapter. It handles transport/protocol operations; Transit defines execution semantics. |
 | Agent Substrate | The recommended sandbox execution target on Kubernetes. It manages runtime infrastructure and lifecycle; Transit's durable history governs process execution. See [DEPLOYMENT.md](DEPLOYMENT.md). |
+| Launcher | Development tooling that provisions and runs a concrete environment. Local, Compose, and reference launchers compose services; they do not replace Transit authority or Station supervision. See the [launcher guide](../launchers/README.md). |
 
 Use **Transit**, **Board**, and **Station** in prose, with **kernel**,
 **inspection surface**, and **framework** as their roles. The kernel implementation library lives in `packages/zig/transit-core`

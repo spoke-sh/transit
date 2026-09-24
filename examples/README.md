@@ -26,6 +26,11 @@ processes, temporary keys and storage on exit; it never connects to an existing
 realm or cluster. Python only provisions the demo—the Zig examples execute all
 application turns.
 
+For a system that stays up with Board and preserves state across restarts, use
+`just launchers::local::up` or `just launchers::compose::up`. The
+[launcher guide](../launchers/README.md) owns that workflow; these disposable
+examples remain useful for short, isolated demonstrations.
+
 To use an existing development authority, build the examples and supply the
 configuration described in their READMEs:
 

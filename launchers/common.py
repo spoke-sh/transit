@@ -1,0 +1,285 @@
+"""Development provisioning through the public CLI; never an execution authority."""
+from contextlib import contextmanager
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import socket
+import subprocess
+import time
+import urllib.error
+import urllib.request
+
+ROOT = Path(__file__).resolve().parents[1]
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, message, headers, url):
+        return None
+
+
+HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+SERVICES = ("ursula", "node", "maintenance", "counter", "board")
+
+
+def read_json(response, limit=256 * 1024):
+    data = response.read(limit + 1)
+    if len(data) > limit:
+        raise RuntimeError("Response exceeded the public protocol size bound")
+    return json.loads(data)
+
+
+def run(argv, *, capture=False, timeout=60, **kwargs):
+    result = subprocess.run(list(map(str, argv)), check=True, text=True,
+                            stdout=subprocess.PIPE if capture else None,
+                            timeout=timeout, **kwargs)
+    return result.stdout if capture else None
+
+
+def write(path, value):
+    """Publish a complete private file, including across a launcher interruption."""
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temp = path.with_name(path.name + ".tmp-" + secrets.token_hex(4))
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as stream:
+        stream.write(value if isinstance(value, str) else json.dumps(value, indent=2) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temp, path)
+    fd = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+@contextmanager
+def lock(path):
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with path.open("a") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
+
+
+def healthy(url):
+    try:
+        with HTTP.open(url, timeout=1) as response:
+            return response.status == 200
+    except (urllib.error.URLError, TimeoutError, ConnectionError):
+        return False
+
+
+def wait_for(url, seconds=45):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if healthy(url):
+            return
+        time.sleep(.2)
+    raise RuntimeError(f"Not ready: {url}; inspect launcher status and logs")
+
+
+class Installation:
+    def __init__(self, profile, name="default", base_port=None):
+        if not re.fullmatch(r"[a-z][a-z0-9-]{0,23}", name):
+            raise ValueError("Name must be 1–24 lowercase letters, digits or hyphens, starting with a letter")
+        self.profile, self.name = profile, name
+        self.path = ROOT / ".cache/launchers" / profile / name
+        self.base_port = base_port
+        self.manifest = self.path / "installation.json"
+        self.cli = ROOT / "zig-out/bin/rey-cli"
+        self.lifecycle_lock = self.path.parent / (name + ".lock")
+
+    def load(self):
+        value = json.loads(self.manifest.read_text())
+        if (value["version"], value["profile"], value["name"]) != (1, self.profile, self.name):
+            raise RuntimeError("Unrecognized launcher installation; refusing to adopt it")
+        if self.path.is_symlink():
+            raise RuntimeError("Launcher state must not be a symbolic link")
+        return value
+
+    @property
+    def url(self):
+        return f'http://127.0.0.1:{self.load()["base_port"] + 1}'
+
+    @property
+    def origin(self):
+        return f'http://127.0.0.1:{self.load()["base_port"] + 2}'
+
+    def key(self, relative):
+        path = self.path / relative
+        if not path.exists():
+            write(path, secrets.token_hex(32))
+        return json.loads(run([self.cli, "public-key", path], capture=True))
+
+    def prepare(self):
+        if self.manifest.exists():
+            config = self.load()
+            if self.base_port is not None and self.base_port != config["base_port"]:
+                raise RuntimeError("Ports are persisted; choose another launcher name to use different ports")
+            return
+        if self.path.exists():
+            raise RuntimeError("Incomplete installation directory; inspect and move it aside before provisioning")
+        base = self.base_port if self.base_port is not None else (18100 if self.profile == "local" else 18200)
+        if not 1024 <= base <= 65533:
+            raise ValueError("Base port must be between 1024 and 65533")
+        self.path.mkdir(parents=True, mode=0o700)
+        root_public = self.key("operator/root.key")
+        self.key("board/seed.key")
+        write(self.path / "board/access.key", secrets.token_hex(32))
+        self.key("maintenance/seed.key")
+        write(self.path / "operator/sequence.json", {"sequence": 0, "pending": None})
+        (self.path / "wal").mkdir(mode=0o700)
+        write(self.manifest, {"version": 1, "profile": self.profile, "name": self.name,
+              "project": "rey-" + self.profile + "-" + secrets.token_hex(6),
+              "realm": secrets.randbelow(2**31 - 1) + 1, "base_port": base, "root_public": root_public})
+        self.configs()
+
+    def configs(self):
+        config = self.load()
+        container = self.profile == "compose"
+        base = config["base_port"]
+        storage = "http://ursula:8080" if container else f"http://127.0.0.1:{base}"
+        self.upstream = "http://node:8080" if container else self.url
+        node = {"genesis": {"realm": config["realm"], "root_key": config["root_public"]},
+                "ursula_url": storage, "bucket": "development", "journal": "authority",
+                "listen": "0.0.0.0" if container else "127.0.0.1", "port": 8080 if container else base + 1}
+        write(self.path / "node.json", node)
+        write(self.path / "host-node.json", {**node, "ursula_url": f"http://127.0.0.1:{base}"})
+        write(self.path / "maintenance/config.json", {**node, "maintenance": {
+              "principal": 3, "seed_file": "/maintenance/seed.key" if container else str(self.path / "maintenance/seed.key")}})
+        pid_file = self.path / "pid.json"
+        pid = json.loads(pid_file.read_text()) if pid_file.exists() else None
+        write(self.path / "board/config.json", {"upstream": self.upstream, "realm": config["realm"],
+              "principal": 2, "seed_file": "/board/seed.key" if container else str(self.path / "board/seed.key"),
+              "credential_file": "/board/access.key" if container else str(self.path / "board/access.key"),
+              "public_origin": self.origin, "listen": node["listen"], "port": 8080 if container else base + 2,
+              "lenses": [{"pid": pid, "kind": "rey.example.counter", "version": 1}] if pid else []})
+        address = "0.0.0.0:8080" if container else f"127.0.0.1:{base}"
+        wal = "/wal" if container else str(self.path / "wal")
+        write(self.path / "ursula.toml", f'''[server]
+listen = "{address}"
+admin_listen = "127.0.0.1:0"
+[runtime]
+core_count = 2
+[raft]
+node_id = 1
+group_count = 1
+[raft.wal]
+backend = "disk"
+path = {json.dumps(wal)}
+[storage.cold]
+backend = "none"
+[storage.snapshot]
+backend = "inline"
+''')
+
+    def initialize(self):
+        # Only this explicit provisioning path can create history. Ordinary
+        # service restarts fail closed if storage has disappeared.
+        if not (self.path / "initialized.json").exists():
+            run([ROOT / "zig-out/bin/transit-node", self.path / "host-node.json", "--initialize"])
+            write(self.path / "initialized.json", True)
+
+    def check_ports(self):
+        listeners = []
+        try:
+            for port in range(self.load()["base_port"], self.load()["base_port"] + 3):
+                listener = socket.socket()
+                listeners.append(listener)
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                listener.bind(("127.0.0.1", port))
+        except OSError as error:
+            raise RuntimeError(f"Port {port} is already in use; refusing to adopt another service") from error
+        finally:
+            for listener in listeners:
+                listener.close()
+
+    def _flush(self, state):
+        pending = state["pending"]
+        if pending is None:
+            return
+        request_file = self.path / "operator/pending.json"
+        write(request_file, pending["request"])
+        signed = run([self.cli, "sign", self.path / "operator/root.key", request_file], capture=True).encode()
+        deadline = time.monotonic() + 20
+        while True:
+            try:
+                request = urllib.request.Request(self.url + "/v2/command", signed, {"Content-Type": "application/json"})
+                with HTTP.open(request, timeout=6) as response:
+                    receipt = read_json(response, 1024)
+                if (not isinstance(receipt, dict) or set(receipt) != {"position"}
+                        or type(receipt["position"]) is not int or not 1 <= receipt["position"] < 2**53):
+                    raise RuntimeError("Invalid receipt; pending request preserved for an exact retry")
+                break
+            except urllib.error.HTTPError as error:
+                if error.code not in (409, 503):
+                    raise RuntimeError(f"Pending operation {pending['id']} rejected: {error.read(8192).decode(errors='replace')}") from error
+            except (urllib.error.URLError, TimeoutError, ConnectionError):
+                pass
+            if time.monotonic() >= deadline:
+                raise RuntimeError(f"Outcome uncertain for {pending['id']}; saved request will be retried unchanged")
+            time.sleep(.2)
+        write(self.path / "operator/receipts" / (pending["id"] + ".json"), {**pending, "receipt": receipt})
+        state.update(sequence=pending["request"]["sequence"], pending=None)
+        write(self.path / "operator/sequence.json", state)
+
+    def command(self, identity, body):
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", identity):
+            raise ValueError("Request ID must contain 1–80 letters, digits, underscores or hyphens")
+        with lock(self.path / "operator/lock"):
+            state = json.loads((self.path / "operator/sequence.json").read_text())
+            self._flush(state)
+            receipt = self.path / "operator/receipts" / (identity + ".json")
+            if receipt.exists():
+                recorded = json.loads(receipt.read_text())
+                if recorded["request"]["command"] != body:
+                    raise RuntimeError("Request ID was already used with different content")
+                return recorded["receipt"]["position"]
+            state["pending"] = {"id": identity, "request": {"realm": self.load()["realm"],
+                "principal": 0, "sequence": state["sequence"] + 1, "command": body}}
+            write(self.path / "operator/sequence.json", state)
+            self._flush(state)
+            return json.loads(receipt.read_text())["receipt"]["position"]
+
+    def provision(self):
+        pid = self.command("spawn-counter", {"spawn": {"initial_state": b"0".hex()}})
+        write(self.path / "pid.json", pid)
+        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 33)):
+            self.command("grant-" + label, {"grant": {"subject": principal,
+                "public_key": self.key(label + "/seed.key"), "permissions": permissions}})
+        for value in (7, 5):
+            self.command(f"seed-{value}", {"send": {"pid": pid, "value": str(value).encode().hex()}})
+        self.configs()
+
+    def activate(self):
+        # The launcher is a trusted operator for a caller without a provider
+        # binding. Never manufacture Substrate observations or runtime authority.
+        with lock(self.path / "activation.lock"):
+            pid = json.loads((self.path / "pid.json").read_text())
+            with lock(self.path / "operator/lock"):
+                self._flush(json.loads((self.path / "operator/sequence.json").read_text()))
+            read = self.path / "operator/read.json"
+            write(read, {"realm": self.load()["realm"], "principal": 0, "sequence": 0, "command": {"inspect": pid}})
+            view = json.loads(run([self.cli, "view", self.path / "operator/root.key", read, self.url], capture=True))["process"]
+            if view["lifecycle"] != "running" or view["failure"] or view["binding"]:
+                raise RuntimeError("Counter is retired, blocked or provider-bound; refusing automatic replacement")
+            identity = secrets.token_hex(12)
+            write(self.path / "counter/seed.key", secrets.token_hex(32))
+            public = self.key("counter/seed.key")
+            self.command("worker-grant-" + identity, {"grant": {"subject": 1, "public_key": public, "permissions": 24, "pid": pid}})
+            self.command("worker-own-" + identity, {"own": {"pid": pid, "worker": 1, "expected_generation": view["generation"]}})
+            write(self.path / "counter/config.json", {"url": "http://node:8080" if self.profile == "compose" else self.url,
+                "realm": self.load()["realm"], "principal": 1, "pid": pid, "generation": view["generation"] + 1,
+                "seed_file": "/counter/seed.key" if self.profile == "compose" else str(self.path / "counter/seed.key")})
+
+    def endpoints(self):
+        return {"profile": self.profile, "name": self.name, "realm": self.load()["realm"],
+                "pid": json.loads((self.path / "pid.json").read_text()) if (self.path / "pid.json").exists() else None,
+                "board": self.origin, "transit": self.url, "state": str(self.path),
+                "access_key_file": str(self.path / "board/access.key")}
+
+    def inspect(self):
+        request = urllib.request.Request(self.origin + "/api/v1/processes", headers={
+            "Authorization": "Bearer " + (self.path / "board/access.key").read_text().strip()})
+        with HTTP.open(request, timeout=5) as response:
+            return read_json(response)

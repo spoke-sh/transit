@@ -6,12 +6,13 @@ Run commands from the repository root inside `nix develop`.
 
 The root [justfile](../justfile) keeps common commands: `build`, `check`, `ci`,
 `fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
-[reference](reference.just), [test](test.just),
+[launchers](launchers.just), [test](test.just),
 [examples](examples.just), [contract](contract.just), and [board](board.just).
-Use double colons, for example `just reference::up` or `just examples::run counter`.
+Use double colons, for example `just launchers::reference::up` or `just examples::run counter`.
 
-`just` lists common commands and namespaces. `just reference` or
-`just --list reference` lists that namespace's recipes; bare module commands only
+`just` lists common commands and namespaces. `just launchers` lists environment
+groups; `just launchers::local` or `just --list launchers local` lists one
+environment's recipes. Bare module commands only
 list tasks. In particular, `just test` lists the test recipes; use
 `just test::unit` to run unit tests. `just --list --list-submodules` shows the full
 tree.
@@ -35,6 +36,11 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just board::build`, `just board::run CONFIG` | Build the embedded binary and run a provisioned installation |
 | `just board::generate`, `just board::contract`, `just board::check` | Generate/check OpenAPI and browser models, then validate frontend formatting/lint/types/tests |
 | `just board::test`, `just board::browser-install`, `just board::browser` | Qualify the real API and install/run the pinned browser proof |
+| `just launchers::local::up`, `status`, `inspect`, `logs SERVICE`, `attach` | Start and explore a persistent native system with Board and a live counter |
+| `just launchers::compose::up`, `status`, `inspect`, `logs SERVICE` | Run the same scenario in Docker containers |
+| `just launchers::local::send VALUE [REQUEST_ID]`, `restart SERVICE` | Admit example input through signed ingress or replace a service; Compose has the same tasks |
+| `just launchers::local::down`, `reset` | Stop while preserving data, or explicitly delete a stopped installation; Compose has the same tasks |
+| `just launchers::local::test`, `just launchers::compose::test` | Qualify persistence, duplicate-safe provisioning, fresh ownership and missing-store refusal in isolated installations |
 | `just test::unit` | Runs Zig unit/protocol tests without a service |
 | `just test::packages` | Checks each library independently of root build orchestration |
 | `just test::storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
@@ -42,7 +48,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::callers` | Runs the actual counter and byte-log example binaries through the public client against the same node, including dropped commit responses, stale owners and restart recovery |
 | `just contract::generate`, `just contract::check` | Regenerates or checks the language-neutral JSON Schema derived from public Zig types |
 | `just test::capacity` | Linux/Docker proof of real disk pressure, reserved control progress, checkpoint/trim and restart on an owned ext4 image |
-| `just reference::up`, `just reference::images`, `just reference::test`, `just reference::down` | Sets up, builds, tests and removes the owned Kubernetes/Substrate reference deployment |
+| `just launchers::reference::up`, `just launchers::reference::images`, `just launchers::reference::test`, `just launchers::reference::down` | Sets up, builds, tests and removes the owned Kubernetes/Substrate reference deployment |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
 
 Keep root recipes for common entry points and put specific workflows in the
@@ -50,6 +56,7 @@ corresponding module. Add runnable work, not placeholder success.
 
 For prerequisites, proof boundaries, and troubleshooting, use the
 [test guide](../tests/README.md), [reference runbook](../deploy/reference/README.md),
+[launcher guide](../launchers/README.md),
 [toolchain guide](../nix/README.md), or [examples](../examples/README.md).
 
 `just test::inspection` exercises the signed, bounded public read surface against
