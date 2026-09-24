@@ -19,6 +19,7 @@ external cancellation. The owning code sets `protocol_outcome` separately.
 | `transit.http.request` | Node HTTP boundary; transport status/write outcome and separately known read/receipt/rejection |
 | `transit.client.request` | One client attempt, including timeout or a validated response; successful reads/receipts are debug-level |
 | `transit.storage.operation`, `transit.recovery` | Backend operation or authority recovery, supplied by the adapter/host |
+| `transit.delivery.step` | One scoped courier step; progress, idle, denial or uncertainty |
 | `transit.maintenance.step` | One bounded maintenance scan and its disposition |
 | `transit.runtime.step`, `transit.provider.operation` | Runtime reconciliation and provider invocation, separate from execution authority |
 | `transit.caller.turn`, `transit.caller.activation` | Caller-local computation/proposal progress and activation lifecycle |

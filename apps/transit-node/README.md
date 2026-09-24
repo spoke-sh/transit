@@ -50,14 +50,16 @@ worker is required for standalone client-driven use.
 | `POST /v2/command` | Signed mutation or reconciliation of an existing receipt |
 | `POST /v2/view` | Signed current process and next-input view for callers |
 | `POST /v2/inspect` | Signed bounded discovery, relationships and retained history |
+| `POST /v2/delivery` | Signed scoped pending count and courier sequence |
 | `POST /v2/state` | Signed state capabilities, resources, associations and value reads |
 | `GET /health` | Refresh storage and report role readiness; no workload progress guarantee |
 
 [main.zig](main.zig) owns configuration, ingress and response projections;
 [Clock.zig](Clock.zig) supplies host time and [Maintenance.zig](Maintenance.zig)
-owns background lifetime/checkpoint/reclamation work. Neither mode automatically
-pumps committed outboxes or emits framework timers/lifecycle messages. Those
-runtime roles are [M9 prerequisites](../../docs/roadmap/M9.md#entry-gates).
+owns background lifetime/checkpoint/reclamation work. The independently deployed
+[transit-delivery](../transit-delivery/README.md) pumps committed outboxes through
+the public client. Framework timers and lifecycle notifications remain
+[M9 work](../../docs/roadmap/M9.md#entry-gates).
 
 ## API, trust, and validation
 

@@ -24,11 +24,11 @@ the application failed. See [conformance](CONFORMANCE.md).
 provider-neutral evidence. Both kernel and client depend on it. `transit-client`
 has no kernel, Ursula or deployment-provider implementation dependency. Its
 explicit process view excludes the kernel's internal journal scan cursor.
-Future Station behaviors build on this client boundary. The current `Input`
-exposes position and value, without authenticated sender/effect provenance.
-That evidence must be added to the public contract before Station uses replies,
-registry commands, or lifecycle notifications as authenticated framework inputs.
-See the [review](reviews/PRE_STATION.md#authenticated-inputs-and-framework-permissions).
+Future Station behaviors build on this client boundary. `Input` exposes position,
+opaque value and a versioned authenticated origin. Applications match the expected
+source process/output or effect attempt before accepting correlated replies;
+external admission authenticates a principal, not a claimed process sender.
+See the [public input contract](../contracts/TRANSIT_V2.md).
 
 ## One caller turn
 

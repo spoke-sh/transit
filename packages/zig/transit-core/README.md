@@ -49,10 +49,10 @@ state machine does not run a scheduler, delivery worker, timer or handler.
 
 The bounded catalog retains retired PIDs, completed effects and resolved outputs
 by default. [Explicit catalog retention](../../../contracts/CATALOG_V1.md) can
-release eligible working slots while preserving non-reusable identities. M7 resources
-also retain their identity slots after reclamation. Checkpoint/trim cannot reset
-these limits; the [Station review](../../../docs/reviews/PRE_STATION.md#capacity-and-progress-under-pressure)
-explains the consequence for repeated calls and child replacement.
+release eligible working slots while preserving non-reusable identities, including
+reclaimed resources. Checkpoint/trim alone does not enable collection. Pending
+work, live dependencies and uncertain effects remain pinned; finite concurrent
+catalogs and the 16-principal bound still constrain Station topology.
 
 ## Build and verification
 

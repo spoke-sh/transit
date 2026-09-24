@@ -228,6 +228,13 @@ Counter logging is part of the immutable Actor template: a later `up` retains
 its saved logging and reports any deferred change. Use `update counter` to apply
 new settings through the recorded workload transition.
 
+Logical `lifecycle.suspend/resume` is separate from these launcher stop/start
+operations. The reference activation profile requires a fresh worker pod after
+confirmed suspension. Substrate cold boot can reuse its pod, so placement must
+replace prior worker capacity before logical resume; the controller reports
+`StaleWorkerIncarnation` otherwise. `restart counter` performs the explicit
+capacity replacement. The controller itself does not have pod-deletion rights.
+
 `infra-up` creates only Kind/Substrate; `infra-down` destroys the entire owned
 cluster and registry, including every application and proof namespace. The
 separate `images`/`test` commands build and run the destructive M1 proof. See the

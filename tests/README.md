@@ -349,8 +349,9 @@ and trims. SIGKILL/restart preserves retirement, closure, and closed admissions.
 
 The fixture uses 251 post-ceiling records. The v2 run grew WAL allocation by
 176,128 bytes during control recovery; current measurements are emitted by the
-recipe. The conservative current bound
-is 3,905 records (31,989,760 bytes plus a checkpoint). The 1 GiB physical reserve is
+recipe. The conservative bound
+was 3,905 records (31,989,760 bytes plus a checkpoint) in M1;
+the [M8 proof](#m8-runtime-readiness) records the current expanded bound. The 1 GiB physical reserve is
 a tested envelope for this configuration/schedule, not a universal filesystem
 or Ursula write-amplification guarantee. The fixture asserts control growth
 stays below 128 MiB and free space remains above the 32 MiB resume threshold.
@@ -569,3 +570,51 @@ or explicitly cancelled mailboxes and every resource's opt-in/minimum age.
 Resource identity/tombstone evidence is retained permanently within the bounded
 realm profile. Expiry can make data unavailable while unlimited history keeps
 its bytes; it never promises erasure of external copies.
+
+## M8 runtime readiness
+
+M8 supplies the generic runtime prerequisites for Station. Qualification passed
+on x86_64 Linux on 2026-09-24 with the pinned toolchain, including the full CI,
+browser, physical-capacity, three-launcher and Substrate isolation suites. Focused
+controller/caller checks and foundation checks were rerun after the recovery fixes.
+Its contracts are
+[authenticated inputs](../contracts/TRANSIT_V2.md),
+[scoped delivery](../contracts/SERVICE_V2.md),
+[catalog collection](../contracts/CATALOG_V1.md) and
+[lifecycle controls](../contracts/LIFECYCLE_V1.md).
+
+| Proof | Evidence and command |
+| --- | --- |
+| Authenticated origin | Core checks authority-derived external/process/effect envelopes, replay mutation rejection and retained origin after collection. Shared `inputs-v1.json` and canonical signed command fixtures are validated by `just check`. |
+| Actual caller exchange | `just test::callers` runs the counter and byte-log executables with `transit-delivery`, drops/malforms acknowledgements, checks exact retries and restarts the courier. Scoped delivery reads expose counts/sequence, not application payload. Core tests cover destination scope, revocation and terminal denial. Delayed counter activation stays within the bootstrap log bound even at debug verbosity. |
+| Sustained working catalogs | Unit and disk proofs allocate 257 outputs/effects and 65 process/resource identities while collecting eligible entries, exceeding the previous lifetime ceilings. Pending outputs, uncertain attempts, live dependencies and default unlimited retention remain protected; old IDs/results/owners cannot revive. |
+| Lifecycle recovery | Core tests cover lost creation/resource acknowledgements, missing required associations, scoped administration, exact failed-input retry, stale generations, suspension bounds and provider-stop/activation fencing. `tests/readiness.zig` restarts during initialization, completes it after recovery, checkpoints a blocked input, retries that head and expires a suspended process after trim/recovery. |
+| Disk/capacity | `just test::storage` runs readiness with disk Ursula, SIGKILL, checkpoint and prefix trim. `just test::capacity` fills an owned ext4 image: at admission ceiling 256, the reserve bound is **4385 records**, with control progress and restart verified. This replaces the pre-M8 reserve estimate for the current binary. |
+| Deployment | `tests/readiness_client.zig` imports the public client only. Local, Compose and reference launcher tests run it against real services: queue an output while delivery is stopped, restart courier and node, reject an identical externally submitted forged reply, accept the process-origin reply and inspect generic Board evidence. The harness never delivers that output. Reference qualification also queues input
+during a bounded logical suspension, confirms provider stop, replaces worker
+capacity and resumes the same PID/Actor with a fresh activation. Automatic pool
+recycling is outside the controller's current rights and this proof. |
+| Inspection | Core history queries preserve retained events for collected PIDs without inventing mailbox disposition. Board exposes lifecycle actions, initialization/suspension bounds and a collection warning. Generated OpenAPI/validators, API tests and the real browser suite check the shared surface. |
+
+Run `just ci`, `just transit-board::browser`, `just test::capacity`,
+`just launchers::compose::test` and `just launchers::reference::test-launcher`.
+The existing `just launchers::reference::images` / `just launchers::reference::test`
+proof additionally checks controller/worker loss, persistent authority/storage
+restart, expiry, poison-input shutdown and actual sandbox/Board bypass rejection.
+Its diagnostic check covers every remaining signing seed after removal of Board
+viewer keys. Pod readiness is distinct from host-forward availability; the Zig
+readiness caller retries unavailable reads without treating them as progress.
+Launcher qualification uses separately owned installations and retains failure
+evidence; it must not upgrade a developer's existing live realm implicitly.
+
+The measured disk-proof structures on x86_64 Linux are: state catalog 158560 bytes,
+core state 433472 bytes, captured view 17224 bytes, state page 7800 bytes and backend
+store 68968 bytes. These are type sizes, not total process RSS. Catalog capacities
+remain 64 concurrent processes, 128 effects, 256 outputs, four resources, four
+views and 16 principals. Collection is opt-in; unlimited default history can grow
+on disk. Automatic collection conservatively waits for delivered inputs to be
+consumed; explicit collection can prove a retained self-contained origin earlier.
+Whole-realm checkpoints require quiescence. No production throughput, recovery-time,
+HA, distributed retention or principal reclamation claim follows from these proofs.
+Station still owns durable wait/correlation layouts, child policies, timers,
+lifecycle subscriptions, restart budgets and versioned framework descriptors.

@@ -81,6 +81,11 @@ must replace the old worker capacity before resumption; the reference launcher
 and qualification do this explicitly. The controller reports `StaleWorkerIncarnation`
 if it observes reuse. Automatic pool replacement is not part of logical resume.
 
+The finite-admission profile reserves terminal/control progress, not arbitrary
+continued operation: after its ceiling, create/initialize/retry/suspend/resume are
+rejected. Due suspension expiry and termination remain eligible. Collection does
+not reopen this one-shot admission budget; callers must surface capacity closure.
+
 ## Compatibility and evidence
 
 `ProcessView.control` is null for legacy processes. New control state and catalog

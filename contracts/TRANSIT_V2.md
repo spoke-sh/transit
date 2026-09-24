@@ -1,6 +1,8 @@
 # Transit v2 experimental protocol profile
 
-Status: implemented and verified bounded M1 profile, not a stable public API.
+Status: implemented bounded M1 profile with additive [M7 state](STATE_V1.md)
+and M8 [lifecycle](LIFECYCLE_V1.md)/[collection](CATALOG_V1.md) extensions; not a
+stable public API.
 The owning requirements remain in [TRANSIT.md](../docs/TRANSIT.md) and
 [SECURITY.md](../docs/SECURITY.md).
 
@@ -17,7 +19,13 @@ recomputes admission and rejects mismatches; a denied delivery or evidence-only
 observation is not a mailbox input. Positions start at one, match the physical JSON
 record ordinal in this adapter, and remain explicit protocol fields. The portable
 engine does not interpret an Ursula byte cursor. A PID is `(realm, spawn position)`.
-Retired process entries are preserved and never reallocated.
+Retired process entries are preserved by default. Explicit M8 catalog collection
+can release eligible working slots without reusing any durable identity.
+
+M8 admissions persist authenticated origin evidence and outbox delivery selection;
+replay validates those fields against the accepted command. The
+[public input envelope](SERVICE_V2.md#authenticated-input-origins-m8) exposes only
+validated source identities, independently of opaque application bytes.
 
 Requests contain these fields in this canonical order:
 

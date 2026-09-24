@@ -61,10 +61,17 @@ dispatch, secret use, runtime control, retention/GC, and policy administration.
 Permission to send is not permission to inspect a mailbox, fetch a referenced
 body, change its lifetime, or delegate the receiver's rights.
 
-Durable admission records retain authenticated request origin. The target
-handler envelope must expose authenticated source evidence and any explicitly
-supported delegation reference. The current public input exposes only position
-and value; [M9](roadmap/M9.md#entry-gates) must close that gap for framework calls.
+Durable admissions and public handler inputs carry an authority-derived,
+versioned origin: external principal/policy revision, source PID/turn/output, or
+effect/attempt/executor. Payloads cannot select this evidence. General delegation
+is not implemented. The [input contract](../contracts/TRANSIT_V2.md) and shared
+fixtures define the envelope; origin survives eligible catalog collection.
+
+Automatic delivery uses a dedicated principal with the delivery capability,
+optionally scoped to a destination PID. Its separate current send grant determines
+whether admission is accepted or terminally denied. The courier can read pending
+counts and its sequence through [the signed delivery endpoint](../contracts/SERVICE_V2.md);
+it needs no mailbox values, execution rights, root seed or storage access.
 Receiving a message does not automatically grant the sender's permissions to
 the receiver or let the sender use all of the receiver's privileges. Delegation
 must be explicit, bounded, and no broader than the delegator's current grant.

@@ -23,12 +23,14 @@ needs no root signing seed. Bootstrap configuration is an operator trust input.
 `--maintain` runs a separate trusted process without an HTTP listener. Its config
 requires `principal` and `seed_file`, with realm-wide `admin` and `effect` grants.
 It scans the bounded process/effect/payload and state-resource catalogs,
-including expired read views, and commits at most one due
+including expired read views, suspended-process deadlines and opted-in catalog
+collection, and commits at most one due
 transition per iteration, and reconciles recorded checkpoint/deletion intents.
 Payload deletion requires verified publication, owner retirement and explicit
 opt-in; its tombstone stays in control history. Default interval is
 1000 ms and whole-operation timeout is 5000 ms; both are configurable up to
-60000 ms. Incoming HTTP load cannot occupy this process's execution loop.
+60000 ms. After a successful transition the next scan waits only 1 ms; idle and
+failed scans use the configured interval. Incoming HTTP load cannot occupy this process's execution loop.
 Lost acknowledgements are reconciled from history before the next operation.
 
 History remains unlimited by default. Optional `checkpoint_every_records` (at

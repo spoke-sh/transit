@@ -26,15 +26,16 @@ loop, durable waiting, and supervision.
 | --- | --- |
 | `Client.submit` | Sign a mutation and retain its exact request until the outcome is resolved |
 | `Client.view` / `Session.receive` | Read a process and its next input under current inspection/activation rights |
+| `Client.delivery` | Read scoped courier status without payload or general inspection access |
 | `Client.inspect` | Follow bounded process/history pages with explicit cut/expiry handling |
 | `Client.state` | Discover state capabilities and read metadata, associations, entries or captured views |
 | `Session.prepare*` / `Pending.submit` | Freeze activation-aware proposals; no hidden retry, persistence or background loop |
 
 Each client is used by one operation at a time; sessions sharing a principal also
-share its mutation sequence. The current delivered input has position and opaque
-value only. It does not expose authenticated source identity, so applications
-must not treat a claimed sender inside the value as verified. Station's public
-origin contract is an [M9 gate](../../../docs/roadmap/M9.md#entry-gates).
+share its mutation sequence. Delivered input includes position, opaque value and
+versioned authenticated origin. `Session.receive` rejects unsupported origin
+versions. Match the expected source PID/turn or effect attempt before interpreting
+application correlation; claimed senders inside opaque bytes carry no authority.
 
 ## Instrumentation
 

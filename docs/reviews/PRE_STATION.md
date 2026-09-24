@@ -5,6 +5,11 @@ corrections accompanying this review. This is a source/contract/test-coverage
 review of M0–M7, not a production security certification or a new milestone.
 [Roadmap](../roadmap/README.md) · [Station entry gates](../roadmap/M9.md#entry-gates)
 
+This is the historical M7 review. [M8](../roadmap/M8.md) implements the generic
+origin, delivery, lifecycle and catalog-readiness recommendations below; see its
+[qualification evidence](../../tests/README.md#m8-runtime-readiness) for current
+behavior. Remaining framework policies and scaling limits still apply.
+
 ## Assessment
 
 The architecture has a coherent authority boundary: applications compute through

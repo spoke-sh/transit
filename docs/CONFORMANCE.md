@@ -1,7 +1,7 @@
 # Protocol conformance and implementation gates
 
 Status: adversarial requirements with executable evidence for the bounded M1
-profile and its M2–M7 extensions. [tests/README.md](../tests/README.md) maps commands to recorded results,
+profile and its M2–M8 extensions. [tests/README.md](../tests/README.md) maps commands to recorded results,
 failure schedules, and limits. The [roadmap](roadmap/README.md) owns milestone gates.
 Results apply to their pinned topology, reviewed workload, and failure boundary;
 passing a subset does not establish every target guarantee.
@@ -45,14 +45,18 @@ tests as appropriate. A happy-path example alone does not satisfy a row.
 | Required state expires while a PID is suspended, or an associated reader outlives the resource owner | Permanent recovery failure under the accepted required-state policy; no implicit lifetime extension, detachment, or empty-state recreation; outages remain distinct | [State](STATE.md#lifetimes-and-retention), M7 |
 | A live key is older than the history window, or a deleted key is replayed from an old snapshot | Current-value preservation, versioned deletion and retained rejection evidence; explicit lagging-reader gaps with no resurrection | [State](STATE.md), M7 bounded KV; M11 distributed extension |
 | A resource retires as another operation creates a dependency, or staging/pins exhaust capacity | Serialized admission/retirement, bounded staging and read views, resumable cleanup, and reserved control progress | [State](STATE.md), [Retention](RETENTION.md), M7 |
+| A payload claims a trusted reply sender | Authority-derived origins distinguish an external forgery from a committed source-process output, including after courier/node restart | [Client](CLIENT.md), M8 |
+| A courier loses an acknowledgement or its send grant is revoked | Exact retry identity, bounded scoped scans, one admission or recorded terminal denial; restart needs no second queue | [Courier](../apps/transit-delivery/README.md), M8 |
+| Completed catalogs fill repeatedly or an old identity returns after collection | Explicit opt-in, protected pending work, non-reusable identities and recovery across checkpoint/trim | [Catalog contract](../contracts/CATALOG_V1.md), M8 |
+| Initialization crashes, retry names a stale failure, or suspension outlives recovery | Same provisioning receipt, declared required associations, scoped generation fence and permanent expiry; no skipped head input | [Lifecycle contract](../contracts/LIFECYCLE_V1.md), M8 |
 | A name is rebound while replies or retries are pending | Fixed destination PID and conditional cleanup; no permission inherited from a lookup or alias | [Station](STATION.md), M9 |
 | A tombstone or retry receipt is collected before a late consumer returns | Explicit horizon failure/resynchronization with no resurrection or duplicate admission | [Retention](RETENTION.md), retry boundary M1; KV compaction M7; distributed extension M11 |
 | A new image/schema interprets retained state differently | Authorized, versioned migration with a defined failure path; old and new owners cannot commit concurrently | [Transit](TRANSIT.md#replay-and-versions), reject unsupported changes M1; migration M11 |
 
-The [pre-Station review](reviews/PRE_STATION.md) maps current implementation gaps
-to [M9 entry gates](roadmap/M9.md#entry-gates). In particular, the handler-facing
-origin envelope, automatic delivery, initialization barrier and lifecycle
-notifications are not established by the existing command-level proofs.
+[M8 readiness evidence](../tests/README.md#m8-runtime-readiness) covers the
+handler-facing origin envelope, deployed courier, initialization barrier, scoped
+retry/suspension and working catalog reclamation. Durable lifecycle subscriptions,
+framework initialization policy and timers remain [M9 entry gates](roadmap/M9.md#entry-gates).
 
 ## Evidence and limits
 

@@ -2,7 +2,8 @@
 
 Status: an OTP-inspired layer above the kernel is established direction. The
 behavior API and lifecycle policies below are proposed, with no implementation.
-[M9](roadmap/M9.md) depends on [M7 state resources and associations](roadmap/M7.md).
+[M9](roadmap/M9.md) builds on [M7 state resources](roadmap/M7.md) and
+[M8 runtime readiness](roadmap/M8.md).
 
 ## Purpose
 
@@ -33,11 +34,12 @@ and [GenServer documentation](https://www.erlang.org/doc/system/gen_server_conce
 
 ## Preconditions for the first framework slice
 
-The [pre-Station review](reviews/PRE_STATION.md) identifies gaps between the
-proved kernel operations and a recoverable framework. [M9](roadmap/M9.md) must
-close its entry gates before finalizing callback signatures: authenticated input
-origins, automatic delivery and lifecycle observations, recoverable initialization,
-least-privilege lifecycle control, and a capacity budget for the example topology.
+[M8](roadmap/M8.md) supplies authenticated input origins, an automatic outbox
+courier, explicit initialization, scoped lifecycle controls and opt-in catalog
+reclamation. [M9](roadmap/M9.md#entry-gates) must now define durable lifecycle
+subscriptions, timer outcomes, child initialization/restart policies and a capacity
+budget for its example topology. These framework protocols use the public client;
+they must not depend on test-harness delivery or root credentials in handlers.
 
 A handler has one writable resource per turn. Behavior state and framework
 waiting/correlation data that must commit atomically need to share that resource
@@ -111,9 +113,11 @@ Connector reconciliation has its own recorded owner, window, and budget. Its
 closure is terminal even if the original request later returns a response.
 
 The Station API must return an explicit resumption bound when lifetime is finite.
-Current provider stop operations do not accept a requested resume time; M9 must
-specify that check and cannot infer it from a successful stop. Reject
-requested suspension beyond the process's validated recovery window; automatic
+The [lifecycle contract](../contracts/LIFECYCLE_V1.md) records a generation-fenced
+`resume_before_ms` bound and makes late resumption permanently invalid. Station
+uses that operation before requesting provider stop; a provider stop alone does
+not establish a logical suspension contract. Reject requested suspension beyond
+the process's validated recovery window; automatic
 sandbox suspension has the same constraint. Worker failure may prevent timely
 resumption, so activation must revalidate eligibility. A known expired process
 is a permanent lifecycle failure, not a retryable worker outage.
@@ -170,9 +174,10 @@ Accepted work and late effects follow the original process's retirement policy.
 Registry lookup and mutation require separate scoped permissions. A resolved
 PID does not grant send, inspect, supervision, or runtime-control privileges.
 Station requires authenticated caller provenance at the handler boundary.
-The current public input contains only position/value; M9 must expose trusted
-origin evidence before treating a framework reply or registry mutation as
-authenticated. A sender field inside opaque application bytes is insufficient.
+The public input includes an authority-derived, versioned `origin` identifying
+external principals, source-process outputs or recorded effect attempts. Validate
+that origin against the expected peer and operation before accepting framework
+replies or registry mutations. A sender field inside opaque bytes is insufficient.
 Delegation remains explicit rather than inherited from receiving a message.
 See [SECURITY.md](SECURITY.md).
 
@@ -183,9 +188,11 @@ memory, execution time, and retries. On repeated failure, keep the process visib
 blocked or apply an authorized ordered rejection/termination policy, recording
 the input disposition before progress advances. Quarantine is observable retained
 work with its own lifetime, not silent acknowledgement. M1 records a handler
-failure as a durable block and fences ownership; it has no clear-failure or retry transition. Station must distinguish retries before a
-terminal failure report from any future authorized recovery operation. It cannot
-implement restart by repeatedly requesting ownership of a blocked PID.
+failure as a durable block and fences ownership. M8 adds an administrative retry
+that names the exact failure and expected generation, preserves the head input,
+and requires fresh ownership. Station supplies bounded retry/backoff policy and
+an appropriately scoped controller. Repeated ownership requests alone cannot
+restart a blocked PID.
 
 Requests, replies, timeout observations, and cancellations retain correlation
 and authenticated origin. Client disconnection is not cancellation of accepted

@@ -114,16 +114,16 @@ contract; independently successful stream appends are insufficient.
 
 Creation initializes an empty resource; it does not initialize application data.
 Creation, grants, association installation and activation are separate recoverable
-commands. The launchers provision their required association before activating
-the caller. Core rejects invalid installed dependencies, but spawn declares no
-required-association set: a PID with no associations can execute. M7 therefore
-proves ordered trusted provisioning, not an atomic framework initialization gate.
+commands. [M8 lifecycle creation](../contracts/LIFECYCLE_V1.md) declares required
+association names and blocks handlers until explicit initialization succeeds.
+New launchers use this barrier; legacy `spawn` remains immediately executable.
+Station must define application schema initialization and recover the exact
+provisioning requests, including partial allocations, before completing the
+barrier. Empty resource creation is still not application initialization.
 
-Station must durably record initialization intent and completion, reconcile lost
-receipts, and keep ordinary handlers from running early. A rejected or interrupted
-initialization must expose partial allocations and their policy; it cannot mint
-replacement resource IDs on each retry. Resource creation consumes a lifetime
-catalog slot even when later retired.
+[Opt-in collection](../contracts/CATALOG_V1.md) releases reclaimed resource slots
+without reusing their IDs. Default retention keeps those entries. Pending work,
+live associations and captured views pin the resources they require.
 
 ## Reads, replay, and lookup cost
 

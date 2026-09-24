@@ -13,7 +13,9 @@ both sides. The API is experimental v2, with no v1 migration.
 
 [The module root](src/root.zig) exports commands, signed requests, receipts,
 process views, rejection codes, opaque values, and provider-neutral evidence.
-Package-owned [fixtures](src/fixtures) define shared request and sequence cases.
+Package-owned [fixtures](src/fixtures) define shared request, sequence and
+authenticated-input cases. `Delivery`, `Lifecycle` and `Collection` expose the M8
+courier, process-control and opt-in reclamation contracts.
 The [protocol profile](../../../contracts/TRANSIT_V2.md) specifies semantics;
 the [service profile](../../../contracts/SERVICE_V2.md) specifies HTTP behavior.
 Internal kernel state is not a public compatibility surface.

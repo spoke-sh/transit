@@ -49,10 +49,12 @@ not authorize that change.
 | Term | Meaning |
 | --- | --- |
 | Process | Transit's logical execution primitive: identity, mailbox, committed control state, ordered sequence, and lifecycle. Application state is inline in M1 and associated through resources in M7. It is independent of an OS process, worker, or sandbox. |
+| Initialization barrier | Process control state that prevents handler execution until declared required associations exist and initialization is explicitly completed. |
 | PID | Opaque, durably scoped process identity. It survives eligible worker recovery, suspension, and migration; logical termination or process expiry retires it permanently. |
 | Actor | A programming-model participant implemented by a Transit process. It adds no separate identity layer. Use **Substrate Actor** when referring to the external runtime resource. |
 | GenServer | A planned Station behavior running in a Transit process, providing sequential message handling, state associations, and request/reply under that process's PID. |
 | Mailbox | The process's ordered view of durably admitted input messages. Admission and processing progress are distinct. |
+| Input origin | Authority-derived evidence identifying an external principal, source-process output or effect attempt; not a sender claim inside application bytes. |
 | Unbounded mailbox | A logically unbounded durable backlog that can outlive a worker and exceed its RAM. Read windows, storage capacity, and admission still have explicit limits. |
 | Process sequence | The process's ordered protocol history, including admitted messages and execution/lifecycle records. It establishes no global order across processes. |
 | Admission | Durable acceptance of a message's identity and place in the target PID's mailbox. It does not mean handling or an external effect has completed. |
@@ -135,6 +137,7 @@ cluster scopes, conflict handling, and stable message destinations.
 | Cursor | Ursula's opaque cache/collapse token, independent of the offset or record position that selects a read location. It is not a Transit message identity or execution position. |
 | Authoritative history | Validated durable records, including checkpoints replacing reclaimed prefixes, that determine accepted work, progress, ownership, lifetime, and effect eligibility. |
 | Outbox | Committed pending outputs awaiting delivery. Retried delivery preserves identity and the destination deduplicates admission. |
+| Delivery courier | Independently restartable service that advances committed outboxes through scoped Transit commands; durable progress stays in the kernel history. |
 | Checkpoint | A durable record of a validated history prefix, state/progress, versions, and required dependencies. It becomes essential recovery evidence if that prefix is reclaimed. |
 | Process snapshot | Saved process state tied to its PID, history position, and versions. It may supply checkpoint state; state alone does not prove complete recovery coverage. |
 | Sandbox snapshot | Runtime memory/filesystem capture. Restoring it does not restore ownership or supersede newer protocol history. |
@@ -164,6 +167,8 @@ See [STREAMS.md](STREAMS.md), [TRANSIT.md](TRANSIT.md), and [URSULA.md](URSULA.m
 | Tombstone | An ordered/versioned logical deletion marker. It can outlive the value to prevent resurrection before eventual reclamation. |
 | Consumer watermark | Recorded reader progress used to evaluate retention dependencies; it grants no implicit right to retain data indefinitely. |
 | Retention pin | An explicit, scoped dependency delaying eligible cleanup, with an owner and release/deadline policy. It cannot silently extend hard lifetime. |
+| Working catalog | Bounded authoritative materialization of processes, effects, outputs and resources. Explicit collection can release eligible slots; it never reuses durable identities. |
+| Catalog collection | Recorded, application-opted-in removal of eligible completed catalog entries. Distinct from journal trim, payload deletion and logical expiry. |
 | Garbage collection | Background physical reclamation after validated logical trim/retirement decisions and dependency resolution. |
 | Storage quota | A capacity limit enforced independently of retention age, with explicit admission/backpressure behavior. |
 | Logical stream | A stable protocol stream whose ordering and retention contract are independent of its storage provider. |

@@ -3,7 +3,8 @@
 Status: kernel direction and deployment reference established. The bounded
 [M1 profile](../contracts/TRANSIT_V2.md) is implemented, with evidence in the
 [roadmap](roadmap/README.md). [Board M2](roadmap/M2.md) is implemented and qualified
-for bounded inspection. The [M7 KV profile](roadmap/M7.md) is also implemented.
+for bounded inspection. The [M7 KV profile](roadmap/M7.md) and
+[M8 runtime readiness](roadmap/M8.md) are also implemented and qualified.
 Broader framework, connector and application outcomes below remain planned; they are not implied by those profiles.
 
 ## Purpose
@@ -99,9 +100,10 @@ signals; collector/export infrastructure is later scope.
 
 [M7 state resources and associations](roadmap/M7.md) provide fenced KV mutation,
 bounded recoverable reads, dependency lifetimes, and generic Board inspection.
-Next build GenServer behavior, supervision, and scoped name registration on those
-primitives, resolving the [pre-Station gaps](reviews/PRE_STATION.md) through
-[M8 runtime readiness](roadmap/M8.md) before [Station](roadmap/M9.md). An HTTP connector follows. A caller
+[M8 runtime readiness](roadmap/M8.md) adds authenticated input origins, automatic
+outbox delivery, opt-in working catalog reclamation and scoped lifecycle controls.
+Next build GenServer behavior, supervision, and scoped name registration in
+[Station](roadmap/M9.md), respecting those bounded contracts. An HTTP connector follows. A caller
 records a request; a fetch worker executes an authorized attempt; response data and timing are recorded;
 the caller resumes from a correlated mailbox message. Replay uses the transcript.
 Station and connectors add versioned Board lenses as their own primitives land.

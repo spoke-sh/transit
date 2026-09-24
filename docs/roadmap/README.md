@@ -15,14 +15,15 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M5](M5.md) | Kubernetes tooling and the Transit operator CLI | Inspection-only profile implemented and verified; broader CLI direction remains future scope |
 | [M6](M6.md) | Persistent reference and incremental development | Shared build/update loop and same-PID workload upgrades implemented and verified |
 | [M7](M7.md) | Durable state resources and process associations | Bounded KV profile, generic Board inspection and three-launcher recovery/upgrades implemented and verified |
-| [M8](M8.md) | Transit runtime readiness | Planned |
+| [M8](M8.md) | Transit runtime readiness | Bounded origins, automatic delivery, catalog reclamation and lifecycle controls implemented and verified |
 | [M9](M9.md) | Station GenServer, supervision, and registries | Planned |
 | [M10](M10.md) | HTTP connector and exchange transcripts | Planned |
 | [M11](M11.md) | Clustered execution and portability | Planned |
 
-The [pre-Station review](../reviews/PRE_STATION.md) records the current code/doc
-comparison and the [M8 readiness requirements](M8.md#exit-criteria). M7 supplies the resource
-commit primitive; it does not already supply a production behavior runtime.
+The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
+[M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
+commit primitive and these runtime contracts; a production behavior runtime is
+not implied by either bounded profile.
 
 Each milestone owns its scope, acceptance criteria, and completion status.
 Preserve the [M1 design gates](M1.md#design-gates-before-expanding-the-slice)
