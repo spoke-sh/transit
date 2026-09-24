@@ -31,7 +31,9 @@ zig-out/bin/transit-board /absolute/path/board.json
 for optimized executables. Building requires the locked frontend dependencies;
 running the resulting binary requires neither Node nor a checkout/assets directory.
 The build embeds up to 128 files / 8 MiB, with no external fonts, CDNs, or runtime
-downloads. Every reachable viewer can read this instance’s configured inspection scope.
+downloads. Each embedded build uses a private temporary asset directory so
+concurrent launcher builds cannot empty one another’s frontend output.
+Every reachable viewer can read this instance’s configured inspection scope.
 The deployment boundary controls who can reach Board.
 
 ## Configuration and provisioning
