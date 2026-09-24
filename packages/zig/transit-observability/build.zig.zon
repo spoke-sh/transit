@@ -2,7 +2,7 @@
     .name = .transit_observability,
     .fingerprint = 0xb332c4ca802d7398,
     .version = "0.0.0",
-    .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
         .telemetry = .{ .path = "../telemetry" },
         .transit_protocol = .{ .path = "../transit-protocol" },

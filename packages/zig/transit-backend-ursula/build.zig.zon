@@ -2,7 +2,7 @@
     .name = .transit_backend_ursula,
     .fingerprint = 0x36c21d93996b8d0b,
     .version = "0.0.0",
-    .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
         .transit_observability = .{ .path = "../transit-observability" },
         .transit_core = .{ .path = "../transit-core" },

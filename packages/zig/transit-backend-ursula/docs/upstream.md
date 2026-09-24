@@ -118,8 +118,9 @@ The adapter now pins that revision and its Zig package hash; `just build::debug 
 a tarball-root handling failure observed in this pinned compiler's build fetch.
 
 The reviewed client revision `2d507829429d4199f411df02df9cc937bf624144` declares
-Zig `0.17.0-dev.2251+1175a3e99` as its minimum version, matching Transit's pinned
-compiler. Its Zig and Ursula overlay revisions also match Transit's current pins.
+Zig `0.17.0-dev.2251+1175a3e99` as its minimum version. Transit now uses
+`0.17.0-dev.2267+48abf1a34` for M9 Arrow integration; the Ursula server pin is
+unchanged. Compatibility is checked through the consuming package tests.
 `just ci` builds the consuming packages and runs disk-backed integration and
 recovery checks against that server. See the client
 [package metadata](https://github.com/rupurt/ursula-zig/blob/2d507829429d4199f411df02df9cc937bf624144/build.zig.zon)

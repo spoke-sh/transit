@@ -129,7 +129,7 @@ qualified against Transit's pinned compiler as part of this design pass.
 
 | Source reviewed | Finding and consequence |
 | --- | --- |
-| [rupurt/zarrow at 4276ac3](https://github.com/rupurt/zarrow/tree/4276ac30d63d1af159490b7dc70e15d749b8d01b) (`update-zig-0.17`) | The [manifest](https://github.com/rupurt/zarrow/blob/4276ac30d63d1af159490b7dc70e15d749b8d01b/build.zig.zon) and CI target `0.17.0-dev.2267+48abf1a34`; Transit currently pins `0.17.0-dev.2251+1175a3e99`. Align deliberately and qualify record batches, IPC and C Data/C Stream; a branch name is not a dependency pin. |
+| [rupurt/zarrow at 4276ac3](https://github.com/rupurt/zarrow/tree/4276ac30d63d1af159490b7dc70e15d749b8d01b) (`update-zig-0.17`) | The [manifest](https://github.com/rupurt/zarrow/blob/4276ac30d63d1af159490b7dc70e15d749b8d01b/build.zig.zon) and CI target `0.17.0-dev.2267+48abf1a34`; Transit now pins that same compiler. Qualify record batches, IPC and C Data/C Stream; a branch name is not a dependency pin. |
 | [zarrow-compute at 357fbf4](https://github.com/tylitianrui/zarrow-compute/tree/357fbf421c77785cd972fe5589918cb3bd39a92e) | Provides selected filtering, comparison, arithmetic and aggregate kernels over zarrow. Its [manifest](https://github.com/tylitianrui/zarrow-compute/blob/357fbf421c77785cd972fe5589918cb3bd39a92e/build.zig.zon) references a moving zarrow master archive; our integration must resolve immutable, compatible revisions and one shared zarrow type universe. |
 | [Aggregate implementation](https://github.com/tylitianrui/zarrow-compute/blob/357fbf421c77785cd972fe5589918cb3bd39a92e/src/kernels/aggregate.zig) | Stateful row counting accumulates batches; this is not a durable incremental view with update/delete retractions. Station owns that distinction. |
 

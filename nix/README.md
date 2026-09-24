@@ -6,6 +6,10 @@ and Kubernetes tools. [flake.lock](../flake.lock) pins inputs; the Vite+ release
 and checksums live in [vite-plus.nix](vite-plus.nix). Linux and macOS on x86_64
 and aarch64 are configured; native checks on every platform are not claimed.
 
+The M9 Arrow integration uses Zig `0.17.0-dev.2267+48abf1a34`, matching
+the selected zarrow fork. The Zig overlay update is deliberate; Ursula and
+general development-package pins remain unchanged.
+
 ## Current setup
 
 Use Nix with `nix-command` and `flakes` enabled. Run commands from the repository

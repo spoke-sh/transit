@@ -2,7 +2,7 @@
     .name = .transit_protocol,
     .fingerprint = 0x2b17549ec2a70691,
     .version = "0.0.0",
-    .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{},
     .paths = .{ "build.zig", "build.zig.zon", "src" },
 }

@@ -2,7 +2,7 @@
     .name = .rey,
     .fingerprint = 0x9967335649a437f1,
     .version = "0.0.0",
-    .minimum_zig_version = "0.17.0-dev.2251+1175a3e99",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
         .transit_observability = .{ .path = "packages/zig/transit-observability" },
         .telemetry = .{ .path = "packages/zig/telemetry" },
