@@ -18,8 +18,11 @@ of Fuze IPC, including nulls, empty results and wide integers) and
 signatures, receipt loss, fresh-host retry, revocation and malformed input).
 The [Fuze integration notes](../packages/zig/transit-fuze/docs/integration.md) and
 [client binding guide](../packages/zig/transit-client/docs/bindings.md) record
-their limits. These checks do not yet qualify the Station behaviors or every
-planned host-language adapter.
+their limits. `just test::station` launches the real Zig Station ledger/requester
+and courier, proving private state/call commits, lost receipts, fresh ownership,
+worker plus store recovery, authenticated replies and poison-input blocking.
+These initial checks do not yet qualify the entire M9 surface or every planned
+host-language adapter.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

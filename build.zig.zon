@@ -5,6 +5,7 @@
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
         .transit_fuze = .{ .path = "packages/zig/transit-fuze" },
+        .transit_station = .{ .path = "packages/zig/transit-station" },
         .transit_observability = .{ .path = "packages/zig/transit-observability" },
         .telemetry = .{ .path = "packages/zig/telemetry" },
         .transit_board_api = .{ .path = "packages/zig/transit-board-api" },

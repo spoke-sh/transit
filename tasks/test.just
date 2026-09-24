@@ -18,8 +18,13 @@ arrow:
 client-abi:
     zig build test-client-abi
 
+# Exercise the real Station example with a disk-backed authority and courier.
+station:
+    zig build test-station
+
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-station && zig build test
     cd packages/zig/transit-fuze && zig build test
     cd packages/zig/transit-observability && zig build test
     cd packages/zig/telemetry && zig build test

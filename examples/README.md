@@ -8,6 +8,7 @@ against Transit; neither application is required to run the authority.
 | --- | --- | --- |
 | [Counter](counter/README.md) | `example-counter` | Add decimal-text integers with checked arithmetic |
 | [Byte log](byte-log/README.md) | `example-byte-log` | Concatenate opaque input bytes into bounded state |
+| [Station ledger](station-ledger/README.md) | `example-station-ledger` | Durable service calls with associated state |
 
 From the repository root:
 

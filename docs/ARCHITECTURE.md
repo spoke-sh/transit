@@ -198,9 +198,10 @@ follow a second concrete implementation, not a speculative plugin system.
 | [rey-cli](../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |
 | [example-counter](../examples/counter/README.md) | Complete caller, also the reference deployment workload |
 | [example-byte-log](../examples/byte-log/README.md) | Independent caller against the same generic authority |
+| [example-station-ledger](../examples/station-ledger/README.md) | Station behavior and associated-state example under development in M9 |
 
 Transit artifacts use the `transit-` prefix, including the `transit-board*`
-inspection family, planned `transit-station*` framework and `transit-fuze*` engine
+inspection family, `transit-station*` framework and `transit-fuze*` engine
 families. These names denote subsystem membership; core and the public execution
 client do not depend on Board, Station or Fuze. Examples are applications, not required infrastructure.
 Tests launch their actual binaries; fault injection
@@ -212,6 +213,8 @@ and protocol assertions belong under [tests/](../tests/README.md).
   controls as scoped in the [full plugin plan](roadmap/M5.md).
 - `packages/zig/transit-station`, module `transit_station`: GenServer, supervision, registries,
   request/reply, Table, association, and retention helpers over the public client.
+  The [initial package](../packages/zig/transit-station/README.md) implements the
+  GenServer and call/reply slice; the remaining components are M9 work.
 - Client-owned C ABI/library exports and generated bindings for C/C++, Rust,
   Python, Node.js, Java, .NET and Elixir/Erlang. Station adds its own ABI/contracts
   above that base; raw Transit clients stay independent of Station.

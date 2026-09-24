@@ -1,7 +1,9 @@
 # Station — framework and behaviors
 
-Status: an OTP-inspired layer above the kernel is established direction. The
-behavior API and lifecycle policies below are proposed, with no implementation.
+Status: M9 implementation is underway. The
+[Station package](../packages/zig/transit-station/README.md) implements the first
+GenServer turn loop, associated KV proposals and durable call/reply recovery.
+Supervision, registries, Tables and language adapters below remain milestone work.
 [M9](roadmap/M9.md) builds on [M7 state resources](roadmap/M7.md) and
 [M8 runtime readiness](roadmap/M8.md).
 
@@ -20,7 +22,7 @@ Station will supply versioned descriptors and lenses for its behaviors and
 registries, preserving underlying PID/history evidence rather than requiring
 Board to infer behavior from names or payload shapes.
 
-The planned `transit-station` Zig library uses `transit-client` and the public protocol,
+The `transit-station` Zig library uses `transit-client` and the public protocol,
 without importing the kernel implementation. It exposes behaviors and
 composition helpers. Connector libraries and worker executables build on it;
 Station itself stays independent of the selected transport and deployment
@@ -91,7 +93,8 @@ under a fresh activation. Worker replacement does not create a new logical serve
 | Suspend/recover | Validate the process/mailbox lifetime and resumption deadline, preserving the eligible PID while changing activation ownership |
 | Terminate/replace | Retire the PID under explicit policy; a replacement is a new process |
 
-Callback names and Zig signatures remain open. The semantic unit is the
+The initial host-pumped API and versioned layout are recorded in the
+[Station profile](../contracts/STATION_V1.md). The semantic unit is the
 kernel turn, with private proposed mutations until commit. Handlers do not have
 to return a replacement for all application state. Framework helpers cannot
 publish outputs early or move checkpoints independently of that commit.

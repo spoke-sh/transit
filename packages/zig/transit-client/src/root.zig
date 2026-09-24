@@ -121,8 +121,14 @@ pub const Client = struct {
             .bad_request, .unprocessable_entity => return error.Rejected,
             else => return error.AuthorityUnavailable,
         }
-        var parsed = try std.json.parseFromSlice(T, allocator, writer.buffered(), .{});
+        var parsed = std.json.parseFromSlice(T, allocator, writer.buffered(), .{}) catch |err| switch (err) {
+            error.OutOfMemory => return err,
+            else => return error.InvalidAuthorityResponse,
+        };
         defer parsed.deinit();
+        if (T == Receipt) {
+            if (parsed.value.position == 0 or parsed.value.position > protocol.max_counter) return error.InvalidAuthorityResponse;
+        }
         return parsed.value;
     }
 

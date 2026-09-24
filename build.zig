@@ -4,6 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
+    const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const arrow_proof = b.addExecutable(.{ .name = "transit-arrow-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/arrow.zig"),
         .target = target,
@@ -21,6 +22,7 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
     test_step.dependOn(&b.addRunArtifact(tests).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = telemetry.module("telemetry") })).step);
@@ -150,6 +152,22 @@ pub fn build(b: *std.Build) void {
     b.step("readiness-caller", "Install the runtime readiness caller proof").dependOn(&b.addInstallArtifact(readiness_caller, .{}).step);
     test_step.dependOn(&readiness_caller.step);
     const examples_step = b.step("examples", "Install runnable example applications");
+    const station_ledger = b.addExecutable(.{ .name = "example-station-ledger", .root_module = b.createModule(.{
+        .root_source_file = b.path("examples/station-ledger/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+    }) });
+    examples_step.dependOn(&b.addInstallArtifact(station_ledger, .{}).step);
+    const station_test = b.addSystemCommand(&.{ "python3", "-B" });
+    station_test.addFileArg(b.path("tests/station.py"));
+    station_test.addArtifactArg(node_artifact);
+    station_test.addArtifactArg(cli_artifact);
+    station_test.addArtifactArg(station_ledger);
+    station_test.addArtifactArg(delivery_artifact);
+    station_test.has_side_effects = true;
+    station_test.stdio = .inherit;
+    b.step("test-station", "Prove recoverable Station callers against durable authority").dependOn(&station_test.step);
     const upgrade_tests = b.addSystemCommand(&.{ "python3", "-B" });
     upgrade_tests.addFileArg(b.path("tests/runtime_upgrade.py"));
     upgrade_tests.addArtifactArg(node_artifact);
