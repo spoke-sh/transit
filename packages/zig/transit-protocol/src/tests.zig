@@ -110,3 +110,14 @@ fn envelope(command: transit.Command) !void {
     try t.expect(encoded.len + 1024 <= transit.max_entry_bytes);
     _ = transit.digest(request);
 }
+
+test "shared input-origin envelopes distinguish external process and effect evidence" {
+    const p = @import("root.zig");
+    const fixture = try std.json.parseFromSlice([]p.Input, std.testing.allocator, @embedFile("fixtures/inputs-v1.json"), .{});
+    defer fixture.deinit();
+    try std.testing.expectEqual(@as(usize, 3), fixture.value.len);
+    try std.testing.expect(fixture.value[0].origin.source == .external);
+    try std.testing.expect(fixture.value[1].origin.source == .process);
+    try std.testing.expect(fixture.value[2].origin.source == .effect);
+    for (fixture.value) |input| try std.testing.expectEqual(@as(u8, 1), input.origin.version);
+}

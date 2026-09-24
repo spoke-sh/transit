@@ -146,7 +146,7 @@ const Server = struct {
                 .position = e.state.position,
                 .principal_sequence = (try e.state.principal(signed.request.principal)).sequence,
                 .process = processView((try e.state.process(pid)).*),
-                .input = if (input) |r| .{ .position = r.position, .value = core.messageOf(r).?.value } else null,
+                .input = if (input) |r| try e.state.inputOf(r) else null,
             };
             var index: usize = 0;
             for (e.state.effects) |slot| if (slot) |effect| {

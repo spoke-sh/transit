@@ -1114,3 +1114,32 @@ test "inspection links only disclosed endpoints and distinguishes mailbox comple
     try t.expectEqual(null, arrivals.events[0].?.output);
     try t.expectEqual(delivered, arrivals.events[0].?.position);
 }
+
+test "authenticated input origins survive recovery and cannot be chosen by payloads" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const source = try f.submit(&e, 0, .{ .spawn = .{} });
+    const destination = try f.submit(&e, 0, .{ .spawn = .{} });
+    _ = try f.submit(&e, 0, .{ .own = .{ .pid = source, .expected_generation = 0, .worker = 0 } });
+    const forged = try core.Value.init("{\"source\":\"process\",\"pid\":1,\"correlation\":9}");
+    _ = try f.submit(&e, 0, .{ .send = .{ .pid = source, .value = forged } });
+    const external = (try e.nextInput(source, e.state.position)).?;
+    try t.expectEqual(@as(u8, 0), (try e.state.inputOf(external)).origin.source.external.principal);
+    const turn = try f.submit(&e, 0, .{ .turn = .{ .pid = source, .generation = 1, .input = external.position, .result = .{}, .effect = forged, .outputs = .{ .{ .pid = destination, .value = forged }, null, null, null } } });
+    _ = try f.submit(&e, 0, .{ .deliver = .{ .pid = destination, .output = 1, .courier = 0 } });
+    var recovered = try Engine.open(&f.store, f.genesis);
+    const delivered = (try recovered.nextInput(destination, recovered.state.position)).?;
+    const origin = (try recovered.state.inputOf(delivered)).origin;
+    try t.expectEqual(source, origin.source.process.pid);
+    try t.expectEqual(turn, origin.source.process.turn);
+    try t.expectEqual(@as(u64, 1), origin.source.process.output);
+    const attempt = try f.submit(&recovered, 0, .{ .dispatch = .{ .pid = source, .effect = turn } });
+    _ = try f.submit(&recovered, 0, .{ .observe = .{ .pid = source, .effect = turn, .attempt = attempt, .result = forged } });
+    const effect = (try recovered.nextInput(source, recovered.state.position)).?;
+    try t.expectEqual(attempt, (try recovered.state.inputOf(effect)).origin.source.effect.attempt);
+    // A corrupted durable origin must not survive replay even if its payload and
+    // source/destination are otherwise valid. Application values remain opaque.
+    f.store.entries.items[@intCast(delivered.position)].operation.origin.?.source.process.pid = destination;
+    try t.expectError(error.InvalidAdmission, Engine.open(&f.store, f.genesis));
+}

@@ -161,6 +161,21 @@ fn largestFields(comptime T: type) T {
     return switch (@typeInfo(T)) {
         .int => |info| if (info.signedness == .signed) std.math.minInt(T) else std.math.maxInt(T),
         .bool => false,
+        .void => {},
+        .@"union" => |info| blk: {
+            var largest: T = undefined;
+            var length: usize = 0;
+            inline for (info.field_names, info.field_types) |name, Field| {
+                const candidate: T = @unionInit(T, name, largestFields(Field));
+                const bytes = std.json.Stringify.valueAlloc(std.testing.allocator, candidate, .{}) catch unreachable;
+                defer std.testing.allocator.free(bytes);
+                if (bytes.len > length) {
+                    largest = candidate;
+                    length = bytes.len;
+                }
+            }
+            break :blk largest;
+        },
         .optional => |info| largestFields(info.child),
         .array => |info| @splat(largestFields(info.child)),
         .@"struct" => |info| blk: {

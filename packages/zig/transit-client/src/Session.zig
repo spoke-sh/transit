@@ -54,6 +54,7 @@ pub fn receive(self: *Session) !?Delivery {
     if (process.lifecycle != .running or process.owner != self.principal or process.generation != self.generation) return error.StaleActivation;
     if (process.failure != null) return error.BlockedProcess;
     const input = view.input orelse return null;
+    if (input.origin.version != 1) return error.InvalidAuthorityResponse;
     return .{
         .realm = self.realm,
         .principal = self.principal,
@@ -118,7 +119,7 @@ pub fn prepareStateCommit(self: *const Session, delivery: Delivery, decision: St
 test "state decisions freeze mutations and exact view identities for retry" {
     var client: wire.Client = undefined;
     const session: Session = .{ .client = &client, .realm = 1, .principal = 1, .pid = 2, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) };
-    const delivery: Delivery = .{ .realm = 1, .principal = 1, .pid = 2, .generation = 3, .sequence = 4, .revision = 5, .input = .{ .position = 6, .value = .{} }, .state = try p.Value.init("legacy"), .permit = null, .needs_permit = false };
+    const delivery: Delivery = .{ .realm = 1, .principal = 1, .pid = 2, .generation = 3, .sequence = 4, .revision = 5, .input = .{ .origin = .{ .source = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .position = 6, .value = .{} }, .state = try p.Value.init("legacy"), .permit = null, .needs_permit = false };
     const view: p.State.View = .{ .id = 7, .pid = 2, .principal = 1, .generation = 3, .input = 6, .process_revision = 5, .resource = 8, .revision = 9, .deadline_ms = 10 };
     var decision: StateDecision = .{ .views = .{ view, null, null, null }, .write_view = 7, .mutations = .{ .{ .key = try p.Value.init("key"), .value = try p.Value.init("frozen") }, null, null, null } };
     const pending = try session.prepareStateCommit(delivery, decision);
@@ -133,7 +134,7 @@ test "pending commits own bytes and cannot be prepared for another activation" {
     const t = std.testing;
     var client: wire.Client = undefined; // Preparation performs no transport I/O.
     const session: Session = .{ .client = &client, .realm = 1, .principal = 1, .pid = 2, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) };
-    var delivery: Delivery = .{ .realm = 1, .principal = 1, .pid = 2, .generation = 3, .sequence = 4, .revision = 5, .input = .{ .position = 6, .value = try p.Value.init("message") }, .state = .{}, .permit = null, .needs_permit = false };
+    var delivery: Delivery = .{ .realm = 1, .principal = 1, .pid = 2, .generation = 3, .sequence = 4, .revision = 5, .input = .{ .origin = .{ .source = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .position = 6, .value = try p.Value.init("message") }, .state = .{}, .permit = null, .needs_permit = false };
     var decision: Decision = .{ .state = try p.Value.init("owned state") };
     const pending = try session.prepareCommit(delivery, decision);
     decision.state = .{};

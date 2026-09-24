@@ -116,3 +116,9 @@ All data and view metadata own their bytes. There is no hidden cache, automatic
 transaction retry, background worker or second state authority. The first
 profile materializes bounded KV data in the authority and supports only one
 writer PID per resource. `just test::state` qualifies the public HTTP boundary.
+
+`Delivery.input.origin` carries versioned authority evidence: external principal,
+source process/turn/output, or effect/attempt/executor. Validate the expected
+origin before treating an application correlation value as a reply. Possessing a
+matching value alone cannot authenticate its sender. The client rejects unknown
+origin versions; no inspection grant on the source is needed.

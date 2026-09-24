@@ -79,3 +79,26 @@ returning bounded metadata, associations, entries or an activation's captured
 read view. Reads fence against a changed journal tail; stale pagination cuts
 fail explicitly. Resource mutations use `/v2/command` and the existing receipt
 and retry rules. Legacy inline-only callers retain their original wire format.
+
+## Authenticated input origins (M8)
+
+Every non-null `View.input` includes `origin: {version: 1, source: ...}`.
+`source` is exactly one of:
+
+- `external: {principal, policy_revision}` for authenticated `send` admissions;
+- `process: {pid, turn, output}` for a committed outbox delivery;
+- `effect: {id, attempt, executor}` for an admitted connector observation.
+
+The authority derives this envelope from validated transitions. A sender-provided
+value, correlation ID or claimed PID cannot set or override it. Origin is evidence
+of historical admission, not a current grant, honest computation or permission to
+inspect the source PID. Receivers can authenticate replies from a known process
+without gaining general read rights on that process. Retain only these protocol
+identities in the envelope; do not disclose sender keys, grants or credentials.
+
+New journal admissions persist their origin and replay validates it. Older
+admissions derive equivalent evidence from retained records/catalogs. Catalog
+reclamation must not remove evidence needed by an unconsumed legacy admission.
+Clients must understand this required envelope; signed v2 mutation encodings are
+unchanged. A received effect result is a recorded connector claim, not independent
+proof of the external system's state.

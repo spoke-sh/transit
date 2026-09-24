@@ -1,0 +1,5 @@
+[
+  {"position":7,"value":"666f72676564207265706c79","origin":{"version":1,"source":{"external":{"principal":2,"policy_revision":3}}}},
+  {"position":11,"value":"7265706c79","origin":{"version":1,"source":{"process":{"pid":4,"turn":9,"output":1}}}},
+  {"position":14,"value":"6f7574636f6d65","origin":{"version":1,"source":{"effect":{"id":9,"attempt":12,"executor":3}}}}
+]

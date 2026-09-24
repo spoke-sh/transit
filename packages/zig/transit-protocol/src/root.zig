@@ -160,7 +160,16 @@ pub fn sign(request: Request, key: Ed25519.KeyPair) !SignedRequest {
 }
 
 pub const max_body = 256 * 1024;
-pub const Input = struct { position: u64, value: Value };
+/// Authority-derived admission evidence; never taken from application Value.
+pub const Origin = struct {
+    version: u8 = 1,
+    source: union(enum) {
+        external: struct { principal: u8, policy_revision: u64 },
+        process: struct { pid: u64, turn: u64, output: u64 },
+        effect: struct { id: u64, attempt: u64, executor: u8 },
+    },
+};
+pub const Input = struct { position: u64, value: Value, origin: Origin };
 pub const View = struct {
     position: u64,
     principal_sequence: u64,

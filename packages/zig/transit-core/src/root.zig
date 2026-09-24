@@ -76,6 +76,7 @@ pub const Record = struct {
     request: Request,
     time: ?Time.Sample = null,
     admission: ?Message = null,
+    origin: ?protocol.Origin = null,
 };
 pub const RetryPolicy = enum { unlimited, last_per_principal };
 pub const Genesis = struct {
@@ -160,6 +161,23 @@ pub const State = struct {
     pub fn output(self: *State, id: u64) !*Outbox {
         if (id == 0 or id > self.output_count) return error.UnknownOutput;
         return &self.outputs[@intCast(id - 1)].?;
+    }
+
+    pub fn originOf(self: *State, record: Record) !protocol.Origin {
+        return .{ .source = switch (record.request.command) {
+            .send => .{ .external = .{ .principal = record.request.principal, .policy_revision = record.policy_revision } },
+            .deliver => |c| blk: {
+                const out = try self.output(c.output);
+                break :blk .{ .process = .{ .pid = out.source, .turn = out.turn, .output = out.id } };
+            },
+            .observe => |c| .{ .effect = .{ .id = c.effect, .attempt = c.attempt, .executor = record.request.principal } },
+            else => return error.InvalidAdmission,
+        } };
+    }
+
+    pub fn inputOf(self: *State, record: Record) !protocol.Input {
+        const admission = messageOf(record) orelse return error.InvalidAdmission;
+        return .{ .position = record.position, .value = admission.value, .origin = record.origin orelse try self.originOf(record) };
     }
 
     pub fn payload(self: *State, ref: PayloadRef) !*Payload {
@@ -885,6 +903,9 @@ pub fn Engine(comptime Store: type) type {
                     },
                     else => null,
                 };
+                if (r.origin) |origin| {
+                    if (r.admission == null or !std.meta.eql(origin, try self.state.originOf(r))) return error.InvalidAdmission;
+                }
                 var next = self.state;
                 const admission = try next.apply(r, input);
                 if (!std.meta.eql(admission, r.admission)) return error.InvalidAdmission;
@@ -913,6 +934,7 @@ pub fn Engine(comptime Store: type) type {
             };
             var next = self.state;
             r.admission = try next.apply(r, input);
+            if (r.admission != null) r.origin = try self.state.originOf(r);
             return .{ .record = r, .next = next };
         }
 
