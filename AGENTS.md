@@ -75,6 +75,13 @@ expanding framework or real-effect integrations.
 
 ## Documentation and validation
 
+Use scoped Conventional Commit subjects: `type(scope): description`, such as
+`feat(transit): add inspection queries`, `test(board): verify access boundaries`,
+or `docs(roadmap): update milestone status`. Include a scope for every commit.
+When rewriting history, preserve the original author date and use
+`git rebase --committer-date-is-author-date`. For individual `git commit --amend`
+operations, set `GIT_COMMITTER_DATE` to that commit's author date.
+
 Follow the [documentation ownership guide](docs/README.md#where-documentation-lives).
 Keep scope/design in `docs/`, wire specifications in `contracts/`, implementation
 and usage beside their package/app, and proof details in `tests/README.md`.
