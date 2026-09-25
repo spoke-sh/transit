@@ -96,6 +96,14 @@ including slow ingress, stalled protocol responses and maintenance storage I/O.
 The affinity change is confined to the test process tree; compilation and the
 parent shell retain their existing CPU allocation.
 
+The Station ABI portion of `just bindings::native` / `just bindings::test` also
+runs on one CPU on Linux, restoring affinity before the remaining language
+matrix. It exercises back-to-back exact raw-client retries and Station polling
+with bounded native pools. Client unit tests inject unavailable concurrency at
+either scheduling slot: transient contention recovers, persistent contention
+hits the original deadline, and transport failure is never retried. Those
+deterministic tests run in `just test::unit` and therefore `just check`.
+
 The synthetic effect harness sets `NO_COLOR=1` for captured child logs so exact
 error checks work under interactive and forced-color builds too. Its rejection
 checks also verify the durable effect state, mailbox counts, and remote sends.

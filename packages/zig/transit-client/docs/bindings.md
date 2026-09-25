@@ -43,6 +43,13 @@ a host await does not cancel a native call, commit or remote operation. Deadline
 handling joins native I/O before returning. A future asynchronous adapter must
 preserve these ownership and uncertainty rules.
 
+Each native handle retains its bounded two-worker I/O pool. Sequential calls can
+observe completed workers before the scheduler releases their slots; acquisition
+waits within the same request deadline instead of expanding the pool or retrying
+the transport. Scheduling exhaustion returns `AuthorityTimeout`, preserving the
+ABI's conservative uncertainty for mutations. Genuine transport errors still
+return immediately with no automatic retry.
+
 ## Recovery and errors
 
 `transit_operation_export` produces a versioned, canonical envelope containing

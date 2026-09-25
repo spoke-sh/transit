@@ -58,6 +58,12 @@ was cancelled. Keep the handle alive until native work returns. A fresh host
 may retry exact exported pending bytes through the raw Transit ABI, or obtain
 a fresh activation and reconcile the committed view before recomputing.
 
+The native handle's I/O pool remains bounded to two workers. Shared client
+deadlines include waiting for retiring workers to release their slots; only
+scheduling is retried. HTTP attempts and frozen proposals retain the ordinary
+explicit retry policy. The ABI proof runs on one CPU on Linux and exercises
+back-to-back raw-client retries alongside Station polling.
+
 `station_server_pending` exports the canonical frozen envelope understood by
 the [raw client ABI](../../transit-client/docs/bindings.md). Persist those exact
 bytes before sending when durable local retry material is needed. They contain

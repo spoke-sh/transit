@@ -66,27 +66,53 @@ pub const Client = struct {
 
     fn boundedCall(self: *Client, comptime T: type, path: []const u8, signed: anytype) !T {
         self.last_rejection = null;
+        const io = self.http.io;
+        const deadline = std.Io.Clock.Timestamp.fromNow(io, .{
+            .raw = .fromMilliseconds(self.timeout_ms),
+            .clock = .awake,
+        });
         const Result = union(enum) { response: anyerror!T, timeout: anyerror!void };
         var results: [2]Result = undefined;
-        var select: std.Io.Select(Result) = .init(self.http.io, &results);
+        var select: std.Io.Select(Result) = .init(io, &results);
         defer select.cancelDiscard();
-        try select.concurrent(.timeout, timeout, .{ self.http.io, self.timeout_ms });
+        try concurrentBefore(&select, .timeout, timeout, .{ io, deadline }, deadline);
         const Task = struct {
-            fn run(client: *Client, route: []const u8, command: @TypeOf(signed)) anyerror!T {
+            fn run(client: *Client, route: []const u8, command: @TypeOf(signed), until: std.Io.Clock.Timestamp) anyerror!T {
+                if (until.durationFromNow(client.http.io).raw.nanoseconds <= 0) return error.AuthorityTimeout;
                 return client.perform(T, route, command);
             }
         };
         // async permits inline execution, which would defeat the timeout when
-        // no async worker is available. Fail if concurrency cannot be supplied.
-        try select.concurrent(.response, Task.run, .{ self, path, signed });
+        // no async worker is available. Admission waits for real concurrency;
+        // the transport itself is invoked at most once, with the same deadline.
+        try concurrentBefore(&select, .response, Task.run, .{ self, path, signed, deadline }, deadline);
         return switch (try select.await()) {
             .response => |result| result,
             .timeout => error.AuthorityTimeout,
         };
     }
 
-    fn timeout(io: std.Io, milliseconds: u32) anyerror!void {
-        try io.sleep(.fromMilliseconds(milliseconds), .awake);
+    fn concurrentBefore(select: anytype, comptime field: anytype, function: anytype, args: std.meta.ArgsTuple(@TypeOf(function)), deadline: std.Io.Clock.Timestamp) !void {
+        while (true) {
+            const remaining = deadline.durationFromNow(select.io).raw.nanoseconds;
+            if (remaining <= 0) return error.AuthorityTimeout;
+            select.concurrent(field, function, args) catch |err| switch (err) {
+                error.ConcurrencyUnavailable => {
+                    // Threaded may publish group completion before decrementing
+                    // its busy count. A sequential call can briefly exhaust a
+                    // bounded pool while the previous workers are retiring.
+                    // Retry only scheduling, yielding without growing the pool
+                    // or extending the call's absolute deadline.
+                    try select.io.sleep(.fromNanoseconds(@min(remaining, std.time.ns_per_ms)), .awake);
+                    continue;
+                },
+            };
+            return;
+        }
+    }
+
+    fn timeout(io: std.Io, deadline: std.Io.Clock.Timestamp) anyerror!void {
+        try deadline.wait(io);
     }
 
     fn perform(self: *Client, comptime T: type, path: []const u8, signed: anytype) anyerror!T {
@@ -216,6 +242,7 @@ test "a full metadata view fits the bounded HTTP response" {
 }
 
 test {
+    _ = @import("ConcurrencyTests.zig");
     _ = Session;
     const bytes = try std.json.Stringify.valueAlloc(std.testing.allocator, largestFields(protocol.Inspection.Page), .{});
     defer std.testing.allocator.free(bytes);

@@ -43,6 +43,13 @@ versioned authenticated origin. `Session.receive` rejects unsupported origin
 versions. Match the expected source PID/turn or effect attempt before interpreting
 application correlation; claimed senders inside opaque bytes carry no authority.
 
+The request deadline includes acquisition of concurrency for both the timer and
+HTTP work. A bounded I/O pool can briefly remain busy after publishing a previous
+task's completion. The client yields and retries only worker-slot acquisition
+within the original monotonic deadline, then reports `AuthorityTimeout` if no
+slot becomes available. HTTP runs at most once per call; transport failure never
+triggers an automatic request retry or an inline fallback that defeats deadlines.
+
 The optional [worker bootstrap](src/bootstrap.zig) performs no provider calls.
 Its caller supplies a fresh in-memory key; the trusted runtime controller must
 attribute the public registration to the configured container and current worker

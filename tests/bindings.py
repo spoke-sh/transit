@@ -79,7 +79,17 @@ def pair(node, cli, courier, library, raw_library, host, service_command, reques
 
 def run(node, cli, courier, library, raw_library, host, c, cpp, *extra):
     from station_abi import run as abi_proof
-    abi_proof(node, cli, library, raw_library, host)
+    # Completion can wake the caller before a bounded native pool retires its
+    # previous workers. Exercise both ABIs without spare CPUs hiding that race;
+    # restore affinity before building/running the rest of the language matrix.
+    affinity = os.sched_getaffinity(0) if hasattr(os, "sched_getaffinity") else None
+    try:
+        if affinity:
+            os.sched_setaffinity(0, {min(affinity)})
+        abi_proof(node, cli, library, raw_library, host)
+    finally:
+        if affinity:
+            os.sched_setaffinity(0, affinity)
     python = [sys.executable, str(ROOT / "examples/station-bindings/python/main.py")]
     pair(node, cli, courier, library, raw_library, host, python, python, "Python")
     pair(node, cli, courier, library, raw_library, host, [c], [cpp], "C → C++")

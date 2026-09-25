@@ -40,7 +40,11 @@ def run(node, cli, libraries):
             from transit_station import Client
             with Client(libraries, s.url) as client:
                 # Retry after all Station handles are gone, never repeat effects.
-                assert client.call(frozen) == client.call(frozen)
+                receipt = client.call(frozen)
+                # Back-to-back calls must reuse the bounded native pool without
+                # treating its retiring workers as a failed/uncertain request.
+                for _ in range(16):
+                    assert client.call(frozen) == receipt
             return results
 
         def write(key, value, mode="upsert"):
