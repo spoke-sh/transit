@@ -1,5 +1,10 @@
 # transit-client
 
+`Session.receive` distinguishes permanent `ProcessExpired`/`ProcessTerminated`
+from `StaleActivation`. Only the latter may be resolved by obtaining a valid new
+activation for the same PID. A failed read or uncertain deadline is never proof
+that a PID has expired.
+
 Zig caller library, exported as `transit_client`. Applications receive ordered
 input and committed state, compute their own logic, and submit signed proposals.
 The authority validates the protocol without executing application code.

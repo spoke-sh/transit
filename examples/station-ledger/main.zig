@@ -66,7 +66,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     while (true) {
         const proposed_deadline: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30_000);
         const result = behavior.step(application.behavior(), proposed_deadline) catch |err| switch (err) {
-            error.AccessDenied, error.Rejected, error.Conflict, error.StaleActivation, error.BlockedProcess, error.MissingStateAssociation, error.RequiredStateAssociation, error.InvalidStateAssociation, error.MissingStateResource => return err,
+            error.AccessDenied, error.Rejected, error.Conflict, error.StaleActivation, error.ProcessExpired, error.ProcessTerminated, error.BlockedProcess, error.MissingStateAssociation, error.RequiredStateAssociation, error.InvalidStateAssociation, error.MissingStateResource => return err,
             else => {
                 diagnostics.event(.{ .name = "station.retry", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
                 try init.io.sleep(.fromMilliseconds(100), .awake);

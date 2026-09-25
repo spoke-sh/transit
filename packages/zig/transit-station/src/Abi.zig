@@ -38,6 +38,7 @@ fn status(err: anyerror) Status {
         error.Rejected => .rejected,
         error.Conflict => .conflict,
         error.StaleActivation => .stale_activation,
+        error.ProcessExpired, error.ProcessTerminated => .rejected,
         error.BlockedProcess => .blocked,
         error.NoPreparedTurn => .not_ready,
         error.InvalidAuthorityResponse => .invalid_response,

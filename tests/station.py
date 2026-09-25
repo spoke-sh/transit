@@ -238,3 +238,5 @@ if __name__ == "__main__":
     run(*sys.argv[1:5])
     from station_services import run as services
     services(*sys.argv[1:])
+    from station_lifetime import run as lifetime
+    lifetime(*sys.argv[1:4])

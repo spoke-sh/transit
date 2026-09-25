@@ -10,7 +10,9 @@ The [services guide](docs/services.md) covers scoped names, timed waits and
 bounded supervision, including the separate controller trust boundary.
 The [binding guide](docs/bindings.md) covers the shared C ABI and detached
 poll/finish interface used by foreign-language handlers.
-[M9](../../../docs/roadmap/M9.md) tracks the remaining framework surface.
+[M9](../../../docs/roadmap/M9.md) records qualification and the bounded profile.
+The [lifetime guide](docs/lifetimes.md) explains retention, suspension and
+permanent retirement without hiding the kernel's contracts.
 
 `GenServer.step(handler, proposed_read_deadline_ms)` does bounded client work,
 returning `idle`, `progress`, `committed`, or `blocked`. A handler receives a

@@ -21,6 +21,7 @@ def rejects(status, function, *args):
         function(*args)
     except TransitError as error:
         assert error.status == status, (error.status, error.detail)
+        return error.detail
     else:
         raise AssertionError("Expected a native rejection")
 
@@ -83,6 +84,17 @@ def run(node, cli, library, raw_library, host):
         s.command({"revoke": 1})
         with GenServer(libraries, s.url, seed, config) as denied:
             rejects(4, denied.next)
+        s.command({"grant": {"subject": 1, "public_key": public, "permissions": 88, "pid": pid}})
+        s.command({"terminate": pid})
+        with GenServer(libraries, s.url, seed, config) as retired:
+            assert rejects(3, retired.next)["err"] == "ProcessTerminated"
+        deadline = int(time.time() * 1000) + 1500
+        finite = s.command({"spawn": {"deadline_ms": deadline, "settle_before_ms": deadline + 1000}})
+        s.command({"grant": {"subject": 1, "public_key": public, "permissions": 88, "pid": finite}})
+        while int(time.time() * 1000) <= deadline + 10050: time.sleep(.05)
+        s.command({"expire": finite})
+        with GenServer(libraries, s.url, seed, {**config, "pid": finite}) as expired:
+            assert rejects(3, expired.next)["err"] == "ProcessExpired"
 
         # The port negotiates versions and uses the same codecs, with full-width
         # correlation values carried as decimal strings rather than JS numbers.
@@ -99,7 +111,9 @@ def run(node, cli, library, raw_library, host):
         assert seed.read_text() not in result.stderr + result.stdout
 
         asyncio.run(cancellation(libraries, seed, config))
-    print("Station ABI: exact host-loss retry, private rollback, blocked head, fencing, revocation, port framing and cancellation ownership passed")
+        from station_materialization import run as materialization
+        materialization(node, cli, libraries)
+    print("Station ABI: exact host-loss retry, private rollback, blocked head, fencing, revocation/expiry, port framing and cancellation ownership passed")
 
 
 async def cancellation(libraries, seed, config):

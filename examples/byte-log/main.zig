@@ -12,7 +12,7 @@ fn run(client: *wire.Client, config: Config, key: protocol.Ed25519.KeyPair, io: 
     var session: wire.Session = .{ .client = client, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key };
     while (true) {
         const delivery = session.receive() catch |err| switch (err) {
-            error.AccessDenied, error.Rejected, error.StaleActivation, error.BlockedProcess => return err,
+            error.AccessDenied, error.Rejected, error.StaleActivation, error.ProcessExpired, error.ProcessTerminated, error.BlockedProcess => return err,
             // Unusable responses grant no progress; refetch from the authority.
             else => {
                 try io.sleep(.fromMilliseconds(200), .awake);

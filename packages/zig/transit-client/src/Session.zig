@@ -52,7 +52,12 @@ pub fn receive(self: *Session) !?Delivery {
     const view = try self.client.view(.{ .realm = self.realm, .principal = self.principal, .sequence = 0, .command = .{ .inspect = self.pid } }, self.key);
     const process = view.process;
     if (process.pid != self.pid) return error.InvalidAuthorityResponse;
-    if (process.lifecycle != .running or process.owner != self.principal or process.generation != self.generation) return error.StaleActivation;
+    switch (process.lifecycle) {
+        .expired => return error.ProcessExpired,
+        .terminated => return error.ProcessTerminated,
+        .running => {},
+    }
+    if (process.owner != self.principal or process.generation != self.generation) return error.StaleActivation;
     if (process.failure != null) return error.BlockedProcess;
     const input = view.input orelse return null;
     if (input.origin.version != 1) return error.InvalidAuthorityResponse;

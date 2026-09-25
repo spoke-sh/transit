@@ -63,7 +63,7 @@ pub fn main(init: std.process.Init) !void {
             const received = session.receive() catch |err| {
                 // Pod readiness may precede the host forward reconnecting.
                 // Unavailable reads grant no progress; retry the public read.
-                if (err == error.AccessDenied or err == error.Rejected or err == error.StaleActivation or err == error.BlockedProcess) return err;
+                if (err == error.AccessDenied or err == error.Rejected or err == error.StaleActivation or err == error.ProcessExpired or err == error.ProcessTerminated or err == error.BlockedProcess) return err;
                 try init.io.sleep(.fromMilliseconds(100), .awake);
                 continue;
             };
