@@ -1041,6 +1041,13 @@ pub fn Engine(comptime Store: type) type {
             try self.state.authenticate(signed);
             const req = signed.request;
             if (try self.state.duplicate(req) != null) return error.AlreadyCommitted;
+            return self.prepareCurrent(req);
+        }
+
+        /// Private continuation of validation at this head. The conditional
+        /// append fences any change after authentication, including revocation.
+        /// Never accept a caller-supplied claim of prior authentication.
+        fn prepareCurrent(self: *Self, req: Request) !Prepared {
             const delivery_ref = try self.state.deliveryFor(req);
             const time_command: Command = if (req.command == .deliver_next)
                 .{ .deliver = .{ .pid = delivery_ref.?.destination, .output = delivery_ref.?.id, .courier = req.principal } }
@@ -1096,7 +1103,7 @@ pub fn Engine(comptime Store: type) type {
                 try resources.authorizeReceipt(self, signed.request);
                 return position;
             }
-            return self.commit(try self.prepare(signed));
+            return self.commit(try self.prepareCurrent(signed.request));
         }
     };
 }

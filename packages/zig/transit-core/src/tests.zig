@@ -8,6 +8,7 @@ const Memory = struct {
     tail_calls: usize = 0,
     race_at: ?usize = null,
     reclaimed: bool = false,
+    competing_append: ?core.Entry = null,
     pub fn tail(self: *Memory) !u64 {
         self.tail_calls += 1;
         return self.entries.items.len + @as(u64, if (self.race_at == self.tail_calls) 1 else 0);
@@ -17,6 +18,10 @@ const Memory = struct {
         return if (at < self.entries.items.len) self.entries.items[@intCast(at)] else null;
     }
     pub fn append(self: *Memory, expected: u64, entry: core.Entry) !bool {
+        if (self.competing_append) |other| {
+            self.competing_append = null;
+            try self.entries.append(t.allocator, other);
+        }
         if (expected != self.entries.items.len) return false;
         try self.entries.append(t.allocator, entry);
         if (self.fail_ack) {
@@ -31,6 +36,23 @@ const Memory = struct {
 };
 
 const Engine = core.Engine(Memory);
+
+test "submit validation is fenced by a revocation at the append boundary" {
+    var f = try Fixture.init();
+    defer f.store.deinit();
+    var e = try Engine.bootstrap(&f.store, f.genesis);
+    const pid = try f.setup(&e);
+    const input = try f.submit(&e, 0, .{ .send = .{ .pid = pid, .value = .{} } });
+    const turn = try f.request(&e, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = .{} } });
+    const revoke = try e.prepare(try f.request(&e, 0, .{ .revoke = 1 }));
+    f.store.competing_append = .{ .operation = revoke.record };
+    try t.expectError(error.Conflict, e.submit(turn));
+    try t.expectError(error.Forbidden, e.submit(turn));
+    try t.expectEqual(@as(u64, 0), (try e.state.process(pid)).consumed);
+    try t.expectEqual(@as(u64, 0), (try e.state.principal(1)).sequence);
+    const recovered = try Engine.open(&f.store, f.genesis);
+    try t.expect(std.meta.eql(e.state, recovered.state));
+}
 const TestClock = struct {
     now: core.Time.Sample,
     fn read(context: *anyopaque) !core.Time.Sample {

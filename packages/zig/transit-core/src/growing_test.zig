@@ -7,6 +7,7 @@ const PageStore = @import("pages_test.zig").Store;
 const Journal = struct {
     entries: std.ArrayList(growing.Entry) = .empty,
     fail: enum { none, before, after } = .none,
+    competing_append: ?growing.Entry = null,
     pub fn tail(self: *Journal) !u64 {
         return self.entries.items.len;
     }
@@ -14,6 +15,10 @@ const Journal = struct {
         return if (at < self.entries.items.len) self.entries.items[@intCast(at)] else null;
     }
     pub fn append(self: *Journal, at: u64, entry: growing.Entry) !bool {
+        if (self.competing_append) |other| {
+            self.competing_append = null;
+            try self.entries.append(t.allocator, other);
+        }
         if (at != self.entries.items.len) return false;
         if (self.fail == .before) return error.StorageUnavailable;
         try self.entries.append(t.allocator, entry);
@@ -22,6 +27,23 @@ const Journal = struct {
     }
 };
 const Engine = growing.Engine(Journal, PageStore);
+
+test "growing submit fences revocation at the publication boundary" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    const pid = try f.root(.{ .spawn = .{} });
+    const signed = try f.worker(1, .{ .send = .{ .pid = pid, .value = .{} } });
+    const revoke = try f.engine.prepare(try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .revoke = 65536 } }, f.root_key));
+    f.journal.competing_append = .{ .operation = revoke.record };
+    try t.expectError(error.Conflict, f.engine.submit(signed));
+    try t.expectError(error.Forbidden, f.engine.submit(signed));
+    try t.expectEqual(@as(u64, 0), (try f.engine.process(pid)).admitted);
+    try t.expectEqual(@as(u64, 0), (try f.engine.principal(65536)).sequence);
+    const recovered = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expect(std.meta.eql(f.engine.head, recovered.head));
+}
 const Fixture = struct {
     journal: Journal = .{},
     pages: PageStore = .{},

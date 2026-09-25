@@ -177,12 +177,17 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         pub const Prepared = struct { record: Record };
         pub fn prepare(self: *Self, signed: g.SignedRequest) !Prepared {
             try self.refresh();
-            var principal_value = try self.authenticate(signed);
+            const principal_value = try self.authenticate(signed);
             if (try self.duplicate(signed.request, principal_value) != null) return error.AlreadyCommitted;
+            return self.prepareCurrent(signed.request);
+        }
+        /// Authentication, permission and retry validation must have completed
+        /// at this head. Publication CAS rejects every intervening transition.
+        fn prepareCurrent(self: *Self, request: g.Request) !Prepared {
             if (self.head.position >= p.max_counter) return error.InvalidPosition;
             var candidate = try self.state();
             var next = self.head;
-            const needs_time = switch (signed.request.command) {
+            const needs_time = switch (request.command) {
                 .grant, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint => false,
                 .close_effect => |c| c.reason == .deadline,
                 .spawn => |c| c.work_before_ms != null,
@@ -195,16 +200,16 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 if (now.unix_ms < next.time_floor_ms) return error.ClockRollback;
                 next.time_floor_ms = now.unix_ms;
             }
-            try self.apply(&candidate, &next, signed.request, sample);
+            try self.apply(&candidate, &next, request, sample);
             // Grant changes may target this caller only when the root's own
             // identity is unchanged; administrative root replacement is invalid.
-            principal_value = (try candidate.get(Principal, address(.principal, signed.request.principal))) orelse return error.InvalidHistory;
-            principal_value.sequence = signed.request.sequence;
-            try candidate.put(address(.principal, signed.request.principal), principal_value);
-            try candidate.put(try catalog.key(.receipt, signed.request.principal, signed.request.sequence, ""), Receipt{ .position = self.head.position, .digest = try g.digest(signed.request) });
+            var principal_value = (try candidate.get(Principal, address(.principal, request.principal))) orelse return error.InvalidHistory;
+            principal_value.sequence = request.sequence;
+            try candidate.put(address(.principal, request.principal), principal_value);
+            try candidate.put(try catalog.key(.receipt, request.principal, request.sequence, ""), Receipt{ .position = self.head.position, .digest = try g.digest(request) });
             next.catalog = candidate.snapshot;
             next.position += 1;
-            return .{ .record = .{ .position = self.head.position, .previous = self.head.catalog.root, .next = next, .request = signed.request, .time = sample } };
+            return .{ .record = .{ .position = self.head.position, .previous = self.head.catalog.root, .next = next, .request = request, .time = sample } };
         }
         pub fn commit(self: *Self, prepared: Prepared) !u64 {
             if (!try self.journal.append(prepared.record.position, .{ .operation = prepared.record })) return error.Conflict;
@@ -215,7 +220,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             try self.refresh();
             const principal_value = try self.authenticate(signed);
             if (try self.duplicate(signed.request, principal_value)) |receipt| return receipt;
-            return self.commit(try self.prepare(signed));
+            return self.commit(try self.prepareCurrent(signed.request));
         }
         pub fn before(self: *Self, sample: ?core.Time.Sample, deadline: u64) !void {
             _ = self.genesis.max_clock_error_ms orelse return error.UnsupportedDeadline;

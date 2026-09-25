@@ -22,7 +22,30 @@ array is scalable because its memory use is bounded.
 
 `python3 -B tests/verification/check.py` validates owners, links, classifications
 and drift; `just check` includes it. Missing tasks and unreviewed limit changes
-are negative controls. This catalog does not claim the growing profile exists.
+are negative controls. The growing profile's partial qualification is recorded
+in the [test guide](../README.md#m10-verification-and-scale-foundations);
+inventory coverage does not imply all M10 gates have passed.
+
+## Local execution cost evidence
+
+The complete clean run at `94ab60a` passed all required lanes, including language
+bindings and five Chromium checks. Its sequential task total was 795.69 seconds;
+the earlier `b9dd595` run took 765.71 seconds with less coverage. This comparison
+does not establish an overall speedup. Timings and completion metadata remain in
+`.cache/ci/clean/94ab60ae889d-transit-ci-z0etigj7/`. The later public v3 service and
+activation-session changes have focused evidence, not that clean run's coverage.
+
+Profiling the standalone Debug core binary at `94ab60a` found 38.73 seconds of
+execution, including 24.20 seconds in the retained-catalog exchange test. That
+test crosses the legacy capacity boundaries and retains its full scenario.
+Removing duplicate authentication/refresh on normal `submit` instead produced a
+27.80-second local run, with that test at 16.26 seconds and two additional
+publication-race regressions. No safety checks or iteration counts were removed.
+These single runs share a development host with other work; they do not establish
+a hosted latency distribution, cold Nix benefit or millisecond service guarantee.
+Local artifacts `core-test-profile.json` and `core-profile-after.json` under
+`.cache/verification/` record individual test timings; the latter records the
+changed binary hash and dirty base `ce4c550`.
 
 ## Generated transitions
 

@@ -2,6 +2,19 @@
 
 [transit-core](../README.md)
 
+## Validation and publication
+
+Both authority profiles authenticate and check retry identity once on the normal
+`submit` path. A private preparation continuation uses that exact recovered head;
+it is not a public authentication bypass or a reusable permission cache. The
+publication's conditional append rejects any intervening operation, including a
+revocation. Public `prepare` independently authenticates before returning its
+candidate. Exact retries still check current permission before returning evidence.
+
+Unit schedules insert a competing revocation at the storage append boundary of
+`submit` itself. The proposal loses, its input/progress stays unchanged, and a
+subsequent retry sees the current denial in both profiles.
+
 ## Deadline enforcement
 
 The selected contract permits previously authorized work to settle within a
