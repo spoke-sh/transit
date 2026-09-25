@@ -1,7 +1,7 @@
 # Connectors and external exchanges
 
-Status: [HTTP M14](roadmap/M14.md) is the first planned connector;
-[gRPC M15](roadmap/M15.md) is the second. Stream groups, interpolation,
+Status: [HTTP M15](roadmap/M15.md) is the first planned connector;
+[gRPC M16](roadmap/M16.md) is the second. Stream groups, interpolation,
 and connector attempt policy below remain design work. Transit already has
 opaque intents, dispatch authorization, observations, and bounded closure in its
 [effect contract](../contracts/TRANSIT_V2.md#effect-intents-and-observations).
@@ -31,7 +31,7 @@ exactly one ordered byte stream per connection), and wire-level flow control.
 evidence of durable application admission on its own; see GRPC.md's
 [streaming authority and backpressure](GRPC.md#streaming-authority-and-backpressure)
 for what a connector must check in addition.
-[M15](roadmap/M15.md)'s entry gates already treat HTTP/2 this way — an
+[M16](roadmap/M16.md)'s entry gates already treat HTTP/2 this way — an
 immutable, Zig-compatible dependency selected and proved once (generation,
 trailers, framing, compression bounds, flow control, cancellation),
 independently of the gRPC connector built on it — without naming the tier;
@@ -43,8 +43,8 @@ proposed here.
 **Connector** is this document's subject: something that executes a committed
 effect intent, with attempt identity, dispatch authorization, idempotency,
 retry/redirect handling, and a reconciliation policy distinguishing a
-confirmed outcome from closed-with-outcome-unknown. HTTP ([M14](roadmap/M14.md))
-and gRPC ([M15](roadmap/M15.md)) are the two planned connectors. FTP/SFTP/FTPS,
+confirmed outcome from closed-with-outcome-unknown. HTTP ([M15](roadmap/M15.md))
+and gRPC ([M16](roadmap/M16.md)) are the two planned connectors. FTP/SFTP/FTPS,
 filesystem, S3, GCS and SSH effects fit the same shape — each has a natural
 per-operation attempt/outcome boundary (put, get, list, delete) — and belong
 here when they are built, reusing this document's attempt/reconciliation

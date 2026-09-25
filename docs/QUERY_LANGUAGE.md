@@ -5,10 +5,12 @@ already-decided pipeline — *"structured query API / later SQL frontend → typ
 logical plan → qualified logical rewrites → physical plan → bounded Arrow
 operators → result sink"* — into a concrete answer for DDL, DML, a dataframe
 surface, and the connector/transport namespace idea. It does not reopen
-[M16](roadmap/M16.md)'s existing commitment to a bounded **read-only** SQL
-subset over Flight SQL, or [M12](roadmap/M12.md)'s decision that no SQL/textual
-query language ships there. It proposes where a fuller relational surface would
-sit relative to those, not a new milestone by itself.
+[M17](roadmap/M17.md)'s existing commitment to a bounded **read-only** SQL
+subset over Flight SQL, or [M13](roadmap/M13.md)'s decision that no SQL/textual
+query language ships there. [M12 — Declarative interface
+readiness](roadmap/M12.md) owns completing and compiling the grammar this
+document scopes through `SELECT`; the dataframe API shape and the
+connector/transport namespace idea remain unassigned to any milestone number.
 
 ## The one-line answer
 
@@ -30,7 +32,7 @@ executed identically to every other durable mutation. A relational DDL surface
 is a text encoding of that same typed command, checked by the same
 authorization before it ever reaches durable state; it does not bypass
 anything or add a second creation path. `CREATE DOCUMENT` and `CREATE KV`
-follow the same shape once [M13](roadmap/M13.md#entry-gates)'s Document model
+follow the same shape once [M14](roadmap/M14.md#entry-gates)'s Document model
 and its KV adapter are specified — DDL surfaces what those milestones already
 commit to build, it does not itself decide their schema/merge semantics.
 
@@ -39,7 +41,7 @@ two columns (`id: int64`, one typed value column) — a KV-shaped table, not a
 general relational one. `CREATE TABLE orders (id INT, sym TEXT, qty INT, px
 FLOAT, ...)` with an arbitrary multi-column schema needs the Table model
 itself to grow first. That is real scope, not a parser detail, and belongs
-with whichever milestone owns schema evolution — plausibly M13's unified-query
+with whichever milestone owns schema evolution — plausibly M14's unified-query
 work, plausibly its own. Naming DDL now should not be read as claiming
 multi-column tables already exist.
 
@@ -50,19 +52,19 @@ multi-column tables already exist.
 existing, authorized operation, not a new one. `SELECT` is the interesting
 case: it compiles to Fuze's typed `Plan` (predicate, projection, limit,
 aggregate) and executes through the same bounded, credited pipeline
-[M10](roadmap/M10.md) qualified this cycle and [M12](roadmap/M12.md) is
+[M10](roadmap/M10.md) qualified this cycle and [M13](roadmap/M13.md) is
 scoped to expose — `WHERE`/column selection/`LIMIT`/`COUNT`/`SUM` map
 directly onto the plan's existing shape; joins, grouping, subqueries and
 window functions do not exist in that shape yet and would each need their own
 qualification before a relational surface could claim to support them, not be
 silently accepted as parsed syntax with unqualified execution.
 
-[M16](roadmap/M16.md) already commits to exactly this SELECT-only slice,
+[M17](roadmap/M17.md) already commits to exactly this SELECT-only slice,
 narrower and further out: *"a bounded read-only SQL subset... translating
 into Fuze's M9 plans; no separate engine."* A full DDL/DML relational
 surface — this document's scope — is bigger than that existing commitment in
-two ways: it writes, and M16 ties its SQL specifically to the Flight SQL
-ingress path. Treat M16 as the first, narrowest instance of the relational
+two ways: it writes, and M17 ties its SQL specifically to the Flight SQL
+ingress path. Treat M17 as the first, narrowest instance of the relational
 surface described here, not as the whole of it; a general DDL/DML surface
 (`transit query`'s shell, a future direct SQL endpoint) is separate,
 unscoped work this document intentionally does not turn into a milestone
@@ -107,7 +109,7 @@ without pretending the two have the same freshness or transaction semantics.
 write — is a further step again: it would use DML syntax to trigger work at
 an external boundary, not to durably store a row. That is worth having named
 here so it is not lost, but it stays speculative until connectors
-([M14](roadmap/M14.md)) exist to dispatch through at all; do not treat this
+([M15](roadmap/M15.md)) exist to dispatch through at all; do not treat this
 section as scoping that milestone's design.
 
 ## CONNECTION, SOURCE and SINK: naming the DDL for external data
@@ -260,7 +262,7 @@ position on these, unlike the excluded items below:
   HTTP text capture; it does not yet specify decoding captured bytes into
   Fuze rows.
 - **`SHOW`/`DESCRIBE` as the relational-surface answer to `transit-cli`'s
-  planned `/`-prefixed meta-commands** (`docs/roadmap/M12.md`). Both need to
+  planned `/`-prefixed meta-commands** (`docs/roadmap/M13.md`). Both need to
   read the same catalog; today only the CLI side is named.
 - **Multi-column schema evolution.** Already flagged in this document's DDL
   section as a Table-model prerequisite; every system named above has an
@@ -269,7 +271,7 @@ position on these, unlike the excluded items below:
 
 **Already named and deliberately excluded**, not missing from the analysis,
 just missing from scope right now: continuous/materialized/subscribed
-queries (M12, M13 both exclude them explicitly), cross-source joins
+queries (M13, M14 both exclude them explicitly), cross-source joins
 (`FUZE.md`), multi-resource/cross-table transactions (M10), UDFs and
 dynamic plugins (`FUZE.md`'s extensibility section).
 
@@ -386,8 +388,8 @@ described here.
 ## What this document is not
 
 It does not select a SQL grammar, a dataframe API shape per language, or a
-parser implementation. It does not move DDL/DML ahead of M12's read-only,
-Table-only scope or M13's Document work, and it does not commit the
+parser implementation. It does not move DDL/DML ahead of M13's read-only,
+Table-only scope or M14's Document work, and it does not commit the
 connector/transport namespace idea to a milestone number. It exists so the
 next concrete proposal in this area — a grammar, a builder API, a system
 catalog design — starts from one settled shape (surfaces compile to Fuze's

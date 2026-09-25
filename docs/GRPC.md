@@ -1,7 +1,7 @@
 # gRPC connector
 
-Status: proposed second connector, [M15](roadmap/M15.md), after
-[HTTP M14](roadmap/M14.md). No general gRPC transport or connector is implemented.
+Status: proposed second connector, [M16](roadmap/M16.md), after
+[HTTP M15](roadmap/M15.md). No general gRPC transport or connector is implemented.
 The [shared effect boundary](CONNECTORS.md#effect-boundary) and
 [bounded reconciliation contract](CONNECTORS.md#bounded-reconciliation-contract)
 apply without weakening expiry, fencing or replay rules.
@@ -14,7 +14,7 @@ caller waits through its mailbox and durable correlation state, not a handler
 blocked on a live socket. Generated service helpers construct intents; they
 cannot open network connections or resolve credentials as a side effect.
 
-M15 targets unary, server-streaming, client-streaming and bidirectional methods
+M16 targets unary, server-streaming, client-streaming and bidirectional methods
 with explicit finite call/message/byte budgets. gRPC orders messages within each
 direction of a call; the directions are independent. It does not provide a
 durable replay log. See [gRPC's call model](https://grpc.io/docs/what-is-grpc/core-concepts/).
@@ -62,7 +62,7 @@ roll back already committed turns or external actions.
 ## Streaming authority and backpressure
 
 The existing opaque effect contract does not yet implement a streaming-send
-protocol. M15 must specify and prove it before enabling interactive calls:
+protocol. M16 must specify and prove it before enabling interactive calls:
 
 - Every outgoing message or finite batch must have committed content/identity
   and a dispatch authorization covering that exact work, method, destination,
@@ -109,7 +109,7 @@ Do not restart a partially sent client/bidirectional stream merely because a new
 worker owns the connector. Resuming requires an explicit remote protocol for
 message identities, accepted offsets and duplicate handling; gRPC alone supplies
 none of that durable contract. Without it, preserve the partial transcript and
-settle under bounded unknown-outcome policy. M15 need not implement generic
+settle under bounded unknown-outcome policy. M16 need not implement generic
 automatic resumption to support bounded streaming methods honestly.
 
 [gRPC cancellation](https://grpc.io/docs/guides/cancellation/) is cooperative.
@@ -133,7 +133,7 @@ application values. Service logs/metrics remain bounded diagnostics; they must
 not contain credentials, raw messages or unbounded method/target labels. Follow
 [Security](SECURITY.md) and [Observability](OBSERVABILITY.md).
 
-[M15](roadmap/M15.md) owns interoperation tests, crash/revocation schedules and
+[M16](roadmap/M16.md) owns interoperation tests, crash/revocation schedules and
 reference deployment qualification. Server-side hosting of arbitrary application
 gRPC services, gRPC-Web and automatic remote-stream resumption are outside its
-first profile. M16 adds the specific Flight/Flight SQL ingress service.
+first profile. M17 adds the specific Flight/Flight SQL ingress service.

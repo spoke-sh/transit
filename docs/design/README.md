@@ -23,7 +23,7 @@ and [overhead detail](D6.md#figure-4-zoom-within-resources-reveals-flat-detail).
 Review status records the design discussion. All eight reviews contain proposed
 interfaces and synthetic imagery; none is an implemented UI or capacity claim.
 Delivery scope and qualification belong in the [roadmap](../roadmap/README.md);
-[M12](../roadmap/M12.md) scopes the query capability, the accepted D5/D6
+[M13](../roadmap/M13.md) scopes the query capability, the accepted D5/D6
 foundation and D7's data workspace, without retroactively accepting D7 or D8's
 still-open interactions. [Board](../BOARD.md) owns the product boundary and
 current inspection contracts.

@@ -98,7 +98,7 @@ defines the required boundary. Larger constants alone do not meet it.
 
 Massive-scale deployment also requires an explicit authority-partition and routing
 design, including grant/revocation and cross-partition delivery semantics. Measure
-the single-realm serialization bottleneck in M10; [M17](roadmap/M17.md) qualifies
+the single-realm serialization bottleneck in M10; [M18](roadmap/M18.md) qualifies
 broader clustered execution. Additional node replicas do not by themselves create
 independent write capacity or a cross-partition transaction guarantee.
 
@@ -243,7 +243,7 @@ and protocol assertions belong under [tests/](../tests/README.md).
   [caller design](CLIENT.md#idiomatic-language-sdks) owns that boundary.
 - Extend `kubectl-transit` with authorized logical inspection and, later, operator
   controls as scoped in the [full plugin plan](roadmap/M5.md).
-- [M13](roadmap/M13.md) adds Document
+- [M14](roadmap/M14.md) adds Document
   changes/CRDTs and KV/Document query adapters. Add further entity adapters only
   with their implementation and qualification; no standalone engine service is required.
 - `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,
@@ -254,7 +254,7 @@ and protocol assertions belong under [tests/](../tests/README.md).
 - `packages/zig/transit-station-flight` and `apps/transit-station-flight`: Flight/
   Flight SQL query ingress and gateway composition over Station/public client,
   with an explicit identity boundary and no direct storage access. Existing ADBC
-  clients connect through Flight SQL; [ARROW.md](ARROW.md) owns this M16 profile.
+  clients connect through Flight SQL; [ARROW.md](ARROW.md) owns this M17 profile.
 - `apps/transit-station-worker`, `apps/transit-station-http-worker` and
   `apps/transit-station-grpc-worker`: compose behaviors or connector execution
   with explicitly supplied runtime capabilities.

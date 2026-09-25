@@ -3,8 +3,13 @@
 Status: design artifacts, not implemented. [`TransitExtensions.g4`](TransitExtensions.g4)
 and [`FuzeRewrite.lean`](FuzeRewrite.lean) are the first checked instances of
 the toolchain [`docs/QUERY_LANGUAGE.md`](../../docs/QUERY_LANGUAGE.md) proposes,
-not a production parser or a proof about `transit-fuze`'s Zig code. Nothing
-here is wired into a build step or a milestone's exit criteria yet.
+not a production parser or a proof about `transit-fuze`'s Zig code.
+[`M12` — Declarative interface readiness](../../docs/roadmap/M12.md) owns
+turning this into exactly that: `SELECT`/expression grammar, a real
+`parse -> Fuze plan` compiler, pinned tooling and a `libpg_query` compatibility
+corpus. Nothing here is wired into a build step or `M12`'s exit criteria yet —
+these are pre-milestone artifacts it starts from, not partial delivery
+against it.
 
 ## `TransitExtensions.g4`
 
@@ -60,12 +65,13 @@ lean FuzeRewrite.lean
 
 ## What would make either of these real
 
-Neither is wired into `just check`, a CI lane, or a milestone's exit
-criteria. Doing that would need, at minimum: pinning `antlr4`/`lean4` in
-`flake.nix` the way `nixpkgs#tlaplus` is already pinned for `just test::model`;
-a `libpg_query`-based differential corpus and comparison harness; deciding
+Neither is wired into `just check` or a CI lane yet; `M12`'s entry gates
+list exactly what would change that: pinning `antlr4`/`lean4` in `flake.nix`
+the way `nixpkgs#tlaplus` is already pinned for `just test::model`; a
+`libpg_query`-based differential corpus and comparison harness; deciding
 whether the Zig production parser is hand-written or generated from a Zig
 target ANTLR does not natively support; and, for Lean, picking which
 *additional* rewrite rules justify formalizing next — a single reordering
 lemma does not cover projection, aggregation or limit interactions, each of
-which would need its own stated theorem.
+which needs its own stated theorem. See [`M12`](../../docs/roadmap/M12.md)
+for the scoped version of this list with exit criteria attached.

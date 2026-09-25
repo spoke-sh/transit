@@ -127,7 +127,7 @@ become a SQL or Arrow compute engine.
 
 [Fuze](FUZE.md) names that shared query engine. Its target source model includes
 KV, Table and a proposed Station Document for structured values and collaborative
-text. [M13](roadmap/M13.md) owns Document change/CRDT semantics above core and
+text. [M14](roadmap/M14.md) owns Document change/CRDT semantics above core and
 the qualification of its storage/lifetime profile. Shared querying does not add
 those semantics to the current KV resource or widen its transaction boundary.
 
