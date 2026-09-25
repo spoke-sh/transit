@@ -22,6 +22,8 @@ pub const Delivery = struct {
     input: g.Input,
     permit: ?u64,
     needs_permit: bool,
+    work_before_ms: ?u64 = null,
+    settle_before_ms: ?u64 = null,
 };
 pub const Decision = struct {
     views: [g.turn_views]?g.View = @splat(null),
@@ -50,7 +52,7 @@ pub fn receive(self: *Self) !?Delivery {
     if (process.owner != self.principal or process.generation != self.generation) return error.StaleActivation;
     if (process.failure != null) return error.BlockedProcess;
     const input = response.body.process.input orelse return null;
-    return .{ .realm = self.realm, .principal = self.principal, .pid = self.pid, .generation = self.generation, .sequence = try std.math.add(u64, response.principal_sequence, 1), .revision = process.revision, .input = input, .permit = if (process.turn_permit) |permit| permit.id else null, .needs_permit = process.work_before_ms != null and process.turn_permit == null };
+    return .{ .realm = self.realm, .principal = self.principal, .pid = self.pid, .generation = self.generation, .sequence = try std.math.add(u64, response.principal_sequence, 1), .revision = process.revision, .input = input, .permit = if (process.turn_permit) |permit| permit.id else null, .needs_permit = process.work_before_ms != null and process.turn_permit == null, .work_before_ms = process.work_before_ms, .settle_before_ms = process.settle_before_ms };
 }
 
 /// Bounded current metadata lookup; associations do not grant resource access.

@@ -3,7 +3,7 @@
 const std = @import("std");
 const client = @import("transit_client");
 const p = client.protocol;
-const Turn = @import("Turn.zig");
+const Turn = @import("Turn.zig").Legacy;
 const Frame = @import("Frame.zig");
 const GenServer = @This();
 

@@ -3,7 +3,7 @@
 const std = @import("std");
 const p = @import("transit_client").protocol;
 const f = @import("transit_fuze");
-const Turn = @import("Turn.zig");
+const Turn = @import("Turn.zig").Legacy;
 const Frame = @import("Frame.zig");
 const Table = @import("Table.zig");
 pub const chunk_bytes = 224;

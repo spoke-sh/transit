@@ -6,7 +6,7 @@ const Table = @import("Table.zig");
 const Query = @import("Query.zig");
 const Registry = @import("Registry.zig");
 const Supervisor = @import("Supervisor.zig");
-const Turn = @import("Turn.zig");
+const Turn = @import("Turn.zig").Legacy;
 pub const Detail = union(enum) {
     behavior: enum { genserver },
     table: struct { id: u32, schema_version: u8, columns: [2]Column, fingerprint: [32]u8 },

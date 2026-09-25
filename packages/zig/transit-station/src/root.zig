@@ -2,7 +2,8 @@
 pub const client = @import("transit_client");
 pub const protocol = client.protocol;
 pub const Frame = @import("Frame.zig");
-pub const Turn = @import("Turn.zig");
+pub const GrowingTurn = @import("Turn.zig").Growing;
+pub const Turn = @import("Turn.zig").Legacy;
 pub const GenServer = @import("GenServer.zig");
 pub const Table = @import("Table.zig");
 pub const Query = @import("Query.zig");
@@ -13,8 +14,10 @@ pub const Controller = @import("Controller.zig");
 pub const Metadata = @import("Metadata.zig");
 pub const fuze = @import("transit_fuze");
 test {
+    _ = @import("growing_test.zig");
     _ = Frame;
     _ = Turn;
+    _ = GrowingTurn;
     _ = GenServer;
     _ = Table;
     _ = Query;

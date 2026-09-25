@@ -32,10 +32,13 @@ pub fn decode(value: p.Value) !Frame {
     return .{ .kind = kind, .correlation = correlation, .payload = try p.Value.init(value.slice()[header_bytes..]) };
 }
 
-pub fn source(input: p.Input) !u64 {
-    if (input.origin.version != 1) return error.UnsupportedOrigin;
-    return switch (input.origin.source) {
-        .process => |origin| origin.pid,
+pub fn source(input: anytype) !u64 {
+    const origin = if (@TypeOf(input) == p.Input) blk: {
+        if (input.origin.version != 1) return error.UnsupportedOrigin;
+        break :blk input.origin.source;
+    } else if (@TypeOf(input) == p.Growth.Input) input.origin else @compileError("Expected authenticated Transit input");
+    return switch (origin) {
+        .process => |process| process.pid,
         else => error.ExpectedProcessOrigin,
     };
 }

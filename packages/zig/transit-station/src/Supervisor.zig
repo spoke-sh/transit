@@ -2,7 +2,7 @@
 //! credentialed controller applies the generation-fenced public operation.
 const std = @import("std");
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig");
+const Turn = @import("Turn.zig").Legacy;
 const Frame = @import("Frame.zig");
 pub const max_children = 4;
 pub const Kind = enum(u8) { activation = 1, failed = 2, suspended = 3, terminated = 4, expired = 5, placement_unavailable = 6, initializing = 7 };

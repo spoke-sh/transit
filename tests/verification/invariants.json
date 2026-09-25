@@ -463,6 +463,32 @@
       ],
       "limits": "Full process/resource sweep cost still grows with retained metadata. No page GC, due-time index, sweep-lag SLO, full-store control reserve or multi-maintainer performance claim. Physical work authorized before revocation may finish later.",
       "model": null
+    },
+    {
+      "id": "GROWTH-08",
+      "claim": "Growing Station private turns read bounded captured keys and retain call semantics without a whole-resource snapshot",
+      "owner": "contracts/STATION_GROWING.md",
+      "implementation": [
+        "packages/zig/transit-station/src/Turn.zig",
+        "packages/zig/transit-station/src/Table.zig",
+        "packages/zig/transit-station/src/Waiting.zig",
+        "packages/zig/transit-station/src/growing_test.zig"
+      ],
+      "profile": "Station growing development private-turn slice",
+      "tasks": [
+        "test::unit",
+        "test::station",
+        "test::client-abi"
+      ],
+      "scenarios": [
+        "Point access beyond 32 Table rows without materializing the resource",
+        "Caught read failure poisons validation without publishing partial private work",
+        "Cross-resource atomic rollback and read-your-own writes",
+        "Wide observer identity and authenticated timeout/reply closure",
+        "Legacy wait versions reject growing records and vice versa"
+      ],
+      "limits": "Injected reader evidence only. Growing behavior loop, service recovery, query paging, large captured results, registries, supervision and foreign ABIs remain unqualified. Legacy service and ABI checks protect unchanged defaults.",
+      "model": null
     }
   ]
 }

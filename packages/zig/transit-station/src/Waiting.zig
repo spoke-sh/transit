@@ -2,7 +2,7 @@
 //! remains kernel-enforced and does not wait for this service to deliver.
 const std = @import("std");
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig");
+const Turn = @import("Turn.zig").Legacy;
 const Frame = @import("Frame.zig");
 
 pub fn observation(correlation: u64, observed_ms: u64) !Frame {
@@ -14,10 +14,10 @@ pub fn observation(correlation: u64, observed_ms: u64) !Frame {
 }
 /// A handler explicitly cancels its own wait. Already accepted work at the peer
 /// may finish; this message cannot roll back effects or retract delivered bytes.
-pub fn cancel(turn: *Turn, correlation: u64) !bool {
+pub fn cancel(turn: anytype, correlation: u64) !bool {
     return close(turn, correlation, .cancelled);
 }
-fn close(turn: *Turn, correlation: u64, phase: @FieldType(Turn.Wait, "phase")) !bool {
+fn close(turn: anytype, correlation: u64, phase: @FieldType(Turn.Wait, "phase")) !bool {
     var wait = (try turn.waiting(correlation)) orelse return error.UnknownCorrelation;
     if (wait.phase != .waiting) return false;
     const before = turn.decision;
@@ -30,11 +30,11 @@ fn close(turn: *Turn, correlation: u64, phase: @FieldType(Turn.Wait, "phase")) !
 }
 /// False means a first timeout was accepted and the application should receive
 /// its callback. A duplicate/late timeout is consumed without reopening a wait.
-pub fn dispatch(turn: *Turn, frame: Frame) !bool {
+pub fn dispatch(turn: anytype, frame: Frame) !bool {
     if (frame.kind != .timeout) return false;
     const wait = (try turn.waiting(frame.correlation)) orelse return error.UnknownCorrelation;
     const observer = wait.observer orelse return error.UnexpectedTimerObserver;
-    switch (turn.delivery.input.origin.source) {
+    switch (if (@TypeOf(turn.delivery.input) == p.Input) turn.delivery.input.origin.source else turn.delivery.input.origin) {
         .external => |origin| if (origin.principal != observer) return error.UnexpectedTimerObserver,
         else => return error.UnexpectedTimerObserver,
     }

@@ -5,7 +5,7 @@ const wire = @import("transit_client");
 const p = wire.protocol;
 const Supervisor = @import("Supervisor.zig");
 const Waiting = @import("Waiting.zig");
-const Turn = @import("Turn.zig");
+const Turn = @import("Turn.zig").Legacy;
 const Controller = @This();
 pub const Watch = struct { pid: u64, resource: u64, child: ?u64 = null };
 pub const Mode = enum { observe, lifecycle };

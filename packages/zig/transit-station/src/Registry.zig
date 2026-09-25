@@ -2,7 +2,7 @@
 //! lifetime. Binding revisions and tombstones are durable, not worker caches.
 const std = @import("std");
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig");
+const Turn = @import("Turn.zig").Legacy;
 const Frame = @import("Frame.zig");
 pub const Subject = union(enum) { principal: u8, process: u64 };
 pub const Rights = packed struct(u8) { lookup: bool = false, mutate: bool = false, _reserved: u6 = 0 };

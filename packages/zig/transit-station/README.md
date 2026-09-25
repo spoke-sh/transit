@@ -15,6 +15,9 @@ poll/finish interface used by foreign-language handlers.
 before public SDKs. The current 32-entry resource and complete turn snapshots
 are hard implementation constraints; they are not tunable memory caches or the
 intended maximum size of application state.
+The explicit [growing interface](docs/growing.md) adds bounded captured reads,
+shared private-turn/Table operations and full-width durable wait identities;
+it is under M10 qualification and does not change the default profile.
 The [lifetime guide](docs/lifetimes.md) explains retention, suspension and
 permanent retirement without hiding the kernel's contracts.
 

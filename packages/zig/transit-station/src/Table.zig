@@ -3,7 +3,7 @@ const std = @import("std");
 const p = @import("transit_client").protocol;
 const f = @import("transit_fuze");
 const m = f.model;
-const Turn = @import("Turn.zig");
+const Turn = @import("Turn.zig").Legacy;
 const Table = @This();
 resource: u64,
 id: u32,
@@ -53,38 +53,38 @@ pub fn decodeSchema(value: p.Value) !m.Schema {
     try schema.validate();
     return schema;
 }
-pub fn create(turn: *Turn, id: u32, schema: m.Schema) !Table {
+pub fn create(turn: anytype, id: u32, schema: m.Schema) !Table {
     if (id == 0) return error.InvalidTableId;
-    if (turn.get(descriptorKey(id)) != null) return error.TableExists;
+    if (try turn.read(descriptorKey(id)) != null) return error.TableExists;
     try turn.write(descriptorKey(id), try encodeSchema(schema));
     return .{ .resource = turn.view.resource, .id = id, .schema = schema };
 }
-pub fn open(turn: *const Turn, id: u32) !Table {
-    const descriptor = turn.get(descriptorKey(id)) orelse return error.TableNotFound;
+pub fn open(turn: anytype, id: u32) !Table {
+    const descriptor = (try turn.read(descriptorKey(id))) orelse return error.TableNotFound;
     return .{ .resource = turn.view.resource, .id = id, .schema = try decodeSchema(descriptor) };
 }
-fn check(self: Table, turn: *const Turn) !void {
+fn check(self: Table, turn: anytype) !void {
     if (self.resource != turn.view.resource) return error.CrossResourceTransaction;
     const current = try open(turn, self.id);
     if (!std.meta.eql(self.schema, current.schema)) return error.TableSchemaChanged;
 }
-pub fn get(self: Table, turn: *const Turn, key: i64) !?m.Row {
+pub fn get(self: Table, turn: anytype, key: i64) !?m.Row {
     try self.check(turn);
-    return if (turn.get(rowKey(self.id, key))) |value| .{ .key = key, .value = try self.decodeCell(value) } else null;
+    return if (try turn.read(rowKey(self.id, key))) |value| .{ .key = key, .value = try self.decodeCell(value) } else null;
 }
-pub fn insert(self: Table, turn: *Turn, row: m.Row) !void {
+pub fn insert(self: Table, turn: anytype, row: m.Row) !void {
     if (try self.get(turn, row.key) != null) return error.RowExists;
     try self.upsert(turn, row);
 }
-pub fn update(self: Table, turn: *Turn, row: m.Row) !void {
+pub fn update(self: Table, turn: anytype, row: m.Row) !void {
     if (try self.get(turn, row.key) == null) return error.RowNotFound;
     try self.upsert(turn, row);
 }
-pub fn upsert(self: Table, turn: *Turn, row: m.Row) !void {
+pub fn upsert(self: Table, turn: anytype, row: m.Row) !void {
     try self.check(turn);
     try turn.write(rowKey(self.id, row.key), try self.encodeCell(row.value));
 }
-pub fn delete(self: Table, turn: *Turn, key: i64) !void {
+pub fn delete(self: Table, turn: anytype, key: i64) !void {
     try self.check(turn);
     try turn.write(rowKey(self.id, key), null);
 }
@@ -161,7 +161,7 @@ pub fn scan(self: Table, turn: *const Turn, rows: *[m.max_rows]m.Row) !u8 {
     var len: u8 = 0;
     for (keys[0..count]) |key| {
         if (key.len != 14 or !std.mem.eql(u8, key.data[0..2], "\x00r") or std.mem.readInt(u32, key.data[2..6], .little) != self.id) continue;
-        const value = turn.get(key) orelse continue;
+        const value = (try turn.read(key)) orelse continue;
         if (len == rows.len) return error.StateCapacityExceeded;
         rows[len] = .{ .key = @bitCast(std.mem.readInt(u64, key.data[6..14], .big) ^ (@as(u64, 1) << 63)), .value = try self.decodeCell(value) };
         len += 1;
@@ -182,7 +182,7 @@ pub fn snapshot(self: Table, turn: *const Turn) !Snapshot {
     return result;
 }
 pub const Change = struct { table: Table, operation: union(enum) { insert: m.Row, update: m.Row, upsert: m.Row, delete: i64 } };
-pub fn atomic(turn: *Turn, changes: []const Change) !void {
+pub fn atomic(turn: anytype, changes: []const Change) !void {
     const before = turn.decision;
     errdefer turn.decision = before;
     for (changes) |change| {
