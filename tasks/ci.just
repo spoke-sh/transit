@@ -1,10 +1,10 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set working-directory := ".."
 
-# Run both hosted lanes sequentially in the existing development environment.
+# Run every hosted lane sequentially with the pinned language qualification tools.
 [default]
 _default:
-    python3 -B tests/ci.py all
+    nix develop .#bindings --command python3 -B tests/ci.py all
 
 # Foundation, library and durable protocol proofs.
 core:
@@ -13,6 +13,10 @@ core:
 # Frontend, instrumentation, Board and persistent native launcher proofs.
 experience:
     python3 -B tests/ci.py experience
+
+# Shared native boundary and cross-language Station behavior/Arrow proofs.
+bindings:
+    python3 -B tests/ci.py bindings
 
 # Browser qualification remains explicit for local developers.
 browser:

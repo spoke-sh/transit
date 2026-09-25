@@ -34,7 +34,7 @@ use `just fmt` to fix formatting.
 
 Before pushing committed work, run `just ci-clean`. It refuses uncommitted source
 changes, clones the exact HEAD into a temporary directory, installs the locked
-frontend dependencies, and runs the same core/experience task inventory as hosted CI. It inherits the
+frontend dependencies, and runs the same core/experience/bindings task inventory as hosted CI. It inherits the
 Nix store and global compiler caches, but no checkout build outputs, launcher
 state, dotenv file or `node_modules`. Successful runs remove the temporary clone;
 failed runs retain it for diagnosis and print its location. The local launcher proof must use its
@@ -74,9 +74,10 @@ tracked in [Ursula #317](https://github.com/tonbo-io/ursula/issues/317). This pr
 uses verified record positions/offsets and never reuses physical names.
 A rolled-back whole-store backup is not an authorized live restore.
 
-Hosted CI runs `just ci::core` and `just ci::experience` in parallel, then
-`just ci::browser` in the experience lane. Locally, `just ci` runs core and
-experience sequentially and records timings in `.cache/ci/`. The
+Hosted CI runs `just ci::core`, `just ci::experience` and `just ci::bindings`
+in parallel, then `just ci::browser` in the experience lane. Locally, `just ci`
+loads the pinned bindings tools, runs all three sequentially and records timings
+in `.cache/ci/`. The
 [toolchain guide](../nix/README.md#ci-lanes) explains cache ownership and the
 smaller experience shell. An opt-in dedicated runner workflow exposes the
 reference and physical-capacity proofs. Local runs supply the current runtime

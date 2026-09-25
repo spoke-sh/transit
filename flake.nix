@@ -68,6 +68,10 @@
             ;
         in
         rec {
+          ci-bindings = import ./nix/ci-bindings.nix {
+            inherit pkgs;
+            base = ci-experience;
+          };
           ci-experience = import ./nix/ci-experience.nix {
             inherit
               pkgs

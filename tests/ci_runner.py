@@ -13,7 +13,7 @@ from ci import LANES, ROOT
 def main():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     selected = [row["lane"] for row in workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]]
-    assert selected == ["core", "experience"]
+    assert selected == ["core", "experience", "bindings"]
     assert workflow["jobs"]["checks"]["strategy"]["fail-fast"] is False
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == "checks"

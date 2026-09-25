@@ -143,8 +143,10 @@ took 18m29s: restore/save used 2m28s, the checks used 14m22s, and native launche
 qualification accounted for 5m39s of those checks. The workflow now runs two
 lanes concurrently. `just ci::core` owns foundation/library/protocol proofs;
 `just ci::experience` owns frontend, cross-service observability, Board and
-native launcher proofs, followed by `just ci::browser`. `just ci` runs the same
-core and experience task inventory sequentially in a development shell.
+native launcher proofs, followed by `just ci::browser`. M9 adds a third
+`just ci::bindings` lane for the native boundary and cross-language proofs.
+`just ci` enters the pinned bindings shell and runs all three task inventories
+sequentially; `just check` still uses the ordinary developer tools.
 
 The experience lane uses `nix develop .#ci-experience`, a shell without provider
 or Kubernetes tools and without PyArrow. Its measured environment closure is
@@ -156,8 +158,15 @@ for heavy toolchain/pin updates; the first new-key run pays that upload cost.
 New lane caches can fall back to the previous shared cache for their first run,
 so the split itself does not force rebuilding Ursula from Rust source.
 
-Both lanes reuse a compiler/dependency cache keyed by the locked toolchain and
-Zig manifests. Only core writes it. It holds fetched packages and global compiler
+The bindings lane uses `nix develop .#ci-bindings`: the native tools, PyArrow and
+foreign SDKs, without Kubernetes/provider tools. Its environment closure measures
+6.1 GiB. Those SDKs are cached only in this lane; it installs only the Node
+binding's workspace dependencies. This keeps new language qualification from
+expanding both other lanes or serializing their checks.
+
+All lanes reuse a compiler/dependency cache keyed by the locked toolchain and
+Zig manifests. Only bindings writes it, including the C++ standard library.
+It holds fetched packages and global compiler
 objects, excluding checkout objects, launchers, credentials and the Git archive
 transport cache. This avoids caching the tens of gigabytes accumulated by local
 Debug/ReleaseSafe builds. No application tests are skipped on a cache hit.

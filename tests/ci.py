@@ -11,7 +11,7 @@ LANES = {
     "core": (
         "check-core", "test::dev-environment", "test::kubectl-transit",
         "test::deployments", "test::telemetry", "test::packages",
-        "test::arrow", "test::client-abi", "test::station", "bindings::native", "test::storage",
+        "test::arrow", "test::client-abi", "test::station", "test::storage",
         "test::service", "test::runtime-upgrade", "test::callers",
         "test::inspection", "test::state",
     ),
@@ -20,6 +20,7 @@ LANES = {
         "transit-board::test", "launchers::local::test",
     ),
     "browser": ("transit-board::browser",),
+    "bindings": ("bindings::check", "bindings::test"),
 }
 
 
@@ -27,7 +28,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("lane", choices=("all", *LANES))
     args = parser.parse_args()
-    lanes = ("core", "experience") if args.lane == "all" else (args.lane,)
+    lanes = ("core", "experience", "bindings") if args.lane == "all" else (args.lane,)
     results = []
     destination = ROOT / ".cache/ci" / f"{args.lane}.json"
     destination.parent.mkdir(parents=True, exist_ok=True)
