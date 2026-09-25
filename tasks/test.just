@@ -113,6 +113,10 @@ growing *args:
 growing-service:
     zig build test-growing-service
 
+# Run the same growing service/fault corpus with optimized safety checks.
+growing-service-release:
+    zig build test-growing-service -Doptimize=ReleaseSafe
+
 # Prove bounded diagnostics, independent metrics and cancelable log sinks.
 telemetry:
     zig build test-telemetry

@@ -69,7 +69,8 @@
       "test::mutations"
     ],
     "focused": [
-      "test::packages"
+      "test::packages",
+      "test::growing-service-release"
     ]
   },
   "nested_tasks": {

@@ -57,6 +57,19 @@ Local artifacts `core-test-profile.json` and `core-profile-after.json` under
 `.cache/verification/` record individual test timings; the latter records the
 changed binary hash and dirty base `ce4c550`.
 
+The growing Station service proof at `1bee187` subsequently took 91.43 seconds
+for its 40-call exchange and 7.13 seconds for one-page-cache recovery in Debug.
+Running the same service corpus in ReleaseSafe during `cf1ebe5` qualification
+took 26.92 and 1.72 seconds respectively; the entire command took 107.04 seconds
+including recompilation and the other growing service faults. Reproduce it with
+`just test::growing-service-release`. Both profiles keep the same fault schedules,
+assertions and single-CPU service restriction. These local runs include slightly
+different scoped-retry coverage and are not a controlled production benchmark.
+Ordinary CI keeps Debug pending cold two-CPU build/lane-cost measurements: faster
+scenario execution alone does not show that another optimized build saves CI
+time or aggregate runner cost. The isolated exchange timings omit compilation,
+Nix setup and cache transfer.
+
 ## Generated transitions
 
 ```sh
