@@ -188,7 +188,10 @@ does not execute application handlers.
 
 ## Idiomatic language SDKs
 
-Status: planned in [M11](roadmap/M11.md). M9 provides generated declarations and
+Status: design and shared-boundary work started in [M11](roadmap/M11.md).
+The [SDK design](SDK.md) compares Python, TypeScript and Rust service/requester
+interfaces and records unresolved runner decisions; its examples are proposed.
+M9 provides generated declarations and
 owned host adapters with real interoperability and recovery evidence. Its public
 surface still exposes JSON actions, raw status codes, hex values and manual
 turn pumping. Preserve those low-level interfaces for conformance and advanced
