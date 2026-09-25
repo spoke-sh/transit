@@ -56,6 +56,26 @@ Foreign exceptions, cancellation and garbage collection cannot implicitly commit
 or acknowledge a turn. Bindings are part of M9's deliverable, not just a schema
 that leaves each language to build its own SDK.
 
+[M10](roadmap/M10.md) adds idiomatic public SDKs above the implemented adapters.
+Handlers use typed inputs and associated KV/Table helpers; a runner owns local
+dispatch and drives the shared Zig poll/finish machine. A handler return supplies
+a proposal, including any reply, and is not evidence of a committed turn. The
+runner resolves uncertain submissions before dispatching another handler and
+applies an explicit handler-failure policy without acknowledging work on unwind.
+
+Turn contexts and state helpers are scoped to one private proposal; reject use
+after completion and concurrent access that would violate sequencing. Stage
+mutations, input progress and outputs under the existing commit boundary.
+Handler-object fields are temporary worker memory, not durable process state.
+Initialization and recovery use recorded descriptors and associated resources.
+
+Runtime async APIs may await local bridge operations without blocking schedulers.
+A cross-process wait must finish its turn with recorded waiting state and resume
+through a later authenticated outcome. Arbitrary coroutine stacks are not
+recoverable, and holding a turn open cannot extend its read view or lifetime.
+Neither an SDK nor a handler runner proves native-code isolation; external
+effects still require connectors and deployment-enforced capability boundaries.
+
 The first reference behavior workers remain Zig. Qualifying a language client
 does not qualify its VM/native runtime for Substrate sandboxing or resource
 isolation; additional worker images need the same deployment proofs as Zig.
@@ -117,7 +137,7 @@ proposed API offers typed insert/update/upsert/delete, get/scan, and a bounded
 query plan. Requests to another writer travel through its PID's mailbox;
 local operations contribute to the current handler's proposal. The first query
 surface uses versioned structured operations. SQL is planned as a frontend
-to that same contract: [M13](roadmap/M13.md) scopes the first bounded read-only
+to that same contract: [M14](roadmap/M14.md) scopes the first bounded read-only
 subset, with an explicit grammar and capability matrix.
 
 Tabular results use Apache Arrow: bounded record batches in memory and Arrow IPC
@@ -131,7 +151,7 @@ retention and transactional visibility.
 Acero. Station supplies authorized KV/Table/Document source adapters and owns
 mutations, merge rules and durable result publication. The Document direction
 includes both structured state and collaborative text; its CRDT/storage profile
-and unified querying are scoped in [M10](roadmap/M10.md). Fuze queries accepted
+and unified querying are scoped in [M11](roadmap/M11.md). Fuze queries accepted
 state and does not merge speculative edits. [Arrow interchange](ARROW.md) connects the engine to IPC/C
 interfaces and later Flight, Flight SQL and ADBC. Query operators stay outside
 kernel authority;
@@ -218,7 +238,7 @@ Every namespace declares its authority, visibility, and lifetime. Local and
 cluster-wide registration must identify the logical scope in which a name is
 unique and how that scope survives worker replacement. Neither means an
 unqualified worker-memory map, a Kubernetes namespace, or a Substrate atespace.
-M9 defines the minimal scoped registry; M14 proves cluster-wide conflict and
+M9 defines the minimal scoped registry; M15 proves cluster-wide conflict and
 partition behavior.
 
 Serialize changes for each name under one fenced authority. Conditional updates

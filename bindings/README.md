@@ -5,6 +5,12 @@ protocol operations; Station adds detached handler turns, associated state,
 Table queries and durable framework messages. Host adapters own allocation,
 exceptions and runtime scheduling. They do not reimplement those protocols.
 
+These are M9's qualified low-level bindings. [M10](../docs/roadmap/M10.md)
+plans language-native public SDKs with typed operations, managed handler runners
+and installable artifacts. The current manual turn/action APIs remain available;
+the [caller design](../docs/CLIENT.md#idiomatic-language-sdks) defines the planned
+layer above them.
+
 `just bindings::generate` reflects the native exports and updates adapter
 resources. `just bindings::check` rejects drift. The
 [shared ABI guide](../packages/zig/transit-station/docs/bindings.md) owns the

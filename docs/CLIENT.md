@@ -4,6 +4,8 @@ Status: experimental v2 Zig client and [M7 state-resource API](roadmap/M7.md)
 implemented. [M9](roadmap/M9.md) adds the shared C ABI, generated signatures and
 exact-request export/import, with [binding evidence](../packages/zig/transit-client/docs/bindings.md).
 [Station's adapters](../bindings/README.md) expose the framework to all target languages.
+[M10](roadmap/M10.md) plans idiomatic public SDKs over those qualified low-level
+bindings; their manual action/turn interfaces remain the current implementation.
 General payload references and migration helpers remain
 separate future work.
 
@@ -27,7 +29,7 @@ the application failed. See [conformance](CONFORMANCE.md).
 provider-neutral evidence. Both kernel and client depend on it. `transit-client`
 has no kernel, Ursula or deployment-provider implementation dependency. Its
 explicit process view excludes the kernel's internal journal scan cursor.
-Future Station behaviors build on this client boundary. `Input` exposes position,
+Station behaviors build on this client boundary. `Input` exposes position,
 opaque value and a versioned authenticated origin. Applications match the expected
 source process/output or effect attempt before accepting correlated replies;
 external admission authenticates a principal, not a claimed process sender.
@@ -58,7 +60,7 @@ retention, and reads must declare their revision and coverage.
 
 M7 defines coexistence for inline-state callers and stored histories.
 The implemented `transit-client` operations capture bounded read views and freeze
-mutation proposals for exact retry. Station will build behavior ergonomics on
+mutation proposals for exact retry. Station builds behavior ergonomics on
 that public contract without importing core.
 
 ## Inspection clients
@@ -78,7 +80,7 @@ M9 makes client creation through bindings an explicit deliverable. A schema
 alone is insufficient: clients must also preserve signing, ownership,
 uncertain-operation, and lifetime semantics.
 
-The shared boundary has three parts (M9 implementation is in progress):
+The binding architecture has three parts:
 
 1. Public Transit types and Station-owned message/behavior contracts generate
    language declarations, codecs, ABI declarations and shared fixtures from
@@ -91,6 +93,10 @@ The shared boundary has three parts (M9 implementation is in progress):
    They share canonical signing, request freezing and session semantics through
    that implementation. Independently implemented wire clients remain possible
    only with the same conformance evidence.
+
+The [M10 SDK layer](#idiomatic-language-sdks) builds typed application APIs over
+this boundary. Generated ABI/wire declarations remain separate from public
+interfaces designed for each language.
 
 Raw Transit clients do not acquire a Station dependency. Station bindings add
 the same sequential behavior and Table interfaces above them. A host application
@@ -161,7 +167,7 @@ host supports them. Do not convert results into JSON rows as the sole API.
 result completeness, snapshots and cleanup independently of host-language
 garbage collection.
 
-[Arrow interoperability M13](roadmap/M13.md) adds Flight/Flight SQL access and
+[Arrow interoperability M14](roadmap/M14.md) adds Flight/Flight SQL access and
 qualification with existing ADBC drivers. Those are Table query clients, distinct
 from these process/behavior bindings. The shared Zig engine remains behind both
 surfaces; neither an Arrow C interface nor an ADBC handle grants Transit rights.
@@ -173,7 +179,68 @@ integers beyond JavaScript's exact-number range and signed 64-bit range.
 Every target must run a small GenServer/caller example and consume the same
 Arrow result fixture; retain the Zig caller as the reference program.
 
-Both currently implemented application examples are Zig:
-[counter](../examples/counter/README.md) and [byte log](../examples/byte-log/README.md).
-They run against the same node; the [caller proof](../tests/README.md#independent-caller-evidence)
-checks that separation without introducing another application language.
+The [counter](../examples/counter/README.md), [byte log](../examples/byte-log/README.md)
+and [Station ledger](../examples/station-ledger/README.md) remain Zig reference
+applications. [Binding examples](../examples/station-bindings/README.md) qualify
+host-language callers against the same authority. The
+[caller proof](../tests/README.md#independent-caller-evidence) checks that the node
+does not execute application handlers.
+
+## Idiomatic language SDKs
+
+Status: planned in [M10](roadmap/M10.md). M9 provides generated declarations and
+owned host adapters with real interoperability and recovery evidence. Its public
+surface still exposes JSON actions, raw status codes, hex values and manual
+turn pumping. Preserve those low-level interfaces for conformance and advanced
+use while making normal application code express domain operations directly.
+
+Generate ABI declarations, wire types, validators and shared fixtures from their
+versioned owners. Design the public SDK separately for each language: native
+types, errors, resource ownership, handlers and scheduling. The Zig client and
+Station implementation retain signing, sequencing, request freezing, framework
+transitions and query execution. Host dispatch and convenience APIs cannot add
+independent retry, acceptance or recovery rules. Raw Transit remains usable
+without depending on Station.
+
+Typed process/resource references and versioned application codecs should make
+payload encoding explicit without requiring callers to construct wire envelopes.
+Validate decoded data at runtime; preserve full-width numbers and bytes through
+the host's appropriate types. References and codecs never grant permission.
+Separate caller operations, handler turn capabilities and administrative APIs so
+convenience does not imply wider credentials or mutable access.
+
+Define distinct results for admission, committed processing and reply completion.
+A recoverable operation object owns exact frozen retry material and exposes
+uncertainty without requiring application code to edit signed JSON. A receipt
+describes a historical result; reading it still requires current rights. Typed
+errors must preserve the existing rejection, uncertainty, fencing, revocation,
+retirement and unavailable-history distinctions.
+
+An operation object in worker memory is not durable retry evidence. Provide
+opaque export/import for exact requests and document when callers must persist
+them before dispatch. If retry material is lost, recover under fresh fenced
+ownership and reconcile committed state before recomputing; never infer that
+host loss means rejection. Retry exports may contain application data and need
+the same access protections as the underlying request.
+
+Language tasks, promises and futures only represent local execution. Durable
+waiting state belongs to Station and must be resumable after worker loss.
+Cancelling a local await does not retract accepted work; expose durable
+cancellation separately under its advisory peer contract. Bound queued work,
+native threads/ports and shutdown; hiding a native worker must not introduce
+an unbounded application queue or block an event loop. The
+[Station runner design](STATION.md#languages-and-bindings) defines the handler
+lifetime within those constraints.
+
+Results expose owned Arrow IPC bytes and source/completeness metadata. Optional
+host Arrow adapters may add readers or native batches with explicit release
+rules; garbage collection and local disposal do not retire durable results or
+extend their access lifetime. Qualified adapters must preserve full-width values
+and reject incomplete results; JSON rows cannot be the sole interface.
+
+Build installable artifacts for the qualified Linux x86_64 runtime matrix and
+test them from clean consumers outside this source tree. Package or resolve
+compatible native dependencies explicitly, allow overrides, and report version
+or missing-artifact errors clearly. Imports acquire no credentials and start no
+work. Public registry publication, additional platforms and foreign worker
+deployment qualification remain separate from SDK usability.

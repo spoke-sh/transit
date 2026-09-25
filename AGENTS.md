@@ -15,11 +15,11 @@ Follow the contracts for the area you change:
 | Protocol, processes, ownership | [Transit](docs/TRANSIT.md), [v2 profile](contracts/TRANSIT_V2.md) |
 | Authentication, grants, credentials, trust | [Security](docs/SECURITY.md), [service contract](contracts/SERVICE_V2.md) |
 | Storage, delivery, producer/consumer behavior | [Streams](docs/STREAMS.md), [Ursula boundary](docs/URSULA.md) |
-| State resources, associations, KV/Table/Document APIs | [State](docs/STATE.md), [M7](docs/roadmap/M7.md), [Document M10](docs/roadmap/M10.md) |
+| State resources, associations, KV/Table/Document APIs | [State](docs/STATE.md), [M7](docs/roadmap/M7.md), [Document M11](docs/roadmap/M11.md) |
 | Fuze/query planning and execution | [Fuze](docs/FUZE.md), [Tables](docs/TABLES.md) |
 | Arrow IPC/C interfaces, Flight/Flight SQL, ADBC | [Arrow](docs/ARROW.md) |
 | Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/RETENTION.md) |
-| Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [public protocol package](packages/zig/transit-protocol/README.md) |
+| Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [SDK milestone M10](docs/roadmap/M10.md), [public protocol package](packages/zig/transit-protocol/README.md) |
 | Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [M2 plan](docs/roadmap/M2.md) |
 | Service logs, metrics, traces, probes | [Observability](docs/OBSERVABILITY.md), [M4](docs/roadmap/M4.md) |
 | Behaviors, supervision, names | [Station](docs/STATION.md) |
@@ -45,12 +45,17 @@ building Station; the [pre-Station review](docs/reviews/PRE_STATION.md) records 
   for roles.
 - Write kernel, framework, connectors, and backends in Zig. Use strict TypeScript
   and Vite+ for frontends. Keep external infrastructure in its upstream language.
-  M9's language bindings, host adapters, examples and conformance tests may use
-  their target languages; share the Zig client/framework through the
-  [binding boundary](docs/CLIENT.md#language-neutral-boundary) instead of duplicating
+  M9's language bindings and M10's public SDKs, host adapters, examples and
+  conformance tests may use their target languages; share the Zig client/framework
+  through the [binding boundary](docs/CLIENT.md#language-neutral-boundary) instead of duplicating
   protocol semantics. Keep query execution Zig native and outside kernel authority;
   follow [Fuze](docs/FUZE.md) for DataFusion/Acero inspiration and query boundaries.
   Neither upstream engine is a runtime dependency.
+- Keep generated wire/ABI declarations separate from language-native public APIs.
+  SDKs own types, codecs, handler dispatch, scheduling and packaging; the shared
+  Zig implementation owns protocol and framework semantics. Preserve uncertainty,
+  durable call identity and cancellation distinctions through convenience APIs;
+  host tasks and handler fields are not durable state.
 - Respect the architecture's dependency direction. Core depends on the public
   protocol, never Station or a provider. Applications use the client; the node
   must not import handlers or claim protocol validation proves honest computation.

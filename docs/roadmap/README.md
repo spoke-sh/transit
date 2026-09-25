@@ -17,11 +17,12 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M7](M7.md) | Durable state resources and process associations | Bounded KV profile, generic Board inspection and three-launcher recovery/upgrades implemented and verified |
 | [M8](M8.md) | Transit runtime readiness | Bounded origins, automatic delivery, catalog reclamation and lifecycle controls implemented and verified |
 | [M9](M9.md) | Station behaviors, language bindings, and Arrow Tables | Bounded profile implemented and qualified on Linux x86_64 across all target languages; Zig reference workers |
-| [M10](M10.md) | Documents, collaborative text and unified querying | Planned |
-| [M11](M11.md) | HTTP connector and exchange transcripts | Planned |
-| [M12](M12.md) | gRPC connector and streaming calls | Planned |
-| [M13](M13.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned |
-| [M14](M14.md) | Clustered execution and portability | Planned |
+| [M10](M10.md) | Idiomatic language SDKs | Planned |
+| [M11](M11.md) | Documents, collaborative text and unified querying | Planned |
+| [M12](M12.md) | HTTP connector and exchange transcripts | Planned |
+| [M13](M13.md) | gRPC connector and streaming calls | Planned |
+| [M14](M14.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned |
+| [M15](M15.md) | Clustered execution and portability | Planned |
 
 The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -29,9 +30,12 @@ commit primitive and these runtime contracts; a production behavior runtime is
 not implied by either bounded profile.
 
 Station establishes Table and language-binding contracts with the first bounded
-[Fuze](../FUZE.md) query profile. Fuze's shared source model targets KV, Table and
-Document; [M10](M10.md) adds Document/CRDT storage, structured and collaborative
-text editing, and the KV/Document query adapters with their own acceptance criteria.
+[Fuze](../FUZE.md) query profile. [M10](M10.md) builds language-native public SDKs
+over those bindings, including typed handlers/state, recoverable operations,
+runtime integration and installable artifacts. Fuze's shared source model targets
+KV, Table and Document; [M11](M11.md) adds Document/CRDT storage, structured and
+collaborative text editing, and the KV/Document query adapters with their own
+acceptance criteria.
 HTTP proves shared effect capture; gRPC extends it to bidirectional calls; Arrow
 interoperability then adds a remote query surface over the same Tables. Clustering
 qualifies those boundaries across broader topologies. Fuze

@@ -2,8 +2,8 @@
 
 Status: M9 implements finite IPC results, checked by an independent Arrow
 consumer, and qualifies C Data/C Stream ownership. See the [integration evidence](../packages/zig/transit-fuze/docs/integration.md).
-Remote interoperability remains planned: [M12](roadmap/M12.md) adds gRPC and
-[M13](roadmap/M13.md) qualifies Flight, Flight SQL and ADBC.
+Remote interoperability remains planned: [M13](roadmap/M13.md) adds gRPC and
+[M14](roadmap/M14.md) qualifies Flight, Flight SQL and ADBC.
 [TABLES.md](TABLES.md) owns Table mutations, snapshots, materialization, transactions
 and durable result delivery. This document owns the interchange and gateway seams.
 
@@ -69,7 +69,7 @@ useful, while keeping ingress identity mapping and effect dispatch separate.
 
 ## First remote query profile
 
-M13 starts with read-only, finite queries over one Table/resource snapshot.
+M14 starts with read-only, finite queries over one Table/resource snapshot.
 Read-only refers to application tables; accepting queries and tracking result
 delivery still require authorized durable bookkeeping:
 
@@ -98,7 +98,7 @@ prove compatibility with every Arrow client or driver version.
 
 ## Identity, lifetime and failure
 
-M13 must select and prove an ingress identity profile. Start with explicitly
+M14 must select and prove an ingress identity profile. Start with explicitly
 configured gateway credentials mapped to dedicated, least-privilege Transit
 principals and allowed Table service PIDs. Do not trust principal/PID claims in
 request metadata or invent general delegation, which is not implemented. TLS
@@ -129,7 +129,7 @@ results fail explicitly. Cancelling a query is an authorized durable disposition
 not a socket-close side effect. Repeated SQL submissions are new queries unless
 the client supplies a supported stable request identity; SQL text is not a dedup key.
 
-M13 must budget SQL/protobuf requests, standard metadata schemas, result bytes,
+M14 must budget SQL/protobuf requests, standard metadata schemas, result bytes,
 ticket records and pending queries against the profile it actually deploys.
 Network streaming cannot conceal a missing durable payload/lifetime contract or
 raise M7's limits implicitly. A larger storage/result profile requires an explicit
@@ -138,8 +138,8 @@ prerequisite milestone if the selected interoperability fixtures cannot fit.
 ## Qualification and later work
 
 [M9](roadmap/M9.md) proves batches, operator behavior and IPC/C ownership with
-independent consumers. [M12](roadmap/M12.md) proves the gRPC transport and effect
-boundary. [M13](roadmap/M13.md) proves actual Flight/ADBC clients, authentication,
+independent consumers. [M13](roadmap/M13.md) proves the gRPC transport and effect
+boundary. [M14](roadmap/M14.md) proves actual Flight/ADBC clients, authentication,
 schemas, backpressure, cancellation and recovery together. Keep dependency pins,
 supported protocol versions and proof commands with the implementing packages.
 Flight SQL writes, a native ADBC driver, continuous query maintenance and

@@ -97,7 +97,7 @@ implement resource associations.
 | Read basis | The exact resource identities/revisions observed by a turn and the evidence supporting its recovery/replay contract |
 | KV | The initial versioned resource interface for opaque key/value lookup, put, delete, and bounded enumeration |
 | Table | A planned Station typed keyspace within a state resource, with declared schema/keys and Arrow query results; several tables can share one resource's transaction boundary |
-| Document | A planned [M10](roadmap/M10.md) Station state abstraction for nested structured values and collaborative text, with versioned change/merge rules; Fuze queries its accepted materialized revisions, not speculative edits |
+| Document | A planned [M11](roadmap/M11.md) Station state abstraction for nested structured values and collaborative text, with versioned change/merge rules; Fuze queries its accepted materialized revisions, not speculative edits |
 | Table transaction | A bounded mutation batch committed in one resource/turn; M9 does not extend this across separate resources or writer PIDs |
 | Arrow record batch | A finite set of typed column arrays with one schema, used for tabular interchange and query computation; it is not a durable commit |
 | Arrow IPC stream | Serialized schema and record batches for cross-process interchange; durability, result framing and recovery remain Station/Transit responsibilities |
@@ -106,14 +106,14 @@ implement resource associations.
 | Staged data | Durably prepared data that remains unpublished until referenced by an accepted commit decision |
 
 See [Tables](TABLES.md) for the bounded M9 surface, materialization and
-transaction limits, and [M10](roadmap/M10.md) for Documents and unified querying.
+transaction limits, and [M11](roadmap/M11.md) for Documents and unified querying.
 A finite Arrow batch stream and a durable Transit stream
 have different responsibilities.
 
 ## Arrow execution and interchange
 
 These are planned interfaces above the kernel. [Fuze](FUZE.md) owns query
-execution; [Arrow](ARROW.md) owns interchange and the M13 remote query profile.
+execution; [Arrow](ARROW.md) owns interchange and the M14 remote query profile.
 
 | Term | Meaning |
 | --- | --- |
@@ -269,7 +269,9 @@ package; Board owns its service instrumentation separately. The neutral
 | Package | A source/dependency boundary in the monorepo with its own build definition. A Zig package may expose modules, executable artifacts, or both. |
 | Library/module | Reusable Zig code imported by consumers. Transit and Station will expose libraries; packaging a static/shared artifact is a separate consumer need. |
 | Language binding | Generated declarations/codecs and a thin host-runtime adapter over the shared client/framework implementation; M9 targets the languages in [Client](CLIENT.md#m9-language-targets) |
-| C ABI | The proposed versioned native call boundary for client/Station bindings, with opaque handles and explicit ownership; distinct from the signed network protocol and Arrow's data interfaces |
+| Language SDK | A language-native public API over shared bindings, with typed operations, errors, handler/runtime integration and packaging; planned in [M10](roadmap/M10.md), sharing Zig protocol semantics |
+| Handler runner | SDK integration that dispatches local handlers and drives the shared Station turn machine; temporary worker machinery, not durable process identity or execution authority |
+| C ABI | The versioned native call boundary implemented for client/Station bindings, with opaque handles and explicit ownership; distinct from the signed network protocol and Arrow's data interfaces |
 | Example application | A complete runnable caller demonstrating the public client. `example-counter` and `example-byte-log` are examples; neither is required Transit infrastructure. |
 | Executable | A runnable entry point composing libraries with configuration and lifecycle handling. It is not synonymous with a library, Transit process, or deployment. |
 | Transit backend | A durable storage and transport implementation of Transit's persistence requirements. Packages use `transit-backend-*`; `transit-backend-ursula` exports `transit_backend_ursula`. Each implementation must prove its supported guarantees. |

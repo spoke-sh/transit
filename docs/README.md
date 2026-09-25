@@ -13,7 +13,7 @@ are experimental; their bounded implementation does not imply support for every 
 | [Architecture](ARCHITECTURE.md) | Layers, dependency direction, and component map |
 | [Glossary](GLOSSARY.md) | Official names and shared terminology |
 | [Transit](TRANSIT.md) | Processes, PIDs, legal sequences, ownership, and replay |
-| [Caller model](CLIENT.md) | Application computation and the public client boundary |
+| [Caller model](CLIENT.md) | Application computation, bindings and planned idiomatic language SDKs |
 | [Security](SECURITY.md) | Identity, authorization, revocation, and trust boundaries |
 | [Streams](STREAMS.md) | Mailboxes, ordering, durable admission, and delivery |
 | [State](STATE.md) | Durable resources, process associations, KV/Table boundary, and state lifetimes |
@@ -23,7 +23,7 @@ are experimental; their bounded implementation does not imply support for every 
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
 | [Board](BOARD.md) | Inspection UI/API, observation semantics, and planned framework lenses |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |
-| [Station](STATION.md) | Planned behaviors, language bindings, Tables, supervision, and registries |
+| [Station](STATION.md) | Behaviors, language bindings, planned SDK runners, Tables, supervision, and registries |
 | [Connectors](CONNECTORS.md) | Shared effect/attempt/reconciliation contract and planned HTTP capture |
 | [gRPC](GRPC.md) | Planned second connector: typed calls, streaming authority, transcripts and recovery |
 | [Deployment](DEPLOYMENT.md) | Runtime bindings, recovery, isolation, and portability |

@@ -59,7 +59,8 @@ runtime adapters and application backends. TypeScript/Vite+ supplies frontend co
 Shared contracts use language-neutral schemas and fixtures. Ursula and Agent
 Substrate are external infrastructure with their own implementation languages.
 Station M9 adds host-language SDK adapters and examples over the shared Zig
-client/framework. That binding glue does not change the service language or move
+client/framework. [M10](roadmap/M10.md) adds language-native public SDKs over
+those bindings. That binding glue does not change the service language or move
 application handlers into Transit authority; [CLIENT.md](CLIENT.md#language-neutral-boundary)
 owns the generated ABI and target-language plan.
 
@@ -222,9 +223,13 @@ and protocol assertions belong under [tests/](../tests/README.md).
 
 ### Planned components
 
+- Add typed public APIs, handler runners and installable artifacts to the existing
+  language packages in [M10](roadmap/M10.md). Generated/raw bindings remain a
+  separate interface over the shared Zig client/framework; the
+  [caller design](CLIENT.md#idiomatic-language-sdks) owns that boundary.
 - Extend `kubectl-transit` with authorized logical inspection and, later, operator
   controls as scoped in the [full plugin plan](roadmap/M5.md).
-- [M10](roadmap/M10.md) adds Document
+- [M11](roadmap/M11.md) adds Document
   changes/CRDTs and KV/Document query adapters. Add further entity adapters only
   with their implementation and qualification; no standalone engine service is required.
 - `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,
@@ -235,7 +240,7 @@ and protocol assertions belong under [tests/](../tests/README.md).
 - `packages/zig/transit-station-flight` and `apps/transit-station-flight`: Flight/
   Flight SQL query ingress and gateway composition over Station/public client,
   with an explicit identity boundary and no direct storage access. Existing ADBC
-  clients connect through Flight SQL; [ARROW.md](ARROW.md) owns this M13 profile.
+  clients connect through Flight SQL; [ARROW.md](ARROW.md) owns this M14 profile.
 - `apps/transit-station-worker`, `apps/transit-station-http-worker` and
   `apps/transit-station-grpc-worker`: compose behaviors or connector execution
   with explicitly supplied runtime capabilities.
