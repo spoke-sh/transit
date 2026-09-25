@@ -51,3 +51,20 @@ settlement, checkpoint pages or concurrent native handles. Existing focused
 tests still own those obligations; M10 must extend the harness before closing
 its generated-schedule gate. The in-memory fault store assumes conditional
 append atomicity and is not a substitute for Ursula disk qualification.
+
+## Model and guard qualification
+
+The [finite TLA+ model](models/README.md) checks publication, retry and closure
+safety and replays four removed-guard counterexamples against the real engine.
+`just test::model` is part of the bindings lane so ordinary core/frontend checks
+do not acquire a Java dependency. Its tools use the existing nixpkgs lock.
+
+`just test::mutations` requires committed HEAD, clones it independently and removes
+one actual generation, revision or permission guard at a time. The unmodified
+baseline must pass; a compiling mutant must trigger a minimized property failure.
+Build errors/timeouts do not count as detection. It retains evidence and never
+edits production source in the working tree. Weekly CI runs this larger budget.
+
+[scale.json](scale.json) defines progressive experiment sizes and required
+measurements for the growing profile. These are test datasets, not service SLOs
+or claims that the legacy profile supports them.

@@ -50,6 +50,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just launchers::local::test`, `just launchers::compose::test` | Qualify persistence, duplicate-safe provisioning, fresh ownership and missing-store refusal in isolated installations |
 | `just test::unit` | Runs Zig unit/protocol tests without a service |
 | `just test::build` | Compiles application/probe entry points separately from unit tests; included in core CI |
+| `just test::model [--tail N]` | Checks the finite TLA+ model, removed guards and concrete Zig counterexample schedules |
+| `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
 | `just test::properties [--seeds N --steps N]` | Runs saved and generated authority schedules; failures retain a minimized replay trace |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |
 | `just ci::complete`, `just ci-clean --complete` | Includes installed Chromium in ordinary local or clean-checkout qualification |

@@ -87,7 +87,7 @@ in parallel, then `just ci::browser` in the experience lane. Locally, `just ci`
 loads the pinned bindings tools, runs all three sequentially and records timings
 in `.cache/ci/`. The
 [toolchain guide](../nix/README.md#ci-lanes) explains cache ownership and the
-smaller experience shell. An opt-in dedicated runner workflow exposes the
+smaller experience shell. A weekly/on-demand dedicated runner workflow exposes the
 reference and physical-capacity proofs. Local runs supply the current runtime
 evidence. A passing hosted end-to-end timing and native validation on the other M0
 platforms still require their own runners/runs.
@@ -746,3 +746,9 @@ inventory on committed HEAD. Each lane records required tasks, completion and
 revision beside task timings; successful clean runs preserve these outside the
 disposable checkout. These improvements do not establish a hosted speed target,
 complete the growing-state implementation or qualify massive scale.
+
+The initial M10 model also passed 30,140 states with a four-transition journal
+bound and replayed all four removed-guard counterexamples against Zig. The first
+CI optimization commit (`b9dd595`) passed `just ci-clean --complete`, including
+all language bindings and five Chromium checks; timing and completion metadata
+survive under `.cache/ci/clean/b9dd595faade-transit-ci-7c3pzmzd/`.

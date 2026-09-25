@@ -1,6 +1,8 @@
 name: Reference recovery
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '41 5 * * 0'
 permissions:
   contents: read
 concurrency:
@@ -9,7 +11,8 @@ concurrency:
 jobs:
   kubernetes-substrate:
     # Register a dedicated Linux x86_64 runner with Nix, Git, Docker and enough
-    # resources for Substrate. This privileged infrastructure proof is opt-in.
+    # resources for Substrate. This privileged proof runs weekly and on demand;
+    # an unavailable dedicated runner leaves qualification outstanding.
     runs-on: [self-hosted, linux, x64, rey-reference]
     timeout-minutes: 60
     steps:

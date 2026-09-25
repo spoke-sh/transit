@@ -3,7 +3,8 @@
 Status: [M10](roadmap/M10.md) in progress. Conservative workflow selection,
 separate unit/build checks and retained clean-run timings are implemented;
 an authority/retry transition harness and reviewed bound inventory are implemented.
-Formal models, broader generated scenarios and scale qualification remain in progress. The
+A finite TLA+ model and concrete negative-control replay are implemented;
+broader generated scenarios and scale qualification remain in progress. The
 [test guide](../tests/README.md) records what actually runs and what has passed.
 [Conformance](CONFORMANCE.md) owns required adversarial guarantees; this document
 owns how we obtain and maintain their evidence without making every edit run
@@ -112,6 +113,10 @@ variants also validates that model invariants are not vacuous.
 
 ## Formal models
 
+The [implemented finite model](../tests/verification/models/README.md) records
+its bounds, assumptions, negative controls and concrete trace bridge. These are
+initial safety checks; the broader conformance and growth gates remain open.
+
 M10 starts with a small TLA+/TLC model of ownership, preparation/commit, retry,
 permission changes and finite settlement. Bound actors, requests, counters and
 time explicitly. Check safety first; liveness requires stated storage, scheduling,
@@ -177,6 +182,13 @@ Docs-only selection still checks links and relevant schema/document generation.
 Full main/release tests and a periodic reference/capacity schedule retain broad
 coverage. Toolchain/provider changes require affected real qualification; an
 unavailable runner leaves that evidence outstanding.
+
+The current policy runs full ordinary qualification weekly on hosted runners,
+with bounded larger model/property exploration and targeted mutations in the
+bindings lane. Reference recovery/capacity runs weekly and on demand on the
+dedicated runner. Missing runner capacity leaves that qualification outstanding.
+Release qualification still requires the appropriate reference results; passing
+ordinary PR CI alone does not establish them.
 
 Track setup, compile, scenario, cleanup and cache-transfer time separately, plus
 critical-path wall time and aggregate runner time. Keep timings outside disposable

@@ -6,6 +6,8 @@ on:
   pull_request:
   merge_group:
   workflow_dispatch:
+  schedule:
+    - cron: '23 5 * * 1'
 permissions:
   contents: read
 concurrency:
@@ -101,6 +103,12 @@ jobs:
         run: nix develop .#${{ matrix.shell }} --command vp install --frozen-lockfile --filter @rey/transit-station
       - name: Run ${{ matrix.lane }} checks
         run: nix develop .#${{ matrix.shell }} --command just ci::${{ matrix.lane }}
+      - name: Weekly discovery budget
+        if: github.event_name == 'schedule' && matrix.lane == 'bindings'
+        run: |
+          nix develop .#${{ matrix.shell }} --command just test::model --tail 5
+          nix develop .#${{ matrix.shell }} --command just test::properties --seeds 128 --steps 128
+          nix develop .#${{ matrix.shell }} --command just test::mutations
       - name: Install browser and host dependencies
         if: matrix.lane == 'experience'
         run: nix develop .#${{ matrix.shell }} --command vp exec --filter @rey/transit-board-web playwright install --with-deps chromium
@@ -112,7 +120,14 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ci-${{ matrix.lane }}-${{ github.run_attempt }}
-          path: .cache/ci/*.json
+          path: |
+            .cache/ci/*.json
+            .cache/verification/*.json
+            .cache/verification/model/*.json
+            .cache/verification/model/*.log
+            .cache/verification/mutations/*.json
+            .cache/verification/mutations/*.log
+            .cache/verification/transitions/*.json
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14

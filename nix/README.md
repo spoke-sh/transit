@@ -246,3 +246,12 @@ its alias version triggers a pnpm peer-version warning, qualified by actual
 frontend build/check/test and browser proofs. No Nix toolchain pins were changed.
 The [Board frontend guide](../apps/transit-board-web/README.md) owns application workflows.
 CI installs the frozen lock before `just ci` and runs the pinned Chromium proof.
+
+## Formal verification tools
+
+`just test::model` uses TLA+/TLC from the existing nixpkgs lock (1.7.4); it
+is rooted in the bindings CI shell alongside Java, without expanding the core
+or frontend shell. The small model runs in ordinary bindings qualification.
+Weekly CI expands model/property exploration and runs actual guard mutations.
+The separate dedicated reference workflow runs weekly and on demand; absent
+runner capacity is outstanding evidence, not a passing deployment proof.

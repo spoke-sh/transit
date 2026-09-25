@@ -12,14 +12,15 @@
       "tasks": [
         "test::unit",
         "test::storage",
-        "test::properties"
+        "test::properties",
+        "test::model"
       ],
       "scenarios": [
         "Competing prepared successors",
         "Acknowledgement lost after append"
       ],
       "limits": "The test store assumes Ursula conditional append; disk integration checks the provider boundary.",
-      "model": null
+      "model": "tests/verification/models/Authority.tla"
     },
     {
       "id": "AUTH-02",
@@ -33,14 +34,15 @@
         "test::unit",
         "test::service",
         "test::state",
-        "test::properties"
+        "test::properties",
+        "test::model"
       ],
       "scenarios": [
         "Revoke or replace owner between prepare and commit",
         "Retry committed work after read revocation"
       ],
       "limits": "Authorization does not prove application computation or undo external effects.",
-      "model": null
+      "model": "tests/verification/models/Authority.tla"
     },
     {
       "id": "STATE-01",
@@ -75,14 +77,15 @@
         "test::callers",
         "test::client-abi",
         "bindings::test",
-        "test::properties"
+        "test::properties",
+        "test::model"
       ],
       "scenarios": [
         "Lost accepted response followed by exact retry",
         "Malformed reply and host loss"
       ],
       "limits": "Same-principal concurrent handles and post-commit allocation-failure enumeration need the M10 harness.",
-      "model": null
+      "model": "tests/verification/models/Authority.tla"
     },
     {
       "id": "LIFE-01",
@@ -95,14 +98,15 @@
       "tasks": [
         "test::unit",
         "test::service",
-        "test::storage"
+        "test::storage",
+        "test::model"
       ],
       "scenarios": [
         "Uncertain time at admission cutoff",
         "Paused dispatch and late reconciliation"
       ],
       "limits": "Validation occurs at compared journal tail; physical external dispatch may occur later.",
-      "model": null
+      "model": "tests/verification/models/Authority.tla"
     },
     {
       "id": "REPLAY-01",

@@ -19,7 +19,8 @@ class Model:
     """
     def __init__(self):
         self.state = dict(position=4, owner=1, generation=1, revision=0,
-                          admitted=0, consumed=0, value=0, permissions=255, sequence=0)
+                          admitted=0, consumed=0, cancelled=0, lifecycle="running",
+                          value=0, permissions=255, sequence=0)
         self.inputs = []
         self.prepared = {}
         self.receipts = {}
@@ -29,25 +30,37 @@ class Model:
         kind, slot = action["kind"], action.get("slot", 0)
         failure = receipt = None
         if kind == "send":
-            self.inputs.append(s["position"])
-            s["admitted"] += 1
-            receipt = s["position"]
-            s["position"] += 1
+            if s["lifecycle"] != "running":
+                failure = "RetiredProcess"
+            else:
+                self.inputs.append(s["position"])
+                s["admitted"] += 1
+                receipt = s["position"]
+                s["position"] += 1
         elif kind in {"revoke", "grant"}:
             s["permissions"] = 0 if kind == "revoke" else 255
             receipt = s["position"]
             s["position"] += 1
         elif kind == "own":
-            if action.get("owner", 1) == 1 and not s["permissions"]:
+            if s["lifecycle"] != "running":
+                failure = "RetiredProcess"
+            elif action.get("owner", 1) == 1 and not s["permissions"]:
                 failure = "Forbidden"
             else:
                 s["owner"] = action.get("owner", 1)
                 s["generation"] += 1
                 receipt = s["position"]
                 s["position"] += 1
+        elif kind == "terminate":
+            if s["lifecycle"] != "running":
+                failure = "RetiredProcess"
+            else:
+                receipt = s["position"]
+                s.update(lifecycle="terminated", owner=None,
+                         cancelled=s["admitted"] - s["consumed"], position=s["position"] + 1)
         elif kind == "prepare":
             self.prepared.pop(slot, None)
-            if s["consumed"] == len(self.inputs):
+            if s["consumed"] + s["cancelled"] == len(self.inputs):
                 failure = "NoInput"
             elif not s["permissions"]:
                 failure = "Forbidden"
@@ -86,6 +99,8 @@ class Model:
                     failure = "ConflictingRetry"
             elif candidate["sequence"] != s["sequence"] + 1:
                 failure = "SequenceGap"
+            elif s["lifecycle"] != "running":
+                failure = "RetiredProcess"
             elif candidate["generation"] != s["generation"] or s["owner"] != 1:
                 failure = "StaleGeneration"
             elif candidate["revision"] != s["revision"]:

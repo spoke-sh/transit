@@ -18,6 +18,14 @@ build:
 properties *args:
     zig build test-properties -- {{args}}
 
+# Bounded formal exploration and negative controls; tools use the locked nixpkgs.
+model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-model -- {{args}}
+
+# Committed HEAD only: omit selected real guards in isolated clones.
+mutations:
+    python3 -B tests/verification/mutations.py
+
 # Qualify finite IPC schemas/values against an independent Arrow reader.
 arrow:
     zig build test-arrow

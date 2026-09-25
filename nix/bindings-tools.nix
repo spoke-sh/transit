@@ -5,6 +5,7 @@
     cargo
     rustfmt
     jdk
+    tlaplus
     dotnet-sdk
     erlang
     beam.packages.erlang_28.elixir

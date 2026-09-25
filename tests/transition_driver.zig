@@ -27,7 +27,7 @@ const Store = struct {
 };
 const Engine = core.Engine(Store);
 const Action = struct {
-    kind: enum { send, own, revoke, grant, prepare, commit, retry, restart, clock },
+    kind: enum { send, own, revoke, grant, prepare, commit, retry, restart, clock, terminate },
     slot: u2 = 0,
     owner: u8 = 1,
     value: i64 = 1,
@@ -57,6 +57,7 @@ fn act(engine: *Engine, saved: *[4]?Saved, now: *core.Time.Sample, action: Actio
         .own => return try engine.submit(try request(engine, 0, .{ .own = .{ .pid = 2, .worker = action.owner, .expected_generation = (try engine.state.process(2)).generation } })),
         .revoke => return try engine.submit(try request(engine, 0, .{ .revoke = 1 })),
         .grant => return try engine.submit(try request(engine, 0, try grant())),
+        .terminate => return try engine.submit(try request(engine, 0, .{ .terminate = 2 })),
         .prepare => {
             // Replace a slot before validation: a failed preparation cannot
             // accidentally leave a previously prepared operation callable.
@@ -136,6 +137,8 @@ pub fn main(init: std.process.Init) !void {
                 .revision = process.revision,
                 .admitted = process.admitted,
                 .consumed = process.consumed,
+                .cancelled = process.cancelled,
+                .lifecycle = process.lifecycle,
                 .value = try process.state.asInteger(),
                 .permissions = (try engine.state.principal(1)).grant.permissions,
                 .sequence = (try engine.state.principal(1)).sequence,

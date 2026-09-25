@@ -56,6 +56,13 @@ pub fn build(b: *std.Build) void {
     properties.has_side_effects = true;
     properties.stdio = .inherit;
     b.step("test-properties", "Run reproducible authority schedules and saved regressions").dependOn(&properties.step);
+    const formal = b.addSystemCommand(&.{ "python3", "-B" });
+    formal.addFileArg(b.path("tests/verification/model.py"));
+    formal.addArtifactArg(transition_driver);
+    formal.addPassthruArgs();
+    formal.has_side_effects = true;
+    formal.stdio = .inherit;
+    b.step("test-model", "Check finite authority model and replay counterexamples against Zig").dependOn(&formal.step);
     const protocol = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize });
     const exporter = b.addExecutable(.{ .name = "transit-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-protocol/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }} }) });
     b.step("contract", "Export public contract JSON Schema to stdout").dependOn(&b.addRunArtifact(exporter).step);
