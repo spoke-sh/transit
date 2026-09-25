@@ -47,6 +47,12 @@ map. At overview scale, elevation represents a named quantity such as pending
 inputs; as the viewer zooms in, the same positions flatten into process cards
 and bounded recorded journeys. Selection, filters and evidence remain shared.
 
+Its [fabric follow-up](design/board-atlas/FABRIC.md) explores an inbox lifting
+the surface and an outbox indenting its center. Count and age layers have
+separate meanings; all illustrated ages are synthetic, because current outbox
+inspection does not establish each output's source-commit time. Age support
+requires its own evidence contract before implementation.
+
 The study contains synthetic generated images and an interaction specification,
 not an implemented canvas or a broader read contract. It preserves the current
 single-realm, bounded-page and inspection-only boundaries. Multi-realm maps,

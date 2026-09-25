@@ -78,6 +78,16 @@ None is a health score, resource utilization measure or capacity forecast.
 Switching a layer keeps horizontal coordinates and selection stable and
 relabels the units. Unavailable evidence makes a layer unavailable, not zero.
 
+## Inbox, outbox and age follow-up
+
+The [fabric exploration](FABRIC.md) extends this initial height-only study with
+an inbox shoulder and an independently readable outbox well. It compares count
+depth plus age tint with an explicit age-depth layer. The interface uses Inbox
+as the mailbox display name. All illustrated ages are synthetic: current
+outbox inspection has no per-output source-commit timestamp. The follow-up
+specifies unavailable/stale age, scoped extrema and the evidence needed before
+implementation. Both upward and downward relief flatten on approach.
+
 ## Semantic descent
 
 | Stage | Surface and camera | Detail disclosed |

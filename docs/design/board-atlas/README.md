@@ -1,6 +1,6 @@
 # Board: relief atlas design study
 
-Status: **proposed visual design, not implemented UI**. These six generated
+Status: **proposed visual design, not implemented UI**. These nine generated
 concept images explore a shared browser and map workspace. At a distance,
 pending inputs form a shallow relief atlas. As the viewer approaches a process,
 the terrain flattens into readable cards and recorded relationships.
@@ -8,6 +8,11 @@ the terrain flattens into readable cards and recorded relationships.
 The images use synthetic data, not a deployment or a captured Transit transcript.
 They are review material, not assets to embed in the Board executable.
 [Board's design contract](../../BOARD.md) remains authoritative.
+
+**Latest review: [Inbox, outbox and age as a fabric](FABRIC.md).** Three new
+studies compare count-based wells, age-driven depth, and the transition to a
+flat Inbox/Outbox inspector. All age values are synthetic and require proposed
+timestamp support. The original six views below remain as the earlier design.
 
 ## Walk through the design
 
@@ -69,6 +74,8 @@ stale terrain or identifiable silhouettes.
   relief encoding, accessibility, read boundaries and implementation questions.
 - [Exact generation prompts](prompts.json): built-in image generation, the
   shared visual specification and targeted refinement prompts.
+- [Fabric and age prompts](fabric-prompts.json): the follow-up exploration and
+  its zoom refinement.
 - [Board frontend](../../../apps/transit-board-web/README.md): current implemented
   browser behavior and verification commands.
 
