@@ -18,7 +18,7 @@ def main():
     assert selected == ["core", "growth", "experience", "launchers", "bindings"]
     assert workflow["jobs"]["checks"]["strategy"]["fail-fast"] is False
     reclaim = next(step for step in workflow['jobs']['checks']['steps'] if step.get('name') == 'Reclaim unused hosted SDKs')
-    assert reclaim['if'] == "runner.environment == 'github-hosted'"
+    assert reclaim['if'] == "runner.environment == 'github-hosted' && steps.nix-cache.outputs.hit-primary-key != 'true'"
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks"]
     matrix = workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]

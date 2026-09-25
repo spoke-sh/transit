@@ -132,11 +132,15 @@ build-store allowance. No cache-purge permission or external cache secret is
 needed. The self-hosted reference workflow keeps its existing local store.
 
 Disposable GitHub-hosted runners remove the image's unused Android and .NET
-installations before Nix setup; consumed SDKs come from the pinned shell.
+installations on Nix cache misses before shell preparation; consumed SDKs come
+from the pinned shell. Exact cache hits skip this filesystem cleanup.
 The first explicit cold run (`36196325993`) exhausted disk while copying the
 freshly built Ursula binary in the bindings lane. Its failure is inconclusive,
 not a cache-miss qualification. The cleanup step is excluded from user-managed
-runners and records filesystem space before and after removal.
+runners and records filesystem space before and after removal. The same run
+completed core in 28m45s, leaving little margin in the ordinary 30-minute job
+deadline. Explicit cold calibration gets a 45-minute job deadline; ordinary
+feedback budgets and task coverage are unchanged.
 
 The first cache miss still builds the pinned toolchain. The
 [first measured warm run](https://github.com/rupurt/rey/actions/runs/35815675439)
