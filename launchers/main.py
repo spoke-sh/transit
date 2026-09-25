@@ -24,6 +24,7 @@ def main():
     parser.add_argument("--no-build", action="store_true", help="Update using the saved candidate artifacts")
     parser.add_argument("--replace-pending", action="store_true", help="Replace a failed deployment plan when no recorded template switch is unresolved")
     parser.add_argument("--name", default=os.environ.get("REY_LAUNCHER_NAME", "default"))
+    parser.add_argument("--example", choices=("counter", "station"), help="Select a new installation's example; persisted thereafter")
     parser.add_argument("--base-port", type=int, default=os.environ.get("REY_LAUNCHER_BASE_PORT"))
     parser.add_argument("--request-id")
     parser.add_argument("-d", "--detach", action="store_true", help="Start services in the background")
@@ -36,9 +37,25 @@ def main():
     if args.detach and args.action != "up":
         parser.error("--detach is only supported by up")
     installation = Installation(args.profile, args.name, args.base_port, environment() if args.action in ("up", "update") else {})
+    selected_example = args.example
+    if installation.manifest.exists():
+        saved_example = json.loads(installation.manifest.read_text()).get("example", "counter")
+        if selected_example is not None and selected_example != saved_example:
+            raise ValueError("Example selection is permanent; use a new launcher name")
+        selected_example = saved_example
+    if selected_example == "station":
+        from station_example import StationInstallation
+        installation = StationInstallation(args.profile, args.name, args.base_port, environment() if args.action in ("up", "update") else {})
     if args.profile == "reference":
-        installation = ReferenceInstallation(args.name, args.base_port, environment() if args.action in ("up", "update") else {})
-    launcher = {"local": Local, "compose": Compose, "reference": Reference}[args.profile](installation)
+        if selected_example != "station":
+            installation = ReferenceInstallation(args.name, args.base_port, environment() if args.action in ("up", "update") else {})
+        elif not installation.manifest.exists() and args.base_port is None:
+            installation.base_port = 18300
+    reference_type = Reference
+    if args.profile == "reference" and selected_example == "station":
+        from station_reference import StationReference
+        reference_type = StationReference
+    launcher = {"local": Local, "compose": Compose, "reference": reference_type}[args.profile](installation)
     if args.action == "up" and not args.detach and args.profile != "reference":
         launcher.foreground()
         return
@@ -86,12 +103,10 @@ def main():
             elif args.action == "inspect":
                 print(json.dumps(installation.inspect(), indent=2))
             elif args.action == "send":
-                value = int(args.argument)
-                if not -(2**63) <= value < 2**63:
-                    raise ValueError("Counter input must fit a signed 64-bit integer")
+                body = installation.send_value(args.argument)
                 identity = "send-" + (args.request_id or secrets.token_hex(12))
                 print(f"Request ID: {identity.removeprefix('send-')}", file=sys.stderr, flush=True)
-                position = installation.command(identity, {"send": {"pid": installation.endpoints()["pid"], "value": str(value).encode().hex()}})
+                position = installation.command(identity, body)
                 print(json.dumps({"request_id": identity.removeprefix("send-"), "admitted_at": position}))
             elif args.action == "reset":
                 if launcher.services():

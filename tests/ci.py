@@ -17,7 +17,7 @@ LANES = {
     ),
     "experience": (
         "transit-board::check", "bindings::node-check", "test::observability",
-        "transit-board::test", "launchers::local::test",
+        "transit-board::test", "launchers::local::test", "launchers::local::test-station",
     ),
     "browser": ("transit-board::browser",),
     "bindings": ("bindings::check", "bindings::test"),

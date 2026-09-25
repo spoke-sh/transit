@@ -6,7 +6,7 @@ environment's tasks. Use double colons between task groups.
 
 | Environment | Purpose | Services and limits |
 | --- | --- | --- |
-| `local` | Fast iteration without Docker or Kubernetes | Native disk Ursula, Transit node, maintenance, delivery courier, counter example and embedded Board, managed by Process Compose |
+| `local` | Fast iteration without Docker or Kubernetes | Native disk Ursula, Transit node, maintenance, delivery courier, selected example and embedded Board, managed by Process Compose |
 | `compose` | Check container packaging, mounts, service discovery and restart | The same scenario in Docker Compose; official pinned Ursula image and static Zig images |
 | `reference` | Qualify the deployment target | Kubernetes/Substrate, real provider controller, gVisor workers and recovery/isolation proofs; [reference runbook](../deploy/reference/README.md) |
 
@@ -15,6 +15,15 @@ means running the same scenario against another environment; copying a live
 realm or migrating storage is not implemented. Reference `up` installs a usable
 Transit application, including Board and an in-cluster runtime controller.
 Its recovery/isolation tests use separate installations.
+
+The default example is the small counter. Select `--example station` on the
+first `up` of a named installation to run the three-process
+[Station ledger](../examples/station-ledger/docs/running.md): behaviors with
+associated Tables, a requester, scoped registry/supervision, separate framework
+controllers, and Board. The choice is persisted; later commands use that same
+example. Use a different name to run both, with non-overlapping base ports.
+Its checked-in Process Compose and Docker Compose topologies live beside the
+example; the reference uses the shared [Transit chart](../charts/transit/README.md).
 
 ## Incremental development
 
@@ -34,6 +43,9 @@ readiness; `--no-build` selects saved candidates. `restart` uses the selected
 artifact/configuration. Omit names to select all application services. Node and
 maintenance share an executable and update together. Ursula and provider
 infrastructure are separately pinned and excluded from application builds.
+For Station, `update ledger` updates all three workers because they share one
+executable. The two framework controllers also share an artifact. Each reference
+worker retains its PID and Actor identity through a separately recorded upgrade.
 
 Native binaries live at identified paths under ignored
 `.cache/launcher-artifacts/PROFILE/NAME/`; services no longer execute shared

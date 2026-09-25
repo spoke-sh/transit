@@ -1,0 +1,124 @@
+# Container waypoint. The launcher supplies the saved REY_COMPOSE_* values and
+# provisions through the public client before starting application services.
+x-logging: &logging
+  driver: json-file
+  options: {max-size: 5m, max-file: "2"}
+
+x-service: &service
+  user: '${REY_COMPOSE_UID:?}:${REY_COMPOSE_GID:?}'
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: "no"
+  init: true
+  logging: *logging
+
+services:
+  ursula:
+    <<: *service
+    image: '${REY_COMPOSE_URSULA_IMAGE:?}'
+    read_only: false
+    command: [server, --config, /ursula.toml]
+    environment: {RUST_LOG: warn, TOKIO_WORKER_THREADS: "2"}
+    volumes:
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/ursula.toml', target: /ursula.toml, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/wal', target: /wal, bind: {create_host_path: false}}
+    networks: [storage]
+    ports:
+      - {target: 8080, published: '${REY_COMPOSE_URSULA_PORT:?}', host_ip: 127.0.0.1}
+
+  node:
+    <<: *service
+    image: '${REY_COMPOSE_NODE_IMAGE:?}'
+    command: [/node.json]
+    environment: {LOG_LEVEL: '${REY_COMPOSE_NODE_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_NODE_LOG_FORMAT:?}'}
+    volumes:
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/node.json', target: /node.json, read_only: true, bind: {create_host_path: false}}
+    networks: [storage, client]
+    ports:
+      - {target: 8080, published: '${REY_COMPOSE_TRANSIT_PORT:?}', host_ip: 127.0.0.1}
+
+  maintenance:
+    <<: *service
+    image: '${REY_COMPOSE_NODE_IMAGE:?}'
+    command: [/maintenance/config.json, --maintain]
+    environment: {LOG_LEVEL: '${REY_COMPOSE_MAINTENANCE_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_MAINTENANCE_LOG_FORMAT:?}'}
+    volumes:
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/maintenance', target: /maintenance, read_only: true, bind: {create_host_path: false}}
+    networks: [storage]
+
+  ledger:
+    <<: *service
+    image: '${REY_COMPOSE_LEDGER_IMAGE:?}'
+    command: [/ledger/config.json]
+    environment: {LOG_LEVEL: '${REY_COMPOSE_LEDGER_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_LEDGER_LOG_FORMAT:?}'}
+    volumes:
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/ledger', target: /ledger, read_only: true, bind: {create_host_path: false}}
+    networks: [client]
+
+  requester:
+    <<: *service
+    image: '${REY_COMPOSE_REQUESTER_IMAGE:?}'
+    command: [/requester/config.json]
+    environment: {LOG_LEVEL: '${REY_COMPOSE_REQUESTER_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_REQUESTER_LOG_FORMAT:?}'}
+    volumes:
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/requester', target: /requester, read_only: true, bind: {create_host_path: false}}
+    networks: [client]
+
+  coordinator:
+    <<: *service
+    image: '${REY_COMPOSE_COORDINATOR_IMAGE:?}'
+    command: [/coordinator/config.json]
+    environment: {LOG_LEVEL: '${REY_COMPOSE_COORDINATOR_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_COORDINATOR_LOG_FORMAT:?}'}
+    volumes:
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/coordinator', target: /coordinator, read_only: true, bind: {create_host_path: false}}
+    networks: [client]
+
+  station-observer:
+    <<: *service
+    image: '${REY_COMPOSE_STATION_OBSERVER_IMAGE:?}'
+    command: [/station-observer/config.json]
+    environment: {LOG_LEVEL: '${REY_COMPOSE_STATION_OBSERVER_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_STATION_OBSERVER_LOG_FORMAT:?}'}
+    volumes:
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/station-observer', target: /station-observer, read_only: true, bind: {create_host_path: false}}
+    networks: [client]
+
+  station-lifecycle:
+    <<: *service
+    image: '${REY_COMPOSE_STATION_LIFECYCLE_IMAGE:?}'
+    command: [/station-lifecycle/config.json]
+    environment: {LOG_LEVEL: '${REY_COMPOSE_STATION_LIFECYCLE_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_STATION_LIFECYCLE_LOG_FORMAT:?}'}
+    volumes:
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/station-lifecycle', target: /station-lifecycle, read_only: true, bind: {create_host_path: false}}
+    networks: [client]
+
+  delivery:
+    <<: *service
+    image: '${REY_COMPOSE_DELIVERY_IMAGE:?}'
+    command: [/delivery/config.json]
+    environment: {LOG_LEVEL: '${REY_COMPOSE_DELIVERY_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_DELIVERY_LOG_FORMAT:?}'}
+    volumes:
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/delivery', target: /delivery, read_only: true, bind: {create_host_path: false}}
+    networks: [client]
+    healthcheck:
+      test: [CMD, /bin/transit-delivery, /delivery/config.json, --check]
+      interval: 5s
+      timeout: 6s
+      retries: 5
+
+  board:
+    <<: *service
+    image: '${REY_COMPOSE_BOARD_IMAGE:?}'
+    command: [/board/config.json]
+    environment: {LOG_LEVEL: '${REY_COMPOSE_BOARD_LOG_LEVEL:?}', LOG_FORMAT: '${REY_COMPOSE_BOARD_LOG_FORMAT:?}'}
+    volumes:
+      - {type: bind, source: '${REY_COMPOSE_STATE:?}/board', target: /board, read_only: true, bind: {create_host_path: false}}
+    networks: [client]
+    ports:
+      - {target: 8080, published: '${REY_COMPOSE_BOARD_PORT:?}', host_ip: '${REY_COMPOSE_BOARD_HOST:?}'}
+
+# Ordinary bridges: host loopback publication is needed by provisioning tools.
+# This is development segmentation, not the reference sandbox's isolation.
+networks:
+  storage: {}
+  client: {}

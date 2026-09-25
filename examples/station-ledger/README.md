@@ -1,9 +1,28 @@
 # Station ledger
 
-`example-station-ledger` is a Zig Station service, currently demonstrating a
-ledger and requester exchanging durable calls through two associated Tables.
-It captures and delivers finite Arrow queries during
-[M9](../../docs/roadmap/M9.md).
+`example-station-ledger` is a Zig Station application: a ledger, requester and
+coordinator exchange durable calls, use associated Tables, and capture finite
+Arrow replies. The coordinator supplies a scoped registry and bounded supervisor.
+Each role is a separate Transit process and worker. This is the runnable
+[M9](../../docs/roadmap/M9.md) example.
+
+For an interactive installation with Board:
+
+```sh
+export REY_LAUNCHER_NAME=station-demo
+export REY_LAUNCHER_BASE_PORT=18400
+just launchers::local::up --example station
+# In another terminal with the same launcher name:
+just launchers::local::send -2 station-delta
+just launchers::local::send query station-query
+just launchers::local::restart ledger
+```
+
+Open the printed Board URL. The ledger starts at 12; the first command requests
+a change through the requester PID, and the second obtains captured Arrow IPC.
+Board explains framework metadata and its source records without decoding the
+application's Table rows. [Running the example](docs/running.md) covers Compose,
+Substrate, configuration, updates, capacity and recovery limits.
 
 Build with `just build::debug`; run the isolated end-to-end example/proof with
 `just test::station`. The proof provisions two real PIDs, associated resources,
@@ -18,7 +37,8 @@ casts configure the demo's explicit sharing policy for `destination`.
 The executable accepts a JSON configuration path, or `--once <path>` to stop
 after one committed turn. Configuration fields are `url`, `realm`, `principal`,
 `pid`, `generation`, `seed_file`, `association` (default `data`), `role`
-(`ledger` or `requester`) and optional `destination` for the requester.
+(`ledger`, `requester` or `coordinator`), optional `destination`, `registry`
+and trusted `observer` principal.
 Provisioning must establish a required association, resource permissions,
 execute/inspect/publish grants, and fresh ownership before starting a worker.
 Never put root credentials in this configuration.

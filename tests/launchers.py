@@ -22,10 +22,15 @@ from local import Local
 
 
 def ports():
+    # Builds can take minutes between selection and bind. Stay outside the OS
+    # ephemeral range so unrelated outbound HTTP cannot claim a chosen listener.
+    ephemeral = Path("/proc/sys/net/ipv4/ip_local_port_range")
+    lower, upper = map(int, ephemeral.read_text().split()) if ephemeral.exists() else (49152, 65535)
+    candidates = [port for port in range(20000, 65533) if port + 2 < lower or port > upper]
     for _ in range(100):
         listeners = []
         try:
-            base = 22000 + secrets.randbelow(30000)
+            base = secrets.choice(candidates)
             for port in range(base, base + 3):
                 listener = socket.socket()
                 listeners.append(listener)

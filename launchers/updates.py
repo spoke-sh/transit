@@ -30,8 +30,8 @@ def update(launcher, names, no_build=False, replace_pending=False):
         with lock(installation.path / "operator/lock"):
             installation._flush(json.loads((installation.path / "operator/sequence.json").read_text()))
         if installation.profile == "reference":
-            binding = installation.view()["binding"]
-            if binding and binding.get("upgrade_from"):
+            processes = [installation.process(role) for role in installation.workloads] if installation.example == "station" else [installation.view()]
+            if any(process["binding"] and process["binding"].get("upgrade_from") for process in processes):
                 raise RuntimeError("Reconcile the recorded template switch before replacing its deployment plan")
         abandoned = json.loads(pending.read_text())
         write(installation.path / "update-history" / (abandoned["id"] + ".json"), abandoned)
@@ -46,7 +46,7 @@ def update(launcher, names, no_build=False, replace_pending=False):
         roles = artifacts.roles(names)
         config = installation.load()
         proposed = dict(config)
-        diagnostics = settings.observability(config.get("observability", {}), installation.profile)
+        diagnostics = settings.observability(config.get("observability", {}), installation.profile, artifacts.roles([]))
         proposed["observability"] = {**config.get("observability", {})}
         for role in roles:
             proposed["observability"][role] = diagnostics.get(role, {})

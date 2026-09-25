@@ -21,18 +21,22 @@ class Artifacts:
         self.installation = installation
         self.path = ROOT / ".cache/launcher-artifacts" / installation.profile / installation.name
 
+    @property
+    def mapping(self):
+        return getattr(self.installation, "artifact_roles", ROLES)
+
     def read(self, kind):
         file = self.path / (kind + ".json")
         return json.loads(file.read_text()) if file.exists() else {}
 
     def roles(self, names):
-        available = [r for r in ROLES if r != "controller" or self.installation.profile == "reference"]
+        available = [r for r in self.mapping if r != "controller" or self.installation.profile == "reference"]
         names = names or available
         if set(names) - set(available):
             raise ValueError("Build/update services: " + ", ".join(available))
         # A shared executable is deployed consistently across its service roles.
-        artifacts = {ROLES[name] for name in names}
-        return [r for r in available if ROLES[r] in artifacts]
+        artifacts = {self.mapping[name] for name in names}
+        return [r for r in available if self.mapping[r] in artifacts]
 
     def native(self, names, target=None):
         prefix = self.path / ("build-" + (target or "native"))
@@ -54,7 +58,7 @@ class Artifacts:
 
     def build(self, names=None):
         roles = self.roles(names)
-        names = sorted({ROLES[r] for r in roles})
+        names = sorted({self.mapping[r] for r in roles})
         print("Building: " + ", ".join(roles), flush=True)
         candidates = self.read("candidates")
         helper_names = []
@@ -136,12 +140,12 @@ class Artifacts:
         candidates = self.read("candidates") if no_build else self.build(roles)
         selected = self.read("selected")
         target = dict(selected)
-        for name in {ROLES[r] for r in roles}:
+        for name in {self.mapping[r] for r in roles}:
             if name not in candidates:
                 raise RuntimeError(f"No candidate for {name}; run build first")
             target[name] = candidates[name]
         for name, value in candidates.items():
             if name.startswith("tools/") or name == "provenance":
                 target[name] = value
-        changed = [role for role in roles if target[ROLES[role]] != selected.get(ROLES[role])]
+        changed = [role for role in roles if target[self.mapping[role]] != selected.get(self.mapping[role])]
         return target, changed

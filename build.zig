@@ -198,6 +198,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
     }) });
     const install_ledger = b.addInstallArtifact(station_ledger, .{});
+    b.step("example-station-ledger", "Install the Station ledger example").dependOn(&install_ledger.step);
     examples_step.dependOn(&install_ledger.step);
     b.getInstallStep().dependOn(&install_ledger.step);
     const station_test = b.addSystemCommand(&.{ "python3", "-B" });

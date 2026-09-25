@@ -82,6 +82,11 @@ def wait_for(url, seconds=45, headers=None):
 
 
 class Installation:
+    example = "counter"
+    workloads = ("counter",)
+    service_names = SERVICES
+    local_topology = ROOT / "process-compose.yaml"
+    compose_topology = ROOT / "docker-compose.yaml"
     def __init__(self, profile, name="default", base_port=None, board_settings=None):
         if not re.fullmatch(r"[a-z][a-z0-9-]{0,23}", name):
             raise ValueError("Name must be 1–24 lowercase letters, digits or hyphens, starting with a letter")
@@ -105,6 +110,8 @@ class Installation:
         value = json.loads(self.manifest.read_text())
         if (value["version"], value["profile"], value["name"]) != (1, self.profile, self.name):
             raise RuntimeError("Unrecognized launcher installation; refusing to adopt it")
+        if value.get("example", "counter") != self.example:
+            raise RuntimeError("This installation runs another example; choose a new name")
         if self.path.is_symlink():
             raise RuntimeError("Launcher state must not be a symbolic link")
         return value
@@ -140,7 +147,7 @@ class Installation:
         config = self.load()
         board = settings.resolve(self.board, self.board_overrides, config["base_port"])
         self.check_ports(board)
-        diagnostics = settings.observability(config.get("observability", {}), self.profile)
+        diagnostics = settings.observability(config.get("observability", {}), self.profile, self.artifacts.roles([]))
         write(self.manifest, {**config, "board": board, "observability": diagnostics})
 
     def service_environment(self, name):
@@ -172,7 +179,7 @@ class Installation:
         self.key("maintenance/seed.key")
         write(self.path / "operator/sequence.json", {"sequence": 0, "pending": None})
         (self.path / "wal").mkdir(mode=0o700)
-        write(self.manifest, {"version": 1, "profile": self.profile, "name": self.name,
+        write(self.manifest, {"version": 1, "profile": self.profile, "name": self.name, "example": self.example,
               "state_profile": 1, "runtime_profile": 1,
               "project": "rey-" + self.profile + "-" + secrets.token_hex(6),
               "realm": secrets.randbelow(2**31 - 1) + 1, "base_port": base, "root_public": root_public})
@@ -312,7 +319,9 @@ backend = "inline"
             self.command(f"seed-{value}", {"send": {"pid": pid, "value": str(value).encode().hex()}})
         self.configs()
 
-    def activate(self):
+    def activate(self, name="counter"):
+        if name != "counter":
+            raise ValueError("Unknown workload")
         # The launcher is a trusted operator for a caller without a provider
         # binding. Never manufacture Substrate observations or runtime authority.
         with lock(self.path / "activation.lock"):
@@ -365,6 +374,17 @@ backend = "inline"
             raise RuntimeError("Counter update requires the compatible code=1 contract and a running, unblocked PID")
         if process["binding"] and self.profile != "reference":
             raise RuntimeError("Provider-bound code must be upgraded by its reference launcher")
+
+    def validate_workload_update(self, name):
+        if name != "counter":
+            raise ValueError("Unknown workload")
+        self.validate_counter_update()
+
+    def send_value(self, value):
+        number = int(value)
+        if not -(2**63) <= number < 2**63:
+            raise ValueError("Counter input must fit a signed 64-bit integer")
+        return {"send": {"pid": self.endpoints()["pid"], "value": str(number).encode().hex()}}
 
     def endpoints(self):
         return {"profile": self.profile, "name": self.name, "realm": self.load()["realm"],

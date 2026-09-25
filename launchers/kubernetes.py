@@ -84,6 +84,7 @@ class Reference:
         self.ownership()
         value = json.loads(self.kube("get", "deployments", "-l", "app.kubernetes.io/instance=transit", "-o", "json", capture=True))
         return [{"name": d["metadata"]["labels"]["app.kubernetes.io/component"], "uid": d["metadata"]["uid"],
+                 "resource": d["metadata"]["name"],
                  "replicas": d["spec"].get("replicas", 1), "ready": d.get("status", {}).get("readyReplicas", 0),
                  "image": d["spec"]["template"]["spec"]["containers"][0]["image"]}
                 for d in value["items"] if d["spec"].get("replicas", 1)]
@@ -103,7 +104,7 @@ class Reference:
         saved = json.loads(file.read_text()) if file.exists() else {}
         host = f'localhost:{self.state["port"]}'
         result = {}
-        for name in set(ROLES.values()):
+        for name in set(self.installation.artifacts.mapping.values()):
             if name not in selection:
                 continue
             artifact = selection[name]
@@ -156,12 +157,18 @@ class Reference:
                 self.kube("patch", "secret", "board-credentials", "--type=merge",
                           "--patch", json.dumps({"data": {"access": None}}))
 
-    def workload(self, image, configuration=None):
+    def workload(self, image, configuration=None, role="counter"):
         i = self.installation
-        pid = json.loads((self.path / "pid.json").read_text())
-        logging = (configuration or i.load()).get("observability", {}).get("counter", {"level": "info", "format": "json"})
-        version = hashlib.sha256(json.dumps({"image": image, "logging": logging}, sort_keys=True).encode()).hexdigest()[:16]
-        name = "counter-" + version
+        identity = {"pid": json.loads((self.path / "pid.json").read_text()), "principal": 1} if role == "counter" else i.records()[role]
+        pid = identity["pid"]
+        config = i.counter_config() if role == "counter" else i.worker_config(role)
+        container = "counter" if role == "counter" else "station"
+        executable = i.artifacts.mapping[role]
+        logging = (configuration or i.load()).get("observability", {}).get(role, {"level": "info", "format": "json"})
+        version_basis = {"image": image, "logging": logging}
+        if role != "counter": version_basis.update(role=role, pid=pid, config=config)
+        version = hashlib.sha256(json.dumps(version_basis, sort_keys=True).encode()).hexdigest()[:16]
+        name = role + "-" + version
         host = f"transit.{self.namespace}.svc.cluster.local"
         space = self.provider("get", "atespace", self.namespace, missing=True)
         if space is None:
@@ -172,8 +179,8 @@ class Reference:
             raise RuntimeError("Substrate atespace incarnation changed")
         write(space_file, space_identity)
         template = {"metadata": {"atespace": self.namespace, "name": name}, "workerSelector": {"matchLabels": {"transit.dev/workload": name}},
-            "containers": [{"name": "counter", "image": image, "env": [{"name": "LOG_FORMAT", "value": logging["format"]}, {"name": "LOG_LEVEL", "value": logging["level"]}],
-                "command": ["/bin/example-counter", "--bootstrap-json", json.dumps({"url": "http://" + host + ":8080", "realm": i.load()["realm"], "principal": 1, "pid": pid, **i.counter_config()})],
+            "containers": [{"name": container, "image": image, "env": [{"name": "LOG_FORMAT", "value": logging["format"]}, {"name": "LOG_LEVEL", "value": logging["level"]}],
+                "command": ["/bin/" + executable, "--bootstrap-json", json.dumps({"url": "http://" + host + ":8080", "realm": i.load()["realm"], "principal": identity["principal"], "pid": pid, **config})],
                 "volumeMounts": [{"name": "runtime-data", "mountPath": "/runtime-data"}]}],
             "volumes": [{"name": "runtime-data", "durableDir": {}}],
             "resources": {"limits": [{"name": "cpu", "quantity": "1"}, {"name": "memory", "quantity": "512Mi"}]},
@@ -189,6 +196,7 @@ class Reference:
         write(self.path / "templates" / (name + ".observed.json"), {"name": name, "uid": current["metadata"]["uid"]})
         provider = {"instance": list(uuid.UUID(self.ownership()["uid"]).bytes), "atespace": self.namespace, "actor": f"process-{pid}",
                     "template": name, "template_uid": list(uuid.UUID(current["metadata"]["uid"]).bytes), "image": image, "authority_host": host}
+        if role != "counter": provider["container"] = container
         pool = {"name": name, "labels": {"transit.dev/workload": name}, "spec": {"replicas": 1, "workerImage": self.runtime_image(),
                 "template": {"nodeSelector": {"ate.dev/substrate-version": infrastructure.PINS["substrate"][:7]},
                 "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"cpu": "1", "memory": "1Gi"}}}}}

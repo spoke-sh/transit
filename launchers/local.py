@@ -48,7 +48,8 @@ class Local:
         installation.configs()
         # Startup readiness must refer to this worker launch, not the saved
         # configuration from the previous activation.
-        (self.path / "counter/config.json").unlink(missing_ok=True)
+        for name in installation.workloads:
+            (self.path / name / "config.json").unlink(missing_ok=True)
         if len(os.fsencode(self.path / "pc.sock")) >= 104:
             raise RuntimeError("Checkout path is too long for the private Unix socket")
         values = {"ROOT_Q": shlex.quote(str(ROOT)), "PYTHON_Q": shlex.quote(sys.executable),
@@ -56,12 +57,12 @@ class Local:
                   "STATE_DIR_Q": shlex.quote(str(self.path)),
                   "URSULA_PORT": installation.load()["base_port"],
                   "TRANSIT_PORT": installation.load()["base_port"] + 1}
-        for role in ("node", "board", "counter", "maintenance", "delivery"):
-            values.update({role.upper() + "_" + key: value for key, value in installation.service_environment(role).items()})
+        for role in installation.artifacts.roles([]):
+            values.update({role.upper().replace("-", "_") + "_" + key: value for key, value in installation.service_environment(role).items()})
         # Only values are generated. Disable Process Compose's environment
         # expansion so literal dollars in quoted paths cannot be reinterpreted.
         write(self.path / "process-compose.vars.json", {"disable_env_expansion": True, "vars": values})
-        args = ("up", "-f", ROOT / "process-compose.yaml", "-f", self.path / "process-compose.vars.json", "--disable-dotenv")
+        args = ("up", "-f", installation.local_topology, "-f", self.path / "process-compose.vars.json", "--disable-dotenv")
         log_retention.rotate(self.path / "manager.log", force=True)
         if detached:
             self.pc(*args, "-D", manager=True, capture=True)
@@ -81,7 +82,7 @@ class Local:
                     raise RuntimeError(f"{process['name']} failed; inspect {process['name']}.log. Data has been preserved.")
             ready = {p["name"] for p in rows if p["is_running"] and
                      (not p["has_ready_probe"] or p["is_ready"] == "Ready")}
-            if set(SERVICES) <= ready and (self.path / "counter/config.json").exists():
+            if set(installation.service_names) <= ready and all((self.path / name / "config.json").exists() for name in installation.workloads):
                 return
             time.sleep(.2)
         raise RuntimeError("A local service did not start; use status and logs. Data has been preserved.")
@@ -143,13 +144,13 @@ class Local:
                 raise RuntimeError("Local manager did not finish shutdown")
 
     def restart(self, name):
-        if name not in SERVICES and name != "log-retention":
+        if name not in self.installation.service_names and name != "log-retention":
             raise ValueError("Unknown service")
         if not self.services():
             raise RuntimeError("Local manager is stopped; use up")
         previous_pid = next((p["pid"] for p in self.services() if p["name"] == name), None)
-        if name == "counter":
-            (self.path / "counter/config.json").unlink(missing_ok=True)
+        if name in self.installation.workloads:
+            (self.path / name / "config.json").unlink(missing_ok=True)
         self.pc("process", "restart", name, capture=True)
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
@@ -161,16 +162,16 @@ class Local:
             time.sleep(.1)
         else:
             raise RuntimeError(f"{name} did not acquire a new running process")
-        if name == "counter":
+        if name in self.installation.workloads:
             deadline = time.monotonic() + 30
             while time.monotonic() < deadline:
                 process = next(p for p in self.services() if p["name"] == name)
                 if not process["is_running"] and process["exit_code"] != 0:
-                    raise RuntimeError("Counter activation failed; inspect counter logs")
-                if process["is_running"] and (self.path / "counter/config.json").exists():
+                    raise RuntimeError(f"{name} activation failed; inspect its logs")
+                if process["is_running"] and (self.path / name / "config.json").exists():
                     return
                 time.sleep(.2)
-            raise RuntimeError("Counter did not acquire a fresh activation; inspect counter logs")
+            raise RuntimeError(f"{name} did not acquire a fresh activation; inspect its logs")
         if name == "board":
             wait_for(self.installation.board_url + "/health", headers=self.installation.board_headers)
         elif name in ("node", "ursula"):
@@ -178,8 +179,9 @@ class Local:
             wait_for(f'http://127.0.0.1:{port}' + ("/__ursula/ready" if name == "ursula" else "/health"))
 
     def validate_update(self, operation):
-        if "counter" in operation["services"]:
-            self.installation.validate_counter_update()
+        for role in self.installation.workloads:
+            if role in operation["services"]:
+                self.installation.validate_workload_update(role)
 
     def apply_update(self, operation):
         from updates import publish, completed
@@ -199,7 +201,7 @@ class Local:
                 completed(self, operation, role)
 
     def logs(self, name):
-        if name not in SERVICES and name not in ("provision", "manager", "log-retention"):
+        if name not in self.installation.service_names and name not in ("provision", "manager", "log-retention"):
             raise ValueError("Unknown service")
         if name != "manager" and self.services():
             # The manager also records probe failures here; they are absent
@@ -229,9 +231,11 @@ class Local:
         elif name == "provision":
             self.installation.provision()
             return
-        elif name == "counter":
-            self.installation.activate()
-            command = [self.installation.artifacts.binary("example-counter"), self.path / "counter/config.json"]
+        elif name in self.installation.workloads:
+            self.installation.activate(name)
+            command = [self.installation.artifacts.binary(self.installation.artifacts.mapping[name]), self.path / name / "config.json"]
+        elif name in ("station-observer", "station-lifecycle") and self.installation.example == "station":
+            command = [self.installation.artifacts.binary("transit-station-controller"), self.path / name / "config.json"]
         elif name == "board":
             command = [self.installation.artifacts.binary("transit-board"), self.path / "board/config.json"]
         elif name in ("delivery", "delivery-probe"):

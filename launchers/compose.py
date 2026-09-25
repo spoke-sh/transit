@@ -32,7 +32,7 @@ class Compose:
             values.setdefault("REY_COMPOSE_DELIVERY_LOG_LEVEL", "info")
             values.setdefault("REY_COMPOSE_DELIVERY_LOG_FORMAT", "json")
             env.update(values)
-            config = ROOT / "docker-compose.yaml"
+            config = self.installation.compose_topology
         else:
             # Allow existing installations to stop before their first new up.
             config = self.path / "compose.json"
@@ -74,10 +74,10 @@ class Compose:
                   "URSULA_PORT": str(base), "TRANSIT_PORT": str(base + 1),
                   "BOARD_HOST": self.installation.board["host"], "BOARD_PORT": str(self.installation.board["port"])}
         selected = self.installation.artifacts.read("selected")
-        for role, artifact in (("NODE", "transit-node"), ("BOARD", "transit-board"), ("COUNTER", "example-counter"), ("DELIVERY", "transit-delivery")):
-            values[role + "_IMAGE"] = selected[artifact]["image"]
-        for role in ("node", "board", "counter", "maintenance", "delivery"):
-            values.update({role.upper() + "_" + key: value for key, value in self.installation.service_environment(role).items()})
+        for role in self.installation.artifacts.roles([]):
+            prefix = role.upper().replace("-", "_")
+            values[prefix + "_IMAGE"] = selected[self.installation.artifacts.mapping[role]]["image"]
+            values.update({prefix + "_" + key: value for key, value in self.installation.service_environment(role).items()})
         write(self.path / "compose.env.json", {"REY_COMPOSE_" + key: value for key, value in values.items()})
         self.docker("config", "--quiet")
 
@@ -95,11 +95,11 @@ class Compose:
         self.ready("node", self.installation.url + "/health")
         self.installation.provision()
         self.installation.activate()
-        self.docker("up", "-d", "maintenance", "delivery", "counter", "board")
+        self.docker("up", "-d", *[name for name in self.installation.service_names if name not in ("ursula", "node")])
         if not detached:
             self.manager = self.docker("logs", "--follow", "--tail", "200", spawn=True)
         self.ready("board", self.installation.board_url + "/health", self.installation.board_headers)
-        if {row["Service"] for row in self.services() if row["State"] == "running"} != set(SERVICES):
+        if {row["Service"] for row in self.services() if row["State"] == "running"} != set(self.installation.service_names):
             raise RuntimeError("A service exited during startup; inspect status and logs")
 
     def stop_attachment(self, graceful=False):
@@ -203,18 +203,19 @@ class Compose:
             (self.path / "session.json").unlink(missing_ok=True)
 
     def restart(self, name):
-        if name not in SERVICES:
+        if name not in self.installation.service_names:
             raise ValueError("Unknown service")
         if not self.services():
             raise RuntimeError("Compose stack is stopped; use up")
-        if name == "counter":
-            self.docker("stop", "counter")
-            self.installation.activate()
+        if name in self.installation.workloads:
+            self.docker("stop", name)
+            self.installation.activate(name)
         self.docker("restart", name)
 
     def validate_update(self, operation):
-        if "counter" in operation["services"]:
-            self.installation.validate_counter_update()
+        for role in self.installation.workloads:
+            if role in operation["services"]:
+                self.installation.validate_workload_update(role)
 
     def apply_update(self, operation):
         from updates import publish, completed
@@ -223,9 +224,9 @@ class Compose:
         for role in operation["services"]:
             if role in operation["completed"]:
                 continue
-            if role == "counter":
-                self.docker("stop", "counter")
-                self.installation.activate()
+            if role in self.installation.workloads:
+                self.docker("stop", role)
+                self.installation.activate(role)
             self.docker("up", "-d", "--no-deps", "--force-recreate", "--no-build", role)
             if role == "board":
                 self.ready(role, self.installation.board_url + "/health", self.installation.board_headers)
@@ -239,6 +240,6 @@ class Compose:
             completed(self, operation, role)
 
     def logs(self, name):
-        if name not in SERVICES:
+        if name not in self.installation.service_names:
             raise ValueError("Unknown service")
         self.docker("logs", "--no-color", "--tail", "200", name)

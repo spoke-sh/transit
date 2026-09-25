@@ -56,6 +56,10 @@ reset:
 test:
     python3 -B tests/launchers.py local
 
+# Qualify the three-process Station example, Board lenses and fresh ownership.
+test-station:
+    python3 -B tests/station_launchers.py local
+
 # Attach the terminal service/log viewer; detach leaves the stack running.
 attach:
     python3 -B launchers/main.py local attach
