@@ -38,12 +38,19 @@ changes, clones the exact HEAD into a temporary directory, installs the locked
 frontend dependencies, and runs the same core/experience/bindings task inventory as hosted CI. It inherits the
 Nix store and global compiler caches, but no checkout build outputs, launcher
 state, dotenv file or `node_modules`. Successful runs remove the temporary clone;
+timing/completion evidence survives under `.cache/ci/clean/`;
 failed runs retain it for diagnosis and print its location. The local launcher proof must use its
 selected artifacts; a binary left in the developer's `zig-out` cannot mask an
 undeclared dependency. Compose explicitly builds a native caller for its
 host-side stale-credential check. The browser proof remains a separate
 `just transit-board::browser` step, as it is in hosted CI; neither command
 qualifies the separate reference or physical-capacity profiles.
+
+Use `just ci::complete` or `just ci-clean --complete` to include Chromium in the
+same invocation after `just transit-board::browser-install`. `just test::unit`
+only runs library/protocol tests; `just test::build` separately compiles the
+application and probe entry points formerly hidden in that unit target. Core CI
+runs both and retains standalone package checks.
 
 | Evidence | What it proves |
 | --- | --- |
@@ -717,3 +724,18 @@ supervisor retry also cannot guarantee fresh provider placement; the
 records the required operator recovery when Substrate reuses an old pod.
 Continuous queries, multi-resource transactions, SQL, Documents and remote
 Flight/ADBC remain later milestones.
+
+## M10 verification and scale foundations
+
+M10 is in progress. The first CI changes separate library unit tests from
+application/probe builds, avoid duplicate feature-push/PR runs, and select
+runtime checks conservatively. `tests/ci_runner.py` exercises actual Git rename/
+delete selection, missing revisions, failure propagation and all combinations
+of aggregate-gate results. Unknown/shared changes remain full; only foundational
+prose-only PRs omit runtime lanes. Main, release tags and merge queues run full.
+
+`just ci::complete` includes Chromium, and `just ci-clean --complete` uses that
+inventory on committed HEAD. Each lane records required tasks, completion and
+revision beside task timings; successful clean runs preserve these outside the
+disposable checkout. These improvements do not establish a hosted speed target,
+complete the growing-state implementation or qualify massive scale.

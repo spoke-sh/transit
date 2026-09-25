@@ -173,9 +173,24 @@ objects, excluding checkout objects, launchers, credentials and the Git archive
 transport cache. This avoids caching the tens of gigabytes accumulated by local
 Debug/ReleaseSafe builds. No application tests are skipped on a cache hit.
 
+CI runs for PRs, main pushes, version tags, merge queues and manual dispatch.
+Feature branch pushes no longer duplicate the PR run. A cheap planning job checks
+documentation and selects full qualification unless a PR changes only root
+README/AGENTS or Markdown under `docs/`. Contract/component docs, unknown paths,
+renames from code, and shared infrastructure select every lane. Missing Git
+revisions fail planning; main/tags/merge queues/manual runs are always full.
+Use `just ci::select BASE [HEAD]` to inspect the same selection locally.
+
 The workflow cancels superseded runs on the same branch/PR and retains the old
 `foundation-and-protocol` required-check name as an aggregate gate. Each task's
 duration and status goes to the Actions summary and `.cache/ci/*.json` locally.
+Completion metadata records the revision and required task inventory separately;
+an interrupted result list cannot stand in for a complete proof. The aggregate
+requires successful planning and every selected lane; only explicit docs-only
+exclusion permits skipped runtime jobs. `just ci::complete` adds Chromium to the
+ordinary suite, and `just ci-clean --complete` runs it on a clean committed clone.
+Install the pinned browser first. Clean runs preserve timing/completion evidence
+outside successful temporary clones in `.cache/ci/clean/`.
 `just check` runs Actionlint so workflow syntax is checked before CI. Hosted
 wall time and total runner time must be measured after deployment; local timings
 and smaller closures alone do not establish the final speedup.

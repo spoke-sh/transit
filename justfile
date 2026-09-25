@@ -65,8 +65,8 @@ check-core:
     git diff --check
 
 # Run the committed HEAD's CI suite in a fresh clone, without local build outputs.
-ci-clean:
-    python3 -B tests/ci_clean.py
+ci-clean *args:
+    python3 -B tests/ci_clean.py {{args}}
 
 # Format Nix, Zig and frontend source/documentation without regenerating contracts.
 fmt:

@@ -9,7 +9,7 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 LANES = {
     "core": (
-        "check-core", "test::dev-environment", "test::kubectl-transit",
+        "check-core", "test::build", "test::dev-environment", "test::kubectl-transit",
         "test::deployments", "test::telemetry", "test::packages",
         "test::arrow", "test::client-abi", "test::station", "test::storage",
         "test::service", "test::runtime-upgrade", "test::callers",
@@ -26,12 +26,16 @@ LANES = {
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("lane", choices=("all", *LANES))
+    parser.add_argument("lane", choices=("all", "complete", *LANES))
     args = parser.parse_args()
-    lanes = ("core", "experience", "bindings") if args.lane == "all" else (args.lane,)
+    lanes = ("core", "experience", "bindings") if args.lane in {"all", "complete"} else (args.lane,)
+    if args.lane == "complete":
+        lanes += ("browser",)
     results = []
     destination = ROOT / ".cache/ci" / f"{args.lane}.json"
     destination.parent.mkdir(parents=True, exist_ok=True)
+    started_suite = time.monotonic()
+    completed = False
     try:
         for lane in lanes:
             for task in LANES[lane]:
@@ -52,8 +56,20 @@ def main():
                         print("::endgroup::", flush=True)
                 if code:
                     raise SystemExit(code)
+        completed = True
     finally:
         destination.write_text(json.dumps(results, indent=2) + "\n")
+        # A result list is not evidence that the requested inventory completed.
+        # Persist identity and completeness separately for interrupted suites.
+        revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
+                                  capture_output=True, text=True)
+        metadata = {"version": 1, "revision": revision.stdout.strip() or None,
+                    "tier": args.lane, "completed": completed,
+                    "expected_tasks": [task for lane in lanes for task in LANES[lane]],
+                    "seconds": round(time.monotonic() - started_suite, 2),
+                    "run_id": os.getenv("GITHUB_RUN_ID"),
+                    "run_attempt": os.getenv("GITHUB_RUN_ATTEMPT")}
+        destination.with_suffix(".meta.json").write_text(json.dumps(metadata, indent=2) + "\n")
         summary = os.getenv("GITHUB_STEP_SUMMARY")
         if summary:
             with open(summary, "a") as output:

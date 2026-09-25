@@ -24,6 +24,7 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    const build_test_step = b.step("test-build", "Compile applications and integration probes");
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
     test_step.dependOn(&b.addRunArtifact(tests).step);
@@ -102,7 +103,7 @@ pub fn build(b: *std.Build) void {
     }) });
     const install_probe = b.addInstallArtifact(probe, .{});
     b.step("probe", "Install the adversarial reference sandbox executable").dependOn(&install_probe.step);
-    test_step.dependOn(&probe.step);
+    build_test_step.dependOn(&probe.step);
     services.addFileArg(b.path("tests/service.py"));
     var station_controller: *std.Build.Step.Compile = undefined;
     var station_host: *std.Build.Step.Compile = undefined;
@@ -142,7 +143,7 @@ pub fn build(b: *std.Build) void {
             const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
             app.root_module.addImport("clock_c", clock_c.createModule());
         }
-        test_step.dependOn(&app.step);
+        build_test_step.dependOn(&app.step);
     }
     const c_proof = b.addExecutable(.{ .name = "transit-client-c-proof", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
     c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
@@ -189,7 +190,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
     }) });
     b.step("readiness-caller", "Install the runtime readiness caller proof").dependOn(&b.addInstallArtifact(readiness_caller, .{}).step);
-    test_step.dependOn(&readiness_caller.step);
+    build_test_step.dependOn(&readiness_caller.step);
     const examples_step = b.step("examples", "Install runnable example applications");
     const station_ledger = b.addExecutable(.{ .name = "example-station-ledger", .root_module = b.createModule(.{
         .root_source_file = b.path("examples/station-ledger/main.zig"),
@@ -231,7 +232,7 @@ pub fn build(b: *std.Build) void {
         const install = b.addInstallArtifact(example, .{});
         examples_step.dependOn(&install.step);
         b.step("example-" ++ name, "Install example-" ++ name).dependOn(&install.step);
-        test_step.dependOn(&example.step);
+        build_test_step.dependOn(&example.step);
     }
     services.addArtifactArg(node_artifact);
     services.addArtifactArg(example_artifacts[0]);
@@ -245,7 +246,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
     }) });
     services.addArtifactArg(executor);
-    test_step.dependOn(&executor.step);
+    build_test_step.dependOn(&executor.step);
     b.step("test-service", "Prove signed ingress and worker recovery over HTTP").dependOn(&services.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = core.module("transit_core") })).step);
     const integration = b.addSystemCommand(&.{ "python3", "-B" });
@@ -316,7 +317,7 @@ pub fn build(b: *std.Build) void {
     }) });
     callers.addArtifactArg(client_probe);
     callers.addArtifactArg(delivery_artifact);
-    test_step.dependOn(&client_probe.step);
+    build_test_step.dependOn(&client_probe.step);
     callers.has_side_effects = true;
     callers.stdio = .inherit;
     b.step("test-callers", "Prove two independent Zig applications against one generic node").dependOn(&callers.step);
@@ -330,5 +331,5 @@ pub fn build(b: *std.Build) void {
         },
     }) });
     b.step("capacity-proof", "Install the physical storage pressure proof driver").dependOn(&b.addInstallArtifact(capacity, .{}).step);
-    test_step.dependOn(&capacity.step);
+    build_test_step.dependOn(&capacity.step);
 }

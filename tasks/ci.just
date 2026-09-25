@@ -6,6 +6,14 @@ set working-directory := ".."
 _default:
     nix develop .#bindings --command python3 -B tests/ci.py all
 
+# Ordinary hosted qualification including Chromium (install it first).
+complete:
+    nix develop .#bindings --command python3 -B tests/ci.py complete
+
+# Preview conservative PR selection between Git revisions.
+select base head="HEAD":
+    python3 -B tests/ci_select.py --base {{quote(base)}} --head {{quote(head)}}
+
 # Foundation, library and durable protocol proofs.
 core:
     python3 -B tests/ci.py core

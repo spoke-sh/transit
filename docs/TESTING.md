@@ -1,7 +1,8 @@
 # Testing and verification strategy
 
-Status: strategy selected for [M10](roadmap/M10.md); new harnesses, workflow
-selection, formal models and scale qualification are planned. The existing
+Status: [M10](roadmap/M10.md) in progress. Conservative workflow selection,
+separate unit/build checks and retained clean-run timings are implemented;
+new transition harnesses, formal models and scale qualification remain planned. The
 [test guide](../tests/README.md) records what actually runs and what has passed.
 [Conformance](CONFORMANCE.md) owns required adversarial guarantees; this document
 owns how we obtain and maintain their evidence without making every edit run

@@ -10,6 +10,10 @@ _default:
 unit:
     zig build test
 
+# Compile application/probe entry points independently of fast library tests.
+build:
+    zig build test-build
+
 # Qualify finite IPC schemas/values against an independent Arrow reader.
 arrow:
     zig build test-arrow
