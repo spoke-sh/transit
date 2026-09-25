@@ -64,6 +64,40 @@ def exercise(installation, launcher, invoke, observe):
     def instances():
         return {row.get("name", row.get("Service")): row.get("pid", row.get("ID")) for row in launcher.services()}
 
+    if installation.profile == "local":
+        # A failed restart must not launch a duplicate while the original child
+        # remains running, nor hide an unrelated manager failure.
+        actual_pc = launcher.pc
+        before = instances()
+        for message in ("no such process", "permission denied"):
+            def refused(*args, **kwargs):
+                if args == ("process", "restart", "board"):
+                    raise subprocess.CalledProcessError(1, args, stderr=message + "\n")
+                return actual_pc(*args, **kwargs)
+            with patch.object(launcher, "pc", side_effect=refused):
+                try:
+                    launcher.restart("board")
+                    raise AssertionError("Live-process restart failure was hidden")
+                except subprocess.CalledProcessError:
+                    pass
+            assert instances() == before
+
+        # Reproduce the pinned manager's late shutdown error after a real child
+        # exits. Starting again is safe only after observing that terminal PID.
+        def late_stop_error(*args, **kwargs):
+            if args == ("process", "restart", "board"):
+                try:
+                    actual_pc("process", "stop", "board", capture=True, stderr=subprocess.PIPE)
+                except subprocess.CalledProcessError as error:
+                    assert "no such process" in (error.stderr or "")
+                raise subprocess.CalledProcessError(1, args, stderr="no such process\n")
+            return actual_pc(*args, **kwargs)
+        with patch.object(launcher, "pc", side_effect=late_stop_error):
+            launcher.restart("board")
+        after = instances()
+        assert before["board"] != after["board"]
+        assert all(before[name] == after[name] for name in before if name != "board")
+
     before = instances()
     invoke("build", "board")
     assert instances() == before, "build changed running services"

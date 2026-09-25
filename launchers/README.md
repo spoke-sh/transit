@@ -64,6 +64,11 @@ This archives the previous plan, flushes uncertain signed requests, and refuses
 to replace an unresolved recorded template switch. It cannot roll back history.
 Restart is refused while an update is pending. Readiness failure remains visible;
 there is no automatic image/history rollback.
+The local launcher handles the [pinned Process Compose shutdown race](https://github.com/F1bonacc1/process-compose/blob/d8e7d509601ea342a3778632cfd92a33dc5dcf37/src/app/process.go#L435): if restart
+reports `no such process`, it starts the replacement only after the manager
+confirms the same old PID is terminal. A live child, unknown service or other
+manager error remains a failure. New PID, readiness and worker-activation checks
+still apply.
 
 Updates read supported `.env` settings for the selected roles. Restarts reuse
 saved configuration. General topology changes to Process Compose require `down`/`up`.

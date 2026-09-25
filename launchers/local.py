@@ -151,13 +151,25 @@ class Local:
         previous_pid = next((p["pid"] for p in self.services() if p["name"] == name), None)
         if name in self.installation.workloads:
             (self.path / name / "config.json").unlink(missing_ok=True)
-        self.pc("process", "restart", name, capture=True)
+        try:
+            self.pc("process", "restart", name, capture=True, stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError as error:
+            # Process Compose 1.110 can install its shutdown waiter after the
+            # child has exited, then return ESRCH from a late SIGKILL. Only
+            # resume start when the manager confirms that exact child ended.
+            process = next((p for p in self.services() if p["name"] == name), None)
+            ended = (process is not None and process["pid"] == previous_pid and
+                     not process["is_running"] and process["status"] in ("Completed", "Error"))
+            if "no such process" not in (error.stderr or "") or not ended:
+                sys.stderr.write(error.stderr or "")
+                raise
+            self.pc("process", "start", name, capture=True)
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             process = next(p for p in self.services() if p["name"] == name)
             if process["is_running"] and process["pid"] != previous_pid:
                 break
-            if process["exit_code"] != 0:
+            if process["pid"] != previous_pid and process["exit_code"] != 0:
                 raise RuntimeError(f"{name} failed after replacement; inspect its logs")
             time.sleep(.1)
         else:
