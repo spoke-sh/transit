@@ -86,27 +86,37 @@ retain durable work, rather than keeping a native Arrow task or stack alive.
 This is the first concrete instance of [FLOW_CONTROL.md](../docs/FLOW_CONTROL.md)'s
 application-admission-credit pattern; that document owns the general shape and
 its distinction from transport flow control, this section owns this protocol's
-specific unit and open decisions.
+specific unit and implementation.
 
-The implemented sender paces itself: `publishing` writes at most three
-fragments per authority turn before recording its cursor and self-casting a
-continuation. This bounds each proposal to the ordinary four-mutation budget;
-it is not a signal from the destination that it is ready for more. No frame
-today carries receiver-issued credit, and the receiver has no way to slow a
-sender that is otherwise authorized and within policy.
+The sender still paces itself within one turn — `publishing` writes at most
+three fragments per authority turn before recording its cursor and
+self-casting a continuation, bounding each proposal to the ordinary
+four-mutation budget — but that alone no longer governs how far ahead of the
+destination it may run. Receiver-issued `GQG2` credit, quantized in whole
+segments (the protocol's existing atomic, digested, sealed unit), does: the
+destination grants credit only for segments it has itself durably sealed
+(`transfer.segments` at seal time, never merely received bytes), and
+`publishing` will not start a segment more than `credit_window` (2) ordinals
+past the last credit the sender has observed (`QueryRecords.credit_window`).
+A `GQG2` grant is authenticated against the job's recorded destination,
+rejected if it ever regresses, inert if repeated or received after
+publication completes, and — when it advances stored credit — immediately
+self-casts a continuation so a blocked sender resumes without waiting for an
+unrelated turn. [`Delivery.tla`](../tests/verification/models/Delivery.tla)
+checks this abstractly (`WindowBound`, `CreditSound`, `NoPrematureAck`); the
+implementation is qualified in-memory (`query_growing_test.zig`, including a
+forged-peer rejection and an exact count of one grant per sealed segment) and
+against real disk Ursula/node restart (`test::growing-query`'s `publish`/
+`deliver` phases, which now exercise the gate under real asynchronous delay).
 
-This is a known, explicitly scoped gap, not a silent one. The intended
-direction — recorded here as design, matching the rest of this document's
-convention — is receiver-driven credit quantized in whole segments, the
-protocol's existing atomic, digested, sealed unit: the destination grants
-credit only for segments it has durably stored, and the sender may not run
-more than a small fixed window of segments ahead of the credit it has last
-observed. [`Delivery.tla`](../tests/verification/models/Delivery.tla) checks
-this abstractly (`WindowBound`, `CreditSound`, `NoPrematureAck`); wiring an
-actual receiver-issued grant frame, choosing the window size, and deciding
-whether credit is per-result or pooled per-destination-peer remain
-unimplemented. Until then, publication depends only on local self-pacing and
-authorization/policy, not on destination readiness.
+Credit is scoped per result, not pooled across a destination's concurrently
+published results — the simplest choice given `Job`/`Transfer` are already
+per-result records, and the one this document's own multiplexing question
+([FLOW_CONTROL.md](../docs/FLOW_CONTROL.md#where-this-applies-today)) leaves
+open for a future peer-pooled scheme if one destination's several concurrent
+results need shared fairness. `credit_window`'s value is a fixed, reviewed
+constant, not adaptive or negotiated, matching this design's stated preference
+for a TigerBeetle-style pipeline cap over an HTTP/2- or TCP-style tuned window.
 
 ## Policy, lifetimes and failure
 
@@ -241,6 +251,12 @@ here and only adds attacker-controlled decompression amplification. Rejecting
 the caller's workspace bound alone, is the cheap follow-up if a future profile
 still declines to support it.
 
+`GQG2` result credit is a 20-byte cast payload, sent receiver-to-sender rather
+than self-cast: result (u64), durably granted segment count (u64). The sender
+retains the last value it has observed under key tag `g`, independent of and
+never mutating its own send cursor (`Job.send_segment`/`send_offset`); see
+[Flow control](#flow-control) above.
+
 ## Wire tag catalog
 
 Every durable value and cast/call payload in this design is prefixed by a
@@ -260,8 +276,9 @@ encode/decode functions above remain the source of truth for byte layout.
 | `GQM2` | `Manifest` | durable value (key tag `z`) and `result_complete` payload |
 | `GQF2` | `Fragment` | `result_chunk` payload (raw bytes) |
 | `GQP2` | `Publication` | Station `cast` payload (publication self-continuation) |
+| `GQG2` | `Credit` | durable value, key tag `g` (sender copy only) and `cast` payload (receiver-to-sender grant) |
 | `SQC1` | legacy capture continuation | Station `cast` payload (finite `Query.zig`) |
 
-`QueryRecords.key`'s own one-byte tags (`j p e s i m f v r z`, distinct from the
-four-byte magics above) select which durable record a key addresses; they are
-documented alongside the layout sections above, not repeated here.
+`QueryRecords.key`'s own one-byte tags (`j p e s i m f v r z g`, distinct from
+the four-byte magics above) select which durable record a key addresses; they
+are documented alongside the layout sections above, not repeated here.

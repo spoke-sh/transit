@@ -1,9 +1,10 @@
 # Flow control
 
-Status: one concrete instance is implemented and specified —
+Status: one concrete instance is implemented —
 [growing result delivery](../contracts/STATION_QUERY_V2.md#flow-control),
-checked abstractly by [`Delivery.tla`](../tests/verification/models/Delivery.tla).
-Every other reference below is prose scope, not a proved contract: connector
+checked abstractly by [`Delivery.tla`](../tests/verification/models/Delivery.tla)
+and qualified both in-memory and against real disk Ursula/node restart. Every
+other reference below is prose scope, not a proved contract: connector
 capture admission ([GRPC.md](GRPC.md#streaming-authority-and-backpressure),
 [CONNECTORS.md](CONNECTORS.md)) states the same requirement without yet
 defining a credit protocol for it. This document names the shared pattern and
@@ -84,10 +85,12 @@ units, not invent new ones.
 ## Where this applies today
 
 [Growing result delivery](../contracts/STATION_QUERY_V2.md#flow-control) is
-the only instance with a stated design: segment-quantized, receiver-driven,
-window and grant frame not yet chosen or wired — the implemented sender still
-only self-paces. See that document for the concrete wire-level decision points
-(per-result or per-destination-peer credit pool, window size) still open.
+the only implemented instance: segment-quantized, receiver-driven, a fixed
+two-segment window, its grant frame (`GQG2`) authenticated, non-regressing and
+resume-triggering. Credit is scoped per result, not pooled across a
+destination's concurrent results — the simplest choice available, and the one
+that document leaves open to revisit if a destination's fairness across
+several concurrent results ever needs it.
 
 Connector capture admission is scoped in prose only:
 [CONNECTORS.md](CONNECTORS.md) requires bounded worker buffers for streamed

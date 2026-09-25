@@ -783,14 +783,23 @@ uncertain mutation is retained, not discarded. Independent PyArrow decodes
 every segment the receiver durably stored and diffs it byte-for-byte against
 the sender's own captured segment, and Python checks the received manifest's
 basis/plan/chain/schema against the sender's. One run: 41 rows/9,984 bytes in
-six segments; publish took 2.72s and deliver 61.50s on this one-CPU Debug
-sample, on top of the existing 8.26s/10.24s/17.98s write/seal/recover. These
-are finite shared-host proof timings, not service SLOs.
+six segments; publish took 3.99s and deliver 69.36s on this one-CPU Debug
+sample, on top of the existing 8.30s/10.24s/18.14s write/seal/recover. Six
+segments against a two-segment credit window means the sender genuinely blocks
+and resumes under real cross-process delay here, not just in the in-memory
+proof below; these are finite shared-host proof timings, not service SLOs.
 
-See [`contracts/STATION_QUERY_V2.md`](../contracts/STATION_QUERY_V2.md) for
-the wire layout and the credit-based flow-control design
-`just test::model-delivery` checks abstractly; it is not yet wired to a Zig
-trace replay the way `test::model` is for `Authority.tla`.
+Receiver-issued credit (`GQG2`, [`contracts/STATION_QUERY_V2.md`](../contracts/STATION_QUERY_V2.md#flow-control))
+is implemented, not just designed: the sender will not start a segment more
+than `credit_window` (2) ordinals past the last credit it has observed, the
+destination grants credit only for segments it has itself durably sealed, and
+a regressing or forged grant is rejected rather than tolerated.
+`query_growing_test.zig` qualifies this in-memory — a forged-peer grant is
+rejected, a regressing grant errors, a repeated or post-completion grant is
+inert, and the two-sided delivery proof asserts exactly one grant per sealed
+segment (six, for six segments). [`Delivery.tla`](../tests/verification/models/Delivery.tla)
+checks the same shape abstractly via `just test::model-delivery`; it is not
+yet wired to a Zig trace replay the way `test::model` is for `Authority.tla`.
 `just test::growing-query --finish-pages 1` retains one resident page through
 the seal/recover phases instead of the 64-page default measured above; the
 first recovery (after staging, before any seal) always uses one page and no
