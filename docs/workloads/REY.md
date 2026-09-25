@@ -13,8 +13,9 @@ through L2/L3, relevant internet ingestion, and a shared context surface for hum
 and agent collaboration. It will support algorithmic and high-frequency execution
 services alongside strategy research, execution and optimization, including
 reinforcement-learning agents and fast model inference. Trading semantics and
-model choice stay above Transit. No numeric latency SLO or initial feed coverage
-has been selected.
+model choice stay above Transit. The selected execution class is **milliseconds
+from receiving a market event to sending an order**. The exact budget, percentile,
+load/failure conditions and initial feed coverage remain to be qualified.
 
 Size these workloads independently:
 
@@ -146,11 +147,14 @@ non-backpressurable external feed can create an upstream capture gap; record it
 explicitly and apply source-specific recovery. Do not acknowledge missing data.
 
 Measure capture-to-durable, durable-to-materialized, market-event-to-order-send,
-remote acknowledgement and research completion separately. Explore millisecond,
-sub-100-microsecond and sub-10-microsecond execution budgets as distinct feasibility
-questions; none is a current Transit capability or an agreed application SLO.
-Durable admission/dispatch, risk ordering, network and scheduling all consume
-that budget. Kubernetes-native deployment alone establishes no latency guarantee.
+remote acknowledgement and research completion separately. The selected target
+is millisecond-class market-event-to-order-send execution, with the precise budget
+and tail percentile still open. Measure receive/decode, materialization/features,
+strategy inference, risk ordering, durable dispatch authorization and network send
+within that path. This is an application requirement, not a demonstrated Transit
+capability. Kubernetes-native deployment alone establishes no latency guarantee.
+Backfills, research, crawling and slow readers need separate resource budgets so
+they cannot exhaust the execution path's CPU, I/O, admission or control capacity.
 
 Order placement, cancellation and kill controls still cross authorized effect
 boundaries. A faster path cannot silently turn durable pre-I/O authorization into
