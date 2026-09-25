@@ -160,7 +160,20 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
             if (batch.next) |cursor| result.next = std.mem.readInt(u64, cursor.data[1..9], .big);
             break :blk .{ .outputs = result };
         },
-        .effects => return error.UnsupportedGrowthQuery,
+        .effects => |q| blk: {
+            try scope(principal, q.pid);
+            _ = try engine.process(q.pid);
+            try at(q.position, position);
+            const batch = try current.scan(u64, .{ .namespace = .effects_by_pid, .major = q.pid }, if (q.after) |id| try c.key(.effects_by_pid, q.pid, id, "") else null);
+            var result: g.Batch(g.Effect, u64) = .{};
+            for (batch.records, 0..) |slot, i| if (slot) |record| {
+                const value = try @import("growing_work.zig").effect(engine, record.value);
+                if (value.pid != q.pid) return error.InvalidHistory;
+                result.entries[i] = value;
+            };
+            if (batch.next) |cursor| result.next = std.mem.readInt(u64, cursor.data[9..17], .big);
+            break :blk .{ .effects = result };
+        },
     };
     // Linearize permission/cut validation against the same authority tail. A
     // concurrent revocation or publication never yields a success-shaped mixed cut.

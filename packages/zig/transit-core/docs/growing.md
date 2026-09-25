@@ -7,7 +7,8 @@ owns proposed wire types; the existing v2 engine remains the deployed profile.
 The implemented internal transitions include bootstrap, root-authorized principal
 grant/revocation, process creation, ownership, mailbox admission and termination;
 resource creation/grants/associations, captured view open/close, bounded state
-turns, turn permits and resource retirement/expiry.
+turns, turn permits and resource retirement/expiry; ordered outbox delivery,
+effect dispatch/observation/closure and process expiry.
 Signed bounded reads cover capabilities, process/resource/view metadata, current
 or captured entries, associations and outboxes. They use the
 [typed immutable catalog](pages.md#typed-catalog). Principal sequence,
@@ -68,8 +69,37 @@ and association pages may be empty with more scanning available; only a null
 cursor means completion. Association cursors use indexed revision IDs instead of
 hidden names. A final tail check rejects concurrent changes during disclosure.
 
-No running capability advertises these transitions. Delivery,
-effect settlement, query transport, terminal dependency materialization,
+## Delivery and settlement
+
+Outboxes retain stable identities and payloads. A separate pending-route index
+finds the first unresolved output for a source/destination pair using one bounded
+scan. Other routes can advance independently. Delivery needs the caller's current
+delivery capability and destination scope; its current send permission determines
+admission versus a recorded denial. Destination admission, provenance and source
+resolution share one publication. An uncertain acknowledgement is retried under
+the same principal sequence, without a second admission.
+
+Termination/known expiry fences pending work without scanning the whole backlog.
+The PID's terminal fact is immediate authority; individual pending output/effect
+records can still show their prior recorded phase until bounded reconciliation
+materializes their disposition. Delivery cancels a terminal source's pending
+output. The administrative `cancel_effect` operation cancels only a never-authorized
+intent whose caller is terminal. Required-dependency expiry can also justify
+explicit process expiry. No timer is needed to reject a known-expired operation.
+
+Dispatch records one executor, attempt and reconciliation budget before I/O.
+Finite callers require a finite reconciliation deadline. Observation consumes the
+recorded budget; terminal result or budget exhaustion closes it, and deadline
+closure rejects late observations. Previously authorized attempts can settle
+after caller termination, retaining outcomes without admitting new caller work.
+An executor can abandon its attempt; an administrator with effect permission
+can close an orphaned attempt. Closure is local protocol evidence, not remote
+cancellation. A finite process's previously issued turn permit can settle before
+its settlement deadline, but cannot issue fresh outputs/effects after its work
+cutoff. Ownership changes fence the old activation without renewing that permit.
+
+No running capability advertises these transitions. Query/command transport,
+background disposition and terminal dependency materialization,
 runtime/lifecycle extensions, quotas/control reserve, retained results and Station
 remain integration work within M10. Unimplemented commands fail explicitly with
 `UnsupportedGrowthCommand`. The module must not be selected by a launcher before
@@ -102,3 +132,10 @@ ownership, revoked grants, forged queries and missing pages. Filtered discovery
 crosses an empty page without disclosing hidden associations and observes removal
 without stale index entries. These are internal engine proofs, not HTTP/client
 or provider qualification.
+
+Delivery/settlement checks exercise independent routes, stale prepared delivery
+after grant change, denied admissions, lost accepted delivery/outcome replies,
+terminal source cancellation, post-termination outcome capture, finite budgets,
+late rejection and permanent process expiry. Indexed effect inspection preserves
+retired callers' evidence. These internal checks use injected storage, not the
+real effect connector or service deployment.

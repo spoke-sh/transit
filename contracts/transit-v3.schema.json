@@ -1121,6 +1121,44 @@
                   }
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cancel_effect"
+              ],
+              "properties": {
+                "cancel_effect": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "pid",
+                    "effect"
+                  ],
+                  "properties": {
+                    "pid": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "effect": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "effect"
+                  ],
+                  "x-transit-defaults": {}
+                }
+              }
             }
           ]
         }
@@ -2243,6 +2281,44 @@
                       "x-transit-defaults": {
                         "reason": "abandoned"
                       }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cancel_effect"
+                  ],
+                  "properties": {
+                    "cancel_effect": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "pid",
+                        "effect"
+                      ],
+                      "properties": {
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "effect": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "pid",
+                        "effect"
+                      ],
+                      "x-transit-defaults": {}
                     }
                   }
                 }

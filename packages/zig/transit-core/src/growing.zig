@@ -7,6 +7,7 @@ const pages = @import("pages.zig");
 const p = core.protocol;
 const g = p.Growth;
 const state_ops = @import("growing_state.zig");
+const work_ops = @import("growing_work.zig");
 pub const Genesis = struct {
     version: u32 = g.version,
     realm: u64,
@@ -139,7 +140,6 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             return principal_value;
         }
         fn authorize(self: *Self, principal_value: Principal, command: g.Command) !void {
-            _ = self;
             const needed: p.Permission = switch (command) {
                 .spawn => .spawn,
                 .send => .send,
@@ -150,7 +150,8 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             };
             if (principal_value.grant.permissions & p.permission(needed) == 0) return error.Forbidden;
             const pid: ?u64 = switch (command) {
-                inline .own, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .dispatch, .observe, .close_effect => |c| c.pid,
+                inline .own, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .dispatch, .observe, .close_effect, .cancel_effect => |c| c.pid,
+                .deliver => |id| (try work_ops.output(self, id)).destination,
                 .create_resource => |c| c.writer,
                 .terminate, .expire => |id| id,
                 else => null,
@@ -178,6 +179,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             var next = self.head;
             const needs_time = switch (signed.request.command) {
                 .grant, .revoke, .terminate, .close_view, .grant_resource, .retire_resource => false,
+                .close_effect => |c| c.reason == .deadline,
                 .spawn => |c| c.work_before_ms != null,
                 else => true,
             };
@@ -269,17 +271,19 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     try candidate.put(try catalog.key(.mailbox, send.pid, input.ordinal, ""), input);
                     try candidate.put(address(.process, send.pid), process_value);
                 },
-                .terminate => |pid| {
+                .terminate, .expire => |pid| {
                     var process_value = try self.process(pid);
                     if (process_value.lifecycle != .running) return error.RetiredProcess;
-                    process_value.lifecycle = .terminated;
+                    if (request.command == .expire) try work_ops.expired(self, process_value, sample);
+                    process_value.lifecycle = if (request.command == .expire) .expired else .terminated;
                     process_value.cancelled = process_value.admitted - process_value.consumed;
                     process_value.owner = null;
+                    process_value.turn_permit = null;
                     try candidate.put(address(.process, pid), process_value);
                     try state_ops.retireIndexes(candidate, pid);
                 },
                 .create_resource, .grant_resource, .associate, .open_view, .close_view, .retire_resource, .expire_resource, .begin_turn, .turn => try state_ops.apply(self, candidate, next, request, sample),
-                else => return error.UnsupportedGrowthCommand,
+                .deliver, .dispatch, .observe, .close_effect, .cancel_effect => try work_ops.apply(self, candidate, request, sample),
             }
         }
     };

@@ -279,28 +279,37 @@ pub fn Tree(comptime Store: type) type {
             }
         }
         pub fn scan(self: Self, root: ?Reference, after: ?Key) !Slice {
+            return self.scanBound(root, after, false);
+        }
+        pub fn scanFrom(self: Self, root: ?Reference, first: Key) !Slice {
+            return self.scanBound(root, first, true);
+        }
+        fn scanBound(self: Self, root: ?Reference, after: ?Key, inclusive: bool) !Slice {
             if (after) |key| try key.validate();
             const ref = root orelse return .{};
             var found: [page_entries + 1]Entry = undefined;
             var count: usize = 0;
-            try self.visit(ref, null, after, &found, &count);
+            try self.visit(ref, null, after, inclusive, &found, &count);
             var result: Slice = .{};
             for (found[0..@min(count, page_entries)], 0..) |entry, i| result.entries[i] = entry;
             if (count > page_entries) result.next = found[page_entries - 1].key;
             return result;
         }
-        fn visit(self: Self, ref: Reference, height: ?u8, after: ?Key, out: *[page_entries + 1]Entry, count: *usize) anyerror!void {
+        fn visit(self: Self, ref: Reference, height: ?u8, after: ?Key, inclusive: bool, out: *[page_entries + 1]Entry, count: *usize) anyerror!void {
             const page = try self.load(ref, height);
             switch (page.body) {
                 .leaf => |entries| for (entries[0..page.count]) |slot| {
-                    if (after) |key| if (order(&slot.?.key, &key) != .gt) continue;
+                    if (after) |key| {
+                        const comparison = order(&slot.?.key, &key);
+                        if (comparison == .lt or (comparison == .eq and !inclusive)) continue;
+                    }
                     out[count.*] = slot.?;
                     count.* += 1;
                     if (count.* == out.len) return;
                 },
                 .branch => |children| for (children[0..page.count], 0..) |slot, i| {
                     if (after) |key| if (i + 1 < page.count and order(&children[i + 1].?.minimum, &key) != .gt) continue;
-                    try self.visit(slot.?.reference, page.height - 1, after, out, count);
+                    try self.visit(slot.?.reference, page.height - 1, after, inclusive, out, count);
                     if (count.* == out.len) return;
                 },
             }

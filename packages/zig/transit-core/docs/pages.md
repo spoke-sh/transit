@@ -35,8 +35,9 @@ Writes copy only the search path, splitting pages as needed. Deletion removes
 empty subtrees and collapses a one-child root; internal one-child pages retain
 their height. It does not yet rebalance sparse siblings. This can amplify storage
 and lookup work after churn, which the growing-profile measurements must expose.
-Scans seek strictly after an opaque key and read one extra entry to distinguish
-continuation from completion. They return owned bytes at the supplied root.
+Continuation scans seek strictly after an opaque key; `scanFrom` supplies an
+inclusive initial lower bound for catalog ranges. Both read one extra entry to
+distinguish continuation from completion and return owned bytes at the supplied root.
 
 ## Persistence and publication obligations
 

@@ -328,11 +328,15 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
             if (next.outputs >= p.max_counter) return error.Overflow;
             next.outputs += 1;
             try candidate.put(address(.output, next.outputs), g.Outbox{ .id = next.outputs, .source = process.pid, .turn = position, .index = @intCast(i), .destination = output.pid, .value = output.value });
+            try candidate.put(address(.pending_output, next.outputs), output.pid);
+            try candidate.put(@import("growing_work.zig").routeKey(process.pid, output.pid, next.outputs), next.outputs);
         };
         if (command.effect) |payload| {
             try engine.executable(process, sample, false);
             if (subject.grant.permissions & p.permission(.effect) == 0) return error.Forbidden;
             try candidate.put(address(.effect, position), g.Effect{ .id = position, .pid = process.pid, .payload = payload });
+            try candidate.put(try c.key(.effects_by_pid, process.pid, position, ""), position);
+            try candidate.put(address(.pending_effect, position), process.pid);
         }
         process.consumed += 1;
         process.revision = position;

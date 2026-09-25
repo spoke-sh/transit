@@ -51,6 +51,7 @@ pub const Command = union(enum) {
     dispatch: struct { pid: Id, effect: Id, reconcile_before_ms: ?u64 = null, max_observations: u16 = p.max_effect_observations },
     observe: struct { pid: Id, effect: Id, attempt: Id, result: ?p.Value },
     close_effect: struct { pid: Id, effect: Id, attempt: Id, reason: enum { abandoned, deadline } = .abandoned },
+    cancel_effect: struct { pid: Id, effect: Id },
 };
 pub const Request = struct { version: u32 = version, realm: Id, principal: Id, sequence: u64, command: Command };
 pub const SignedRequest = struct { request: Request, signature: [64]u8 };

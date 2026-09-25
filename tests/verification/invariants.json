@@ -332,7 +332,7 @@
         "Current resource rights on historical receipt disclosure",
         "Expiry through lifetime-owner dependency graph cannot be rebound away"
       ],
-      "limits": "In-memory injected page/journal proof. Read transport, delivery/settlement, terminal projection, quota reserves and real service/Station remain unqualified.",
+      "limits": "In-memory injected page/journal proof. Transport, background terminal projection, quota reserves and real service/Station remain unqualified.",
       "model": null
     },
     {
@@ -355,6 +355,22 @@
         "Missing pages and stale catalog cuts reject explicitly"
       ],
       "limits": "Internal signed engine queries with injected storage/time. No HTTP/SDK/provider proof, generalized historical querying or concurrent service load qualification.",
+      "model": null
+    },
+    {
+      "id": "GROWTH-04",
+      "claim": "Indexed delivery and bounded settlement preserve order, retry identity and permanent closure without scanning retained work",
+      "owner": "docs/CONNECTORS.md",
+      "implementation": ["packages/zig/transit-core/src/growing_work.zig"],
+      "profile": "transit-v3 development work slice; not running service",
+      "tasks": ["test::unit", "contract::check"],
+      "scenarios": [
+        "Independent routes and stale prepared admission after revocation",
+        "Lost delivery and observation acknowledgements",
+        "Retired caller with an authorized external attempt",
+        "Finite turn settlement, late-result rejection and permanent expiry"
+      ],
+      "limits": "Injected storage/time; no HTTP connector, automatic maintenance, real provider or service integration evidence.",
       "model": null
     }
   ]

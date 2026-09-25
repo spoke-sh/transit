@@ -80,6 +80,23 @@ it does not execute application computations.
 
 ## Integration obligations
 
+Delivery resolves one retained output under current courier authority. Pending
+route order is per source/destination pair; a later output cannot bypass an
+unresolved predecessor. Admission or terminal disposition releases that route.
+Process termination/known expiry immediately fences unattempted work; individual
+outbox/effect metadata may await bounded disposition. `cancel_effect` is an
+administrative operation restricted to an unattempted intent of a terminal caller.
+It cannot cancel an authorized attempt or claim that external work stopped.
+
+Authorized effects retain their executor, attempt, observation budget and optional
+deadline independently of caller retirement. Finite callers require a finite
+reconciliation deadline. The executor's current effect permission is required
+for new observations; an administrator with effect permission can close an orphaned
+attempt. A result after caller retirement remains evidence and cannot revive that
+PID. Closed attempts reject new results; exact historical retries still require
+current permission. The growing engine currently enforces these rules internally;
+transport, background materialization and deployment remain unqualified.
+
 The [immutable catalog](../packages/zig/transit-core/docs/pages.md#typed-catalog)
 is the storage basis. One conditional journal decision must publish state roots,
 mailbox progress, outputs, principal sequence and retry evidence together. Staging

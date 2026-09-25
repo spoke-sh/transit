@@ -54,6 +54,11 @@ const Fixture = struct {
     fn query(self: *Fixture, principal: u64, kind: @FieldType(g.Query, "kind")) !g.Response {
         return self.engine.query(try g.signQuery(.{ .realm = 42, .principal = principal, .kind = kind }, if (principal == 0) self.root_key else self.worker_key));
     }
+    fn emit(self: *Fixture, pid: u64, outputs: [g.turn_outputs]?g.Output, payload: ?core.Value) !u64 {
+        const input = try self.root(.{ .send = .{ .pid = pid, .value = .{} } });
+        const process = try self.engine.process(pid);
+        return self.root(.{ .turn = .{ .pid = pid, .generation = process.generation, .input = input, .expected_revision = process.revision, .outputs = outputs, .effect = payload } });
+    }
 };
 
 test "growing authority retains wide principals and processes beyond legacy catalogs" {
@@ -393,4 +398,142 @@ test "growing filtered discovery advances bounded pages without exposing hidden 
     const removed = try fixture.query(65536, .{ .associations = .{ .pid = pid } });
     for (removed.body.associations.entries) |entry| try t.expectEqual(@as(?g.Association, null), entry);
     try t.expectEqual(@as(?u64, null), removed.body.associations.next);
+}
+
+test "growing outboxes preserve routes, permission ordering and lost delivery receipts" {
+    const work = @import("growing_work.zig");
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.init();
+    const source = try fixture.root(.{ .spawn = .{} });
+    const a = try fixture.root(.{ .spawn = .{} });
+    const b = try fixture.root(.{ .spawn = .{} });
+    _ = try fixture.root(.{ .own = .{ .pid = source, .expected_generation = 0, .worker = 0 } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.permission(.delivery) | core.permission(.send), .pid = a } });
+    _ = try fixture.emit(source, .{ .{ .pid = a, .value = core.Value.integer(1) }, .{ .pid = a, .value = core.Value.integer(2) }, .{ .pid = b, .value = core.Value.integer(3) }, null }, null);
+    try t.expectError(error.RouteBlocked, fixture.engine.submit(try fixture.worker(1, .{ .deliver = 2 })));
+    try t.expectError(error.Forbidden, fixture.engine.submit(try fixture.worker(1, .{ .deliver = 3 })));
+    _ = try fixture.root(.{ .deliver = 3 }); // Independent route makes progress.
+    const signed = try fixture.worker(1, .{ .deliver = 1 });
+    fixture.journal.fail = .after;
+    try t.expectError(error.LostAcknowledgement, fixture.engine.submit(signed));
+    fixture.journal.fail = .none;
+    const count = try fixture.journal.tail();
+    try t.expectEqual(count - 1, try fixture.engine.submit(signed));
+    try t.expectEqual(count, try fixture.journal.tail());
+    try t.expectEqual(@as(u64, 1), (try fixture.engine.process(a)).admitted);
+    var state = try fixture.engine.state();
+    const input = (try state.get(g.Input, try core.catalog.key(.mailbox, a, 1, ""))).?;
+    try t.expectEqual(@as(u64, 1), input.origin.process.output);
+    try t.expectEqual(source, input.origin.process.pid);
+
+    const prepared = try fixture.engine.prepare(try fixture.worker(2, .{ .deliver = 2 }));
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.permission(.delivery), .pid = a } });
+    try t.expectError(error.Conflict, fixture.engine.commit(prepared));
+    _ = try fixture.engine.submit(try fixture.worker(2, .{ .deliver = 2 }));
+    try t.expectEqual(.denied, (try work.output(&fixture.engine, 2)).phase);
+    try t.expectEqual(@as(u64, 1), (try fixture.engine.process(a)).admitted);
+    _ = try fixture.emit(source, .{ .{ .pid = a, .value = .{} }, null, null, null }, null);
+    _ = try fixture.root(.{ .terminate = source });
+    _ = try fixture.root(.{ .deliver = 4 });
+    try t.expectEqual(.cancelled, (try work.output(&fixture.engine, 4)).phase);
+    state = try fixture.engine.state();
+    const pending = try state.scan(u64, .{ .namespace = .pending_output }, null);
+    try t.expect(pending.records[0] == null);
+    const recovered = try Engine.open(&fixture.journal, &fixture.pages, fixture.genesis);
+    try t.expect(std.meta.eql(fixture.engine.head, recovered.head));
+}
+
+test "growing effects retain bounded settlement across retirement and reject late results" {
+    const work = @import("growing_work.zig");
+    const Clock = struct {
+        now: u64 = 10,
+        fn read(context: *anyopaque) anyerror!core.Time.Sample {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            return .{ .unix_ms = self.now };
+        }
+    };
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.init();
+    var clock: Clock = .{};
+    fixture.engine.clock = .{ .context = &clock, .read = Clock.read };
+    const pid = try fixture.root(.{ .spawn = .{} });
+    _ = try fixture.root(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } });
+    const observed = try fixture.emit(pid, @splat(null), core.Value.integer(1));
+    const unknown = try fixture.emit(pid, @splat(null), core.Value.integer(2));
+    const pending = try fixture.emit(pid, @splat(null), core.Value.integer(3));
+    const observed_attempt = try fixture.root(.{ .dispatch = .{ .pid = pid, .effect = observed, .reconcile_before_ms = 100, .max_observations = 2 } });
+    const unknown_attempt = try fixture.root(.{ .dispatch = .{ .pid = pid, .effect = unknown, .reconcile_before_ms = 100, .max_observations = 2 } });
+    _ = try fixture.root(.{ .observe = .{ .pid = pid, .effect = unknown, .attempt = unknown_attempt, .result = null } });
+    const prepared = try fixture.engine.prepare(try g.sign(.{ .realm = 42, .principal = 0, .sequence = fixture.root_sequence, .command = .{ .dispatch = .{ .pid = pid, .effect = pending, .reconcile_before_ms = 100 } } }, fixture.root_key));
+    _ = try fixture.root(.{ .terminate = pid });
+    try t.expectError(error.Conflict, fixture.engine.commit(prepared));
+    try t.expectError(error.RetiredProcess, fixture.root(.{ .dispatch = .{ .pid = pid, .effect = pending, .reconcile_before_ms = 100 } }));
+    _ = try fixture.root(.{ .cancel_effect = .{ .pid = pid, .effect = pending } });
+    try t.expectEqual(.cancelled, (try work.effect(&fixture.engine, pending)).phase);
+    // An authorized external request may still return after caller retirement.
+    const result = try g.sign(.{ .realm = 42, .principal = 0, .sequence = fixture.root_sequence, .command = .{ .observe = .{ .pid = pid, .effect = observed, .attempt = observed_attempt, .result = core.Value.integer(9) } } }, fixture.root_key);
+    fixture.journal.fail = .after;
+    try t.expectError(error.LostAcknowledgement, fixture.engine.submit(result));
+    fixture.journal.fail = .none;
+    const tail = try fixture.journal.tail();
+    try t.expectEqual(tail - 1, try fixture.engine.submit(result));
+    fixture.root_sequence += 1;
+    try t.expectEqual(@as(u64, 3), (try fixture.engine.process(pid)).admitted);
+    try t.expectEqual(.observed, (try work.effect(&fixture.engine, observed)).phase);
+    fixture.engine = try Engine.open(&fixture.journal, &fixture.pages, fixture.genesis);
+    fixture.engine.clock = .{ .context = &clock, .read = Clock.read };
+    try t.expectEqual(@as(u16, 1), (try work.effect(&fixture.engine, unknown)).observations);
+    clock.now = 100;
+    const late: g.Command = .{ .observe = .{ .pid = pid, .effect = unknown, .attempt = unknown_attempt, .result = core.Value.integer(4) } };
+    try t.expectError(error.DeadlineExpired, fixture.root(late));
+    _ = try fixture.root(.{ .close_effect = .{ .pid = pid, .effect = unknown, .attempt = unknown_attempt, .reason = .deadline } });
+    try t.expectError(error.ReconciliationClosed, fixture.root(late));
+    try t.expectEqual(.closed_unknown, (try work.effect(&fixture.engine, unknown)).phase);
+    const effects = try fixture.query(0, .{ .effects = .{ .pid = pid } });
+    try t.expectEqual(observed, effects.body.effects.entries[0].?.id);
+    try t.expectEqual(.observed, effects.body.effects.entries[0].?.phase);
+    try t.expectEqual(.closed_unknown, effects.body.effects.entries[1].?.phase);
+    try t.expectEqual(.cancelled, effects.body.effects.entries[2].?.phase);
+    try t.expectEqual(tail - 1, try fixture.engine.submit(result));
+}
+
+test "growing finite settlement preserves its permit and closes permanently without a timer" {
+    const Clock = struct {
+        now: u64 = 10,
+        fn read(context: *anyopaque) anyerror!core.Time.Sample {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            return .{ .unix_ms = self.now };
+        }
+    };
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.init();
+    var clock: Clock = .{};
+    fixture.engine.clock = .{ .context = &clock, .read = Clock.read };
+    const pid = try fixture.root(.{ .spawn = .{ .work_before_ms = 100, .settle_before_ms = 200 } });
+    _ = try fixture.root(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } });
+    const input = try fixture.root(.{ .send = .{ .pid = pid, .value = .{} } });
+    const permit = try fixture.root(.{ .begin_turn = .{ .pid = pid, .generation = 1, .input = input } });
+    clock.now = 110;
+    try t.expectError(error.DeadlineExpired, fixture.root(.{ .send = .{ .pid = pid, .value = .{} } }));
+    _ = try fixture.root(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 0 } });
+    const command: g.Turn = .{ .pid = pid, .generation = 2, .input = input, .expected_revision = 0, .permit = permit };
+    var invalid = command;
+    invalid.generation = 1;
+    try t.expectError(error.StaleGeneration, fixture.root(.{ .turn = invalid }));
+    invalid = command;
+    invalid.effect = .{};
+    try t.expectError(error.DeadlineExpired, fixture.root(.{ .turn = invalid }));
+    const settled = try fixture.root(.{ .turn = command });
+    try t.expectError(error.DeadlineNotReached, fixture.root(.{ .expire = pid }));
+    clock.now = 200;
+    _ = try fixture.root(.{ .expire = pid });
+    const state = try fixture.engine.process(pid);
+    try t.expectEqual(.expired, state.lifecycle);
+    try t.expectEqual(settled, state.revision);
+    try t.expectEqual(@as(u64, 1), state.consumed);
+    try t.expect(state.owner == null and state.turn_permit == null);
+    try t.expectError(error.RetiredProcess, fixture.root(.{ .own = .{ .pid = pid, .expected_generation = 2, .worker = 0 } }));
 }

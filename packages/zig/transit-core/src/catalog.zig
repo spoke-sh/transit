@@ -25,6 +25,8 @@ pub const Namespace = enum(u8) {
     required_resource_users,
     owner_required_users,
     association_order,
+    pending_route,
+    effects_by_pid,
 };
 pub const Snapshot = struct {
     version: u32 = version,
@@ -50,11 +52,14 @@ pub fn key(namespace: Namespace, major: u64, minor: u64, suffix: []const u8) !pa
 pub const Range = struct {
     namespace: Namespace,
     major: ?u64 = null,
+    minor: ?u64 = null,
     pub fn prefix(self: Range) pages.Key {
-        var bytes: [9]u8 = undefined;
+        std.debug.assert(self.minor == null or self.major != null);
+        var bytes: [17]u8 = undefined;
         bytes[0] = @backingInt(self.namespace);
         if (self.major) |id| std.mem.writeInt(u64, bytes[1..9], id, .big);
-        return pages.Key.init(bytes[0..if (self.major == null) @as(usize, 1) else 9]) catch unreachable;
+        if (self.minor) |id| std.mem.writeInt(u64, bytes[9..17], id, .big);
+        return pages.Key.init(bytes[0..if (self.minor != null) @as(usize, 17) else if (self.major != null) @as(usize, 9) else 1]) catch unreachable;
     }
 };
 fn validateKey(value: *const pages.Key) !void {
@@ -134,7 +139,7 @@ pub fn Catalog(comptime Store: type) type {
                 try validateKey(&cursor);
                 if (!std.mem.startsWith(u8, cursor.slice(), prefix.slice())) return error.InvalidCatalogCursor;
             }
-            const page = try self.tree.scan(self.snapshot.root, after orelse prefix);
+            const page = if (after) |cursor| try self.tree.scan(self.snapshot.root, cursor) else try self.tree.scanFrom(self.snapshot.root, prefix);
             var result: Batch(T) = .{};
             for (page.entries, 0..) |slot, i| if (slot) |entry| {
                 if (!std.mem.startsWith(u8, entry.key.slice(), prefix.slice())) return result;

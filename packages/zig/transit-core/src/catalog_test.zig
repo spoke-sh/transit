@@ -55,3 +55,21 @@ test "catalog rejects unknown versions, malformed keys, oversized records and pa
     try catalog.put(address, @as(u64, 1));
     try t.expectEqual(@as(u64, 1), catalog.snapshot.records);
 }
+
+test "catalog nested range includes its exact lower key and fences other routes" {
+    var store: Store = .{};
+    defer store.deinit();
+    var catalog = try c.Catalog(Store).open(&store, .{});
+    for (0..16) |i| try catalog.put(try c.key(.mailbox, 42, i, ""), @as(u64, i));
+    const address = try c.key(.mailbox, 42, 8, "");
+    try catalog.put(try c.key(.mailbox, 42, 8, "next"), @as(u64, 100));
+    const range: c.Range = .{ .namespace = .mailbox, .major = 42, .minor = 8 };
+    const batch = try catalog.scan(u64, range, null);
+    try t.expectEqual(@as(u64, 8), batch.records[0].?.value);
+    try t.expectEqual(@as(u64, 100), batch.records[1].?.value);
+    try t.expect(batch.records[2] == null and batch.next == null);
+    const continued = try catalog.scan(u64, range, address);
+    try t.expectEqual(@as(u64, 100), continued.records[0].?.value);
+    try t.expect(continued.records[1] == null and continued.next == null);
+    try t.expectError(error.InvalidCatalogCursor, catalog.scan(u64, range, try c.key(.mailbox, 42, 9, "")));
+}
