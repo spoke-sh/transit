@@ -57,9 +57,12 @@ fn fail(err: anyerror) Status {
     return if (err == error.OutOfMemory) .out_of_memory else .invalid_argument;
 }
 fn buffer(value: anytype, out: *?*Buffer) !void {
-    const result = try allocator.create(BufferImpl);
-    errdefer allocator.destroy(result);
-    result.bytes = try std.json.Stringify.valueAlloc(allocator, value, .{});
+    return bufferWithAllocator(allocator, value, out);
+}
+fn bufferWithAllocator(alloc: std.mem.Allocator, value: anytype, out: *?*Buffer) !void {
+    const result = try alloc.create(BufferImpl);
+    errdefer alloc.destroy(result);
+    result.bytes = try std.json.Stringify.valueAlloc(alloc, value, .{});
     out.* = @ptrCast(result);
 }
 fn validate(signed: Signed) !void {
@@ -172,18 +175,7 @@ pub const Api = struct {
         if (handle.busy.swap(true, .acquire)) return .busy;
         defer handle.busy.store(false, .release);
         const pending: *const OperationImpl = @ptrCast(@alignCast(operation));
-        call(&handle.client, pending.signed, out) catch |err| {
-            // An allocation failure while encoding a successful receipt can
-            // still follow a committed mutation. Preserve uncertainty.
-            buffer(.{ .err = if (handle.client.last_rejection) |rejection| @tagName(rejection) else @errorName(err) }, out) catch {};
-            return switch (err) {
-                error.AccessDenied => .denied,
-                error.Rejected => .rejected,
-                error.Conflict => .conflict,
-                else => if (pending.signed == .command) .uncertain else if (err == error.InvalidAuthorityResponse) .invalid_response else .unavailable,
-            };
-        };
-        return .ok;
+        return exchange(allocator, &handle.client, pending.signed, out);
     }
     /// Borrowed until transit_buffer_destroy; length is authoritative (no NUL).
     pub fn transit_buffer_data(value: *const Buffer) callconv(.c) [*]const u8 {
@@ -201,12 +193,69 @@ pub const Api = struct {
     }
 };
 
-fn call(client: *wire.Client, signed: Signed, out: *?*Buffer) !void {
+fn exchange(alloc: std.mem.Allocator, client: anytype, signed: Signed, out: *?*Buffer) Status {
+    call(alloc, client, signed, out) catch |err| {
+        // Allocation failure while exposing an accepted receipt cannot turn
+        // that durable mutation into rejection. No transport retry occurs here.
+        bufferWithAllocator(alloc, .{ .err = if (client.last_rejection) |rejection| @tagName(rejection) else @errorName(err) }, out) catch {};
+        return switch (err) {
+            error.AccessDenied => .denied,
+            error.Rejected => .rejected,
+            error.Conflict => .conflict,
+            else => if (signed == .command) .uncertain else if (err == error.InvalidAuthorityResponse) .invalid_response else .unavailable,
+        };
+    };
+    return .ok;
+}
+
+fn call(alloc: std.mem.Allocator, client: anytype, signed: Signed, out: *?*Buffer) !void {
     switch (signed) {
-        .command => |s| try buffer(try client.submit(s), out),
-        .view => |s| try buffer(try client.call(p.View, "/v2/view", s), out),
-        .state => |s| try buffer(try client.call(p.State.Page, "/v2/state", s), out),
-        .inspection => |s| try buffer(try client.call(p.Inspection.Page, "/v2/inspect", s), out),
-        .delivery => |s| try buffer(try client.call(p.Delivery.Status, "/v2/delivery", s), out),
+        .command => |s| try bufferWithAllocator(alloc, try client.submit(s), out),
+        .view => |s| try bufferWithAllocator(alloc, try client.call(p.View, "/v2/view", s), out),
+        .state => |s| try bufferWithAllocator(alloc, try client.call(p.State.Page, "/v2/state", s), out),
+        .inspection => |s| try bufferWithAllocator(alloc, try client.call(p.Inspection.Page, "/v2/inspect", s), out),
+        .delivery => |s| try bufferWithAllocator(alloc, try client.call(p.Delivery.Status, "/v2/delivery", s), out),
     }
+}
+
+test "every post-commit response allocation failure remains uncertain and releases buffers" {
+    const t = std.testing;
+    const Accepted = struct {
+        last_rejection: ?p.ErrorCode = null,
+        calls: usize = 0,
+        fn submit(self: *@This(), _: p.SignedRequest) anyerror!p.Receipt {
+            self.calls += 1;
+            return .{ .position = 37 };
+        }
+        fn call(_: *@This(), comptime T: type, _: []const u8, _: anytype) anyerror!T {
+            return error.UnexpectedRead;
+        }
+    };
+    const signed: Signed = .{ .command = .{
+        .request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } },
+        .signature = @splat(0),
+    } };
+    var failures: usize = 0;
+    for (0..32) |index| {
+        var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = index });
+        var accepted: Accepted = .{};
+        var out: ?*Buffer = null;
+        const result = exchange(failing.allocator(), &accepted, signed, &out);
+        defer if (out) |pointer| {
+            const owned = cast(BufferImpl, pointer);
+            failing.allocator().free(owned.bytes);
+            failing.allocator().destroy(owned);
+        };
+        try t.expectEqual(@as(usize, 1), accepted.calls);
+        if (failing.has_induced_failure) {
+            failures += 1;
+            try t.expectEqual(.uncertain, result);
+        } else {
+            try t.expectEqual(.ok, result);
+            try t.expectEqualStrings("{\"position\":37}", cast(BufferImpl, out.?).bytes);
+            try t.expect(failures >= 2);
+            return;
+        }
+    }
+    return error.AllocationEnumerationDidNotComplete;
 }

@@ -18,6 +18,11 @@ intended maximum size of application state.
 The [lifetime guide](docs/lifetimes.md) explains retention, suspension and
 permanent retirement without hiding the kernel's contracts.
 
+The package also exports the `station_frame` module for consumers needing only
+the versioned frame codec. It has the same `Frame` implementation and client
+protocol types, without a Fuze/Arrow dependency. The bounded codec fuzz target
+uses this interface; it does not substitute a test copy of the wire format.
+
 `GenServer.step(handler, proposed_read_deadline_ms)` does bounded client work,
 returning `idle`, `progress`, `committed`, or `blocked`. A handler receives a
 detached `Turn`, with reads, private writes, sends and replies. It receives no

@@ -84,7 +84,7 @@
         "Lost accepted response followed by exact retry",
         "Malformed reply and host loss"
       ],
-      "limits": "Same-principal concurrent handles and post-commit allocation-failure enumeration need the M10 harness.",
+      "limits": "Response allocation after acceptance is enumerated through the real ABI response/status path with a deterministic transport; real HTTP/host loss remains separately qualified. Same-principal concurrent native handles still need shared SDK schedules.",
       "model": "tests/verification/models/Authority.tla"
     },
     {
@@ -247,6 +247,27 @@
         "Lost HTTP acknowledgement retains receipt semantics"
       ],
       "limits": "Bounded diagnostics may be dropped; they are not durable authority.",
+      "model": null
+    },
+    {
+      "id": "CODEC-01",
+      "claim": "Accepted bounded wire values preserve canonical identity and owned bytes",
+      "owner": "docs/CLIENT.md",
+      "implementation": [
+        "packages/zig/transit-protocol/src/Value.zig",
+        "packages/zig/transit-station/src/Frame.zig"
+      ],
+      "profile": "transit-v2/station-frame-v1",
+      "tasks": [
+        "test::codecs",
+        "contract::check"
+      ],
+      "scenarios": [
+        "Malformed/truncated signed JSON under fixed workspace",
+        "Owned binary frame and exact correlation roundtrip",
+        "Allocation enumeration through parse and canonical output"
+      ],
+      "limits": "Finite corpus and bounded Zig fuzz budget; no claim that a roundtrip replaces independent canonical vectors or Arrow readers.",
       "model": null
     }
   ]

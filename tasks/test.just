@@ -18,6 +18,10 @@ build:
 properties *args:
     zig build test-properties -- {{args}}
 
+# Run finite codec regressions; optional Zig fuzz iteration budget.
+codecs *args:
+    zig build test-codecs {{args}}
+
 # Bounded formal exploration and negative controls; tools use the locked nixpkgs.
 model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-model -- {{args}}

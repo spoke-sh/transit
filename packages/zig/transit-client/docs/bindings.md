@@ -74,6 +74,13 @@ Retry the same frozen operation; do not invent a new sequence. Read failures
 return `unavailable` or `invalid_response`. Preflight/ownership statuses include
 `invalid_argument`, `out_of_memory`, `busy` and `incompatible_version`.
 
+Unit checks enumerate every allocation in the receipt-to-ABI response path after
+a deterministic transport reports acceptance. They require `uncertain`, exactly
+one submission and released buffers on failure. The package's standalone `test`
+target and root unit suite run those ABI tests; the real C/HTTP proof separately
+qualifies host loss, exact retries and current revocation. The allocator seam is
+internal and does not change the C interface or production allocator.
+
 JSON is parsed and canonicalized in Zig. Host adapters must retain integer
 precision and distinguish payload integers from the protocol's current 53-bit
 counter ceiling. The ABI does not silently expand that public limit. Returning

@@ -64,6 +64,19 @@ pub fn build(b: *std.Build) void {
     formal.stdio = .inherit;
     b.step("test-model", "Check finite authority model and replay counterexamples against Zig").dependOn(&formal.step);
     const protocol = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize });
+    // The pinned native x86 backend does not emit usable fuzz coverage yet.
+    const codec_module = b.createModule(.{
+        .root_source_file = b.path("tests/codecs.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }, .{ .name = "station_frame", .module = station.module("station_frame") } },
+    });
+    const codec_step = b.step("test-codecs", "Run bounded codec corpus and allocation failure enumeration");
+    // Separate runs give both boundaries their own finite fuzz budget.
+    inline for (.{ "signed request", "Station frames" }) |filter| {
+        const codecs = b.addTest(.{ .use_llvm = true, .root_module = codec_module, .filters = &.{ filter, "allocation failures release parser" } });
+        codec_step.dependOn(&b.addRunArtifact(codecs).step);
+    }
     const exporter = b.addExecutable(.{ .name = "transit-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-protocol/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }} }) });
     b.step("contract", "Export public contract JSON Schema to stdout").dependOn(&b.addRunArtifact(exporter).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = protocol.module("transit_protocol") })).step);
@@ -75,6 +88,7 @@ pub fn build(b: *std.Build) void {
     b.step("client-contract", "Export reflected client ABI signatures").dependOn(&b.addRunArtifact(client.artifact("transit-client-contract")).step);
     b.step("client-abi", "Build the shared client library").dependOn(&b.addInstallArtifact(client.artifact("transit_client"), .{}).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("client_abi") })).step);
     const embed = b.addSystemCommand(&.{ "python3", "-B" });
     embed.addFileArg(b.path("apps/transit-board/embed.py"));
     const asset_source = embed.addOutputFileArg("assets.zig");

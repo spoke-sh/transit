@@ -5,6 +5,7 @@
       "check-core",
       "test::build",
       "test::properties",
+      "test::codecs",
       "test::dev-environment",
       "test::kubectl-transit",
       "test::deployments",

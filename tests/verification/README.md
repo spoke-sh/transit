@@ -68,3 +68,23 @@ edits production source in the working tree. Weekly CI runs this larger budget.
 [scale.json](scale.json) defines progressive experiment sizes and required
 measurements for the growing profile. These are test datasets, not service SLOs
 or claims that the legacy profile supports them.
+
+## Codecs and allocation boundaries
+
+`just test::codecs` runs valid/malformed/truncated signed JSON and Station frame
+corpora, canonical-identity roundtrips and parser/output allocation enumeration.
+`just test::codecs --fuzz=1000` gives each of the two targets a bounded native Zig
+fuzz budget. The request parser has a fixed 128 KiB workspace and bounded input;
+no generated input can initiate a request or authority mutation.
+
+The pinned Zig native x86 backend emitted empty coverage metadata, and fuzzing
+through Arrow's C compression dependencies produced unresolved coverage symbols.
+The qualified target explicitly uses LLVM and the exported standalone Station
+frame module. These findings do not justify claiming Arrow/C fuzz coverage; the
+independent Arrow integration proof remains required.
+
+The raw client ABI additionally injects failure at every response allocation after
+an accepted receipt through the production status/encoding path. The fake
+transport counts exactly one submission; allocation failure must remain
+`uncertain`. Native allocator checks detect leaks, while real HTTP/host proofs
+retain responsibility for network and scheduler assumptions.

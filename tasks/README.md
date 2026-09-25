@@ -51,6 +51,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::unit` | Runs Zig unit/protocol tests without a service |
 | `just test::build` | Compiles application/probe entry points separately from unit tests; included in core CI |
 | `just test::model [--tail N]` | Checks the finite TLA+ model, removed guards and concrete Zig counterexample schedules |
+| `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
 | `just test::properties [--seeds N --steps N]` | Runs saved and generated authority schedules; failures retain a minimized replay trace |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |
