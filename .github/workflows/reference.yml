@@ -21,6 +21,8 @@ jobs:
       - run: nix develop --command just launchers::reference::images
       - run: nix develop --command just launchers::reference::test-launcher
       - run: nix develop --command just launchers::reference::test
+      - run: nix develop --command just launchers::compose::test-station
+      - run: nix develop --command just launchers::reference::test-station
       - run: nix develop --command just test::capacity
       - if: always()
         run: |

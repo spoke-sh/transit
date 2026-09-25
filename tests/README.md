@@ -681,7 +681,8 @@ their own application resources. The shared infrastructure is not destroyed.
 
 The ordinary CI inventory includes the local Station proof and full language
 matrix. Docker Compose and reference proofs require Docker/the provider fixture
-and remain explicit qualification commands. No hosted run-time improvement is
+and run in the opt-in reference workflow or as explicit qualification commands.
+No hosted run-time improvement is
 claimed from local measurements; the CI lanes report their individual task times.
 
 Qualification is deliberately finite: four realm resources, 32 entries per

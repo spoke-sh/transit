@@ -120,14 +120,16 @@ The [baseline run](https://github.com/rupurt/rey/actions/runs/35809573509) spent
 `ursulactl` from Rust source. Installing Nix took only four seconds. We keep that
 installer and cache the pinned overlay outputs rather than changing tools.
 
-The cache key includes runner OS/architecture, `flake.lock`, Nix expressions,
-Vite+'s npm sources/lockfile, reference CLI pins, environment helper and packaged
-plugin source and provider CLI extension. Other application-source changes reuse the same toolchain cache;
-toolchain changes can restore an older cache as a starting point. An explicit temporary Nix profile protects the shell during garbage collection,
-and successful preparation is saved even if a later protocol test fails. The
-6 GiB GC target accommodates the locally measured ~5 GiB build closure; it is
-not a hard size bound. No cache-purge permission or external cache secret is
-needed. The self-hosted reference workflow keeps using its existing local store.
+The current cache key includes the lane, runner OS/architecture, `flake.lock`,
+Nix expressions, Vite+'s npm sources/lockfile, reference pins and the provider CLI
+extension. Ordinary application/plugin edits reuse the heavy toolchain cache;
+small packaged helpers rebuild locally. Toolchain changes can restore an older
+cache as a starting point. A temporary Nix profile roots the lane's shell during
+garbage collection. Successful preparation is saved on a cache miss even if a
+later test fails; exact hits do not trigger another upload. Collection targets
+zero unrooted store bytes, preserving the live closure rather than an arbitrary
+build-store allowance. No cache-purge permission or external cache secret is
+needed. The self-hosted reference workflow keeps its existing local store.
 
 The first cache miss still builds the pinned toolchain. The
 [first measured warm run](https://github.com/rupurt/rey/actions/runs/35815675439)
@@ -140,11 +142,11 @@ restore, preparation, checks, and save step timings on subsequent runs.
 
 The [pre-split run](https://github.com/rupurt/rey/actions/runs/36073815381)
 took 18m29s: restore/save used 2m28s, the checks used 14m22s, and native launcher
-qualification accounted for 5m39s of those checks. The workflow now runs two
+qualification accounted for 5m39s of those checks. The workflow now runs three
 lanes concurrently. `just ci::core` owns foundation/library/protocol proofs;
 `just ci::experience` owns frontend, cross-service observability, Board and
-native launcher proofs, followed by `just ci::browser`. M9 adds a third
-`just ci::bindings` lane for the native boundary and cross-language proofs.
+native counter/Station launcher proofs, followed by `just ci::browser`.
+`just ci::bindings` owns the native boundary and cross-language proofs.
 `just ci` enters the pinned bindings shell and runs all three task inventories
 sequentially; `just check` still uses the ordinary developer tools.
 
