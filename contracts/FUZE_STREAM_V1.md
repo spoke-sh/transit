@@ -96,6 +96,9 @@ worker must support this plan, progress and IPC segment representation explicitl
 
 ## Station integration gates
 
+The [Station query v2 design](STATION_QUERY_V2.md) specifies the durable job,
+staging and delivery boundaries; its status is separate from this pure engine.
+
 Station must bind the plan to one retained source and store a durable job identity,
 authorized peer/correlation, policy revision, source cursor and engine progress.
 Every source-dependent proposal declares its retained read dependencies. A page
