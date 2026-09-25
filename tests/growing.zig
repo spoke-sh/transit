@@ -31,6 +31,7 @@ const Expected = struct {
     rows: u64,
     last: g.SignedRequest = undefined,
     receipt: u64 = 0,
+    views: [16]?u64 = @splat(null),
 };
 const Measurements = struct {
     io: std.Io,
@@ -113,6 +114,10 @@ fn verify(caller: Caller, expected: Expected) !void {
     try verifyRows(caller, expected, .current);
     try verifyRows(caller, expected, .view);
     try verifyRows(caller, expected, .retained);
+    for (expected.views) |slot| if (slot) |view| {
+        const page = (try caller.query(.{ .entries = .{ .view = view, .key = key(0) } })).body.entries.page;
+        try t.expect(page.entries[0].?.value.eql(value(0)));
+    };
     try t.expectEqual(expected.receipt, try engine.submit(expected.last));
     try t.expectEqual(before, try engine.journal.tail());
     try t.expectEqual(writes, engine.page_store.created);
@@ -129,7 +134,12 @@ fn verify(caller: Caller, expected: Expected) !void {
     var count: usize = 0;
     while (true) {
         const page = (try caller.query(.{ .processes = .{ .after = after, .position = before } })).body.processes;
-        for (page.entries) |slot| if (slot != null) {
+        for (page.entries) |slot| if (slot) |process_row| {
+            if (process_row.pid != expected.retired) {
+                const name = if (process_row.pid == expected.pid or process_row.pid == expected.reader) "state" else "shared";
+                const association = (try caller.query(.{ .association = .{ .pid = process_row.pid, .name = try core.Value.init(name) } })).body.association;
+                try t.expectEqual(expected.resource, association.?.resource);
+            }
             count += 1;
         };
         after = page.next;
@@ -154,7 +164,7 @@ fn verify(caller: Caller, expected: Expected) !void {
     const denied = try g.sign(.{ .realm = 42, .principal = 65536, .sequence = 1, .command = .{ .send = .{ .pid = expected.reader, .value = .{} } } }, caller.key);
     try t.expectError(error.Forbidden, engine.submit(denied));
 }
-fn write(caller: Caller, rows: usize) !Expected {
+fn write(caller: Caller, rows: usize, views: usize) !Expected {
     const engine = caller.engine;
     for (0..20) |i| _ = try caller.submit(.{ .grant = .{ .subject = 65536 + i, .public_key = caller.key.public_key.toBytes(), .permissions = core.all_permissions } });
     const pid = try caller.submit(.{ .spawn = .{} });
@@ -211,19 +221,24 @@ fn write(caller: Caller, rows: usize) !Expected {
             expected.revision = expected.receipt;
         } else expected.revision = try engine.commit(candidate);
         try caller.measurements.turns.append(caller.measurements.allocator, caller.measurements.elapsed(start));
-        if (turn + 1 == rows / 8) expected.view = try caller.submit(.{ .open_view = .{ .pid = reader, .generation = 2, .input = input, .expected_revision = 0, .resource = resource, .revision = expected.revision, .deadline_ms = 1000 } });
+        if (turn + 1 == rows / 8) {
+            for (0..views) |index| expected.views[index] = try caller.submit(.{ .open_view = .{ .pid = reader, .generation = 2, .input = input, .expected_revision = 0, .resource = resource, .revision = expected.revision, .deadline_ms = 1000 } });
+            expected.view = expected.views[0].?;
+        }
     }
     return expected;
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 4 and args.len != 5) return error.ExpectedUrlPhaseRowsCache;
+    if (args.len < 4 or args.len > 6) return error.ExpectedUrlPhaseRowsCacheViews;
     const rows = try std.fmt.parseInt(usize, args[3], 10);
     if (rows < 64 or rows > 4096 or rows % 8 != 0) return error.InvalidDataset;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 256 * 1024 });
     defer client.deinit();
     var journal: Journal = .{ .store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-growth-proof", .name = "authority" } } } };
-    const cache = if (args.len == 5) try std.fmt.parseInt(usize, args[4], 10) else 1;
+    const cache = if (args.len >= 5) try std.fmt.parseInt(usize, args[4], 10) else 1;
+    const views = if (args.len == 6) try std.fmt.parseInt(usize, args[5], 10) else 1;
+    if (views == 0 or views > 16) return error.InvalidViewDataset;
     var page_store = try adapter.PackedPageStore.init(init.gpa, journal.store.journal, cache);
     defer page_store.deinit();
     const root_key = try core.Ed25519.KeyPair.generateDeterministic(@splat(7));
@@ -248,7 +263,7 @@ pub fn main(init: std.process.Init) !void {
     var oracle = journal.store.journal;
     oracle.stream.name = "proof-expectations";
     const expected = if (writing) blk: {
-        const result = try write(caller, rows);
+        const result = try write(caller, rows, views);
         // Test oracle only: production recovery never consults this stream.
         try oracle.create();
         const bytes = try std.json.Stringify.valueAlloc(init.gpa, result, .{});

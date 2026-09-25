@@ -19,6 +19,7 @@ def main():
     parser.add_argument("binary")
     parser.add_argument("--rows", type=int, default=64)
     parser.add_argument("--cache", type=int, default=1)
+    parser.add_argument("--views", type=int, default=1)
     parser.add_argument("--output", type=Path, help="retain a distinct artifact for each matrix sample")
     parser.add_argument("--cold-s3", action="store_true")
     parser.add_argument("--timeout", type=float, default=180)
@@ -34,7 +35,7 @@ def main():
                 "binary_sha256": hashlib.sha256(Path(binary).read_bytes()).hexdigest(),
                 "platform": platform.platform(), "storage_profile": "s3" if args.cold_s3 else "hot",
                 "zig": subprocess.check_output(["zig", "version"], text=True).strip(), "phases": []}
-    evidence.update(resident_pages=args.cache, logical_cpus=os.cpu_count(),
+    evidence.update(resident_pages=args.cache, retained_views=args.views, logical_cpus=os.cpu_count(),
                     affinity=sorted(os.sched_getaffinity(0)),
                     stack_limit_bytes=resource.getrlimit(resource.RLIMIT_STACK)[0],
                     cpu=next((line.split(':', 1)[1].strip() for line in Path('/proc/cpuinfo').read_text().splitlines()
@@ -61,7 +62,10 @@ def main():
                 # File-backed output also retains stderr without blocking the child.
                 stdout_file = resources.enter_context((fixture.root / f'{phase}.json').open('w+'))
                 stderr_file = resources.enter_context((fixture.root / f'{phase}.log').open('w+'))
-                process = subprocess.Popen([binary, fixture.url, phase, str(args.rows), str(args.cache)],
+                command = [binary, fixture.url, phase, str(args.rows), str(args.cache)]
+                if args.views != 1:
+                    command.append(str(args.views))
+                process = subprocess.Popen(command,
                     env=fixture.env, stdout=stdout_file, stderr=stderr_file, text=True)
                 try:
                     while process.poll() is None:

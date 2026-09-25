@@ -105,7 +105,9 @@ provider growth at larger sizes and end-to-end execution latency remain open.
 
 The measurement driver also records per-operation and complete-turn nanoseconds,
 nearest-rank p50/p95/p99, page hits/misses, attempted page payload bytes, orphan
-staging bytes, allocated WAL blocks, root-open time and checkpoint/trim time.
+staging bytes, allocated WAL blocks, process I/O counters, sampled stack mappings, root-open
+time and checkpoint/trim time. Linux `write_bytes` counts process-attributed
+storage I/O, not a device-level persistence or write-amplification proof.
 A complete-turn sample includes admission, view acquisition, private preparation,
 publication and intervening correctness reads; it is not just append latency.
 Opening an engine is timed separately from full retained-data verification.

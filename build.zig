@@ -250,6 +250,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
     }) });
+    build_test_step.dependOn(&growing_load.step);
     const load_proof = b.addSystemCommand(&.{ "python3", "-B" });
     load_proof.addFileArg(b.path("tests/growing_load.py"));
     load_proof.addArtifactArg(node_artifact);

@@ -14,7 +14,8 @@ from storage import Fixture
 
 
 def metrics():
-    return {"samples": 0, "rss_kib": None, "threads": None, "fds": None}
+    return {"samples": 0, "rss_kib": None, "threads": None, "fds": None,
+            "stack_kib": None, "read_bytes": None, "write_bytes": None}
 
 
 def sample_process(pid, peak):
@@ -25,11 +26,19 @@ def sample_process(pid, peak):
     except (FileNotFoundError, ProcessLookupError, PermissionError):
         return
     peak["samples"] += 1
-    for field, label in (("VmHWM", "rss_kib"), ("Threads", "threads")):
+    for field, label in (("VmHWM", "rss_kib"), ("Threads", "threads"), ("VmStk", "stack_kib")):
         match = re.search(rf"^{field}:\s+(\d+)", status, re.M)
         if match:
             peak[label] = max(peak[label] or 0, int(match[1]))
     peak["fds"] = max(peak["fds"] or 0, fds)
+    try:
+        counters = Path(f"/proc/{pid}/io").read_text()
+    except (FileNotFoundError, ProcessLookupError, PermissionError):
+        return
+    for field in ('read_bytes', 'write_bytes'):
+        match = re.search(rf'^{field}:\s+(\d+)', counters, re.M)
+        if match:
+            peak[field] = max(peak[field] or 0, int(match[1]))
 
 
 def main():

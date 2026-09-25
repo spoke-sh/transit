@@ -166,6 +166,22 @@
       ]
     },
     {
+      "name": "views8-cache16",
+      "kind": "authority",
+      "exceeds_cache": false,
+      "args": [
+        "--rows",
+        "256",
+        "--cache",
+        "16",
+        "--views",
+        "8",
+        "--cold-s3",
+        "--timeout",
+        "600"
+      ]
+    },
+    {
       "name": "load-uniform",
       "kind": "service",
       "args": [

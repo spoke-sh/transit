@@ -14,7 +14,7 @@ jobs:
     # resources for Substrate. This privileged proof runs weekly and on demand;
     # an unavailable dedicated runner leaves qualification outstanding.
     runs-on: [self-hosted, linux, x64, rey-reference]
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -24,16 +24,23 @@ jobs:
       - run: nix develop --command just launchers::reference::images
       - run: nix develop --command just launchers::reference::test-launcher
       - run: nix develop --command just launchers::reference::test
+      - run: nix develop --command just launchers::compose::test
       - run: nix develop --command just launchers::compose::test-station
       - run: nix develop --command just launchers::reference::test-station
       - run: nix develop --command just test::capacity
       - run: nix develop --command just test::growing-capacity
+      - run: nix develop --command just test::pages-cold --keys 1024
+      - run: nix develop --command just test::scale
       - name: Preserve capacity evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: reference-capacity-${{ github.run_attempt }}
-          path: .cache/*capacity-evidence.json
+          path: |
+            .cache/*capacity-evidence.json
+            .cache/verification/pages-*.json
+            .cache/verification/scale/*.json
+          include-hidden-files: true
           retention-days: 14
       - if: always()
         run: |
