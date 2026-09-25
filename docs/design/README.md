@@ -3,8 +3,11 @@
 Design reviews form one numbered sequence, read from top to bottom. Each review
 owns one question, its proposal, visual evidence and recorded outcome.
 
-**Current review:** [D6 — Canvas emphasis and zoom](D6.md).
+**Current review:** [D7 — Neighborhoods, resource portals and data workspaces](D7.md).
 **Selected visual direction:** [D2, Figure 7 — Queue-count fabric](D2.md#figure-7-queue-counts-with-age-on-the-well-walls).
+The reviewer also endorsed [D5's architecture](D5.md#visual-studies),
+[D6's subtle fabric](D6.md#figure-1-processes-in-front-resources-as-landmarks)
+and [overhead detail](D6.md#figure-4-zoom-within-resources-reveals-flat-detail).
 
 | Review | Focus | Status | Outcome or next decision |
 | --- | --- | --- | --- |
@@ -12,10 +15,11 @@ owns one question, its proposal, visual evidence and recorded outcome.
 | [D2](D2.md) | Board inbox, outbox and age | Accepted in part | Figure 7 selected; age-driven depth remains an alternative |
 | [D3](D3.md) | Board fabric at 100–100,000 processes | Reviewed | Scale visuals favored; grouping remains open; D4 extends scale and simplifies the UI |
 | [D4](D4.md) | Board fabric at 1 million–1 billion processes | Reviewed | Visual direction endorsed; exact metrics and grouping remain open; D5 adds resources |
-| [D5](D5.md) | Table, KV and Document resource cityscapes | Reviewed | Direction welcomed; mappings documented; exact metrics remain open; D6 explores the transition |
-| [D6](D6.md) | Process/resource emphasis and semantic zoom | In review | Compare an explicit canvas switch with zoom; review the shared-location transition and flat resource detail |
+| [D5](D5.md) | Table, KV and Document resource cityscapes | Accepted in part | Architectural visuals endorsed; exact metrics/grouping remain open; D7 explores entering the resource |
+| [D6](D6.md) | Process/resource emphasis and semantic zoom | Accepted in part | Figures 1 and 4 endorsed; emphasis policy and motion remain open; D7 develops the transition and interior |
+| [D7](D7.md) | Neighborhood navigation, resource portals and query workspaces | In review | Review Auto/pinned emphasis, deliberate resource entry, and Canvas/Browse representations of one sample query |
 
-Review status records the design discussion. All six reviews contain proposed
+Review status records the design discussion. All seven reviews contain proposed
 interfaces and synthetic imagery; none is an implemented UI or capacity claim.
 Delivery scope and qualification belong in the [roadmap](../roadmap/README.md).
 [Board](../BOARD.md) owns the product boundary and current inspection contracts.
@@ -63,7 +67,7 @@ the review ID supplies context.
 
 Keep images, prompts, fixtures and technical appendices in a named supporting
 directory and link them from their owning reviews. The
-[Board materials](board-atlas/README.md) support D1–D6. Supporting directories
+[Board materials](board-atlas/README.md) support D1–D7. Supporting directories
 do not introduce another review sequence.
 
 ## Review statuses

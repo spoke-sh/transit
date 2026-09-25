@@ -94,6 +94,17 @@ unchanged facts and no active height scale. The four-frame storyboard and
 [mapping reference](design/D5.md#visual-mapping-reference) document proposed
 behavior, not an implemented state machine or new read surface.
 
+The [D7 resource-workspace review](design/D7.md) carries forward D5's architecture
+and D6's selected subtle fabric/overhead detail. It explores Auto or pinned
+emphasis, following a process association to a resource, and an intentional
+doorway from a building's footprint into a flat data workspace. Canvas shows
+declared structures and a visual query worksheet; Browse shows the same query
+and result as controls and rows. Entry and view changes never run a query.
+Query execution is a separately scoped future capability, outside current Board
+inspection: it requires an explicit public service/authorization boundary and
+cannot hide M9's mutating durable query/captured-reply flow behind a read route.
+The synthetic sample results authorize no application decoding or provider access.
+
 ## Boundary and packaging
 
 ```mermaid

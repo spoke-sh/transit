@@ -111,6 +111,13 @@ the selected resource and camera through a neutral presentation handoff, then
 shows a closer flat resource detail. It also clarifies that opening a full
 Browse page is explicit; zoom alone does not change the selected view or kind.
 
+[D7](../D7.md) develops the selected D6 fabric and overhead detail into a proposed
+resource doorway. It explores Auto emphasis alongside explicit pins, while
+keeping process/resource identity separate. A future query workspace shares a
+draft and result between Canvas/Browse; navigation never executes queries.
+This extends the original metadata-only inspection intent and needs a separately
+scoped public capability before implementation.
+
 The [fabric exploration](../D2.md) extends this initial height-only study with
 an inbox shoulder and an independently readable outbox well. It compares count
 depth plus age tint with an explicit age-depth layer. The interface uses Inbox
