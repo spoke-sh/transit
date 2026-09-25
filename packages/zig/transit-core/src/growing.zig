@@ -1,5 +1,5 @@
 //! M10 authority integration in development. Published roots, not resident
-//! catalogs, hold protocol state. This module is not yet served by transit-node.
+//! catalogs, hold protocol state. Served only by the explicit development profile.
 const std = @import("std");
 const core = @import("root.zig");
 const catalog = @import("catalog.zig");

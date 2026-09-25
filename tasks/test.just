@@ -109,6 +109,10 @@ pages-cold *args:
 growing *args:
     zig build test-growing -- {{args}}
 
+# Exercise the explicit v3 node/client profile and lost replies on one CPU.
+growing-service:
+    zig build test-growing-service
+
 # Prove bounded diagnostics, independent metrics and cancelable log sinks.
 telemetry:
     zig build test-telemetry

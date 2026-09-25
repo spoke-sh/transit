@@ -1,8 +1,8 @@
 # Growing authority integration
 
 Status: M10 in development. `transit_core.growing.Engine(Journal, PageStore)` is
-not yet composed into the running node or public client. The [v3 contract](../../../../contracts/TRANSIT_V3.md)
-owns proposed wire types; the existing v2 engine remains the deployed profile.
+available through an explicitly selected node profile and Zig client. The [v3 contract](../../../../contracts/TRANSIT_V3.md)
+owns proposed wire types; the existing v2 engine remains the launcher default.
 
 The implemented internal transitions include bootstrap, root-authorized principal
 grant/revocation, process creation, ownership, mailbox admission and termination;
@@ -107,11 +107,11 @@ cancellation. A finite process's previously issued turn permit can settle before
 its settlement deadline, but cannot issue fresh outputs/effects after its work
 cutoff. Ownership changes fence the old activation without renewing that permit.
 
-No running capability advertises these transitions. Query/command transport,
-background disposition and terminal dependency materialization,
+The [explicit node profile](../../../../apps/transit-node/docs/growing.md) exposes
+signed commands and bounded queries. Background disposition and terminal dependency materialization,
 runtime/lifecycle extensions, quotas/control reserve, retained results and Station
 remain integration work within M10. Unimplemented commands fail explicitly with
-`UnsupportedGrowthCommand`. The module must not be selected by a launcher before
+`UnsupportedGrowthCommand`. The profile must not be selected by a launcher before
 the complete advertised profile and its proofs are ready. Existing histories are
 never silently upgraded or parsed as v3.
 

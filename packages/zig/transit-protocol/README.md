@@ -2,8 +2,10 @@
 
 The [v3 growing-profile contract](../../../contracts/TRANSIT_V3.md) is under M10
 development and exported separately as `Growth`. Its generated schema is checked
-alongside v2; declaring these types does not advertise node/client support or
-change the existing v2 signing, checkpoints or ABI.
+alongside v2. The [explicit node profile](../../../apps/transit-node/docs/growing.md)
+and Zig client now support its bounded command/query surface; launcher defaults,
+Station and foreign ABIs retain v2. Schema presence alone does not advertise a
+running capability or migrate signing/checkpoint formats.
 
 Public, language-neutral Transit contract types, exported as `transit_protocol`.
 This library depends only on Zig's standard library. It contains no authority,

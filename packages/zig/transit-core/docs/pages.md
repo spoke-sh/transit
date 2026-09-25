@@ -5,7 +5,7 @@ the running v2/state-v1 authority and Station still use their legacy catalogs.
 This implementation does not advertise a new public capability or migrate data.
 
 The ordered copy-on-write tree stages immutable pages and returns a candidate
-root. Only a future authoritative journal decision may publish that root with
+root. Only an authoritative journal decision may publish that root with
 process progress, principal sequence and outputs. A staged page is neither an
 accepted turn nor a visible resource head. Failures can leave unreachable staging;
 they do not change the caller's previously published root.
@@ -96,4 +96,5 @@ and allocation failure cleanup. Their store is a deterministic in-memory fault
 dependency, not a proof of bounded provider cache, disk persistence or production
 scale. The [Ursula page proof](../../transit-backend-ursula/docs/pages.md) additionally
 checks cold bounded caches and disk restart/checkpoint/trim. Integration with the
-running authority remains required M10 evidence.
+explicit growing authority is qualified separately; Station integration and
+broader scale remain required M10 evidence.

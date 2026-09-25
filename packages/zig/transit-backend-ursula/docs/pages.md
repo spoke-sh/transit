@@ -2,8 +2,9 @@
 
 `PageStore` and `PackedPageStore` implement the
 [core page interface](../../transit-core/docs/pages.md).
-It is an M10 primitive; the running node, client and Station still use the legacy
-state profile. Page persistence alone does not qualify a growing authority.
+It is an M10 primitive, now composed by the explicit development v3 node.
+Launcher defaults and Station retain the legacy state profile. Page persistence
+alone does not qualify a growing authority.
 
 Each store borrows a journal/client and owns a configurable FIFO cache of decoded
 pages. Evicting a slot never removes durable bytes. Zero slots disables caching;

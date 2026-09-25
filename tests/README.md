@@ -776,7 +776,8 @@ reject staged partial proposals and fence expired required dependencies. Signed
 read checks cover bounded current/captured pages, current permissions, stale
 ownership/cuts, expiry and hidden association filtering. These engine checks
 use injected storage; delivery/settlement also have injected-storage checks.
-Service/client/Station integration and control reserves still need evidence. The running system continues to use v2.
+Station integration and control reserves still need evidence. Launcher defaults
+continue to use v2; the explicit growing service is qualified separately below.
 
 
 `just test::growing` runs the growing core against real Ursula and a single-page
@@ -789,3 +790,14 @@ removes page storage in its disposable fixture to prove recovery fails closed.
 The [adapter guide](../packages/zig/transit-backend-ursula/docs/growing.md) owns
 measurement details and compatibility limits. This is authority/provider
 qualification, not node/client/Station support or a scale SLO.
+
+
+`just test::growing-service` runs an independent Zig caller using only
+`transit-client` against the real v3 node, with disk Ursula on one CPU. It uses a
+wide principal, six resources and 64 rows, reading individual captured keys and
+bounded current pages. A malformed receipt after acceptance survives caller/node/
+provider restart as the exact same signed request and receipt; current revocation
+then denies both reads and that historical retry. The response validator also
+rejects mixed realm/revision, page holes and invalid continuations while accepting
+empty filtered catalog pages. No launcher, Station or foreign ABI changes profile
+implicitly. Existing v2 ingress and observability proofs cover the shared loop.

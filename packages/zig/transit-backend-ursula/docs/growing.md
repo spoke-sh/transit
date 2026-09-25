@@ -2,8 +2,9 @@
 
 Status: M10 development integration. `GrowingStore` implements the journal side
 of [growing core](../../transit-core/docs/growing.md); `PackedPageStore` supplies
-its immutable data. Neither changes the running v2 node, client or Station by
-being exported. A realm must explicitly select v3; automatic conversion or
+its immutable data. The node and Zig client have an
+[explicit development profile](../../../../apps/transit-node/docs/growing.md);
+launcher defaults and Station remain v2. A realm must explicitly select v3; automatic conversion or
 mixed-profile writers are forbidden.
 
 ## Publication and ownership
@@ -70,7 +71,7 @@ not provider memory qualification. Timeouts/errors stay inconclusive.
 
 The page cache is bounded, but fanout, path-copy and protocol-operation request
 amplification remain substantial. This is not millisecond execution evidence.
-Service transport, framework handler/result paging, background bounded
+Framework handler/result paging, background bounded
 disposition, quotas/control reserve, runtime bindings and migration tooling remain
 M10 work. Old deployed v2 history stays on its explicit legacy path; rejection
 of incompatible formats is not a completed migration facility.

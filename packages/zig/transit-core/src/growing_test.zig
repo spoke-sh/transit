@@ -52,7 +52,10 @@ const Fixture = struct {
         return g.sign(.{ .realm = 42, .principal = 65536, .sequence = sequence, .command = command }, self.worker_key);
     }
     fn query(self: *Fixture, principal: u64, kind: @FieldType(g.Query, "kind")) !g.Response {
-        return self.engine.query(try g.signQuery(.{ .realm = 42, .principal = principal, .kind = kind }, if (principal == 0) self.root_key else self.worker_key));
+        const request: g.Query = .{ .realm = 42, .principal = principal, .kind = kind };
+        const response = try self.engine.query(try g.signQuery(request, if (principal == 0) self.root_key else self.worker_key));
+        try g.validateResponse(response, request);
+        return response;
     }
     fn emit(self: *Fixture, pid: u64, outputs: [g.turn_outputs]?g.Output, payload: ?core.Value) !u64 {
         const input = try self.root(.{ .send = .{ .pid = pid, .value = .{} } });

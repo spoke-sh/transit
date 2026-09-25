@@ -16,7 +16,23 @@
       "turn_mutations": 4,
       "turn_views": 4,
       "turn_outputs": 4
-    }
+    },
+    "routes": [
+      {
+        "path": "/v3/command",
+        "method": "POST",
+        "request": "SignedRequest",
+        "response": "Receipt",
+        "failure": "ErrorResponse"
+      },
+      {
+        "path": "/v3/query",
+        "method": "POST",
+        "request": "SignedQuery",
+        "response": "Response",
+        "failure": "ErrorResponse"
+      }
+    ]
   },
   "$defs": {
     "Request": {
@@ -5496,6 +5512,8 @@
             "DeadlineExpired",
             "DeadlineNotReached",
             "DeadlineUncertain",
+            "DependencyBudgetExceeded",
+            "DependencyInUse",
             "EffectCapacity",
             "Forbidden",
             "FreshKeyRequired",
@@ -5522,6 +5540,7 @@
             "InvalidValue",
             "MissingInput",
             "MissingTurnPermit",
+            "MissingWriteView",
             "NoDeadline",
             "NonCanonical",
             "NotFound",
@@ -5558,6 +5577,7 @@
             "UnknownPrincipal",
             "UnknownProcess",
             "UnsupportedDeadline",
+            "UnsupportedGrowthCommand",
             "UnsupportedPayloadLifetime",
             "UnsupportedWorkload",
             "UntrustedTime",

@@ -62,6 +62,10 @@ fn growth(init: std.process.Init) !void {
         .canonical = "UTF-8 compact JSON; declared field order; include defaults and nulls; decimal integers; single-key tagged unions; reject unknown and duplicate fields",
         .signing = "Ed25519(SHA256(domain || canonical-json))",
         .limits = .{ .record_bytes = p.max_entry_bytes, .key_bytes = g.key_bytes, .page_entries = g.page_size, .turn_mutations = g.turn_mutations, .turn_views = g.turn_views, .turn_outputs = g.turn_outputs },
+        .routes = .{
+            .{ .path = "/v3/command", .method = "POST", .request = "SignedRequest", .response = "Receipt", .failure = "ErrorResponse" },
+            .{ .path = "/v3/query", .method = "POST", .request = "SignedQuery", .response = "Response", .failure = "ErrorResponse" },
+        },
     });
     try out.objectField("$defs");
     try out.beginObject();

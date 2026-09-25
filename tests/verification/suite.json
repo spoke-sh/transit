@@ -18,6 +18,7 @@
       "test::storage",
       "test::pages",
       "test::growing",
+      "test::growing-service",
       "test::service",
       "test::runtime-upgrade",
       "test::callers",

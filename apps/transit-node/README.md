@@ -11,7 +11,9 @@ application handlers run in client programs.
 [Configuration and operations](docs/operations.md) covers bootstrap, the separate
 maintenance process, trusted clock requirements, deadlines, and diagnostics.
 The HTTP node and maintenance use the same binary with different roles; neither
-executes application handlers.
+executes application handlers. The [growing-profile guide](docs/growing.md) owns
+the explicit M10 v3 development option; launchers still select the qualified v2
+profile. Its partial capabilities do not imply Station or provider support.
 
 ## Build and run
 

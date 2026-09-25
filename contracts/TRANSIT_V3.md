@@ -1,9 +1,10 @@
 # Transit growing profile v3
 
-Status: M10 development contract. The wire types and generated schema exist;
-the running node/client/Station continue to use v2 and state-v1. This document
-does not advertise a deployed v3 capability or authorize interpreting old history
-as a new profile. [M10](../docs/roadmap/M10.md) retains the integration gates.
+Status: M10 development contract. An explicitly selected node profile and Zig
+client implement the bounded command/query boundary. Launcher defaults, Session,
+Station and foreign bindings remain v2/state-v1. See the
+[node guide](../apps/transit-node/docs/growing.md) for exact partial capabilities;
+this does not authorize interpreting old history as a new profile. [M10](../docs/roadmap/M10.md) retains the integration gates.
 
 [Growth.zig](../packages/zig/transit-protocol/src/Growth.zig) owns the neutral types;
 [transit-v3.schema.json](transit-v3.schema.json) is generated alongside the unchanged
@@ -95,7 +96,8 @@ for new observations; an administrator with effect permission can close an orpha
 attempt. A result after caller retirement remains evidence and cannot revive that
 PID. Closed attempts reject new results; exact historical retries still require
 current permission. The growing engine currently enforces these rules internally;
-transport, background materialization and deployment remain unqualified.
+the explicit HTTP profile exposes them; background materialization and provider
+deployment remain unqualified.
 
 The [immutable catalog](../packages/zig/transit-core/docs/pages.md#typed-catalog)
 is the storage basis. One conditional journal decision must publish state roots,
@@ -114,9 +116,28 @@ not delete catalog pages, receipts, accepted inputs, values or captured roots.
 This does not add a public history query or page-GC capability.
 
 The declared capabilities expose unsupported runtime-binding and Station
-extensions explicitly. These fields currently describe the contract
-shape, not a live capability response. Before service qualification, M10 must
+extensions explicitly. The service capability response leaves runtime bindings, Station and automated
+history reclamation disabled. Its `checkpoint` route command is rejected until
+growing maintenance is composed; the backend/core proof supports that intent. Before service qualification, M10 must
 qualify all authority transitions, provider persistence, current read/receipt
 authorization, finite lifetime/settlement behavior, quotas/control reserves,
 client/Station usage, failure schedules and compatibility tests. There is no
 implicit feature equivalence with v2 merely because command names resemble it.
+
+
+## HTTP boundary
+
+`POST /v3/command` accepts `SignedRequest` and returns the shared positive-position
+`Receipt`. `POST /v3/query` accepts the separately signed `SignedQuery` and returns
+`Response`. Generated route/type metadata owns both. Requests remain bounded by
+the service body/deadline limits, and no legacy-route fallback occurs. Typed
+rejection responses distinguish conflict, denial, invalid proposals and uncertain
+service/clock failures. Transport loss, malformed success and response allocation
+failure after acceptance cannot authorize a new mutation sequence.
+
+Client response validation checks version/realm, query variant, requested IDs,
+resource/view revision basis, safe integer range, dense ordered pages and advancing
+continuations. Empty filtered catalog pages can legitimately advance. Output IDs
+have their own sequence and are not journal coordinates. These checks reject a
+malformed response; they do not replace an authenticated deployment boundary or
+prove that a compromised authority reports truthful application data.

@@ -230,6 +230,97 @@ pub fn validateQuery(query: Query) !void {
         else => {},
     }
 }
+
+/// Validate context and coverage before handing a typed response to a caller.
+/// Parsing the JSON type alone cannot detect a different realm, variant or cut.
+pub fn validateResponse(response: Response, query: Query) !void {
+    try validateQuery(query);
+    try counters(response);
+    if (response.version != version or response.realm != query.realm or response.position == 0 or
+        !std.mem.eql(u8, @tagName(response.body), @tagName(query.kind))) return error.InvalidRead;
+    switch (query.kind) {
+        .capabilities => {
+            const caps = response.body.capabilities;
+            if (caps.version != version or caps.identity_maximum != p.max_counter or
+                caps.page_entries != page_size or caps.mutation_budget != turn_mutations or
+                caps.view_budget != turn_views or caps.output_budget != turn_outputs or
+                caps.required_resources_per_process == 0 or caps.dependency_validation_vertices == 0) return error.InvalidRead;
+        },
+        .process => |pid| {
+            const value = response.body.process;
+            if (value.process.pid != pid or value.process.consumed > value.process.admitted or
+                value.process.cancelled > value.process.admitted - value.process.consumed) return error.InvalidRead;
+            if (value.input) |input| {
+                if (value.process.lifecycle != .running or input.ordinal != value.process.consumed + 1 or
+                    input.ordinal > value.process.admitted or input.position >= response.position) return error.InvalidRead;
+            } else if (value.process.lifecycle == .running and value.process.consumed < value.process.admitted) return error.InvalidRead;
+        },
+        .resource => |id| if (response.body.resource.id != id) return error.InvalidRead,
+        .view => |id| if (response.body.view.id != id) return error.InvalidRead,
+        .entries => |q| {
+            const value = response.body.entries;
+            if (q.view) |id| {
+                const view = value.view orelse return error.InvalidRead;
+                if (view.id != id or view.principal != query.principal or view.resource != value.resource.id or
+                    view.revision != value.resource.revision) return error.InvalidRead;
+            } else if (value.view != null or value.resource.id != q.resource.? or value.resource.revision != q.revision.?) return error.InvalidRead;
+            var previous = q.after;
+            var ended = false;
+            var count: usize = 0;
+            for (value.page.entries) |slot| {
+                const entry = slot orelse {
+                    ended = true;
+                    continue;
+                };
+                if (ended) return error.InvalidRead;
+                try validateKey(entry.key);
+                if (previous) |key| if (std.mem.order(u8, key.slice(), entry.key.slice()) != .lt) return error.InvalidRead;
+                if (q.key) |key| if (!key.eql(entry.key)) return error.InvalidRead;
+                if (entry.revision > value.resource.revision) return error.InvalidRead;
+                previous = entry.key;
+                count += 1;
+            }
+            if (q.key != null and (count > 1 or value.page.next != null)) return error.InvalidRead;
+            if (value.page.next) |next| {
+                try validateKey(next);
+                if (count == 0 or !next.eql(previous.?)) return error.InvalidRead;
+            }
+        },
+        inline .processes, .resources, .associations, .outputs, .effects => |q, tag| {
+            if (q.position) |cut| if (cut != response.position) return error.InvalidRead;
+            const batch = @field(response.body, @tagName(tag));
+            var previous = q.after orelse 0;
+            var ended = false;
+            for (batch.entries) |slot| {
+                const entry = slot orelse {
+                    ended = true;
+                    continue;
+                };
+                const id = if (tag == .processes) entry.pid else if (tag == .associations) entry.revision else entry.id;
+                if (ended or id <= previous) return error.InvalidRead;
+                if (tag == .outputs) {
+                    if (entry.turn >= response.position) return error.InvalidRead;
+                } else if (id >= response.position) return error.InvalidRead;
+                if (tag == .associations or tag == .effects) if (entry.pid != q.pid) return error.InvalidRead;
+                previous = id;
+            }
+            if (batch.next) |next| {
+                if (next < previous or next <= (q.after orelse 0)) return error.InvalidRead;
+                if (tag != .outputs and next >= response.position) return error.InvalidRead;
+            }
+        },
+    }
+}
+
+pub fn commandPid(command: Command) ?Id {
+    return switch (command) {
+        .terminate, .expire => |id| id,
+        inline else => |value| switch (@typeInfo(@TypeOf(value))) {
+            .@"struct" => if (@hasField(@TypeOf(value), "pid")) value.pid else null,
+            else => null,
+        },
+    };
+}
 fn hash(domain: []const u8, value: anytype) ![32]u8 {
     var bytes: [p.max_entry_bytes]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&bytes);
@@ -268,4 +359,33 @@ test "growing identities are explicit and cannot reuse legacy signature domains"
     const legacy = p.digest(.{ .realm = 1, .principal = 1, .sequence = 1, .command = .{ .send = .{ .pid = 2, .value = .{} } } });
     try std.testing.expect(!std.mem.eql(u8, &legacy, &try digest(request)));
     try std.testing.expectError(error.InvalidRead, signQuery(.{ .realm = 1, .principal = 1, .kind = .{ .entries = .{ .view = 3, .key = try p.Value.init("k"), .after = try p.Value.init("k") } } }, key));
+}
+
+test "growing responses reject mixed bases, incomplete pages and nonadvancing cursors" {
+    const t = std.testing;
+    const query: Query = .{ .realm = 1, .principal = 0, .kind = .{ .entries = .{ .resource = 2, .revision = 3 } } };
+    var response: Response = .{ .realm = 1, .position = 4, .principal_sequence = 0, .body = .{ .entries = .{
+        .view = null,
+        .resource = .{ .id = 2, .writer = 1, .owner = null, .revision = 3, .entries = 1, .deadline_ms = null },
+        .page = .{ .entries = .{ .{ .key = try p.Value.init("a"), .value = .{}, .revision = 3 }, null, null, null, null, null, null, null } },
+    } } };
+    try validateResponse(response, query);
+    const good = response;
+    response.realm = 2;
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response = good;
+    response.body.entries.resource.revision = 4;
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response = good;
+    response.body.entries.page.entries[2] = .{ .key = try p.Value.init("b"), .value = .{}, .revision = 3 };
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response = good;
+    response.body.entries.page.next = try p.Value.init("b");
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response = .{ .realm = 1, .position = 20, .principal_sequence = 0, .body = .{ .resources = .{ .next = 10 } } };
+    const filtered: Query = .{ .realm = 1, .principal = 0, .kind = .{ .resources = .{} } };
+    try validateResponse(response, filtered); // Empty filtered pages can advance.
+    try t.expectError(error.InvalidRead, validateResponse(response, .{ .realm = 1, .principal = 0, .kind = .{ .resources = .{ .after = 10, .position = 20 } } }));
+    response.body = .{ .outputs = .{ .entries = .{ .{ .id = 50, .source = 1, .turn = 10, .index = 0, .destination = 2, .value = .{} }, null, null, null, null, null, null, null }, .next = 50 } };
+    try validateResponse(response, .{ .realm = 1, .principal = 0, .kind = .{ .outputs = .{} } }); // Output IDs have their own sequence.
 }

@@ -7,6 +7,7 @@ const wire = @import("transit_client");
 const Engine = core.Engine(adapter.Store);
 const Maintenance = @import("Maintenance.zig");
 const Config = struct {
+    profile: enum { v2 } = .v2,
     genesis: core.Genesis,
     ursula_url: []const u8,
     bucket: []const u8,
@@ -220,6 +221,9 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (args.len < 2 or args.len > 3 or (args.len == 3 and !initialize and !maintain and !bootstrap)) return error.ExpectedConfigAndMode;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(wire.max_body));
     defer init.gpa.free(bytes);
+    const selection = try std.json.parseFromSlice(struct { profile: enum { v2, growing_v3 } = .v2 }, init.gpa, bytes, .{ .ignore_unknown_fields = true });
+    defer selection.deinit();
+    if (selection.value.profile == .growing_v3) return @import("Growing.zig").run(init, bytes, .{ .initialize = initialize, .bootstrap = bootstrap, .maintain = maintain }, diagnostics, serve);
     var parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
     defer parsed.deinit();
     const config = parsed.value;
@@ -243,10 +247,14 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var clock_context: u8 = 0;
     if (config.genesis.max_clock_error_ms != null) engine.clock = .{ .context = &clock_context, .read = @import("Clock.zig").read };
     if (maintain) return Maintenance.run(init, &engine, config.maintenance orelse return error.MissingMaintenanceConfig, diagnostics);
-    const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);
+    var server: Server = .{ .io = init.io, .allocator = init.gpa, .engine = &engine, .accept_trace_parent = config.accept_trace_parent };
+    return serve(init, &server, config.listen, config.port, config.request_timeout_ms, diagnostics);
+}
+
+fn serve(init: std.process.Init, server: anytype, listen: []const u8, port: u16, request_timeout_ms: u32, diagnostics: *telemetry.Runtime) !void {
+    const address = try std.Io.net.IpAddress.parseIp4(listen, port);
     var listener = try address.listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);
-    var server: Server = .{ .io = init.io, .allocator = init.gpa, .engine = &engine, .accept_trace_parent = config.accept_trace_parent };
     diagnostics.event(.{ .name = "service.ready" });
     while (true) {
         const stream = try listener.accept(init.io);
@@ -254,15 +262,15 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         server.observation = .{ .span = diagnostics.begin(.server, null) };
         var request_error: ?anyerror = null;
         var timed_out = false;
-        defer server.observation.finish("transit.http.request", request_error, timed_out, !std.mem.eql(u8, server.observation.route, "/v2/command"));
+        defer server.observation.finish("transit.http.request", request_error, timed_out, !std.mem.eql(u8, server.observation.route, "/v2/command") and !std.mem.eql(u8, server.observation.route, "/v3/command"));
         const Result = union(enum) { handled: anyerror!void, timeout: anyerror!void };
         var results: [2]Result = undefined;
         var select: std.Io.Select(Result) = .init(init.io, &results);
         defer select.cancelDiscard();
-        try select.concurrent(.timeout, timeout, .{ init.io, config.request_timeout_ms });
+        try select.concurrent(.timeout, timeout, .{ init.io, request_timeout_ms });
         // async may run inline when its worker budget is exhausted, preventing
         // await from observing the deadline while a request blocks on I/O.
-        try select.concurrent(.handled, Server.handle, .{ &server, stream });
+        try select.concurrent(.handled, @TypeOf(server.*).handle, .{ server, stream });
         const result = try select.await();
         switch (result) {
             .handled => |value| value catch |err| {

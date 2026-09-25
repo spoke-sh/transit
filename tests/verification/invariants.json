@@ -403,6 +403,33 @@
       ],
       "limits": "Trusted test clock and injected acknowledgement loss at the real journal boundary. No service/SDK/Station integration, provider cluster, quota/control reserve or throughput qualification. Root history retains its latest complete head; pages are not reclaimed.",
       "model": null
+    },
+    {
+      "id": "GROWTH-06",
+      "claim": "An explicit growing service profile supports signed bounded caller reads and atomic turns without exposing raw storage or executing application handlers",
+      "owner": "docs/CLIENT.md",
+      "implementation": [
+        "apps/transit-node/Growing.zig",
+        "packages/zig/transit-client/src/root.zig",
+        "packages/zig/transit-protocol/src/Growth.zig",
+        "tests/growing_client.zig",
+        "tests/growing_service.py"
+      ],
+      "profile": "transit-v3 development service; legacy launcher defaults preserved",
+      "tasks": [
+        "test::growing-service",
+        "test::unit",
+        "contract::check"
+      ],
+      "scenarios": [
+        "Wide caller principal and sixty-four rows with bounded point/paged reads",
+        "Wrong realm, mixed revisions, page holes and nonadvancing cursors reject",
+        "Accepted malformed receipt remains uncertain across caller/node/provider restart",
+        "Exact retry preserves position, then current revocation denies receipt and reads",
+        "Single-CPU HTTP concurrency and no legacy-route fallback"
+      ],
+      "limits": "No Station/foreign binding support, automatic growing maintenance, runtime binding, migration, load qualification or quota/control reserve claim. Host synchronized clock is a deployment premise.",
+      "model": null
     }
   ]
 }

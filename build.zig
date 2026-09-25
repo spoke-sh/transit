@@ -208,6 +208,19 @@ pub fn build(b: *std.Build) void {
         }
         build_test_step.dependOn(&app.step);
     }
+    const growing_client = b.addExecutable(.{ .name = "transit-growing-client-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/growing_client.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
+    }) });
+    const growing_service = b.addSystemCommand(&.{ "python3", "-B" });
+    growing_service.addFileArg(b.path("tests/growing_service.py"));
+    growing_service.addArtifactArg(node_artifact);
+    growing_service.addArtifactArg(growing_client);
+    growing_service.has_side_effects = true;
+    growing_service.stdio = .inherit;
+    b.step("test-growing-service", "Prove the explicit growing node/client profile over signed HTTP").dependOn(&growing_service.step);
     const c_proof = b.addExecutable(.{ .name = "transit-client-c-proof", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
     c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
     c_proof.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));

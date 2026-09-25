@@ -35,9 +35,12 @@ pub const Client = struct {
     pub fn call(self: *Client, comptime T: type, path: []const u8, signed: anytype) !T {
         const command = if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else "inspect";
         var observation = observability.begin(self.observer, .client_request, command, self.parent_context);
-        observation.event.route = if (std.mem.eql(u8, path, "/v2/view")) "/v2/view" else if (std.mem.eql(u8, path, "/v2/inspect")) "/v2/inspect" else if (std.mem.eql(u8, path, "/v2/state")) "/v2/state" else if (std.mem.eql(u8, path, "/v2/delivery")) "/v2/delivery" else if (std.mem.eql(u8, path, "/v2/command")) "/v2/command" else "unmatched";
+        observation.event.route = route: {
+            inline for (.{ "/v2/view", "/v2/inspect", "/v2/state", "/v2/delivery", "/v2/command", "/v3/command", "/v3/query" }) |known| if (std.mem.eql(u8, path, known)) break :route known;
+            break :route "unmatched";
+        };
         observation.event.method = "POST";
-        const mutation = std.mem.eql(u8, path, "/v2/command");
+        const mutation = std.mem.eql(u8, path, "/v2/command") or std.mem.eql(u8, path, "/v3/command");
         if (mutation) observation.event.protocol_outcome = .uncertain;
         defer observation.finish();
         self.call_context = observation.span.context;
@@ -55,7 +58,7 @@ pub const Client = struct {
         if (@hasField(@TypeOf(signed), "request")) {
             observation.event.realm = signed.request.realm;
             observation.event.sequence = signed.request.sequence;
-            observation.event.pid = observability.pid(signed.request.command);
+            observation.event.pid = if (@TypeOf(signed.request.command) == protocol.Growth.Command) protocol.Growth.commandPid(signed.request.command) else observability.pid(signed.request.command);
         } else if (@hasField(@TypeOf(signed), "query")) {
             observation.event.realm = signed.query.realm;
             if (@hasField(@TypeOf(signed.query), "pid")) observation.event.pid = signed.query.pid;
@@ -156,6 +159,7 @@ pub const Client = struct {
         if (T == Receipt) {
             if (parsed.value.position == 0 or parsed.value.position > protocol.max_counter) return error.InvalidAuthorityResponse;
         }
+        if (T == protocol.Growth.Response) protocol.Growth.validateResponse(parsed.value, signed.query) catch return error.InvalidAuthorityResponse;
         return parsed.value;
     }
 
@@ -175,6 +179,15 @@ pub const Client = struct {
 
     pub fn submit(self: *Client, signed: transit.SignedRequest) !Receipt {
         return self.call(Receipt, "/v2/command", signed);
+    }
+
+    /// Explicit v3 development profile; never falls back to a legacy route.
+    pub fn submitGrowing(self: *Client, signed: protocol.Growth.SignedRequest) !Receipt {
+        try protocol.Growth.validate(signed.request);
+        return self.call(Receipt, "/v3/command", signed);
+    }
+    pub fn queryGrowing(self: *Client, query: protocol.Growth.Query, key: protocol.Ed25519.KeyPair) !protocol.Growth.Response {
+        return self.call(protocol.Growth.Response, "/v3/query", try protocol.Growth.signQuery(query, key));
     }
 };
 
