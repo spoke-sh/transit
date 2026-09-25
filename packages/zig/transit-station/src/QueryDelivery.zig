@@ -26,6 +26,8 @@ fn publishing(turn: *Turn, request: r.Publication, context: Context) !void {
     if (request.segment != job.send_segment or request.offset != job.send_offset) return error.InvalidQueryContinuation;
     if (!try q.permitted(turn, job)) return q.close(turn, job.result, .denied);
     if (context.cancellation.load(.acquire)) return error.Cancelled;
+    const seen = if (try turn.read(r.key('g', job.result, 0, 0))) |value| (try r.Credit.decode(value)).granted else 0;
+    if (job.send_segment >= seen + r.credit_window) return; // Blocked until receiveCredit resumes.
     const state = try q.captured(turn, job.result);
     const transfer_key = r.key('u', job.result, 0, 0);
     var transfer: r.Transfer = if (try turn.read(transfer_key)) |value| try r.Transfer.decode(value) else .{ .result = job.result, .source = turn.delivery.pid };
@@ -62,6 +64,20 @@ fn publishing(turn: *Turn, request: r.Publication, context: Context) !void {
     }
     if (context.cancellation.load(.acquire)) return error.Cancelled;
     try turn.write(r.key('j', job.result, 0, 0), try job.encode());
+}
+/// The destination's application admission credit (docs/FLOW_CONTROL.md), not
+/// a reply: it never closes the wait and is inert once publication is done.
+fn receiveCredit(turn: *Turn, credit: r.Credit, context: Context) !void {
+    if (context.cancellation.load(.acquire)) return error.Cancelled;
+    const job = try q.job(turn, credit.result);
+    if (try Frame.source(turn.delivery.input) != job.destination) return error.UnexpectedReplySource;
+    if (job.phase != .captured) return;
+    const credit_key = r.key('g', job.result, 0, 0);
+    const stored = if (try turn.read(credit_key)) |value| (try r.Credit.decode(value)).granted else 0;
+    if (credit.granted < stored) return error.InvalidResultCredit;
+    if (credit.granted == stored) return;
+    try turn.write(credit_key, try credit.encode());
+    try continuation(turn, .{ .result = job.result, .segment = job.send_segment, .offset = job.send_offset });
 }
 fn receiveTransfer(turn: *Turn, correlation: u64, result: u64, peer: u64) !r.Transfer {
     const transfer: r.Transfer = if (try turn.read(r.key('r', correlation, 0, 0))) |value| try r.Transfer.decode(value) else .{ .result = result, .source = peer };
@@ -125,6 +141,8 @@ fn receiving(turn: *Turn, frame: Frame, context: Context) !bool {
         if (context.cancellation.load(.acquire)) return error.Cancelled;
         try turn.write(key, frame.payload);
         try turn.write(r.key('r', frame.correlation, 0, 0), try transfer.encode());
+        // Grant credit for exactly what is now durably sealed, not merely received.
+        try turn.cast(peer, try (r.Credit{ .result = manifest.result, .granted = transfer.segments }).encode());
         return true;
     }
     const manifest = try Manifest.decode(frame.payload);
@@ -165,6 +183,10 @@ pub fn dispatch(turn: *Turn, frame: Frame, context: Context) !bool {
             }
             if (std.mem.startsWith(u8, frame.payload.slice(), "GQP2")) {
                 try publishing(turn, try r.Publication.decode(frame.payload), context);
+                break :blk true;
+            }
+            if (std.mem.startsWith(u8, frame.payload.slice(), "GQG2")) {
+                try receiveCredit(turn, try r.Credit.decode(frame.payload), context);
                 break :blk true;
             }
             break :blk false;

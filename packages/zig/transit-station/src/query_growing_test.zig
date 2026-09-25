@@ -271,6 +271,7 @@ test "growing result delivery preserves bounded progress through fresh handlers 
     var duplicate = false;
     var first_fragment: ?Frame = null;
     var completion: ?Frame = null;
+    var credit_frames: usize = 0;
     while (next < queue.items.len) : (next += 1) {
         try t.expect(next < 512);
         const message = queue.items[next];
@@ -297,6 +298,11 @@ test "growing result delivery preserves bounded progress through fresh handlers 
                 duplicate = true;
             }
         }
+        if (message.frame.kind == .cast and std.mem.startsWith(u8, message.frame.payload.slice(), "GQG2")) {
+            credit_frames += 1;
+            var forged = try target.turn(message.frame, 99);
+            try t.expectError(error.UnexpectedReplySource, q.dispatch(&forged, message.frame, context));
+        }
         if (message.frame.kind != .result_complete and message.frame.kind != .result_ack and message.destination == 8) {
             try t.expectError(error.IncompleteResult, q.completed(&turn, correlation));
         }
@@ -304,6 +310,9 @@ test "growing result delivery preserves bounded progress through fresh handlers 
         try enqueue(&queue, turn);
     }
     try t.expectEqual(@as(usize, 1), callbacks);
+    // One receiver-issued credit grant per sealed segment (docs/FLOW_CONTROL.md):
+    // the sender never runs more than `credit_window` segments ahead of it.
+    try t.expectEqual(@as(usize, 6), credit_frames);
     var sender = try producer.turn(.{ .kind = .cast }, 2);
     try t.expectEqual(r.Phase.acknowledged, (try q.job(&sender, identity)).phase);
     var inspect = try receiver.turn(.{ .kind = .cast }, 8);
@@ -386,4 +395,56 @@ test "receiver rejects out-of-order conflicting and premature result evidence wi
     try t.expectError(error.InvalidArrowResult, q.dispatch(&turn, frame, context));
     try t.expectEqual(.waiting, (try turn.waiting(correlation)).?.phase);
     for (turn.decision.outputs) |slot| try t.expect(slot == null);
+}
+
+fn countSet(slots: anytype) usize {
+    var found: usize = 0;
+    for (slots) |slot| if (slot != null) {
+        found += 1;
+    };
+    return found;
+}
+
+test "receiver-issued credit authenticates its peer, never regresses and is inert once published" {
+    var producer: Store = .{};
+    defer producer.deinit();
+    const job: r.Job = .{ .result = 55, .destination = 8, .correlation = 1, .table = 1, .source = .{ .pid = 2, .input = 55, .index = 0 }, .policy_revision = 1, .phase = .captured, .send_segment = r.credit_window, .send_offset = 0 };
+    var setup = try producer.turn(.{ .kind = .cast }, 2);
+    try setup.write(r.key('j', job.result, 0, 0), try job.encode());
+    try producer.commit(setup);
+    var workspace: [f.execution.working_bytes]u8 = undefined;
+    const cancel = f.execution.Cancellation.init(false);
+    const context: q.Context = .{ .workspace = &workspace, .cancellation = &cancel };
+    const first: r.Credit = .{ .result = job.result, .granted = 1 };
+    var frame: Frame = .{ .kind = .cast, .payload = try first.encode() };
+    // Only the job's authenticated destination may grant credit for it.
+    var forged = try producer.turn(frame, 99);
+    try t.expectError(error.UnexpectedReplySource, q.dispatch(&forged, frame, context));
+    try t.expect(countSet(forged.decision.mutations) == 0 and countSet(forged.decision.outputs) == 0);
+    // The authentic peer's grant is durably recorded and resumes publication.
+    var turn = try producer.turn(frame, job.destination);
+    try t.expect(try q.dispatch(&turn, frame, context));
+    try t.expectEqual(@as(u64, 1), (try r.Credit.decode((try turn.read(r.key('g', job.result, 0, 0))).?)).granted);
+    try t.expectEqual(@as(usize, 1), countSet(turn.decision.outputs)); // Self-cast continuation to resume.
+    try producer.commit(turn);
+    // Repeating the same grant is inert: nothing to record or resume.
+    turn = try producer.turn(frame, job.destination);
+    try t.expect(try q.dispatch(&turn, frame, context));
+    try t.expect(countSet(turn.decision.mutations) == 0 and countSet(turn.decision.outputs) == 0);
+    // A regressing grant is rejected outright, not silently ignored.
+    const regressed: r.Credit = .{ .result = job.result, .granted = 0 };
+    frame = .{ .kind = .cast, .payload = try regressed.encode() };
+    turn = try producer.turn(frame, job.destination);
+    try t.expectError(error.InvalidResultCredit, q.dispatch(&turn, frame, context));
+    // Once published, further credit neither errors nor mutates anything.
+    var published = job;
+    published.phase = .published;
+    var advance_phase = try producer.turn(.{ .kind = .cast }, 2);
+    try advance_phase.write(r.key('j', job.result, 0, 0), try published.encode());
+    try producer.commit(advance_phase);
+    const late: r.Credit = .{ .result = job.result, .granted = 2 };
+    frame = .{ .kind = .cast, .payload = try late.encode() };
+    turn = try producer.turn(frame, job.destination);
+    try t.expect(try q.dispatch(&turn, frame, context));
+    try t.expect(countSet(turn.decision.mutations) == 0 and countSet(turn.decision.outputs) == 0);
 }

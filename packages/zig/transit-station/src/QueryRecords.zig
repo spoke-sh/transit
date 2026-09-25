@@ -6,6 +6,10 @@ const f = @import("transit_fuze");
 const Frame = @import("Frame.zig");
 pub const segment_bytes = 8192;
 pub const fragment_bytes = Frame.max_payload - 22;
+/// A sender may not start a segment more than this many ordinals past the
+/// last credit it has observed. Fixed, not adaptive; matches Delivery.tla's
+/// checked `Window` constant. See ../../../docs/FLOW_CONTROL.md.
+pub const credit_window: u64 = 2;
 pub const Phase = enum(u8) { capturing = 1, captured = 2, published = 3, acknowledged = 4, cancelled = 5, denied = 6 };
 
 pub fn key(tag: u8, result: u64, ordinal: u64, fragment: u16) p.Value {
@@ -286,5 +290,27 @@ pub const Publication = struct {
         normalized.data[0..4].* = "GQC2".*;
         const decoded = try Continuation.decode(normalized);
         return .{ .result = decoded.result, .segment = decoded.page, .offset = decoded.written };
+    }
+};
+/// Receiver-issued application admission credit (docs/FLOW_CONTROL.md): the
+/// destination durably grants credit only for segments it has itself sealed.
+/// `granted` is monotonically non-decreasing; the sender retains the last
+/// value it observed under key tag `g`, independent of its own send cursor.
+pub const Credit = struct {
+    result: u64,
+    granted: u64,
+    pub fn encode(self: Credit) !p.Value {
+        var bytes: [20]u8 = undefined;
+        bytes[0..4].* = "GQG2".*;
+        std.mem.writeInt(u64, bytes[4..12], self.result, .little);
+        std.mem.writeInt(u64, bytes[12..20], self.granted, .little);
+        return p.Value.init(&bytes);
+    }
+    pub fn decode(value: p.Value) !Credit {
+        try value.validate();
+        if (value.len != 20 or !std.mem.eql(u8, value.data[0..4], "GQG2")) return error.InvalidResultCredit;
+        const self: Credit = .{ .result = std.mem.readInt(u64, value.data[4..12], .little), .granted = std.mem.readInt(u64, value.data[12..20], .little) };
+        if (self.result == 0 or self.result > p.max_counter) return error.InvalidResultCredit;
+        return self;
     }
 };
