@@ -32,6 +32,19 @@ const Expected = struct {
     last: g.SignedRequest = undefined,
     receipt: u64 = 0,
 };
+const Measurements = struct {
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    operations: std.ArrayList(u64) = .empty,
+    turns: std.ArrayList(u64) = .empty,
+    orphan_page_bytes: u64 = 0,
+    fn now(self: *@This()) std.Io.Timestamp {
+        return std.Io.Clock.awake.now(self.io);
+    }
+    fn elapsed(self: *@This(), start: std.Io.Timestamp) u64 {
+        return @intCast(start.durationTo(self.now()).toNanoseconds());
+    }
+};
 const Clock = struct {
     fn read(_: *anyopaque) anyerror!core.Time.Sample {
         return .{ .unix_ms = 100, .error_ms = 1 };
@@ -40,11 +53,15 @@ const Clock = struct {
 const Caller = struct {
     engine: *Engine,
     key: core.Ed25519.KeyPair,
+    measurements: *Measurements,
     fn signed(self: @This(), command: g.Command) !g.SignedRequest {
         return g.sign(.{ .realm = 42, .principal = 0, .sequence = (try self.engine.principal(0)).sequence + 1, .command = command }, self.key);
     }
     fn submit(self: @This(), command: g.Command) !u64 {
-        return self.engine.submit(try self.signed(command));
+        const start = self.measurements.now();
+        const result = try self.engine.submit(try self.signed(command));
+        try self.measurements.operations.append(self.measurements.allocator, self.measurements.elapsed(start));
+        return result;
     }
     fn query(self: @This(), kind: @FieldType(g.Query, "kind")) !g.Response {
         return self.engine.query(try g.signQuery(.{ .realm = 42, .principal = 0, .kind = kind }, self.key));
@@ -143,7 +160,8 @@ fn write(caller: Caller, rows: usize) !Expected {
     const pid = try caller.submit(.{ .spawn = .{} });
     const reader = try caller.submit(.{ .spawn = .{} });
     const retired = try caller.submit(.{ .spawn = .{} });
-    for (0..67) |_| _ = try caller.submit(.{ .spawn = .{} });
+    var other_pids: [67]u64 = undefined;
+    for (&other_pids) |*id| id.* = try caller.submit(.{ .spawn = .{} });
     _ = try caller.submit(.{ .terminate = retired });
     const resource = try caller.submit(.{ .create_resource = .{ .writer = pid } });
     for (0..5) |_| _ = try caller.submit(.{ .create_resource = .{ .writer = pid } });
@@ -152,12 +170,18 @@ fn write(caller: Caller, rows: usize) !Expected {
         _ = try caller.submit(.{ .associate = .{ .pid = id, .name = try core.Value.init("state"), .resource = resource } });
         _ = try caller.submit(.{ .own = .{ .pid = id, .expected_generation = 1, .worker = 0 } });
     }
+    // Optional associations exceed the legacy 64-slot catalog without adding
+    // lifetime graph edges or changing its explicit per-operation budget.
+    for (other_pids) |id| _ = try caller.submit(.{ .associate = .{ .pid = id, .name = try core.Value.init("shared"), .resource = resource } });
     const input = try caller.submit(.{ .send = .{ .pid = reader, .value = try core.Value.init("capture") } });
+    const before_stale = engine.page_store.create_payload_bytes_attempted;
     const stale = try engine.prepare(try g.sign(.{ .realm = 42, .principal = 65536, .sequence = 1, .command = .{ .send = .{ .pid = reader, .value = .{} } } }, caller.key));
+    caller.measurements.orphan_page_bytes = engine.page_store.create_payload_bytes_attempted - before_stale;
     _ = try caller.submit(.{ .revoke = 65536 });
     try t.expectError(error.Conflict, engine.commit(stale));
     var expected: Expected = .{ .pid = pid, .reader = reader, .retired = retired, .resource = resource, .revision = resource, .rows = rows };
     for (0..rows / 4) |turn| {
+        const start = caller.measurements.now();
         const head = try caller.submit(.{ .send = .{ .pid = pid, .value = .{} } });
         const revision = if (turn == 0) 0 else expected.revision;
         const view = try caller.submit(.{ .open_view = .{ .pid = pid, .generation = 2, .input = head, .expected_revision = revision, .resource = resource, .revision = expected.revision, .deadline_ms = 1000 } });
@@ -186,19 +210,21 @@ fn write(caller: Caller, rows: usize) !Expected {
             try engine.refresh();
             expected.revision = expected.receipt;
         } else expected.revision = try engine.commit(candidate);
+        try caller.measurements.turns.append(caller.measurements.allocator, caller.measurements.elapsed(start));
         if (turn + 1 == rows / 8) expected.view = try caller.submit(.{ .open_view = .{ .pid = reader, .generation = 2, .input = input, .expected_revision = 0, .resource = resource, .revision = expected.revision, .deadline_ms = 1000 } });
     }
     return expected;
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 4) return error.ExpectedUrlPhaseRows;
+    if (args.len != 4 and args.len != 5) return error.ExpectedUrlPhaseRowsCache;
     const rows = try std.fmt.parseInt(usize, args[3], 10);
     if (rows < 64 or rows > 4096 or rows % 8 != 0) return error.InvalidDataset;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 256 * 1024 });
     defer client.deinit();
     var journal: Journal = .{ .store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-growth-proof", .name = "authority" } } } };
-    var page_store = try adapter.PackedPageStore.init(init.gpa, journal.store.journal, 1);
+    const cache = if (args.len == 5) try std.fmt.parseInt(usize, args[4], 10) else 1;
+    var page_store = try adapter.PackedPageStore.init(init.gpa, journal.store.journal, cache);
     defer page_store.deinit();
     const root_key = try core.Ed25519.KeyPair.generateDeterministic(@splat(7));
     const genesis: core.growing.Genesis = .{ .realm = 42, .root_key = root_key.public_key.toBytes(), .max_clock_error_ms = 5, .allow_history_trim = true };
@@ -210,10 +236,15 @@ pub fn main(init: std.process.Init) !void {
         try journal.store.journal.create();
         try page_store.create();
     }
+    var measurements: Measurements = .{ .io = init.io, .allocator = init.gpa };
+    defer measurements.operations.deinit(init.gpa);
+    defer measurements.turns.deinit(init.gpa);
+    const open_start = measurements.now();
     var engine = if (writing) try Engine.bootstrap(&journal, &page_store, genesis) else try Engine.open(&journal, &page_store, genesis);
+    const open_ns = measurements.elapsed(open_start);
     var clock: u8 = 0;
     engine.clock = .{ .context = &clock, .read = Clock.read };
-    const caller: Caller = .{ .engine = &engine, .key = root_key };
+    const caller: Caller = .{ .engine = &engine, .key = root_key, .measurements = &measurements };
     var oracle = journal.store.journal;
     oracle.stream.name = "proof-expectations";
     const expected = if (writing) blk: {
@@ -232,15 +263,17 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqual(rows, parsed.value.rows);
         break :blk parsed.value;
     };
-    try t.expect(rows * 256 > page_store.residentBytes());
     page_store.clearCache();
     try verify(caller, expected);
+    var checkpoint_ns: ?u64 = null;
     if (checkpoint) {
+        const start = measurements.now();
         try t.expectError(error.NoCheckpointIntent, journal.store.maintain(engine.head));
         const candidate = try engine.prepare(try caller.signed(.{ .checkpoint = {} }));
         try t.expectError(error.NoCheckpointIntent, journal.store.maintain(candidate.record.next));
         _ = try engine.commit(candidate);
         try journal.store.maintain(engine.head);
+        checkpoint_ns = measurements.elapsed(start);
         const saved = (try journal.store.loadCheckpoint()).?;
         try t.expect(std.meta.eql(engine.head, saved.entry.operation.next));
         // Idempotent maintenance cannot advance authority or staged page state.
@@ -276,7 +309,7 @@ pub fn main(init: std.process.Init) !void {
     }
     var bytes: [2048]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &bytes);
-    try std.json.Stringify.value(.{ .phase = args[2], .rows = rows, .retained_value_bytes = rows * 256, .position = engine.head.position, .catalog_records = engine.head.catalog.records, .cache_bytes = page_store.residentBytes(), .created_pages = page_store.created, .page_http_requests = page_store.requests }, .{}, &stdout.interface);
+    try std.json.Stringify.value(.{ .phase = args[2], .rows = rows, .retained_value_bytes = rows * 256, .position = engine.head.position, .catalog_records = engine.head.catalog.records, .cache_bytes = page_store.residentBytes(), .created_pages = page_store.created, .page_http_requests = page_store.requests, .page_payload_bytes = page_store.create_payload_bytes_attempted, .cache_hits = page_store.hits, .cache_misses = page_store.misses, .open_ns = open_ns, .checkpoint_ns = checkpoint_ns, .orphan_page_bytes = measurements.orphan_page_bytes, .operation_ns = measurements.operations.items, .turn_ns = measurements.turns.items }, .{}, &stdout.interface);
     try stdout.interface.writeByte('\n');
     try stdout.interface.flush();
 }

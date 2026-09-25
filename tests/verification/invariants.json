@@ -665,6 +665,29 @@
       ],
       "limits": "Type/safety-only TLC check of the abstract credit protocol; no guard mutants or Zig trace replay yet, unlike Authority.tla. Fragmentation below one segment, digest/schema verification and durable KV encoding are exercised by test::unit, not this model.",
       "model": "tests/verification/models/Delivery.tla"
+    },
+    {
+      "id": "GROWTH-12",
+      "claim": "Offered public load preserves every admission, exact receipt and row update across disk restart while scoped revocation progresses",
+      "owner": "docs/TESTING.md",
+      "implementation": [
+        "tests/growing_load.zig",
+        "tests/growing_load.py",
+        "tests/growing.zig",
+        "tests/verification/scale.py"
+      ],
+      "profile": "finite single-authority v3 growth/load matrix",
+      "tasks": [
+        "test::growing-load",
+        "test::scale"
+      ],
+      "scenarios": [
+        "Fixed-cache growth across 64/256/1024 retained rows and 69 associations",
+        "Independently scheduled signed admissions with generator queueing and control latency",
+        "Uniform and hot-key drain, exact receipts, row digest and revocation through node/provider restart"
+      ],
+      "limits": "Finite loopback samples with 48 offered operations, bounded producer workers and disk/S3 storage. No production SLO, horizontal capacity, power-loss or object-store-crash guarantee.",
+      "model": null
     }
   ]
 }

@@ -6,26 +6,88 @@
   "execution_latency_class": "milliseconds from market-event receipt to order send; exact SLO unqualified",
   "service_slo": null,
   "dimensions": {
-    "keys_per_resource": [32, 256, 4096, 65536],
-    "resources": [4, 16, 128],
-    "processes": [16, 64, 256],
-    "principals": [4, 16, 64],
-    "resident_pages": [4, 16],
-    "active_views": [1, 4, 16],
-    "retained_calls": [16, 256, 4096],
-    "hot_key_percent": [0, 90],
-    "burst_window_ms": [1, 10, 100],
-    "overload": ["closed-loop baseline", "offered load independent of completion"]
+    "keys_per_resource": [
+      32,
+      256,
+      4096,
+      65536
+    ],
+    "resources": [
+      4,
+      16,
+      128
+    ],
+    "processes": [
+      16,
+      64,
+      256
+    ],
+    "principals": [
+      4,
+      16,
+      64
+    ],
+    "resident_pages": [
+      4,
+      16
+    ],
+    "active_views": [
+      1,
+      4,
+      16
+    ],
+    "retained_calls": [
+      16,
+      256,
+      4096
+    ],
+    "hot_key_percent": [
+      0,
+      90
+    ],
+    "burst_window_ms": [
+      1,
+      10,
+      100
+    ],
+    "overload": [
+      "closed-loop baseline",
+      "offered load independent of completion"
+    ]
   },
   "required_measurements": [
-    "revision", "toolchain", "CPU", "memory", "filesystem", "provider versions",
-    "working set budget", "dataset size", "cold/warm state", "repeat count",
-    "latency p50/p95/p99", "throughput", "RSS", "stack budget", "threads", "file descriptors",
-    "disk bytes", "index bytes", "cache hits/misses", "queue age", "control latency",
-    "checkpoint time", "recovery time", "admitted/rejected work", "generator saturation",
-    "provider RSS", "physical stream count", "provider requests per operation",
-    "physical writes per committed mutation", "unpublished staging bytes",
-    "live versus backfill throughput", "catch-up time and source freshness"
+    "revision",
+    "toolchain",
+    "CPU",
+    "memory",
+    "filesystem",
+    "provider versions",
+    "working set budget",
+    "dataset size",
+    "cold/warm state",
+    "repeat count",
+    "latency p50/p95/p99",
+    "throughput",
+    "RSS",
+    "stack budget",
+    "threads",
+    "file descriptors",
+    "disk bytes",
+    "index bytes",
+    "cache hits/misses",
+    "queue age",
+    "control latency",
+    "checkpoint time",
+    "recovery time",
+    "admitted/rejected work",
+    "generator saturation",
+    "provider RSS",
+    "physical stream count",
+    "provider requests per operation",
+    "physical writes per committed mutation",
+    "unpublished staging bytes",
+    "live versus backfill throughput",
+    "catch-up time and source freshness"
   ],
   "correctness": [
     "all admitted inputs remain accounted for",
@@ -42,5 +104,104 @@
     "Application demand scenarios are analytical inputs, not achieved rates or ordinary CI load requirements.",
     "Measure provider resource use as well as the bounded client cache; per-page streams need amplification qualification.",
     "Agree production SLOs separately; no user-specific service target has been selected."
+  ],
+  "qualification_matrix": [
+    {
+      "name": "rows64-cache1",
+      "kind": "authority",
+      "cache": 1,
+      "exceeds_cache": true,
+      "args": [
+        "--rows",
+        "64",
+        "--cache",
+        "1",
+        "--cold-s3",
+        "--timeout",
+        "600"
+      ]
+    },
+    {
+      "name": "rows256-cache1",
+      "kind": "authority",
+      "cache": 1,
+      "exceeds_cache": true,
+      "args": [
+        "--rows",
+        "256",
+        "--cache",
+        "1",
+        "--cold-s3",
+        "--timeout",
+        "600"
+      ]
+    },
+    {
+      "name": "rows1024-cache1",
+      "kind": "authority",
+      "cache": 1,
+      "exceeds_cache": true,
+      "args": [
+        "--rows",
+        "1024",
+        "--cache",
+        "1",
+        "--cold-s3",
+        "--timeout",
+        "600"
+      ]
+    },
+    {
+      "name": "rows256-cache16",
+      "kind": "authority",
+      "cache": 16,
+      "args": [
+        "--rows",
+        "256",
+        "--cache",
+        "16",
+        "--cold-s3",
+        "--timeout",
+        "600"
+      ]
+    },
+    {
+      "name": "load-uniform",
+      "kind": "service",
+      "args": [
+        "--rows",
+        "64",
+        "--cache",
+        "1",
+        "--payload",
+        "16",
+        "--hot-percent",
+        "0",
+        "--workers",
+        "1",
+        "--interval-ms",
+        "100",
+        "--cold-s3"
+      ]
+    },
+    {
+      "name": "load-hot",
+      "kind": "service",
+      "args": [
+        "--rows",
+        "256",
+        "--cache",
+        "4",
+        "--payload",
+        "256",
+        "--hot-percent",
+        "90",
+        "--workers",
+        "4",
+        "--interval-ms",
+        "1",
+        "--cold-s3"
+      ]
+    }
   ]
 }

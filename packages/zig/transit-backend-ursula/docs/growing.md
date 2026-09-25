@@ -51,6 +51,8 @@ not authorize page garbage collection or implement selective payload expiry.
 ```sh
 just test::growing
 just test::growing --rows 256 --cold-s3
+just test::growing --rows 256 --cache 16 --cold-s3
+just test::scale
 ```
 
 The ordinary proof runs 20 principals above the legacy identity range, 70 PIDs,
@@ -67,7 +69,7 @@ after real append are explicit schedules. SIGKILL separates write, recover,
 checkpoint and trim/recover phases. Missing required page storage and legacy
 profile parsing fail; temporary clock samples are deterministic test inputs.
 
-Artifacts `.cache/verification/growing-<hot|s3>-<rows>.json` record revision,
+Artifacts `.cache/verification/growing-<hot|s3>-<rows>-<cache>.json` record revision,
 dirty state, binary hash, cache/data/catalog sizes, page requests, elapsed time,
 client/provider memory and WAL file lengths. Optional cold storage uses the
 [owned S3 fixture](pages.md#cold-tier-qualification) and records its resource
@@ -100,3 +102,28 @@ writing and verification; this is not a per-turn benchmark. MinIO peaked at
 runs passed checkpoint and post-trim restart. The unchanged client budget and
 retained correctness establish this small growth path; request amplification,
 provider growth at larger sizes and end-to-end execution latency remain open.
+
+The measurement driver also records per-operation and complete-turn nanoseconds,
+nearest-rank p50/p95/p99, page hits/misses, attempted page payload bytes, orphan
+staging bytes, allocated WAL blocks, root-open time and checkpoint/trim time.
+A complete-turn sample includes admission, view acquisition, private preparation,
+publication and intervening correctness reads; it is not just append latency.
+Opening an engine is timed separately from full retained-data verification.
+The control catalog now retains 69 associations, crossing the legacy 64 slots.
+All phases use the same configurable cache; the one-page default still retains
+more application bytes than its decoded cache. Larger-cache comparison samples
+need not exceed their cache. The fixture uses the checkout filesystem instead of
+Nix's potentially tmpfs-backed temporary directory and reports its filesystem.
+
+`just test::scale` owns the small repeated matrix in
+[scale.json](../../../../tests/verification/scale.json), including 64/256/1,024
+rows at one page and 256 rows at 16 pages. It separately drives the public node
+with 48 independent pre-signed sender requests, fixed offer intervals, bounded
+workers and 16/256-byte payloads with uniform/hot-key updates. Queueing latency
+includes time waiting in the generator's bounded queue; scheduling lag and that
+queue are reported so a saturated generator cannot masquerade as node capacity.
+Revocation runs during admission; retained receipts, ordered input drain, exact
+row values and revocation are checked again through node/provider restart.
+This is a finite single-authority experiment, not a production SLO. Samples remain
+inconclusive until every assertion and cleanup completes. The test guide owns
+recorded qualification results.

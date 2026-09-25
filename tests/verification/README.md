@@ -181,6 +181,15 @@ edits production source in the working tree. Weekly CI runs this larger budget.
 measurements for the growing profile. These are test datasets, not service SLOs
 or claims that the legacy profile supports them.
 
+`just test::scale` executes its smaller `qualification_matrix` twice by default,
+retaining each sample under `.cache/verification/scale/` and a completion manifest.
+It requires Linux and Docker for the owned cold tier. `just test::growing-load`
+focuses the finite public-service offered-load case. The
+[backend guide](../../packages/zig/transit-backend-ursula/docs/growing.md#proof-and-limits)
+defines timing boundaries, generator queueing and storage measurements. A matrix
+entry or an incomplete manifest is not passing evidence. The larger analytical
+dimensions remain distinct from this executable sample matrix.
+
 ## Codecs and allocation boundaries
 
 `just test::codecs` runs valid/malformed/truncated signed JSON and Station frame

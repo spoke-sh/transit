@@ -59,6 +59,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::pages [--keys N --cache N --layout packed\|closed]` | Checks immutable page roots through disk restart and checkpoint/trim with a bounded cache; records measurements |
 | `just test::pages-cold [--keys N --cache N]` | Linux/Docker: repeats the page proof with an owned persistent S3-compatible cold store and measures both providers |
 | `just test::growing [--rows N --cold-s3]` | Proves v3 growing-authority atomic publication, retained reads/receipts and restart/checkpoint/trim against disk Ursula; service integration remains separate |
+| `just test::growing-load` | Measures independently offered public v3 requests, queueing, revocation latency, exact retries, state drain and restart |
+| `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and an owned Docker cold store; retains each sample |
 | `just test::growing-service` | Qualifies the explicit v3 node/client profile, bounded state access and uncertain reply recovery on one CPU |
 | `just test::growing-station` | Focuses growing Station calls, retained Table sources and recovery; also included in the full growing service proof |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |

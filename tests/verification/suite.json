@@ -65,7 +65,8 @@
       "launchers::compose::test-station",
       "test::capacity",
       "test::growing-capacity",
-      "test::pages-cold"
+      "test::pages-cold",
+      "test::scale"
     ],
     "discovery": [
       "test::mutations"
@@ -75,7 +76,8 @@
       "test::growing-service-release",
       "test::growing-station",
       "test::growing-quota",
-      "test::growing-query"
+      "test::growing-query",
+      "test::growing-load"
     ]
   },
   "nested_tasks": {

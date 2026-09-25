@@ -22,6 +22,14 @@ properties *args:
 codecs *args:
     zig build test-codecs {{args}}
 
+# Finite offered-load, control latency and state-drain measurements (owned storage).
+growing-load *args:
+    zig build test-growing-load -- {{args}}
+
+# Repeated single-authority growth/load matrix with an owned S3-compatible tier.
+scale *args:
+    zig build test-scale -- {{args}}
+
 # Bounded formal exploration and negative controls; tools use the locked nixpkgs.
 model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-model -- {{args}}

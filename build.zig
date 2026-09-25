@@ -244,6 +244,29 @@ pub fn build(b: *std.Build) void {
     growing_service.has_side_effects = true;
     growing_service.stdio = .inherit;
     b.step("test-growing-service", "Prove the explicit growing node/client profile over signed HTTP").dependOn(&growing_service.step);
+    const growing_load = b.addExecutable(.{ .name = "transit-growing-load-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/growing_load.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
+    }) });
+    const load_proof = b.addSystemCommand(&.{ "python3", "-B" });
+    load_proof.addFileArg(b.path("tests/growing_load.py"));
+    load_proof.addArtifactArg(node_artifact);
+    load_proof.addArtifactArg(growing_load);
+    load_proof.addPassthruArgs();
+    load_proof.has_side_effects = true;
+    load_proof.stdio = .inherit;
+    b.step("test-growing-load", "Measure offered load, control progress and bounded state drain").dependOn(&load_proof.step);
+    const scale = b.addSystemCommand(&.{ "python3", "-B" });
+    scale.addFileArg(b.path("tests/verification/scale.py"));
+    scale.addArtifactArg(growth_proof);
+    scale.addArtifactArg(node_artifact);
+    scale.addArtifactArg(growing_load);
+    scale.addPassthruArgs();
+    scale.has_side_effects = true;
+    scale.stdio = .inherit;
+    b.step("test-scale", "Run the repeated finite growth and offered-load matrix").dependOn(&scale.step);
     const quota_proof = b.addSystemCommand(&.{ "python3", "-B" });
     quota_proof.addFileArg(b.path("tests/growing_quota.py"));
     quota_proof.addArtifactArg(node_artifact);
