@@ -1,8 +1,15 @@
 # Growing Station query capture — v2 design
 
 Status: the `GrowingQuery` capture slice is under M10 qualification. The
-publication/receiver protocol below remains design; no end-to-end growing-query
-capability is advertised. It builds
+publication/receiver codecs below (`QueryDelivery`, `QueryRecords`) are
+implemented and unit-tested against an in-memory authority fixture; no
+end-to-end growing-query capability is advertised. A growing `GenServer`
+still rejects `result_chunk`/`result_complete`/`result_ack` frames with
+`error.UnsupportedGrowingQuery` unless a host explicitly supplies a
+`QueryDelivery.Context` (bounded workspace and cancellation flag) — this is a
+deliberate opt-in, not an oversight; only the `test::growing-query` proof
+harness does so today, to qualify publication/receipt under real disk
+Ursula/node restart. It builds
 on [growing Station](STATION_GROWING.md), [retained read versions](READ_VERSIONS_V1.md)
 and [incremental Fuze](FUZE_STREAM_V1.md). It does not reinterpret the finite
 Station v1 result layout or enable growing results in foreign ABIs.
@@ -74,6 +81,28 @@ separate IPC streams and labels them one stream.
 Acknowledgement records peer acceptance. It never grants deletion. Slow consumers
 retain durable work, rather than keeping a native Arrow task or stack alive.
 
+## Flow control
+
+The implemented sender paces itself: `publishing` writes at most three
+fragments per authority turn before recording its cursor and self-casting a
+continuation. This bounds each proposal to the ordinary four-mutation budget;
+it is not a signal from the destination that it is ready for more. No frame
+today carries receiver-issued credit, and the receiver has no way to slow a
+sender that is otherwise authorized and within policy.
+
+This is a known, explicitly scoped gap, not a silent one. The intended
+direction — recorded here as design, matching the rest of this document's
+convention — is receiver-driven credit quantized in whole segments, the
+protocol's existing atomic, digested, sealed unit: the destination grants
+credit only for segments it has durably stored, and the sender may not run
+more than a small fixed window of segments ahead of the credit it has last
+observed. [`Delivery.tla`](../tests/verification/models/Delivery.tla) checks
+this abstractly (`WindowBound`, `CreditSound`, `NoPrematureAck`); wiring an
+actual receiver-issued grant frame, choosing the window size, and deciding
+whether credit is per-result or pooled per-destination-peer remain
+unimplemented. Until then, publication depends only on local self-pacing and
+authorization/policy, not on destination readiness.
+
 ## Policy, lifetimes and failure
 
 The service explicitly authorizes a peer/table through a revisioned framework
@@ -104,13 +133,19 @@ their exact signed request until reconciliation or fenced replacement.
 
 ## Qualification gates
 
-Implement codecs and bounded capture before enabling result frames in the
-growing GenServer. Qualify independent Arrow decoding of captured results beyond
-32 rows/672 bytes; global-limit/aggregate continuity; interruption during staging,
-seal and publication; consumer/caller/node/provider replacement; current-policy
-and grant changes; explicit close after source loss; duplicate/conflicting/missing
-fragments; and terminal acknowledgement without deletion. Keep legacy service,
-foreign ABI and finite-result proofs. This design does not pass those gates.
+Codecs and bounded capture are implemented; enabling result frames in the
+growing GenServer by default remains gated on the qualification below, not on
+missing code. `test::growing-query` now covers interruption during staging,
+seal and publication (exact retry of a lost publish/receive reply, cancellation
+while a submit is uncertain) and node/caller replacement, against real disk
+Ursula. `query_growing_test.zig` independently covers duplicate/conflicting/
+missing fragments and terminal acknowledgement without deletion, in-memory.
+Still open: independent Arrow decoding of captured results beyond 32
+rows/672 bytes; global-limit/aggregate continuity; provider (not just node)
+replacement during publication; current-policy and grant changes taking effect
+mid-publication; and explicit close after source loss racing delivery. Keep
+legacy service, foreign ABI and finite-result proofs. This design does not yet
+pass those remaining gates, and nothing enables it in a production host.
 
 ## Capture layout
 
@@ -127,7 +162,7 @@ destination, correlation (u64 each), Table ID (u32), retained source PID/input
 (u64 each)/slot (u8), policy revision (u64), phase (u8), captured byte total (u64),
 chain (32 bytes), publication segment (u64) and byte offset (u16). Phases are
 capturing=1, captured=2, published=3, acknowledged=4, cancelled=5, denied=6;
-publication fields/phases are reserved for the subsequent integration.
+the publication fields/phases are populated by the delivery layout below.
 
 `GQS2` segment manifests are 55 bytes: result and ordinal (u64 each), bytes
 (u16), rows (u8), SHA-256 (32 bytes). The chain starts with 32 zero bytes. Each
@@ -144,3 +179,84 @@ expected source-page ordinal (u64 each), staged byte count (u16). Only an
 authenticated self-origin is accepted. Older page/byte positions are inert;
 future positions reject. The committed stage and engine progress determine the
 next token, so duplicate continuations cannot advance a second chain of work.
+
+## Delivery layout
+
+Publication reuses the job's stored `send_segment`/`send_offset` cursor and
+sends framed fragments, a segment seal, and finally the complete-result
+manifest; nothing here reopens released source rows. `GQX2` `Transfer` is one
+encoding used by both ends for independent bookkeeping: the sender keys its
+own copy `u <result>` (tracking what it has sent, checked against its own PID)
+and the receiver keys its copy `r <correlation>` (tracking what it has
+received, checked against the authenticated peer) — the two are never the same
+durable record, and a `Transfer`'s `result`/`source` fields mean "my job" or
+"the peer's reported job" depending which key reads it. Fragments accumulate
+under key `d`; sealed segments are re-keyed under `v` once a `Segment`
+manifest is durably verified on receipt.
+
+`GQF2` result fragments are Station cast/`result_chunk` payloads, header plus
+raw bytes, at most `Frame.max_payload` (243) total: result and segment ordinal
+(u64 each), byte offset within the segment (u16), then up to 221 raw bytes.
+Offset must land on a `fragment_bytes` (221) boundary and `offset + len` must
+not exceed one segment (8192 bytes); a value failing either is rejected before
+being written, not merely before being read back.
+
+`GQP2` publication continuations are 22-byte Station cast payloads sharing
+`GQC2`'s layout under a distinct magic: result, segment ordinal (u64 each),
+byte offset already sent (u16). Only an authenticated self-origin is accepted,
+identically to capture continuations.
+
+`GQX2` result transfers are 110 bytes: result and source PID (u64 each),
+accumulated segments/bytes/rows (u64 each), chain (32 bytes), current fragment
+receive offset (u16), accumulated Arrow schema fingerprint (32 bytes, from
+`Inspect.segment`, independent of source identity or cell values). `segments =
+0` requires bytes/rows/chain/schema to be their zero value; `rows` must fit
+the accumulated `segments` at `max_rows` (32) per segment.
+
+`GQM2` complete-result manifests are 208 bytes: result, destination, correlation
+(u64 each), Table ID (u32), policy revision (u64), basis resource/revision
+(u64 each) and schema fingerprint (32 bytes), plan fingerprint (32 bytes),
+segments/bytes/rows totals (u64 each), chain (32 bytes), Arrow schema
+fingerprint (32 bytes). `check(transfer)` requires the receiver's accumulated
+`Transfer` to exactly match every total, the chain and the schema, with no
+fragment still pending, before a wait can close.
+
+Every segment is independently validated by `Inspect.segment` (`transit-fuze`)
+against the model's row/cell/column bounds before its schema fingerprint enters
+the chain — this is the boundary an untrusted or buggy peer's bytes cross, not
+an internal trust assumption. `Inspect.segment` does not special-case Arrow
+`BodyCompression`; a compressed record batch decodes transparently through the
+same call and is accepted like any other, bounded only by the caller's
+workspace allocator. Compression is out of scope for this milestone by
+decision, not oversight: `segment_bytes` (8192) already caps the wire payload
+tightly against the model's row/cell ceilings (32 rows × 220-byte cells × 2
+columns encodes to at most 7,848 bytes), so IPC-level compression buys little
+here and only adds attacker-controlled decompression amplification. Rejecting
+`compression != null` explicitly in `Inspect.segment`, rather than relying on
+the caller's workspace bound alone, is the cheap follow-up if a future profile
+still declines to support it.
+
+## Wire tag catalog
+
+Every durable value and cast/call payload in this design is prefixed by a
+four-byte ASCII magic tag naming its exact encoding, checked on decode.
+Frame kinds themselves stay `STN1` (`STATION_V1.md`); the tags below are typed
+payloads carried inside a `cast`, or durable values keyed by `QueryRecords.key`.
+This table is the single place to check before adding a fifth kind — the
+encode/decode functions above remain the source of truth for byte layout.
+
+| Tag | Type | Carried as |
+| --- | --- | --- |
+| `GQJ2` | `Job` | durable value, key tag `j` |
+| `GQS2` | `Segment` | durable value, key tags `m` (sealed) and inside `GQT2` |
+| `GQT2` | `Stage` | durable value, key tag `s` |
+| `GQC2` | `Continuation` | Station `cast` payload (capture self-continuation) |
+| `GQX2` | `Transfer` | durable value, key tags `u` (sender copy) and `r` (receiver copy) |
+| `GQM2` | `Manifest` | durable value (key tag `z`) and `result_complete` payload |
+| `GQF2` | `Fragment` | `result_chunk` payload (raw bytes) |
+| `GQP2` | `Publication` | Station `cast` payload (publication self-continuation) |
+| `SQC1` | legacy capture continuation | Station `cast` payload (finite `Query.zig`) |
+
+`QueryRecords.key`'s own one-byte tags (`j p e s i m f v r z`, distinct from the
+four-byte magics above) select which durable record a key addresses; they are
+documented alongside the layout sections above, not repeated here.

@@ -750,12 +750,51 @@ chain: 41 rows, 9,984 bytes in six segments. The source is released with the fin
 seal and rejects later reads. The requester's wait is still waiting: capture is
 not delivery or acknowledgement. In-memory tests add 70-row private capture,
 changed staging, duplicate/future/forged continuation, policy revocation, sticky
-read failure, explicit closure and corrupt/missing fragments. Growing result
-publication/receiver restart remain unqualified and their frames remain disabled.
-The first one-CPU Debug sample took 6.94s to seed/stage, 9.78s to recover/seal,
-and 73.50s to resume/capture/independently inspect. With 64 pages for the final
-phase, the same scenarios took 6.94s, 9.78s and 15.50s. The first recovery remains
-at one page and no faults or assertions were removed. These are finite shared-host
+read failure, explicit closure and corrupt/missing fragments.
+
+Growing result **delivery** now has both in-memory and real disk/service
+qualification. `query_growing_test.zig` drives two independent in-memory
+`Store` fixtures as separate producer and receiver peers exchanging real
+`QueryDelivery.dispatch` frames through an explicit message queue, matching
+the wire protocol rather than calling capture and delivery in the same
+process. One run publishes and independently decodes 41 rows across six
+segments end to end, closing exactly once before acknowledgement despite a
+duplicated fragment redelivery, a forged reply source, and a closed wait
+staying closed against a late corrupted resend. A second, focused test rejects
+out-of-order/conflicting/premature evidence (`UnorderedResultFragment`,
+`ConflictingResultFragment`, `ConflictingResultIdentity`, `IncompleteResult`,
+`InvalidArrowResult`) without ever closing the receiver's wait, and checks
+cancellation mid-dispatch. `Inspect.segment`
+(`packages/zig/transit-fuze/src/Inspect.zig`) independently validates every
+received Arrow segment — bounded allocation, schema/row/cell bounds, UTF-8 and
+nullability — before its fingerprint enters the chain; it is exercised
+separately in `inspect_test.zig`.
+
+`just test::growing-query` now adds `publish` and `deliver` phases to its
+existing real disk Ursula/node proof, driving two separate `GenServer.Growing`
+instances (sender and receiver) that each explicitly configure
+`.query = .{ .workspace, .cancellation }` — the growing GenServer still
+rejects these frames by default; nothing wires this in a production host yet.
+The proxy loses an accepted publish reply and a receive reply in addition to
+the existing stage/seal faults; exact retry recovers all four without
+rerunning a handler or reopening released source rows. It also cancels the
+sender mid-submit while an authority outcome is uncertain and confirms the
+uncertain mutation is retained, not discarded. Independent PyArrow decodes
+every segment the receiver durably stored and diffs it byte-for-byte against
+the sender's own captured segment, and Python checks the received manifest's
+basis/plan/chain/schema against the sender's. One run: 41 rows/9,984 bytes in
+six segments; publish took 2.72s and deliver 61.50s on this one-CPU Debug
+sample, on top of the existing 8.26s/10.24s/17.98s write/seal/recover. These
+are finite shared-host proof timings, not service SLOs.
+
+See [`contracts/STATION_QUERY_V2.md`](../contracts/STATION_QUERY_V2.md) for
+the wire layout and the credit-based flow-control design
+`just test::model-delivery` checks abstractly; it is not yet wired to a Zig
+trace replay the way `test::model` is for `Authority.tla`.
+`just test::growing-query --finish-pages 1` retains one resident page through
+the seal/recover phases instead of the 64-page default measured above; the
+first recovery (after staging, before any seal) always uses one page and no
+faults or assertions are removed either way. These are finite shared-host
 proof timings, not service SLOs or hosted Nix/CI budgets.
 
 The [verification guide](verification/README.md) owns the versioned inventory,
