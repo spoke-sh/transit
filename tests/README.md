@@ -727,6 +727,48 @@ Flight/ADBC remain later milestones.
 
 ## M10 verification and scale foundations
 
+The [2026-09-25 growth evidence](verification/results/m10-scale-2026-09-25.json)
+records **14 passing samples**: two each at 64/256/1,024 rows with one resident
+page, 256 rows with 16 pages, eight retained views, and two public-service offered
+loads. All use real Ursula WAL plus pinned MinIO on the checkout's ext4 filesystem,
+on a shared Linux x86_64 Threadripper 3960X host (48 logical CPUs, about 121 GiB
+RAM), Zig `0.17.0-dev.2267+48abf1a34` and Ursula 0.5.1. Each sample records actual
+binary hashes, revision/dirty state and timing boundaries. Six cases ran through
+`just test::scale`; the added eight-view case ran twice separately before joining
+the executable matrix. These are shared-host observations, not production SLOs.
+
+| Rows / cache pages / retained views | Write plus verification, seconds | Turn p99, ms | Full recovery verification, seconds | Maximum authority-driver RSS, KiB |
+| --- | ---: | ---: | ---: | ---: |
+| 64 / 1 / 1 | 54.86–57.31 | 952–978 | 4.21–4.58 | 12,596 |
+| 256 / 1 / 1 | 109.01–113.49 | 984–1,013 | 14.33–15.19 | 12,596 |
+| 1,024 / 1 / 1 | 366.91–366.94 | 1,166–1,315 | 61.64–62.37 | 12,660 |
+| 256 / 16 / 1 | 85.31–86.17 | 825–839 | 11.77–12.05 | 12,720 |
+| 256 / 16 / 8 | 91.08–92.72 | 780–1,792 | 15.66–15.89 | 12,744 |
+
+The one-page cache remains **8,532 bytes** while retained application values grow
+from 16 to 256 KiB, alongside 70 PIDs, 21 principals, six resources and 69
+associations. The eight-view driver also checks every retained association after
+restart; its timing difference is not solely view-count cost. At 1,024 rows,
+engine opening took 1.04–1.06s on first recovery; checkpoint publication took
+107–109ms, separately from full verification. Recovery/trim created zero pages.
+Ursula peaked around 95 MiB and MinIO around 327 MiB. Write/setup/verification
+made 289,558 page requests and attempted 45.09 MB of immutable page payloads,
+retaining about 47 MB in cold files. These costs expose substantial index/history
+and request amplification despite the fixed authority cache.
+
+Each offered-load run scheduled 48 independent signed requests, then verified
+exact retries, control revocation, every drained row and restart digests. With
+16-byte uniform updates, one generator worker and 100ms offer intervals, p99 was
+3.28–3.42s and control latency 208–238ms. With 256-byte updates, 90% hot-key
+selection, four workers and 1ms intervals, p99 was 9.11–9.73s and control latency
+805–880ms. All requests were admitted; accepted backlog survived provider/node
+loss. Generator queueing is included in latency and was substantial; these
+finite bursts do not establish service capacity. Both load cases and all
+four authority phases retain process/provider metrics and correctness evidence.
+A preceding setup attempt timed out during severe host I/O contention and remains
+inconclusive; it is not included in the passing sample count. Two repeats do not
+establish stable performance-regression tolerances or cold-run tail guarantees.
+
 `just test::arrow` also qualifies Fuze's incremental engine independently of
 Station persistence. Python checks the typed plan fingerprint and 143-byte
 progress format; PyArrow decodes variable-sized segments across 70 rows. The

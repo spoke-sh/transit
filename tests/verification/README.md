@@ -223,7 +223,10 @@ focuses the finite public-service offered-load case. The
 [backend guide](../../packages/zig/transit-backend-ursula/docs/growing.md#proof-and-limits)
 defines timing boundaries, generator queueing and storage measurements. A matrix
 entry or an incomplete manifest is not passing evidence. The larger analytical
-dimensions remain distinct from this executable sample matrix.
+dimensions remain distinct from this executable sample matrix. The
+[recorded fourteen-sample result](results/m10-scale-2026-09-25.json) preserves
+measurement fields and original artifact hashes; the [test guide](../README.md#m10-verification-and-scale-foundations)
+summarizes observed ranges and qualification limits.
 
 ## Codecs and allocation boundaries
 

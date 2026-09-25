@@ -17,7 +17,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M7](M7.md) | Durable state resources and process associations | Bounded KV profile, generic Board inspection and three-launcher recovery/upgrades implemented and verified |
 | [M8](M8.md) | Transit runtime readiness | Bounded origins, automatic delivery, catalog reclamation and lifecycle controls implemented and verified |
 | [M9](M9.md) | Station behaviors, language bindings, and Arrow Tables | Bounded profile implemented and qualified on Linux x86_64 across all target languages; Zig reference workers |
-| [M10](M10.md) | Verification and scale foundations | In progress; growing-state correctness qualified, repeated scale and CI budget qualification pending |
+| [M10](M10.md) | Verification and scale foundations | In progress; growing-state correctness and repeated scale qualified, CI budget qualification pending |
 | [M11](M11.md) | Idiomatic language SDKs | Planned |
 | [M12](M12.md) | Declarative interface readiness | Planned |
 | [M13](M13.md) | Board relief atlas and public query access | Planned |
