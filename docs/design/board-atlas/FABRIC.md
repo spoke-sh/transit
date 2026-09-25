@@ -6,6 +6,10 @@ the review direction: an inbox lifts the fabric, an outbox presses into it,
 and age can make that depression more visible. None of these screens is
 implemented or connected to a live system.
 
+The next [scale exploration](SCALE.md) takes study 7 below as the accepted
+visual baseline and applies it to 100, 1,000, 10,000 and 100,000 synthetic
+processes, with stable groups, summaries and individual age pins.
+
 ## 7. Queue counts with age on the well walls
 
 ![Board fabric showing inbox mounds, central outbox wells, a flat empty process and an outbox-only depression, with age tint and exact labels.](images/07-fabric-counts-and-age.png)

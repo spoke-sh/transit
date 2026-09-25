@@ -1,6 +1,6 @@
 # Board: relief atlas design study
 
-Status: **proposed visual design, not implemented UI**. These nine generated
+Status: **proposed visual design, not implemented UI**. These thirteen generated
 concept images explore a shared browser and map workspace. At a distance,
 pending inputs form a shallow relief atlas. As the viewer approaches a process,
 the terrain flattens into readable cards and recorded relationships.
@@ -9,10 +9,15 @@ The images use synthetic data, not a deployment or a captured Transit transcript
 They are review material, not assets to embed in the Board executable.
 [Board's design contract](../../BOARD.md) remains authoritative.
 
-**Latest review: [Inbox, outbox and age as a fabric](FABRIC.md).** Three new
-studies compare count-based wells, age-driven depth, and the transition to a
-flat Inbox/Outbox inspector. All age values are synthetic and require proposed
-timestamp support. The original six views below remain as the earlier design.
+**Latest review: [Fabric at 100 to 100,000 processes](SCALE.md).** Four new
+studies extend the accepted queue-count fabric with stable groups, summaries
+and age pins. They are future-scale concepts, beyond M9's bounded runtime.
+
+The [inbox, outbox and age study](FABRIC.md) compares count-based wells,
+age-driven depth, and the transition to a flat inspector. Study 7 supplies the
+visual baseline for the scale exploration. All age values are synthetic and
+require proposed timestamp support. The original six views below remain as the
+earlier design.
 
 ## Walk through the design
 
@@ -76,6 +81,8 @@ stale terrain or identifiable silhouettes.
   shared visual specification and targeted refinement prompts.
 - [Fabric and age prompts](fabric-prompts.json): the follow-up exploration and
   its zoom refinement.
+- [Scale prompts](scale-prompts.json) and [synthetic fixture](scale-fixture.json):
+  four populations, grouping, aggregation and individual outliers.
 - [Board frontend](../../../apps/transit-board-web/README.md): current implemented
   browser behavior and verification commands.
 
@@ -124,11 +131,14 @@ No duration, throughput, worker-liveness or external-outcome claim is implied.
 ## Milestone relationship
 
 This study is grounded in the completed [M2 inspection boundaries](../../roadmap/M2.md)
-and [M7 state-resource inspection](../../roadmap/M7.md). It does not reopen their
+and [M7 state-resource inspection](../../roadmap/M7.md). The scale follow-up is
+rebased onto completed [M9 Station qualification](../../roadmap/M9.md), using
+its authorized framework evidence as a candidate grouping basis. It does not reopen their
 exit criteria or claim completion of a new interface.
 
 Implementation is not scheduled by this design-only change. Select a new
 numbered milestone using the [roadmap sequencing rule](../../roadmap/README.md#maintaining-the-sequence)
 before implementing the canvas or expanding the read profile. The study does
-not require Station, multi-realm discovery, deployment topology or application
-value decoding.
+not require Station for a generic view, multi-realm discovery, deployment topology
+or application value decoding. Station grouping is optional; aggregate discovery
+and the larger populations remain outside the implemented inspection profile.

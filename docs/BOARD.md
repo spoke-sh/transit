@@ -60,6 +60,12 @@ global aggregation and renderer choices are not established. Implementation
 needs its own numbered milestone under the roadmap sequencing rule; the
 completed M2 profile and its qualification remain unchanged.
 
+The [scale exploration](design/board-atlas/SCALE.md) extends that fabric from
+100 to 100,000 synthetic processes using stable groups, aggregate landforms
+and individual age pins. M9's authorized Station lenses can inform grouping;
+bulk summaries, durable age evidence and these larger runtime populations are
+not implemented or qualified by the completed M9 profile.
+
 ## Boundary and packaging
 
 ```mermaid

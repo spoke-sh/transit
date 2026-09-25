@@ -80,6 +80,12 @@ relabels the units. Unavailable evidence makes a layer unavailable, not zero.
 
 ## Inbox, outbox and age follow-up
 
+The subsequent [scale study](SCALE.md) keeps study 7's queue-count fabric as its
+baseline. It adds a proposed hierarchy of stable presentation groups, disjoint
+aggregate marks and separate outlier pins at 100 to 100,000 synthetic processes.
+Its grouping and aggregation rules extend this interaction intent; M9's bounded
+completion does not establish those capacities or a bulk inspection API.
+
 The [fabric exploration](FABRIC.md) extends this initial height-only study with
 an inbox shoulder and an independently readable outbox well. It compares count
 depth plus age tint with an explicit age-depth layer. The interface uses Inbox
