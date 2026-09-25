@@ -11,31 +11,7 @@ const Realm = 43;
 const Count = 40;
 const Expected = struct { requester: u64, writer: u64, requests: u64, rows: u64, retained_input: u64 = 0, stale: ?g.SignedRequest = null };
 
-const Admin = struct {
-    wire: *client.Client,
-    key: p.Ed25519.KeyPair,
-    sequence: u64 = 0,
-    fn query(self: *Admin, kind: @FieldType(g.Query, "kind")) !g.Response {
-        return self.wire.queryGrowing(.{ .realm = Realm, .principal = 0, .kind = kind }, self.key);
-    }
-    fn submit(self: *Admin, command: g.Command) !u64 {
-        const receipt = try self.wire.submitGrowing(try g.sign(.{ .realm = Realm, .principal = 0, .sequence = self.sequence + 1, .command = command }, self.key));
-        self.sequence += 1;
-        return receipt.position;
-    }
-    fn send(self: *Admin, pid: u64, index: i64) !void {
-        _ = try self.submit(.{ .send = .{ .pid = pid, .value = try (station.Frame{ .kind = .cast, .payload = p.Value.integer(index) }).encode() } });
-    }
-    fn provision(self: *Admin, principal: u64, key: p.Ed25519.KeyPair) !struct { pid: u64, resource: u64 } {
-        const pid = try self.submit(.{ .spawn = .{} });
-        _ = try self.submit(.{ .grant = .{ .subject = principal, .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .pid = pid } });
-        const resource = try self.submit(.{ .create_resource = .{ .writer = pid } });
-        for ([_]u64{ 0, principal }) |subject| _ = try self.submit(.{ .grant_resource = .{ .resource = resource, .subject = subject, .permissions = p.State.all_permissions } });
-        _ = try self.submit(.{ .associate = .{ .pid = pid, .name = try p.Value.init("state"), .resource = resource } });
-        _ = try self.submit(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = principal } });
-        return .{ .pid = pid, .resource = resource };
-    }
-};
+const Admin = @import("growing_support.zig").Admin(Realm);
 
 const Handler = struct {
     writer: bool,
