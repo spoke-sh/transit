@@ -5,8 +5,10 @@ pub const compute = @import("zarrow_compute");
 pub const model = @import("model.zig");
 pub const Plan = @import("Plan.zig");
 pub const execution = @import("execute.zig");
+pub const Stream = @import("Stream.zig");
 test {
     _ = @import("tests.zig");
+    _ = @import("stream_test.zig");
 }
 
 /// Serialize a complete, finite result into a caller-owned bounded buffer.

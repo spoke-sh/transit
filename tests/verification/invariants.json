@@ -188,6 +188,27 @@
       "model": null
     },
     {
+      "id": "ARROW-02",
+      "claim": "Incremental query limits and ordered aggregates span batches without silently truncating source or output",
+      "owner": "contracts/FUZE_STREAM_V1.md",
+      "implementation": [
+        "packages/zig/transit-fuze/src/Stream.zig"
+      ],
+      "profile": "fuze-stream-v1 development",
+      "tasks": [
+        "test::unit",
+        "test::arrow"
+      ],
+      "scenarios": [
+        "70 rows, variable partitions, global filter/limit, null and exact integer aggregates",
+        "Signed overflow across page boundaries despite a cancelling later value",
+        "Plan/basis/ordinal rejection, allocation/output/cancellation faults and deterministic retry",
+        "Independent PyArrow segments and Python progress/fingerprint encoding"
+      ],
+      "limits": "Pure synchronous bounded steps only; durable Station capture, policy, staging and consumer restart remain integration gates. Digests do not prove honest caller computation.",
+      "model": null
+    },
+    {
       "id": "RUNTIME-01",
       "claim": "Provider recovery and upgrades cannot grant ownership or redirect durable work",
       "owner": "docs/DEPLOYMENT.md",

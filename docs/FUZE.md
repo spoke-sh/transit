@@ -11,11 +11,13 @@ SQL/Flight frontend. Those bounded profiles do not imply the whole target design
 
 [M10](roadmap/M10.md) requires a measured path from growing durable sources to
 bounded query/result batches before public SDKs. The existing finite M9 source
-and IPC ceilings remain current implementation limits; they are not the intended
+and IPC ceilings remain limits of the legacy path; they are not the intended
 maximum Table or retained-result size. A larger dataset must not imply collecting
 all rows or result bytes in a worker's memory.
-The proposed [incremental execution contract](../contracts/FUZE_STREAM_V1.md)
-separates bounded engine steps from Station's durable fragment/result publication.
+The [incremental execution contract](../contracts/FUZE_STREAM_V1.md) now has a
+qualified pure Zig engine with bounded batches and whole-query progress. Station's
+durable fragment/result publication is still being implemented; this engine
+boundary alone does not close the large-query recovery gate.
 
 ## Purpose and ownership
 

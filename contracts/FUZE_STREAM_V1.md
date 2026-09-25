@@ -1,9 +1,9 @@
-# Fuze incremental execution — proposed v1 extension
+# Fuze incremental execution — v1 development extension
 
-Status: M10 implementation design, not an advertised capability. The finite
-[Fuze v1 profile](FUZE_V1.md) remains supported. This extension must be qualified
-with Station's [retained read versions](READ_VERSIONS_V1.md) before it closes the
-large-query/result gate.
+Status: the pure Zig execution/owned-progress boundary is implemented by
+`transit_fuze.Stream`. Station integration below remains a required M10 gate;
+this is not yet an advertised end-to-end query capability. The finite
+[Fuze v1 profile](FUZE_V1.md) remains supported.
 
 ## Execution boundary
 
@@ -57,6 +57,43 @@ step after loss. Encoder and plan compatibility are explicit; an incompatible
 worker rejects continuation rather than rewriting previously captured fragments.
 A digest validates bytes, not the honesty of arbitrary application computation.
 
+## Progress encoding and compatibility
+
+`Stream.Plan.bind(basis, schema)` returns a bound plan. `bound.start()` returns
+initial progress. `Stream.step` accepts an explicit `Page {ordinal, source, end}`
+and returns `Step {progress, segment}`. Source batches admit at most 32 rows;
+neither total scanned rows nor output segment count is limited to 32. Counters
+are checked u64; a count aggregate must also fit its Arrow int64 result. Cell,
+schema and per-step workspace bounds remain those of Fuze v1. The caller sizes
+the output buffer and receives an error if a segment does not fit.
+
+The plan fingerprint is SHA-256 over `transit.fuze.stream.plan.v1` followed by
+a zero byte and compact JSON of the typed `Stream.Plan`, in declaration order:
+`version`, `predicate`, `projection`, `limit`, `aggregate`. It includes exact
+typed predicate encodings, including fixed byte arrays; it is not a hash of
+arbitrary submitted JSON text or an optimizer equivalence claim. Basis/schema
+are checked separately. A changed plan, schema or revision rejects continuation.
+
+The owned binary progress format is exactly 143 bytes. Integers are little
+endian; absent optional numeric fields have zero bytes. Decoding rejects other
+lengths, magic, tags and noncanonical absent values; `validate(bound)` additionally
+checks identity and counter/state consistency before execution. Neither check
+proves that an untrusted application computed the recorded counters honestly.
+
+| Offset | Encoding |
+| --- | --- |
+| 0 | Four-byte `FZS1` magic (version 1) |
+| 4, 12 | u64 resource and revision |
+| 20, 52 | 32-byte schema and plan fingerprints |
+| 84, 92, 100, 108, 116 | u64 pages, scanned, selected, segments, output rows |
+| 124, 125 | last-key presence (0/1), i64 primary key |
+| 133, 134 | sum presence (0/1), i64 carry |
+| 142 | termination: 0 pending, 1 source end, 2 limit |
+
+The format contains no source read capability, Table cursor or result manifest.
+Station must durably associate those with the same query identity. A resumed
+worker must support this plan, progress and IPC segment representation explicitly.
+
 ## Station integration gates
 
 Station must bind the plan to one retained source and store a durable job identity,
@@ -74,9 +111,16 @@ complete capture, delivery and acknowledgement. Policy changes, source expiry,
 release, cancellation and unknown submission outcomes need explicit terminal or
 recoverable behavior. Acknowledgement never authorizes deletion implicitly.
 
-Qualification must cover limits spanning pages, nulls and signed overflow across
-boundaries, source/cursor/plan changes, cancellation and allocation faults, queries
-and Arrow results beyond M9's total-size ceilings, interrupted fragment staging,
+Pure execution tests and independent PyArrow checks cover limits spanning pages,
+nulls and signed overflow across boundaries, source/ordinal/plan changes,
+cancellation/allocation faults, owned progress encoding, and results beyond
+the legacy whole-query ceilings (70 rows and a 16,008-byte text result in seven
+independently decoded segments). This is bounded caller-side evidence, not
+durable publication or restart qualification.
+
+Remaining integration qualification must cover source/cursor/plan changes,
+cancellation and allocation faults, queries and Arrow results beyond M9's
+total-size ceilings, interrupted fragment staging,
 worker/node/provider restart, policy revocation, missing/duplicate/reordered
-fragments, and independent PyArrow decoding. This design alone satisfies none of
-those implementation gates.
+fragments, and independent PyArrow decoding of durably captured bytes. The pure
+engine checks alone do not satisfy those integration gates.

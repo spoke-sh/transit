@@ -8,6 +8,7 @@ pub fn main(init: std.process.Init) !void {
     const allocator = init.gpa;
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 3) return error.Usage;
+    if (std.mem.startsWith(u8, args[1], "stream-")) return stream(init, args[1][7..], args[2]);
     const empty = std.mem.eql(u8, args[1], "empty");
     if (std.mem.startsWith(u8, args[1], "query-")) return query(init, args[1][6..], args[2]);
     const types = [_]a.DataType{ .{ .int64 = {} }, .{ .string = {} } };
@@ -36,6 +37,70 @@ pub fn main(init: std.process.Init) !void {
     var buffer: [4096]u8 = undefined;
     const encoded = try fuze.encode(allocator, batch, &buffer);
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = args[2], .data = encoded });
+}
+
+fn stream(init: std.process.Init, name: []const u8, path: []const u8) !void {
+    const m = fuze.model;
+    const s = fuze.Stream;
+    const data_type: m.Type = if (std.mem.eql(u8, name, "bool")) .boolean else if (std.mem.eql(u8, name, "text")) .utf8 else if (std.mem.eql(u8, name, "binary")) .binary else .int64;
+    const schema: m.Schema = .{ .names = .{ try m.Name.init("id"), try m.Name.init("value") }, .value_type = data_type };
+    var rows: [70]m.Row = undefined;
+    const text: [m.max_cell_bytes]u8 = @splat('x');
+    for (&rows, 0..) |*row, index| {
+        const value: m.Cell = switch (data_type) {
+            .int64 => .{ .int64 = 9007199254740993 + @as(i64, @intCast(index)) },
+            .boolean => .{ .boolean = index % 2 == 0 },
+            .utf8 => .{ .utf8 = try m.Bytes.init(&text) },
+            .binary => .{ .binary = try m.Bytes.init(&.{ 0, 255, @intCast(index) }) },
+        };
+        row.* = .{ .key = @intCast(index), .value = if (index % 5 == 0) .null else value };
+    }
+    var plan: s.Plan = .{};
+    if (std.mem.eql(u8, name, "sum")) {
+        plan.aggregate = .sum;
+        plan.projection = .{ 1, null };
+    }
+    if (std.mem.eql(u8, name, "count")) plan.aggregate = .count;
+    if (std.mem.eql(u8, name, "null")) plan.predicate = .{ .is_null = 1 };
+    if (std.mem.eql(u8, name, "empty")) plan.limit = 0;
+    if (std.mem.eql(u8, name, "limit")) {
+        plan.limit = 37;
+        plan.predicate = .{ .compare = .{ .column = 0, .op = .ge, .value = .{ .int64 = 3 } } };
+    }
+    const physical = try plan.bind(.{ .resource = 7, .revision = 9, .schema = try schema.fingerprint() }, schema);
+    var progress = physical.start();
+    var workspace: [fuze.execution.working_bytes]u8 = undefined;
+    var output: [8192]u8 = undefined;
+    const cancel = fuze.execution.Cancellation.init(false);
+    const Segment = struct { ordinal: u64, bytes: usize, rows: u8, digest: [32]u8 };
+    var segments: [16]Segment = undefined;
+    var count: usize = 0;
+    var offset: usize = 0;
+    var total_bytes: usize = 0;
+    while (progress.finished == null) {
+        // Include an empty nonterminal batch and changing partition sizes.
+        const take: usize = if (progress.pages == 0) 0 else if (progress.pages % 2 == 0) 8 else 13;
+        const end = @min(rows.len, offset + take);
+        const next = try s.step(physical, progress, .{ .ordinal = progress.pages, .source = .{ .basis = physical.basis, .schema = schema, .rows = rows[offset..end] }, .end = end == rows.len }, &workspace, &output, &cancel);
+        if (next.segment) |segment| {
+            var path_buffer: [4096]u8 = undefined;
+            const segment_path = try std.fmt.bufPrint(&path_buffer, "{s}.{d}.arrow", .{ path, count });
+            try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = segment_path, .data = segment.bytes });
+            segments[count] = .{ .ordinal = count, .bytes = segment.bytes.len, .rows = segment.rows, .digest = segment.digest };
+            count += 1;
+            total_bytes += segment.bytes.len;
+        }
+        // No Arrow allocation or borrowed native progress survives a step.
+        progress = try s.Progress.decode(&try next.progress.encode());
+        offset = end;
+    }
+    var manifest_buffer: [8192]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&manifest_buffer);
+    try std.json.Stringify.value(.{ .representation = "arrow-ipc-segments-v1", .plan = plan, .progress = progress, .bytes = total_bytes, .segments = segments[0..count] }, .{}, &writer);
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = writer.buffered() });
+    var path_buffer: [4096]u8 = undefined;
+    const progress_path = try std.fmt.bufPrint(&path_buffer, "{s}.progress", .{path});
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = progress_path, .data = &try progress.encode() });
 }
 
 fn query(init: std.process.Init, name: []const u8, path: []const u8) !void {

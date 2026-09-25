@@ -727,6 +727,16 @@ Flight/ADBC remain later milestones.
 
 ## M10 verification and scale foundations
 
+`just test::arrow` also qualifies Fuze's incremental engine independently of
+Station persistence. Python checks the typed plan fingerprint and 143-byte
+progress format; PyArrow decodes variable-sized segments across 70 rows. The
+text result totals 16,008 bytes in seven complete IPC segments. Global limits,
+count/sum, nulls and exact integers agree across boundaries. Package/root unit
+tests additionally reject changed basis/plan/order, signed intermediate overflow,
+insufficient workspace/output and cancellation without publishing progress.
+This does not qualify durable large-result staging, delivery or recovery; those
+remain integration gates in the [incremental contract](../contracts/FUZE_STREAM_V1.md).
+
 The [verification guide](verification/README.md) owns the versioned inventory,
 bound audit and generated transition harness. `just test::properties` checks the
 real Zig authority against an independent mailbox/fencing/retry projection,

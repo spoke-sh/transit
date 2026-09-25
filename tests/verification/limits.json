@@ -189,7 +189,7 @@
       "symbol": "max_rows",
       "expression": "32",
       "classification": "total-cardinality",
-      "meaning": "Whole query input row count; needs batches independent of total source."
+      "meaning": "Legacy finite query total ceiling; Stream uses the same bound per batch independently of total source/result size."
     },
     {
       "source": "packages/zig/transit-fuze/src/execute.zig",
@@ -309,6 +309,13 @@
       "expression": "4",
       "classification": "operation",
       "meaning": "Read dependencies, retains and releases per atomic turn; independent of total retained read versions."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Stream.zig",
+      "symbol": "progress_bytes",
+      "expression": "143",
+      "classification": "encoding",
+      "meaning": "Owned incremental query progress format; counters and aggregate carry are independent of total retained rows."
     }
   ],
   "identities": [
