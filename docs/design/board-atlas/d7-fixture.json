@@ -1,0 +1,211 @@
+{
+  "synthetic": true,
+  "status": "Design fixtures, not Transit records or a versioned query wire schema.",
+  "outerScene": {
+    "source": "d6-fixture.json",
+    "scope": "A.01",
+    "layoutKey": "shared-neighborhood-v1",
+    "selectedResourceId": 17,
+    "currentValueBytes": 33554432,
+    "processIds": [
+      41,
+      52,
+      63
+    ],
+    "resourceIds": [
+      17,
+      18,
+      19
+    ],
+    "note": "Reuse D5/D6 roles, bytes and associations. Resource and process identities remain separate; zoom cannot establish ownership."
+  },
+  "workspace": {
+    "resourceId": 17,
+    "resourceBasis": "synthetic-r17-revision-1",
+    "tables": [
+      {
+        "id": "T1",
+        "descriptorBasis": "synthetic-t1-schema-1",
+        "fields": [
+          {
+            "name": "sample_id",
+            "type": "int64"
+          },
+          {
+            "name": "group_id",
+            "type": "int64"
+          },
+          {
+            "name": "value",
+            "type": "int64"
+          }
+        ]
+      },
+      {
+        "id": "T2",
+        "descriptorBasis": null,
+        "fields": null,
+        "status": "Schema not loaded"
+      }
+    ],
+    "initialView": "canvas",
+    "entryExecutesQuery": false
+  },
+  "sample": {
+    "id": "S1",
+    "source": {
+      "resourceId": 17,
+      "tableId": "T1",
+      "resourceBasis": "synthetic-r17-revision-1",
+      "descriptorBasis": "synthetic-t1-schema-1"
+    },
+    "rowCount": 6,
+    "rows": [
+      {
+        "sample_id": "101",
+        "group_id": "1",
+        "value": "8"
+      },
+      {
+        "sample_id": "102",
+        "group_id": "2",
+        "value": "13"
+      },
+      {
+        "sample_id": "103",
+        "group_id": "1",
+        "value": "21"
+      },
+      {
+        "sample_id": "104",
+        "group_id": "2",
+        "value": "34"
+      },
+      {
+        "sample_id": "105",
+        "group_id": "2",
+        "value": "55"
+      },
+      {
+        "sample_id": "106",
+        "group_id": "3",
+        "value": "89"
+      }
+    ],
+    "integerEncoding": "Decimal strings retain exact int64 values in this design fixture; not a new wire encoding.",
+    "coverage": "Six illustrative rows only. No full-Table cardinality, representative sampling or relation between this page's bytes and D5's 32 MiB resource total is asserted.",
+    "order": "Fixture presentation order, not a service ordering guarantee."
+  },
+  "query": {
+    "id": "Q1",
+    "sourceSampleId": "S1",
+    "projection": [
+      "sample_id",
+      "group_id",
+      "value"
+    ],
+    "filter": {
+      "operator": "eq",
+      "field": "group_id",
+      "value": "2"
+    },
+    "execution": "Explicit Run query only; entry, scrolling, selection, query editing and Canvas/Browse switching do not run it."
+  },
+  "result": {
+    "id": "synthetic-q1-result-1",
+    "queryId": "Q1",
+    "sampleId": "S1",
+    "rows": [
+      {
+        "sample_id": "102",
+        "group_id": "2",
+        "value": "13"
+      },
+      {
+        "sample_id": "104",
+        "group_id": "2",
+        "value": "34"
+      },
+      {
+        "sample_id": "105",
+        "group_id": "2",
+        "value": "55"
+      }
+    ],
+    "rowCount": 3,
+    "coverage": "Complete for sample S1 only",
+    "status": "Completed synthetic result; no current Board query endpoint is implied."
+  },
+  "frames": [
+    {
+      "figure": 1,
+      "image": "images/d7-01-neighborhood-pullback.png",
+      "space": "atlas",
+      "view": "canvas",
+      "emphasisPolicy": "auto",
+      "resolvedEmphasis": "resources",
+      "selection": {
+        "kind": "resource",
+        "id": 17
+      },
+      "cameraKey": "neighborhood-pullback",
+      "resultId": null
+    },
+    {
+      "figure": 2,
+      "image": "images/d7-02-resource-interior.png",
+      "space": "resource",
+      "view": "canvas",
+      "resourceId": 17,
+      "selection": {
+        "kind": "table",
+        "id": "T1"
+      },
+      "cameraKey": "r17-floor-plan",
+      "resultId": null
+    },
+    {
+      "figure": 3,
+      "image": "images/d7-03-query-canvas.png",
+      "space": "query",
+      "view": "canvas",
+      "resourceId": 17,
+      "tableId": "T1",
+      "queryId": "Q1",
+      "resultId": "synthetic-q1-result-1",
+      "cameraKey": "q1-worksheet"
+    },
+    {
+      "figure": 4,
+      "image": "images/d7-04-query-browse.png",
+      "space": "query",
+      "view": "browse",
+      "resourceId": 17,
+      "tableId": "T1",
+      "queryId": "Q1",
+      "resultId": "synthetic-q1-result-1",
+      "cameraKey": null
+    }
+  ],
+  "navigation": {
+    "emphasisPolicies": [
+      "auto",
+      "processes",
+      "resources"
+    ],
+    "autoMayChangeEmphasis": true,
+    "pinnedEmphasisChangesOnZoom": false,
+    "resourceEntry": "Explicit Enter resource navigation; never a query execution.",
+    "processCenter": "Flat process queue/evidence detail, not a resource portal.",
+    "associationFollow": "Resolve the chosen authorized resource, frame source and target if nearby, then focus that existing plot.",
+    "returnState": [
+      "outer camera",
+      "outer layout version",
+      "scope",
+      "selection",
+      "emphasis policy",
+      "filters"
+    ],
+    "knownDenial": "Clear protected source/result data and revalidate return state; history does not grant access."
+  }
+}

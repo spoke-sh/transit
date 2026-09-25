@@ -1,0 +1,209 @@
+{
+  "synthetic": true,
+  "status": "Independent D8 participation/growth scenario, not a continuation of observed runtime activity. Same R17 metadata as D5/D6; no current Board metrics or historical snapshots are claimed.",
+  "resource": {
+    "source": "d5-fixture.json",
+    "resourceId": 17,
+    "currentValueBytes": 33554432,
+    "writerPid": 41,
+    "lifetimeOwner": null,
+    "logicalTables": [
+      "T1",
+      "T2"
+    ],
+    "byteMetric": "D5 current decoded live value-payload bytes, including stored framework/causal/captured-result values; not physical storage."
+  },
+  "participation": {
+    "metric": "Unique currently disclosed PIDs with a recorded association to R17, deduplicated across names.",
+    "distinctProcessCount": 2000,
+    "groups": [
+      {
+        "id": "A",
+        "firstPid": 1,
+        "lastPid": 600,
+        "count": 600
+      },
+      {
+        "id": "B",
+        "firstPid": 601,
+        "lastPid": 1100,
+        "count": 500
+      },
+      {
+        "id": "C",
+        "firstPid": 1101,
+        "lastPid": 1500,
+        "count": 400
+      },
+      {
+        "id": "D",
+        "firstPid": 1501,
+        "lastPid": 1800,
+        "count": 300
+      },
+      {
+        "id": "E",
+        "firstPid": 1801,
+        "lastPid": 2000,
+        "count": 200
+      }
+    ],
+    "layouts": [
+      "stadium",
+      "park",
+      "fairground"
+    ],
+    "coverage": "Synthetic complete disclosed set for this comparison only; one association per PID in this fixture.",
+    "activeUse": null,
+    "concurrentReaders": null,
+    "writeRate": null,
+    "note": "Layouts repeat the same R17 and same five groups as alternatives, not extra resources. Group shapes/seats do not encode capacity or exact membership. Future byte cases hold this association population fixed."
+  },
+  "history": {
+    "basis": "Synthetic observed samples, not current API history.",
+    "samples": [
+      {
+        "elapsedDays": -30,
+        "currentValueBytes": 16777216,
+        "revision": "synthetic-r17-past-30"
+      },
+      {
+        "elapsedDays": -7,
+        "currentValueBytes": 29360128,
+        "revision": "synthetic-r17-past-7"
+      },
+      {
+        "elapsedDays": 0,
+        "currentValueBytes": 33554432,
+        "revision": "synthetic-r17-now"
+      }
+    ],
+    "missingIntervals": "No intermediate observations asserted. Do not infer source ages, linear historical growth or available historical values."
+  },
+  "scenario": {
+    "startBytes": 33554432,
+    "model": "B(d) = startBytes + netBytesPerDay * elapsedDays",
+    "rateCases": [
+      {
+        "id": "low",
+        "netBytesPerDay": 524288
+      },
+      {
+        "id": "steady",
+        "netBytesPerDay": 1048576
+      },
+      {
+        "id": "high",
+        "netBytesPerDay": 2097152
+      }
+    ],
+    "horizons": [
+      {
+        "id": "now",
+        "elapsedDays": 0,
+        "bytesByCase": {
+          "low": 33554432,
+          "steady": 33554432,
+          "high": 33554432
+        }
+      },
+      {
+        "id": "day",
+        "elapsedDays": 1,
+        "bytesByCase": {
+          "low": 34078720,
+          "steady": 34603008,
+          "high": 35651584
+        }
+      },
+      {
+        "id": "week",
+        "elapsedDays": 7,
+        "bytesByCase": {
+          "low": 37224448,
+          "steady": 40894464,
+          "high": 48234496
+        }
+      },
+      {
+        "id": "month",
+        "elapsedDays": 30,
+        "bytesByCase": {
+          "low": 49283072,
+          "steady": 65011712,
+          "high": 96468992
+        }
+      },
+      {
+        "id": "year",
+        "elapsedDays": 365,
+        "bytesByCase": {
+          "low": 224919552,
+          "steady": 416284672,
+          "high": 799014912
+        }
+      },
+      {
+        "id": "decade",
+        "elapsedDays": 3650,
+        "bytesByCase": {
+          "low": 1947205632,
+          "steady": 3860856832,
+          "high": 7688159232
+        }
+      }
+    ],
+    "selectedCase": "steady",
+    "selectedHorizon": "year",
+    "conventions": "Elapsed days: month=30, year=365, decade=3650; not calendar arithmetic.",
+    "assumptions": [
+      "Rates are chosen illustrative net changes, not fitted to the historical samples.",
+      "No probabilities or confidence intervals are attached to low/steady/high cases.",
+      "No topology, participation, schema, policy or deployment change is modeled.",
+      "Values are conditional arithmetic, not future records or an instruction to retain/delete data."
+    ]
+  },
+  "planning": {
+    "metric": "currentValueBytes",
+    "budgetBytes": 268435456,
+    "budgetKind": "Illustrative user planning assumption, not an enforced quota, measured capacity or physical disk budget.",
+    "currentHeadroomBytes": 234881024,
+    "daysToBudget": {
+      "low": 448,
+      "steady": 224,
+      "high": 112
+    },
+    "readiness": {
+      "currentValueBudget": {
+        "selectedBytes": 416284672,
+        "assessment": "Beyond planning limit in the steady year case"
+      },
+      "writeContention": {
+        "evidence": null,
+        "assessment": "Unknown"
+      },
+      "queryPerformance": {
+        "evidence": null,
+        "assessment": "Unknown"
+      },
+      "recovery": {
+        "evidence": null,
+        "assessment": "Unknown"
+      }
+    },
+    "overallFitness": null
+  },
+  "rendering": {
+    "resourceFootprint": "Stable across the time comparison.",
+    "sizeHeight": "One fixed disclosed compressed mapping across observed and scenario values; raster is not calibrated.",
+    "observed": "Solid mass/observed-level marks, with explicit source basis.",
+    "scenario": "Dashed envelope; no inferred probabilities.",
+    "historyBelowGround": false,
+    "queryingFutureRows": false
+  },
+  "images": [
+    "images/d8-01-shared-venues.png",
+    "images/d8-02-growth-over-time.png",
+    "images/d8-03-growth-readiness.png"
+  ]
+}

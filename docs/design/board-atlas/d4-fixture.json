@@ -1,0 +1,1156 @@
+{
+  "synthetic": true,
+  "description": "A bounded summary-only hierarchy. Each wider scene's first group equals the entire next closer scene; all other groups are unexpanded synthetic summaries. No billion-row process population is created.",
+  "selectedProcess": {
+    "pid": 41773,
+    "inbox": 0,
+    "outbox": 1,
+    "oldestPendingSeconds": 2820
+  },
+  "seed": {
+    "source": "scale-fixture.json",
+    "scopeProcesses": 100000,
+    "inbox": 200065,
+    "outbox": 100035
+  },
+  "scenes": [
+    {
+      "scope": "A.01.01",
+      "primaryGroupCount": 40,
+      "totals": {
+        "processes": 1000000,
+        "inbox": 2900075,
+        "outbox": 726113,
+        "oldestPendingSeconds": 2820,
+        "oldestPendingPid": 41773
+      },
+      "cells": [
+        {
+          "id": "A.01.01.01",
+          "firstPid": 1,
+          "lastPid": 100000,
+          "processes": 100000,
+          "inbox": 200065,
+          "outbox": 100035,
+          "oldestPendingSeconds": 2820,
+          "oldestPendingPid": 41773
+        },
+        {
+          "id": "A.01.01.02",
+          "firstPid": 100001,
+          "lastPid": 107826,
+          "processes": 7826,
+          "inbox": 7826,
+          "outbox": 2608,
+          "oldestPendingSeconds": 120,
+          "oldestPendingPid": 100001
+        },
+        {
+          "id": "A.01.01.03",
+          "firstPid": 107827,
+          "lastPid": 123478,
+          "processes": 15652,
+          "inbox": 31304,
+          "outbox": 10434,
+          "oldestPendingSeconds": 180,
+          "oldestPendingPid": 107827
+        },
+        {
+          "id": "A.01.01.04",
+          "firstPid": 123479,
+          "lastPid": 146956,
+          "processes": 23478,
+          "inbox": 70434,
+          "outbox": 23478,
+          "oldestPendingSeconds": 240,
+          "oldestPendingPid": 123479
+        },
+        {
+          "id": "A.01.01.05",
+          "firstPid": 146957,
+          "lastPid": 178260,
+          "processes": 31304,
+          "inbox": 125216,
+          "outbox": 41738,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 146957
+        },
+        {
+          "id": "A.01.01.06",
+          "firstPid": 178261,
+          "lastPid": 217390,
+          "processes": 39130,
+          "inbox": 195650,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.01.07",
+          "firstPid": 217391,
+          "lastPid": 225216,
+          "processes": 7826,
+          "inbox": 46956,
+          "outbox": 2608,
+          "oldestPendingSeconds": 420,
+          "oldestPendingPid": 217391
+        },
+        {
+          "id": "A.01.01.08",
+          "firstPid": 225217,
+          "lastPid": 240868,
+          "processes": 15652,
+          "inbox": 0,
+          "outbox": 10434,
+          "oldestPendingSeconds": 480,
+          "oldestPendingPid": 225217
+        },
+        {
+          "id": "A.01.01.09",
+          "firstPid": 240869,
+          "lastPid": 264346,
+          "processes": 23478,
+          "inbox": 23478,
+          "outbox": 23478,
+          "oldestPendingSeconds": 540,
+          "oldestPendingPid": 240869
+        },
+        {
+          "id": "A.01.01.10",
+          "firstPid": 264347,
+          "lastPid": 295650,
+          "processes": 31304,
+          "inbox": 62608,
+          "outbox": 41738,
+          "oldestPendingSeconds": 60,
+          "oldestPendingPid": 264347
+        },
+        {
+          "id": "A.01.01.11",
+          "firstPid": 295651,
+          "lastPid": 334780,
+          "processes": 39130,
+          "inbox": 117390,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.01.12",
+          "firstPid": 334781,
+          "lastPid": 342606,
+          "processes": 7826,
+          "inbox": 31304,
+          "outbox": 2608,
+          "oldestPendingSeconds": 180,
+          "oldestPendingPid": 334781
+        },
+        {
+          "id": "A.01.01.13",
+          "firstPid": 342607,
+          "lastPid": 358258,
+          "processes": 15652,
+          "inbox": 78260,
+          "outbox": 10434,
+          "oldestPendingSeconds": 240,
+          "oldestPendingPid": 342607
+        },
+        {
+          "id": "A.01.01.14",
+          "firstPid": 358259,
+          "lastPid": 381736,
+          "processes": 23478,
+          "inbox": 140868,
+          "outbox": 23478,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 358259
+        },
+        {
+          "id": "A.01.01.15",
+          "firstPid": 381737,
+          "lastPid": 413040,
+          "processes": 31304,
+          "inbox": 0,
+          "outbox": 41738,
+          "oldestPendingSeconds": 360,
+          "oldestPendingPid": 381737
+        },
+        {
+          "id": "A.01.01.16",
+          "firstPid": 413041,
+          "lastPid": 452170,
+          "processes": 39130,
+          "inbox": 39130,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.01.17",
+          "firstPid": 452171,
+          "lastPid": 459996,
+          "processes": 7826,
+          "inbox": 15652,
+          "outbox": 2608,
+          "oldestPendingSeconds": 480,
+          "oldestPendingPid": 452171
+        },
+        {
+          "id": "A.01.01.18",
+          "firstPid": 459997,
+          "lastPid": 475648,
+          "processes": 15652,
+          "inbox": 46956,
+          "outbox": 10434,
+          "oldestPendingSeconds": 540,
+          "oldestPendingPid": 459997
+        },
+        {
+          "id": "A.01.01.19",
+          "firstPid": 475649,
+          "lastPid": 499126,
+          "processes": 23478,
+          "inbox": 93912,
+          "outbox": 23478,
+          "oldestPendingSeconds": 60,
+          "oldestPendingPid": 475649
+        },
+        {
+          "id": "A.01.01.20",
+          "firstPid": 499127,
+          "lastPid": 530430,
+          "processes": 31304,
+          "inbox": 156520,
+          "outbox": 41738,
+          "oldestPendingSeconds": 120,
+          "oldestPendingPid": 499127
+        },
+        {
+          "id": "A.01.01.21",
+          "firstPid": 530431,
+          "lastPid": 569560,
+          "processes": 39130,
+          "inbox": 234780,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.01.22",
+          "firstPid": 569561,
+          "lastPid": 577386,
+          "processes": 7826,
+          "inbox": 0,
+          "outbox": 2608,
+          "oldestPendingSeconds": 240,
+          "oldestPendingPid": 569561
+        },
+        {
+          "id": "A.01.01.23",
+          "firstPid": 577387,
+          "lastPid": 593038,
+          "processes": 15652,
+          "inbox": 15652,
+          "outbox": 10434,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 577387
+        },
+        {
+          "id": "A.01.01.24",
+          "firstPid": 593039,
+          "lastPid": 616516,
+          "processes": 23478,
+          "inbox": 46956,
+          "outbox": 23478,
+          "oldestPendingSeconds": 360,
+          "oldestPendingPid": 593039
+        },
+        {
+          "id": "A.01.01.25",
+          "firstPid": 616517,
+          "lastPid": 647820,
+          "processes": 31304,
+          "inbox": 93912,
+          "outbox": 41738,
+          "oldestPendingSeconds": 420,
+          "oldestPendingPid": 616517
+        },
+        {
+          "id": "A.01.01.26",
+          "firstPid": 647821,
+          "lastPid": 686950,
+          "processes": 39130,
+          "inbox": 156520,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.01.27",
+          "firstPid": 686951,
+          "lastPid": 694776,
+          "processes": 7826,
+          "inbox": 39130,
+          "outbox": 2608,
+          "oldestPendingSeconds": 540,
+          "oldestPendingPid": 686951
+        },
+        {
+          "id": "A.01.01.28",
+          "firstPid": 694777,
+          "lastPid": 710428,
+          "processes": 15652,
+          "inbox": 93912,
+          "outbox": 10434,
+          "oldestPendingSeconds": 60,
+          "oldestPendingPid": 694777
+        },
+        {
+          "id": "A.01.01.29",
+          "firstPid": 710429,
+          "lastPid": 733906,
+          "processes": 23478,
+          "inbox": 0,
+          "outbox": 23478,
+          "oldestPendingSeconds": 120,
+          "oldestPendingPid": 710429
+        },
+        {
+          "id": "A.01.01.30",
+          "firstPid": 733907,
+          "lastPid": 765210,
+          "processes": 31304,
+          "inbox": 31304,
+          "outbox": 41738,
+          "oldestPendingSeconds": 180,
+          "oldestPendingPid": 733907
+        },
+        {
+          "id": "A.01.01.31",
+          "firstPid": 765211,
+          "lastPid": 804340,
+          "processes": 39130,
+          "inbox": 78260,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.01.32",
+          "firstPid": 804341,
+          "lastPid": 812166,
+          "processes": 7826,
+          "inbox": 23478,
+          "outbox": 2608,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 804341
+        },
+        {
+          "id": "A.01.01.33",
+          "firstPid": 812167,
+          "lastPid": 827818,
+          "processes": 15652,
+          "inbox": 62608,
+          "outbox": 10434,
+          "oldestPendingSeconds": 360,
+          "oldestPendingPid": 812167
+        },
+        {
+          "id": "A.01.01.34",
+          "firstPid": 827819,
+          "lastPid": 851296,
+          "processes": 23478,
+          "inbox": 117390,
+          "outbox": 23478,
+          "oldestPendingSeconds": 420,
+          "oldestPendingPid": 827819
+        },
+        {
+          "id": "A.01.01.35",
+          "firstPid": 851297,
+          "lastPid": 882600,
+          "processes": 31304,
+          "inbox": 187824,
+          "outbox": 41738,
+          "oldestPendingSeconds": 480,
+          "oldestPendingPid": 851297
+        },
+        {
+          "id": "A.01.01.36",
+          "firstPid": 882601,
+          "lastPid": 921730,
+          "processes": 39130,
+          "inbox": 0,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.01.37",
+          "firstPid": 921731,
+          "lastPid": 929556,
+          "processes": 7826,
+          "inbox": 7826,
+          "outbox": 2608,
+          "oldestPendingSeconds": 60,
+          "oldestPendingPid": 921731
+        },
+        {
+          "id": "A.01.01.38",
+          "firstPid": 929557,
+          "lastPid": 945208,
+          "processes": 15652,
+          "inbox": 31304,
+          "outbox": 10434,
+          "oldestPendingSeconds": 120,
+          "oldestPendingPid": 929557
+        },
+        {
+          "id": "A.01.01.39",
+          "firstPid": 945209,
+          "lastPid": 968686,
+          "processes": 23478,
+          "inbox": 70434,
+          "outbox": 23478,
+          "oldestPendingSeconds": 180,
+          "oldestPendingPid": 945209
+        },
+        {
+          "id": "A.01.01.40",
+          "firstPid": 968687,
+          "lastPid": 1000000,
+          "processes": 31314,
+          "inbox": 125256,
+          "outbox": 41752,
+          "oldestPendingSeconds": 240,
+          "oldestPendingPid": 968687
+        }
+      ]
+    },
+    {
+      "scope": "A.01",
+      "primaryGroupCount": 32,
+      "totals": {
+        "processes": 10000000,
+        "inbox": 29405570,
+        "outbox": 6693143,
+        "oldestPendingSeconds": 2820,
+        "oldestPendingPid": 41773
+      },
+      "cells": [
+        {
+          "id": "A.01.01",
+          "firstPid": 1,
+          "lastPid": 1000000,
+          "processes": 1000000,
+          "inbox": 2900075,
+          "outbox": 726113,
+          "oldestPendingSeconds": 2820,
+          "oldestPendingPid": 41773
+        },
+        {
+          "id": "A.01.02",
+          "firstPid": 1000001,
+          "lastPid": 1098901,
+          "processes": 98901,
+          "inbox": 98901,
+          "outbox": 32967,
+          "oldestPendingSeconds": 120,
+          "oldestPendingPid": 1000001
+        },
+        {
+          "id": "A.01.03",
+          "firstPid": 1098902,
+          "lastPid": 1296703,
+          "processes": 197802,
+          "inbox": 395604,
+          "outbox": 131868,
+          "oldestPendingSeconds": 180,
+          "oldestPendingPid": 1098902
+        },
+        {
+          "id": "A.01.04",
+          "firstPid": 1296704,
+          "lastPid": 1593406,
+          "processes": 296703,
+          "inbox": 890109,
+          "outbox": 296703,
+          "oldestPendingSeconds": 240,
+          "oldestPendingPid": 1296704
+        },
+        {
+          "id": "A.01.05",
+          "firstPid": 1593407,
+          "lastPid": 1989010,
+          "processes": 395604,
+          "inbox": 1582416,
+          "outbox": 527472,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 1593407
+        },
+        {
+          "id": "A.01.06",
+          "firstPid": 1989011,
+          "lastPid": 2483515,
+          "processes": 494505,
+          "inbox": 2472525,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.07",
+          "firstPid": 2483516,
+          "lastPid": 2582416,
+          "processes": 98901,
+          "inbox": 593406,
+          "outbox": 32967,
+          "oldestPendingSeconds": 420,
+          "oldestPendingPid": 2483516
+        },
+        {
+          "id": "A.01.08",
+          "firstPid": 2582417,
+          "lastPid": 2780218,
+          "processes": 197802,
+          "inbox": 0,
+          "outbox": 131868,
+          "oldestPendingSeconds": 480,
+          "oldestPendingPid": 2582417
+        },
+        {
+          "id": "A.01.09",
+          "firstPid": 2780219,
+          "lastPid": 3076921,
+          "processes": 296703,
+          "inbox": 296703,
+          "outbox": 296703,
+          "oldestPendingSeconds": 540,
+          "oldestPendingPid": 2780219
+        },
+        {
+          "id": "A.01.10",
+          "firstPid": 3076922,
+          "lastPid": 3472525,
+          "processes": 395604,
+          "inbox": 791208,
+          "outbox": 527472,
+          "oldestPendingSeconds": 60,
+          "oldestPendingPid": 3076922
+        },
+        {
+          "id": "A.01.11",
+          "firstPid": 3472526,
+          "lastPid": 3967030,
+          "processes": 494505,
+          "inbox": 1483515,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.12",
+          "firstPid": 3967031,
+          "lastPid": 4065931,
+          "processes": 98901,
+          "inbox": 395604,
+          "outbox": 32967,
+          "oldestPendingSeconds": 180,
+          "oldestPendingPid": 3967031
+        },
+        {
+          "id": "A.01.13",
+          "firstPid": 4065932,
+          "lastPid": 4263733,
+          "processes": 197802,
+          "inbox": 989010,
+          "outbox": 131868,
+          "oldestPendingSeconds": 240,
+          "oldestPendingPid": 4065932
+        },
+        {
+          "id": "A.01.14",
+          "firstPid": 4263734,
+          "lastPid": 4560436,
+          "processes": 296703,
+          "inbox": 1780218,
+          "outbox": 296703,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 4263734
+        },
+        {
+          "id": "A.01.15",
+          "firstPid": 4560437,
+          "lastPid": 4956040,
+          "processes": 395604,
+          "inbox": 0,
+          "outbox": 527472,
+          "oldestPendingSeconds": 360,
+          "oldestPendingPid": 4560437
+        },
+        {
+          "id": "A.01.16",
+          "firstPid": 4956041,
+          "lastPid": 5450545,
+          "processes": 494505,
+          "inbox": 494505,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.17",
+          "firstPid": 5450546,
+          "lastPid": 5549446,
+          "processes": 98901,
+          "inbox": 197802,
+          "outbox": 32967,
+          "oldestPendingSeconds": 480,
+          "oldestPendingPid": 5450546
+        },
+        {
+          "id": "A.01.18",
+          "firstPid": 5549447,
+          "lastPid": 5747248,
+          "processes": 197802,
+          "inbox": 593406,
+          "outbox": 131868,
+          "oldestPendingSeconds": 540,
+          "oldestPendingPid": 5549447
+        },
+        {
+          "id": "A.01.19",
+          "firstPid": 5747249,
+          "lastPid": 6043951,
+          "processes": 296703,
+          "inbox": 1186812,
+          "outbox": 296703,
+          "oldestPendingSeconds": 60,
+          "oldestPendingPid": 5747249
+        },
+        {
+          "id": "A.01.20",
+          "firstPid": 6043952,
+          "lastPid": 6439555,
+          "processes": 395604,
+          "inbox": 1978020,
+          "outbox": 527472,
+          "oldestPendingSeconds": 120,
+          "oldestPendingPid": 6043952
+        },
+        {
+          "id": "A.01.21",
+          "firstPid": 6439556,
+          "lastPid": 6934060,
+          "processes": 494505,
+          "inbox": 2967030,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.22",
+          "firstPid": 6934061,
+          "lastPid": 7032961,
+          "processes": 98901,
+          "inbox": 0,
+          "outbox": 32967,
+          "oldestPendingSeconds": 240,
+          "oldestPendingPid": 6934061
+        },
+        {
+          "id": "A.01.23",
+          "firstPid": 7032962,
+          "lastPid": 7230763,
+          "processes": 197802,
+          "inbox": 197802,
+          "outbox": 131868,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 7032962
+        },
+        {
+          "id": "A.01.24",
+          "firstPid": 7230764,
+          "lastPid": 7527466,
+          "processes": 296703,
+          "inbox": 593406,
+          "outbox": 296703,
+          "oldestPendingSeconds": 360,
+          "oldestPendingPid": 7230764
+        },
+        {
+          "id": "A.01.25",
+          "firstPid": 7527467,
+          "lastPid": 7923070,
+          "processes": 395604,
+          "inbox": 1186812,
+          "outbox": 527472,
+          "oldestPendingSeconds": 420,
+          "oldestPendingPid": 7527467
+        },
+        {
+          "id": "A.01.26",
+          "firstPid": 7923071,
+          "lastPid": 8417575,
+          "processes": 494505,
+          "inbox": 1978020,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.27",
+          "firstPid": 8417576,
+          "lastPid": 8516476,
+          "processes": 98901,
+          "inbox": 494505,
+          "outbox": 32967,
+          "oldestPendingSeconds": 540,
+          "oldestPendingPid": 8417576
+        },
+        {
+          "id": "A.01.28",
+          "firstPid": 8516477,
+          "lastPid": 8714278,
+          "processes": 197802,
+          "inbox": 1186812,
+          "outbox": 131868,
+          "oldestPendingSeconds": 60,
+          "oldestPendingPid": 8516477
+        },
+        {
+          "id": "A.01.29",
+          "firstPid": 8714279,
+          "lastPid": 9010981,
+          "processes": 296703,
+          "inbox": 0,
+          "outbox": 296703,
+          "oldestPendingSeconds": 120,
+          "oldestPendingPid": 8714279
+        },
+        {
+          "id": "A.01.30",
+          "firstPid": 9010982,
+          "lastPid": 9406585,
+          "processes": 395604,
+          "inbox": 395604,
+          "outbox": 527472,
+          "oldestPendingSeconds": 180,
+          "oldestPendingPid": 9010982
+        },
+        {
+          "id": "A.01.31",
+          "firstPid": 9406586,
+          "lastPid": 9901090,
+          "processes": 494505,
+          "inbox": 989010,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.01.32",
+          "firstPid": 9901091,
+          "lastPid": 10000000,
+          "processes": 98910,
+          "inbox": 296730,
+          "outbox": 32970,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 9901091
+        }
+      ]
+    },
+    {
+      "scope": "A",
+      "primaryGroupCount": 20,
+      "totals": {
+        "processes": 100000000,
+        "inbox": 297769225,
+        "outbox": 72147692,
+        "oldestPendingSeconds": 2820,
+        "oldestPendingPid": 41773
+      },
+      "cells": [
+        {
+          "id": "A.01",
+          "firstPid": 1,
+          "lastPid": 10000000,
+          "processes": 10000000,
+          "inbox": 29405570,
+          "outbox": 6693143,
+          "oldestPendingSeconds": 2820,
+          "oldestPendingPid": 41773
+        },
+        {
+          "id": "A.02",
+          "firstPid": 10000001,
+          "lastPid": 11636363,
+          "processes": 1636363,
+          "inbox": 1636363,
+          "outbox": 545454,
+          "oldestPendingSeconds": 120,
+          "oldestPendingPid": 10000001
+        },
+        {
+          "id": "A.03",
+          "firstPid": 11636364,
+          "lastPid": 14909090,
+          "processes": 3272727,
+          "inbox": 6545454,
+          "outbox": 2181818,
+          "oldestPendingSeconds": 180,
+          "oldestPendingPid": 11636364
+        },
+        {
+          "id": "A.04",
+          "firstPid": 14909091,
+          "lastPid": 19818180,
+          "processes": 4909090,
+          "inbox": 14727270,
+          "outbox": 4909090,
+          "oldestPendingSeconds": 240,
+          "oldestPendingPid": 14909091
+        },
+        {
+          "id": "A.05",
+          "firstPid": 19818181,
+          "lastPid": 26363634,
+          "processes": 6545454,
+          "inbox": 26181816,
+          "outbox": 8727272,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 19818181
+        },
+        {
+          "id": "A.06",
+          "firstPid": 26363635,
+          "lastPid": 34545452,
+          "processes": 8181818,
+          "inbox": 40909090,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.07",
+          "firstPid": 34545453,
+          "lastPid": 36181815,
+          "processes": 1636363,
+          "inbox": 9818178,
+          "outbox": 545454,
+          "oldestPendingSeconds": 420,
+          "oldestPendingPid": 34545453
+        },
+        {
+          "id": "A.08",
+          "firstPid": 36181816,
+          "lastPid": 39454542,
+          "processes": 3272727,
+          "inbox": 0,
+          "outbox": 2181818,
+          "oldestPendingSeconds": 480,
+          "oldestPendingPid": 36181816
+        },
+        {
+          "id": "A.09",
+          "firstPid": 39454543,
+          "lastPid": 44363632,
+          "processes": 4909090,
+          "inbox": 4909090,
+          "outbox": 4909090,
+          "oldestPendingSeconds": 540,
+          "oldestPendingPid": 39454543
+        },
+        {
+          "id": "A.10",
+          "firstPid": 44363633,
+          "lastPid": 50909086,
+          "processes": 6545454,
+          "inbox": 13090908,
+          "outbox": 8727272,
+          "oldestPendingSeconds": 60,
+          "oldestPendingPid": 44363633
+        },
+        {
+          "id": "A.11",
+          "firstPid": 50909087,
+          "lastPid": 59090904,
+          "processes": 8181818,
+          "inbox": 24545454,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.12",
+          "firstPid": 59090905,
+          "lastPid": 60727267,
+          "processes": 1636363,
+          "inbox": 6545452,
+          "outbox": 545454,
+          "oldestPendingSeconds": 180,
+          "oldestPendingPid": 59090905
+        },
+        {
+          "id": "A.13",
+          "firstPid": 60727268,
+          "lastPid": 63999994,
+          "processes": 3272727,
+          "inbox": 16363635,
+          "outbox": 2181818,
+          "oldestPendingSeconds": 240,
+          "oldestPendingPid": 60727268
+        },
+        {
+          "id": "A.14",
+          "firstPid": 63999995,
+          "lastPid": 68909084,
+          "processes": 4909090,
+          "inbox": 29454540,
+          "outbox": 4909090,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 63999995
+        },
+        {
+          "id": "A.15",
+          "firstPid": 68909085,
+          "lastPid": 75454538,
+          "processes": 6545454,
+          "inbox": 0,
+          "outbox": 8727272,
+          "oldestPendingSeconds": 360,
+          "oldestPendingPid": 68909085
+        },
+        {
+          "id": "A.16",
+          "firstPid": 75454539,
+          "lastPid": 83636356,
+          "processes": 8181818,
+          "inbox": 8181818,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "A.17",
+          "firstPid": 83636357,
+          "lastPid": 85272719,
+          "processes": 1636363,
+          "inbox": 3272726,
+          "outbox": 545454,
+          "oldestPendingSeconds": 480,
+          "oldestPendingPid": 83636357
+        },
+        {
+          "id": "A.18",
+          "firstPid": 85272720,
+          "lastPid": 88545446,
+          "processes": 3272727,
+          "inbox": 9818181,
+          "outbox": 2181818,
+          "oldestPendingSeconds": 540,
+          "oldestPendingPid": 85272720
+        },
+        {
+          "id": "A.19",
+          "firstPid": 88545447,
+          "lastPid": 93454536,
+          "processes": 4909090,
+          "inbox": 19636360,
+          "outbox": 4909090,
+          "oldestPendingSeconds": 60,
+          "oldestPendingPid": 88545447
+        },
+        {
+          "id": "A.20",
+          "firstPid": 93454537,
+          "lastPid": 100000000,
+          "processes": 6545464,
+          "inbox": 32727320,
+          "outbox": 8727285,
+          "oldestPendingSeconds": 120,
+          "oldestPendingPid": 93454537
+        }
+      ]
+    },
+    {
+      "scope": "Atlas",
+      "primaryGroupCount": 16,
+      "totals": {
+        "processes": 1000000000,
+        "inbox": 2777769225,
+        "outbox": 672147686,
+        "oldestPendingSeconds": 2820,
+        "oldestPendingPid": 41773
+      },
+      "cells": [
+        {
+          "id": "A",
+          "firstPid": 1,
+          "lastPid": 100000000,
+          "processes": 100000000,
+          "inbox": 297769225,
+          "outbox": 72147692,
+          "oldestPendingSeconds": 2820,
+          "oldestPendingPid": 41773
+        },
+        {
+          "id": "B",
+          "firstPid": 100000001,
+          "lastPid": 120000000,
+          "processes": 20000000,
+          "inbox": 20000000,
+          "outbox": 6666666,
+          "oldestPendingSeconds": 120,
+          "oldestPendingPid": 100000001
+        },
+        {
+          "id": "C",
+          "firstPid": 120000001,
+          "lastPid": 160000000,
+          "processes": 40000000,
+          "inbox": 80000000,
+          "outbox": 26666666,
+          "oldestPendingSeconds": 180,
+          "oldestPendingPid": 120000001
+        },
+        {
+          "id": "D",
+          "firstPid": 160000001,
+          "lastPid": 220000000,
+          "processes": 60000000,
+          "inbox": 180000000,
+          "outbox": 60000000,
+          "oldestPendingSeconds": 240,
+          "oldestPendingPid": 160000001
+        },
+        {
+          "id": "E",
+          "firstPid": 220000001,
+          "lastPid": 300000000,
+          "processes": 80000000,
+          "inbox": 320000000,
+          "outbox": 106666666,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 220000001
+        },
+        {
+          "id": "F",
+          "firstPid": 300000001,
+          "lastPid": 400000000,
+          "processes": 100000000,
+          "inbox": 500000000,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "G",
+          "firstPid": 400000001,
+          "lastPid": 420000000,
+          "processes": 20000000,
+          "inbox": 120000000,
+          "outbox": 6666666,
+          "oldestPendingSeconds": 420,
+          "oldestPendingPid": 400000001
+        },
+        {
+          "id": "H",
+          "firstPid": 420000001,
+          "lastPid": 460000000,
+          "processes": 40000000,
+          "inbox": 0,
+          "outbox": 26666666,
+          "oldestPendingSeconds": 480,
+          "oldestPendingPid": 420000001
+        },
+        {
+          "id": "I",
+          "firstPid": 460000001,
+          "lastPid": 520000000,
+          "processes": 60000000,
+          "inbox": 60000000,
+          "outbox": 60000000,
+          "oldestPendingSeconds": 540,
+          "oldestPendingPid": 460000001
+        },
+        {
+          "id": "J",
+          "firstPid": 520000001,
+          "lastPid": 600000000,
+          "processes": 80000000,
+          "inbox": 160000000,
+          "outbox": 106666666,
+          "oldestPendingSeconds": 60,
+          "oldestPendingPid": 520000001
+        },
+        {
+          "id": "K",
+          "firstPid": 600000001,
+          "lastPid": 700000000,
+          "processes": 100000000,
+          "inbox": 300000000,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        },
+        {
+          "id": "L",
+          "firstPid": 700000001,
+          "lastPid": 720000000,
+          "processes": 20000000,
+          "inbox": 80000000,
+          "outbox": 6666666,
+          "oldestPendingSeconds": 180,
+          "oldestPendingPid": 700000001
+        },
+        {
+          "id": "M",
+          "firstPid": 720000001,
+          "lastPid": 760000000,
+          "processes": 40000000,
+          "inbox": 200000000,
+          "outbox": 26666666,
+          "oldestPendingSeconds": 240,
+          "oldestPendingPid": 720000001
+        },
+        {
+          "id": "N",
+          "firstPid": 760000001,
+          "lastPid": 820000000,
+          "processes": 60000000,
+          "inbox": 360000000,
+          "outbox": 60000000,
+          "oldestPendingSeconds": 300,
+          "oldestPendingPid": 760000001
+        },
+        {
+          "id": "O",
+          "firstPid": 820000001,
+          "lastPid": 900000000,
+          "processes": 80000000,
+          "inbox": 0,
+          "outbox": 106666666,
+          "oldestPendingSeconds": 360,
+          "oldestPendingPid": 820000001
+        },
+        {
+          "id": "P",
+          "firstPid": 900000001,
+          "lastPid": 1000000000,
+          "processes": 100000000,
+          "inbox": 100000000,
+          "outbox": 0,
+          "oldestPendingSeconds": null,
+          "oldestPendingPid": null
+        }
+      ]
+    }
+  ],
+  "rules": {
+    "population": "Within each scene, contiguous disjoint PID ranges cover the scope from 1. The first group contains one tenth of the scene population and inherits the entire preceding scene (or D3's 100,000-process seed). Remaining groups split the remaining population in repeating weights 1,2,3,4,5; floor each share, then give the last group the remainder.",
+    "summaries": "For zero-based group index i > 0: inbox = members * (i % 7); outbox = floor(members * (i % 5) / 3). If outbox > 0, oldestPendingSeconds = 60 + (i % 9) * 60 and oldestPendingPid = firstPid; otherwise both are null. Scene totals sum the groups and retain the maximum age with its source PID.",
+    "coverage": "All values are synthetic assertions over unexpanded groups, not verified execution history. Null age here means no pending output in that synthetic group; unavailable age would require separate coverage metadata in a real contract.",
+    "layout": "Group identities and ranges define membership only; the raster positions, cell counts, area and relief are illustrative, not a data-driven rendering."
+  }
+}

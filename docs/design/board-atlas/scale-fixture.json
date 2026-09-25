@@ -1,0 +1,144 @@
+{
+  "synthetic": true,
+  "seed": [
+    {
+      "pid": 1,
+      "inbox": 18,
+      "outbox": 0,
+      "age": null
+    },
+    {
+      "pid": 2,
+      "inbox": 12,
+      "outbox": 4,
+      "age": 120
+    },
+    {
+      "pid": 3,
+      "inbox": 8,
+      "outbox": 8,
+      "age": 360
+    },
+    {
+      "pid": 4,
+      "inbox": 36,
+      "outbox": 12,
+      "age": 1080
+    },
+    {
+      "pid": 5,
+      "inbox": 6,
+      "outbox": 2,
+      "age": 45
+    },
+    {
+      "pid": 6,
+      "inbox": 4,
+      "outbox": 6,
+      "age": 240
+    },
+    {
+      "pid": 7,
+      "inbox": 0,
+      "outbox": 12,
+      "age": 1500
+    },
+    {
+      "pid": 8,
+      "inbox": 0,
+      "outbox": 0,
+      "age": null
+    }
+  ],
+  "rule": "For PID >= 9 except 41773: inbox = pid % 5; outbox = pid % 3; oldestPendingSeconds = outbox > 0 ? 30 + (pid % 30) * 20 : null.",
+  "outlier": {
+    "pid": 41773,
+    "inbox": 0,
+    "outbox": 1,
+    "oldestPendingSeconds": 2820
+  },
+  "summaries": {
+    "population": [
+      {
+        "firstPid": 1,
+        "lastPid": 100,
+        "processes": 100,
+        "inbox": 268,
+        "outbox": 135,
+        "nonemptyProcesses": 93,
+        "oldestPendingSeconds": 1500,
+        "oldestPendingPid": 7
+      },
+      {
+        "firstPid": 1,
+        "lastPid": 1000,
+        "processes": 1000,
+        "inbox": 2068,
+        "outbox": 1035,
+        "nonemptyProcesses": 933,
+        "oldestPendingSeconds": 1500,
+        "oldestPendingPid": 7
+      },
+      {
+        "firstPid": 1,
+        "lastPid": 10000,
+        "processes": 10000,
+        "inbox": 20068,
+        "outbox": 10035,
+        "nonemptyProcesses": 9333,
+        "oldestPendingSeconds": 1500,
+        "oldestPendingPid": 7
+      },
+      {
+        "firstPid": 1,
+        "lastPid": 100000,
+        "processes": 100000,
+        "inbox": 200065,
+        "outbox": 100035,
+        "nonemptyProcesses": 93333,
+        "oldestPendingSeconds": 2820,
+        "oldestPendingPid": 41773
+      }
+    ],
+    "selectedNeighborhood": {
+      "firstPid": 1,
+      "lastPid": 100,
+      "processes": 100,
+      "inbox": 268,
+      "outbox": 135,
+      "nonemptyProcesses": 93,
+      "oldestPendingSeconds": 1500,
+      "oldestPendingPid": 7
+    },
+    "selectedDistrict": {
+      "firstPid": 1,
+      "lastPid": 1000,
+      "processes": 1000,
+      "inbox": 2068,
+      "outbox": 1035,
+      "nonemptyProcesses": 933,
+      "oldestPendingSeconds": 1500,
+      "oldestPendingPid": 7
+    },
+    "selectedRegion": {
+      "firstPid": 1,
+      "lastPid": 10000,
+      "processes": 10000,
+      "inbox": 20068,
+      "outbox": 10035,
+      "nonemptyProcesses": 9333,
+      "oldestPendingSeconds": 1500,
+      "oldestPendingPid": 7
+    },
+    "outlierDistrict": {
+      "firstPid": 41001,
+      "lastPid": 42000,
+      "processes": 1000,
+      "inbox": 1997,
+      "outbox": 999,
+      "nonemptyProcesses": 933,
+      "oldestPendingSeconds": 2820,
+      "oldestPendingPid": 41773
+    }
+  }
+}

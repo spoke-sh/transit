@@ -39,6 +39,82 @@ positions for order; show timing only where evidence exists. Observation time
 is distinct from event time. Do not invent ETAs, processing durations, global
 causality, or wall-clock history from polling samples.
 
+## Proposed browser and relief atlas
+
+The [design review index](design/README.md) records the numbered review sequence,
+summary and outcomes. Review acceptance is separate from implementation status.
+
+The [D1 browser and relief atlas review](design/D1.md) explores two views
+of the same inspection workspace: conventional tables/documents and a spatial
+map. At overview scale, elevation represents a named quantity such as pending
+inputs; as the viewer zooms in, the same positions flatten into process cards
+and bounded recorded journeys. Selection, filters and evidence remain shared.
+
+[D2 — Inbox, outbox and age](design/D2.md) explores an inbox lifting
+the surface and an outbox indenting its center. Count and age layers have
+separate meanings. Figure 7's queue-count fabric is the selected visual direction.
+All illustrated ages are synthetic, because current outbox
+inspection does not establish each output's source-commit time. Age support
+requires its own evidence contract before implementation.
+
+The reviews contain synthetic generated images and an interaction specification,
+not an implemented canvas or a broader read contract. They preserve the current
+single-realm, bounded-page and inspection-only boundaries. Multi-realm maps,
+global aggregation and renderer choices are not established. Implementation
+needs its own numbered milestone under the roadmap sequencing rule; the
+completed M2 profile and its qualification remain unchanged.
+
+The [D3 scale review](design/D3.md) extends that fabric from
+100 to 100,000 synthetic processes using stable groups, aggregate landforms
+and individual age pins. M9's authorized Station lenses can inform grouping;
+bulk summaries, durable age evidence and these larger runtime populations are
+not implemented or qualified by the completed M9 profile.
+
+The [D4 scale and interface review](design/D4.md) continues from one million
+to one billion synthetic processes. It proposes progressively broader group
+landforms and a full-width map with contextual inspection, a single header and
+a combined legend. It explores simpler geometry while retaining precise scoped
+counts, age outliers and evidence on inspection; it establishes no larger
+runtime capacity or cross-realm read surface.
+
+The [D5 resource review](design/D5.md) explores a cityscape alongside that
+process fabric. Each backing resource has one stable plot; declared Table, KV
+and proposed Document structure shapes its architecture. Current value bytes
+are the candidate shared height measure, with groups replacing buildings at
+scale and associations shown on selection. Logical Tables sharing one resource
+appear as wings of one site, preserving identity, transaction and lifetime
+boundaries. These generated designs establish no new resource metrics or
+application-value interpretation.
+
+The [D6 transition review](design/D6.md) separates an explicit Processes/Resources
+canvas emphasis from semantic zoom. Switching emphasis preserves the camera,
+stable identity anchors and selection; zoom changes detail within that emphasis
+and flattens relief for reading. A neutral handoff is presentation-only, with
+unchanged facts and no active height scale. The four-frame storyboard and
+[mapping reference](design/D5.md#visual-mapping-reference) document proposed
+behavior, not an implemented state machine or new read surface.
+
+The [D7 resource-workspace review](design/D7.md) carries forward D5's architecture
+and D6's selected subtle fabric/overhead detail. It explores Auto or pinned
+emphasis, following a process association to a resource, and an intentional
+doorway from a building's footprint into a flat data workspace. Canvas shows
+declared structures and a visual query worksheet; Browse shows the same query
+and result as controls and rows. Entry and view changes never run a query.
+Query execution is a separately scoped future capability, outside current Board
+inspection: it requires an explicit public service/authorization boundary and
+cannot hide M9's mutating durable query/captured-reply flow behind a read route.
+The synthetic sample results authorize no application decoding or provider access.
+
+The [D8 venue and growth review](design/D8.md) explores stadium, park and
+fairground layouts around a shared resource, while retaining its Table/KV/Document
+identity. Disclosed association cohorts do not establish active use or ownership.
+Solid observed size and dashed conditional growth share a stable plot and
+explicit metric; day-to-decade cases disclose their assumptions. Readiness
+compares named planning requirements with matching evidence and preserves
+unknown write/query/recovery capacity. History, scalable participation summaries
+and qualification data require future public read capabilities. Local scenario
+edits authorize no resource mutation, retention change or future-data query.
+
 ## Boundary and packaging
 
 ```mermaid

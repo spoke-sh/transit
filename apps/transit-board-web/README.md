@@ -34,6 +34,13 @@ refer to the latest observation; no duration or ETA is inferred. State resources
 and associations have generic views with explicit coverage, lifecycle and revision
 evidence. Resource entries render as exact hex bytes after an explicit read.
 
+## Visual design exploration
+
+The [numbered Board design reviews](../../docs/design/README.md) propose
+coordinated browser and map views, with raised backlog relief flattening into
+readable evidence as the viewer zooms in. Their generated images use synthetic
+data; the canvas, shared mode switch and proposed navigation are not implemented.
+
 ## Working in the frontend
 
 | Source                               | Owns                                                                        |
