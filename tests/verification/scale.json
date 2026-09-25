@@ -2,6 +2,7 @@
   "version": 1,
   "status": "measurement-plan; not qualified capacity",
   "profile": "single authority, disk Ursula, fixed resident budget",
+  "application_workload": "docs/workloads/REY.md",
   "service_slo": null,
   "dimensions": {
     "keys_per_resource": [32, 256, 4096, 65536],
@@ -12,6 +13,7 @@
     "active_views": [1, 4, 16],
     "retained_calls": [16, 256, 4096],
     "hot_key_percent": [0, 90],
+    "burst_window_ms": [1, 10, 100],
     "overload": ["closed-loop baseline", "offered load independent of completion"]
   },
   "required_measurements": [
@@ -19,7 +21,10 @@
     "working set budget", "dataset size", "cold/warm state", "repeat count",
     "latency p50/p95/p99", "throughput", "RSS", "stack budget", "threads", "file descriptors",
     "disk bytes", "index bytes", "cache hits/misses", "queue age", "control latency",
-    "checkpoint time", "recovery time", "admitted/rejected work", "generator saturation"
+    "checkpoint time", "recovery time", "admitted/rejected work", "generator saturation",
+    "provider RSS", "physical stream count", "provider requests per operation",
+    "physical writes per committed mutation", "unpublished staging bytes",
+    "live versus backfill throughput", "catch-up time and source freshness"
   ],
   "correctness": [
     "all admitted inputs remain accounted for",
@@ -33,6 +38,8 @@
     "Legacy profile must reject unsupported sizes; a failed allocation is not a growth result.",
     "Hold resident budget fixed while data grows; unlimited retention is the baseline.",
     "Record any unsupported dimension as unqualified, never a successful skip.",
+    "Application demand scenarios are analytical inputs, not achieved rates or ordinary CI load requirements.",
+    "Measure provider resource use as well as the bounded client cache; per-page streams need amplification qualification.",
     "Agree production SLOs separately; no user-specific service target has been selected."
   ]
 }

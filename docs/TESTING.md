@@ -136,6 +136,11 @@ of the deployed system. The review links primary tool documentation and rational
 
 ## Scale, overload and recovery
 
+The [Rey workload model](workloads/REY.md) supplies downstream demand scenarios
+for market capture, context, execution and research. Its arithmetic is not
+benchmark evidence. The [experiment matrix](../tests/verification/scale.json)
+keeps small reproducible growth runs distinct from those application envelopes.
+
 Define a workload matrix before promising throughput or a supported system size.
 Measure retained cardinality independently of resident cache, active PIDs/views,
 message rate, payload/result size, fan-out, active correlations and history age.
@@ -152,7 +157,9 @@ towards storage and recovery measurements, not only application rows.
 
 Report throughput and latency distributions alongside correctness, queue age,
 RSS/stack/thread/FD counts, cache misses, scan/replay work, disk/write amplification,
-checkpoint time, recovery time and control responsiveness. Report admitted load
+checkpoint time, recovery time and control responsiveness. Include the provider's
+memory/stream count and request amplification, not only the client cache.
+Distinguish service restart from catching up to fresh data. Report admitted load
 and rejected/backpressured demand. Include an offered-load test independent of
 response completion so overload does not hide its own queueing delay. Keep load
 generation separately measured; never claim capacity from a saturated generator.

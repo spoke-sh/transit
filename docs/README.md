@@ -34,6 +34,8 @@ are experimental; their bounded implementation does not imply support for every 
 
 For hands-on work, use [development](DEVELOPMENT.md) and the
 [component READMEs](ARCHITECTURE.md#planned-monorepo-decomposition).
+The downstream [Rey workload model](workloads/REY.md) records application demand
+scenarios, capacity arithmetic and their implications for qualification.
 
 ## Where documentation lives
 

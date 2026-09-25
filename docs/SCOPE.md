@@ -173,9 +173,13 @@ the adversarial evidence and limits required before extending the foundation.
 
 Trading remains an intended consumer of the kernel, framework, and connectors.
 Market ingestion, strategy, risk, execution, and projections should compose
-these same primitives. A paper-trading milestone will be scoped when the
-foundation supports it; no venue, asset class, strategy, or live-trading sequence
-is established by the current roadmap.
+these same primitives. Rey's intended workload includes broad instrument history
+through L2/L3, internet context and collaboration, algorithmic/high-frequency
+execution, and strategy research/optimization with learned agents and models.
+The [workload model](workloads/REY.md) derives capacity scenarios and their
+implications for M10 without selecting venues, initial coverage, latency SLOs or
+a live-trading sequence. Trading milestones will be scoped when the foundation
+supports them; a paper-trading endpoint is not the foundation's objective.
 
 Preserve application requirements when that work begins: precise monetary
 representations, serialized risk and exposure reservations, explicit freshness
