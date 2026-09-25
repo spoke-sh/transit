@@ -31,7 +31,12 @@ if mode in ("stream", "closed-hang"):
         sys.exit(0)
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
-    Path(os.environ["CHILD_PID"]).write_text(str(os.getpid()))
+    # Publish readiness only after the complete PID has been written. Opening
+    # the final path first lets the parent observe an empty/partial file.
+    pid_file = Path(os.environ["CHILD_PID"])
+    pending = pid_file.with_suffix(".tmp")
+    pending.write_text(str(os.getpid()))
+    pending.replace(pid_file)
     if mode == "closed-hang":
         os.close(1)
         os.close(2)
