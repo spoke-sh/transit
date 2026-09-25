@@ -4,29 +4,30 @@ const p = @import("pages.zig");
 
 const Store = struct {
     allocator: std.mem.Allocator = t.allocator,
-    pages: std.ArrayList(struct { ref: p.Reference, page: p.Page }) = .empty,
+    pages: std.AutoHashMapUnmanaged(p.Reference, p.Page) = .empty,
     writes: usize = 0,
     reads: usize = 0,
     fail_at: ?usize = null,
+    lose_at: ?usize = null,
     missing: bool = false,
     corrupt: bool = false,
     pub fn stage(self: *Store, ref: p.Reference, page: *const p.Page) !void {
         if (self.fail_at == self.writes) return error.StagingFailed;
         self.writes += 1;
-        for (self.pages.items) |item| if (std.mem.eql(u8, &item.ref, &ref)) return;
-        try self.pages.append(self.allocator, .{ .ref = ref, .page = page.* });
+        if (!self.pages.contains(ref)) try self.pages.put(self.allocator, ref, page.*);
+        if (self.lose_at == self.writes - 1) return error.StagingAcknowledgementLost;
     }
     pub fn load(self: *Store, ref: p.Reference) !p.Page {
         self.reads += 1;
         if (self.missing) return error.PageUnavailable;
-        for (self.pages.items) |item| if (std.mem.eql(u8, &item.ref, &ref)) {
-            var result = item.page;
+        if (self.pages.getPtr(ref)) |item| {
+            var result = item.*;
             if (self.corrupt) switch (result.body) {
                 .leaf => result.body.leaf[0].?.value.data[0] ^= 1,
                 .branch => result.body.branch[0].?.reference[0] ^= 1,
             };
             return result;
-        };
+        }
         return error.PageUnavailable;
     }
     fn deinit(self: *Store) void {
@@ -142,4 +143,60 @@ fn allocationCase(allocator: std.mem.Allocator) !void {
 }
 test "page staging allocation failures preserve the previously published root" {
     try t.checkAllAllocationFailures(t.allocator, allocationCase, .{});
+}
+
+test "permuted updates and deletion match a separate ordered map through churn" {
+    var store: Store = .{};
+    defer store.deinit();
+    const tree: p.Tree(Store) = .{ .store = &store };
+    var root: ?p.Reference = null;
+    var model: [128]?usize = @splat(null);
+    var random: u64 = 0x6e624eb7;
+    for (0..1024) |step| {
+        random ^= random << 13;
+        random ^= random >> 7;
+        random ^= random << 17;
+        const index: usize = @intCast(random % model.len);
+        if (random & 0x100 != 0) {
+            root = try tree.put(root, key(index), value(step));
+            model[index] = step;
+        } else {
+            root = try tree.remove(root, key(index));
+            model[index] = null;
+        }
+        if (step % 31 != 0) continue;
+        var cursor: ?p.Key = null;
+        var expected: usize = 0;
+        while (true) {
+            const batch = try tree.scan(root, cursor);
+            for (batch.entries) |slot| if (slot) |entry| {
+                while (expected < model.len and model[expected] == null) expected += 1;
+                try t.expect(expected < model.len);
+                try t.expectEqualSlices(u8, key(expected).slice(), entry.key.slice());
+                try t.expectEqualSlices(u8, value(model[expected].?).slice(), entry.value.slice());
+                expected += 1;
+            };
+            cursor = batch.next;
+            if (cursor == null) break;
+        }
+        while (expected < model.len and model[expected] == null) expected += 1;
+        try t.expectEqual(model.len, expected);
+    }
+}
+
+test "lost staging acknowledgements do not publish candidates and retry is idempotent" {
+    var store: Store = .{};
+    defer store.deinit();
+    const tree: p.Tree(Store) = .{ .store = &store };
+    var root: ?p.Reference = null;
+    for (0..32) |i| root = try tree.put(root, key(i), value(i));
+    store.lose_at = store.writes;
+    try t.expectError(error.StagingAcknowledgementLost, tree.put(root, key(100), value(100)));
+    try t.expect((try tree.get(root, key(100))) == null);
+    store.lose_at = null;
+    const candidate = try tree.put(root, key(100), value(100));
+    const retried = try tree.put(root, key(100), value(100));
+    try t.expectEqual(candidate, retried);
+    try t.expect((try tree.get(root, key(100))) == null);
+    try t.expectEqualSlices(u8, value(100).slice(), (try tree.get(candidate, key(100))).?.slice());
 }

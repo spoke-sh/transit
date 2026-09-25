@@ -752,3 +752,11 @@ bound and replayed all four removed-guard counterexamples against Zig. The first
 CI optimization commit (`b9dd595`) passed `just ci-clean --complete`, including
 all language bindings and five Chromium checks; timing and completion metadata
 survive under `.cache/ci/clean/b9dd595faade-transit-ci-7c3pzmzd/`.
+
+`just test::pages` qualifies the immutable page primitive with disk-backed Ursula,
+cold bounded caches, old roots, unpublished staging and root-only checkpoint/trim.
+The [adapter guide](../packages/zig/transit-backend-ursula/docs/pages.md) describes
+measurement fields and their limits. These roots do not yet replace the running
+authority's bounded catalogs. Unit checks also compare randomly ordered updates
+and deletion against an independent map and preserve old roots after lost staging
+acknowledgements.

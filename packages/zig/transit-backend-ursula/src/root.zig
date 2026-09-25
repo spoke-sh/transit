@@ -3,6 +3,7 @@ const std = @import("std");
 const observations = @import("transit_observability");
 pub const ursula = @import("ursula");
 pub const Store = @import("Store.zig");
+pub const PageStore = @import("PageStore.zig");
 pub const max_record_bytes = 64 * 1024;
 pub const read_window = 16;
 

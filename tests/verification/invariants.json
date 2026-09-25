@@ -269,6 +269,28 @@
       ],
       "limits": "Finite corpus and bounded Zig fuzz budget; no claim that a roundtrip replaces independent canonical vectors or Arrow readers.",
       "model": null
+    },
+    {
+      "id": "PAGES-01",
+      "claim": "Immutable roots preserve old values independently of resident cache and root-journal trimming",
+      "owner": "docs/STATE.md",
+      "implementation": [
+        "packages/zig/transit-core/src/pages.zig",
+        "packages/zig/transit-backend-ursula/src/PageStore.zig"
+      ],
+      "profile": "immutable-page-v1 primitive; not a public authority profile",
+      "tasks": [
+        "test::unit",
+        "test::pages"
+      ],
+      "scenarios": [
+        "Root publication conflict and unreachable staging",
+        "SIGKILL then root-only checkpoint and trim",
+        "Cache eviction, old-root reads and deletion churn",
+        "Missing/corrupt pages and lost staging acknowledgement"
+      ],
+      "limits": "One closed stream per page; no page GC, application authority integration or power-loss qualification. Cache bytes exclude HTTP/parser/stack memory.",
+      "model": null
     }
   ]
 }

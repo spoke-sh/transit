@@ -80,6 +80,10 @@ inspection:
 state:
     zig build test-state
 
+# Qualify the M10 immutable page primitive; not a new public state profile.
+pages *args:
+    zig build test-pages -- {{args}}
+
 # Prove bounded diagnostics, independent metrics and cancelable log sinks.
 telemetry:
     zig build test-telemetry

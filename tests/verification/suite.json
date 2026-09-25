@@ -15,6 +15,7 @@
       "test::client-abi",
       "test::station",
       "test::storage",
+      "test::pages",
       "test::service",
       "test::runtime-upgrade",
       "test::callers",

@@ -43,6 +43,19 @@ pub fn build(b: *std.Build) void {
     b.step("test-telemetry", "Prove bounded telemetry under stalled and closed sinks").dependOn(&telemetry_test.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = observations.module("transit_observability") })).step);
     const core = b.dependency("transit_core", .{ .target = target, .optimize = optimize });
+    const page_proof = b.addExecutable(.{ .name = "transit-page-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/pages.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
+    }) });
+    const page_test = b.addSystemCommand(&.{ "python3", "-B" });
+    page_test.addFileArg(b.path("tests/pages.py"));
+    page_test.addArtifactArg(page_proof);
+    page_test.addPassthruArgs();
+    page_test.has_side_effects = true;
+    page_test.stdio = .inherit;
+    b.step("test-pages", "Qualify immutable pages and bounded cache over disk Ursula").dependOn(&page_test.step);
     const transition_driver = b.addExecutable(.{ .name = "transit-transition-driver", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/transition_driver.zig"),
         .target = target,

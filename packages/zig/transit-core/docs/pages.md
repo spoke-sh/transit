@@ -64,5 +64,6 @@ and ordered pagination, updates/deletions, independently retained snapshots,
 every staging-failure boundary, missing/corrupt pages, strict versioned encoding
 and allocation failure cleanup. Their store is a deterministic in-memory fault
 dependency, not a proof of bounded provider cache, disk persistence or production
-scale. Ursula disk/restart, candidate-root publication, bounded resident recovery
-and integration with the running authority remain required M10 evidence.
+scale. The [Ursula page proof](../../transit-backend-ursula/docs/pages.md) additionally
+checks cold bounded caches and disk restart/checkpoint/trim. Integration with the
+running authority remains required M10 evidence.

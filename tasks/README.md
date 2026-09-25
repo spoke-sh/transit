@@ -54,6 +54,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
 | `just test::properties [--seeds N --steps N]` | Runs saved and generated authority schedules; failures retain a minimized replay trace |
+| `just test::pages [--keys N --cache N]` | Checks immutable page roots through disk restart and checkpoint/trim with a bounded cache; records measurements |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |
 | `just ci::complete`, `just ci-clean --complete` | Includes installed Chromium in ordinary local or clean-checkout qualification |
 | `just test::packages` | Checks each library independently of root build orchestration |

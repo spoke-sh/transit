@@ -12,6 +12,7 @@ the guides below own API mappings, pinned behavior, integration findings, and op
 ## Guides
 
 - [Storage and recovery](docs/storage.md): disk startup, conditional append, checkpoint/trim, payload deletion, and ownership.
+- [Immutable pages](docs/pages.md): M10 page staging, bounded cache, root persistence and current integration limits.
 - [Upstream integration](docs/upstream.md): pinned server/client, cursor findings, unsupported APIs, and dependency updates.
 
 ## Security boundary
