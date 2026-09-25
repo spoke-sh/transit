@@ -204,6 +204,41 @@
       "expression": "220",
       "classification": "encoding",
       "meaning": "Single qualified cell encoding."
+    },
+    {
+      "source": "packages/zig/transit-core/src/pages.zig",
+      "symbol": "max_height",
+      "expression": "32",
+      "classification": "encoding",
+      "meaning": "Immutable tree address-space and recursion guard; not a key count."
+    },
+    {
+      "source": "packages/zig/transit-core/src/pages.zig",
+      "symbol": "max_encoded_bytes",
+      "expression": "24 * 1024",
+      "classification": "operation",
+      "meaning": "One immutable encoded page."
+    },
+    {
+      "source": "packages/zig/transit-core/src/pages.zig",
+      "symbol": "leaf_entries",
+      "expression": "4",
+      "classification": "working-set",
+      "meaning": "Entries in one leaf, not total resource size."
+    },
+    {
+      "source": "packages/zig/transit-core/src/pages.zig",
+      "symbol": "branch_children",
+      "expression": "5",
+      "classification": "working-set",
+      "meaning": "Children in one branch, not number of resources."
+    },
+    {
+      "source": "packages/zig/transit-core/src/pages.zig",
+      "symbol": "page_entries",
+      "expression": "8",
+      "classification": "working-set",
+      "meaning": "One returned scan batch; immutable key continuation permits larger collections."
     }
   ],
   "identities": [

@@ -15,6 +15,9 @@ The fixed catalog sizes are real constraints of that implementation, not the
 intended size of a resource. [M10](roadmap/M10.md) replaces the coupling between
 total retained state and resident arrays before [SDKs M11](roadmap/M11.md).
 The target collection model below is not yet implemented by state v1.
+M10's [immutable page index](../packages/zig/transit-core/docs/pages.md) now supplies
+the first storage primitive. Its candidate roots are not yet published through
+the running authority; it does not remove state-v1's limits on its own.
 
 ## Purpose
 

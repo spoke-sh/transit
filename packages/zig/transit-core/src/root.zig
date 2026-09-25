@@ -6,6 +6,7 @@ pub const Ed25519 = protocol.Ed25519;
 pub const Time = @import("Time.zig");
 pub const Runtime = protocol.Runtime;
 pub const resources = @import("resources.zig");
+pub const pages = @import("pages.zig");
 pub const lifecycle = @import("lifecycle.zig");
 pub const collection = @import("collection.zig");
 pub const max_principals = protocol.max_principals;
@@ -1101,6 +1102,7 @@ pub fn Engine(comptime Store: type) type {
 test {
     _ = @import("tests.zig");
     _ = @import("resources_test.zig");
+    _ = @import("pages_test.zig");
 }
 
 pub const inspection = @import("inspection.zig");

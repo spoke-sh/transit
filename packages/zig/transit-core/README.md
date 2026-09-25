@@ -14,6 +14,7 @@ transitions stay separate from I/O, clock sampling, and external effects.
 
 - [Authority time and control capacity](docs/authority.md): deadline linearization, finite admission, and reserved progress.
 - [State v1](../../../contracts/STATE_V1.md): exact resource, read, and commit contract.
+- [Immutable pages](docs/pages.md): M10 ordered index primitive, staging boundary and outstanding integration obligations.
 
 ## Authority and recovery
 
