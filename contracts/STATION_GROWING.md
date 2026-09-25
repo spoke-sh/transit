@@ -12,8 +12,9 @@ writable resource through the public client. A handler reads individual keys
 through that view and retains at most four private mutations and four outputs.
 It never receives a complete resource snapshot. Typed Table point operations
 share the same codec and transaction semantics as Station v1. Bounded Table
-iteration returns at most eight typed rows and an explicit continuation. Query
-execution and large retained Arrow results require further qualification in M10.
+iteration returns at most eight typed rows and an explicit continuation. The
+[query v2 capture slice](STATION_QUERY_V2.md) composes retained sources, Fuze
+progress and sealed Arrow segments; publication and consumption remain M10 work.
 
 Each state read enforces current authority and checks the exact captured view.
 Private writes take precedence over captured values. Read/transport failures

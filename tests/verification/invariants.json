@@ -209,6 +209,29 @@
       "model": null
     },
     {
+      "id": "ARROW-03",
+      "claim": "Incremental result staging cannot advance sealed source progress or expose a partial job as captured",
+      "owner": "contracts/STATION_QUERY_V2.md",
+      "implementation": [
+        "packages/zig/transit-station/src/GrowingQuery.zig",
+        "packages/zig/transit-station/src/QueryRecords.zig"
+      ],
+      "profile": "transit-v3/station-growing/query-v2 capture development",
+      "tasks": [
+        "test::unit",
+        "test::growing-service",
+        "test::growing-query"
+      ],
+      "scenarios": [
+        "70-row private capture with fresh turns, lost private proposals, duplicate/future continuations and corruption",
+        "41-row real capture, lost stage/seal replies, two caller/node/provider replacements, one-page cache",
+        "Independent PyArrow bytes and ordered segment digest-chain validation",
+        "Policy change and poisoned source read cannot publish; explicit fresh closure retains evidence"
+      ],
+      "limits": "Capture slice only. Result delivery, consumer completeness and acknowledgement remain integration work; no full-store, GC or production throughput claim. Job and source share a resource.",
+      "model": null
+    },
+    {
       "id": "RUNTIME-01",
       "claim": "Provider recovery and upgrades cannot grant ownership or redirect durable work",
       "owner": "docs/DEPLOYMENT.md",

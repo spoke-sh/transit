@@ -316,6 +316,27 @@
       "expression": "143",
       "classification": "encoding",
       "meaning": "Owned incremental query progress format; counters and aggregate carry are independent of total retained rows."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/StreamPlan.zig",
+      "symbol": "encoded_bytes",
+      "expression": "241",
+      "classification": "encoding",
+      "meaning": "Largest compact typed plan, including a 220-byte literal; not source or result cardinality."
+    },
+    {
+      "source": "packages/zig/transit-station/src/QueryRecords.zig",
+      "symbol": "segment_bytes",
+      "expression": "8192",
+      "classification": "operation",
+      "meaning": "One independently encoded/captured Arrow segment; a query has a growing segment catalog."
+    },
+    {
+      "source": "packages/zig/transit-station/src/QueryRecords.zig",
+      "symbol": "fragment_bytes",
+      "expression": "Frame.max_payload - 22",
+      "classification": "encoding",
+      "meaning": "221 raw bytes per stored/result-message fragment after framing; fragments stage across bounded turns."
     }
   ],
   "identities": [

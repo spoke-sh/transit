@@ -1,6 +1,8 @@
 # Growing Station query capture — v2 design
 
-Status: M10 implementation design; not yet an advertised capability. It builds
+Status: the `GrowingQuery` capture slice is under M10 qualification. The
+publication/receiver protocol below remains design; no end-to-end growing-query
+capability is advertised. It builds
 on [growing Station](STATION_GROWING.md), [retained read versions](READ_VERSIONS_V1.md)
 and [incremental Fuze](FUZE_STREAM_V1.md). It does not reinterpret the finite
 Station v1 result layout or enable growing results in foreign ABIs.
@@ -86,7 +88,10 @@ prefix. Read failures poison the private proposal. A failed read cannot be caugh
 and followed by publication from that same turn. The owner may explicitly close
 the job in a fresh authorized proposal, before attempting source reads; this
 records cancellation/abandonment, not successful completion. It needs no source
-read grant and stages release of an unfinished source. Replacement ownership is
+version read and stages release of an unfinished source. Access to the job's
+current resource is still required; in this first shared-resource profile, losing
+that resource's read grant also prevents reading/closing the job through this
+helper. Replacement ownership is
 required when the prior activation/view is no longer usable. Permanent process
 expiry still takes precedence; this library cannot promise that a dead process
 will deliver a final reply.
@@ -106,3 +111,36 @@ seal and publication; consumer/caller/node/provider replacement; current-policy
 and grant changes; explicit close after source loss; duplicate/conflicting/missing
 fragments; and terminal acknowledgement without deletion. Keep legacy service,
 foreign ABI and finite-result proofs. This design does not pass those gates.
+
+## Capture layout
+
+The development capture implementation uses reserved keys `00 Q <tag:u8>
+<result:u64be> <ordinal:u64be> <fragment:u16be>` (21 bytes). Tags `j`, `p`, `e`
+and `s` identify the job, compact plan, engine progress and current stage with
+zero ordinal/fragment. Tag `i` uses peer PID and correlation in the two u64
+positions for a point index; its value is the result ID as u64le. Tags `m` and
+`f` identify sealed segment manifests and raw fragments. Total key count grows
+with retained results; no fixed array bounds that cardinality.
+
+All value integers are little endian. `GQJ2` job values are 108 bytes: result,
+destination, correlation (u64 each), Table ID (u32), retained source PID/input
+(u64 each)/slot (u8), policy revision (u64), phase (u8), captured byte total (u64),
+chain (32 bytes), publication segment (u64) and byte offset (u16). Phases are
+capturing=1, captured=2, published=3, acknowledged=4, cancelled=5, denied=6;
+publication fields/phases are reserved for the subsequent integration.
+
+`GQS2` segment manifests are 55 bytes: result and ordinal (u64 each), bytes
+(u16), rows (u8), SHA-256 (32 bytes). The chain starts with 32 zero bytes. Each
+seal hashes `transit.station.query.segments.v2` followed by a zero byte, the
+prior chain and the exact encoded manifest. `GQT2` staging records are 204 bytes:
+143-byte `FZS1` candidate progress, 55-byte `GQS2` candidate manifest, and u16
+written bytes. Fragment values hold at most 221 raw bytes. Three fragment writes
+plus one stage write fit the four-mutation budget; a seal writes manifest,
+progress, job and stage tombstone atomically. The tombstone closes transient
+staging metadata; accepted fragment/history evidence is not physically erased.
+
+`GQC2` capture continuations are 22-byte Station cast payloads: result and
+expected source-page ordinal (u64 each), staged byte count (u16). Only an
+authenticated self-origin is accepted. Older page/byte positions are inert;
+future positions reject. The committed stage and engine progress determine the
+next token, so duplicate continuations cannot advance a second chain of work.

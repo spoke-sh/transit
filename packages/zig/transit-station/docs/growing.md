@@ -35,8 +35,10 @@ does not clear its own block, and retry does not skip or acknowledge the input.
 
 Growing call/reply and timed-wait preprocessing use shared framework logic.
 Result fragment/completion/acknowledgement frames fail with
-`UnsupportedGrowingQuery`; a result must not look verified before growing result
-capture is implemented. Complete Station capability remains unadvertised.
+`UnsupportedGrowingQuery`; a result must not look verified before growing
+publication/consumption is implemented. The separate
+[capture helper](queries.md) stages and seals results; complete Station capability
+remains unadvertised.
 
 ## Private turns
 
@@ -66,12 +68,10 @@ final page is possible. Keep one captured view throughout iteration. Failure or
 expiry cannot silently recapture a newer version, and read failures poison the
 private proposal as point reads do.
 
-These methods expose bounded iteration, not an unbounded query response or a
-paged Fuze execution engine. Existing view lifetime and turn budgets still apply.
-Long queries, resumable result capture, whole-query limits/aggregates and retained
-Arrow batches need their own durable progress and complete-result evidence before
-M10 can qualify them. A Table cursor does not preserve a native stack across a
-worker restart or extend its view's lifetime.
+These methods expose bounded iteration; existing view lifetime and turn budgets
+still apply. The [query capture helper](queries.md) supplies owned Fuze progress
+and retained Arrow segments across handlers. A Table cursor alone does not
+preserve a native stack across a worker restart or extend its view's lifetime.
 
 ## Retained sources across handlers
 
@@ -97,7 +97,8 @@ inside one proposal does not consume additional slots.
 
 This supplies source access and dependency wiring. The application still owns
 durable continuation scheduling and the interpretation of its progress records.
-Resumable Fuze execution and large Arrow-result capture remain M10 work.
+`GrowingQuery` now composes those primitives for resumable capture. Complete
+result publication and receiver verification remain M10 work.
 
 Durable wait version 2 retains full-width timer principal identities. `Waiting`
 shares cancellation, timeout and authenticated-source checks across both profiles.

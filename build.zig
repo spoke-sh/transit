@@ -225,8 +225,15 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
     }) });
     growing_service.addArtifactArg(growing_station);
+    const growing_query = b.addExecutable(.{ .name = "transit-growing-query-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/growing_query.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+    }) });
+    growing_service.addArtifactArg(growing_query);
     const growing_build = b.step("test-growing-service-build", "Compile growing service proof binaries without executing scenarios");
-    for ([_]*std.Build.Step.Compile{ node_artifact, growing_client, growing_station }) |artifact| growing_build.dependOn(&artifact.step);
+    for ([_]*std.Build.Step.Compile{ node_artifact, growing_client, growing_station, growing_query }) |artifact| growing_build.dependOn(&artifact.step);
     growing_service.has_side_effects = true;
     growing_service.stdio = .inherit;
     b.step("test-growing-service", "Prove the explicit growing node/client profile over signed HTTP").dependOn(&growing_service.step);
@@ -238,6 +245,13 @@ pub fn build(b: *std.Build) void {
     growing_behavior.has_side_effects = true;
     growing_behavior.stdio = .inherit;
     b.step("test-growing-station", "Focus the growing Station behavior and recovery proof").dependOn(&growing_behavior.step);
+    const query_capture = b.addSystemCommand(&.{ "python3", "-B" });
+    query_capture.addFileArg(b.path("tests/growing_query.py"));
+    query_capture.addArtifactArg(node_artifact);
+    query_capture.addArtifactArg(growing_query);
+    query_capture.has_side_effects = true;
+    query_capture.stdio = .inherit;
+    b.step("test-growing-query", "Prove bounded query capture and recovery through disk Ursula").dependOn(&query_capture.step);
     const c_proof = b.addExecutable(.{ .name = "transit-client-c-proof", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
     c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
     c_proof.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));

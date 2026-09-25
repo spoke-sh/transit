@@ -71,7 +71,8 @@
     "focused": [
       "test::packages",
       "test::growing-service-release",
-      "test::growing-station"
+      "test::growing-station",
+      "test::growing-query"
     ]
   },
   "nested_tasks": {

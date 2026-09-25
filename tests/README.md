@@ -737,6 +737,23 @@ insufficient workspace/output and cancellation without publishing progress.
 This does not qualify durable large-result staging, delivery or recovery; those
 remain integration gates in the [incremental contract](../contracts/FUZE_STREAM_V1.md).
 
+`just test::growing-query` (also part of `test::growing-service`) separately
+qualifies durable **capture**. Real Zig callers retain a 41-row Table, stage
+221-byte fragments, and recover through disk Ursula/node/caller replacement
+first during staging, then after the first seal. Both recoveries use one resident
+backend page. The proxy loses an accepted staging reply and a seal reply; exact
+retry returns the original receipt without rerunning a handler. Each recovered
+segment is decoded by independent PyArrow, and Python checks the ordered digest
+chain: 41 rows, 9,984 bytes in six segments. The source is released with the final
+seal and rejects later reads. The requester's wait is still waiting: capture is
+not delivery or acknowledgement. In-memory tests add 70-row private capture,
+changed staging, duplicate/future/forged continuation, policy revocation, sticky
+read failure, explicit closure and corrupt/missing fragments. Growing result
+publication/receiver restart remain unqualified and their frames remain disabled.
+The first one-CPU Debug sample took 6.94s to seed/stage, 9.78s to recover/seal,
+and 73.50s to resume/capture/independently inspect. These are finite shared-host
+proof timings, not service SLOs.
+
 The [verification guide](verification/README.md) owns the versioned inventory,
 bound audit and generated transition harness. `just test::properties` checks the
 real Zig authority against an independent mailbox/fencing/retry projection,

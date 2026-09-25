@@ -10,9 +10,10 @@ import threading
 from storage import Fixture, free_port, wait_ready
 from growing_maintenance import run as maintenance
 from growing_station import run as station
+from growing_query import run as query_capture
 
 
-def main(node, caller, station_caller):
+def main(node, caller, station_caller, query_caller):
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     if hasattr(os, "sched_getaffinity"):
         os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
@@ -120,6 +121,7 @@ def main(node, caller, station_caller):
     print("Growing public profile: signed paged reads/turns, invalid reply, exact retry after restart and revocation passed on one CPU.")
     maintenance(node, caller)
     station(node, station_caller)
+    query_capture(node, query_caller)
 
 
 if __name__ == "__main__":

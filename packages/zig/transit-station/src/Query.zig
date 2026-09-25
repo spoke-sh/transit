@@ -67,14 +67,14 @@ pub fn key(tag: u8, identity: u64, ordinal: u8) p.Value {
     bytes[10] = ordinal;
     return p.Value.init(&bytes) catch unreachable;
 }
-pub fn policy(turn: *const Turn, peer: u64) !?Policy {
-    const value = turn.get(key('a', peer, 0)) orelse return null;
+pub fn policy(turn: anytype, peer: u64) !?Policy {
+    const value = (try turn.read(key('a', peer, 0))) orelse return null;
     if (value.len != 14 or value.data[0] != 1 or value.data[13] > 1) return error.InvalidQueryPolicy;
     return .{ .table = std.mem.readInt(u32, value.data[1..5], .little), .revision = std.mem.readInt(u64, value.data[5..13], .little), .allow = value.data[13] == 1 };
 }
 /// This is a trusted handler operation. A remote policy API must separately
 /// authorize its administrator from authenticated origin before invoking it.
-pub fn setPolicy(turn: *Turn, peer: u64, table: u32, expected_revision: u64, allow: bool) !void {
+pub fn setPolicy(turn: anytype, peer: u64, table: u32, expected_revision: u64, allow: bool) !void {
     if (peer == 0 or peer > p.max_counter or table == 0) return error.InvalidQueryPolicy;
     const old = try policy(turn, peer);
     if ((if (old) |value| value.revision else 0) != expected_revision) return error.QueryPolicyConflict;

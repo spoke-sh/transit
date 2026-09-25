@@ -113,6 +113,10 @@ growing *args:
 growing-service:
     zig build test-growing-service
 
+# Focus incremental Arrow capture, lost receipts and two disk recovery boundaries.
+growing-query:
+    zig build test-growing-query
+
 # Run the same growing service/fault corpus with optimized safety checks.
 growing-service-release:
     zig build test-growing-service -Doptimize=ReleaseSafe
