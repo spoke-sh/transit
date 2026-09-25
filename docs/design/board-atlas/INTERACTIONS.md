@@ -94,6 +94,12 @@ legend, with inspection shown on selection. Its
 updates the persistent panels in the earlier images while preserving critical
 coverage/freshness state and access to detailed evidence.
 
+[D5](../D5.md) proposes resource cityscapes as another map emphasis. Resource
+plots retain one backing identity, with logical Table wings and selected
+association links. Its current-value-byte height measure is separate from
+process queue relief; both flatten toward inspection. Size summaries and
+Document structure remain proposed evidence, not existing Board fields.
+
 The [fabric exploration](../D2.md) extends this initial height-only study with
 an inbox shoulder and an independently readable outbox well. It compares count
 depth plus age tint with an explicit age-depth layer. The interface uses Inbox

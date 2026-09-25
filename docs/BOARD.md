@@ -77,6 +77,15 @@ a combined legend. It explores simpler geometry while retaining precise scoped
 counts, age outliers and evidence on inspection; it establishes no larger
 runtime capacity or cross-realm read surface.
 
+The [D5 resource review](design/D5.md) explores a cityscape alongside that
+process fabric. Each backing resource has one stable plot; declared Table, KV
+and proposed Document structure shapes its architecture. Current value bytes
+are the candidate shared height measure, with groups replacing buildings at
+scale and associations shown on selection. Logical Tables sharing one resource
+appear as wings of one site, preserving identity, transaction and lifetime
+boundaries. These generated designs establish no new resource metrics or
+application-value interpretation.
+
 ## Boundary and packaging
 
 ```mermaid

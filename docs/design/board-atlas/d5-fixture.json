@@ -1,0 +1,1303 @@
+{
+  "synthetic": true,
+  "status": "Concept summary assertions, not executable state or a capacity result. Document descriptors and scalable byte/structure summaries are proposed.",
+  "byteMetric": "Sum of the decoded value-payload byte lengths for live entries at a stated resource revision. Includes current framework/causal/captured-result values; excludes keys, tombstones, journal history, provider overhead, derived index allocations outside those values and physical copies. MiB = 1048576 bytes; GiB = 1073741824 bytes.",
+  "classification": "Table and Document are logical views over backing resources, not extra resources to add to KV totals. Partitions are disjoint synthetic attributions of current value bytes; other includes framework/unclassified values. The illustrated form identifies a declared logical view and does not establish a new kernel kind.",
+  "neighborhood": {
+    "scope": "A.01",
+    "resources": [
+      {
+        "id": 1,
+        "scope": "A.01",
+        "currentValueBytes": 2147483648,
+        "form": "table",
+        "partitions": {
+          "table": 2147483648,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 2,
+        "scope": "A.01",
+        "currentValueBytes": 3221225472,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 3221225472,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 3,
+        "scope": "A.01",
+        "currentValueBytes": 4294967296,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 4294967296,
+          "other": 0
+        }
+      },
+      {
+        "id": 4,
+        "scope": "A.01",
+        "currentValueBytes": 805306368,
+        "form": "table",
+        "partitions": {
+          "table": 805306368,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 5,
+        "scope": "A.01",
+        "currentValueBytes": 536870912,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 536870912,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 6,
+        "scope": "A.01",
+        "currentValueBytes": 268435456,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 268435456,
+          "other": 0
+        }
+      },
+      {
+        "id": 7,
+        "scope": "A.01",
+        "currentValueBytes": 536870912,
+        "form": "table",
+        "partitions": {
+          "table": 536870912,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 8,
+        "scope": "A.01",
+        "currentValueBytes": 402653184,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 402653184,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 9,
+        "scope": "A.01",
+        "currentValueBytes": 268435456,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 268435456,
+          "other": 0
+        }
+      },
+      {
+        "id": 10,
+        "scope": "A.01",
+        "currentValueBytes": 201326592,
+        "form": "table",
+        "partitions": {
+          "table": 201326592,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 11,
+        "scope": "A.01",
+        "currentValueBytes": 134217728,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 134217728,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 12,
+        "scope": "A.01",
+        "currentValueBytes": 201326592,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 201326592,
+          "other": 0
+        }
+      },
+      {
+        "id": 13,
+        "scope": "A.01",
+        "currentValueBytes": 134217728,
+        "form": "table",
+        "partitions": {
+          "table": 134217728,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 14,
+        "scope": "A.01",
+        "currentValueBytes": 100663296,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 100663296,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 15,
+        "scope": "A.01",
+        "currentValueBytes": 67108864,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 67108864,
+          "other": 0
+        }
+      },
+      {
+        "id": 16,
+        "scope": "A.01",
+        "currentValueBytes": 100663296,
+        "form": "table",
+        "partitions": {
+          "table": 100663296,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 17,
+        "scope": "A.01",
+        "currentValueBytes": 33554432,
+        "form": "table",
+        "partitions": {
+          "table": 31457280,
+          "kv": 0,
+          "document": 0,
+          "other": 2097152
+        },
+        "components": [
+          {
+            "id": "T1",
+            "kind": "table",
+            "currentValueBytes": 25165824
+          },
+          {
+            "id": "T2",
+            "kind": "table",
+            "currentValueBytes": 6291456
+          },
+          {
+            "id": "framework",
+            "kind": "other",
+            "currentValueBytes": 2097152
+          }
+        ],
+        "writerPid": 41,
+        "lifetimeOwner": null
+      },
+      {
+        "id": 18,
+        "scope": "A.01",
+        "currentValueBytes": 16777216,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 16777216,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 19,
+        "scope": "A.01",
+        "currentValueBytes": 50331648,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 50331648,
+          "other": 0
+        }
+      },
+      {
+        "id": 20,
+        "scope": "A.01",
+        "currentValueBytes": 1073741824,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 1073741824,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 21,
+        "scope": "A.01",
+        "currentValueBytes": 67108864,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 67108864,
+          "other": 0
+        }
+      },
+      {
+        "id": 22,
+        "scope": "A.01",
+        "currentValueBytes": 100663296,
+        "form": "table",
+        "partitions": {
+          "table": 100663296,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 23,
+        "scope": "A.01",
+        "currentValueBytes": 134217728,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 134217728,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 24,
+        "scope": "A.01",
+        "currentValueBytes": 67108864,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 67108864,
+          "other": 0
+        }
+      },
+      {
+        "id": 25,
+        "scope": "A.01",
+        "currentValueBytes": 50331648,
+        "form": "table",
+        "partitions": {
+          "table": 50331648,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 26,
+        "scope": "A.01",
+        "currentValueBytes": 33554432,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 33554432,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 27,
+        "scope": "A.01",
+        "currentValueBytes": 67108864,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 67108864,
+          "other": 0
+        }
+      },
+      {
+        "id": 28,
+        "scope": "A.01",
+        "currentValueBytes": 100663296,
+        "form": "table",
+        "partitions": {
+          "table": 100663296,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 29,
+        "scope": "A.01",
+        "currentValueBytes": 33554432,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 33554432,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 30,
+        "scope": "A.01",
+        "currentValueBytes": 16777216,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 16777216,
+          "other": 0
+        }
+      },
+      {
+        "id": 31,
+        "scope": "A.01",
+        "currentValueBytes": 50331648,
+        "form": "table",
+        "partitions": {
+          "table": 50331648,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 32,
+        "scope": "A.01",
+        "currentValueBytes": 33554432,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 33554432,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 33,
+        "scope": "A.01",
+        "currentValueBytes": 2097152,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 2097152,
+          "other": 0
+        }
+      },
+      {
+        "id": 34,
+        "scope": "A.01",
+        "currentValueBytes": 4194304,
+        "form": "table",
+        "partitions": {
+          "table": 4194304,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 35,
+        "scope": "A.01",
+        "currentValueBytes": 8388608,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 8388608,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 36,
+        "scope": "A.01",
+        "currentValueBytes": 4194304,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 4194304,
+          "other": 0
+        }
+      },
+      {
+        "id": 37,
+        "scope": "A.01",
+        "currentValueBytes": 16777216,
+        "form": "table",
+        "partitions": {
+          "table": 16777216,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 38,
+        "scope": "A.01",
+        "currentValueBytes": 8388608,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 8388608,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 39,
+        "scope": "A.01",
+        "currentValueBytes": 2097152,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 2097152,
+          "other": 0
+        }
+      },
+      {
+        "id": 40,
+        "scope": "A.01",
+        "currentValueBytes": 4194304,
+        "form": "table",
+        "partitions": {
+          "table": 4194304,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 41,
+        "scope": "A.01",
+        "currentValueBytes": 8388608,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 8388608,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 42,
+        "scope": "A.01",
+        "currentValueBytes": 16777216,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 16777216,
+          "other": 0
+        }
+      },
+      {
+        "id": 43,
+        "scope": "A.01",
+        "currentValueBytes": 4194304,
+        "form": "table",
+        "partitions": {
+          "table": 4194304,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 44,
+        "scope": "A.01",
+        "currentValueBytes": 2097152,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 2097152,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 45,
+        "scope": "A.01",
+        "currentValueBytes": 8388608,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 8388608,
+          "other": 0
+        }
+      },
+      {
+        "id": 46,
+        "scope": "A.01",
+        "currentValueBytes": 16777216,
+        "form": "table",
+        "partitions": {
+          "table": 16777216,
+          "kv": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 47,
+        "scope": "A.01",
+        "currentValueBytes": 33554432,
+        "form": "kv",
+        "partitions": {
+          "table": 0,
+          "kv": 33554432,
+          "document": 0,
+          "other": 0
+        }
+      },
+      {
+        "id": 48,
+        "scope": "A.01",
+        "currentValueBytes": 4194304,
+        "form": "document",
+        "partitions": {
+          "table": 0,
+          "kv": 0,
+          "document": 4194304,
+          "other": 0
+        }
+      }
+    ],
+    "totals": {
+      "resources": 48,
+      "currentValueBytes": 15495856128,
+      "largestResourceId": 3,
+      "largestResourceBytes": 4294967296,
+      "partitions": {
+        "table": 4305453056,
+        "kv": 5781848064,
+        "document": 5406457856,
+        "other": 2097152
+      }
+    }
+  },
+  "scenes": [
+    {
+      "scope": "A",
+      "primaryGroups": 24,
+      "totals": {
+        "resources": 10000,
+        "currentValueBytes": 184941543424,
+        "largestResourceId": 3,
+        "largestResourceBytes": 4294967296,
+        "partitions": {
+          "table": 55809708608,
+          "kv": 53544185264,
+          "document": 51379025619,
+          "other": 24208623933
+        }
+      },
+      "cells": [
+        {
+          "id": "A.01",
+          "firstResource": 1,
+          "lastResource": 48,
+          "resources": 48,
+          "currentValueBytes": 15495856128,
+          "largestResourceId": 3,
+          "largestResourceBytes": 4294967296,
+          "partitions": {
+            "table": 4305453056,
+            "kv": 5781848064,
+            "document": 5406457856,
+            "other": 2097152
+          }
+        },
+        {
+          "id": "A.02",
+          "firstResource": 49,
+          "lastResource": 198,
+          "resources": 150,
+          "currentValueBytes": 1258291200,
+          "largestResourceId": 49,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 359511771,
+            "kv": 539267657,
+            "document": 179755885,
+            "other": 179755887
+          }
+        },
+        {
+          "id": "A.03",
+          "firstResource": 199,
+          "lastResource": 499,
+          "resources": 301,
+          "currentValueBytes": 3787456512,
+          "largestResourceId": 199,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 1623195648,
+            "kv": 541065216,
+            "document": 1082130432,
+            "other": 541065216
+          }
+        },
+        {
+          "id": "A.04",
+          "firstResource": 500,
+          "lastResource": 951,
+          "resources": 452,
+          "currentValueBytes": 7583301632,
+          "largestResourceId": 500,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 1083328804,
+            "kv": 2166657609,
+            "document": 3249986413,
+            "other": 1083328806
+          }
+        },
+        {
+          "id": "A.05",
+          "firstResource": 952,
+          "lastResource": 1554,
+          "resources": 603,
+          "currentValueBytes": 12645826560,
+          "largestResourceId": 952,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 3613093302,
+            "kv": 5419639954,
+            "document": 1806546651,
+            "other": 1806546653
+          }
+        },
+        {
+          "id": "A.06",
+          "firstResource": 1555,
+          "lastResource": 2307,
+          "resources": 753,
+          "currentValueBytes": 18949865472,
+          "largestResourceId": 1555,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 8121370916,
+            "kv": 2707123638,
+            "document": 5414247277,
+            "other": 2707123641
+          }
+        },
+        {
+          "id": "A.07",
+          "firstResource": 2308,
+          "lastResource": 2457,
+          "resources": 150,
+          "currentValueBytes": 4404019200,
+          "largestResourceId": 2308,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 629145600,
+            "kv": 1258291200,
+            "document": 1887436800,
+            "other": 629145600
+          }
+        },
+        {
+          "id": "A.08",
+          "firstResource": 2458,
+          "lastResource": 2758,
+          "resources": 301,
+          "currentValueBytes": 1262485504,
+          "largestResourceId": 2458,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 360710144,
+            "kv": 541065216,
+            "document": 180355072,
+            "other": 180355072
+          }
+        },
+        {
+          "id": "A.09",
+          "firstResource": 2759,
+          "lastResource": 3210,
+          "resources": 452,
+          "currentValueBytes": 3791650816,
+          "largestResourceId": 2759,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 1624993206,
+            "kv": 541664402,
+            "document": 1083328804,
+            "other": 541664404
+          }
+        },
+        {
+          "id": "A.10",
+          "firstResource": 3211,
+          "lastResource": 3813,
+          "resources": 603,
+          "currentValueBytes": 7587495936,
+          "largestResourceId": 3211,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 1083927990,
+            "kv": 2167855981,
+            "document": 3251783972,
+            "other": 1083927993
+          }
+        },
+        {
+          "id": "A.11",
+          "firstResource": 3814,
+          "lastResource": 4566,
+          "resources": 753,
+          "currentValueBytes": 12633243648,
+          "largestResourceId": 3814,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 3609498185,
+            "kv": 5414247277,
+            "document": 1804749092,
+            "other": 1804749094
+          }
+        },
+        {
+          "id": "A.12",
+          "firstResource": 4567,
+          "lastResource": 4716,
+          "resources": 150,
+          "currentValueBytes": 3145728000,
+          "largestResourceId": 4567,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 1348169142,
+            "kv": 449389714,
+            "document": 898779428,
+            "other": 449389716
+          }
+        },
+        {
+          "id": "A.13",
+          "firstResource": 4717,
+          "lastResource": 5017,
+          "resources": 301,
+          "currentValueBytes": 7574913024,
+          "largestResourceId": 4717,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 1082130432,
+            "kv": 2164260864,
+            "document": 3246391296,
+            "other": 1082130432
+          }
+        },
+        {
+          "id": "A.14",
+          "firstResource": 5018,
+          "lastResource": 5469,
+          "resources": 452,
+          "currentValueBytes": 13270777856,
+          "largestResourceId": 5018,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 3791650816,
+            "kv": 5687476224,
+            "document": 1895825408,
+            "other": 1895825408
+          }
+        },
+        {
+          "id": "A.15",
+          "firstResource": 5470,
+          "lastResource": 6072,
+          "resources": 603,
+          "currentValueBytes": 2529165312,
+          "largestResourceId": 5470,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 1083927990,
+            "kv": 361309330,
+            "document": 722618660,
+            "other": 361309332
+          }
+        },
+        {
+          "id": "A.16",
+          "firstResource": 6073,
+          "lastResource": 6825,
+          "resources": 753,
+          "currentValueBytes": 6316621824,
+          "largestResourceId": 6073,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 902374546,
+            "kv": 1804749092,
+            "document": 2707123638,
+            "other": 902374548
+          }
+        },
+        {
+          "id": "A.17",
+          "firstResource": 6826,
+          "lastResource": 6975,
+          "resources": 150,
+          "currentValueBytes": 1887436800,
+          "largestResourceId": 6826,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 539267657,
+            "kv": 808901485,
+            "document": 269633828,
+            "other": 269633830
+          }
+        },
+        {
+          "id": "A.18",
+          "firstResource": 6976,
+          "lastResource": 7276,
+          "resources": 301,
+          "currentValueBytes": 5049942016,
+          "largestResourceId": 6976,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 2164260864,
+            "kv": 721420288,
+            "document": 1442840576,
+            "other": 721420288
+          }
+        },
+        {
+          "id": "A.19",
+          "firstResource": 7277,
+          "lastResource": 7728,
+          "resources": 452,
+          "currentValueBytes": 9479127040,
+          "largestResourceId": 7277,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 1354161005,
+            "kv": 2708322011,
+            "document": 4062483017,
+            "other": 1354161007
+          }
+        },
+        {
+          "id": "A.20",
+          "firstResource": 7729,
+          "lastResource": 8331,
+          "resources": 603,
+          "currentValueBytes": 15174991872,
+          "largestResourceId": 7729,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 4335711963,
+            "kv": 6503567945,
+            "document": 2167855981,
+            "other": 2167855983
+          }
+        },
+        {
+          "id": "A.21",
+          "firstResource": 8332,
+          "lastResource": 9084,
+          "resources": 753,
+          "currentValueBytes": 22108176384,
+          "largestResourceId": 8332,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 9474932736,
+            "kv": 3158310912,
+            "document": 6316621824,
+            "other": 3158310912
+          }
+        },
+        {
+          "id": "A.22",
+          "firstResource": 9085,
+          "lastResource": 9234,
+          "resources": 150,
+          "currentValueBytes": 629145600,
+          "largestResourceId": 9085,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 89877942,
+            "kv": 179755885,
+            "document": 269633828,
+            "other": 89877945
+          }
+        },
+        {
+          "id": "A.23",
+          "firstResource": 9235,
+          "lastResource": 9535,
+          "resources": 301,
+          "currentValueBytes": 2524971008,
+          "largestResourceId": 9235,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 721420288,
+            "kv": 1082130432,
+            "document": 360710144,
+            "other": 360710144
+          }
+        },
+        {
+          "id": "A.24",
+          "firstResource": 9536,
+          "lastResource": 10000,
+          "resources": 465,
+          "currentValueBytes": 5851054080,
+          "largestResourceId": 9536,
+          "largestResourceBytes": 268435456,
+          "partitions": {
+            "table": 2507594605,
+            "kv": 835864868,
+            "document": 1671729737,
+            "other": 835864870
+          }
+        }
+      ]
+    },
+    {
+      "scope": "Atlas",
+      "primaryGroups": 16,
+      "totals": {
+        "resources": 1000000,
+        "currentValueBytes": 428604391424,
+        "largestResourceId": 3,
+        "largestResourceBytes": 4294967296,
+        "partitions": {
+          "table": 125015724600,
+          "kv": 126045725830,
+          "document": 118525338755,
+          "other": 59017602239
+        }
+      },
+      "cells": [
+        {
+          "id": "A",
+          "firstResource": 1,
+          "lastResource": 10000,
+          "resources": 10000,
+          "currentValueBytes": 184941543424,
+          "largestResourceId": 3,
+          "largestResourceBytes": 4294967296,
+          "partitions": {
+            "table": 55809708608,
+            "kv": 53544185264,
+            "document": 51379025619,
+            "other": 24208623933
+          }
+        },
+        {
+          "id": "B",
+          "firstResource": 10001,
+          "lastResource": 32000,
+          "resources": 22000,
+          "currentValueBytes": 2883584000,
+          "largestResourceId": 10001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 823881142,
+            "kv": 1235821714,
+            "document": 411940571,
+            "other": 411940573
+          }
+        },
+        {
+          "id": "C",
+          "firstResource": 32001,
+          "lastResource": 76000,
+          "resources": 44000,
+          "currentValueBytes": 8650752000,
+          "largestResourceId": 32001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 3707465142,
+            "kv": 1235821714,
+            "document": 2471643428,
+            "other": 1235821716
+          }
+        },
+        {
+          "id": "D",
+          "firstResource": 76001,
+          "lastResource": 142000,
+          "resources": 66000,
+          "currentValueBytes": 17301504000,
+          "largestResourceId": 76001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 2471643428,
+            "kv": 4943286857,
+            "document": 7414930285,
+            "other": 2471643430
+          }
+        },
+        {
+          "id": "E",
+          "firstResource": 142001,
+          "lastResource": 230000,
+          "resources": 88000,
+          "currentValueBytes": 28835840000,
+          "largestResourceId": 142001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 8238811428,
+            "kv": 12358217142,
+            "document": 4119405714,
+            "other": 4119405716
+          }
+        },
+        {
+          "id": "F",
+          "firstResource": 230001,
+          "lastResource": 340000,
+          "resources": 110000,
+          "currentValueBytes": 43253760000,
+          "largestResourceId": 230001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 18537325714,
+            "kv": 6179108571,
+            "document": 12358217142,
+            "other": 6179108573
+          }
+        },
+        {
+          "id": "G",
+          "firstResource": 340001,
+          "lastResource": 362000,
+          "resources": 22000,
+          "currentValueBytes": 10092544000,
+          "largestResourceId": 340001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 1441792000,
+            "kv": 2883584000,
+            "document": 4325376000,
+            "other": 1441792000
+          }
+        },
+        {
+          "id": "H",
+          "firstResource": 362001,
+          "lastResource": 406000,
+          "resources": 44000,
+          "currentValueBytes": 2883584000,
+          "largestResourceId": 362001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 823881142,
+            "kv": 1235821714,
+            "document": 411940571,
+            "other": 411940573
+          }
+        },
+        {
+          "id": "I",
+          "firstResource": 406001,
+          "lastResource": 472000,
+          "resources": 66000,
+          "currentValueBytes": 8650752000,
+          "largestResourceId": 406001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 3707465142,
+            "kv": 1235821714,
+            "document": 2471643428,
+            "other": 1235821716
+          }
+        },
+        {
+          "id": "J",
+          "firstResource": 472001,
+          "lastResource": 560000,
+          "resources": 88000,
+          "currentValueBytes": 17301504000,
+          "largestResourceId": 472001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 2471643428,
+            "kv": 4943286857,
+            "document": 7414930285,
+            "other": 2471643430
+          }
+        },
+        {
+          "id": "K",
+          "firstResource": 560001,
+          "lastResource": 670000,
+          "resources": 110000,
+          "currentValueBytes": 28835840000,
+          "largestResourceId": 560001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 8238811428,
+            "kv": 12358217142,
+            "document": 4119405714,
+            "other": 4119405716
+          }
+        },
+        {
+          "id": "L",
+          "firstResource": 670001,
+          "lastResource": 692000,
+          "resources": 22000,
+          "currentValueBytes": 7208960000,
+          "largestResourceId": 670001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 3089554285,
+            "kv": 1029851428,
+            "document": 2059702857,
+            "other": 1029851430
+          }
+        },
+        {
+          "id": "M",
+          "firstResource": 692001,
+          "lastResource": 736000,
+          "resources": 44000,
+          "currentValueBytes": 17301504000,
+          "largestResourceId": 692001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 2471643428,
+            "kv": 4943286857,
+            "document": 7414930285,
+            "other": 2471643430
+          }
+        },
+        {
+          "id": "N",
+          "firstResource": 736001,
+          "lastResource": 802000,
+          "resources": 66000,
+          "currentValueBytes": 30277632000,
+          "largestResourceId": 736001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 8650752000,
+            "kv": 12976128000,
+            "document": 4325376000,
+            "other": 4325376000
+          }
+        },
+        {
+          "id": "O",
+          "firstResource": 802001,
+          "lastResource": 890000,
+          "resources": 88000,
+          "currentValueBytes": 5767168000,
+          "largestResourceId": 802001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 2471643428,
+            "kv": 823881142,
+            "document": 1647762285,
+            "other": 823881145
+          }
+        },
+        {
+          "id": "P",
+          "firstResource": 890001,
+          "lastResource": 1000000,
+          "resources": 110000,
+          "currentValueBytes": 14417920000,
+          "largestResourceId": 890001,
+          "largestResourceBytes": 16777216,
+          "partitions": {
+            "table": 2059702857,
+            "kv": 4119405714,
+            "document": 6179108571,
+            "other": 2059702858
+          }
+        }
+      ]
+    }
+  ],
+  "sharedSelection": {
+    "resourceId": 17,
+    "visibleResourceIds": [
+      17,
+      18,
+      19
+    ],
+    "visibleProcessIds": [
+      41,
+      52,
+      63
+    ],
+    "associations": [
+      {
+        "pid": 41,
+        "name": "state",
+        "resourceId": 17
+      },
+      {
+        "pid": 52,
+        "name": "shared",
+        "resourceId": 17
+      },
+      {
+        "pid": 63,
+        "name": "reference",
+        "resourceId": 17
+      }
+    ],
+    "observation": "Synthetic complete authorized scope, no real read cut.",
+    "note": "Every association is a reference to R17. Count its 32 MiB once. T1/T2 and framework partition those same bytes; do not add them again."
+  },
+  "equalHeightStudy": {
+    "currentValueBytes": 33554432,
+    "forms": [
+      "table",
+      "kv",
+      "document"
+    ],
+    "note": "Three separate hypothetical examples with equal resource totals. No row/key/element counts or proportional physical volumes are claimed."
+  },
+  "construction": {
+    "groups": "First group inherits the entire narrower scope. Other groups divide the remaining resource count in repeating weights 1,2,3,4,5, rounded down with the residual in the last group; contiguous resource IDs cover the scope without overlap.",
+    "groupBytes": "For zero-based group index i > 0: members * (i % 7 + 1) * unit, with unit 4 MiB at 10000 and 64 KiB at 1000000. Type partitions use weights [1+i%3, 1+(i+1)%3, 1+(i+2)%3, 1], rounded down with residual in other.",
+    "extrema": "R3 at 4 GiB is the neighborhood maximum. Unexpanded groups assert maxima of 256 MiB at district scale and 16 MiB at metropolis scale at their first resource ID; these are compatible with each group's sums/cardinality, not derived from generated member rows.",
+    "images": "Raster building counts, roofs, height, windows, tree-free plot geometry and type inlays are conceptual, not calibrated renderings of this fixture. No resource count is inferred from a process population."
+  }
+}
