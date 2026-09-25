@@ -16,8 +16,8 @@ re-exported as `protocol`, and optional runtime instrumentation through
 [Client](src/root.zig) owns bounded HTTP exchange; [Session](src/Session.zig)
 adds activation-aware receive/prepare/submit operations. The default is the
 experimental v2 API; explicit `submitGrowing` and `queryGrowing` methods expose
-the [M10 v3 development boundary](docs/growing.md). Existing Session, Station and
-foreign binding APIs still use v2. For the architectural boundary, read [the caller model](../../../docs/CLIENT.md).
+the [M10 v3 development boundary](docs/growing.md). The existing Session, Station and foreign binding APIs still use v2;
+`GrowingSession` is an explicit activation helper for the new profile. For the architectural boundary, read [the caller model](../../../docs/CLIENT.md).
 
 ## Caller guide
 

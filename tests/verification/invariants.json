@@ -413,7 +413,8 @@
         "packages/zig/transit-client/src/root.zig",
         "packages/zig/transit-protocol/src/Growth.zig",
         "tests/growing_client.zig",
-        "tests/growing_service.py"
+        "tests/growing_service.py",
+        "packages/zig/transit-client/src/GrowingSession.zig"
       ],
       "profile": "transit-v3 development service; legacy launcher defaults preserved",
       "tasks": [
@@ -426,7 +427,8 @@
         "Wrong realm, mixed revisions, page holes and nonadvancing cursors reject",
         "Accepted malformed receipt remains uncertain across caller/node/provider restart",
         "Exact retry preserves position, then current revocation denies receipt and reads",
-        "Single-CPU HTTP concurrency and no legacy-route fallback"
+        "Single-CPU HTTP concurrency and no legacy-route fallback",
+        "Activation helper reads bounded captured keys and freezes owned retry material"
       ],
       "limits": "No Station/foreign binding support, automatic growing maintenance, runtime binding, migration, load qualification or quota/control reserve claim. Host synchronized clock is a deployment premise.",
       "model": null

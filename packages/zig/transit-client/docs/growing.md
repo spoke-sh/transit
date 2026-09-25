@@ -5,8 +5,9 @@ use the [v3 contract](../../../../contracts/TRANSIT_V3.md). They call only
 `/v3/command` and `/v3/query`; they never fall back to v2 or reinterpret a legacy
 identity, view or cursor. Select a node configured for the
 [development profile](../../../../apps/transit-node/docs/growing.md) and inspect
-its capabilities before using an extension. `Session`, Station and foreign
-bindings remain v2 until their growing interfaces are qualified.
+its capabilities before using an extension. `GrowingSession` supplies explicit
+v3 activation/turn helpers; the existing `Session`, Station and foreign bindings
+remain v2 until their growing interfaces are qualified.
 
 ## Caller responsibilities
 
@@ -30,6 +31,30 @@ the original authority position; changed cuts fail instead of mixing revisions.
 Only a null cursor means completion. Filtered catalog pages may be empty with a
 non-null cursor. Returned fields own their bytes; pages do not borrow HTTP buffers.
 The library does not collect a whole resource or build a hidden resident queue.
+
+## Activation helpers
+
+`GrowingSession` borrows a client and binds a full-width principal, PID and
+ownership generation. `receive` returns one owned input plus revision, sequence
+and finite-turn-permit metadata; it does not fetch resource data. A recorded
+terminal lifecycle returns `ProcessExpired` or `ProcessTerminated`; a mismatched
+owner/generation returns `StaleActivation`. Authority/clock uncertainty is not
+converted into permanent expiry. Known protocol rejection details remain on
+`Client.last_rejection`.
+
+`prepareBegin`, `prepareView`, `prepareCloseView` and `prepareCommit` freeze owned
+signed `Pending` values without network I/O. `Pending.submit` sends once through
+the shared transport. After a view-open or permit mutation, receive again for the
+current sequence before preparing the next command. Convenience methods never
+rebase an uncertain proposal. `readView` returns a point or bounded page and
+checks that its activation matches the session.
+
+A `Decision` contains at most four view metadata records, four mutations and
+four outputs, plus an optional effect. The helper binds input/generation/revision
+from its delivery and rejects views belonging to another activation or input.
+There is no whole-resource snapshot or state array in `Delivery`. The authority
+still revalidates all of these fields; local preparation grants no rights.
+The proof caller exercises these helpers through its actual HTTP/recovery path.
 
 ## Response and transport guarantees
 

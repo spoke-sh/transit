@@ -3,6 +3,7 @@ const std = @import("std");
 pub const observability = @import("transit_observability");
 const telemetry = observability.telemetry;
 pub const Session = @import("Session.zig");
+pub const GrowingSession = @import("GrowingSession.zig");
 pub const bootstrap = @import("bootstrap.zig");
 pub const Value = protocol.Value;
 pub const protocol = @import("transit_protocol");
@@ -257,6 +258,7 @@ test "a full metadata view fits the bounded HTTP response" {
 test {
     _ = @import("ConcurrencyTests.zig");
     _ = Session;
+    _ = GrowingSession;
     const bytes = try std.json.Stringify.valueAlloc(std.testing.allocator, largestFields(protocol.Inspection.Page), .{});
     defer std.testing.allocator.free(bytes);
     try std.testing.expect(bytes.len + 1024 <= max_body);

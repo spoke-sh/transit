@@ -78,32 +78,34 @@ pub fn main(init: std.process.Init) !void {
         for ([_]u64{ 0, 65536 }) |principal| _ = try root.submit(.{ .grant_resource = .{ .resource = resource, .subject = principal, .permissions = p.State.all_permissions } });
         _ = try root.submit(.{ .associate = .{ .pid = pid, .name = try p.Value.init("data"), .resource = resource } });
         _ = try root.submit(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 65536 } });
-        var resource_revision = resource;
-        var process_revision: u64 = 0;
+        var session: wire.GrowingSession = .{ .client = &client, .realm = 42, .principal = 65536, .pid = pid, .generation = 2, .key = worker.key };
         for (0..16) |turn| {
             const input = try root.submit(.{ .send = .{ .pid = pid, .value = .{} } });
-            const view = try worker.submit(.{ .open_view = .{ .pid = pid, .generation = 2, .input = input, .expected_revision = process_revision, .resource = resource, .revision = resource_revision, .deadline_ms = @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 30000 } });
+            var delivery = (try session.receive()).?;
+            try t.expectEqual(input, delivery.input.position);
+            const resource_meta = (try worker.query(.{ .resource = resource })).body.resource;
+            const opening = try session.prepareView(delivery, resource_meta, @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 30000);
+            const view = (try opening.submit(&client)).position;
             // A handler can read just one key at its captured version. It never
             // materializes the entire resource as a prerequisite to execution.
-            const captured = try worker.query(.{ .entries = .{ .view = view, .key = key(0) } });
-            try t.expectEqual(turn == 0, captured.body.entries.page.entries[0] == null);
+            const captured = try session.readView(view, key(0), null);
+            try t.expectEqual(turn == 0, captured.page.entries[0] == null);
             var mutations: [g.turn_mutations]?g.Mutation = @splat(null);
             for (&mutations, 0..) |*slot, i| slot.* = .{ .key = key(turn * 4 + i), .value = value(turn * 4 + i) };
-            const signed = try worker.sign(.{ .turn = .{ .pid = pid, .generation = 2, .input = input, .expected_revision = process_revision, .views = .{ view, null, null, null }, .write_view = view, .mutations = mutations } });
+            delivery = (try session.receive()).?; // Opening the view consumed a sequence.
+            const pending = try session.prepareCommit(delivery, .{ .views = .{ captured.view.?, null, null, null }, .write_view = view, .mutations = mutations });
+            const signed = pending.signed;
             if (turn == 15) {
                 // The harness corrupts this accepted reply. Freeze exact retry
                 // bytes across caller, node and provider loss; no fresh sequence.
-                try t.expectError(error.InvalidAuthorityResponse, client.submitGrowing(signed));
+                try t.expectError(error.InvalidAuthorityResponse, pending.submit(&client));
                 const expected: Expected = .{ .pid = pid, .resource = resource, .receipt = view + 1, .pending = signed };
                 const bytes = try std.json.Stringify.valueAlloc(init.gpa, expected, .{});
                 defer init.gpa.free(bytes);
                 try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = args[3], .data = bytes });
                 try verify(&worker, expected);
             } else {
-                const receipt = try client.submitGrowing(signed);
-                worker.sequence += 1;
-                process_revision = receipt.position;
-                resource_revision = receipt.position;
+                _ = try pending.submit(&client);
             }
         }
     } else {
