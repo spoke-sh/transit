@@ -656,6 +656,13 @@ lifecycle watches, restart budgets and versioned framework descriptors.
 
 ## M9 Station, bindings and Tables
 
+The final implementation at `1462041` passed `just ci-clean` with no inherited
+checkout build outputs. All target languages passed in that run. Embedded Board
+passed its five Chromium checks; the Station local, Compose and Substrate
+profiles passed their separate recovery/upgrade proofs. `just doctor` and
+Actionlint also passed. This records local qualification, not a hosted CI speed
+measurement or validation of other operating systems/architectures.
+
 The Linux x86_64 profile uses the locked Zig 0.17 compiler, the pinned
 `rupurt/zarrow` and `rupurt/zarrow-compute` forks, disk Ursula, and the real public
 authority/courier. Framework logic remains in Zig; no language-specific server
