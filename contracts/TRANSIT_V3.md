@@ -68,6 +68,12 @@ never a bearer capability. Each successful response validates that its authority
 tail still matches the policy/read basis before disclosure. The response may
 arrive after a later revocation; it grants no subsequent read authority.
 
+With the `association_lookup` capability, a query can resolve one association by
+PID and exact name without a catalog continuation. It enforces current PID scope
+and target inspection rights, returning null for either absence or a hidden
+target. It uses the same final authority-tail fence as paged discovery. The
+client validates the returned PID, name, resource and association revision.
+
 Process lists expose recorded metadata. An individual process read checks current
 execution eligibility before releasing its next mailbox input. Required dependency
 expiry may fence execution before background work materializes terminal metadata;

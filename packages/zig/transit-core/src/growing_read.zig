@@ -37,7 +37,7 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     const position = engine.head.position;
     var current = try engine.state();
     const body: @FieldType(g.Response, "body") = switch (query.kind) {
-        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited } },
+        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited } },
         .process => |pid| blk: {
             try scope(principal, pid);
             const process = try engine.process(pid);
@@ -58,6 +58,18 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
             try scope(principal, value.meta.pid);
             try state.allowed(engine, value.meta.resource, query.principal, p.State.permission(.inspect));
             break :blk .{ .view = value.meta };
+        },
+        .association => |q| blk: {
+            try scope(principal, q.pid);
+            _ = try engine.process(q.pid);
+            const value = (try current.get(g.Association, try c.key(.association, q.pid, 0, q.name.slice()))) orelse break :blk .{ .association = null };
+            state.allowed(engine, value.resource, query.principal, p.State.permission(.inspect)) catch |err| {
+                // Match filtered discovery: absence and a hidden target reveal
+                // neither the association's existence nor its resource identity.
+                if (err == error.Forbidden) break :blk .{ .association = null };
+                return err;
+            };
+            break :blk .{ .association = value };
         },
         .entries => |q| blk: {
             const now = try sample(engine);

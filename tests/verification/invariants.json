@@ -353,6 +353,7 @@
         "Current grants, ownership, deadline and clock uncertainty",
         "Bounded empty filtered page with a non-null continuation",
         "Hidden names absent from association cursors",
+        "Named lookup preserves PID scope, hides unauthorized targets and fences concurrent disclosure",
         "Missing pages and stale catalog cuts reject explicitly"
       ],
       "limits": "Internal signed engine queries with injected storage/time. No HTTP/SDK/provider proof, generalized historical querying or concurrent service load qualification.",
@@ -428,7 +429,8 @@
         "Accepted malformed receipt remains uncertain across caller/node/provider restart",
         "Exact retry preserves position, then current revocation denies receipt and reads",
         "Single-CPU HTTP concurrency and no legacy-route fallback",
-        "Activation helper reads bounded captured keys and freezes owned retry material"
+        "Activation helper reads bounded captured keys and freezes owned retry material",
+        "Session resolves named associations without materializing the catalog"
       ],
       "limits": "No Station/foreign binding support, runtime binding, migration, load qualification or quota/control reserve claim. Host synchronized clock is a deployment premise.",
       "model": null

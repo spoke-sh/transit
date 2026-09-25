@@ -135,6 +135,7 @@ pub const Query = struct {
         process: Id,
         resource: Id,
         view: Id,
+        association: struct { pid: Id, name: p.Value },
         processes: struct { after: ?Id = null, position: ?Id = null },
         resources: struct { after: ?Id = null, position: ?Id = null },
         associations: struct { pid: Id, after: ?Id = null, position: ?Id = null },
@@ -158,6 +159,7 @@ pub const Capabilities = struct {
     required_resources_per_process: u16,
     dependency_validation_vertices: u16,
     dependency_changes: enum { quiescent_owner_and_borrowers } = .quiescent_owner_and_borrowers,
+    association_lookup: bool = false,
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
     runtime_bindings: bool = false,
     history_reclamation: bool = false,
@@ -174,6 +176,7 @@ pub const Response = struct {
         process: struct { process: Process, input: ?Input },
         resource: Resource,
         view: View,
+        association: ?Association,
         processes: Batch(Process, Id),
         resources: Batch(Resource, Id),
         associations: Batch(Association, Id),
@@ -220,6 +223,7 @@ pub fn validateQuery(query: Query) !void {
     if (query.version != version or query.realm == 0) return error.WrongProtocolRealm;
     try counters(query);
     switch (query.kind) {
+        .association => |c| try validateKey(c.name),
         .entries => |c| {
             if ((c.view == null) == (c.resource == null) or (c.resource == null) != (c.revision == null)) return error.InvalidRead;
             if (c.key != null and c.after != null) return error.InvalidRead;
@@ -257,6 +261,10 @@ pub fn validateResponse(response: Response, query: Query) !void {
         },
         .resource => |id| if (response.body.resource.id != id) return error.InvalidRead,
         .view => |id| if (response.body.view.id != id) return error.InvalidRead,
+        .association => |q| if (response.body.association) |value| {
+            if (value.pid != q.pid or !value.name.eql(q.name) or value.resource == 0 or
+                value.resource >= response.position or value.revision == 0 or value.revision >= response.position) return error.InvalidRead;
+        },
         .entries => |q| {
             const value = response.body.entries;
             if (q.view) |id| {
@@ -359,6 +367,24 @@ test "growing identities are explicit and cannot reuse legacy signature domains"
     const legacy = p.digest(.{ .realm = 1, .principal = 1, .sequence = 1, .command = .{ .send = .{ .pid = 2, .value = .{} } } });
     try std.testing.expect(!std.mem.eql(u8, &legacy, &try digest(request)));
     try std.testing.expectError(error.InvalidRead, signQuery(.{ .realm = 1, .principal = 1, .kind = .{ .entries = .{ .view = 3, .key = try p.Value.init("k"), .after = try p.Value.init("k") } } }, key));
+}
+
+test "growing named association response binds the requested PID and exact name" {
+    const t = std.testing;
+    const name = try p.Value.init("data");
+    const query: Query = .{ .realm = 1, .principal = 65536, .kind = .{ .association = .{ .pid = 2, .name = name } } };
+    var response: Response = .{ .realm = 1, .position = 5, .principal_sequence = 0, .body = .{ .association = .{ .pid = 2, .name = name, .resource = 3, .revision = 4, .required = true } } };
+    try validateResponse(response, query);
+    response.body.association.?.pid = 1;
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response.body.association.?.pid = 2;
+    response.body.association.?.name = try p.Value.init("different");
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response.body.association.?.name = name;
+    response.body.association.?.revision = 5;
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response.body.association = null;
+    try validateResponse(response, query);
 }
 
 test "growing responses reject mixed bases, incomplete pages and nonadvancing cursors" {

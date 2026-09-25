@@ -8,8 +8,11 @@ const Journal = struct {
     entries: std.ArrayList(growing.Entry) = .empty,
     fail: enum { none, before, after } = .none,
     competing_append: ?growing.Entry = null,
+    tail_calls: usize = 0,
+    race_at: ?usize = null,
     pub fn tail(self: *Journal) !u64 {
-        return self.entries.items.len;
+        self.tail_calls += 1;
+        return self.entries.items.len + @as(u64, if (self.race_at == self.tail_calls) 1 else 0);
     }
     pub fn read(self: *Journal, at: u64) !?growing.Entry {
         return if (at < self.entries.items.len) self.entries.items[@intCast(at)] else null;
@@ -535,11 +538,30 @@ test "growing filtered discovery advances bounded pages without exposing hidden 
     const resources = try fixture.query(65536, .{ .resources = .{} });
     try t.expectEqual(visible, resources.body.resources.entries[0].?.id);
     try t.expectEqual(@as(?g.Resource, null), resources.body.resources.entries[1]);
+    try t.expect((try fixture.query(65536, .{ .capabilities = {} })).body.capabilities.association_lookup);
+    const point: @FieldType(g.Query, "kind") = .{ .association = .{ .pid = pid, .name = name } };
+    try t.expectEqual(visible, (try fixture.query(65536, point)).body.association.?.resource);
+    try t.expectEqual(@as(?g.Association, null), (try fixture.query(65536, .{ .association = .{ .pid = pid, .name = core.Value.integer(0) } })).body.association);
+    try t.expectEqual(@as(?g.Association, null), (try fixture.query(65536, .{ .association = .{ .pid = pid, .name = try core.Value.init("absent") } })).body.association);
+    try t.expectError(error.InvalidStateKey, fixture.query(65536, .{ .association = .{ .pid = pid, .name = .{} } }));
+    _ = try fixture.root(.{ .send = .{ .pid = pid, .value = .{} } });
+    try t.expectEqual(association, (try fixture.query(65536, point)).body.association.?.revision);
+    fixture.journal.race_at = fixture.journal.tail_calls + 2;
+    try t.expectError(error.Conflict, fixture.query(65536, point));
+    fixture.journal.race_at = null;
+    _ = try fixture.root(.{ .grant_resource = .{ .resource = visible, .subject = 65536, .permissions = 0 } });
+    try t.expectEqual(@as(?g.Association, null), (try fixture.query(65536, point)).body.association);
+    _ = try fixture.root(.{ .grant_resource = .{ .resource = visible, .subject = 65536, .permissions = core.protocol.State.permission(.inspect) } });
+    try t.expectEqual(visible, (try fixture.query(65536, point)).body.association.?.resource);
     _ = try fixture.root(.{ .associate = .{ .pid = pid, .name = name, .expected_revision = association, .resource = null, .required = false } });
     try t.expectError(error.QueryExpired, fixture.query(65536, .{ .associations = .{ .pid = pid, .after = after, .position = first.position } }));
     const removed = try fixture.query(65536, .{ .associations = .{ .pid = pid } });
     for (removed.body.associations.entries) |entry| try t.expectEqual(@as(?g.Association, null), entry);
     try t.expectEqual(@as(?u64, null), removed.body.associations.next);
+    try t.expectEqual(@as(?g.Association, null), (try fixture.query(65536, point)).body.association);
+    const other = try fixture.root(.{ .spawn = .{} });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect), .pid = other } });
+    try t.expectError(error.Forbidden, fixture.query(65536, point));
 }
 
 test "growing outboxes preserve routes, permission ordering and lost delivery receipts" {

@@ -77,6 +77,10 @@ Catalog continuation requires the original authority position. Filtered resource
 and association pages may be empty with more scanning available; only a null
 cursor means completion. Association cursors use indexed revision IDs instead of
 hidden names. A final tail check rejects concurrent changes during disclosure.
+Named association lookup reads one indexed key without requiring a catalog cut.
+It checks PID scope and current target inspection permission; missing and hidden
+associations both return null. A later grant, revocation or removal is observed
+on the next lookup rather than retained in a session cache.
 
 ## Delivery and settlement
 

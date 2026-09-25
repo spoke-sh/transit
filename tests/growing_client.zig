@@ -169,6 +169,10 @@ pub fn main(init: std.process.Init) !void {
         _ = try root.submit(.{ .associate = .{ .pid = pid, .name = try p.Value.init("data"), .resource = resource } });
         _ = try root.submit(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 65536 } });
         var session: wire.GrowingSession = .{ .client = &client, .realm = 42, .principal = 65536, .pid = pid, .generation = 2, .key = worker.key };
+        const association = (try session.association(try p.Value.init("data"))).?;
+        try t.expectEqual(resource, association.resource);
+        try t.expect(association.required);
+        try t.expectEqual(@as(?g.Association, null), try session.association(try p.Value.init("missing")));
         for (0..16) |turn| {
             const input = try root.submit(.{ .send = .{ .pid = pid, .value = .{} } });
             var delivery = (try session.receive()).?;

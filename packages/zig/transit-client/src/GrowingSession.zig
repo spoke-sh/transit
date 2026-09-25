@@ -53,6 +53,13 @@ pub fn receive(self: *Self) !?Delivery {
     return .{ .realm = self.realm, .principal = self.principal, .pid = self.pid, .generation = self.generation, .sequence = try std.math.add(u64, response.principal_sequence, 1), .revision = process.revision, .input = input, .permit = if (process.turn_permit) |permit| permit.id else null, .needs_permit = process.work_before_ms != null and process.turn_permit == null };
 }
 
+/// Bounded current metadata lookup; associations do not grant resource access.
+/// Hidden/missing targets both return null. No catalog scan or cached decision.
+pub fn association(self: *Self, name: p.Value) !?g.Association {
+    const response = try self.client.queryGrowing(.{ .realm = self.realm, .principal = self.principal, .kind = .{ .association = .{ .pid = self.pid, .name = name } } }, self.key);
+    return response.body.association;
+}
+
 fn prepare(self: *const Self, delivery: Delivery, command: g.Command) !Pending {
     if (delivery.realm != self.realm or delivery.principal != self.principal or delivery.pid != self.pid or delivery.generation != self.generation) return error.WrongActivation;
     return .{ .signed = try g.sign(.{ .realm = self.realm, .principal = self.principal, .sequence = delivery.sequence, .command = command }, self.key) };

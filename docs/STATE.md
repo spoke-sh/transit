@@ -15,9 +15,12 @@ The fixed catalog sizes are real constraints of that implementation, not the
 intended size of a resource. [M10](roadmap/M10.md) replaces the coupling between
 total retained state and resident arrays before [SDKs M11](roadmap/M11.md).
 The target collection model below is not yet implemented by state v1.
-M10's [immutable page index](../packages/zig/transit-core/docs/pages.md) now supplies
-the first storage primitive. Its candidate roots are not yet published through
-the running authority; it does not remove state-v1's limits on its own.
+M10's explicit [v3 development profile](../contracts/TRANSIT_V3.md) publishes
+immutable state roots through the authority and supplies bounded node/client
+access to growing resources and process associations. It remains separate from
+the default state-v1 profile. Station integration, quotas and retained result
+handling remain M10 work; the development profile does not remove the default
+profile's limits.
 
 ## Purpose
 

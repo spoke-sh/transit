@@ -49,6 +49,14 @@ current sequence before preparing the next command. Convenience methods never
 rebase an uncertain proposal. `readView` returns a point or bounded page and
 checks that its activation matches the session.
 
+`association(name)` resolves one named association for the session PID when the
+node advertises `association_lookup`. It does not scan the association catalog or
+reuse a catalog cut, so unrelated committed work cannot invalidate a continuation.
+The response requires current PID scope and resource inspection rights; a missing
+association and a hidden target both return null. Association does not grant
+resource access or pin a revision. A concurrent authority change during the read
+still rejects the disclosure.
+
 A `Decision` contains at most four view metadata records, four mutations and
 four outputs, plus an optional effect. The helper binds input/generation/revision
 from its delivery and rejects views belonging to another activation or input.
