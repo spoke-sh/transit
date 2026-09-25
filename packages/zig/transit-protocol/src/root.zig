@@ -20,6 +20,7 @@ pub const max_payload_bytes = 64 * 1024;
 pub const max_turn_outputs = 4;
 pub const max_counter = (1 << 53) - 1;
 pub const max_admission_ceiling = 65536;
+pub const max_control_reserve = 65536;
 pub const max_entry_bytes = 8192;
 pub const max_checkpoint_bytes = 1024 * 1024;
 

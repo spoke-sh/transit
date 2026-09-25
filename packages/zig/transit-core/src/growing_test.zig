@@ -184,6 +184,12 @@ const Fixture = struct {
         self.genesis = .{ .realm = 42, .root_key = self.root_key.public_key.toBytes(), .max_clock_error_ms = 5, .required_dependencies = required, .dependency_vertices = vertices, .allow_history_trim = trim };
         self.engine = try Engine.bootstrap(&self.journal, &self.pages, self.genesis);
     }
+    fn initCapacity(self: *Fixture, ceiling: u64, reserve: u64) !void {
+        self.root_key = try core.Ed25519.KeyPair.generateDeterministic(@splat(7));
+        self.worker_key = try core.Ed25519.KeyPair.generateDeterministic(@splat(8));
+        self.genesis = .{ .realm = 42, .root_key = self.root_key.public_key.toBytes(), .max_clock_error_ms = 5, .allow_history_trim = true, .admission_ceiling = ceiling, .control_reserve = reserve };
+        self.engine = try Engine.bootstrap(&self.journal, &self.pages, self.genesis);
+    }
     fn deinit(self: *Fixture) void {
         self.pages.deinit();
         self.journal.entries.deinit(t.allocator);
@@ -1055,4 +1061,57 @@ test "growing retained read dependencies fence later proposals and historical re
     try t.expectError(error.Forbidden, other.f.engine.submit(read_commit));
     _ = try other.f.root(.{ .grant_resource = .{ .resource = other.resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
     try t.expectEqual(receipt, try other.f.engine.submit(read_commit));
+}
+
+test "growing capacity backpressure blocks new admission but drains and closes existing work through an explicit reserve" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.initCapacity(20, 10);
+    const pid = try f.root(.{ .spawn = .{} });
+    const doomed = try f.root(.{ .spawn = .{} });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } });
+    // `Turn.input` names the mailbox entry's journal position, not its
+    // per-process ordinal; capture what each send actually returns.
+    var inputs: std.ArrayList(u64) = .empty;
+    defer inputs.deinit(t.allocator);
+    while (f.engine.head.position < 20) try inputs.append(t.allocator, try f.root(.{ .send = .{ .pid = pid, .value = core.Value.integer(1) } }));
+    try t.expectEqual(@as(u64, 20), f.engine.head.position);
+    // New growth is refused before it is even acknowledged, not accepted and
+    // silently truncated.
+    try t.expectError(error.AdmissionClosed, f.root(.{ .send = .{ .pid = pid, .value = core.Value.integer(1) } }));
+    try t.expectError(error.AdmissionClosed, f.root(.{ .spawn = .{} }));
+    try t.expectError(error.AdmissionClosed, f.root(.{ .associate = .{ .pid = pid, .name = try core.Value.init("x"), .resource = null, .required = false } }));
+    const process_before = try f.engine.process(pid);
+    var next_input = process_before.consumed;
+    // Existing backlog can still drain and close: a turn producing no new
+    // output/effect is admissible, one that would create either is not.
+    try t.expectError(error.AdmissionClosed, f.root(.{ .turn = .{ .pid = pid, .generation = process_before.generation, .input = inputs.items[next_input], .expected_revision = process_before.revision, .effect = core.Value.integer(1) } }));
+    _ = try f.root(.{ .turn = .{ .pid = pid, .generation = process_before.generation, .input = inputs.items[next_input], .expected_revision = process_before.revision } });
+    next_input += 1;
+    // Ordinary control/wind-down work remains admissible past the ceiling:
+    // reassigning ownership (of the doomed process, so pid's own owner and
+    // later turns are unaffected), revocation, a failed turn plus its retry,
+    // termination and an opted-in checkpoint. Extending a grant is new
+    // capability, not wind-down, so revoking stays one-way here.
+    _ = try f.root(.{ .own = .{ .pid = doomed, .expected_generation = 0, .worker = 65536 } });
+    _ = try f.root(.{ .revoke = 65536 });
+    const owned = try f.engine.process(pid);
+    const failing_input = inputs.items[next_input];
+    _ = try f.root(.{ .turn = .{ .pid = pid, .generation = owned.generation, .input = failing_input, .expected_revision = owned.revision, .failed = true } });
+    _ = try f.root(.{ .retry = .{ .pid = pid, .expected_generation = owned.generation + 1, .failure_input = failing_input } });
+    _ = try f.root(.{ .terminate = doomed });
+    _ = try f.root(.{ .checkpoint = {} });
+    try t.expectEqual(.terminated, (try f.engine.process(doomed)).lifecycle);
+    try t.expect(f.engine.head.position < 20 + 10);
+    // The reserve is finite too: pad it with more admissible control work
+    // (an idempotent revoke costs one position without granting anything new)
+    // until even that is refused.
+    while (f.engine.head.position < 20 + 10) _ = try f.root(.{ .revoke = 65536 });
+    try t.expectError(error.ControlCapacity, f.root(.{ .revoke = 65536 }));
+    try t.expectError(error.ControlCapacity, f.root(.{ .checkpoint = {} }));
+    // A restarted engine recovers the same ceiling and reserve exhaustion; the
+    // limit is durable protocol state, not a process-local counter.
+    var recovered = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expectError(error.ControlCapacity, recovered.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .revoke = 65536 } }, f.root_key)));
 }

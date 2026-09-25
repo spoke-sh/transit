@@ -20,6 +20,18 @@ pub const Genesis = struct {
     /// Explicit realm/application opt-in for protocol journal prefix compaction.
     /// Does not authorize page, receipt, mailbox, view or value deletion.
     allow_history_trim: bool = false,
+    /// Finite admission ceiling on the journal position, like the legacy
+    /// profile's. Unset (default) means unlimited. Growing catalogs are
+    /// unbounded by design, so unlike the legacy reserve there is no fixed
+    /// array size to derive a worst-case wind-down budget from; the reserve
+    /// below is an explicit configured band instead of a formula. See
+    /// docs/STATE.md#collection-size-and-working-memory.
+    admission_ceiling: ?u64 = null,
+    /// Extra journal positions beyond `admission_ceiling`, reserved for
+    /// control/wind-down work only (see `checkCapacity`). Meaningless when
+    /// `admission_ceiling` is null. Zero means no grace band: control work
+    /// stops exactly at the ceiling too.
+    control_reserve: u64 = 4096,
 };
 pub const Head = struct {
     version: u32 = g.version,
@@ -44,6 +56,8 @@ fn genesisHash(genesis: Genesis) ![32]u8 {
     _ = try p.Ed25519.PublicKey.fromBytes(genesis.root_key);
     if (genesis.required_dependencies == 0 or genesis.required_dependencies > 4096) return error.InvalidCapacity;
     if (genesis.dependency_vertices == 0 or genesis.dependency_vertices > state_ops.graph_vertices) return error.InvalidCapacity;
+    if (genesis.admission_ceiling) |ceiling| if (ceiling < 2 or ceiling > p.max_admission_ceiling) return error.InvalidCapacity;
+    if (genesis.control_reserve > p.max_control_reserve) return error.InvalidCapacity;
     var bytes: [1024]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&bytes);
     try std.json.Stringify.value(genesis, .{}, &writer);
@@ -196,10 +210,36 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             if (try self.duplicate(signed.request, principal_value) != null) return error.AlreadyCommitted;
             return self.prepareCurrent(signed.request);
         }
+        /// Closing admission is resource backpressure, never expiry or permission
+        /// to discard work. Defaults stay unlimited. Legacy derives its reserve
+        /// from fixed catalog array sizes; growing catalogs have none, so the
+        /// reserve is `genesis.control_reserve`, an explicit reviewed band
+        /// rather than a computed worst case. Commands that only resolve
+        /// existing obligations (revocation, retry, termination, expiry,
+        /// closing a view/effect/resource, delivery, observation, checkpoint,
+        /// reassigning ownership, and a turn that admits no new output/effect)
+        /// remain admissible past the ceiling; commands that grow the journal
+        /// with new obligations do not, until the reserve is exhausted too.
+        fn checkCapacity(self: *Self, command: g.Command) !void {
+            const ceiling = self.genesis.admission_ceiling orelse return;
+            if (self.head.position < ceiling) return;
+            if (self.head.position >= ceiling + self.genesis.control_reserve) return error.ControlCapacity;
+            switch (command) {
+                .revoke, .retry, .terminate, .expire, .own, .begin_turn, .close_view, .retire_resource, .expire_resource, .deliver, .observe, .close_effect, .cancel_effect, .checkpoint => {},
+                .grant_resource => |c| if (c.permissions != 0) return error.AdmissionClosed,
+                .turn => |t| {
+                    if (t.effect != null) return error.AdmissionClosed;
+                    for (t.outputs) |o| if (o != null) return error.AdmissionClosed;
+                },
+                .turn_with_versions => |tv| try self.checkCapacity(.{ .turn = tv.turn }),
+                else => return error.AdmissionClosed,
+            }
+        }
         /// Authentication, permission and retry validation must have completed
         /// at this head. Publication CAS rejects every intervening transition.
         fn prepareCurrent(self: *Self, request: g.Request) !Prepared {
             if (self.head.position >= p.max_counter) return error.InvalidPosition;
+            try self.checkCapacity(request.command);
             var candidate = try self.state();
             var next = self.head;
             const needs_time = switch (request.command) {
