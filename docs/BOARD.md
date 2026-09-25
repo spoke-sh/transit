@@ -105,6 +105,16 @@ inspection: it requires an explicit public service/authorization boundary and
 cannot hide M9's mutating durable query/captured-reply flow behind a read route.
 The synthetic sample results authorize no application decoding or provider access.
 
+The [D8 venue and growth review](design/D8.md) explores stadium, park and
+fairground layouts around a shared resource, while retaining its Table/KV/Document
+identity. Disclosed association cohorts do not establish active use or ownership.
+Solid observed size and dashed conditional growth share a stable plot and
+explicit metric; day-to-decade cases disclose their assumptions. Readiness
+compares named planning requirements with matching evidence and preserves
+unknown write/query/recovery capacity. History, scalable participation summaries
+and qualification data require future public read capabilities. Local scenario
+edits authorize no resource mutation, retention change or future-data query.
+
 ## Boundary and packaging
 
 ```mermaid

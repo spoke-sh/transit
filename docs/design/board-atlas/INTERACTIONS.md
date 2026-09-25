@@ -118,6 +118,13 @@ draft and result between Canvas/Browse; navigation never executes queries.
 This extends the original metadata-only inspection intent and needs a separately
 scoped public capability before implementation.
 
+[D8](../D8.md) adds shared-resource venue candidates and a contextual time view.
+Process cohorts preserve separate membership/coverage; association is not
+activity. Observed size stays solid, conditional growth is dashed, and readiness
+requires metric-specific evidence. Horizon/assumption changes are local planning
+actions; they do not run queries, invent historical/future rows or change
+resource lifecycle policy.
+
 The [fabric exploration](../D2.md) extends this initial height-only study with
 an inbox shoulder and an independently readable outbox well. It compares count
 depth plus age tint with an explicit age-depth layer. The interface uses Inbox
