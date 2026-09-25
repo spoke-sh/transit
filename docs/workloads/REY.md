@@ -91,7 +91,7 @@ Choose PIDs for independent sequencing, recovery and ownership. A record does
 not need its own PID, nor does a PID inherently need a dedicated OS process or
 pod. Measure retained PIDs separately from active handlers and worker pools.
 The reference currently maps a PID to a Substrate Actor;
-[M16](../roadmap/M16.md) must qualify any multiplexing or alternative mapping.
+[M17](../roadmap/M17.md) must qualify any multiplexing or alternative mapping.
 
 At one million events/s, 10 microseconds of CPU per event consumes ten fully busy
 CPU cores in ideal arithmetic, before I/O, contention or spare capacity. Giving
@@ -126,7 +126,7 @@ where access/lifetime rules permit, rather than a full copy per instrument.
 Mutable shared context and immutable source capture have distinct lifetimes.
 Collaboration needs Document semantics and per-user/application access policy;
 the private shared-identity Board deployment is not that collaboration surface.
-[M12](../roadmap/M12.md) owns Documents; identity and sharing scope still need
+[M13](../roadmap/M13.md) owns Documents; identity and sharing scope still need
 qualification before a multi-user Rey application is deployed.
 
 ## Recovery headroom and latency
@@ -166,7 +166,7 @@ remote outcomes remain unknown until valid reconciliation.
 
 The current realm-wide journal serializes publication. More HTTP replicas do not
 remove that bottleneck. M10 must measure the single-authority limit;
-[M16](../roadmap/M16.md) owns authority partitioning, routing, fencing and
+[M17](../roadmap/M17.md) owns authority partitioning, routing, fencing and
 cross-partition delivery. Per-feed and per-PID order do not imply a global market
 order. Splitting physical streams alone does not solve authorization or atomicity.
 

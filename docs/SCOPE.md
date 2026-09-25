@@ -83,9 +83,9 @@ The same primitives must support ordinary stateful distributed programs.
 - [Fuze](FUZE.md) is the Zig-native query and compute engine, inspired by Apache
   DataFusion and Acero. It targets one query model across KV, Table and Document,
   while Station owns their distinct mutation and merge semantics. Documents target
-  both structured state and collaborative text in [M12](roadmap/M12.md), together
+  both structured state and collaborative text in [M13](roadmap/M13.md), together
   with unified KV/Table/Document queries. [Arrow](ARROW.md) owns interchange and remote access.
-  M15 adds a read-only SQL subset over qualified Tables; continuous queries and
+  M16 adds a read-only SQL subset over qualified Tables; continuous queries and
   separate-resource transactions remain later work. No foreign query engine
   runs behind the interface or inside Transit authority.
 - HTTP is the first connector; gRPC is the second. Request/response messages and
@@ -134,14 +134,14 @@ respecting those contracts. [M10](roadmap/M10.md) establishes comprehensive
 verification, growing state and measured scale boundaries. [M11](roadmap/M11.md)
 makes those capabilities natural
 to use through typed language SDKs, with explicit lifetime and recovery behavior.
-[Documents M12](roadmap/M12.md) adds structured and collaborative text
+[Documents M13](roadmap/M13.md) adds structured and collaborative text
 state, CRDT/recovery/retention proofs and the remaining Fuze source adapters.
 An HTTP connector follows. A caller
 records a request; a fetch worker executes an authorized attempt; response data and timing are recorded;
 the caller resumes from a correlated mailbox message. Replay uses the transcript.
 Station and connectors add versioned Board lenses as their own primitives land.
-Next, [gRPC](roadmap/M14.md) proves bounded streaming calls, then
-[Arrow interoperability](roadmap/M15.md) exposes the same Tables through Flight,
+Next, [gRPC](roadmap/M15.md) proves bounded streaming calls, then
+[Arrow interoperability](roadmap/M16.md) exposes the same Tables through Flight,
 Flight SQL and tested ADBC clients. These precede the broader clustering milestone.
 These outcomes define the [roadmap](roadmap/README.md).
 

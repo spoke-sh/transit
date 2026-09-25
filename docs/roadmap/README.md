@@ -19,11 +19,12 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M9](M9.md) | Station behaviors, language bindings, and Arrow Tables | Bounded profile implemented and qualified on Linux x86_64 across all target languages; Zig reference workers |
 | [M10](M10.md) | Verification and scale foundations | In progress; testing strategy, CI cost, growing state and scale qualification |
 | [M11](M11.md) | Idiomatic language SDKs | Planned |
-| [M12](M12.md) | Documents, collaborative text and unified querying | Planned |
-| [M13](M13.md) | HTTP connector and exchange transcripts | Planned |
-| [M14](M14.md) | gRPC connector and streaming calls | Planned |
-| [M15](M15.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned |
-| [M16](M16.md) | Clustered execution and portability | Planned |
+| [M12](M12.md) | Board relief atlas and public query access | Planned |
+| [M13](M13.md) | Documents, collaborative text and unified querying | Planned |
+| [M14](M14.md) | HTTP connector and exchange transcripts | Planned |
+| [M15](M15.md) | gRPC connector and streaming calls | Planned |
+| [M16](M16.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned |
+| [M17](M17.md) | Clustered execution and portability | Planned |
 
 The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -38,10 +39,16 @@ catalogs before SDKs stabilize. The current hard limits are qualification
 constraints to replace, not the intended programming model.
 [M11](M11.md) then builds language-native public SDKs
 over those bindings, including typed handlers/state, recoverable operations,
-runtime integration and installable artifacts. Fuze's shared source model targets
-KV, Table and Document; [M12](M12.md) adds Document/CRDT storage, structured and
-collaborative text editing, and the KV/Document query adapters with their own
-acceptance criteria.
+runtime integration and installable artifacts. [M12](M12.md) hosts the first
+real growing-query process outside a test harness, specifies a bounded public
+query capability distinct from Board's existing inspection grant, and exposes
+it through Board's relief-atlas workspace (the [design review sequence](../design/README.md),
+D1–D8) and a new `transit-cli` interactive shell — both sharing one query
+state rather than duplicating query semantics. Fuze's shared source model
+targets KV, Table and Document; [M13](M13.md) adds Document/CRDT storage,
+structured and collaborative text editing, and the KV/Document query adapters
+with their own acceptance criteria, reusing M12's query capability rather than
+replacing it.
 HTTP proves shared effect capture; gRPC extends it to bidirectional calls; Arrow
 interoperability then adds a remote query surface over the same Tables. Clustering
 qualifies those boundaries across broader topologies. Fuze

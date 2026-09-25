@@ -332,11 +332,11 @@ collection can run after process expiry without prolonging its execution rights.
 M1 proves the lifetime contract, deadline fencing, durable recovery basis, and
 basic trim/delete recovery. M7 proves associated-state dependencies, KV compaction,
 and resource expiry. M9 exposes those semantics through Station suspension and
-supervision. [M12](roadmap/M12.md) qualifies Document causal checkpoints, deletion
-evidence and opted-in replica merge/resynchronization horizons. M13 adds connector
-dependency handling; M14 applies it to streaming
-RPCs. M15 distinguishes [Flight handles and retained results](ARROW.md#identity-lifetime-and-failure)
-from transport timeouts. M16 extends the proofs to distributed consumers and
+supervision. [M13](roadmap/M13.md) qualifies Document causal checkpoints, deletion
+evidence and opted-in replica merge/resynchronization horizons. M14 adds connector
+dependency handling; M15 applies it to streaming
+RPCs. M16 distinguishes [Flight handles and retained results](ARROW.md#identity-lifetime-and-failure)
+from transport timeouts. M17 extends the proofs to distributed consumers and
 broader recovery operations. See [roadmap](roadmap/README.md).
 
 ## Working catalog reclamation
