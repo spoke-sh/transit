@@ -29,17 +29,18 @@ GitHub tarball with the new build fetcher's global archive cache produced a hash
 mismatch with an extra archive directory in the local proof. A fresh Git fetch
 produces the manifest's package hash; package builds must also work cold.
 
-## Initial capacity evidence
+## Capacity evidence
 
 `just test::arrow` emits a complete two-column IPC stream (`id: int64`, nullable
 `label: utf8`) and checks it with Nix-pinned PyArrow 23.0.0. The three-row fixture
 includes a null, Unicode and integers above JavaScript's exact-number range.
 It is 456 bytes; the empty result preserves its schema in 392 bytes.
 
-Both fit three 256-byte data keys plus one manifest key in a four-mutation
-commit. This is a feasibility fixture, not the maximum supported Table profile
-or proof of durable publication. Station must still budget framework records,
-schemas, live rows, waiting and delivery records against the same resource, and
-qualify oversized results, cancellation and restart. Kernel IDs remain subject
+Station's qualified result profile reserves framing space: three **224-byte**
+data keys and one manifest, at most **672 IPC bytes**. Its boundary proof sweeps
+real variable-width results, captures the maximum, rejects larger results without
+mutations, then completes the four-message reply across separate consumer turns.
+The [Table guide](../../transit-station/docs/tables.md) owns framework/row/result
+capacity and the real-service publication/recovery proof. Kernel IDs remain subject
 to the protocol's advertised counter limit; Arrow integer values have their own
 full signed 64-bit range.

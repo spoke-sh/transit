@@ -313,3 +313,81 @@ test "fragments require authenticated peer, stable bytes and complete hash cover
     try std.testing.expect(try dispatch(&turn, conflict)); // closed wait: no reopen
     try turn.validate();
 }
+
+fn acceptFixture(turn: *Turn) !void {
+    for (turn.decision.mutations) |slot| if (slot) |mutation| {
+        const destination = for (&turn.entries) |*entry| {
+            if (entry.*) |value| if (value.key.eql(mutation.key)) break entry;
+        } else for (&turn.entries) |*entry| {
+            if (entry.* == null) break entry;
+        } else return error.StateCapacityExceeded;
+        destination.* = if (mutation.value) |value| .{ .key = mutation.key, .value = value, .revision = 1 } else null;
+    };
+    turn.decision = .{};
+}
+
+test "maximum captured IPC fits four mutations and outputs; a delayed consumer cannot complete a prefix" {
+    const t = std.testing;
+    const bytes: [f.model.max_cell_bytes]u8 = @splat('x');
+    var workspace: [f.execution.working_bytes]u8 = undefined;
+    var cancellation = f.execution.Cancellation.init(false);
+    var largest: ?Turn = null;
+    var maximum: usize = 0;
+    var rejected: usize = 0;
+    // Sweep real IPC sizes around the admitted boundary, including padding.
+    for (0..bytes.len + 1) |length| {
+        var turn = try Turn.fixture(try (Frame{ .kind = .call, .correlation = 3 }).encode());
+        turn.delivery.input.origin.source = .{ .process = .{ .pid = 8, .turn = 1, .output = 0 } };
+        const table = try Table.create(&turn, 1, .{ .names = .{ try f.model.Name.init("id"), try f.model.Name.init("value") }, .value_type = .utf8 });
+        try table.insert(&turn, .{ .key = 1, .value = .{ .utf8 = try f.model.Bytes.init(&bytes) } });
+        try table.insert(&turn, .{ .key = 2, .value = .{ .utf8 = try f.model.Bytes.init(bytes[0..length]) } });
+        try setPolicy(&turn, 8, 1, 0, true);
+        try acceptFixture(&turn);
+        const before = turn.decision;
+        const manifest = capture(&turn, table, .{}, &workspace, &cancellation) catch |err| {
+            try t.expectEqual(error.WriteFailed, err);
+            try t.expect(std.meta.eql(before, turn.decision));
+            rejected += 1;
+            continue;
+        };
+        if (manifest.bytes > maximum) {
+            maximum = manifest.bytes;
+            largest = turn;
+        }
+    }
+    try t.expectEqual(max_bytes, maximum);
+    try t.expect(rejected > 0);
+    var producer = largest.?;
+    for (producer.decision.mutations) |slot| try t.expect(slot != null);
+    const continuation = producer.decision.outputs[0].?.value;
+    try acceptFixture(&producer);
+    producer.delivery.input.value = continuation;
+    producer.delivery.input.origin.source.process.pid = producer.delivery.pid;
+    try t.expect(try dispatch(&producer, try Frame.decode(continuation)));
+    try producer.validate();
+    for (producer.decision.outputs) |slot| try t.expect(slot != null);
+    var receiver = try Turn.fixture(.{});
+    receiver.delivery.pid = 8;
+    receiver.delivery.input.origin.source = .{ .process = .{ .pid = 2, .turn = 9, .output = 0 } };
+    receiver.entries[0] = .{ .key = Turn.waitKey(3), .value = (Turn.Wait{ .target = 2 }).encode(), .revision = 1 };
+    const complete = try Frame.decode(producer.decision.outputs[3].?.value);
+    try t.expectError(error.IncompleteResult, dispatch(&receiver, complete));
+    for (producer.decision.outputs[0..3]) |slot| {
+        try t.expect(try dispatch(&receiver, try Frame.decode(slot.?.value)));
+        try acceptFixture(&receiver); // no live task/buffer crosses a turn
+        try t.expect((try receiver.waiting(3)).?.phase == .waiting);
+    }
+    try t.expect(!try dispatch(&receiver, complete));
+    try receiver.validate();
+    try t.expect((try receiver.waiting(3)).?.phase == .replied);
+    var result = try completed(&receiver, 3);
+    try t.expectEqual(max_bytes, result.bytes().len);
+    try validateArrow(result.bytes(), 2);
+
+    // Cancellation before capture has no queued work and publishes nothing.
+    var cancelled = largest.?;
+    cancelled.decision = .{};
+    cancellation.store(true, .release);
+    try t.expectError(error.Cancelled, capture(&cancelled, try Table.open(&cancelled, 1), .{}, &workspace, &cancellation));
+    try t.expect(std.meta.eql(cancelled.decision, @as(@TypeOf(cancelled.decision), .{})));
+}
