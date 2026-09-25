@@ -88,3 +88,36 @@ The [physical-capacity proof](../../../../tests/README.md#physical-capacity-prof
 records the reserved-filesystem setup, measurements, and limits. Node startup
 does not provision physical headroom. The [Ursula backend](../../transit-backend-ursula/docs/storage.md#immutable-payload-deletion)
 documents the implemented payload publication and deletion mapping.
+
+## Growing profile: an explicit control reserve, not a derived one
+
+The growing (`transit-v3`) engine's `Genesis` accepts the same shape of
+opt-in: `admission_ceiling` (2 to 65,536 journal positions, unset by default)
+and `control_reserve` (0 to 65,536, default 4,096). Once the ceiling is
+reached, new spawns, sends, grants, resource/view/association creation, effect
+dispatch and turns that would admit a new output or effect are refused.
+Ownership reassignment, revocation, retry, termination, expiry, view/resource
+retirement or expiry, delivery, effect observation/closure/cancellation, an
+opted-in checkpoint, and a turn that only drains existing backlog without
+producing a new output or effect remain admissible until the ceiling plus the
+reserve is exhausted too, at which point every command is refused.
+
+This deliberately does not reuse the legacy profile's formula. That formula is
+a closed-form worst case derived from the legacy catalog's fixed array sizes —
+exactly the ceilings the growing profile removes. With no fixed size to derive
+from, `control_reserve` is an explicit, reviewed band instead: a deployer
+states how much journal headroom wind-down work gets, the same way they state
+the ceiling itself. Unlike the legacy reserve, growing's capacity check does
+not additionally guard against spending that headroom on redundant, already-
+satisfied revoke or checkpoint calls; each still costs one position toward the
+reserve, since a principal doing that only depletes its own realm's headroom.
+
+This closes admission accounting for the growing engine itself
+([`GROWTH-11`](../../../../tests/verification/invariants.json)), proved
+in-memory with real restart recovery of the same ceiling/reserve state. It
+does not close CAP-01's second scenario for the growing profile: no proof yet
+exercises a real physical-storage/ENOSPC condition against disk Ursula, no
+service or client surface exposes remaining ceiling/reserve as a read, and
+`apps/transit-node`'s JSON config accepts the new `Genesis` fields (they
+deserialize like any other field, defaulting when absent) without yet
+documenting or qualifying an operational profile around them.

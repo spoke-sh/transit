@@ -293,6 +293,15 @@ blocked condition without treating capacity pressure as expiry. Its [physical-ca
 records reserve sizing and measured limits. Enabling an admission ceiling alone
 does not provision physical capacity or authorize expiry.
 
+The growing (`transit-v3`) engine now accepts the same opt-in shape —
+`admission_ceiling` plus an explicit `control_reserve` — closing admission
+accounting for that engine specifically; see
+[Growing profile: an explicit control reserve](../packages/zig/transit-core/docs/authority.md#growing-profile-an-explicit-control-reserve-not-a-derived-one)
+for why growing's unbounded catalogs rule out reusing the legacy formula, and
+for what remains open: no physical-capacity/ENOSPC proof, no service/client
+read surface for remaining headroom, and no `apps/transit-node` operational
+profile around the new fields yet.
+
 The M1 [immutable payload profile](../packages/zig/transit-backend-ursula/docs/storage.md#immutable-payload-deletion)
 implements opted-in whole-stream deletion after permanent owner retirement,
 with tombstones in separate control history. General payload dependencies and
