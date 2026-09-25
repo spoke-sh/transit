@@ -1,9 +1,9 @@
 # Caller programming model
 
 Status: experimental v2 Zig client and [M7 state-resource API](roadmap/M7.md)
-implemented. [M9](roadmap/M9.md) is in progress: the first shared C ABI supplies
-generated signatures and exact-request export/import, with [entry-gate evidence](../packages/zig/transit-client/docs/bindings.md).
-Station and the complete language adapters below remain milestone work.
+implemented. [M9](roadmap/M9.md) adds the shared C ABI, generated signatures and
+exact-request export/import, with [binding evidence](../packages/zig/transit-client/docs/bindings.md).
+[Station's adapters](../bindings/README.md) expose the framework to all target languages.
 General payload references and migration helpers remain
 separate future work.
 

@@ -1,7 +1,9 @@
 # Station Tables and Arrow results
 
-Status: proposed [M9](roadmap/M9.md) design, not an implemented Table, query
-engine or transaction extension. [State](STATE.md) owns the underlying resource
+Status: the bounded [M9](roadmap/M9.md) Table/Fuze profile is implemented; the
+[Table guide](../packages/zig/transit-station/docs/tables.md) owns exact type,
+capacity and result-delivery limits. Broader transaction/query directions below
+remain planned. [State](STATE.md) owns the underlying resource
 contract; [Station](STATION.md) owns behaviors and remote request/reply.
 
 ## Programming model
@@ -122,8 +124,7 @@ watermarks, late-data policy, joins and spill require their own budgets and proo
 ## Arrow and compute integration
 
 Build on `zarrow` for Arrow representation/IPC and `zarrow-compute` for selected
-kernels. They are preferred dependencies for M9, subject to an integration proof.
-The preferred zarrow candidate is now the `rupurt/zarrow` Zig 0.17 upgrade. This
+kernels. M9 pins the `rupurt/zarrow` and `rupurt/zarrow-compute` Zig 0.17 forks. This
 review inspected source on 2026-09-24. The
 [integration proof](../packages/zig/transit-fuze/docs/integration.md) now qualifies
 the exact dependencies, IPC and C interfaces. The
@@ -133,7 +134,7 @@ implemented layout, capacity, query policy and captured-reply profile.
 | Source reviewed | Finding and consequence |
 | --- | --- |
 | [rupurt/zarrow at 4276ac3](https://github.com/rupurt/zarrow/tree/4276ac30d63d1af159490b7dc70e15d749b8d01b) (`update-zig-0.17`) | The [manifest](https://github.com/rupurt/zarrow/blob/4276ac30d63d1af159490b7dc70e15d749b8d01b/build.zig.zon) and CI target `0.17.0-dev.2267+48abf1a34`; Transit now pins that same compiler. Qualify record batches, IPC and C Data/C Stream; a branch name is not a dependency pin. |
-| [zarrow-compute at 357fbf4](https://github.com/tylitianrui/zarrow-compute/tree/357fbf421c77785cd972fe5589918cb3bd39a92e) | Provides selected filtering, comparison, arithmetic and aggregate kernels over zarrow. Its [manifest](https://github.com/tylitianrui/zarrow-compute/blob/357fbf421c77785cd972fe5589918cb3bd39a92e/build.zig.zon) references a moving zarrow master archive; our integration must resolve immutable, compatible revisions and one shared zarrow type universe. |
+| [rupurt/zarrow-compute at def4d06](https://github.com/rupurt/zarrow-compute/tree/def4d0654b4d6cdc2f4a7e6ad4a5930301f3391a) | The Zig 0.17 upgrade is pinned by revision/hash. Fuze imports the upstream compute module with the same qualified full Arrow module used by IPC. The upstream compute tests run in the package check. |
 | [Aggregate implementation](https://github.com/tylitianrui/zarrow-compute/blob/357fbf421c77785cd972fe5589918cb3bd39a92e/src/kernels/aggregate.zig) | Stateful row counting accumulates batches; this is not a durable incremental view with update/delete retractions. Station owns that distinction. |
 
 Pin revisions and package hashes deliberately after testing. Do not downgrade

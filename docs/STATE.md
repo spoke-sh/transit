@@ -62,7 +62,7 @@ predicates, serializers, or migrations.
 
 A Table can build on the same resource model with typed records and declared
 schema/index semantics. Station owns those richer programming conveniences.
-The [M9 Table design](TABLES.md) proposes Arrow query results and typed keyspaces:
+The [M9 Table profile](TABLES.md) implements Arrow query results and typed keyspaces:
 several logical tables can share one resource and its existing atomic turn,
 permissions and lifetime. This is distinct from a transaction across resources.
 Query computation and schema validation stay in callers; the kernel does not
@@ -247,6 +247,6 @@ primitives.
 
 The [state v1 contract](../contracts/STATE_V1.md) specifies current encoding,
 limits, and compatibility. Changes to storage layout or numerical budgets need
-new measured evidence. Bounded Table helpers are planned in [M9](roadmap/M9.md);
+new measured evidence. Bounded Table helpers are implemented in [M9](roadmap/M9.md);
 larger indexes, writer transfer, multi-resource/cross-authority transactions,
 per-key TTL and automatic data migration require later explicit scope.

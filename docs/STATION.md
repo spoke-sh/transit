@@ -1,11 +1,11 @@
 # Station — framework and behaviors
 
-Status: M9 implementation is underway. The
-[Station package](../packages/zig/transit-station/README.md) implements the first
-GenServer turn loop, associated KV proposals and durable call/reply recovery.
-Typed Tables, captured Arrow replies, scoped registries, timed waits and bounded
-supervision and versioned Board lenses now build on that loop. Language adapters and reference
-qualification remain milestone work. The package guides define implemented bounds;
+Status: the [Station package](../packages/zig/transit-station/README.md) implements
+the bounded M9 profile: GenServer turns, associated state, durable calls, typed
+Tables, captured Arrow replies, scoped registries, timed waits, supervision and
+versioned Board lenses. [Language adapters](../bindings/README.md) share that
+implementation; the [runnable example](../examples/station-ledger/docs/running.md)
+composes three workers across the development profiles. The package guides define implemented bounds;
 broader behavior below remains architectural direction.
 [M9](roadmap/M9.md) builds on [M7 state resources](roadmap/M7.md) and
 [M8 runtime readiness](roadmap/M8.md).
@@ -21,7 +21,7 @@ using shared behaviors for
 mailbox handling, recovery, correlation, and supervision.
 
 [Board](BOARD.md) already provides kernel and resource inspection.
-Station will supply versioned descriptors and lenses for its behaviors and
+Station supplies versioned descriptors and lenses for its behaviors and
 registries, preserving underlying PID/history evidence rather than requiring
 Board to infer behavior from names or payload shapes.
 
@@ -64,10 +64,11 @@ isolation; additional worker images need the same deployment proofs as Zig.
 
 [M8](roadmap/M8.md) supplies authenticated input origins, an automatic outbox
 courier, explicit initialization, scoped lifecycle controls and opt-in catalog
-reclamation. [M9](roadmap/M9.md#entry-gates) must now define durable lifecycle
-subscriptions, timer outcomes, child initialization/restart policies and a capacity
-budget for its example topology. These framework protocols use the public client;
-they must not depend on test-harness delivery or root credentials in handlers.
+reclamation. [M9](roadmap/M9.md#entry-gates) defines durable lifecycle watches,
+timer outcomes, child initialization/restart policies and the example's capacity
+budget. The [service guide](../packages/zig/transit-station/docs/services.md)
+owns their implemented layout and role separation. These framework protocols use
+the public client without test-harness delivery or root credentials in handlers.
 
 A handler has one writable resource per turn. Behavior state and framework
 waiting/correlation data that must commit atomically need to share that resource

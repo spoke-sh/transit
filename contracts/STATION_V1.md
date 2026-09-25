@@ -1,8 +1,9 @@
 # Station v1 profile
 
-Status: initial behavior and call/reply implementation. Additional M9 services,
-Tables and language exports extend this versioned profile before its release.
-The [framework design](../docs/STATION.md) describes the intended full surface.
+Status: implemented experimental M9 profile: behaviors, calls, scoped framework
+services, Tables and shared language exports. The
+[framework design](../docs/STATION.md) distinguishes this bounded implementation
+from the broader direction; no stable public SDK release is implied.
 
 ## Messages and origins
 

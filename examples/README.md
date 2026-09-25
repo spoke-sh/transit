@@ -1,14 +1,19 @@
 # Runnable Transit applications
 
-These are complete Zig applications using `transit-client`. Each directory keeps
+These are complete applications using `transit-client` or Station. Each directory keeps
 its entry point and application handler together. They demonstrate how to program
-against Transit; neither application is required to run the authority.
+against Transit; no example is required to run the authority.
 
 | Example | Binary | Application behavior |
 | --- | --- | --- |
 | [Counter](counter/README.md) | `example-counter` | Add decimal-text integers with checked arithmetic |
 | [Byte log](byte-log/README.md) | `example-byte-log` | Concatenate opaque input bytes into bounded state |
-| [Station ledger](station-ledger/README.md) | `example-station-ledger` | Durable service calls with associated state |
+| [Station ledger](station-ledger/README.md) | `example-station-ledger` | Three behaviors with Tables, durable calls, Arrow queries, registry and supervision |
+| [Language callers](station-bindings/README.md) | Per-language examples | Shared Station behavior/Table API across C/C++, Rust, Python, Node, Java, .NET and BEAM |
+
+The [Station running guide](station-ledger/docs/running.md) starts a persistent
+installation with Board in local, Compose or reference mode. The smaller examples
+below expose the raw Transit caller loop without Station.
 
 From the repository root:
 
@@ -42,8 +47,8 @@ zig-out/bin/example-byte-log byte-log.json
 ```
 
 `just build::debug apps` installs platform commands (`transit-node`, `transit-runtime-controller`,
-`rey-cli`). `just examples::build` installs the two example applications. The root
-Zig build supplies their sole library dependency, `transit-client`; no example
+`rey-cli`). `just examples::build` installs the Zig example applications. The root
+Zig build supplies the counter/byte-log dependency, `transit-client`; no example
 imports `transit-core`, Ursula or a deployment provider.
 
 Both examples poll one process, retain the same signed pending request when a
@@ -59,8 +64,8 @@ operation performed by an authorized courier/controller; the examples do not
 deliver their own outboxes or execute external effects.
 
 The small execution loops are intentionally visible in each example. Shared
-public client operations live in `transit-client`; Station behavior abstraction
-remains future work.
+public client operations live in `transit-client`; the ledger shows how Station
+builds the higher-level programming interface on those operations.
 
 ## How the examples are tested
 

@@ -16,7 +16,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M6](M6.md) | Persistent reference and incremental development | Shared build/update loop and same-PID workload upgrades implemented and verified |
 | [M7](M7.md) | Durable state resources and process associations | Bounded KV profile, generic Board inspection and three-launcher recovery/upgrades implemented and verified |
 | [M8](M8.md) | Transit runtime readiness | Bounded origins, automatic delivery, catalog reclamation and lifecycle controls implemented and verified |
-| [M9](M9.md) | Station behaviors, language bindings, and Arrow Tables | In progress; entry proofs underway |
+| [M9](M9.md) | Station behaviors, language bindings, and Arrow Tables | Bounded profile implemented; final clean-checkout qualification in progress |
 | [M10](M10.md) | Documents, collaborative text and unified querying | Planned |
 | [M11](M11.md) | HTTP connector and exchange transcripts | Planned |
 | [M12](M12.md) | gRPC connector and streaming calls | Planned |

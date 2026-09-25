@@ -19,8 +19,9 @@ The [C/C++](../packages/cpp/transit-station/README.md),
 [.NET](../packages/dotnet/transit-station/README.md) and
 [Elixir/Erlang](../packages/beam/transit-station/README.md) adapters exchange real
 Table queries across languages. Native/managed cancellation, host loss, malformed
-ports and ownership cleanup have executable checks; reference worker qualification
-is separate M9 work. [The examples](../examples/station-bindings/README.md) use real
+ports and ownership cleanup have executable checks. The reference deployment
+qualifies Zig workers; foreign worker isolation remains separate scope.
+[The examples](../examples/station-bindings/README.md) use real
 authority and Arrow data, not language-specific server routes. Public package
 registry releases and non-Linux platforms are not qualified yet.
 

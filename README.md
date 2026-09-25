@@ -8,8 +8,9 @@ durable message sequences.
 Transit gives programs durable processes, ordered mailboxes, and associated state.
 Application code runs in callers; the kernel governs what can commit and how work
 recovers. [Board](docs/BOARD.md) makes that history inspectable. [Station](docs/STATION.md)
-will provide the higher-level interface for behaviors, supervision, and registries.
-[Fuze](docs/FUZE.md) is the planned query engine across KV, Table and Document state.
+provides behaviors, supervision, registries and typed Tables through Zig and
+shared language bindings. [Fuze](docs/FUZE.md) queries those Tables and returns
+Arrow results; KV and Document querying comes next.
 
 This monorepo contains Transit's Zig libraries and services, TypeScript/Vite+
 frontends, and development tooling. Ursula supplies durable storage; Kubernetes
@@ -17,8 +18,8 @@ with Agent Substrate is the reference deployment. **Rey is the intended downstre
 trading application**, using the same primitives as other workloads.
 
 **Status:** experimental kernel, Board, launchers, instrumentation, and bounded
-KV state are implemented through M8, including authenticated inputs, automatic
-delivery and recoverable lifecycle controls. Station (M9) comes next. The
+KV state are implemented through M8. Station (M9) adds a bounded programming
+profile with durable calls, Tables, Arrow queries and language clients. The
 [roadmap](docs/roadmap/README.md) records supported profiles and qualification limits.
 
 ## Get started
@@ -41,6 +42,8 @@ Ctrl-C stops services and preserves data.
 The [launcher guide](launchers/README.md) covers host/port settings, updates,
 Compose, and the Kubernetes reference. Use [development](docs/DEVELOPMENT.md)
 for build profiles and checks, or run `just` to browse tasks.
+For the multi-process programming example, follow the
+[Station ledger guide](examples/station-ledger/docs/running.md).
 
 ## Find your way
 

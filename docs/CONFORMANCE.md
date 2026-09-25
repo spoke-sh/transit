@@ -1,7 +1,7 @@
 # Protocol conformance and implementation gates
 
 Status: adversarial requirements with executable evidence for the bounded M1
-profile and its M2–M8 extensions. [tests/README.md](../tests/README.md) maps commands to recorded results,
+profile and its M2–M9 extensions. [tests/README.md](../tests/README.md) maps commands to recorded results,
 failure schedules, and limits. The [roadmap](roadmap/README.md) owns milestone gates.
 Results apply to their pinned topology, reviewed workload, and failure boundary;
 passing a subset does not establish every target guarantee.
@@ -72,7 +72,8 @@ tests as appropriate. A happy-path example alone does not satisfy a row.
 [M8 readiness evidence](../tests/README.md#m8-runtime-readiness) covers the
 handler-facing origin envelope, deployed courier, initialization barrier, scoped
 retry/suspension and working catalog reclamation. Durable lifecycle subscriptions,
-framework initialization policy and timers remain [M9 entry gates](roadmap/M9.md#entry-gates).
+framework initialization policy and timers are qualified in the
+[M9 profile](../tests/README.md#m9-station-bindings-and-tables).
 
 ## Evidence and limits
 

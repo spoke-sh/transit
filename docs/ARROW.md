@@ -1,8 +1,9 @@
 # Arrow interchange and remote queries
 
-Status: proposed. [M9](roadmap/M9.md) supplies bounded Station Tables and the
-[Fuze](FUZE.md) query engine; [M12](roadmap/M12.md) adds gRPC; [M13](roadmap/M13.md)
-qualifies Flight, Flight SQL and ADBC interoperability. None is implemented yet.
+Status: M9 implements finite IPC results, checked by an independent Arrow
+consumer, and qualifies C Data/C Stream ownership. See the [integration evidence](../packages/zig/transit-fuze/docs/integration.md).
+Remote interoperability remains planned: [M12](roadmap/M12.md) adds gRPC and
+[M13](roadmap/M13.md) qualifies Flight, Flight SQL and ADBC.
 [TABLES.md](TABLES.md) owns Table mutations, snapshots, materialization, transactions
 and durable result delivery. This document owns the interchange and gateway seams.
 

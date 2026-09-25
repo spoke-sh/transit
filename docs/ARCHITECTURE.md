@@ -3,14 +3,15 @@
 Status: experimental M1 kernel, client, storage adapter, and reference runtime
 implemented and verified. Board supplies the qualified M2 inspection UI/API.
 M7 state resources and M8 runtime readiness are implemented and qualified in bounded
-profiles. Station comes next; production connectors and downstream applications follow. Use
+profiles. M9 adds Station behaviors, shared language bindings and bounded Fuze
+Table queries; connectors and downstream applications follow. Use
 the [roadmap](roadmap/README.md) for scope and the [test guide](../tests/README.md) for proved behavior and limits.
 
 ## Execution model
 
 This monorepo develops Transit, the reusable streaming runtime: its
 generic agentic kernel, supporting services, clients, storage/runtime adapters,
-Board inspection surface, planned Station framework and Fuze query engine.
+Board inspection surface, Station framework and Fuze query engine.
 `transit-core` implements the deterministic kernel; the runtime's deployment is packaged in
 [charts/transit](../charts/transit/README.md). Station is the OTP-inspired framework
 above the kernel. Transit's execution primitive is a process with a durable PID
@@ -45,8 +46,8 @@ Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 | Transit — kernel | Processes/PIDs, lifecycle, legal sequences, ordered commits, realm/grant checks, ownership and effect authority; resource/association contracts | [TRANSIT.md](TRANSIT.md), [STATE.md](STATE.md), [SECURITY.md](SECURITY.md) |
 | Durable transport | Persistent history, continuation positions, mailbox storage and delivery | [STREAMS.md](STREAMS.md), [URSULA.md](URSULA.md) |
 | Station — framework | GenServer behaviors, Table/association helpers, scoped name registries, request/reply, supervision, timers, worker-pool patterns | [STATION.md](STATION.md) |
-| Fuze — query and compute (planned) | Shared source/plan/operator model across KV/Table/Document, Zig-native bounded Arrow execution; Table first | [FUZE.md](FUZE.md) |
-| Query ingress and interchange (planned) | IPC/C interfaces, Flight/Flight SQL gateway and ADBC interoperability over qualified Fuze/Station queries | [ARROW.md](ARROW.md) |
+| Fuze — query and compute | Shared source/plan/operator model; implemented bounded Table queries, KV/Document adapters next | [FUZE.md](FUZE.md) |
+| Query ingress and interchange | IPC/C interfaces; Flight/Flight SQL gateway and ADBC interoperability remain planned | [ARROW.md](ARROW.md) |
 | Connectors | Authorized external attempts, request/response capture, bounded reconciliation, outcome and retry/cancellation policy | [CONNECTORS.md](CONNECTORS.md) |
 | Runtime adapter | Durable PID-to-provider bindings and reconciliation of lifecycle intents with provider resources/observations | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | Retention reconciliation | Enforce Transit-authorized policies and retained boundaries; coordinate checkpoints, dependency checks, and adapter reclamation | [RETENTION.md](RETENTION.md) |
@@ -70,10 +71,11 @@ access. Clients and provider controllers do not read the journal directly.
 
 ```mermaid
 flowchart LR
-    Caller[Zig application caller] -->|Signed reads and proposals| Node[transit-node]
+    Caller[Zig or language binding caller] -->|Signed reads and proposals| Node[transit-node]
     Board[transit-board] -->|Signed inspection| Node
     Delivery[transit-delivery] -->|Scoped status and delivery operations| Node
     Controller[transit-runtime-controller] -->|Signed lifecycle operations| Node
+    Framework[transit-station-controller] -->|Scoped observations or lifecycle operations| Node
     Node -->|Validated history and conditional append| Store[(Ursula realm journal)]
     Maintenance[transit-node --maintain] -->|Validated maintenance and recovery| Store
     Controller -->|Reconcile physical lifecycle| Runtime[Agent Substrate on Kubernetes]
@@ -85,11 +87,12 @@ processes, grants, and state resources. This supplies the initial atomicity doma
 replicating the HTTP service does not create independent write shards. Mailbox
 semantics promise per-process order, not a portable global order between PIDs.
 
-Station will run in callers and connectors will submit observations through the
+Station runs in callers and connectors will submit observations through the
 same public boundary. The [delivery courier](../apps/transit-delivery/README.md)
 automatically advances committed outboxes with scoped rights; history holds its
-progress and retry identity. Framework timer/lifecycle notification services and
-their subscription contracts remain M9 work.
+progress and retry identity. Station timer/child observers submit authenticated
+mailbox observations; separately scoped lifecycle controllers apply recorded
+restart intent. They never acquire provider authority implicitly.
 
 Every ingress establishes authenticated provenance before the kernel accepts
 an operation. Credential providers stay behind adapters; Transit validates
@@ -102,8 +105,8 @@ and replay semantics are defined in [SECURITY.md](SECURITY.md).
 
 Validated durable history is authoritative for process creation/termination,
 mailbox admission, ownership changes, completed turns, pending outputs/effects,
-state-resource mutations, and runtime bindings. Planned registry
-operations must use that same authority through ordinary process turns.
+state-resource mutations, and runtime bindings. Station registry operations use
+that same authority through ordinary process turns.
 State indexes, name lookup caches, ready queues, and UI views are derived; their
 loss must not erase accepted work or invent completed work.
 
@@ -175,9 +178,17 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 | [transit-core](../packages/zig/transit-core/README.md) / `transit_core` | Protocol state, validation, conditional authority, recovery | transit-protocol |
 | [transit-client](../packages/zig/transit-client/README.md) / `transit_client` | Signed HTTP calls, activation sessions, retry material | transit-protocol, transit-observability |
 | [transit-backend-ursula](../packages/zig/transit-backend-ursula/README.md) / `transit_backend_ursula` | Storage/transport, checkpoint, trim, deletion | transit-core, transit-observability, upstream ursula-zig |
-| [transit-board-api](../packages/zig/transit-board-api/README.md) / `transit_board_api` | Board response types, OpenAPI generation and evidence projections | transit-protocol |
+| [transit-board-api](../packages/zig/transit-board-api/README.md) / `transit_board_api` | Board response types, OpenAPI generation and evidence projections | transit-protocol, transit-station (framework metadata) |
 | [transit-board-client](../packages/ts/transit-board-client/README.md) (TypeScript) | Generated Board models/runtime validators and bounded browser transport | AJV runtime helper |
 | [transit-runtime-substrate](../packages/zig/transit-runtime-substrate/README.md) / `transit_runtime_substrate` | Provider identity, template validation, sandbox lifecycle operations | transit-observability; invokes pinned external CLI |
+| [transit-station](../packages/zig/transit-station/README.md) / `transit_station` | GenServer, durable calls, scoped names, supervision, Tables and captured queries | transit-client, transit-fuze |
+| [transit-fuze](../packages/zig/transit-fuze/README.md) / `transit_fuze` | Source/plan contracts and bounded Zig-native Arrow execution | pinned zarrow, zarrow-compute |
+
+The [binding packages](../bindings/README.md) expose the shared Zig client and
+Station through a generated C ABI and owned native-port adapters. Each target
+owns runtime scheduling and resource cleanup; protocol and framework semantics
+remain in Zig. Fuze has no Station, Ursula or Substrate dependency. It embeds
+neither DataFusion nor Acero.
 
 The dependency graph stays acyclic. Core must remain testable without providers
 or Station; applications use the public client. `transit-backend-*` names storage
@@ -194,12 +205,13 @@ follow a second concrete implementation, not a speculative plugin system.
 | [transit-delivery](../apps/transit-delivery/README.md) | Public-client courier for ordered committed outboxes; no storage or handler authority |
 | [transit-runtime-controller](../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
 | [transit-station-controller](../apps/transit-station-controller/README.md) | Observes Station timers/children or applies separately scoped lifecycle intent |
+| [transit-station-host](../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
 | [transit-board](../apps/transit-board/README.md) | Inspection-only API host with embedded [TanStack Router frontend](../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
 | [rey-cli](../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |
 | [example-counter](../examples/counter/README.md) | Complete caller, also the reference deployment workload |
 | [example-byte-log](../examples/byte-log/README.md) | Independent caller against the same generic authority |
-| [example-station-ledger](../examples/station-ledger/README.md) | Station behavior and associated-state example under development in M9 |
+| [example-station-ledger](../examples/station-ledger/README.md) | Three Station processes with Tables, calls, registry, supervision and Arrow replies |
 
 Transit artifacts use the `transit-` prefix, including the `transit-board*`
 inspection family, `transit-station*` framework and `transit-fuze*` engine
@@ -212,21 +224,7 @@ and protocol assertions belong under [tests/](../tests/README.md).
 
 - Extend `kubectl-transit` with authorized logical inspection and, later, operator
   controls as scoped in the [full plugin plan](roadmap/M5.md).
-- `packages/zig/transit-station`, module `transit_station`: GenServer, supervision, registries,
-  request/reply, Table, association, and retention helpers over the public client.
-  The [initial package](../packages/zig/transit-station/README.md) implements the
-  GenServer and call/reply slice; the remaining components are M9 work.
-- Client-owned C ABI/library exports and generated bindings for C/C++, Rust,
-  Python, Node.js, Java, .NET and Elixir/Erlang. Station adds its own ABI/contracts
-  above that base; raw Transit clients stay independent of Station.
-- `packages/zig/transit-fuze`, module `transit_fuze`: reusable query expressions,
-  logical/physical planning and bounded Arrow execution, inspired by DataFusion
-  and Acero. Composes qualified `zarrow`/`zarrow-compute`; neither upstream engine
-  is embedded. [FUZE.md](FUZE.md) owns the shared KV/Table/Document query model.
-- Station implements authorized query source adapters and durable result
-  publication around Fuze. Fuze does not depend on Station, Ursula or Substrate;
-  core depends on neither Fuze nor Arrow. [TABLES.md](TABLES.md) owns the first
-  entity's mutation/materialization contract. [M10](roadmap/M10.md) adds Document
+- [M10](roadmap/M10.md) adds Document
   changes/CRDTs and KV/Document query adapters. Add further entity adapters only
   with their implementation and qualification; no standalone engine service is required.
 - `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,

@@ -105,7 +105,7 @@ implement resource associations.
 | Materialized index | A rebuildable lookup structure derived from committed resource history/checkpoints; not a second state authority |
 | Staged data | Durably prepared data that remains unpublished until referenced by an accepted commit decision |
 
-See [Tables](TABLES.md) for the proposed M9 surface, materialization and
+See [Tables](TABLES.md) for the bounded M9 surface, materialization and
 transaction limits, and [M10](roadmap/M10.md) for Documents and unified querying.
 A finite Arrow batch stream and a durable Transit stream
 have different responsibilities.

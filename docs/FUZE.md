@@ -1,6 +1,6 @@
 # Fuze — query and compute engine
 
-Status: M9 implementation in progress. The [package](../packages/zig/transit-fuze/README.md)
+Status: the bounded M9 Table profile is implemented. The [package](../packages/zig/transit-fuze/README.md)
 implements the [v1 bounded query profile](../contracts/FUZE_V1.md), Arrow
 dependency integration and finite IPC encoding. Broader capabilities below
 remain design direction. [M9](roadmap/M9.md) introduces Fuze's
@@ -17,7 +17,7 @@ the state abstractions and their mutations; Transit owns durable acceptance,
 resource rights, ownership and lifetimes. Fuze owns query expressions, logical
 and physical planning, qualified rewrites and bounded batch execution.
 
-Use **Fuze** in prose and `transit-fuze` for the planned Zig library, exporting
+Use **Fuze** in prose and `transit-fuze` for the Zig library, exporting
 `transit_fuze`. Its source/operator interfaces must not depend on Station,
 Ursula or Substrate. Station supplies adapters over authorized public-client
 views and owns durable result publication. The kernel does not import Fuze or

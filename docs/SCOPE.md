@@ -5,7 +5,9 @@ Status: kernel direction and deployment reference established. The bounded
 [roadmap](roadmap/README.md). [Board M2](roadmap/M2.md) is implemented and qualified
 for bounded inspection. The [M7 KV profile](roadmap/M7.md) and
 [M8 runtime readiness](roadmap/M8.md) are also implemented and qualified.
-Broader framework, connector and application outcomes below remain planned; they are not implied by those profiles.
+[M9](roadmap/M9.md) adds Station and the first bounded Fuze Table profile.
+Broader framework, connector and application outcomes below remain design
+direction; they are not implied by those profiles.
 
 ## Purpose
 
@@ -27,7 +29,7 @@ The same primitives must support ordinary stateful distributed programs.
   [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition) defines
   implemented and planned package responsibilities and dependency direction.
 - Application code calls the public Transit protocol; the node never runs handlers.
-  Transit's current callers are Zig. Station M9 adds shared bindings for C/C++,
+  Transit supports Zig callers. Station M9 adds shared bindings for C/C++,
   Rust, Python, Node.js, Java, .NET and Elixir/Erlang without changing kernel
   execution semantics. Host-language binding glue, examples and conformance tests
   are in scope; the shared client/framework and service implementations remain Zig.

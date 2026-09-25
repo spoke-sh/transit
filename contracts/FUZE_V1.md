@@ -1,6 +1,6 @@
 # Fuze v1 bounded Table profile
 
-Status: implementation underway for M9. This is the structured query contract;
+Status: implemented bounded M9 profile. This is the structured query contract;
 SQL, joins, grouping, windowing and user-selected sorting are unsupported.
 
 Sources present one authorized snapshot with an identity, schema fingerprint

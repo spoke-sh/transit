@@ -12,7 +12,7 @@ a claim that all commands are rerun on every documentation change.
 M7 evidence is recorded in [the state proof](#m7-state-resources). The ordinary
 suite includes the public state API and real resource-backed Zig caller.
 
-M9 entry proofs now include `just test::arrow` (independent PyArrow validation
+M9 proofs include `just test::arrow` (independent PyArrow validation
 of Fuze IPC, including nulls, empty results and wide integers) and
 `just test::client-abi` (a generated C header, real authority calls, canonical
 signatures, receipt loss, fresh-host retry, revocation and malformed input).
@@ -20,9 +20,10 @@ The [Fuze integration notes](../packages/zig/transit-fuze/docs/integration.md) a
 [client binding guide](../packages/zig/transit-client/docs/bindings.md) record
 their limits. `just test::station` launches the real Zig Station ledger/requester
 and courier, proving private state/call commits, lost receipts, fresh ownership,
-worker plus store recovery, authenticated replies and poison-input blocking.
-These initial checks do not yet qualify the entire M9 surface or every planned
-host-language adapter.
+worker plus store recovery, authenticated replies, scoped registry/supervision,
+timers, poison-input blocking and opted-in lifetime expiry/reclamation.
+The [M9 evidence](#m9-station-bindings-and-tables) below distinguishes native
+language qualification from reference worker qualification.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
@@ -650,5 +651,51 @@ on disk. Automatic collection conservatively waits for delivered inputs to be
 consumed; explicit collection can prove a retained self-contained origin earlier.
 Whole-realm checkpoints require quiescence. No production throughput, recovery-time,
 HA, distributed retention or principal reclamation claim follows from these proofs.
-Station still owns durable wait/correlation layouts, child policies, timers,
-lifecycle subscriptions, restart budgets and versioned framework descriptors.
+Station owns durable wait/correlation layouts, child policies, timers,
+lifecycle watches, restart budgets and versioned framework descriptors.
+
+## M9 Station, bindings and Tables
+
+The Linux x86_64 profile uses the locked Zig 0.17 compiler, the pinned
+`rupurt/zarrow` and `rupurt/zarrow-compute` forks, disk Ursula, and the real public
+authority/courier. Framework logic remains in Zig; no language-specific server
+route or second authoritative task/state store is introduced.
+
+| Proof | Evidence |
+| --- | --- |
+| `just test::station` | Three behavior roles, two-Table atomic turns, exact retry after receipt loss, worker/store restart, source-authenticated calls/replies, captured Arrow publication/consumer restart, service-policy revocation, registry rebind with the original PID retained, timed waits/late-result closure, poison-head supervision and independent lifecycle control |
+| `just test::station` lifetime schedule | Required PID-owned Table state survives recovery; suspension beyond a dependency is rejected; opted-in expiry permanently rejects activation and permits background reclamation, including after authority restart |
+| `just bindings::native` | C/C++/Python real callers; shared ABI exact frozen request recovery after every handle is lost; failed-turn rollback, stale/revoked/retired callers, wide correlations, malformed native-port input, asynchronous cancellation and owned cleanup |
+| `just bindings::native` materialization schedule | Duplicate source admission/commit, update/delete, physical checkpoint/trim, reinsertion in the tail, disk/node restart and an independent Arrow aggregate over only current rows |
+| `nix develop .#bindings --command just bindings::test` | C, C++, Rust, Python, Node, Java, .NET, Erlang and Elixir each run service and requester roles across language pairs; fresh hosts resume captured results; exact `9007199254740993` values survive Arrow; managed/port tests cover bounded input, busy handles, host/caller loss, responsive schedulers and cancellation/cleanup |
+| `just test::unit`, `just test::packages`, `just test::arrow` | Private batch rollback, capacity and schema checks, all admitted Arrow types/null/empty/overflow behavior, C Data/C Stream release ownership, exact source basis and no enabled rewrites, cancelled queries, maximum 672-byte captured reply, malformed/duplicate/missing fragments and no prefix completion |
+| `just transit-board::test`, `just transit-board::browser` | Versioned framework metadata with source PID/resource/key/revisions; unknown versions fall back safely; no application-state decoder |
+| `just launchers::local::test-station`, `just launchers::compose::test-station`, `just launchers::reference::test-station` | Same three-process scenario, scoped service roles, registry/call/Arrow exchange, Board provenance, worker recovery, compatible upgrades of all three workers with PIDs/state retained, no-op updates and persistent stop/start |
+
+The reference proof additionally kills an actual Substrate worker pod, verifies
+a fresh activation/key while retaining the Actor UID, and upgrades versioned
+worker templates through the recorded protocol. It uses the shared Helm chart
+with three separate PID-scoped runtime controllers and two framework controllers.
+Failed launcher runs retain their own installation; successful ones remove only
+their own application resources. The shared infrastructure is not destroyed.
+
+The ordinary CI inventory includes the local Station proof and full language
+matrix. Docker Compose and reference proofs require Docker/the provider fixture
+and remain explicit qualification commands. No hosted run-time improvement is
+claimed from local measurements; the CI lanes report their individual task times.
+
+Qualification is deliberately finite: four realm resources, 32 entries per
+resource, four mutations/outputs per turn, one mutated resource and at most
+672 captured IPC bytes. Execution pulls one synchronous batch into bounded
+buffers; it has no queued pipeline or parallel in-flight operators. Slow remote
+consumption is durable mailbox/result state, not a live Arrow task. No optimizer
+rewrite is enabled. Unlimited retention is the default and does not evict old
+waits/results when capacity fills. See the [Table guide](../packages/zig/transit-station/docs/tables.md).
+
+Only Zig workers are qualified on Substrate. Client support does not establish
+foreign-VM isolation, public SDK releases or non-Linux portability. Logical
+supervisor retry also cannot guarantee fresh provider placement; the
+[example runbook](../examples/station-ledger/docs/running.md#recovery-and-incremental-work)
+records the required operator recovery when Substrate reuses an old pod.
+Continuous queries, multi-resource transactions, SQL, Documents and remote
+Flight/ADBC remain later milestones.
