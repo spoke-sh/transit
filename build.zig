@@ -5,6 +5,8 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
+    b.step("station-contract", "Export reflected Station ABI and host schemas").dependOn(&b.addRunArtifact(station.artifact("transit-station-contract")).step);
+    b.step("station-abi", "Build the shared Station implementation").dependOn(&b.addInstallArtifact(station.artifact("transit_station"), .{}).step);
     const arrow_proof = b.addExecutable(.{ .name = "transit-arrow-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/arrow.zig"),
         .target = target,
@@ -103,7 +105,8 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&probe.step);
     services.addFileArg(b.path("tests/service.py"));
     var station_controller: *std.Build.Step.Compile = undefined;
-    for ([_][]const u8{ "transit-node", "rey-cli", "transit-runtime-controller", "transit-delivery", "transit-station-controller" }) |name| {
+    var station_host: *std.Build.Step.Compile = undefined;
+    for ([_][]const u8{ "transit-node", "rey-cli", "transit-runtime-controller", "transit-delivery", "transit-station-controller", "transit-station-host" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
@@ -129,6 +132,12 @@ pub fn build(b: *std.Build) void {
             app.root_module.addImport("transit_station", station.module("transit_station"));
             station_controller = app;
         }
+        if (std.mem.eql(u8, name, "transit-station-host")) {
+            station_host = app;
+            app.root_module.addImport("transit_station", station.module("transit_station"));
+            app.root_module.addImport("station_abi", station.module("station_abi"));
+            app.root_module.addImport("client_abi", client.module("client_abi"));
+        }
         if (std.mem.eql(u8, name, "transit-node") and target.result.os.tag == .linux) {
             const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
             app.root_module.addImport("clock_c", clock_c.createModule());
@@ -148,6 +157,17 @@ pub fn build(b: *std.Build) void {
     abi_tests.has_side_effects = true;
     abi_tests.stdio = .inherit;
     b.step("test-client-abi", "Prove the C ABI against real authority and host loss").dependOn(&abi_tests.step);
+    const binding_tests = b.addSystemCommand(&.{ "python3", "-B" });
+    binding_tests.addFileArg(b.path("tests/bindings.py"));
+    binding_tests.addArtifactArg(node_artifact);
+    binding_tests.addArtifactArg(cli_artifact);
+    binding_tests.addArtifactArg(delivery_artifact);
+    binding_tests.addArtifactArg(station.artifact("transit_station"));
+    binding_tests.addArtifactArg(client.artifact("transit_client"));
+    binding_tests.addArtifactArg(station_host);
+    binding_tests.has_side_effects = true;
+    binding_tests.stdio = .inherit;
+    b.step("test-bindings", "Qualify foreign Station callers against durable authority").dependOn(&binding_tests.step);
     const readiness_caller = b.addExecutable(.{ .name = "transit-readiness-caller", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/readiness_client.zig"),
         .target = target,
@@ -163,7 +183,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
     }) });
-    examples_step.dependOn(&b.addInstallArtifact(station_ledger, .{}).step);
+    const install_ledger = b.addInstallArtifact(station_ledger, .{});
+    examples_step.dependOn(&install_ledger.step);
+    b.getInstallStep().dependOn(&install_ledger.step);
     const station_test = b.addSystemCommand(&.{ "python3", "-B" });
     station_test.addFileArg(b.path("tests/station.py"));
     station_test.addArtifactArg(node_artifact);

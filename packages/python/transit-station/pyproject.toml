@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transit-station"
+version = "0.1.0"
+requires-python = ">=3.13"
+description = "Shared Zig Transit/Station bindings"
+
+[tool.setuptools.package-data]
+transit_station = ["*-abi.json"]

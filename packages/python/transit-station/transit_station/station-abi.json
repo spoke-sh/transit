@@ -1,0 +1,3740 @@
+{
+  "version": 1,
+  "statuses": {
+    "ok": 0,
+    "invalid_argument": 1,
+    "out_of_memory": 2,
+    "rejected": 3,
+    "denied": 4,
+    "conflict": 5,
+    "uncertain": 6,
+    "unavailable": 7,
+    "invalid_response": 8,
+    "busy": 9,
+    "incompatible_version": 10,
+    "stale_activation": 11,
+    "blocked": 12,
+    "not_ready": 13,
+    "budget_exceeded": 14
+  },
+  "functions": [
+    {
+      "name": "station_abi_version",
+      "result": "uint32_t",
+      "parameters": []
+    },
+    {
+      "name": "station_json_extract",
+      "result": "uint32_t",
+      "parameters": [
+        "const uint8_t *",
+        "size_t",
+        "const uint8_t *",
+        "size_t",
+        "uint32_t",
+        "station_buffer **"
+      ]
+    },
+    {
+      "name": "station_frame_encode",
+      "result": "uint32_t",
+      "parameters": [
+        "uint32_t",
+        "uint64_t",
+        "const uint8_t *",
+        "size_t",
+        "station_buffer **"
+      ]
+    },
+    {
+      "name": "station_server_create",
+      "result": "uint32_t",
+      "parameters": [
+        "uint32_t",
+        "const uint8_t *",
+        "size_t",
+        "const uint8_t *",
+        "const uint8_t *",
+        "size_t",
+        "station_server **"
+      ]
+    },
+    {
+      "name": "station_server_destroy",
+      "result": "void",
+      "parameters": [
+        "station_server *"
+      ]
+    },
+    {
+      "name": "station_server_next",
+      "result": "uint32_t",
+      "parameters": [
+        "station_server *",
+        "uint64_t",
+        "station_buffer **"
+      ]
+    },
+    {
+      "name": "station_server_apply",
+      "result": "uint32_t",
+      "parameters": [
+        "station_server *",
+        "const uint8_t *",
+        "size_t",
+        "station_buffer **"
+      ]
+    },
+    {
+      "name": "station_server_finish",
+      "result": "uint32_t",
+      "parameters": [
+        "station_server *",
+        "uint32_t"
+      ]
+    },
+    {
+      "name": "station_server_pending",
+      "result": "uint32_t",
+      "parameters": [
+        "station_server *",
+        "station_buffer **"
+      ]
+    },
+    {
+      "name": "station_buffer_data",
+      "result": "const uint8_t *",
+      "parameters": [
+        "const station_buffer *"
+      ]
+    },
+    {
+      "name": "station_arrow_cell",
+      "result": "uint32_t",
+      "parameters": [
+        "const uint8_t *",
+        "size_t",
+        "uint32_t",
+        "uint32_t",
+        "station_buffer **"
+      ]
+    },
+    {
+      "name": "station_buffer_size",
+      "result": "size_t",
+      "parameters": [
+        "const station_buffer *"
+      ]
+    },
+    {
+      "name": "station_buffer_destroy",
+      "result": "void",
+      "parameters": [
+        "station_buffer *"
+      ]
+    }
+  ],
+  "schemas": {
+    "Config": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "realm",
+        "principal",
+        "pid",
+        "generation",
+        "association",
+        "timeout_ms"
+      ],
+      "properties": {
+        "realm": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "principal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "x-transit-bits": 8,
+          "x-transit-signed": false
+        },
+        "pid": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "association": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        }
+      },
+      "required": [
+        "realm",
+        "principal",
+        "pid",
+        "generation"
+      ],
+      "x-transit-defaults": {
+        "association": "data",
+        "timeout_ms": 5000
+      }
+    },
+    "Action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "get"
+          ],
+          "properties": {
+            "get": {
+              "type": "string",
+              "pattern": "^(?:[0-9a-f]{2})*$",
+              "maxLength": 512,
+              "x-transit-encoding": "lowercase-hex"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "put"
+          ],
+          "properties": {
+            "put": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "key",
+                "value"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                },
+                "value": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                }
+              },
+              "required": [
+                "key",
+                "value"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "delete"
+          ],
+          "properties": {
+            "delete": {
+              "type": "string",
+              "pattern": "^(?:[0-9a-f]{2})*$",
+              "maxLength": 512,
+              "x-transit-encoding": "lowercase-hex"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cast"
+          ],
+          "properties": {
+            "cast": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "pid",
+                "value"
+              ],
+              "properties": {
+                "pid": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "value": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                }
+              },
+              "required": [
+                "pid",
+                "value"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "call"
+          ],
+          "properties": {
+            "call": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "pid",
+                "value",
+                "deadline_ms",
+                "observer"
+              ],
+              "properties": {
+                "pid": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "value": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                },
+                "deadline_ms": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "observer": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 255,
+                      "x-transit-bits": 8,
+                      "x-transit-signed": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "pid",
+                "value"
+              ],
+              "x-transit-defaults": {
+                "deadline_ms": null,
+                "observer": null
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reply"
+          ],
+          "properties": {
+            "reply": {
+              "type": "string",
+              "pattern": "^(?:[0-9a-f]{2})*$",
+              "maxLength": 512,
+              "x-transit-encoding": "lowercase-hex"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cancel"
+          ],
+          "properties": {
+            "cancel": {
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "effect"
+          ],
+          "properties": {
+            "effect": {
+              "type": "string",
+              "pattern": "^(?:[0-9a-f]{2})*$",
+              "maxLength": 512,
+              "x-transit-encoding": "lowercase-hex"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "table_create"
+          ],
+          "properties": {
+            "table_create": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "id",
+                "key_name",
+                "value_name",
+                "value_type"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "key_name": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "value_name": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "value_type": {
+                  "type": "string",
+                  "enum": [
+                    "int64",
+                    "boolean",
+                    "utf8",
+                    "binary"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "key_name",
+                "value_name",
+                "value_type"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "table_get"
+          ],
+          "properties": {
+            "table_get": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "id",
+                "key"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "key": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "required": [
+                "id",
+                "key"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "table_write"
+          ],
+          "properties": {
+            "table_write": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "id",
+                "mode",
+                "row"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "insert",
+                    "update",
+                    "upsert"
+                  ]
+                },
+                "row": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "key",
+                    "value"
+                  ],
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "maxLength": 256
+                    },
+                    "value": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "null"
+                          ],
+                          "properties": {
+                            "null": {
+                              "type": "object",
+                              "maxProperties": 0
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "int64"
+                          ],
+                          "properties": {
+                            "int64": {
+                              "type": "string",
+                              "maxLength": 256
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "boolean"
+                          ],
+                          "properties": {
+                            "boolean": {
+                              "type": "boolean"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "utf8"
+                          ],
+                          "properties": {
+                            "utf8": {
+                              "type": "string",
+                              "maxLength": 256
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "binary"
+                          ],
+                          "properties": {
+                            "binary": {
+                              "type": "string",
+                              "pattern": "^(?:[0-9a-f]{2})*$",
+                              "maxLength": 512,
+                              "x-transit-encoding": "lowercase-hex"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "value"
+                  ],
+                  "x-transit-defaults": {}
+                }
+              },
+              "required": [
+                "id",
+                "mode",
+                "row"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "table_delete"
+          ],
+          "properties": {
+            "table_delete": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "id",
+                "key"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "key": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "required": [
+                "id",
+                "key"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "id",
+                "plan"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "plan": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "projection",
+                    "limit",
+                    "aggregate",
+                    "predicate"
+                  ],
+                  "properties": {
+                    "projection": {
+                      "type": "string",
+                      "enum": [
+                        "both",
+                        "key",
+                        "value"
+                      ]
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 255,
+                      "x-transit-bits": 8,
+                      "x-transit-signed": false
+                    },
+                    "aggregate": {
+                      "type": "string",
+                      "enum": [
+                        "rows",
+                        "count",
+                        "sum"
+                      ]
+                    },
+                    "predicate": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "all"
+                          ],
+                          "properties": {
+                            "all": {
+                              "type": "object",
+                              "maxProperties": 0
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "is_null"
+                          ],
+                          "properties": {
+                            "is_null": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "compare"
+                          ],
+                          "properties": {
+                            "compare": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "column",
+                                "op",
+                                "value"
+                              ],
+                              "properties": {
+                                "column": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 255,
+                                  "x-transit-bits": 8,
+                                  "x-transit-signed": false
+                                },
+                                "op": {
+                                  "type": "string",
+                                  "enum": [
+                                    "eq",
+                                    "ne",
+                                    "lt",
+                                    "le",
+                                    "gt",
+                                    "ge"
+                                  ]
+                                },
+                                "value": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "null"
+                                      ],
+                                      "properties": {
+                                        "null": {
+                                          "type": "object",
+                                          "maxProperties": 0
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "int64"
+                                      ],
+                                      "properties": {
+                                        "int64": {
+                                          "type": "string",
+                                          "maxLength": 256
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "boolean"
+                                      ],
+                                      "properties": {
+                                        "boolean": {
+                                          "type": "boolean"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "utf8"
+                                      ],
+                                      "properties": {
+                                        "utf8": {
+                                          "type": "string",
+                                          "maxLength": 256
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "binary"
+                                      ],
+                                      "properties": {
+                                        "binary": {
+                                          "type": "string",
+                                          "pattern": "^(?:[0-9a-f]{2})*$",
+                                          "maxLength": 512,
+                                          "x-transit-encoding": "lowercase-hex"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "op",
+                                "value"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "required": [],
+                  "x-transit-defaults": {
+                    "projection": "both",
+                    "limit": 32,
+                    "aggregate": "rows",
+                    "predicate": {
+                      "all": {}
+                    }
+                  }
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "x-transit-defaults": {
+                "plan": {
+                  "projection": "both",
+                  "limit": 32,
+                  "aggregate": "rows",
+                  "predicate": {
+                    "all": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "query_reply"
+          ],
+          "properties": {
+            "query_reply": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "id",
+                "plan"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "plan": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "projection",
+                    "limit",
+                    "aggregate",
+                    "predicate"
+                  ],
+                  "properties": {
+                    "projection": {
+                      "type": "string",
+                      "enum": [
+                        "both",
+                        "key",
+                        "value"
+                      ]
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 255,
+                      "x-transit-bits": 8,
+                      "x-transit-signed": false
+                    },
+                    "aggregate": {
+                      "type": "string",
+                      "enum": [
+                        "rows",
+                        "count",
+                        "sum"
+                      ]
+                    },
+                    "predicate": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "all"
+                          ],
+                          "properties": {
+                            "all": {
+                              "type": "object",
+                              "maxProperties": 0
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "is_null"
+                          ],
+                          "properties": {
+                            "is_null": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "compare"
+                          ],
+                          "properties": {
+                            "compare": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "column",
+                                "op",
+                                "value"
+                              ],
+                              "properties": {
+                                "column": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 255,
+                                  "x-transit-bits": 8,
+                                  "x-transit-signed": false
+                                },
+                                "op": {
+                                  "type": "string",
+                                  "enum": [
+                                    "eq",
+                                    "ne",
+                                    "lt",
+                                    "le",
+                                    "gt",
+                                    "ge"
+                                  ]
+                                },
+                                "value": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "null"
+                                      ],
+                                      "properties": {
+                                        "null": {
+                                          "type": "object",
+                                          "maxProperties": 0
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "int64"
+                                      ],
+                                      "properties": {
+                                        "int64": {
+                                          "type": "string",
+                                          "maxLength": 256
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "boolean"
+                                      ],
+                                      "properties": {
+                                        "boolean": {
+                                          "type": "boolean"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "utf8"
+                                      ],
+                                      "properties": {
+                                        "utf8": {
+                                          "type": "string",
+                                          "maxLength": 256
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "binary"
+                                      ],
+                                      "properties": {
+                                        "binary": {
+                                          "type": "string",
+                                          "pattern": "^(?:[0-9a-f]{2})*$",
+                                          "maxLength": 512,
+                                          "x-transit-encoding": "lowercase-hex"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "column",
+                                "op",
+                                "value"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "required": [],
+                  "x-transit-defaults": {
+                    "projection": "both",
+                    "limit": 32,
+                    "aggregate": "rows",
+                    "predicate": {
+                      "all": {}
+                    }
+                  }
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "x-transit-defaults": {
+                "plan": {
+                  "projection": "both",
+                  "limit": 32,
+                  "aggregate": "rows",
+                  "predicate": {
+                    "all": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "query_result"
+          ],
+          "properties": {
+            "query_result": {
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "query_policy"
+          ],
+          "properties": {
+            "query_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "peer",
+                "table",
+                "expected_revision",
+                "allow"
+              ],
+              "properties": {
+                "peer": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "table": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "expected_revision": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "allow": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "peer",
+                "table",
+                "expected_revision",
+                "allow"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "registry_create"
+          ],
+          "properties": {
+            "registry_create": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295,
+              "x-transit-bits": 32,
+              "x-transit-signed": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "registry_grant"
+          ],
+          "properties": {
+            "registry_grant": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "scope",
+                "subject",
+                "lookup",
+                "mutate"
+              ],
+              "properties": {
+                "scope": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "subject": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "principal"
+                      ],
+                      "properties": {
+                        "principal": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "process"
+                      ],
+                      "properties": {
+                        "process": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        }
+                      }
+                    }
+                  ]
+                },
+                "lookup": {
+                  "type": "boolean"
+                },
+                "mutate": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "scope",
+                "subject",
+                "lookup",
+                "mutate"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "registry_handle"
+          ],
+          "properties": {
+            "registry_handle": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "registry_route"
+          ],
+          "properties": {
+            "registry_route": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "registry",
+                "payload"
+              ],
+              "properties": {
+                "registry": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "payload": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                }
+              },
+              "required": [
+                "registry",
+                "payload"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "supervisor_register"
+          ],
+          "properties": {
+            "supervisor_register": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "pid",
+                "observer",
+                "limit",
+                "backoff_ms",
+                "attempts",
+                "generation",
+                "failure",
+                "cut",
+                "observed_ms",
+                "retry_at_ms",
+                "successor",
+                "phase"
+              ],
+              "properties": {
+                "pid": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "observer": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255,
+                  "x-transit-bits": 8,
+                  "x-transit-signed": false
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255,
+                  "x-transit-bits": 8,
+                  "x-transit-signed": false
+                },
+                "backoff_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "attempts": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255,
+                  "x-transit-bits": 8,
+                  "x-transit-signed": false
+                },
+                "generation": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "failure": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "cut": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "observed_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "retry_at_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "successor": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "phase": {
+                  "type": "string",
+                  "enum": [
+                    "watching",
+                    "retry_wait",
+                    "retry_requested",
+                    "exhausted",
+                    "retired",
+                    "suspended",
+                    "placement_unavailable",
+                    "initializing"
+                  ]
+                }
+              },
+              "required": [
+                "pid",
+                "observer",
+                "limit",
+                "backoff_ms"
+              ],
+              "x-transit-defaults": {
+                "attempts": 0,
+                "generation": 0,
+                "failure": 0,
+                "cut": 0,
+                "observed_ms": 0,
+                "retry_at_ms": 0,
+                "successor": null,
+                "phase": "watching"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "supervisor_observe"
+          ],
+          "properties": {
+            "supervisor_observe": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        }
+      ]
+    },
+    "Result": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "none"
+          ],
+          "properties": {
+            "none": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correlation"
+          ],
+          "properties": {
+            "correlation": {
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "row"
+          ],
+          "properties": {
+            "row": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "key",
+                    "value"
+                  ],
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "maxLength": 256
+                    },
+                    "value": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "null"
+                          ],
+                          "properties": {
+                            "null": {
+                              "type": "object",
+                              "maxProperties": 0
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "int64"
+                          ],
+                          "properties": {
+                            "int64": {
+                              "type": "string",
+                              "maxLength": 256
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "boolean"
+                          ],
+                          "properties": {
+                            "boolean": {
+                              "type": "boolean"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "utf8"
+                          ],
+                          "properties": {
+                            "utf8": {
+                              "type": "string",
+                              "maxLength": 256
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "binary"
+                          ],
+                          "properties": {
+                            "binary": {
+                              "type": "string",
+                              "pattern": "^(?:[0-9a-f]{2})*$",
+                              "maxLength": 512,
+                              "x-transit-encoding": "lowercase-hex"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "value"
+                  ],
+                  "x-transit-defaults": {}
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "arrow"
+          ],
+          "properties": {
+            "arrow": {
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "manifest"
+          ],
+          "properties": {
+            "manifest": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "result",
+                "correlation",
+                "bytes",
+                "rows"
+              ],
+              "properties": {
+                "result": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "correlation": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 65535,
+                  "x-transit-bits": 16,
+                  "x-transit-signed": false
+                },
+                "rows": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255,
+                  "x-transit-bits": 8,
+                  "x-transit-signed": false
+                }
+              },
+              "required": [
+                "result",
+                "correlation",
+                "bytes",
+                "rows"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        }
+      ]
+    },
+    "Event": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "event",
+        "pid",
+        "generation",
+        "initializing",
+        "input",
+        "resource",
+        "resource_revision"
+      ],
+      "properties": {
+        "event": {
+          "type": "string",
+          "enum": [
+            "idle",
+            "progress",
+            "ready",
+            "committed",
+            "blocked"
+          ]
+        },
+        "pid": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "initializing": {
+          "type": "boolean"
+        },
+        "input": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "position",
+                "origin",
+                "kind",
+                "correlation",
+                "payload"
+              ],
+              "properties": {
+                "position": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "origin": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "version",
+                    "source"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 255,
+                      "x-transit-bits": 8,
+                      "x-transit-signed": false
+                    },
+                    "source": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "external"
+                          ],
+                          "properties": {
+                            "external": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "principal",
+                                "policy_revision"
+                              ],
+                              "properties": {
+                                "principal": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 255,
+                                  "x-transit-bits": 8,
+                                  "x-transit-signed": false
+                                },
+                                "policy_revision": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                }
+                              },
+                              "required": [
+                                "principal",
+                                "policy_revision"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "process"
+                          ],
+                          "properties": {
+                            "process": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "pid",
+                                "turn",
+                                "output"
+                              ],
+                              "properties": {
+                                "pid": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "turn": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "output": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                }
+                              },
+                              "required": [
+                                "pid",
+                                "turn",
+                                "output"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "effect"
+                          ],
+                          "properties": {
+                            "effect": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "id",
+                                "attempt",
+                                "executor"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "attempt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "executor": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 255,
+                                  "x-transit-bits": 8,
+                                  "x-transit-signed": false
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "attempt",
+                                "executor"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ],
+                  "x-transit-defaults": {
+                    "version": 1
+                  }
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "cast",
+                    "call",
+                    "reply",
+                    "result_chunk",
+                    "result_complete",
+                    "result_ack",
+                    "cancel",
+                    "timeout"
+                  ]
+                },
+                "correlation": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "payload": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                }
+              },
+              "required": [
+                "position",
+                "origin",
+                "kind",
+                "correlation",
+                "payload"
+              ],
+              "x-transit-defaults": {}
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resource": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "x-transit-bits": 64,
+              "x-transit-signed": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resource_revision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "x-transit-bits": 64,
+              "x-transit-signed": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "event",
+        "pid",
+        "generation"
+      ],
+      "x-transit-defaults": {
+        "initializing": false,
+        "input": null,
+        "resource": null,
+        "resource_revision": null
+      }
+    },
+    "ArrowCell": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "rows",
+        "columns",
+        "name",
+        "value"
+      ],
+      "properties": {
+        "rows": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "x-transit-bits": 8,
+          "x-transit-signed": false
+        },
+        "columns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "x-transit-bits": 8,
+          "x-transit-signed": false
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "value": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "null"
+              ],
+              "properties": {
+                "null": {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "int64"
+              ],
+              "properties": {
+                "int64": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "boolean"
+              ],
+              "properties": {
+                "boolean": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "utf8"
+              ],
+              "properties": {
+                "utf8": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "binary"
+              ],
+              "properties": {
+                "binary": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "rows",
+        "columns",
+        "name",
+        "value"
+      ],
+      "x-transit-defaults": {}
+    },
+    "HostConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "url",
+        "seed_file",
+        "server",
+        "timeout_ms"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "seed_file": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "server": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "realm",
+                "principal",
+                "pid",
+                "generation",
+                "association",
+                "timeout_ms"
+              ],
+              "properties": {
+                "realm": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "principal": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255,
+                  "x-transit-bits": 8,
+                  "x-transit-signed": false
+                },
+                "pid": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "generation": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "association": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "timeout_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                }
+              },
+              "required": [
+                "realm",
+                "principal",
+                "pid",
+                "generation"
+              ],
+              "x-transit-defaults": {
+                "association": "data",
+                "timeout_ms": 5000
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "x-transit-defaults": {
+        "seed_file": null,
+        "server": null,
+        "timeout_ms": 5000
+      }
+    },
+    "HostRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "hello"
+          ],
+          "properties": {
+            "hello": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "next"
+          ],
+          "properties": {
+            "next": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "x-transit-bits": 64,
+              "x-transit-signed": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "apply"
+          ],
+          "properties": {
+            "apply": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "get"
+                  ],
+                  "properties": {
+                    "get": {
+                      "type": "string",
+                      "pattern": "^(?:[0-9a-f]{2})*$",
+                      "maxLength": 512,
+                      "x-transit-encoding": "lowercase-hex"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "put"
+                  ],
+                  "properties": {
+                    "put": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "key",
+                        "value"
+                      ],
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "value"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "delete"
+                  ],
+                  "properties": {
+                    "delete": {
+                      "type": "string",
+                      "pattern": "^(?:[0-9a-f]{2})*$",
+                      "maxLength": 512,
+                      "x-transit-encoding": "lowercase-hex"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cast"
+                  ],
+                  "properties": {
+                    "cast": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "pid",
+                        "value"
+                      ],
+                      "properties": {
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        }
+                      },
+                      "required": [
+                        "pid",
+                        "value"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "call"
+                  ],
+                  "properties": {
+                    "call": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "pid",
+                        "value",
+                        "deadline_ms",
+                        "observer"
+                      ],
+                      "properties": {
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "deadline_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "observer": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "pid",
+                        "value"
+                      ],
+                      "x-transit-defaults": {
+                        "deadline_ms": null,
+                        "observer": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "reply"
+                  ],
+                  "properties": {
+                    "reply": {
+                      "type": "string",
+                      "pattern": "^(?:[0-9a-f]{2})*$",
+                      "maxLength": 512,
+                      "x-transit-encoding": "lowercase-hex"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cancel"
+                  ],
+                  "properties": {
+                    "cancel": {
+                      "type": "string",
+                      "maxLength": 256
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "effect"
+                  ],
+                  "properties": {
+                    "effect": {
+                      "type": "string",
+                      "pattern": "^(?:[0-9a-f]{2})*$",
+                      "maxLength": 512,
+                      "x-transit-encoding": "lowercase-hex"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "table_create"
+                  ],
+                  "properties": {
+                    "table_create": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "id",
+                        "key_name",
+                        "value_name",
+                        "value_type"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "key_name": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "value_name": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "value_type": {
+                          "type": "string",
+                          "enum": [
+                            "int64",
+                            "boolean",
+                            "utf8",
+                            "binary"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "key_name",
+                        "value_name",
+                        "value_type"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "table_get"
+                  ],
+                  "properties": {
+                    "table_get": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "id",
+                        "key"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "key": {
+                          "type": "string",
+                          "maxLength": 256
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "key"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "table_write"
+                  ],
+                  "properties": {
+                    "table_write": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "id",
+                        "mode",
+                        "row"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "insert",
+                            "update",
+                            "upsert"
+                          ]
+                        },
+                        "row": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "key",
+                            "value"
+                          ],
+                          "properties": {
+                            "key": {
+                              "type": "string",
+                              "maxLength": 256
+                            },
+                            "value": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "null"
+                                  ],
+                                  "properties": {
+                                    "null": {
+                                      "type": "object",
+                                      "maxProperties": 0
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "int64"
+                                  ],
+                                  "properties": {
+                                    "int64": {
+                                      "type": "string",
+                                      "maxLength": 256
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "boolean"
+                                  ],
+                                  "properties": {
+                                    "boolean": {
+                                      "type": "boolean"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "utf8"
+                                  ],
+                                  "properties": {
+                                    "utf8": {
+                                      "type": "string",
+                                      "maxLength": 256
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "binary"
+                                  ],
+                                  "properties": {
+                                    "binary": {
+                                      "type": "string",
+                                      "pattern": "^(?:[0-9a-f]{2})*$",
+                                      "maxLength": 512,
+                                      "x-transit-encoding": "lowercase-hex"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "value"
+                          ],
+                          "x-transit-defaults": {}
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "mode",
+                        "row"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "table_delete"
+                  ],
+                  "properties": {
+                    "table_delete": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "id",
+                        "key"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "key": {
+                          "type": "string",
+                          "maxLength": 256
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "key"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "query"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "id",
+                        "plan"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "plan": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "projection",
+                            "limit",
+                            "aggregate",
+                            "predicate"
+                          ],
+                          "properties": {
+                            "projection": {
+                              "type": "string",
+                              "enum": [
+                                "both",
+                                "key",
+                                "value"
+                              ]
+                            },
+                            "limit": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            },
+                            "aggregate": {
+                              "type": "string",
+                              "enum": [
+                                "rows",
+                                "count",
+                                "sum"
+                              ]
+                            },
+                            "predicate": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "all"
+                                  ],
+                                  "properties": {
+                                    "all": {
+                                      "type": "object",
+                                      "maxProperties": 0
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "is_null"
+                                  ],
+                                  "properties": {
+                                    "is_null": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 255,
+                                      "x-transit-bits": 8,
+                                      "x-transit-signed": false
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "compare"
+                                  ],
+                                  "properties": {
+                                    "compare": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "x-transit-field-order": [
+                                        "column",
+                                        "op",
+                                        "value"
+                                      ],
+                                      "properties": {
+                                        "column": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 255,
+                                          "x-transit-bits": 8,
+                                          "x-transit-signed": false
+                                        },
+                                        "op": {
+                                          "type": "string",
+                                          "enum": [
+                                            "eq",
+                                            "ne",
+                                            "lt",
+                                            "le",
+                                            "gt",
+                                            "ge"
+                                          ]
+                                        },
+                                        "value": {
+                                          "oneOf": [
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "null"
+                                              ],
+                                              "properties": {
+                                                "null": {
+                                                  "type": "object",
+                                                  "maxProperties": 0
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "int64"
+                                              ],
+                                              "properties": {
+                                                "int64": {
+                                                  "type": "string",
+                                                  "maxLength": 256
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "boolean"
+                                              ],
+                                              "properties": {
+                                                "boolean": {
+                                                  "type": "boolean"
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "utf8"
+                                              ],
+                                              "properties": {
+                                                "utf8": {
+                                                  "type": "string",
+                                                  "maxLength": 256
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "binary"
+                                              ],
+                                              "properties": {
+                                                "binary": {
+                                                  "type": "string",
+                                                  "pattern": "^(?:[0-9a-f]{2})*$",
+                                                  "maxLength": 512,
+                                                  "x-transit-encoding": "lowercase-hex"
+                                                }
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "column",
+                                        "op",
+                                        "value"
+                                      ],
+                                      "x-transit-defaults": {}
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          "required": [],
+                          "x-transit-defaults": {
+                            "projection": "both",
+                            "limit": 32,
+                            "aggregate": "rows",
+                            "predicate": {
+                              "all": {}
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ],
+                      "x-transit-defaults": {
+                        "plan": {
+                          "projection": "both",
+                          "limit": 32,
+                          "aggregate": "rows",
+                          "predicate": {
+                            "all": {}
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "query_reply"
+                  ],
+                  "properties": {
+                    "query_reply": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "id",
+                        "plan"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "plan": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "projection",
+                            "limit",
+                            "aggregate",
+                            "predicate"
+                          ],
+                          "properties": {
+                            "projection": {
+                              "type": "string",
+                              "enum": [
+                                "both",
+                                "key",
+                                "value"
+                              ]
+                            },
+                            "limit": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            },
+                            "aggregate": {
+                              "type": "string",
+                              "enum": [
+                                "rows",
+                                "count",
+                                "sum"
+                              ]
+                            },
+                            "predicate": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "all"
+                                  ],
+                                  "properties": {
+                                    "all": {
+                                      "type": "object",
+                                      "maxProperties": 0
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "is_null"
+                                  ],
+                                  "properties": {
+                                    "is_null": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 255,
+                                      "x-transit-bits": 8,
+                                      "x-transit-signed": false
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "compare"
+                                  ],
+                                  "properties": {
+                                    "compare": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "x-transit-field-order": [
+                                        "column",
+                                        "op",
+                                        "value"
+                                      ],
+                                      "properties": {
+                                        "column": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 255,
+                                          "x-transit-bits": 8,
+                                          "x-transit-signed": false
+                                        },
+                                        "op": {
+                                          "type": "string",
+                                          "enum": [
+                                            "eq",
+                                            "ne",
+                                            "lt",
+                                            "le",
+                                            "gt",
+                                            "ge"
+                                          ]
+                                        },
+                                        "value": {
+                                          "oneOf": [
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "null"
+                                              ],
+                                              "properties": {
+                                                "null": {
+                                                  "type": "object",
+                                                  "maxProperties": 0
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "int64"
+                                              ],
+                                              "properties": {
+                                                "int64": {
+                                                  "type": "string",
+                                                  "maxLength": 256
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "boolean"
+                                              ],
+                                              "properties": {
+                                                "boolean": {
+                                                  "type": "boolean"
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "utf8"
+                                              ],
+                                              "properties": {
+                                                "utf8": {
+                                                  "type": "string",
+                                                  "maxLength": 256
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "additionalProperties": false,
+                                              "required": [
+                                                "binary"
+                                              ],
+                                              "properties": {
+                                                "binary": {
+                                                  "type": "string",
+                                                  "pattern": "^(?:[0-9a-f]{2})*$",
+                                                  "maxLength": 512,
+                                                  "x-transit-encoding": "lowercase-hex"
+                                                }
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "column",
+                                        "op",
+                                        "value"
+                                      ],
+                                      "x-transit-defaults": {}
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          "required": [],
+                          "x-transit-defaults": {
+                            "projection": "both",
+                            "limit": 32,
+                            "aggregate": "rows",
+                            "predicate": {
+                              "all": {}
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ],
+                      "x-transit-defaults": {
+                        "plan": {
+                          "projection": "both",
+                          "limit": 32,
+                          "aggregate": "rows",
+                          "predicate": {
+                            "all": {}
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "query_result"
+                  ],
+                  "properties": {
+                    "query_result": {
+                      "type": "string",
+                      "maxLength": 256
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "query_policy"
+                  ],
+                  "properties": {
+                    "query_policy": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "peer",
+                        "table",
+                        "expected_revision",
+                        "allow"
+                      ],
+                      "properties": {
+                        "peer": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "table": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "expected_revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "allow": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "peer",
+                        "table",
+                        "expected_revision",
+                        "allow"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "registry_create"
+                  ],
+                  "properties": {
+                    "registry_create": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4294967295,
+                      "x-transit-bits": 32,
+                      "x-transit-signed": false
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "registry_grant"
+                  ],
+                  "properties": {
+                    "registry_grant": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "scope",
+                        "subject",
+                        "lookup",
+                        "mutate"
+                      ],
+                      "properties": {
+                        "scope": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "subject": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "principal"
+                              ],
+                              "properties": {
+                                "principal": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 255,
+                                  "x-transit-bits": 8,
+                                  "x-transit-signed": false
+                                }
+                              }
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "process"
+                              ],
+                              "properties": {
+                                "process": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "lookup": {
+                          "type": "boolean"
+                        },
+                        "mutate": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "scope",
+                        "subject",
+                        "lookup",
+                        "mutate"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "registry_handle"
+                  ],
+                  "properties": {
+                    "registry_handle": {
+                      "type": "object",
+                      "maxProperties": 0
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "registry_route"
+                  ],
+                  "properties": {
+                    "registry_route": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "registry",
+                        "payload"
+                      ],
+                      "properties": {
+                        "registry": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "payload": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        }
+                      },
+                      "required": [
+                        "registry",
+                        "payload"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "supervisor_register"
+                  ],
+                  "properties": {
+                    "supervisor_register": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "pid",
+                        "observer",
+                        "limit",
+                        "backoff_ms",
+                        "attempts",
+                        "generation",
+                        "failure",
+                        "cut",
+                        "observed_ms",
+                        "retry_at_ms",
+                        "successor",
+                        "phase"
+                      ],
+                      "properties": {
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "observer": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        },
+                        "backoff_ms": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "attempts": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        },
+                        "generation": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "failure": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "cut": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "observed_ms": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "retry_at_ms": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "successor": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "phase": {
+                          "type": "string",
+                          "enum": [
+                            "watching",
+                            "retry_wait",
+                            "retry_requested",
+                            "exhausted",
+                            "retired",
+                            "suspended",
+                            "placement_unavailable",
+                            "initializing"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "pid",
+                        "observer",
+                        "limit",
+                        "backoff_ms"
+                      ],
+                      "x-transit-defaults": {
+                        "attempts": 0,
+                        "generation": 0,
+                        "failure": 0,
+                        "cut": 0,
+                        "observed_ms": 0,
+                        "retry_at_ms": 0,
+                        "successor": null,
+                        "phase": "watching"
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "supervisor_observe"
+                  ],
+                  "properties": {
+                    "supervisor_observe": {
+                      "type": "object",
+                      "maxProperties": 0
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finish"
+          ],
+          "properties": {
+            "finish": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pending"
+          ],
+          "properties": {
+            "pending": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "arrow_cell"
+          ],
+          "properties": {
+            "arrow_cell": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "ipc",
+                "row",
+                "column"
+              ],
+              "properties": {
+                "ipc": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "row": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "column": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                }
+              },
+              "required": [
+                "ipc",
+                "row",
+                "column"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "frame"
+          ],
+          "properties": {
+            "frame": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "kind",
+                "correlation",
+                "payload"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "correlation": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "payload": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                }
+              },
+              "required": [
+                "kind",
+                "correlation",
+                "payload"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "prepare"
+          ],
+          "properties": {
+            "prepare": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "kind",
+                "seed_file",
+                "document"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "seed_file": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "document": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "required": [
+                "kind",
+                "seed_file",
+                "document"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "call"
+          ],
+          "properties": {
+            "call": {
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -78,7 +78,7 @@ M9 makes client creation through bindings an explicit deliverable. A schema
 alone is insufficient: clients must also preserve signing, ownership,
 uncertain-operation, and lifetime semantics.
 
-The proposed shared boundary has three parts:
+The shared boundary has three parts (M9 implementation is in progress):
 
 1. Public Transit types and Station-owned message/behavior contracts generate
    language declarations, codecs, ABI declarations and shared fixtures from
@@ -100,19 +100,27 @@ scope even though services and the shared framework remain Zig.
 
 ### M9 language targets
 
-The following are proposed integration routes, to be fixed by the first ABI
-proof. All targets must ship a usable binding and example in M9; emitted type
+The shared ABI proof fixes the following integration routes. All targets must
+ship a usable binding and example in M9; emitted type
 declarations alone do not qualify one.
 
 | Target | Binding route and host responsibility |
 | --- | --- |
 | C/C++ | Versioned C header/library; C++ ownership wrappers over the same ABI |
 | Rust | Generated extern declarations and safe owned-handle wrappers |
-| Python | CFFI or a small extension over the ABI, with explicit close/context management and Arrow interoperability |
-| Node.js | Generated TypeScript surface and Node-API adapter; asynchronous completion must not block the event loop |
-| Java | Generated JNI adapter and closeable handles; select and pin the JDK baseline in the milestone |
+| Python | Generated ABI resource drives `ctypes`, with explicit close/context management and async wrappers |
+| Node.js | Generated TypeScript contracts and asynchronous native port adapter |
+| Java | Closeable native port adapter and bounded asynchronous scheduling |
 | .NET | Generated P/Invoke declarations, managed ownership and asynchronous wrappers |
 | Elixir/Erlang | Shared OTP-compatible port bridge to the Zig implementation, with wrappers/examples for both languages; no blocking native work on BEAM schedulers |
+
+Node, Java and BEAM share the versioned
+[native port](../apps/transit-station-host/README.md). This avoids three different
+native-runtime ABI integrations while preserving a single framework implementation.
+The cost is a child process and bounded local framing; the port has no durable
+queue or scheduling authority. C/C++, Rust, Python and .NET use the C ABI directly.
+The [binding inventory](../bindings/README.md) records what is implemented and
+qualified; selecting a route is not evidence that its adapter is complete.
 
 Select and pin runtime/tool versions and generator dependencies during
 implementation. The first required execution matrix is Linux x86_64, matching
@@ -131,8 +139,11 @@ the bridge transports calls and is not an authoritative queue or state store.
 Every runtime must release handles/batches exactly once and handle shutdown with
 operations in flight. Exceptions or language unwinding must not cross the ABI.
 
-PIDs, revisions and sequences preserve their full unsigned 64-bit wire range;
-JavaScript numbers and signed host integer defaults cannot narrow it silently.
+PIDs, revisions and sequences preserve the protocol's admitted range, currently
+bounded by its 53-bit counter ceiling. Arrow int64 values and Station u64
+correlations use decimal strings at foreign JSON boundaries; JavaScript numbers
+and signed host defaults cannot narrow them silently. A future wider protocol
+range requires coordinated codecs and qualification, not just a larger Zig type.
 The client ABI freezes exact signed proposals. Station persists the durable
 waiting state needed after host/bridge loss; an in-memory native handle is not
 recovery evidence. Cancellation of a local await leaves an uncertain accepted

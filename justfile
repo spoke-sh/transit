@@ -18,6 +18,9 @@ mod examples 'tasks/examples.just'
 # Generate and validate the public protocol contract.
 mod contract 'tasks/contract.just'
 
+# Shared client/framework declarations and foreign-language qualification.
+mod bindings 'tasks/bindings.just'
+
 # Hosted CI lanes and the complete local suite.
 mod ci 'tasks/ci.just'
 

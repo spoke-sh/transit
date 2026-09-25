@@ -8,6 +8,8 @@ Typed Tables and captured Arrow queries share the same private turn and state
 budget; see the [Table implementation guide](docs/tables.md).
 The [services guide](docs/services.md) covers scoped names, timed waits and
 bounded supervision, including the separate controller trust boundary.
+The [binding guide](docs/bindings.md) covers the shared C ABI and detached
+poll/finish interface used by foreign-language handlers.
 [M9](../../../docs/roadmap/M9.md) tracks the remaining framework surface.
 
 `GenServer.step(handler, proposed_read_deadline_ms)` does bounded client work,

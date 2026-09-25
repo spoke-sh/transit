@@ -18,3 +18,5 @@ coverage/
 !.env.example
 /data/
 *.log
+__pycache__/
+*.pyc

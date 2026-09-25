@@ -16,6 +16,7 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .imports = &.{.{ .name = "transit_client", .module = module }},
     }) });
+    _ = b.addModule("client_abi", .{ .root_source_file = b.path("src/Abi.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_client", .module = module }} });
     library.installHeader(b.path("include/transit_client.h"), "transit_client.h");
     b.installArtifact(library);
     b.step("abi", "Build the shared Transit C ABI").dependOn(b.getInstallStep());

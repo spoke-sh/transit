@@ -14,6 +14,8 @@ generate:
 check:
     zig build contract | python3 -B tests/contract.py
     just contract::client-check
+    just contract::station-check
+    python3 -B bindings/generate.py
 
 # Regenerate the C ABI resource and header from exported Zig function types.
 client-generate:
@@ -21,3 +23,10 @@ client-generate:
 
 client-check:
     zig build client-contract | python3 -B packages/zig/transit-client/generate.py
+
+# Regenerate shared Station exports and language-neutral handler operations.
+station-generate:
+    zig build station-contract | python3 -B packages/zig/transit-station/generate.py --write
+
+station-check:
+    zig build station-contract | python3 -B packages/zig/transit-station/generate.py

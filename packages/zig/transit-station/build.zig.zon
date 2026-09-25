@@ -4,5 +4,5 @@
     .version = "0.0.0",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{ .transit_client = .{ .path = "../transit-client" }, .transit_fuze = .{ .path = "../transit-fuze" } },
-    .paths = .{ "build.zig", "build.zig.zon", "src" },
+    .paths = .{ "build.zig", "build.zig.zon", "src", "include", "abi-v1.json", "generate.py" },
 }

@@ -16,8 +16,11 @@ resource: ?p.State.Resource = null,
 view_id: ?u64 = null,
 blocked: bool = false,
 handler_error: ?anyerror = null,
+ready: ?Turn = null,
+initializing: bool = false,
 
 pub const Step = enum { idle, progress, committed, blocked };
+pub const Poll = enum { idle, progress, ready, committed, blocked };
 pub const Handler = struct {
     context: ?*anyopaque = null,
     initialize: ?*const fn (?*anyopaque, *Turn) anyerror!void = null,
@@ -35,6 +38,28 @@ pub fn init(session: client.Session, association: []const u8) !GenServer {
 /// The proposed read deadline is checked by authority, never accepted as a
 /// substitute for it. The host supplies time outside the deterministic handler.
 pub fn step(self: *GenServer, handler: Handler, read_deadline_ms: u64) !Step {
+    return switch (try self.poll(read_deadline_ms)) {
+        .idle => .idle,
+        .progress => .progress,
+        .committed => .committed,
+        .blocked => .blocked,
+        .ready => blk: {
+            var failure: ?anyerror = null;
+            if (self.initializing) if (handler.initialize) |initialize| initialize(handler.context, &self.ready.?) catch |err| {
+                failure = err;
+            };
+            if (failure == null) handler.handle(handler.context, &self.ready.?, try Frame.decode(self.ready.?.delivery.input.value)) catch |err| {
+                failure = err;
+            };
+            try self.finish(failure);
+            break :blk .progress;
+        },
+    };
+}
+/// The same turn machine exposed to foreign hosts. Polling does not acknowledge
+/// an application input; finish explicitly freezes its private proposal.
+pub fn poll(self: *GenServer, read_deadline_ms: u64) !Poll {
+    if (self.ready != null) return .ready;
     if (self.blocked) return .blocked;
     if (self.pending) |*pending| {
         const receipt = try pending.submit(self.session.client);
@@ -99,40 +124,51 @@ pub fn step(self: *GenServer, handler: Handler, read_deadline_ms: u64) !Step {
     }
     const fresh = (try self.session.receive()) orelse return error.InvalidAuthorityResponse;
     if (fresh.input.position != self.delivery.?.input.position or fresh.revision != self.delivery.?.revision) return error.InvalidAuthorityResponse;
-    var turn = try Turn.init(fresh, view, entries);
-    turn.resource_deadline_ms = self.resource.?.deadline_ms;
+    self.ready = try Turn.init(fresh, view, entries);
+    self.ready.?.resource_deadline_ms = self.resource.?.deadline_ms;
     self.handler_error = null;
-    dispatch(&turn, handler) catch |err| {
-        self.handler_error = err;
-        // A failed handler cannot publish any private writes, sends or effects.
-        turn.decision = .{ .views = .{ view, null, null, null }, .failed = true };
+    self.initializing = self.ready.?.get(descriptor_key) == null;
+    const internal = preprocess(&self.ready.?) catch |err| {
+        try self.finish(err);
+        return .progress;
     };
-    self.pending = try self.session.prepareStateCommit(fresh, turn.decision);
+    if (internal) {
+        try self.finish(if (self.initializing) error.UninitializedBehavior else null);
+        return .progress;
+    }
+    return .ready;
+}
+pub fn finish(self: *GenServer, failure: ?anyerror) !void {
+    const turn = if (self.ready) |*value| value else return error.NoPreparedTurn;
+    self.handler_error = failure;
+    if (self.handler_error == null) turn.validate() catch |err| {
+        self.handler_error = err;
+    };
+    if (self.handler_error != null) turn.decision = .{ .views = .{ turn.view, null, null, null }, .failed = true };
+    self.pending = try self.session.prepareStateCommit(turn.delivery, turn.decision);
     self.pending_kind = .commit;
-    return .progress;
+    self.ready = null;
 }
 
-fn dispatch(turn: *Turn, handler: Handler) !void {
+fn preprocess(turn: *Turn) !bool {
     if (turn.get(descriptor_key)) |stored| {
         if (!stored.eql(descriptor)) return error.UnsupportedBehavior;
     } else {
-        if (handler.initialize) |initialize| try initialize(handler.context, turn);
         try turn.write(descriptor_key, descriptor);
     }
     const frame = try Frame.decode(turn.delivery.input.value);
-    if (try @import("Waiting.zig").dispatch(turn, frame)) return turn.validate();
-    if (try @import("Query.zig").dispatch(turn, frame)) return turn.validate();
+    if (try @import("Waiting.zig").dispatch(turn, frame)) return true;
+    if (try @import("Query.zig").dispatch(turn, frame)) return true;
     if (frame.kind == .reply) switch (try turn.acceptReply()) {
         .accepted => {},
         .closed => {
             // Record a disposition in the same ordered turn. This is not an
             // application callback or reopening of a completed wait.
             try turn.write(try p.Value.init("\x00disposition"), try p.Value.init("station.closed-reply.v1"));
-            return turn.validate();
+            return true;
         },
     };
-    try handler.handle(handler.context, turn, frame);
-    try turn.validate();
+    return false;
 }
 
 fn resolveAssociation(self: *GenServer) !u64 {

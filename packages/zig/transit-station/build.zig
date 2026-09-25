@@ -11,4 +11,11 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_client", .module = client.module("transit_client") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") } },
     });
     b.step("test", "Prove Station turns and mailbox protocols").dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = module })).step);
+    const abi = b.addModule("station_abi", .{ .root_source_file = b.path("src/Abi.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station", .module = module }} });
+    const library = b.addLibrary(.{ .name = "transit_station", .linkage = .dynamic, .root_module = b.createModule(.{ .root_source_file = b.path("src/c.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{.{ .name = "station_abi", .module = abi }} }) });
+    library.installHeader(b.path("include/transit_station.h"), "transit_station.h");
+    b.installArtifact(library);
+    b.step("abi", "Build the shared Station implementation").dependOn(b.getInstallStep());
+    const contract = b.addExecutable(.{ .name = "transit-station-contract", .root_module = b.createModule(.{ .root_source_file = b.path("src/abi_contract.zig"), .target = b.graph.host, .optimize = optimize, .imports = &.{ .{ .name = "transit_station", .module = module }, .{ .name = "station_abi", .module = abi } } }) });
+    b.installArtifact(contract);
 }

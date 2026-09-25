@@ -40,6 +40,9 @@ const Signed = union(Kind) {
 const OperationImpl = struct { signed: Signed };
 const Frozen = struct { version: u32 = version, operation: Signed };
 const BufferImpl = struct { bytes: []u8 };
+pub fn observe(pointer: *Client, observer: *wire.observability.telemetry.Runtime) void {
+    cast(ClientImpl, pointer).client.observer = observer;
+}
 
 fn cast(comptime T: type, pointer: anytype) *T {
     return @ptrCast(@alignCast(pointer));
