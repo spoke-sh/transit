@@ -27,6 +27,7 @@ pub const Namespace = enum(u8) {
     association_order,
     pending_route,
     effects_by_pid,
+    read_version,
 };
 pub const Snapshot = struct {
     version: u32 = version,

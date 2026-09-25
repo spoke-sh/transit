@@ -37,7 +37,7 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     const position = engine.head.position;
     var current = try engine.state();
     const body: @FieldType(g.Response, "body") = switch (query.kind) {
-        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited } },
+        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited } },
         .process => |pid| blk: {
             try scope(principal, pid);
             const process = try engine.process(pid);
@@ -58,6 +58,41 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
             try scope(principal, value.meta.pid);
             try state.allowed(engine, value.meta.resource, query.principal, p.State.permission(.inspect));
             break :blk .{ .view = value.meta };
+        },
+        .read_version => |id| blk: {
+            try scope(principal, id.pid);
+            const value = try state.readVersion(engine, id);
+            try state.allowed(engine, value.meta.resource, query.principal, p.State.permission(.inspect));
+            break :blk .{ .read_version = value.meta };
+        },
+        .version_entries => |q| blk: {
+            try scope(principal, q.id.pid);
+            const stored = try state.retained(engine, query.principal, q.id, q.generation, try sample(engine));
+            var basis = try @TypeOf(current).open(engine.page_store, stored.snapshot);
+            const resource = (try basis.get(g.Resource, address(.resource, stored.meta.resource))) orelse return error.InvalidHistory;
+            if (resource.revision != stored.meta.revision) return error.InvalidHistory;
+            const result = try entries(&basis, resource.id, q.key, q.after);
+            _ = try state.retained(engine, query.principal, q.id, q.generation, try sample(engine));
+            break :blk .{ .version_entries = .{ .version = stored.meta, .generation = q.generation, .resource = resource, .page = result } };
+        },
+        .read_versions => |q| blk: {
+            try scope(principal, q.pid);
+            _ = try engine.process(q.pid);
+            try at(q.position, position);
+            const batch = try current.scan(growth.StoredReadVersion, .{ .namespace = .read_version, .major = q.pid }, if (q.after) |id| try state.versionKey(id) else null);
+            var result: g.Batch(g.ReadVersion, g.ReadVersionId) = .{};
+            var count: usize = 0;
+            for (batch.records) |slot| if (slot) |record| {
+                if (!std.meta.eql(try state.versionId(record.key), record.value.meta.id)) return error.InvalidHistory;
+                state.allowed(engine, record.value.meta.resource, query.principal, p.State.permission(.inspect)) catch |err| {
+                    if (err == error.Forbidden) continue;
+                    return err;
+                };
+                result.entries[count] = record.value.meta;
+                count += 1;
+            };
+            if (batch.next) |key| result.next = try state.versionId(key);
+            break :blk .{ .read_versions = result };
         },
         .association => |q| blk: {
             try scope(principal, q.pid);
@@ -95,19 +130,7 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
                 try state.usable(engine, resource, now);
                 if (q.revision != resource.revision) return error.StaleStateResource;
             }
-            var result: g.Batch(g.Entry, p.Value) = .{};
-            if (q.key) |key| {
-                result.entries[0] = try basis.get(g.Entry, try c.key(.entry, resource.id, 0, key.slice()));
-                if (result.entries[0]) |entry| if (!entry.key.eql(key)) return error.InvalidHistory;
-            } else {
-                const after = if (q.after) |key| try c.key(.entry, resource.id, 0, key.slice()) else null;
-                const batch = try basis.scan(g.Entry, .{ .namespace = .entry, .major = resource.id }, after);
-                for (batch.records, 0..) |slot, i| if (slot) |record| {
-                    if (!std.mem.allEqual(u8, record.key.data[9..17], 0) or !std.mem.eql(u8, record.key.slice()[17..], record.value.key.slice())) return error.InvalidHistory;
-                    result.entries[i] = record.value;
-                };
-                if (batch.next) |cursor| result.next = try p.Value.init(cursor.slice()[17..]);
-            }
+            const result = try entries(&basis, resource.id, q.key, q.after);
             // A slow materialization cannot authorize a fresh disclosure after
             // a known deadline. Transport arrival can still occur later.
             if (captured) |view| _ = try state.captured(engine, query.principal, try engine.process(view.pid), view.id, view.input, try sample(engine)) else try state.usable(engine, resource, try sample(engine));
@@ -191,4 +214,21 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     // concurrent revocation or publication never yields a success-shaped mixed cut.
     if (try engine.journal.tail() != position) return error.Conflict;
     return .{ .realm = query.realm, .position = position, .principal_sequence = principal.sequence, .body = body };
+}
+
+fn entries(basis: anytype, resource: u64, point: ?p.Value, continuation: ?p.Value) !g.Batch(g.Entry, p.Value) {
+    var result: g.Batch(g.Entry, p.Value) = .{};
+    if (point) |key| {
+        result.entries[0] = try basis.get(g.Entry, try c.key(.entry, resource, 0, key.slice()));
+        if (result.entries[0]) |entry| if (!entry.key.eql(key)) return error.InvalidHistory;
+    } else {
+        const after = if (continuation) |key| try c.key(.entry, resource, 0, key.slice()) else null;
+        const batch = try basis.scan(g.Entry, .{ .namespace = .entry, .major = resource }, after);
+        for (batch.records, 0..) |slot, i| if (slot) |record| {
+            if (!std.mem.allEqual(u8, record.key.data[9..17], 0) or !std.mem.eql(u8, record.key.slice()[17..], record.value.key.slice())) return error.InvalidHistory;
+            result.entries[i] = record.value;
+        };
+        if (batch.next) |cursor| result.next = try p.Value.init(cursor.slice()[17..]);
+    }
+    return result;
 }

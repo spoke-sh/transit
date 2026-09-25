@@ -57,6 +57,11 @@ The ordinary proof runs 20 principals above the legacy identity range, 70 PIDs,
 six resources and 64 retained 256-byte values with one decoded page slot. It
 compares a captured half-written version with the completed resource, checks
 process progress and pending outputs, and replays an exact retained receipt.
+The final write also atomically retains its pre-write source version. Every
+phase reads that version's 60 rows separately from the current 64 rows and the
+open half-written turn view, including after physical authority-prefix trim.
+Retained roots survive without copying resources into memory or retaining a
+worker activation. Page garbage collection remains outside this proof.
 Competing publication after revocation, failure before append and lost response
 after real append are explicit schedules. SIGKILL separates write, recover,
 checkpoint and trim/recover phases. Missing required page storage and legacy

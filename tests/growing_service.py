@@ -40,7 +40,8 @@ def main(node, caller, station_caller):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == "/v3/command" and "turn" in envelope["request"]["command"]:
+                    if self.path == "/v3/command" and any(
+                            name in envelope["request"]["command"] for name in ("turn", "turn_with_versions")):
                         fault["turns"] += 1
                         if fault["turns"] == 16:
                             assert response.status == 200

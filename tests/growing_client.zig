@@ -4,7 +4,7 @@ const wire = @import("transit_client");
 const p = wire.protocol;
 const g = p.Growth;
 const t = std.testing;
-const Expected = struct { pid: u64, resource: u64, receipt: u64, pending: g.SignedRequest };
+const Expected = struct { pid: u64, resource: u64, receipt: u64, pending: g.SignedRequest, version: g.ReadVersion };
 const MaintenanceExpected = struct { source: u64, destination: u64, dependent: u64, owned: u64, independent: u64, pending: u64, active: u64, attempt: u64, checkpoint: u64 };
 const Caller = struct {
     client: *wire.Client,
@@ -219,17 +219,18 @@ pub fn main(init: std.process.Init) !void {
             var mutations: [g.turn_mutations]?g.Mutation = @splat(null);
             for (&mutations, 0..) |*slot, i| slot.* = .{ .key = key(turn * 4 + i), .value = value(turn * 4 + i) };
             delivery = (try session.receive()).?; // Opening the view consumed a sequence.
-            const pending = try session.prepareCommit(delivery, .{ .views = .{ captured.view.?, null, null, null }, .write_view = view, .mutations = mutations });
+            const pending = try session.prepareCommit(delivery, .{ .views = .{ captured.view.?, null, null, null }, .write_view = view, .mutations = mutations, .retain = .{ if (turn == 15) view else null, null, null, null } });
             const signed = pending.signed;
             if (turn == 15) {
                 // The harness corrupts this accepted reply. Freeze exact retry
                 // bytes across caller, node and provider loss; no fresh sequence.
                 try t.expectError(error.InvalidAuthorityResponse, pending.submit(&client));
-                const expected: Expected = .{ .pid = pid, .resource = resource, .receipt = view + 1, .pending = signed };
+                const expected: Expected = .{ .pid = pid, .resource = resource, .receipt = view + 1, .pending = signed, .version = .{ .id = .{ .pid = pid, .input = input, .index = 0 }, .resource = resource, .revision = captured.resource.revision, .created_at = view + 1 } };
                 const bytes = try std.json.Stringify.valueAlloc(init.gpa, expected, .{});
                 defer init.gpa.free(bytes);
                 try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = args[3], .data = bytes });
                 try verify(&worker, expected);
+                try verifyVersion(&session, expected.version);
             } else {
                 _ = try pending.submit(&client);
             }
@@ -248,6 +249,17 @@ pub fn main(init: std.process.Init) !void {
             try t.expectEqual(before, (try root.query(.{ .capabilities = {} })).position);
             try verify(&worker, expected);
             root.sequence = (try root.query(.{ .capabilities = {} })).principal_sequence;
+            var session: wire.GrowingSession = .{ .client = &client, .realm = 42, .principal = 65536, .pid = expected.pid, .generation = 2, .key = worker.key };
+            try verifyVersion(&session, expected.version);
+            _ = try root.submit(.{ .own = .{ .pid = expected.pid, .expected_generation = 2, .worker = 65536 } });
+            try t.expectError(error.Rejected, session.readVersion(expected.version, key(0), null));
+            session.generation = 3;
+            try verifyVersion(&session, expected.version);
+            _ = try root.submit(.{ .send = .{ .pid = expected.pid, .value = .{} } });
+            const releasing = try session.prepareCommit((try session.receive()).?, .{ .read_versions = .{ expected.version.id, null, null, null }, .release = .{ expected.version.id, null, null, null } });
+            const released = try releasing.submit(&client);
+            try t.expectEqual(@as(?u64, released.position), (try session.version(expected.version.id)).released_at);
+            try t.expectError(error.Rejected, session.readVersion(expected.version, key(0), null));
             _ = try root.submit(.{ .revoke = 65536 });
             try t.expectError(error.AccessDenied, client.submitGrowing(expected.pending));
             try t.expectError(error.AccessDenied, worker.query(.{ .entries = .{ .resource = expected.resource, .revision = expected.receipt } }));
@@ -256,4 +268,22 @@ pub fn main(init: std.process.Init) !void {
     }
     try output.interface.print("Growing client {s}: passed\n", .{args[2]});
     try output.interface.flush();
+}
+
+fn verifyVersion(session: *wire.GrowingSession, basis: g.ReadVersion) !void {
+    try t.expect(std.meta.eql(basis, try session.version(basis.id)));
+    var after: ?p.Value = null;
+    var count: usize = 0;
+    while (true) {
+        const page = try session.readVersion(basis, null, after);
+        try t.expectEqual(@as(u64, 60), page.resource.entries);
+        for (page.page.entries) |slot| if (slot) |entry| {
+            try t.expect(entry.key.eql(key(count)));
+            try t.expect(entry.value.eql(value(count)));
+            count += 1;
+        };
+        after = page.page.next;
+        if (after == null) break;
+    }
+    try t.expectEqual(@as(usize, 60), count); // Final turn's four rows are excluded.
 }

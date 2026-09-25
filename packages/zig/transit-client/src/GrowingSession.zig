@@ -32,6 +32,9 @@ pub const Decision = struct {
     outputs: [g.turn_outputs]?g.Output = @splat(null),
     effect: ?p.Value = null,
     failed: bool = false,
+    read_versions: [g.version_changes]?g.ReadVersionId = @splat(null),
+    retain: [g.version_changes]?u64 = @splat(null),
+    release: [g.version_changes]?g.ReadVersionId = @splat(null),
 };
 pub const Pending = struct {
     signed: g.SignedRequest,
@@ -83,6 +86,19 @@ pub fn readView(self: *Self, view: u64, key: ?p.Value, after: ?p.Value) !@FieldT
 pub fn prepareCloseView(self: *const Self, delivery: Delivery, view: u64) !Pending {
     return self.prepare(delivery, .{ .close_view = .{ .pid = self.pid, .view = view } });
 }
+/// Fetch metadata separately from executable reads. This may report a released
+/// version and never implies that source data is still accessible.
+pub fn version(self: *Self, id: g.ReadVersionId) !g.ReadVersion {
+    if (id.pid != self.pid) return error.WrongActivation;
+    return (try self.client.queryGrowing(.{ .realm = self.realm, .principal = self.principal, .kind = .{ .read_version = id } }, self.key)).body.read_version;
+}
+pub fn readVersion(self: *Self, basis: g.ReadVersion, key: ?p.Value, after: ?p.Value) !@FieldType(@FieldType(g.Response, "body"), "version_entries") {
+    if (basis.id.pid != self.pid) return error.WrongActivation;
+    if (basis.released_at != null) return error.ReadVersionReleased;
+    const response = try self.client.queryGrowing(.{ .realm = self.realm, .principal = self.principal, .kind = .{ .version_entries = .{ .id = basis.id, .generation = self.generation, .key = key, .after = after } } }, self.key);
+    if (!std.meta.eql(basis, response.body.version_entries.version)) return error.InvalidAuthorityResponse;
+    return response.body.version_entries;
+}
 pub fn prepareCommit(self: *const Self, delivery: Delivery, decision: Decision) !Pending {
     if (delivery.needs_permit) return error.MissingTurnPermit;
     var turn: g.Turn = .{ .pid = self.pid, .generation = self.generation, .input = delivery.input.position, .expected_revision = delivery.revision, .permit = delivery.permit, .write_view = decision.write_view, .mutations = decision.mutations, .outputs = decision.outputs, .effect = decision.effect, .failed = decision.failed };
@@ -91,7 +107,10 @@ pub fn prepareCommit(self: *const Self, delivery: Delivery, decision: Decision) 
             view.input != delivery.input.position or view.process_revision != delivery.revision or view.closed_at != null) return error.InvalidStateView;
         turn.views[i] = view.id;
     };
-    return self.prepare(delivery, .{ .turn = turn });
+    const extended = for (decision.read_versions, decision.retain, decision.release) |read, retain, release| {
+        if (read != null or retain != null or release != null) break true;
+    } else false;
+    return self.prepare(delivery, if (extended) .{ .turn_with_versions = .{ .turn = turn, .reads = decision.read_versions, .retain = decision.retain, .release = decision.release } } else .{ .turn = turn });
 }
 
 test "growing session preserves wide identities and freezes bounded proposals without I/O" {

@@ -176,9 +176,12 @@ const Fixture = struct {
         try self.initLimits(16, 64);
     }
     fn initLimits(self: *Fixture, required: u16, vertices: u16) !void {
+        try self.initProfile(required, vertices, false);
+    }
+    fn initProfile(self: *Fixture, required: u16, vertices: u16, trim: bool) !void {
         self.root_key = try core.Ed25519.KeyPair.generateDeterministic(@splat(7));
         self.worker_key = try core.Ed25519.KeyPair.generateDeterministic(@splat(8));
-        self.genesis = .{ .realm = 42, .root_key = self.root_key.public_key.toBytes(), .max_clock_error_ms = 5, .required_dependencies = required, .dependency_vertices = vertices };
+        self.genesis = .{ .realm = 42, .root_key = self.root_key.public_key.toBytes(), .max_clock_error_ms = 5, .required_dependencies = required, .dependency_vertices = vertices, .allow_history_trim = trim };
         self.engine = try Engine.bootstrap(&self.journal, &self.pages, self.genesis);
     }
     fn deinit(self: *Fixture) void {
@@ -847,4 +850,209 @@ test "growing root compaction requires explicit retention opt-in and keeps retry
     try t.expectEqual(@as(u64, 3), try journal.tail());
     journal.entries.items[2].operation.next.history_floor = 3;
     try t.expectError(error.InvalidHistory, Engine.open(&journal, &pages, genesis));
+}
+
+const VersionFixture = struct {
+    f: Fixture = .{},
+    now: u64 = 100,
+    pid: u64 = undefined,
+    resource: u64 = undefined,
+    fn clock(context: *anyopaque) anyerror!core.Time.Sample {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        return .{ .unix_ms = self.now };
+    }
+    fn init(self: *@This(), finite: bool) !void {
+        try self.f.initProfile(16, 64, true);
+        self.f.engine.clock = .{ .context = self, .read = clock };
+        self.pid = try self.f.root(.{ .spawn = .{} });
+        self.resource = try self.f.root(.{ .create_resource = .{ .writer = self.pid, .owned = false, .deadline_ms = if (finite) 500 else null } });
+        _ = try self.f.root(.{ .grant_resource = .{ .resource = self.resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+        _ = try self.f.root(.{ .associate = .{ .pid = self.pid, .name = try core.Value.init("data"), .resource = self.resource, .required = false } });
+        _ = try self.f.root(.{ .own = .{ .pid = self.pid, .expected_generation = 1, .worker = 0 } });
+    }
+    fn proposal(self: *@This(), value: i64) !g.TurnWithVersions {
+        const input = try self.f.root(.{ .send = .{ .pid = self.pid, .value = .{} } });
+        const process = try self.f.engine.process(self.pid);
+        const resource = try @import("growing_state.zig").resource(&self.f.engine, self.resource);
+        const view = try self.f.root(.{ .open_view = .{ .pid = self.pid, .generation = process.generation, .input = input, .expected_revision = process.revision, .resource = self.resource, .revision = resource.revision, .deadline_ms = self.now + 50 } });
+        return .{ .turn = .{ .pid = self.pid, .generation = process.generation, .input = input, .expected_revision = process.revision, .views = .{ view, null, null, null }, .write_view = view, .mutations = .{ .{ .key = try core.Value.init("row"), .value = core.Value.integer(value) }, null, null, null } }, .retain = .{ view, null, null, null } };
+    }
+    fn id(command: g.TurnWithVersions) g.ReadVersionId {
+        return .{ .pid = command.turn.pid, .input = command.turn.input, .index = 0 };
+    }
+    fn query(self: *@This(), name: g.ReadVersionId, principal: u64, generation: u64) !g.Response {
+        return self.f.query(principal, .{ .version_entries = .{ .id = name, .generation = generation, .key = try core.Value.init("row") } });
+    }
+};
+
+test "growing retained versions atomically publish old roots and survive replacement and checkpoint recovery" {
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    const state = @import("growing_state.zig");
+    var first: g.ReadVersionId = undefined;
+    var last: g.ReadVersionId = undefined;
+    for (0..10) |i| {
+        const command = try fixture.proposal(@intCast(i));
+        const id = VersionFixture.id(command);
+        if (i == 0) first = id;
+        last = id;
+        const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .turn_with_versions = command } }, f.root_key);
+        const before = f.engine.head;
+        const prepared = try f.engine.prepare(signed);
+        try t.expect(std.meta.eql(before, f.engine.head));
+        try t.expectError(error.UnknownReadVersion, fixture.query(id, 0, 2));
+        if (i == 0) {
+            var invalid = command;
+            invalid.release[0] = .{ .pid = fixture.pid, .input = 1, .index = 0 };
+            try t.expectError(error.UnknownReadVersion, f.root(.{ .turn_with_versions = invalid }));
+            try t.expect(std.meta.eql(before, f.engine.head));
+            try t.expectEqual(@as(?u64, null), (try state.view(&f.engine, command.retain[0].?)).meta.closed_at);
+            f.pages.fail_at = f.pages.writes;
+            try t.expectError(error.StagingFailed, f.engine.prepare(signed));
+            f.pages.fail_at = null;
+            try t.expect(std.meta.eql(before, f.engine.head));
+        }
+        if (i == 9) {
+            f.journal.fail = .after;
+            try t.expectError(error.LostAcknowledgement, f.engine.commit(prepared));
+            f.journal.fail = .none;
+            f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+            f.engine.clock = .{ .context = &fixture, .read = VersionFixture.clock };
+            try t.expectEqual(before.position, try f.engine.submit(signed));
+        } else _ = try f.engine.commit(prepared);
+        f.root_sequence += 1;
+        const result = (try fixture.query(id, 0, 2)).body.version_entries;
+        try t.expectEqual(before.position, result.version.created_at);
+        if (i == 0) try t.expectEqual(@as(?g.Entry, null), result.page.entries[0]) else try t.expectEqual(@as(i64, @intCast(i - 1)), try result.page.entries[0].?.value.asInteger());
+        try t.expectError(error.StateViewExpired, f.query(0, .{ .entries = .{ .view = command.retain[0] } }));
+    }
+    fixture.now = 300; // Source view deadlines have elapsed; version is independent.
+    _ = try fixture.query(first, 0, 2);
+    const checkpoint = try f.root(.{ .checkpoint = {} });
+    // Trim the test journal prefix without touching its absolute coordinates.
+    // Root-only recovery must not consult the removed operations.
+    const old_entry = f.journal.entries.items[0];
+    for (f.journal.entries.items[0..checkpoint]) |*entry| entry.* = old_entry;
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    f.engine.clock = .{ .context = &fixture, .read = VersionFixture.clock };
+    try t.expectEqual(@as(i64, 8), try (try fixture.query(last, 0, 2)).body.version_entries.page.entries[0].?.value.asInteger());
+    const first_page = try f.query(0, .{ .read_versions = .{ .pid = fixture.pid } });
+    try t.expect(first_page.body.read_versions.next != null);
+    const second = try f.query(0, .{ .read_versions = .{ .pid = fixture.pid, .after = first_page.body.read_versions.next, .position = first_page.position } });
+    try t.expect(second.body.read_versions.entries[1] != null);
+    try t.expectEqual(@as(?g.ReadVersionId, null), second.body.read_versions.next);
+
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.all_permissions, .pid = fixture.pid } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
+    _ = try f.root(.{ .own = .{ .pid = fixture.pid, .expected_generation = 2, .worker = 65536 } });
+    try t.expectError(error.StaleGeneration, fixture.query(last, 0, 2));
+    try t.expectError(error.StaleGeneration, fixture.query(last, 65536, 2));
+    _ = try fixture.query(last, 65536, 3);
+    try t.expectError(error.QueryExpired, f.query(0, .{ .read_versions = .{ .pid = fixture.pid, .after = first_page.body.read_versions.next, .position = first_page.position } }));
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = 0 } });
+    try t.expectError(error.Forbidden, fixture.query(last, 65536, 3));
+    const hidden = (try f.query(65536, .{ .read_versions = .{ .pid = fixture.pid } })).body.read_versions;
+    try t.expectEqual(@as(?g.ReadVersion, null), hidden.entries[0]);
+    try t.expect(hidden.next != null); // Filtered discovery still advances.
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
+    f.journal.race_at = f.journal.tail_calls + 2;
+    try t.expectError(error.Conflict, fixture.query(last, 65536, 3));
+    f.journal.race_at = null;
+    const retained = try state.readVersion(&f.engine, last);
+    const missing = f.pages.pages.fetchRemove(retained.snapshot.root.?).?;
+    _ = try f.query(65536, .{ .read_version = last });
+    try t.expectError(error.PageUnavailable, fixture.query(last, 65536, 3));
+    try f.pages.pages.put(t.allocator, missing.key, missing.value);
+    _ = try fixture.query(last, 65536, 3);
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect), .pid = fixture.pid } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
+    _ = try f.query(65536, .{ .read_version = last });
+    try t.expectError(error.Forbidden, fixture.query(last, 65536, 3));
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.all_permissions, .pid = fixture.pid } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
+    _ = try f.root(.{ .terminate = fixture.pid });
+    try t.expectError(error.StaleGeneration, fixture.query(last, 65536, 3));
+    // Metadata can explain retained evidence without promising executable reads.
+    _ = try f.query(65536, .{ .read_version = last });
+}
+
+test "growing retained version release is terminal and cannot extend source lifetime" {
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(true);
+    const f = &fixture.f;
+    const one = try fixture.proposal(1);
+    _ = try f.root(.{ .turn_with_versions = one });
+    const first = VersionFixture.id(one);
+    var two = try fixture.proposal(2);
+    two.release[0] = first;
+    const published = try f.root(.{ .turn_with_versions = two });
+    try t.expectEqual(@as(?u64, published), (try f.query(0, .{ .read_version = first })).body.read_version.released_at);
+    try t.expectError(error.ReadVersionReleased, fixture.query(first, 0, 2));
+    const second = VersionFixture.id(two);
+    _ = try fixture.query(second, 0, 2);
+    var three = try fixture.proposal(3);
+    three.release[0] = first;
+    const before = f.engine.head;
+    try t.expectError(error.ReadVersionReleased, f.root(.{ .turn_with_versions = three }));
+    try t.expect(std.meta.eql(before, f.engine.head));
+    try t.expectError(error.UnknownReadVersion, fixture.query(VersionFixture.id(three), 0, 2));
+    fixture.now = 500;
+    try t.expectError(error.StateResourceExpired, fixture.query(second, 0, 2));
+    _ = try f.root(.{ .expire_resource = fixture.resource });
+    try t.expectError(error.StateResourceExpired, fixture.query(second, 0, 2));
+    _ = try f.query(0, .{ .read_version = second });
+}
+
+test "growing retained read dependencies fence later proposals and historical receipt access" {
+    const state = @import("growing_state.zig");
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(true);
+    const f = &fixture.f;
+    const start = try fixture.proposal(1);
+    _ = try f.root(.{ .turn_with_versions = start });
+    const id = VersionFixture.id(start);
+    const input = try f.root(.{ .send = .{ .pid = fixture.pid, .value = .{} } });
+    var command: g.TurnWithVersions = .{ .turn = .{ .pid = fixture.pid, .generation = 2, .input = input, .expected_revision = (try f.engine.process(fixture.pid)).revision }, .reads = .{ id, null, null, null } };
+    const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .turn_with_versions = command } }, f.root_key);
+    const prepared = try f.engine.prepare(signed);
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 0, .permissions = 0 } });
+    try t.expectError(error.Conflict, f.engine.commit(prepared));
+    const before = f.engine.head;
+    try t.expectError(error.Forbidden, f.root(.{ .turn_with_versions = command }));
+    try t.expect(std.meta.eql(before, f.engine.head));
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+    fixture.now = 500;
+    try t.expectError(error.StateResourceExpired, f.root(.{ .turn_with_versions = command }));
+    // Expired optional sources can still be released by their live owner. This
+    // does not assert a read or require source privileges to dispose of a pin.
+    command.reads = @splat(null);
+    command.release[0] = id;
+    _ = try f.root(.{ .turn_with_versions = command });
+    try t.expect((try state.readVersion(&f.engine, id)).meta.released_at != null);
+
+    // Another retained version demonstrates current receipt authorization after
+    // declared reads have committed, separately from the expiry case above.
+    var other: VersionFixture = .{};
+    defer other.f.deinit();
+    try other.init(false);
+    const proposal = try other.proposal(1);
+    _ = try other.f.root(.{ .turn_with_versions = proposal });
+    const other_id = VersionFixture.id(proposal);
+    const next_input = try other.f.root(.{ .send = .{ .pid = other.pid, .value = .{} } });
+    const read_commit = try g.sign(.{ .realm = 42, .principal = 0, .sequence = other.f.root_sequence, .command = .{ .turn_with_versions = .{
+        .turn = .{ .pid = other.pid, .generation = 2, .input = next_input, .expected_revision = (try other.f.engine.process(other.pid)).revision },
+        .reads = .{ other_id, null, null, null },
+        .release = .{ other_id, null, null, null },
+    } } }, other.f.root_key);
+    const receipt = try other.f.engine.submit(read_commit);
+    other.f.root_sequence += 1;
+    try t.expectEqual(receipt, try other.f.engine.submit(read_commit));
+    _ = try other.f.root(.{ .grant_resource = .{ .resource = other.resource, .subject = 0, .permissions = 0 } });
+    try t.expectError(error.Forbidden, other.f.engine.submit(read_commit));
+    _ = try other.f.root(.{ .grant_resource = .{ .resource = other.resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+    try t.expectEqual(receipt, try other.f.engine.submit(read_commit));
 }

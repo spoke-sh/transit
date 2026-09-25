@@ -71,6 +71,31 @@ There is no whole-resource snapshot or state array in `Delivery`. The authority
 still revalidates all of these fields; local preparation grants no rights.
 The proof caller exercises these helpers through its actual HTTP/recovery path.
 
+## Retained read versions
+
+When `retained_read_versions` is advertised, a `Decision` can retain up to four
+of its view IDs and release up to four owned version IDs. `prepareCommit` selects
+the additive `turn_with_versions` command only when those arrays contain work;
+ordinary turn bytes stay unchanged. The retained ID is `{pid, input, index}`,
+where `input` is the delivery position and `index` is its retention slot. Store
+it in the same proposal's application manifest to resume after loss. A version
+captures committed source state before the turn's private writes.
+
+`version(id)` fetches inspection metadata. `readVersion(basis, key, after)`
+fetches a point or at most eight entries using the session's current generation
+and verifies the exact retained metadata. A replacement activation can reuse the
+ID; the previous generation cannot. Source updates do not move the snapshot.
+Current grants, association and lifetimes still govern every read. Released
+metadata remains inspectable but cannot serve values. The helper neither buffers
+an entire result nor implements query continuation policy; see the
+[retained-version contract](../../../../contracts/READ_VERSIONS_V1.md).
+
+Include every used basis in the final `Decision.read_versions` array (at most
+four). The authority rechecks those dependencies at commitment, so a release,
+grant change or source expiry after a successful read cannot authorize stale
+work. Reading a version does not submit or automatically mutate a future decision.
+A final turn may declare and release the same version atomically.
+
 ## Response and transport guarantees
 
 The shared transport preserves its monotonic deadline, guaranteed concurrency,

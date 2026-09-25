@@ -12,6 +12,23 @@ pub const turn_mutations = 4;
 pub const turn_outputs = 4;
 pub const key_bytes = 32;
 pub const view_lifetime_ms = 60_000;
+pub const version_changes = 4;
+
+/// Durable identity known before the containing input commits. Not a capability.
+pub const ReadVersionId = struct { pid: Id, input: Id, index: u8 };
+pub const ReadVersion = struct {
+    id: ReadVersionId,
+    resource: Id,
+    revision: u64,
+    created_at: Id,
+    released_at: ?Id = null,
+};
+pub const TurnWithVersions = struct {
+    turn: Turn,
+    reads: [version_changes]?ReadVersionId = @splat(null),
+    retain: [version_changes]?Id = @splat(null),
+    release: [version_changes]?ReadVersionId = @splat(null),
+};
 
 pub const Grant = struct { subject: Id, public_key: [32]u8, permissions: u16, pid: ?Id = null };
 pub const Create = struct { code: u32 = 1, work_before_ms: ?u64 = null, settle_before_ms: ?u64 = null };
@@ -54,6 +71,8 @@ pub const Command = union(enum) {
     close_effect: struct { pid: Id, effect: Id, attempt: Id, reason: enum { abandoned, deadline } = .abandoned },
     cancel_effect: struct { pid: Id, effect: Id },
     checkpoint: void,
+    // Additive variants preserve existing canonical request bytes and receipts.
+    turn_with_versions: TurnWithVersions,
 };
 pub const Request = struct { version: u32 = version, realm: Id, principal: Id, sequence: u64, command: Command };
 pub const SignedRequest = struct { request: Request, signature: [64]u8 };
@@ -143,6 +162,9 @@ pub const Query = struct {
         entries: struct { view: ?Id = null, resource: ?Id = null, revision: ?u64 = null, key: ?p.Value = null, after: ?p.Value = null },
         outputs: struct { after: ?Id = null, position: ?Id = null },
         effects: struct { pid: Id, after: ?Id = null, position: ?Id = null },
+        read_version: ReadVersionId,
+        version_entries: struct { id: ReadVersionId, generation: u64, key: ?p.Value = null, after: ?p.Value = null },
+        read_versions: struct { pid: Id, after: ?ReadVersionId = null, position: ?Id = null },
     },
 };
 pub const SignedQuery = struct { query: Query, signature: [64]u8 };
@@ -162,6 +184,8 @@ pub const Capabilities = struct {
     dependency_changes: enum { quiescent_owner_and_borrowers } = .quiescent_owner_and_borrowers,
     association_lookup: bool = false,
     scoped_retry: bool = false,
+    retained_read_versions: bool = false,
+    version_change_budget: u16 = version_changes,
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
     runtime_bindings: bool = false,
     history_reclamation: bool = false,
@@ -185,6 +209,9 @@ pub const Response = struct {
         entries: struct { view: ?View, resource: Resource, page: Batch(Entry, p.Value) },
         outputs: Batch(Outbox, Id),
         effects: Batch(Effect, Id),
+        read_version: ReadVersion,
+        version_entries: struct { version: ReadVersion, generation: u64, resource: Resource, page: Batch(Entry, p.Value) },
+        read_versions: Batch(ReadVersion, ReadVersionId),
     },
 };
 
@@ -212,14 +239,44 @@ pub fn validate(request: Request) !void {
     if (request.sequence == 0) return error.InvalidSequence;
     switch (request.command) {
         .associate => |c| try validateKey(c.name),
-        .turn => |c| {
-            for (c.mutations, 0..) |slot, i| if (slot) |mutation| {
-                try validateKey(mutation.key);
-                for (c.mutations[0..i]) |previous| if (previous) |other| if (other.key.eql(mutation.key)) return error.DuplicateStateKey;
+        .turn => |c| try validateTurn(c),
+        .turn_with_versions => |c| {
+            try validateTurn(c.turn);
+            for (c.reads, 0..) |slot, i| if (slot) |id| {
+                if (c.turn.failed) return error.InvalidFailure;
+                try validateVersionId(id);
+                if (id.pid != c.turn.pid) return error.InvalidReadVersion;
+                for (c.reads[0..i]) |previous| if (previous) |other| if (std.meta.eql(id, other)) return error.InvalidReadVersion;
+            };
+            for (c.retain, 0..) |slot, i| if (slot) |id| {
+                if (c.turn.failed) return error.InvalidFailure;
+                if (std.mem.indexOfScalar(?Id, &c.turn.views, id) == null) return error.InvalidReadVersion;
+                for (c.retain[0..i]) |previous| if (previous == id) return error.InvalidReadVersion;
+            };
+            for (c.release, 0..) |slot, i| if (slot) |id| {
+                if (c.turn.failed) return error.InvalidFailure;
+                try validateVersionId(id);
+                if (id.pid != c.turn.pid) return error.InvalidReadVersion;
+                for (c.release[0..i]) |previous| if (previous) |other| if (std.meta.eql(id, other)) return error.InvalidReadVersion;
             };
         },
         else => {},
     }
+}
+fn validateTurn(turn: Turn) !void {
+    for (turn.mutations, 0..) |slot, i| if (slot) |mutation| {
+        try validateKey(mutation.key);
+        for (turn.mutations[0..i]) |previous| if (previous) |other| if (other.key.eql(mutation.key)) return error.DuplicateStateKey;
+    };
+}
+pub fn validateVersionId(id: ReadVersionId) !void {
+    try counters(id);
+    if (id.pid == 0 or id.input == 0 or id.index >= version_changes) return error.InvalidReadVersion;
+}
+pub fn versionOrder(a: ReadVersionId, b: ReadVersionId) std.math.Order {
+    if (a.pid != b.pid) return std.math.order(a.pid, b.pid);
+    if (a.input != b.input) return std.math.order(a.input, b.input);
+    return std.math.order(a.index, b.index);
 }
 pub fn validateQuery(query: Query) !void {
     if (query.version != version or query.realm == 0) return error.WrongProtocolRealm;
@@ -231,6 +288,17 @@ pub fn validateQuery(query: Query) !void {
             if (c.key != null and c.after != null) return error.InvalidRead;
             if (c.key) |key| try validateKey(key);
             if (c.after) |key| try validateKey(key);
+        },
+        .read_version => |id| try validateVersionId(id),
+        .version_entries => |c| {
+            try validateVersionId(c.id);
+            if (c.key != null and c.after != null) return error.InvalidRead;
+            if (c.key) |key| try validateKey(key);
+            if (c.after) |key| try validateKey(key);
+        },
+        .read_versions => |c| if (c.after) |id| {
+            try validateVersionId(id);
+            if (id.pid != c.pid or c.position == null) return error.InvalidRead;
         },
         inline .processes, .resources, .associations, .outputs, .effects => |c| if (c.after != null and c.position == null) return error.InvalidRead,
         else => {},
@@ -250,6 +318,7 @@ pub fn validateResponse(response: Response, query: Query) !void {
             if (caps.version != version or caps.identity_maximum != p.max_counter or
                 caps.page_entries != page_size or caps.mutation_budget != turn_mutations or
                 caps.view_budget != turn_views or caps.output_budget != turn_outputs or
+                caps.version_change_budget != version_changes or
                 caps.required_resources_per_process == 0 or caps.dependency_validation_vertices == 0) return error.InvalidRead;
         },
         .process => |pid| {
@@ -263,6 +332,39 @@ pub fn validateResponse(response: Response, query: Query) !void {
         },
         .resource => |id| if (response.body.resource.id != id) return error.InvalidRead,
         .view => |id| if (response.body.view.id != id) return error.InvalidRead,
+        .read_version => |id| {
+            try validateVersion(response.body.read_version, response.position);
+            if (!std.meta.eql(id, response.body.read_version.id)) return error.InvalidRead;
+        },
+        .version_entries => |q| {
+            const value = response.body.version_entries;
+            try validateVersion(value.version, response.position);
+            if (!std.meta.eql(q.id, value.version.id) or value.generation != q.generation or value.version.released_at != null or
+                value.version.resource != value.resource.id or value.version.revision != value.resource.revision) return error.InvalidRead;
+            try validateEntries(value.page, q.key, q.after, value.resource.revision);
+        },
+        .read_versions => |q| {
+            if (q.position) |cut| if (cut != response.position) return error.InvalidRead;
+            const batch = response.body.read_versions;
+            var previous = q.after;
+            var ended = false;
+            for (batch.entries) |slot| {
+                const item = slot orelse {
+                    ended = true;
+                    continue;
+                };
+                try validateVersion(item, response.position);
+                if (ended or item.id.pid != q.pid) return error.InvalidRead;
+                if (previous) |id| if (versionOrder(id, item.id) != .lt) return error.InvalidRead;
+                previous = item.id;
+            }
+            if (batch.next) |next| {
+                try validateVersionId(next);
+                if (next.pid != q.pid or next.input >= response.position) return error.InvalidRead;
+                if (q.after) |id| if (versionOrder(id, next) != .lt) return error.InvalidRead;
+                if (previous) |id| if (versionOrder(id, next) == .gt) return error.InvalidRead;
+            }
+        },
         .association => |q| if (response.body.association) |value| {
             if (value.pid != q.pid or !value.name.eql(q.name) or value.resource == 0 or
                 value.resource >= response.position or value.revision == 0 or value.revision >= response.position) return error.InvalidRead;
@@ -274,27 +376,7 @@ pub fn validateResponse(response: Response, query: Query) !void {
                 if (view.id != id or view.principal != query.principal or view.resource != value.resource.id or
                     view.revision != value.resource.revision) return error.InvalidRead;
             } else if (value.view != null or value.resource.id != q.resource.? or value.resource.revision != q.revision.?) return error.InvalidRead;
-            var previous = q.after;
-            var ended = false;
-            var count: usize = 0;
-            for (value.page.entries) |slot| {
-                const entry = slot orelse {
-                    ended = true;
-                    continue;
-                };
-                if (ended) return error.InvalidRead;
-                try validateKey(entry.key);
-                if (previous) |key| if (std.mem.order(u8, key.slice(), entry.key.slice()) != .lt) return error.InvalidRead;
-                if (q.key) |key| if (!key.eql(entry.key)) return error.InvalidRead;
-                if (entry.revision > value.resource.revision) return error.InvalidRead;
-                previous = entry.key;
-                count += 1;
-            }
-            if (q.key != null and (count > 1 or value.page.next != null)) return error.InvalidRead;
-            if (value.page.next) |next| {
-                try validateKey(next);
-                if (count == 0 or !next.eql(previous.?)) return error.InvalidRead;
-            }
+            try validateEntries(value.page, q.key, q.after, value.resource.revision);
         },
         inline .processes, .resources, .associations, .outputs, .effects => |q, tag| {
             if (q.position) |cut| if (cut != response.position) return error.InvalidRead;
@@ -322,8 +404,39 @@ pub fn validateResponse(response: Response, query: Query) !void {
     }
 }
 
+fn validateVersion(value: ReadVersion, position: Id) !void {
+    try validateVersionId(value.id);
+    if (value.resource == 0 or value.revision < value.resource or value.revision >= value.created_at or
+        value.created_at <= value.id.input or value.created_at >= position) return error.InvalidRead;
+    if (value.released_at) |released| if (released <= value.created_at or released >= position) return error.InvalidRead;
+}
+fn validateEntries(page: Batch(Entry, p.Value), point: ?p.Value, after: ?p.Value, revision: u64) !void {
+    var previous = after;
+    var ended = false;
+    var count: usize = 0;
+    for (page.entries) |slot| {
+        const entry = slot orelse {
+            ended = true;
+            continue;
+        };
+        if (ended) return error.InvalidRead;
+        try validateKey(entry.key);
+        if (previous) |key| if (std.mem.order(u8, key.slice(), entry.key.slice()) != .lt) return error.InvalidRead;
+        if (point) |key| if (!key.eql(entry.key)) return error.InvalidRead;
+        if (entry.revision > revision) return error.InvalidRead;
+        previous = entry.key;
+        count += 1;
+    }
+    if (point != null and (count > 1 or page.next != null)) return error.InvalidRead;
+    if (page.next) |next| {
+        try validateKey(next);
+        if (count == 0 or !next.eql(previous.?)) return error.InvalidRead;
+    }
+}
+
 pub fn commandPid(command: Command) ?Id {
     return switch (command) {
+        .turn_with_versions => |c| c.turn.pid,
         .terminate, .expire => |id| id,
         inline else => |value| switch (@typeInfo(@TypeOf(value))) {
             .@"struct" => if (@hasField(@TypeOf(value), "pid")) value.pid else null,
@@ -428,4 +541,58 @@ test "growing responses reject mixed bases, incomplete pages and nonadvancing cu
     try t.expectError(error.InvalidRead, validateResponse(response, .{ .realm = 1, .principal = 0, .kind = .{ .resources = .{ .after = 10, .position = 20 } } }));
     response.body = .{ .outputs = .{ .entries = .{ .{ .id = 50, .source = 1, .turn = 10, .index = 0, .destination = 2, .value = .{} }, null, null, null, null, null, null, null }, .next = 50 } };
     try validateResponse(response, .{ .realm = 1, .principal = 0, .kind = .{ .outputs = .{} } }); // Output IDs have their own sequence.
+}
+
+test "retained version additions preserve existing signed v3 request and query bytes" {
+    // Independently computed SHA-256 over the pre-extension canonical JSON.
+    // Altering Turn or the old entries-query defaults breaks retained receipts.
+    const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
+    const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
+    try std.testing.expectEqualStrings("6ea65a3e52dc29964052686f94c28480efa2df119713e535042ba7ed3a83e9be", &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings("29c203b6487dd4767146489216dead051303e403b0f30af5c974b7a2342df754", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+}
+
+test "retained version proposals and responses reject foreign duplicate and forged bases" {
+    const t = std.testing;
+    var request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn_with_versions = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0, .views = .{ 5, null, null, null } }, .retain = .{ 5, null, null, null } } } };
+    try validate(request);
+    request.command.turn_with_versions.turn.failed = true;
+    try t.expectError(error.InvalidFailure, validate(request));
+    request.command.turn_with_versions.turn.failed = false;
+    request.command.turn_with_versions.retain[1] = 5;
+    try t.expectError(error.InvalidReadVersion, validate(request));
+    request.command.turn_with_versions.retain[1] = 6;
+    try t.expectError(error.InvalidReadVersion, validate(request));
+    request.command.turn_with_versions.retain[1] = null;
+    request.command.turn_with_versions.release[0] = .{ .pid = 3, .input = 1, .index = 0 };
+    try t.expectError(error.InvalidReadVersion, validate(request));
+    request.command.turn_with_versions.release[0].?.pid = 2;
+    request.command.turn_with_versions.release[0].?.index = 4;
+    try t.expectError(error.InvalidReadVersion, validate(request));
+    request.command.turn_with_versions.release[0].?.index = 0;
+    request.command.turn_with_versions.release[1] = request.command.turn_with_versions.release[0];
+    try t.expectError(error.InvalidReadVersion, validate(request));
+    const id: ReadVersionId = .{ .pid = 2, .input = 4, .index = 0 };
+    const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .version_entries = .{ .id = id, .generation = 3 } } };
+    var response: Response = .{ .realm = 42, .position = 7, .principal_sequence = 1, .body = .{ .version_entries = .{
+        .version = .{ .id = id, .resource = 3, .revision = 3, .created_at = 6 },
+        .generation = 3,
+        .resource = .{ .id = 3, .writer = 2, .owner = null, .revision = 3, .deadline_ms = null },
+        .page = .{},
+    } } };
+    try validateResponse(response, query);
+    response.body.version_entries.generation = 2;
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response.body.version_entries.generation = 3;
+    response.body.version_entries.version.id.index = 1;
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response.body.version_entries.version.id = id;
+    response.body.version_entries.resource.revision = 5;
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response.body.version_entries.resource.revision = 3;
+    response.body.version_entries.page.next = try p.Value.init("row");
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response.body.version_entries.page.next = null;
+    response.body.version_entries.version.created_at = 7;
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
 }

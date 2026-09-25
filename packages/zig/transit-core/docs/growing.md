@@ -86,6 +86,16 @@ It checks PID scope and current target inspection permission; missing and hidden
 associations both return null. A later grant, revocation or removal is observed
 on the next lookup rather than retained in a session cache.
 
+The additive [retained-version contract](../../../../contracts/READ_VERSIONS_V1.md)
+stores a view's pre-turn catalog root under a PID/input/slot identity in the same
+publication as mutations, progress and outputs. It survives view closure and
+worker replacement, with bounded point/page/discovery reads. Later proposals
+declare retained read dependencies for current grant, association, generation
+and lifetime validation. Release keeps terminal metadata; reads cannot reopen it.
+No whole resource is copied into a resident view. These roots cover a shared
+catalog, however, so retention can keep unrelated physical pages alive; selective
+reachability and quota accounting remain M10 work.
+
 ## Delivery and settlement
 
 Outboxes retain stable identities and payloads. A separate pending-route index

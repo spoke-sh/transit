@@ -57,6 +57,12 @@ activation, dependencies and view lifetime. Current-resource reads recheck grant
 scope and lifetime and reject a changed resource revision. They do not pin old
 state. Direct key lookup and an exclusive key continuation are mutually exclusive.
 
+With `retained_read_versions`, a turn can atomically retain committed source
+views for later inputs and replacement activations. The additive
+[`turn_with_versions` contract](READ_VERSIONS_V1.md) preserves ordinary turn/query
+signature bytes and supplies bounded, currently authorized historical reads.
+Retaining a version does not extend owner/source expiry or grant access.
+
 Pages contain at most eight records. A non-null cursor permits another read; only
 a null cursor establishes completion. Catalog continuations require the first
 response's authority position; any change expires that cut rather than mixing

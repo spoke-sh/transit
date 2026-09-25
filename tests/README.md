@@ -807,6 +807,14 @@ tests additionally race retry with revocation, recover a lost retry receipt,
 reject stale repeated-failure generations, and preserve dependency expiry,
 process deadlines and permanent retirement.
 
+The [retained-version proof](../contracts/READ_VERSIONS_V1.md) adds an atomic
+pre-write 60-row snapshot to the lost-reply turn. It reads current and retained
+state after caller/node/provider restart, fences the old activation and explicitly
+declares/releases the version from a replacement. Core checks cover missing
+snapshot pages, filtered discovery, source expiry, release and grant changes
+between reading and publication. The separate provider proof retains these roots
+across actual checkpoint/trim/recovery; it preserves immutable page storage.
+
 The task also runs two real [growing Station callers](growing_station.zig),
 retaining 41 typed Table rows and completed calls without reclamation. A proxy
 enforces point reads during handlers, corrupts a captured read and loses an

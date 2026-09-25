@@ -531,6 +531,41 @@
       ],
       "limits": "No growing initialization barrier, suspension/resumption, same-PID code upgrade, runtime binding or automatic supervision policy. Injected lost-reply/revocation schedules complement the public service path.",
       "model": null
+    },
+    {
+      "id": "GROWTH-10",
+      "claim": "Retained read versions publish atomically with progress, survive activation replacement and never retain authority",
+      "owner": "contracts/READ_VERSIONS_V1.md",
+      "implementation": [
+        "packages/zig/transit-protocol/src/Growth.zig",
+        "packages/zig/transit-core/src/growing_state.zig",
+        "packages/zig/transit-core/src/growing_read.zig",
+        "packages/zig/transit-core/src/growing_test.zig",
+        "packages/zig/transit-client/src/GrowingSession.zig",
+        "tests/growing_client.zig",
+        "tests/growing.zig"
+      ],
+      "profile": "transit-v3 retained read version development capability",
+      "tasks": [
+        "test::unit",
+        "test::growing-service",
+        "contract::check",
+        "test::growing"
+      ],
+      "scenarios": [
+        "Existing signed command/query digests remain unchanged",
+        "Private staging and invalid release publish no version or progress",
+        "Lost accepted retention reply recovers one receipt",
+        "Read pre-mutation rows after caller/node/provider restart with one resident page",
+        "Replacement activation resumes; old generation, revoked resource rights and expired source reject",
+        "Bounded filtered discovery, stale cuts and final disclosure race",
+        "Missing captured page is unavailable, never an empty result",
+        "Explicit release is terminal and cannot be undone by retry",
+        "Declared retained read dependencies reject stale publication and reauthorize historical receipts",
+        "Live versions survive physical authority-prefix trim and provider restart"
+      ],
+      "limits": "No resumable Station/Fuze result capture, quota accounting or page garbage collection. Catalog roots may retain unrelated physical pages. Disk provider proof checks authority-prefix trim while preserving immutable page storage.",
+      "model": null
     }
   ]
 }

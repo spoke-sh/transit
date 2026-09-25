@@ -60,32 +60,42 @@ fn value(index: usize) core.Value {
     std.mem.writeInt(u64, bytes[0..8], index, .big);
     return core.Value.init(&bytes) catch unreachable;
 }
-fn verifyRows(caller: Caller, expected: Expected, captured: bool) !void {
+fn verifyRows(caller: Caller, expected: Expected, mode: enum { current, view, retained }) !void {
     var after: ?core.Value = null;
     var count: usize = 0;
     while (true) {
-        const response = try caller.query(.{ .entries = .{
-            .view = if (captured) expected.view else null,
-            .resource = if (captured) null else expected.resource,
-            .revision = if (captured) null else expected.revision,
+        const response = try caller.query(if (mode == .retained) .{ .version_entries = .{
+            .id = .{ .pid = expected.pid, .input = expected.last.request.command.turn_with_versions.turn.input, .index = 0 },
+            .generation = 2,
+            .after = after,
+        } } else .{ .entries = .{
+            .view = if (mode == .view) expected.view else null,
+            .resource = if (mode == .view) null else expected.resource,
+            .revision = if (mode == .view) null else expected.revision,
             .after = after,
         } });
-        for (response.body.entries.page.entries) |slot| if (slot) |entry| {
+        const page = if (mode == .retained) response.body.version_entries.page else response.body.entries.page;
+        for (page.entries) |slot| if (slot) |entry| {
             try t.expect(entry.key.eql(key(count)));
             try t.expect(entry.value.eql(value(count)));
             count += 1;
         };
-        after = response.body.entries.page.next;
+        after = page.next;
         if (after == null) break;
     }
-    try t.expectEqual(if (captured) expected.rows / 2 else expected.rows, count);
+    try t.expectEqual(switch (mode) {
+        .current => expected.rows,
+        .view => expected.rows / 2,
+        .retained => expected.rows - 4,
+    }, count);
 }
 fn verify(caller: Caller, expected: Expected) !void {
     const engine = caller.engine;
     const before = try engine.journal.tail();
     const writes = engine.page_store.created;
-    try verifyRows(caller, expected, false);
-    try verifyRows(caller, expected, true);
+    try verifyRows(caller, expected, .current);
+    try verifyRows(caller, expected, .view);
+    try verifyRows(caller, expected, .retained);
     try t.expectEqual(expected.receipt, try engine.submit(expected.last));
     try t.expectEqual(before, try engine.journal.tail());
     try t.expectEqual(writes, engine.page_store.created);
@@ -153,7 +163,9 @@ fn write(caller: Caller, rows: usize) !Expected {
         const view = try caller.submit(.{ .open_view = .{ .pid = pid, .generation = 2, .input = head, .expected_revision = revision, .resource = resource, .revision = expected.revision, .deadline_ms = 1000 } });
         var mutations: [g.turn_mutations]?g.Mutation = @splat(null);
         for (&mutations, 0..) |*slot, index| slot.* = .{ .key = key(turn * 4 + index), .value = value(turn * 4 + index) };
-        const request = try caller.signed(.{ .turn = .{ .pid = pid, .generation = 2, .input = head, .expected_revision = revision, .views = .{ view, null, null, null }, .write_view = view, .mutations = mutations, .outputs = .{ .{ .pid = reader, .value = key(turn) }, null, null, null } } });
+        const proposal: g.Turn = .{ .pid = pid, .generation = 2, .input = head, .expected_revision = revision, .views = .{ view, null, null, null }, .write_view = view, .mutations = mutations, .outputs = .{ .{ .pid = reader, .value = key(turn) }, null, null, null } };
+        const command: g.Command = if (turn + 1 == rows / 4) .{ .turn_with_versions = .{ .turn = proposal, .retain = .{ view, null, null, null } } } else .{ .turn = proposal };
+        const request = try caller.signed(command);
         const candidate = try engine.prepare(request);
         try t.expectEqual(@as(u64, turn), (try engine.process(pid)).consumed);
         const data = (try caller.query(.{ .resource = resource })).body.resource;

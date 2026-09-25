@@ -35,6 +35,7 @@ pub const Entry = union(enum) { genesis: struct { genesis: Genesis, head: Head }
 pub const Principal = struct { grant: g.Grant, revision: u64, epoch: u64, sequence: u64 = 0 };
 pub const Receipt = struct { position: u64, digest: [32]u8 };
 pub const StoredView = struct { meta: g.View, snapshot: catalog.Snapshot };
+pub const StoredReadVersion = struct { meta: g.ReadVersion, snapshot: catalog.Snapshot };
 pub const ResourceGrant = struct { principal_epoch: u64, permissions: u8 };
 pub const Maintenance = @import("growing_maintenance.zig");
 
@@ -161,7 +162,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             const needed: p.Permission = switch (command) {
                 .spawn => .spawn,
                 .send => .send,
-                .begin_turn, .turn, .open_view, .close_view => .execute,
+                .begin_turn, .turn, .turn_with_versions, .open_view, .close_view => .execute,
                 .deliver => .delivery,
                 .dispatch, .observe, .close_effect => .effect,
                 else => .admin,
@@ -169,6 +170,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             if (principal_value.grant.permissions & p.permission(needed) == 0) return error.Forbidden;
             const pid: ?u64 = switch (command) {
                 inline .own, .retry, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .dispatch, .observe, .close_effect, .cancel_effect => |c| c.pid,
+                .turn_with_versions => |command_value| command_value.turn.pid,
                 .deliver => |id| (try work_ops.output(self, id)).destination,
                 .create_resource => |c| c.writer,
                 .terminate, .expire => |id| id,
@@ -333,7 +335,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     try candidate.put(address(.process, pid), process_value);
                     try state_ops.retireIndexes(candidate, pid);
                 },
-                .create_resource, .grant_resource, .associate, .open_view, .close_view, .retire_resource, .expire_resource, .begin_turn, .turn => try state_ops.apply(self, candidate, next, request, sample),
+                .create_resource, .grant_resource, .associate, .open_view, .close_view, .retire_resource, .expire_resource, .begin_turn, .turn, .turn_with_versions => try state_ops.apply(self, candidate, next, request, sample),
                 .deliver, .dispatch, .observe, .close_effect, .cancel_effect => try work_ops.apply(self, candidate, request, sample),
                 .checkpoint => {
                     if (!self.genesis.allow_history_trim) return error.RetentionNotEnabled;

@@ -18,6 +18,34 @@ pub fn view(engine: anytype, id: u64) anyerror!growth.StoredView {
     var current = try engine.state();
     return (try current.get(growth.StoredView, address(.view, id))) orelse error.StateViewExpired;
 }
+pub fn versionKey(id: g.ReadVersionId) !core.pages.Key {
+    try g.validateVersionId(id);
+    return c.key(.read_version, id.pid, id.input, &.{id.index});
+}
+pub fn versionId(key: core.pages.Key) !g.ReadVersionId {
+    if (key.len != 18 or key.data[0] != @backingInt(c.Namespace.read_version)) return error.InvalidHistory;
+    const id: g.ReadVersionId = .{ .pid = std.mem.readInt(u64, key.data[1..9], .big), .input = std.mem.readInt(u64, key.data[9..17], .big), .index = key.data[17] };
+    try g.validateVersionId(id);
+    return id;
+}
+pub fn readVersion(engine: anytype, id: g.ReadVersionId) anyerror!growth.StoredReadVersion {
+    var current = try engine.state();
+    const stored = (try current.get(growth.StoredReadVersion, try versionKey(id))) orelse return error.UnknownReadVersion;
+    if (!std.meta.eql(stored.meta.id, id)) return error.InvalidHistory;
+    return stored;
+}
+pub fn retained(engine: anytype, principal: u64, id: g.ReadVersionId, generation: u64, sample: ?core.Time.Sample) anyerror!growth.StoredReadVersion {
+    const process = try engine.process(id.pid);
+    if (process.owner != principal or process.generation != generation) return error.StaleGeneration;
+    if ((try engine.principal(principal)).grant.permissions & p.permission(.execute) == 0) return error.Forbidden;
+    try engine.executable(process, sample, true);
+    const stored = try readVersion(engine, id);
+    if (stored.meta.released_at != null) return error.ReadVersionReleased;
+    if (!try associated(engine, id.pid, stored.meta.resource)) return error.Forbidden;
+    try allowed(engine, stored.meta.resource, principal, read_rights);
+    try usable(engine, try resource(engine, stored.meta.resource), sample);
+    return stored;
+}
 pub fn allowed(engine: anytype, id: u64, principal: u64, rights: u8) anyerror!void {
     const subject = try engine.principal(principal);
     var current = try engine.state();
@@ -100,13 +128,23 @@ pub fn authorizeReceipt(engine: anytype, request: g.Request) anyerror!void {
     switch (request.command) {
         .associate => |command| if (command.resource) |id| try allowed(engine, id, request.principal, p.State.permission(.inspect)),
         .open_view => |command| try allowed(engine, command.resource, request.principal, read_rights),
-        .turn => |command| for (command.views) |slot| if (slot) |id| {
-            const stored = try view(engine, id);
-            if (stored.meta.principal != request.principal or stored.meta.pid != command.pid) return error.InvalidHistory;
-            try allowed(engine, stored.meta.resource, request.principal, read_rights | if (command.write_view == id) p.State.permission(.write) else @as(u8, 0));
+        .turn => |command| try authorizeTurnReceipt(engine, request.principal, command),
+        .turn_with_versions => |command| {
+            try authorizeTurnReceipt(engine, request.principal, command.turn);
+            for (command.reads) |slot| if (slot) |id| {
+                const stored = try readVersion(engine, id);
+                try allowed(engine, stored.meta.resource, request.principal, read_rights);
+            };
         },
         else => {},
     }
+}
+fn authorizeTurnReceipt(engine: anytype, principal: u64, command: g.Turn) !void {
+    for (command.views) |slot| if (slot) |id| {
+        const stored = try view(engine, id);
+        if (stored.meta.principal != principal or stored.meta.pid != command.pid) return error.InvalidHistory;
+        try allowed(engine, stored.meta.resource, principal, read_rights | if (command.write_view == id) p.State.permission(.write) else @as(u8, 0));
+    };
 }
 
 pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g.Request, sample: ?core.Time.Sample) anyerror!void {
@@ -252,6 +290,29 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
             try candidate.put(address(.process, command.pid), process);
         },
         .turn => |command| try turn(engine, candidate, next, request.principal, command, sample),
+        .turn_with_versions => |command| {
+            // Retained reads are proposal dependencies, not only disclosures:
+            // current source rights/lifetimes/releases fence later publication.
+            for (command.reads) |slot| if (slot) |id| {
+                _ = try retained(engine, request.principal, id, command.turn.generation, sample);
+            };
+            // Ordinary turn validation owns fencing, view eligibility and the
+            // atomic state/progress/output decision. Extra records stay private.
+            try turn(engine, candidate, next, request.principal, command.turn, sample);
+            for (command.retain, 0..) |slot, i| if (slot) |id| {
+                const source = try view(engine, id); // Pre-turn committed root.
+                const name: g.ReadVersionId = .{ .pid = command.turn.pid, .input = command.turn.input, .index = @intCast(i) };
+                const key = try versionKey(name);
+                if (try candidate.get(growth.StoredReadVersion, key) != null) return error.InvalidReadVersion;
+                try candidate.put(key, growth.StoredReadVersion{ .meta = .{ .id = name, .resource = source.meta.resource, .revision = source.meta.revision, .created_at = position }, .snapshot = source.snapshot });
+            };
+            for (command.release) |slot| if (slot) |id| {
+                var stored = try readVersion(engine, id);
+                if (stored.meta.released_at != null) return error.ReadVersionReleased;
+                stored.meta.released_at = position;
+                try candidate.put(try versionKey(id), stored);
+            };
+        },
         else => return error.UnsupportedGrowthCommand,
     }
 }

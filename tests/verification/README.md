@@ -45,6 +45,13 @@ parallel lane timing or cold Nix transfer measurements. This run predates named
 association lookup and the growing Station changes; it cannot qualify those
 later revisions. No overall CI latency/cost gate is closed by this comparison.
 
+The complete clean run at `fd0d2d4` passed all 32 tasks, including growing
+Station behavior and scoped retry. Its sequential task total was 928.17 seconds
+(about 15m 28s); the expanded growing service proof took 169.30 seconds.
+Evidence is in `.cache/ci/clean/fd0d2d46458c-transit-ci-aq5q8fsa/`. This run
+predates Table paging and retained read versions. The additional coverage costs
+time; these measurements do not show an aggregate CI speedup or close its budget gate.
+
 Profiling the standalone Debug core binary at `94ab60a` found 38.73 seconds of
 execution, including 24.20 seconds in the retained-catalog exchange test. That
 test crosses the legacy capacity boundaries and retains its full scenario.

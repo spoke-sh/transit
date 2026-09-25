@@ -302,6 +302,13 @@
       "expression": "4096",
       "classification": "working-set",
       "meaning": "Maximum visited owner PIDs in one dependency validation; genesis selects an explicit smaller operational budget. Not total PID cardinality."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "symbol": "version_changes",
+      "expression": "4",
+      "classification": "operation",
+      "meaning": "Read dependencies, retains and releases per atomic turn; independent of total retained read versions."
     }
   ],
   "identities": [

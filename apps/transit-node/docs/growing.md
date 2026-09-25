@@ -43,7 +43,9 @@ caller; the node validates identity, ordering, state dependencies and publicatio
 Requests use the common bounded, cancelable HTTP loop and diagnostics.
 
 Capabilities advertise the implemented operation budgets, named association
-lookup, scoped failed-input retry and support for root history reclamation.
+lookup, scoped failed-input retry, retained read versions and support for root
+history reclamation. Retained versions use bounded point/page reads under current
+ownership and resource grants; they do not enable an authority-side query engine.
 Runtime bindings and complete Station support remain false. The
 selected history policy is independently `unlimited` or `checkpointed`; supporting
 maintenance does not opt an application into trimming. Clock-based operations
@@ -100,6 +102,11 @@ already authorized cleanup may finish after revocation. Diagnostics use the
 and the real node on one CPU. It writes 64 rows with bounded point/batch access,
 rejects malformed replies, preserves a signed uncertain turn across caller/node/
 provider restart, and checks current revocation on both reads and old receipts.
+The lost-reply turn also retains its 60-row source version while committing four
+more rows. After restart the caller reads both versions, replaces its activation,
+rejects old-generation reads and declares/releases the retained basis in a later
+turn. The separate provider proof verifies retained versions after physical
+authority-prefix trim; pages remain stored.
 Its maintenance scenario separately kills a worker after snapshot publication
 without its reply, times out an accepted trim, revokes/regrants the maintenance
 principal and restarts node/provider/worker. It verifies terminal dispositions,
