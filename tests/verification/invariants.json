@@ -620,16 +620,18 @@
       "claim": "A growing control root refuses new admission before an explicit journal reserve, while revocation, retry, termination, delivery, observation, checkpoint and output-free turns keep draining and closing existing work through it",
       "owner": "docs/RETENTION.md",
       "implementation": [
-        "packages/zig/transit-core/src/growing.zig"
+        "packages/zig/transit-core/src/growing.zig",
+        "packages/zig/transit-core/src/growing_read.zig"
       ],
       "profile": "transit-v3 development control slice; not running service",
       "tasks": [
         "test::unit"
       ],
       "scenarios": [
-        "Admission ceiling with outstanding input, reserve exhaustion and restart"
+        "Admission ceiling with outstanding input, reserve exhaustion and restart",
+        "Signed capabilities query reports ceiling/reserve headroom before, at and past the ceiling"
       ],
-      "limits": "Explicit configured control_reserve band, not a formula derived from fixed catalog sizes (growing catalogs are unbounded, so no such formula exists). No idempotency guard against spending the reserve on redundant revoke/checkpoint calls, unlike the legacy profile's. No real ENOSPC/physical-capacity proof, service/client exposure, or observable quota read API yet.",
+      "limits": "Explicit configured control_reserve band, not a formula derived from fixed catalog sizes (growing catalogs are unbounded, so no such formula exists). No idempotency guard against spending the reserve on redundant revoke/checkpoint calls, unlike the legacy profile's. The signed capabilities query now returns admission_ceiling/control_reserve so headroom is directly readable. No real ENOSPC/physical-capacity proof or Station/client-level ergonomic surface yet.",
       "model": null
     },
     {

@@ -114,10 +114,16 @@ reserve, since a principal doing that only depletes its own realm's headroom.
 
 This closes admission accounting for the growing engine itself
 ([`GROWTH-11`](../../../../tests/verification/invariants.json)), proved
-in-memory with real restart recovery of the same ceiling/reserve state. It
-does not close CAP-01's second scenario for the growing profile: no proof yet
-exercises a real physical-storage/ENOSPC condition against disk Ursula, no
-service or client surface exposes remaining ceiling/reserve as a read, and
+in-memory with real restart recovery of the same ceiling/reserve state. The
+signed `capabilities` query now returns `admission_ceiling` and
+`control_reserve` alongside every response's own `position`, so a caller can
+compute remaining ordinary and control-reserve headroom directly instead of
+discovering the boundary by provoking `AdmissionClosed`/`ControlCapacity` —
+proved by reading it back at three points (before, at the ceiling, and once
+the reserve is exhausted) in the same test. It does not close CAP-01's second
+scenario for the growing profile: no proof yet exercises a real
+physical-storage/ENOSPC condition against disk Ursula, and
 `apps/transit-node`'s JSON config accepts the new `Genesis` fields (they
 deserialize like any other field, defaulting when absent) without yet
-documenting or qualifying an operational profile around them.
+documenting or qualifying an operational profile — or a Station/client-level
+ergonomic surface — around them.

@@ -866,11 +866,15 @@ acknowledgement, while ownership reassignment, revocation, retry, termination,
 delivery, effect observation/closure, an opted-in checkpoint and output-free
 turns keep draining and closing existing work through an explicit reserve band
 — until even that is exhausted and every command is refused. A restarted
-engine recovers the identical ceiling and reserve state. This qualifies the
-admission mechanism itself; a real physical-storage/ENOSPC proof, a
-service/client read surface for remaining headroom, and an operational
-`apps/transit-node` profile around it remain open, per CAP-01's second
-scenario.
+engine recovers the identical ceiling and reserve state. The signed
+`capabilities` query now returns `admission_ceiling` and `control_reserve`
+alongside every response's own `position`, checked at three points in the
+same test (before, at the ceiling, and past the exhausted reserve) so a
+caller can compute remaining headroom directly rather than discovering it by
+provoking `AdmissionClosed`/`ControlCapacity`. This qualifies the admission
+mechanism and its observability; a real physical-storage/ENOSPC proof and an
+operational `apps/transit-node`/Station profile around it remain open, per
+CAP-01's second scenario.
 
 
 `just test::growing` runs the growing core against real Ursula and a single-page
