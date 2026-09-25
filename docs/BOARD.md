@@ -39,6 +39,21 @@ positions for order; show timing only where evidence exists. Observation time
 is distinct from event time. Do not invent ETAs, processing durations, global
 causality, or wall-clock history from polling samples.
 
+## Proposed browser and relief atlas
+
+The [relief atlas design study](design/board-atlas/README.md) explores two views
+of the same inspection workspace: conventional tables/documents and a spatial
+map. At overview scale, elevation represents a named quantity such as pending
+inputs; as the viewer zooms in, the same positions flatten into process cards
+and bounded recorded journeys. Selection, filters and evidence remain shared.
+
+The study contains synthetic generated images and an interaction specification,
+not an implemented canvas or a broader read contract. It preserves the current
+single-realm, bounded-page and inspection-only boundaries. Multi-realm maps,
+global aggregation and renderer choices are not established. Implementation
+needs its own numbered milestone under the roadmap sequencing rule; the
+completed M2 profile and its qualification remain unchanged.
+
 ## Boundary and packaging
 
 ```mermaid
