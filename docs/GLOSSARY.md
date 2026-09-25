@@ -116,11 +116,15 @@ have different responsibilities.
 ## Arrow execution and interchange
 
 These are planned interfaces above the kernel. [Fuze](FUZE.md) owns query
-execution; [Arrow](ARROW.md) owns interchange and the M16 remote query profile.
+execution; [Arrow](ARROW.md) owns interchange and the M16 remote query profile;
+[Query language](QUERY_LANGUAGE.md) owns the relational/dataframe surface design.
 
 | Term | Meaning |
 | --- | --- |
 | Logical query plan | Versioned, typed query operations independent of entity storage, SQL spelling, execution scheduling or transport |
+| Relational surface | A SQL-shaped DDL/DML syntax compiling to Fuze's logical query plan; a spelling of existing typed operations, not a second query engine |
+| Dataframe surface | A typed per-language builder API compiling to the same logical query plan as the relational surface |
+| System namespace | A proposed relational addressing of non-data sources (connector attempts, transport state) through Board's existing inspection contract, distinct from Table/KV/Document's plan-based sources |
 | Query source adapter | Supplies an authorized versioned state view, schema/capabilities and bounded batches to Fuze; distinct from a durable storage backend |
 | Physical operator | A bounded local scan/transform/aggregate/sink in Fuze; not a Transit PID or durable commit |
 | Arrow C Data / C Stream | Native array and batch-stream ownership interfaces for in-process interoperability; distinct from the Transit/Station command ABI |

@@ -19,12 +19,14 @@ are experimental; their bounded implementation does not imply support for every 
 | [State](STATE.md) | Durable resources, process associations, KV/Table boundary, and state lifetimes |
 | [Tables](TABLES.md) | Planned Station Table operations, Arrow results, materialization and transaction scope |
 | [Fuze](FUZE.md) | Planned Zig query engine across KV/Table/Document, source adapters, planning and bounded execution |
+| [Query language](QUERY_LANGUAGE.md) | Relational and dataframe surfaces over Fuze's one plan; DDL/DML mapping and the connector/transport namespace idea |
 | [Arrow](ARROW.md) | IPC/C interfaces, Flight/Flight SQL and ADBC integration with Fuze |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
 | [Board](BOARD.md) | Inspection UI/API, observation semantics, and planned framework lenses |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |
 | [Station](STATION.md) | Behaviors, language bindings, planned SDK runners, Tables, supervision, and registries |
-| [Connectors](CONNECTORS.md) | Shared effect/attempt/reconciliation contract and planned HTTP capture |
+| [Connectors](CONNECTORS.md) | Shared effect/attempt/reconciliation contract, transport/connector/integration tiers and planned HTTP capture |
+| [Flow control](FLOW_CONTROL.md) | Application admission credit pattern, and its boundary against transport flow control |
 | [gRPC](GRPC.md) | Planned second connector: typed calls, streaming authority, transcripts and recovery |
 | [Deployment](DEPLOYMENT.md) | Runtime bindings, recovery, isolation, and portability |
 | [Ursula](URSULA.md) | Storage-provider choice and authority boundary |

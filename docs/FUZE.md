@@ -8,6 +8,9 @@ bounded Table execution profile alongside Station. The shared query model target
 KV, Table and Document sources; Document storage, collaborative editing and CRDT
 qualification belong to [M13](roadmap/M13.md). [M16](roadmap/M16.md) adds the first
 SQL/Flight frontend. Those bounded profiles do not imply the whole target design.
+[QUERY_LANGUAGE.md](QUERY_LANGUAGE.md) elaborates the "structured query API /
+later SQL frontend" line below into relational DDL/DML and a dataframe surface,
+both compiling to the plan this document defines.
 
 [M10](roadmap/M10.md) requires a measured path from growing durable sources to
 bounded query/result batches before public SDKs. The existing finite M9 source
