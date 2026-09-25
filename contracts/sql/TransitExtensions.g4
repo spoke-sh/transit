@@ -135,12 +135,17 @@ describeStatement
     : DESCRIBE identifier
     ;
 
-// A fragment only: composes into the eventual SELECT grammar as
-// `selectStatement asOfClause?`, not defined here. Names Transit's
-// existing retained-read-version machinery (docs/contracts/READ_VERSIONS_V1.md)
-// as `AS OF <revision>` rather than inventing new historical-read semantics.
+// A fragment only: composes into the eventual SELECT grammar attached to a
+// table reference, not defined here — `orders FOR SYSTEM_TIME AS OF 240`.
+// Deliberately the SQL:2011 system-versioned-table clause name (forensic
+// point-in-time reconstruction, not a windowing/event-time concept: see
+// docs/QUERY_LANGUAGE.md's forensic-first scoping), but its argument is a
+// Transit revision — an integer journal position — not the standard's
+// wall-clock TIMESTAMP literal. Names existing retained-read-version
+// machinery (contracts/READ_VERSIONS_V1.md, GROWTH-10) rather than inventing
+// new historical-read semantics.
 asOfClause
-    : AS OF INTEGER
+    : FOR SYSTEM_TIME AS OF INTEGER
     ;
 
 identifier
@@ -174,6 +179,8 @@ NULL_: 'NULL';
 SECRET: 'SECRET';
 AS: 'AS';
 OF: 'OF';
+FOR: 'FOR';
+SYSTEM_TIME: 'SYSTEM_TIME';
 INT64: 'INT64';
 BOOL: 'BOOL';
 UTF8: 'UTF8';
