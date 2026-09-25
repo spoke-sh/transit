@@ -12,6 +12,25 @@ import time
 from storage import Fixture
 
 
+def metrics():
+    return {"samples": 0, "rss_kib": None, "threads": None, "fds": None}
+
+
+def sample_process(pid, peak):
+    """Report unavailable samples as null, never as zero resource use."""
+    try:
+        status = Path(f"/proc/{pid}/status").read_text()
+        fds = len(list(Path(f"/proc/{pid}/fd").iterdir()))
+    except (FileNotFoundError, ProcessLookupError, PermissionError):
+        return
+    peak["samples"] += 1
+    for field, label in (("VmHWM", "rss_kib"), ("Threads", "threads")):
+        match = re.search(rf"^{field}:\s+(\d+)", status, re.M)
+        if match:
+            peak[label] = max(peak[label] or 0, int(match[1]))
+    peak["fds"] = max(peak["fds"] or 0, fds)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary")
@@ -36,29 +55,25 @@ def main():
                 if i:
                     fixture.start()
                 started = time.monotonic()
-                peak = {"rss_kib": 0, "threads": 0, "fds": 0}
+                peak, provider_peak = metrics(), metrics()
+                assert fixture.server is not None
+                sample_process(fixture.server.pid, provider_peak)
                 process = subprocess.Popen([binary, fixture.url, phase, str(args.keys), str(args.cache)],
                     env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 try:
                     while process.poll() is None:
                         if time.monotonic() - started > args.timeout:
                             raise TimeoutError(f"page proof {phase} exceeded {args.timeout}s")
-                        status = Path(f"/proc/{process.pid}/status")
-                        try:
-                            text = status.read_text()
-                            for field, label in (("VmHWM", "rss_kib"), ("Threads", "threads")):
-                                match = re.search(rf"^{field}:\s+(\d+)", text, re.M)
-                                if match:
-                                    peak[label] = max(peak[label], int(match[1]))
-                            peak["fds"] = max(peak["fds"], len(list(Path(f"/proc/{process.pid}/fd").iterdir())))
-                        except FileNotFoundError:
-                            pass
+                        sample_process(process.pid, peak)
+                        sample_process(fixture.server.pid, provider_peak)
                         time.sleep(0.02)
                     stdout, stderr = process.communicate()
                     if process.returncode:
                         raise RuntimeError(f"page proof {phase}: {stderr[-12000:]}")
                     result = json.loads(stdout)
-                    result.update(seconds=round(time.monotonic() - started, 3), sampled_peak=peak)
+                    sample_process(fixture.server.pid, provider_peak)
+                    result.update(seconds=round(time.monotonic() - started, 3),
+                                  sampled_peak=peak, provider_sampled_peak=provider_peak)
                     result["wal_file_bytes"] = sum(path.stat().st_size for path in (fixture.root / "wal").rglob("*") if path.is_file())
                     evidence["phases"].append(result)
                     print(f"Immutable pages: {json.dumps(result)}", flush=True)

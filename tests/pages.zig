@@ -119,7 +119,7 @@ pub fn main(init: std.process.Init) !void {
     }
     var output_buffer: [2048]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    try std.json.Stringify.value(.{ .phase = args[2], .keys = keys, .retained_value_bytes = keys * 1024, .resident_pages = cache_pages, .cache_bytes = store.residentBytes(), .hits = store.hits, .misses = store.misses, .created_page_streams = store.created }, .{}, &output.interface);
+    try std.json.Stringify.value(.{ .phase = args[2], .keys = keys, .retained_value_bytes = keys * 1024, .resident_pages = cache_pages, .cache_bytes = store.residentBytes(), .hits = store.hits, .misses = store.misses, .created_page_streams = store.created, .page_http_requests = store.requests, .page_create_payload_bytes_attempted = store.create_payload_bytes_attempted }, .{}, &output.interface);
     try output.interface.writeByte('\n');
     try output.interface.flush();
 }

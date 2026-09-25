@@ -14,6 +14,8 @@ next: usize = 0,
 hits: u64 = 0,
 misses: u64 = 0,
 created: u64 = 0,
+requests: u64 = 0,
+create_payload_bytes_attempted: u64 = 0,
 
 pub fn init(allocator: std.mem.Allocator, journal: adapter.Journal, resident_pages: usize) !Self {
     // This is a working-set budget, unrelated to durable page cardinality.
@@ -79,11 +81,13 @@ fn fetch(self: *Self, ref: pages.Reference) !pages.Page {
 fn fetchImpl(self: *Self, ref: pages.Reference) !pages.Page {
     var name: [45]u8 = undefined;
     const location = self.stream(ref, &name);
+    self.requests += 1;
     var head = try self.journal.client.send(.{ .head = .{ .stream = location } });
     defer head.deinit();
     if (head.head.status == .not_found) return error.PageUnavailable;
     try head.head.requireSuccess();
     if (!((try head.head.metadata()).closed orelse false)) return error.MutablePage;
+    self.requests += 1;
     var body = try self.journal.client.send(.{ .read = .{ .stream = location, .options = .{ .max_bytes = pages.max_encoded_bytes + 1 } } });
     defer body.deinit();
     try body.head.requireSuccess();
@@ -118,6 +122,8 @@ fn stageImpl(self: *Self, ref: pages.Reference, page: *const pages.Page) !void {
     var bytes: [pages.max_encoded_bytes]u8 = undefined;
     const body = try page.encode(&bytes);
     var name: [45]u8 = undefined;
+    self.requests += 1;
+    self.create_payload_bytes_attempted += body.len;
     var created = try self.journal.client.send(.{ .create_stream = .{
         .stream = self.stream(ref, &name),
         .options = .{ .body = body, .closed = true },

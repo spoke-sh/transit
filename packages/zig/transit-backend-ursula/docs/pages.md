@@ -50,8 +50,14 @@ yet included in that publication.
 The default retains 64 KiB of values with two decoded cache slots (17,032 bytes).
 Evidence under `.cache/verification/pages-<keys>-<cache>.json` records revision,
 dirty status, binary hash, tool/platform, elapsed time, cache statistics and page
-creation counts. Linux `/proc` sampling every 20 ms reports peak RSS, threads and
-file descriptors; short peaks can be missed and other systems leave these zero.
+creation counts. It also records page HTTP request attempts and attempted stream
+creation payload bytes; these omit root-journal HTTP work, headers and the
+provider's internal replication/WAL amplification. Linux `/proc` sampling every
+20 ms reports both client and Ursula process metrics. RSS is the kernel's process
+high-water mark; thread/FD counts are sampled peaks that can miss short spikes.
+Unsupported or unavailable metrics remain null with an explicit sample count,
+never zero resource use. Provider startup/recovery precedes the measured client
+phase, but its memory high-water mark includes that work.
 WAL file bytes are logical file lengths sampled after each phase, not allocated
 blocks or a measurement of live application bytes. Exceptions and timeouts retain
 `inconclusive` status. The proof has a per-phase deadline, configurable with
@@ -66,3 +72,27 @@ primitive measurements (artifacts `pages-256-2.json` and `pages-256-16.json`),
 including verification reads, not startup latency or service benchmarks.
 They show cache sensitivity and storage amplification that require attention
 before claiming an efficient growing service.
+
+A subsequent fixed two-page-cache run measured the provider as well:
+
+| Retained keys (1 KiB values) | Created page streams | Page HTTP requests in write phase | Client peak RSS, write | Ursula peak RSS, write | Ursula peak RSS after restart/verification |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 64 | 376 | 2,955 | 8,684 KiB | 49,244 KiB | 48,648 KiB |
+| 256 | 1,947 | 15,489 | 8,792 KiB | 64,528 KiB | 59,412 KiB |
+| 1,024 | 10,059 | 83,979 | 8,972 KiB | 602,504 KiB | 1,138,952 KiB |
+
+These single local Debug runs include insertions, half-key deletion, unreachable
+staging and verification reads. They are not per-insert costs or throughput SLOs.
+At 1,024 keys the write phase took 74.11 seconds, and recovery plus full retained
+value verification took 31.46 seconds; WAL file lengths after restart totaled
+178,186,090 bytes for 1 MiB of original logical values. All persistence assertions
+passed. The provider growth and amplification **do not pass efficient storage
+qualification**. This mapping needs investigation or replacement before service
+scale claims. The measurements alone do not identify an upstream defect or
+separate stream metadata from snapshot/WAL and request allocation costs.
+
+The [Rey workload model](../../../../docs/workloads/REY.md) motivates measuring
+the whole storage boundary, including Ursula's memory and stream metadata. A
+fixed client cache is not evidence that provider memory stays fixed as retained
+pages grow. This primitive mapping must pass those growth/amplification gates
+before any recommendation for bulk capture or long-lived large Tables.
