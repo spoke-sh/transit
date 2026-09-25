@@ -5,14 +5,14 @@ pins [rupurt/zarrow](https://github.com/rupurt/zarrow/tree/4276ac30d63d1af159490
 by Git revision and package hash. Its IPC writer uses its own pinned vendored
 zstd/lz4 sources. Fuze's initial results are uncompressed.
 
-[zarrow-compute](https://github.com/tylitianrui/zarrow-compute/tree/357fbf421c77785cd972fe5589918cb3bd39a92e)
-is included as a licensed source snapshot under `vendor/zarrow-compute`. Its
-upstream build uses older Zig filesystem APIs and a moving zarrow archive.
-Fuze supplies the build wiring and exactly one Arrow module to both libraries.
-The snapshot's `upstream.json` records original per-file hashes. Compatibility
-changes handle fallible Arrow accessors and the newer registry's explicit
-`InvalidOptions` distinction; they do not add query features. The original
-compute tests remain executable through the package's `test` step.
+[rupurt/zarrow-compute](https://github.com/rupurt/zarrow-compute/tree/def4d0654b4d6cdc2f4a7e6ad4a5930301f3391a)
+is an ordinary Zig dependency pinned by immutable Git revision and package hash.
+This is the Zig 0.17 migration proposed in
+[upstream PR #3](https://github.com/tylitianrui/zarrow-compute/pull/3); it replaces
+the earlier vendored compatibility snapshot. Its compiler and zarrow pins match
+Fuze's. Fuze imports the exported `zarrow_compute` module and supplies the same
+full Arrow module used by IPC, preserving one type universe and the writer fixes
+below. The dependency's compute tests remain part of the package's `test` step.
 
 `patches.zig` applies guarded patches to a generated copy of zarrow's source.
 An IPC schema write that fails after transferring ownership to `MessageT`

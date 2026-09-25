@@ -8,6 +8,10 @@
             .url = "git+https://github.com/rupurt/zarrow#4276ac30d63d1af159490b7dc70e15d749b8d01b",
             .hash = "zarrow-0.0.2-I8BLE0uOTgDQAtAvsgOOCmJgZu10cSYsaqPgFSjXyGe7",
         },
+        .zarrow_compute = .{
+            .url = "git+https://github.com/rupurt/zarrow-compute#def4d0654b4d6cdc2f4a7e6ad4a5930301f3391a",
+            .hash = "zarrow_compute-0.0.1-8ayHKy0VBwDAfERQv8gzeXZhfy9yxC91uqWfQqMqrWZa",
+        },
     },
-    .paths = .{ "build.zig", "build.zig.zon", "patches.zig", "src", "vendor" },
+    .paths = .{ "build.zig", "build.zig.zon", "patches.zig", "src" },
 }
