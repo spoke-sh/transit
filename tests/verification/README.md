@@ -85,6 +85,18 @@ or `just build::release-safe test-growing-service-build`, using a fresh
 cache conditions and timings. Nix setup, cache transfer, warm-cache hit rates
 and hosted lane distributions still need separate measurement.
 
+The expanded Station proof at `0893a98` also resumes a retained scan across a
+second caller/node/provider restart. On the same one-CPU Debug corpus, the
+40-call exchange took 92.96 seconds with 16 resident pages and 49.15 seconds
+with 64; recovery (still one page) took 27.38 and 27.43 seconds. Artifacts are
+`station-versions-focused.log` and `station-versions-cache64.log` under
+`.cache/verification/`. These shared-host single runs are local cost evidence,
+not hosted percentiles. Ordinary qualification now uses the bounded 64-page
+exchange cache, retaining all calls/faults and one-page recovery. Node defaults
+remain 16. Reproduce either configuration with
+`just test::growing-station --resident-pages 16` (or `64`). This changes no Nix
+setup/cache transfer and does not by itself establish whole-CI latency savings.
+
 ## Generated transitions
 
 ```sh

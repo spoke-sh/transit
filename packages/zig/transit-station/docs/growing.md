@@ -111,7 +111,7 @@ and preserve the legacy private-turn checks.
 
 `just test::growing-service` additionally runs two real Station callers with
 41 retained Table rows and completed calls through disk-backed Ursula using the
-default bounded cache for exchange and one resident page after restart. A proxy
+bounded 64-page test cache for exchange and one resident page after restart. A proxy
 enforces point reads by the handlers, corrupts a
 state response and loses an accepted turn reply. The first error publishes
 nothing; the second retries identical bytes without rerunning the handler. A

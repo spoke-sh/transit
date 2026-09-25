@@ -822,7 +822,7 @@ accepted turn reply. A swallowed read failure cannot publish its private work;
 the accepted turn retries byte-for-byte without rerunning the handler. After
 caller/node/provider restart, fresh ownership fences a prepared old turn and
 recovers the unconsumed call without rerunning committed initialization. The
-proof uses the default bounded cache for exchange, one resident backend page
+proof uses a bounded 64-page cache for exchange, one resident backend page
 after restart, and explicit public-client delivery. It
 does not qualify growing query results, background courier, registries,
 supervision, runtime bindings, quotas or foreign APIs.

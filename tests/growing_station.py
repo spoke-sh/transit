@@ -10,7 +10,7 @@ import time
 from storage import Fixture, free_port, wait_ready
 
 
-def run(node, caller, *, resident_pages=16):
+def run(node, caller, *, resident_pages=64):
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with Fixture() as fixture:
         public = json.loads(subprocess.check_output([caller, "public"], timeout=10))
@@ -107,8 +107,8 @@ def run(node, caller, *, resident_pages=16):
             fixture.stop()
             fixture.start()
             # Keep the full recovery/fencing/read path at the smallest cache.
-            # The ordinary exchange uses the node default instead of repeating
-            # a deliberately thrashing cache configuration for every call.
+            # The repeated exchange uses a bounded 64-page test cache. Default
+            # node configuration is unchanged; recovery still exceeds its cache.
             recovered = json.loads(config.read_text())
             recovered["resident_pages"] = 1
             config.write_text(json.dumps(recovered))
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("node")
     parser.add_argument("caller")
-    parser.add_argument("--resident-pages", type=int, default=16)
+    parser.add_argument("--resident-pages", type=int, default=64)
     args = parser.parse_args()
     if hasattr(os, "sched_getaffinity"):
         os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
