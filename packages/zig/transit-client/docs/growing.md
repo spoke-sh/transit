@@ -113,6 +113,8 @@ boundary as the existing client.
 The [Zig proof caller](../../../../tests/growing_client.zig) uses this public
 package without a kernel or provider dependency. It demonstrates bounded handler
 reads and exact retry across loss, not a complete Station runner or an idiomatic
-SDK. M10 still owns framework paging, retained calls/results, capacity contracts,
-lifecycle/provider integration and explicit migration before M11 can stabilize
-the public language APIs.
+SDK. The explicit Station paging/call/result and finite capacity profiles have
+separate proofs. M11 must preserve capability and compatibility distinctions;
+growing lifecycle/provider bindings, legacy migration and foreign ABIs are not
+provided by this client. Fresh v3 realms and explicit rejection preserve the
+compatibility boundary.

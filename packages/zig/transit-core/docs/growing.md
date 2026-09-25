@@ -93,8 +93,10 @@ worker replacement, with bounded point/page/discovery reads. Later proposals
 declare retained read dependencies for current grant, association, generation
 and lifetime validation. Release keeps terminal metadata; reads cannot reopen it.
 No whole resource is copied into a resident view. These roots cover a shared
-catalog, however, so retention can keep unrelated physical pages alive; selective
-reachability and quota accounting remain M10 work.
+catalog, however, so retention can keep unrelated physical pages alive. This
+profile retains all immutable pages, including unreachable staging; it authorizes
+no page garbage collection. Finite journal admission and physical-reserve proofs
+do not supply selective byte accounting or automatic physical provisioning.
 
 ## Delivery and settlement
 

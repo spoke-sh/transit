@@ -872,8 +872,9 @@ reject staged partial proposals and fence expired required dependencies. Signed
 read checks cover bounded current/captured pages, current permissions, stale
 ownership/cuts, expiry and hidden association filtering. These engine checks
 use injected storage; delivery/settlement also have injected-storage checks.
-Station integration still needs evidence. Launcher defaults continue to use v2;
-the explicit growing service is qualified separately below.
+Station integration has separate service evidence below. Launcher defaults
+continue to use v2; each explicitly configured growing capability has its own
+proof owner.
 
 An explicit control reserve now has injected-storage evidence too
 (`GROWTH-11`, [growing capacity](../packages/zig/transit-core/docs/authority.md#growing-profile-an-explicit-control-reserve-not-a-derived-one)):
@@ -938,8 +939,9 @@ caller/node/provider restart, fresh ownership fences a prepared old turn and
 recovers the unconsumed call without rerunning committed initialization. The
 proof uses a bounded 64-page cache for exchange, one resident backend page
 after restart, and explicit public-client delivery. It
-does not qualify growing query results, background courier, registries,
-supervision, runtime bindings, quotas or foreign APIs.
+does not qualify background courier, registries, supervision, runtime bindings
+or foreign APIs. Separate growing-query and quota proofs below own those
+implemented capabilities.
 After restart, the writer also reads all 41 Table rows in six typed pages before
 committing its completion count. Continuations cannot change view, resource,
 Table or schema; unit cases cover extreme keys, a neighboring Table, caught scan

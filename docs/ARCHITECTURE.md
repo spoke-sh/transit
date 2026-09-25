@@ -88,13 +88,14 @@ processes, grants, and state resources. This supplies the initial atomicity doma
 replicating the HTTP service does not create independent write shards. Mailbox
 semantics promise per-process order, not a portable global order between PIDs.
 
-The target architecture decouples durable cardinality from resident memory:
+The explicit v3 profile decouples durable cardinality from resident memory:
 resource data, retained work and control catalogs use paged access and bounded
-working sets. The current fixed arrays and complete in-memory resource snapshots
-are a temporary implementation profile, not a scalable storage design or a
-runtime cache setting. [M10](roadmap/M10.md) must qualify a growing-state path
-before public SDKs stabilize; [State](STATE.md#collection-size-and-working-memory)
-defines the required boundary. Larger constants alone do not meet it.
+working sets. One conditional root publication retains the authority decision.
+The default v2 profile still uses fixed arrays and complete resource snapshots;
+those are compatibility ceilings, not cache settings. [M10](roadmap/M10.md)
+tracks qualification before public SDKs stabilize;
+[State](STATE.md#collection-size-and-working-memory) defines the boundary.
+No launcher or foreign binding switches profiles implicitly.
 
 Massive-scale deployment also requires an explicit authority-partition and routing
 design, including grant/revocation and cross-partition delivery semantics. Measure

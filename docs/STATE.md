@@ -18,9 +18,10 @@ The target collection model below is not yet implemented by state v1.
 M10's explicit [v3 development profile](../contracts/TRANSIT_V3.md) publishes
 immutable state roots through the authority and supplies bounded node/client
 access to growing resources and process associations. It remains separate from
-the default state-v1 profile. Station integration, quotas and retained result
-handling remain M10 work; the development profile does not remove the default
-profile's limits.
+the default state-v1 profile. Explicit growing Station behaviors, retained
+sources/results and finite quotas have executable proofs. M10's repeated scale
+and CI budget qualification remains in progress; the development profile does
+not remove the default profile's limits.
 
 ## Purpose
 
@@ -214,8 +215,9 @@ M10's explicit v3 [retained read versions](../contracts/READ_VERSIONS_V1.md) sep
 a long-lived query's source basis from its short-lived turn views. Publication
 binds the version to durable progress, with current access and lifetime checks
 across later turns and worker replacement. Retaining a root cannot extend hard
-expiry or imply a complete query result; resumable Station/Fuze capture remains
-M10 integration work.
+expiry or imply a complete query result. Explicit Station/Fuze capture and
+delivery use a separate verified completion manifest and bounded receiver credit;
+see the [query profile](../contracts/STATION_QUERY_V2.md).
 
 Recovery applies committed mutations and protocol transitions without executing
 application handlers. Historical re-execution, where supported by the caller,

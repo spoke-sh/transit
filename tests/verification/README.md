@@ -46,8 +46,20 @@ growing-service qualification (260.38s), the counter launcher (344.52s), Station
 launcher (172.07s), core checks (193.67s) and build smoke (97.29s) as major costs.
 This baseline does **not** meet the feedback target. Splitting into five lanes
 preserves each task once and shares dependency-cache keys with one writer; its
-effect on cold/warm hosted feedback remains unqualified until measured. Local
-success or projections from the old task durations cannot close that gate.
+first hosted warm run
+[`36194234944`](https://github.com/rupurt/rey/actions/runs/36194234944) passed in
+12m37s, using 53m27s of aggregate job time and 10.69 GiB restored. Core/growth
+took 622/626s, experience/launchers 696/712s and bindings 540s. Feedback improved
+but both the ten-minute and provisional fifty-runner-minute targets remain unmet.
+One sample does not qualify variance or the cold-cache case.
+
+The complete clean run at `264f38e` passed all 33 tasks, including the growing
+service/result delivery, foreign bindings, finite models and five Chromium
+checks, in 1,032.97s of sequential local task time. Evidence is in
+`.cache/ci/clean/264f38e2ce99-transit-ci-1wspu7bv/`. It predates the subsequently
+found legacy Station inspection-cut retry fix. The real Station proof now
+invalidates a page cut with concurrent authority progress and completes the
+original exchange while retaining its lost-reply and stale-owner checks.
 
 The complete clean run at `94ab60a` passed all required lanes, including language
 bindings and five Chromium checks. Its sequential task total was 795.69 seconds;

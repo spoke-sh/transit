@@ -120,7 +120,7 @@ The [baseline run](https://github.com/rupurt/rey/actions/runs/35809573509) spent
 `ursulactl` from Rust source. Installing Nix took only four seconds. We keep that
 installer and cache the pinned overlay outputs rather than changing tools.
 
-The current cache key includes the lane, runner OS/architecture, `flake.lock`,
+The current cache key includes the cache group, runner OS/architecture, `flake.lock`,
 Nix expressions, Vite+'s npm sources/lockfile, reference pins and the provider CLI
 extension. Ordinary application/plugin edits reuse the heavy toolchain cache;
 small packaged helpers rebuild locally. Toolchain changes can restore an older
@@ -142,17 +142,20 @@ restore, preparation, checks, and save step timings on subsequent runs.
 
 The [pre-split run](https://github.com/rupurt/rey/actions/runs/36073815381)
 took 18m29s: restore/save used 2m28s, the checks used 14m22s, and native launcher
-qualification accounted for 5m39s of those checks. The workflow now runs three
-lanes concurrently. `just ci::core` owns foundation/library/protocol proofs;
-`just ci::experience` owns frontend, cross-service observability, Board and
-native counter/Station launcher proofs, followed by `just ci::browser`.
-`just ci::bindings` owns the native boundary and cross-language proofs.
-`just ci` enters the pinned bindings shell and runs all three task inventories
-sequentially; `just check` still uses the ordinary developer tools.
+qualification accounted for 5m39s of those checks. The later three-lane
+[baseline](https://github.com/rupurt/rey/actions/runs/36181871580) took 17m42s
+and 40m11s of aggregate job time. Five concurrent lanes now separate
+`just ci::core` (foundation/library/protocol), `just ci::growth` (Arrow, pages
+and growing authority/service), `just ci::experience` (frontend, observability,
+Board and native Station), `just ci::launchers` (build smoke and native counter),
+and `just ci::bindings` (native boundary and languages). Chromium follows
+experience as `just ci::browser`. `just ci` runs all five inventories sequentially
+in the pinned bindings shell; `just check` uses the ordinary developer tools.
 
 The experience lane uses `nix develop .#ci-experience`, a shell without provider
 or Kubernetes tools and without PyArrow. Its measured environment closure is
-1.2 GiB. Each lane restores its own Nix cache; successful preparation is rooted
+1.2 GiB. Experience/launchers share one Nix cache, core/growth share another,
+and bindings owns the third; each group has one writer. Successful preparation is rooted
 before collection, and a miss saves only the live closure. Small changes to the
 packaged inspection plugin or environment helper can rebuild without uploading
 the store. Exact cache hits do not upload again. Cache keys deliberately change
@@ -164,7 +167,7 @@ The bindings lane uses `nix develop .#ci-bindings`: the native tools, PyArrow an
 foreign SDKs, without Kubernetes/provider tools. Its environment closure measures
 6.1 GiB. Those SDKs are cached only in this lane; it installs only the Node
 binding's workspace dependencies. This keeps new language qualification from
-expanding both other lanes or serializing their checks.
+expanding the other lanes or serializing their checks.
 
 All lanes reuse a compiler/dependency cache keyed by the locked toolchain and
 Zig manifests. Only bindings writes it, including the C++ standard library.
@@ -194,6 +197,16 @@ outside successful temporary clones in `.cache/ci/clean/`.
 `just check` runs Actionlint so workflow syntax is checked before CI. Hosted
 wall time and total runner time must be measured after deployment; local timings
 and smaller closures alone do not establish the final speedup.
+
+The feedback target is under ten minutes, with five minutes as a stretch.
+[CI budgets](../tests/verification/ci-budgets.json) also track provisional runner
+and restore costs; `just ci::cost RUN_ID` collects completed hosted evidence.
+Manual `cache_mode=cold` runs disable GitHub dependency restores/saves while
+retaining upstream Nix substitutes. The recorded fourteen-minute source build
+already exceeds the feedback target on a dependency-cache miss; lane balancing
+alone cannot qualify that case. A faster runner or prebuilt pinned dependency
+closure needs measured qualification. `TRANSIT_CI_RUNNER` can select a configured
+runner; it defaults to `ubuntu-24.04` and does not provision a paid runner.
 
 ## Updating tools
 
