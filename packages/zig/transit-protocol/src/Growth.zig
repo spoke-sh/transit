@@ -135,8 +135,8 @@ pub const Query = struct {
         view: Id,
         processes: struct { after: ?Id = null, position: ?Id = null },
         resources: struct { after: ?Id = null, position: ?Id = null },
-        associations: struct { pid: Id, after: ?p.Value = null, position: ?Id = null },
-        entries: struct { view: Id, key: ?p.Value = null, after: ?p.Value = null },
+        associations: struct { pid: Id, after: ?Id = null, position: ?Id = null },
+        entries: struct { view: ?Id = null, resource: ?Id = null, revision: ?u64 = null, key: ?p.Value = null, after: ?p.Value = null },
         outputs: struct { after: ?Id = null, position: ?Id = null },
         effects: struct { pid: Id, after: ?Id = null, position: ?Id = null },
     },
@@ -173,8 +173,8 @@ pub const Response = struct {
         view: View,
         processes: Batch(Process, Id),
         resources: Batch(Resource, Id),
-        associations: Batch(Association, p.Value),
-        entries: struct { view: View, page: Batch(Entry, p.Value) },
+        associations: Batch(Association, Id),
+        entries: struct { view: ?View, resource: Resource, page: Batch(Entry, p.Value) },
         outputs: Batch(Outbox, Id),
         effects: Batch(Effect, Id),
     },
@@ -218,11 +218,12 @@ pub fn validateQuery(query: Query) !void {
     try counters(query);
     switch (query.kind) {
         .entries => |c| {
+            if ((c.view == null) == (c.resource == null) or (c.resource == null) != (c.revision == null)) return error.InvalidRead;
             if (c.key != null and c.after != null) return error.InvalidRead;
             if (c.key) |key| try validateKey(key);
             if (c.after) |key| try validateKey(key);
         },
-        .associations => |c| if (c.after) |key| try validateKey(key),
+        inline .processes, .resources, .associations, .outputs, .effects => |c| if (c.after != null and c.position == null) return error.InvalidRead,
         else => {},
     }
 }

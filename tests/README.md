@@ -765,5 +765,9 @@ The initial [growing authority tests](../packages/zig/transit-core/docs/growing.
 also cross the legacy process/principal catalogs and retain historical receipts
 in immutable pages. They qualify the implemented control transitions against an
 injected conditional journal, including lost acknowledgements and stale prepared
-roots. State turns, service/client/Station integration and control reserves still
-need their own evidence; the running system continues to use v2.
+roots. State checks also publish rows, input progress and outputs together,
+reject staged partial proposals and fence expired required dependencies. Signed
+read checks cover bounded current/captured pages, current permissions, stale
+ownership/cuts, expiry and hidden association filtering. These engine checks
+use injected storage; delivery/settlement, service/client/Station integration and
+control reserves still need evidence. The running system continues to use v2.

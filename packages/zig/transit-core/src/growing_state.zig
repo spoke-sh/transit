@@ -71,7 +71,7 @@ fn dependenciesAt(engine: anytype, current: anytype, pid: u64, sample: ?core.Tim
         }
     }
 }
-fn associated(engine: anytype, pid: u64, id: u64) !bool {
+pub fn associated(engine: anytype, pid: u64, id: u64) !bool {
     var current = try engine.state();
     return (try current.get(u64, try c.key(.associated_resource, pid, id, "")) orelse 0) > 0;
 }
@@ -82,7 +82,7 @@ fn nextInput(engine: anytype, process: g.Process, id: u64) !g.Input {
     if (input.position != id) return error.InvalidInput;
     return input;
 }
-fn captured(engine: anytype, principal: u64, process: g.Process, id: u64, input: u64, sample: ?core.Time.Sample) !growth.StoredView {
+pub fn captured(engine: anytype, principal: u64, process: g.Process, id: u64, input: u64, sample: ?core.Time.Sample) !growth.StoredView {
     const stored = try view(engine, id);
     const meta = stored.meta;
     if (meta.closed_at != null) return error.StateViewExpired;
@@ -98,6 +98,7 @@ fn captured(engine: anytype, principal: u64, process: g.Process, id: u64, input:
 }
 pub fn authorizeReceipt(engine: anytype, request: g.Request) anyerror!void {
     switch (request.command) {
+        .associate => |command| if (command.resource) |id| try allowed(engine, id, request.principal, p.State.permission(.inspect)),
         .open_view => |command| try allowed(engine, command.resource, request.principal, read_rights),
         .turn => |command| for (command.views) |slot| if (slot) |id| {
             const stored = try view(engine, id);
@@ -169,6 +170,7 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
                 }
                 const association: g.Association = .{ .pid = command.pid, .name = command.name, .resource = id, .revision = position, .required = command.required };
                 try candidate.put(key, association);
+                try candidate.put(try c.key(.association_order, command.pid, position, ""), association);
                 if (command.required) try candidate.put(required_key, association) else try candidate.remove(required_key);
                 if (command.required) try candidate.put(try c.key(.required_resource_users, id, command.pid, command.name.slice()), command.pid);
                 if (next_owner) |owner| try candidate.put(try c.key(.owner_required_users, owner, command.pid, command.name.slice()), command.pid);
@@ -180,6 +182,7 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
                 try candidate.remove(required_key);
             }
             if (previous) |old| {
+                try candidate.remove(try c.key(.association_order, command.pid, old.revision, ""));
                 if (old.required and !(command.resource == old.resource and command.required)) try candidate.remove(try c.key(.required_resource_users, old.resource, command.pid, command.name.slice()));
                 const old_owner = (try resource(engine, old.resource)).owner;
                 if (old.required and old_owner != null and old_owner != command.pid and old_owner != next_owner)

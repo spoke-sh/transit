@@ -51,6 +51,9 @@ const Fixture = struct {
     fn worker(self: *Fixture, sequence: u64, command: g.Command) !g.SignedRequest {
         return g.sign(.{ .realm = 42, .principal = 65536, .sequence = sequence, .command = command }, self.worker_key);
     }
+    fn query(self: *Fixture, principal: u64, kind: @FieldType(g.Query, "kind")) !g.Response {
+        return self.engine.query(try g.signQuery(.{ .realm = 42, .principal = principal, .kind = kind }, if (principal == 0) self.root_key else self.worker_key));
+    }
 };
 
 test "growing authority retains wide principals and processes beyond legacy catalogs" {
@@ -63,7 +66,21 @@ test "growing authority retains wide principals and processes beyond legacy cata
         const pid = try fixture.root(.{ .spawn = .{} });
         if (i == 0) first = pid;
     }
+    const cut = fixture.engine.head.position;
+    var after: ?u64 = null;
+    var listed: usize = 0;
+    while (true) {
+        const response = try fixture.query(65536, .{ .processes = .{ .after = after, .position = cut } });
+        for (response.body.processes.entries) |slot| if (slot) |process| {
+            try t.expect(process.pid > (after orelse 0));
+            listed += 1;
+        };
+        after = response.body.processes.next;
+        if (after == null) break;
+    }
+    try t.expectEqual(@as(usize, 70), listed);
     _ = try fixture.root(.{ .own = .{ .pid = first, .expected_generation = 0, .worker = 65536 } });
+    try t.expectError(error.QueryExpired, fixture.query(65536, .{ .processes = .{ .position = cut } }));
     const request = try fixture.worker(1, .{ .send = .{ .pid = first, .value = try core.Value.init("retained") } });
     const accepted = try fixture.engine.submit(request);
     _ = try fixture.engine.submit(try fixture.worker(2, .{ .send = .{ .pid = first, .value = .{} } }));
@@ -219,6 +236,9 @@ test "growing turns publish rows, progress, outputs and retained views as one ro
         const input = try fixture.root(.{ .send = .{ .pid = pid, .value = .{} } });
         const opened = try fixture.engine.submit(try fixture.worker(sequence, .{ .open_view = .{ .pid = pid, .generation = 2, .input = input, .expected_revision = revision, .resource = resource, .revision = previous, .deadline_ms = 200 } }));
         sequence += 1;
+        const captured = try fixture.query(65536, .{ .entries = .{ .view = opened } });
+        try t.expectEqual(previous, captured.body.entries.resource.revision);
+        try t.expectEqual(@as(u64, i), captured.body.entries.resource.entries);
         var current = try fixture.engine.state();
         if (i == 0) first_snapshot = (try current.get(growing.StoredView, growing.address(.view, opened))).?.snapshot;
         var command: g.Turn = .{ .pid = pid, .generation = 2, .input = input, .expected_revision = revision, .views = .{ opened, null, null, null }, .write_view = opened, .mutations = .{ .{ .key = core.Value.integer(@intCast(i + 1)), .value = core.Value.integer(@intCast(i + 100)) }, null, null, null }, .outputs = .{ .{ .pid = pid, .value = core.Value.integer(@intCast(i)) }, null, null, null } };
@@ -236,6 +256,7 @@ test "growing turns publish rows, progress, outputs and retained views as one ro
         const key = try core.catalog.key(.entry, resource, 0, core.Value.integer(@intCast(i + 1)).slice());
         try t.expectEqual(@as(?g.Entry, null), try current.get(g.Entry, key));
         revision = try fixture.engine.commit(prepared);
+        try t.expectError(error.StateViewExpired, fixture.query(65536, .{ .entries = .{ .view = opened } }));
         previous = revision;
         sequence += 1;
         try t.expectEqual(@as(u64, i + 1), (try fixture.engine.process(pid)).consumed);
@@ -243,6 +264,20 @@ test "growing turns publish rows, progress, outputs and retained views as one ro
         try t.expectEqual(@as(u64, i + 1), (try current.get(g.Resource, growing.address(.resource, resource))).?.entries);
         try t.expect((try current.get(g.Entry, key)) != null);
     }
+    var after: ?core.Value = null;
+    var count: usize = 0;
+    while (true) {
+        const response = try fixture.query(65536, .{ .entries = .{ .resource = resource, .revision = revision, .after = after } });
+        for (response.body.entries.page.entries) |slot| if (slot != null) {
+            count += 1;
+        };
+        after = response.body.entries.page.next;
+        if (after == null) break;
+    }
+    try t.expectEqual(@as(usize, 36), count);
+    const direct = try fixture.query(65536, .{ .entries = .{ .resource = resource, .revision = revision, .key = core.Value.integer(36) } });
+    try t.expectEqual(@as(i64, 135), try direct.body.entries.page.entries[0].?.value.asInteger());
+    try t.expectError(error.StaleStateResource, fixture.query(65536, .{ .entries = .{ .resource = resource, .revision = resource } }));
     var snapshot = try core.catalog.Catalog(PageStore).open(&fixture.pages, first_snapshot.?);
     try t.expectEqual(@as(?g.Entry, null), try snapshot.get(g.Entry, try core.catalog.key(.entry, resource, 0, core.Value.integer(1).slice())));
     const recovered = try Engine.open(&fixture.journal, &fixture.pages, fixture.genesis);
@@ -250,6 +285,9 @@ test "growing turns publish rows, progress, outputs and retained views as one ro
     try t.expectEqual(revision, try fixture.engine.submit(last));
     _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 0 } });
     try t.expectError(error.Forbidden, fixture.engine.submit(last));
+    try t.expectError(error.Forbidden, fixture.query(65536, .{ .entries = .{ .resource = resource, .revision = revision } }));
+    const hidden = try fixture.query(65536, .{ .associations = .{ .pid = pid } });
+    try t.expectEqual(@as(?g.Association, null), hidden.body.associations.entries[0]);
     _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
     try t.expectEqual(revision, try fixture.engine.submit(last));
     try t.expectError(error.StateResourceInUse, fixture.root(.{ .retire_resource = resource }));
@@ -258,4 +296,101 @@ test "growing turns publish rows, progress, outputs and retained views as one ro
     try t.expectError(error.StateResourceExpired, fixture.root(.{ .send = .{ .pid = pid, .value = .{} } }));
     try t.expectError(error.StateResourceExpired, fixture.root(.{ .associate = .{ .pid = dependent, .name = try core.Value.init("dependency"), .expected_revision = association, .resource = null } }));
     try t.expectError(error.StateResourceExpired, fixture.root(.{ .own = .{ .pid = indirect, .expected_generation = 1, .worker = 65536 } }));
+}
+
+test "growing captured reads retain a version but never retain permission or ownership" {
+    const Clock = struct {
+        now: u64 = 100,
+        error_ms: u32 = 0,
+        fn read(context: *anyopaque) anyerror!core.Time.Sample {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            return .{ .unix_ms = self.now, .error_ms = self.error_ms };
+        }
+    };
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.init();
+    var clock: Clock = .{};
+    fixture.engine.clock = .{ .context = &clock, .read = Clock.read };
+    const writer = try fixture.root(.{ .spawn = .{} });
+    const reader = try fixture.root(.{ .spawn = .{} });
+    const resource = try fixture.root(.{ .create_resource = .{ .writer = writer } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    for ([_]u64{ 0, 65536 }) |principal| _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = principal, .permissions = core.protocol.State.all_permissions } });
+    for ([_]u64{ writer, reader }) |pid| {
+        _ = try fixture.root(.{ .associate = .{ .pid = pid, .name = try core.Value.init("table"), .resource = resource } });
+        _ = try fixture.root(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 65536 } });
+    }
+    const reader_input = try fixture.root(.{ .send = .{ .pid = reader, .value = .{} } });
+    const reader_view = try fixture.engine.submit(try fixture.worker(1, .{ .open_view = .{ .pid = reader, .generation = 2, .input = reader_input, .expected_revision = 0, .resource = resource, .revision = resource, .deadline_ms = 200 } }));
+    const writer_input = try fixture.root(.{ .send = .{ .pid = writer, .value = .{} } });
+    const writer_view = try fixture.engine.submit(try fixture.worker(2, .{ .open_view = .{ .pid = writer, .generation = 2, .input = writer_input, .expected_revision = 0, .resource = resource, .revision = resource, .deadline_ms = 200 } }));
+    const key = try core.Value.init("row");
+    const revision = try fixture.engine.submit(try fixture.worker(3, .{ .turn = .{ .pid = writer, .generation = 2, .input = writer_input, .expected_revision = 0, .views = .{ writer_view, null, null, null }, .write_view = writer_view, .mutations = .{ .{ .key = key, .value = core.Value.integer(7) }, null, null, null } } }));
+    const old = try fixture.query(65536, .{ .entries = .{ .view = reader_view, .key = key } });
+    try t.expectEqual(resource, old.body.entries.resource.revision);
+    try t.expectEqual(@as(?g.Entry, null), old.body.entries.page.entries[0]);
+    const current = try fixture.query(65536, .{ .entries = .{ .resource = resource, .revision = revision, .key = key } });
+    try t.expectEqual(@as(i64, 7), try current.body.entries.page.entries[0].?.value.asInteger());
+
+    // Current rights apply even though the old root and view are still retained.
+    _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 0 } });
+    try t.expectError(error.Forbidden, fixture.query(65536, .{ .entries = .{ .view = reader_view } }));
+    _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
+    clock.error_ms = 6;
+    try t.expectError(error.UntrustedTime, fixture.query(65536, .{ .entries = .{ .view = reader_view } }));
+    clock.error_ms = 1;
+    clock.now = 199;
+    try t.expectError(error.DeadlineUncertain, fixture.query(65536, .{ .entries = .{ .view = reader_view } }));
+    clock.now = 200;
+    clock.error_ms = 0;
+    try t.expectError(error.StateViewExpired, fixture.query(65536, .{ .entries = .{ .view = reader_view } }));
+    // A fresh view is fenced by ownership changes even with the same principal.
+    const fresh = try fixture.engine.submit(try fixture.worker(4, .{ .open_view = .{ .pid = reader, .generation = 2, .input = reader_input, .expected_revision = 0, .resource = resource, .revision = revision, .deadline_ms = 300 } }));
+    _ = try fixture.root(.{ .own = .{ .pid = reader, .expected_generation = 2, .worker = 65536 } });
+    try t.expectError(error.InvalidStateView, fixture.query(65536, .{ .entries = .{ .view = fresh } }));
+
+    var forged = try g.signQuery(.{ .realm = 42, .principal = 65536, .kind = .{ .process = writer } }, fixture.worker_key);
+    forged.query.kind = .{ .process = reader };
+    try t.expectError(error.Unauthorized, fixture.engine.query(forged));
+    // Narrowing principal scope invalidates all old resource grants by epoch.
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions, .pid = reader } });
+    try t.expectError(error.Forbidden, fixture.query(65536, .{ .process = writer }));
+    try t.expectError(error.Forbidden, fixture.query(65536, .{ .processes = .{} }));
+    try t.expectError(error.Forbidden, fixture.query(65536, .{ .entries = .{ .resource = resource, .revision = revision } }));
+    fixture.pages.missing = true;
+    try t.expectError(error.PageUnavailable, fixture.query(0, .{ .process = reader }));
+    fixture.pages.missing = false;
+}
+
+test "growing filtered discovery advances bounded pages without exposing hidden names" {
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.init();
+    const pid = try fixture.root(.{ .spawn = .{} });
+    const hidden = try fixture.root(.{ .create_resource = .{ .writer = pid } });
+    const visible = try fixture.root(.{ .create_resource = .{ .writer = pid } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
+    for ([_]u64{ hidden, visible }) |id| _ = try fixture.root(.{ .grant_resource = .{ .resource = id, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+    _ = try fixture.root(.{ .grant_resource = .{ .resource = visible, .subject = 65536, .permissions = core.protocol.State.permission(.inspect) } });
+    for (0..8) |i| _ = try fixture.root(.{ .associate = .{ .pid = pid, .name = core.Value.integer(@intCast(i)), .resource = hidden, .required = false } });
+    const name = try core.Value.init("visible");
+    const association = try fixture.root(.{ .associate = .{ .pid = pid, .name = name, .resource = visible, .required = false } });
+    const first = try fixture.query(65536, .{ .associations = .{ .pid = pid } });
+    for (first.body.associations.entries) |entry| try t.expectEqual(@as(?g.Association, null), entry);
+    const after = first.body.associations.next.?;
+    const second = try fixture.query(65536, .{ .associations = .{ .pid = pid, .after = after, .position = first.position } });
+    try t.expectEqualStrings("visible", second.body.associations.entries[0].?.name.slice());
+    try t.expectEqual(@as(?u64, null), second.body.associations.next);
+    try t.expectError(error.InvalidRead, fixture.query(65536, .{ .associations = .{ .pid = pid, .after = after } }));
+    try t.expectError(error.Forbidden, fixture.query(65536, .{ .resource = hidden }));
+    try t.expectError(error.Forbidden, fixture.query(65536, .{ .entries = .{ .resource = visible, .revision = visible } }));
+    const resources = try fixture.query(65536, .{ .resources = .{} });
+    try t.expectEqual(visible, resources.body.resources.entries[0].?.id);
+    try t.expectEqual(@as(?g.Resource, null), resources.body.resources.entries[1]);
+    _ = try fixture.root(.{ .associate = .{ .pid = pid, .name = name, .expected_revision = association, .resource = null, .required = false } });
+    try t.expectError(error.QueryExpired, fixture.query(65536, .{ .associations = .{ .pid = pid, .after = after, .position = first.position } }));
+    const removed = try fixture.query(65536, .{ .associations = .{ .pid = pid } });
+    for (removed.body.associations.entries) |entry| try t.expectEqual(@as(?g.Association, null), entry);
+    try t.expectEqual(@as(?u64, null), removed.body.associations.next);
 }

@@ -311,7 +311,7 @@
         "Historical retry after later acceptance",
         "Recovery without staging pages"
       ],
-      "limits": "Injected journal/page store only; state turns, service/current resource reads, lifecycle/provider extensions and quota/control reserve remain unqualified.",
+      "limits": "Injected journal/page store only; service/client integration, lifecycle/provider extensions and quota/control reserve remain unqualified.",
       "model": null
     },
     {
@@ -332,7 +332,29 @@
         "Current resource rights on historical receipt disclosure",
         "Expiry through lifetime-owner dependency graph cannot be rebound away"
       ],
-      "limits": "In-memory injected page/journal proof. Public paged reads, delivery/settlement, terminal projection, quota reserves and real service/Station remain unqualified.",
+      "limits": "In-memory injected page/journal proof. Read transport, delivery/settlement, terminal projection, quota reserves and real service/Station remain unqualified.",
+      "model": null
+    },
+    {
+      "id": "GROWTH-03",
+      "claim": "Bounded paged reads preserve their declared state basis without retaining stale permission or ownership",
+      "owner": "docs/SECURITY.md",
+      "implementation": [
+        "packages/zig/transit-core/src/growing_read.zig"
+      ],
+      "profile": "transit-v3 development read slice; not running service",
+      "tasks": [
+        "test::unit",
+        "contract::check"
+      ],
+      "scenarios": [
+        "Captured old resource version versus later writer commit",
+        "Current grants, ownership, deadline and clock uncertainty",
+        "Bounded empty filtered page with a non-null continuation",
+        "Hidden names absent from association cursors",
+        "Missing pages and stale catalog cuts reject explicitly"
+      ],
+      "limits": "Internal signed engine queries with injected storage/time. No HTTP/SDK/provider proof, generalized historical querying or concurrent service load qualification.",
       "model": null
     }
   ]

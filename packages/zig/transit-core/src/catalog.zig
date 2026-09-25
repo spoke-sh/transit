@@ -24,6 +24,7 @@ pub const Namespace = enum(u8) {
     associated_resource,
     required_resource_users,
     owner_required_users,
+    association_order,
 };
 pub const Snapshot = struct {
     version: u32 = version,

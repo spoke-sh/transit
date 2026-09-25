@@ -8,7 +8,9 @@ The implemented internal transitions include bootstrap, root-authorized principa
 grant/revocation, process creation, ownership, mailbox admission and termination;
 resource creation/grants/associations, captured view open/close, bounded state
 turns, turn permits and resource retirement/expiry.
-They use the [typed immutable catalog](pages.md#typed-catalog). Principal sequence,
+Signed bounded reads cover capabilities, process/resource/view metadata, current
+or captured entries, associations and outboxes. They use the
+[typed immutable catalog](pages.md#typed-catalog). Principal sequence,
 exact-retry receipt, process metadata and accepted mailbox entry become visible
 through one conditional journal append of a new root. A prepared candidate can
 leave unreachable pages; it cannot advance a live process or disclose acceptance.
@@ -50,13 +52,24 @@ add lifetime edges. This conservative restriction needs explicit capabilities
 and client guidance before the profile is advertised.
 An expired/retired required dependency cannot be removed or rebound to revive
 the PID. Its durable dependency evidence fences execution even before terminal
-process metadata is materialized. Inspection must expose that distinction when
-the read service is added. Explicit resource retirement refuses active required
+process metadata is materialized. Process lists expose recorded metadata; an
+individual process read checks execution eligibility before disclosing its head
+input. Inspection must preserve that distinction when the service is added.
+Explicit resource retirement refuses active required
 users; known finite expiry can close the dependency. Physical page deletion is
 not implemented or authorized.
 
+Entry reads use a caller-owned view or an explicit current resource revision.
+Reads reauthorize every page and bound results to eight records. Current-resource
+reads cannot silently switch revisions; captured reads keep an immutable version
+while still enforcing current ownership, grants, dependencies and deadline.
+Catalog continuation requires the original authority position. Filtered resource
+and association pages may be empty with more scanning available; only a null
+cursor means completion. Association cursors use indexed revision IDs instead of
+hidden names. A final tail check rejects concurrent changes during disclosure.
+
 No running capability advertises these transitions. Delivery,
-effect settlement, query services, terminal dependency materialization,
+effect settlement, query transport, terminal dependency materialization,
 runtime/lifecycle extensions, quotas/control reserve, retained results and Station
 remain integration work within M10. Unimplemented commands fail explicitly with
 `UnsupportedGrowthCommand`. The module must not be selected by a launcher before
@@ -82,3 +95,10 @@ outputs cannot publish row mutations, old roots remain readable internally, and
 resource-right revocation prevents historical receipt disclosure. Required
 resource expiry blocks reactivation through indirect ownership and cannot be
 bypassed by detaching an association.
+
+Read checks traverse more than one catalog/entry page, compare a captured version
+with later committed data, reject stale cuts, expired/uncertain views, changed
+ownership, revoked grants, forged queries and missing pages. Filtered discovery
+crosses an empty page without disclosing hidden associations and observes removal
+without stale index entries. These are internal engine proofs, not HTTP/client
+or provider qualification.

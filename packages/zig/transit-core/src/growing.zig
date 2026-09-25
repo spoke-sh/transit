@@ -126,6 +126,9 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             var current = try self.state();
             return (try current.get(g.Process, address(.process, pid))) orelse error.UnknownProcess;
         }
+        pub fn query(self: *Self, signed: g.SignedQuery) !g.Response {
+            return @import("growing_read.zig").read(self, signed);
+        }
         fn authenticate(self: *Self, signed: g.SignedRequest) !Principal {
             try g.validate(signed.request);
             if (signed.request.realm != self.genesis.realm) return error.WrongProtocolRealm;

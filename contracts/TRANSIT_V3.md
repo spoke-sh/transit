@@ -49,13 +49,28 @@ budget. These are explicit operation/admission constraints, not limits on total
 realm catalogs. The [core guide](../packages/zig/transit-core/docs/growing.md)
 describes the current defaults and restrictions.
 
-Entry reads use a durable view ID and an optional exclusive key cursor. The
-authority owns the root corresponding to that view; clients never supply roots.
-Each read must recheck current grants, activation, dependencies and view lifetime.
+Entry reads select exactly one basis: a caller-owned durable view ID, or a resource
+ID with an explicit current revision. The authority owns the root corresponding
+to a view; clients never supply roots. Each view read rechecks current grants,
+activation, dependencies and view lifetime. Current-resource reads recheck grants,
+scope and lifetime and reject a changed resource revision. They do not pin old
+state. Direct key lookup and an exclusive key continuation are mutually exclusive.
+
 Pages contain at most eight records. A non-null cursor permits another read; only
-a null cursor establishes completion. Direct key lookup and pagination are
-mutually exclusive. Catalog listing cuts use the authority position and must
-fail if that cut can no longer be honored, rather than mix revisions.
+a null cursor establishes completion. Catalog continuations require the first
+response's authority position; any change expires that cut rather than mixing
+revisions. Association listing uses revision IDs as cursors so filtering cannot
+disclose hidden names in a continuation. Filtered pages may be empty with a
+non-null cursor. Resource and association metadata require resource inspection
+rights; reading values additionally requires read rights. A retained root/view is
+never a bearer capability. Each successful response validates that its authority
+tail still matches the policy/read basis before disclosure. The response may
+arrive after a later revocation; it grants no subsequent read authority.
+
+Process lists expose recorded metadata. An individual process read checks current
+execution eligibility before releasing its next mailbox input. Required dependency
+expiry may fence execution before background work materializes terminal metadata;
+these two observations must not be presented as equivalent readiness claims.
 
 Framework code should read individual keys or bounded batches through this
 interface, retaining private mutations for one final authority decision. It must
