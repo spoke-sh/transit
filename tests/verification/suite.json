@@ -39,7 +39,8 @@
     "bindings": [
       "bindings::check",
       "bindings::test",
-      "test::model"
+      "test::model",
+      "test::model-delivery"
     ]
   },
   "tiers": {

@@ -26,6 +26,13 @@ codecs *args:
 model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-model -- {{args}}
 
+# Bounded TLC safety check of the growing result delivery/credit model. Type
+# and safety invariants only; no guard mutants or Zig trace replay yet, unlike
+# `model` above.
+model-delivery:
+    nix shell --inputs-from . nixpkgs#tlaplus --command tlc -workers 1 -seed 1 -fp 0 \
+        -config tests/verification/models/Delivery.cfg tests/verification/models/Delivery.tla
+
 # Committed HEAD only: omit selected real guards in isolated clones.
 mutations:
     python3 -B tests/verification/mutations.py

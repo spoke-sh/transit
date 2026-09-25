@@ -614,6 +614,27 @@
       ],
       "limits": "No resumable Station/Fuze result capture, quota accounting or page garbage collection. Catalog roots may retain unrelated physical pages. Disk provider proof checks authority-prefix trim while preserving immutable page storage.",
       "model": null
+    },
+    {
+      "id": "DELIVERY-01",
+      "claim": "Growing result segments are accepted strictly in order, receiver-issued credit never exceeds durably stored segments, the sender never exceeds its observed credit window, and acknowledgement never precedes full receipt",
+      "owner": "contracts/STATION_QUERY_V2.md",
+      "implementation": [
+        "packages/zig/transit-station/src/QueryDelivery.zig",
+        "packages/zig/transit-station/src/QueryRecords.zig"
+      ],
+      "profile": "growing Station result delivery; publication is disabled unless a host supplies QueryDelivery.Context",
+      "tasks": [
+        "test::unit",
+        "test::model-delivery"
+      ],
+      "scenarios": [
+        "Duplicate/retried segment after a lost credit grant or acknowledgement is inert",
+        "Sender blocked at the credit window until a grant is observed",
+        "Acknowledgement only reachable once every segment is durably received"
+      ],
+      "limits": "Type/safety-only TLC check of the abstract credit protocol; no guard mutants or Zig trace replay yet, unlike Authority.tla. Fragmentation below one segment, digest/schema verification and durable KV encoding are exercised by test::unit, not this model.",
+      "model": "tests/verification/models/Delivery.tla"
     }
   ]
 }
