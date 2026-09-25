@@ -1,6 +1,7 @@
 # Board atlas: interaction and evidence specification
 
-Status: proposed behavior accompanying the [visual study](README.md).
+Status: proposed technical appendix to [D1](../D1.md).
+Return to the [design review index](../README.md) for the review sequence and outcomes.
 The existing [Board contract](../../BOARD.md), [frontend limits](../../../apps/transit-board-web/README.md)
 and [API bounds](../../../apps/transit-board/README.md#bounds-and-observations)
 remain the implemented baseline.
@@ -80,13 +81,13 @@ relabels the units. Unavailable evidence makes a layer unavailable, not zero.
 
 ## Inbox, outbox and age follow-up
 
-The subsequent [scale study](SCALE.md) keeps study 7's queue-count fabric as its
+The subsequent [scale study](../D3.md) keeps D2's Figure 7 queue-count fabric as its
 baseline. It adds a proposed hierarchy of stable presentation groups, disjoint
 aggregate marks and separate outlier pins at 100 to 100,000 synthetic processes.
 Its grouping and aggregation rules extend this interaction intent; M9's bounded
 completion does not establish those capacities or a bulk inspection API.
 
-The [fabric exploration](FABRIC.md) extends this initial height-only study with
+The [fabric exploration](../D2.md) extends this initial height-only study with
 an inbox shoulder and an independently readable outbox well. It compares count
 depth plus age tint with an explicit age-depth layer. The interface uses Inbox
 as the mailbox display name. All illustrated ages are synthetic: current

@@ -36,9 +36,9 @@ evidence. Resource entries render as exact hex bytes after an explicit read.
 
 ## Visual design exploration
 
-The [Board relief atlas study](../../docs/design/board-atlas/README.md) proposes
+The [numbered Board design reviews](../../docs/design/README.md) propose
 coordinated browser and map views, with raised backlog relief flattening into
-readable evidence as the viewer zooms in. Its generated images use synthetic
+readable evidence as the viewer zooms in. Their generated images use synthetic
 data; the canvas, shared mode switch and proposed navigation are not implemented.
 
 ## Working in the frontend

@@ -41,26 +41,30 @@ causality, or wall-clock history from polling samples.
 
 ## Proposed browser and relief atlas
 
-The [relief atlas design study](design/board-atlas/README.md) explores two views
+The [design review index](design/README.md) records the numbered review sequence,
+summary and outcomes. Review acceptance is separate from implementation status.
+
+The [D1 browser and relief atlas review](design/D1.md) explores two views
 of the same inspection workspace: conventional tables/documents and a spatial
 map. At overview scale, elevation represents a named quantity such as pending
 inputs; as the viewer zooms in, the same positions flatten into process cards
 and bounded recorded journeys. Selection, filters and evidence remain shared.
 
-Its [fabric follow-up](design/board-atlas/FABRIC.md) explores an inbox lifting
+[D2 — Inbox, outbox and age](design/D2.md) explores an inbox lifting
 the surface and an outbox indenting its center. Count and age layers have
-separate meanings; all illustrated ages are synthetic, because current outbox
+separate meanings. Figure 7's queue-count fabric is the selected visual direction.
+All illustrated ages are synthetic, because current outbox
 inspection does not establish each output's source-commit time. Age support
 requires its own evidence contract before implementation.
 
-The study contains synthetic generated images and an interaction specification,
-not an implemented canvas or a broader read contract. It preserves the current
+The reviews contain synthetic generated images and an interaction specification,
+not an implemented canvas or a broader read contract. They preserve the current
 single-realm, bounded-page and inspection-only boundaries. Multi-realm maps,
 global aggregation and renderer choices are not established. Implementation
 needs its own numbered milestone under the roadmap sequencing rule; the
 completed M2 profile and its qualification remain unchanged.
 
-The [scale exploration](design/board-atlas/SCALE.md) extends that fabric from
+The [D3 scale review](design/D3.md) extends that fabric from
 100 to 100,000 synthetic processes using stable groups, aggregate landforms
 and individual age pins. M9's authorized Station lenses can inform grouping;
 bulk summaries, durable age evidence and these larger runtime populations are
