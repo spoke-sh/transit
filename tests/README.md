@@ -740,8 +740,10 @@ remain integration gates in the [incremental contract](../contracts/FUZE_STREAM_
 `just test::growing-query` (also part of `test::growing-service`) separately
 qualifies durable **capture**. Real Zig callers retain a 41-row Table, stage
 221-byte fragments, and recover through disk Ursula/node/caller replacement
-first during staging, then after the first seal. Both recoveries use one resident
-backend page. The proxy loses an accepted staging reply and a seal reply; exact
+first during staging, then after the first seal. The first recovery uses one
+resident backend page; the remaining capture defaults to 64. Use
+`just test::growing-query --finish-pages 1` to retain one page throughout both
+recoveries. The proxy loses an accepted staging reply and a seal reply; exact
 retry returns the original receipt without rerunning a handler. Each recovered
 segment is decoded by independent PyArrow, and Python checks the ordered digest
 chain: 41 rows, 9,984 bytes in six segments. The source is released with the final
@@ -751,8 +753,10 @@ changed staging, duplicate/future/forged continuation, policy revocation, sticky
 read failure, explicit closure and corrupt/missing fragments. Growing result
 publication/receiver restart remain unqualified and their frames remain disabled.
 The first one-CPU Debug sample took 6.94s to seed/stage, 9.78s to recover/seal,
-and 73.50s to resume/capture/independently inspect. These are finite shared-host
-proof timings, not service SLOs.
+and 73.50s to resume/capture/independently inspect. With 64 pages for the final
+phase, the same scenarios took 6.94s, 9.78s and 15.50s. The first recovery remains
+at one page and no faults or assertions were removed. These are finite shared-host
+proof timings, not service SLOs or hosted Nix/CI budgets.
 
 The [verification guide](verification/README.md) owns the versioned inventory,
 bound audit and generated transition harness. `just test::properties` checks the

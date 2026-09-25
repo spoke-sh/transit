@@ -16,7 +16,7 @@ import pyarrow as pa
 from storage import Fixture, free_port, wait_ready
 
 
-def run(node, caller):
+def run(node, caller, *, finish_pages=64):
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with Fixture() as fixture:
         public = json.loads(subprocess.check_output([caller, "public"], timeout=10))
@@ -103,7 +103,7 @@ def run(node, caller):
                     fixture.stop()
                     fixture.start()
                     recovered = json.loads(config.read_text())
-                    recovered["resident_pages"] = 1
+                    recovered["resident_pages"] = 1 if phase == "write" else finish_pages
                     config.write_text(json.dumps(recovered))
                     authority = start()
             assert fault["retries"] == {"stage", "seal"}
@@ -127,7 +127,7 @@ def run(node, caller):
             assert actual == [{"id": i, "value": None if i % 5 == 0 else chr(ord("a") + i % 26) * 220} for i in range(41)]
             assert progress["rows"] == 41 and progress["segments"] == 6
             assert total == job["bytes"] > 672 and chain == bytes(job["chain"])
-            print("Growing query timing:", json.dumps(timings), flush=True)
+            print("Growing query timing:", json.dumps({"initial_pages": 64, "seal_pages": 1, "finish_pages": finish_pages, **timings}), flush=True)
             print(f"Growing query: {len(actual)} rows/{total} captured bytes, partial staging and sealed progress survive two caller/node/provider replacements; lost stage/seal replies and independent Arrow verification passed.", flush=True)
         except BaseException:
             log.flush()
@@ -146,6 +146,14 @@ def run(node, caller):
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("node")
+    parser.add_argument("caller")
+    parser.add_argument("--finish-pages", type=int, default=64)
+    args = parser.parse_args()
+    if not 0 <= args.finish_pages <= 1024:
+        parser.error("--finish-pages must be between 0 and 1024")
     if hasattr(os, "sched_getaffinity"):
         os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
-    run(*sys.argv[1:])
+    run(args.node, args.caller, finish_pages=args.finish_pages)

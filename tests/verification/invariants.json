@@ -224,7 +224,7 @@
       ],
       "scenarios": [
         "70-row private capture with fresh turns, lost private proposals, duplicate/future continuations and corruption",
-        "41-row real capture, lost stage/seal replies, two caller/node/provider replacements, one-page cache",
+        "41-row real capture, lost stage/seal replies, two caller/node/provider replacements; one-page first recovery and selectable final cache",
         "Independent PyArrow bytes and ordered segment digest-chain validation",
         "Policy change and poisoned source read cannot publish; explicit fresh closure retains evidence"
       ],

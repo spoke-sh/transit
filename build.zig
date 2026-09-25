@@ -249,6 +249,7 @@ pub fn build(b: *std.Build) void {
     query_capture.addFileArg(b.path("tests/growing_query.py"));
     query_capture.addArtifactArg(node_artifact);
     query_capture.addArtifactArg(growing_query);
+    query_capture.addPassthruArgs();
     query_capture.has_side_effects = true;
     query_capture.stdio = .inherit;
     b.step("test-growing-query", "Prove bounded query capture and recovery through disk Ursula").dependOn(&query_capture.step);

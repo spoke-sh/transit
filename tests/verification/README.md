@@ -105,6 +105,17 @@ binding matrix, TLA+ and all five browser checks. Completion metadata records
 change and predates incremental Fuze/query capture. It retains more scenarios
 than `fd0d2d4`; neither sample measures cold Nix transfer or hosted CI percentiles.
 
+The query capture proof at `fc9ab61` took 6.94s to seed/stage, 9.78s for the
+one-page recovery and first seal, and 73.50s to finish capture/inspection with
+one page. The same executable and scenarios with 64 pages in only the final
+phase took 6.94s, 9.78s and 15.50s. Artifacts are
+`station-query-capture-service.log` and `station-query-cache64-qualified.log`
+under `.cache/verification/`. Ordinary qualification now selects 64 for that
+final phase; the first recovery/seal still uses one page. Full one-page replay is
+available with `just test::growing-query --finish-pages 1`. Node defaults, fault
+coverage and assertions are unchanged. These samples exclude Nix transfer and
+cannot establish hosted CI percentiles or a production cache recommendation.
+
 ## Generated transitions
 
 ```sh
