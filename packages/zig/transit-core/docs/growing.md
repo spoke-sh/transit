@@ -1,8 +1,10 @@
 # Growing authority integration
 
-Status: M10 in development. `transit_core.growing.Engine(Journal, PageStore)` is
+Status: the explicit M10 growth profile is implemented and qualified within the
+[recorded workload and recovery limits](../../../../tests/verification/README.md#scale-and-offered-load).
+`transit_core.growing.Engine(Journal, PageStore)` is
 available through an explicitly selected node profile and Zig client. The [v3 contract](../../../../contracts/TRANSIT_V3.md)
-owns proposed wire types; the existing v2 engine remains the launcher default.
+owns its development wire types; the existing v2 engine remains the launcher default.
 
 The implemented internal transitions include bootstrap, root-authorized principal
 grant/revocation, process creation, ownership, mailbox admission and termination;

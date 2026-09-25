@@ -2,9 +2,10 @@
 
 Status: M10 development contract. An explicitly selected node profile and Zig
 client implement the bounded command/query boundary. Launcher defaults, Session,
-Station and foreign bindings remain v2/state-v1. See the
+the default Station interface and foreign bindings remain v2/state-v1. See the
 [node guide](../apps/transit-node/docs/growing.md) for exact partial capabilities;
-this does not authorize interpreting old history as a new profile. [M10](../docs/roadmap/M10.md) retains the integration gates.
+this does not authorize interpreting old history as a new profile. [M10](../docs/roadmap/M10.md)
+records its growth, integration and recovery qualification limits.
 
 [Growth.zig](../packages/zig/transit-protocol/src/Growth.zig) owns the neutral types;
 [transit-v3.schema.json](transit-v3.schema.json) is generated alongside the unchanged

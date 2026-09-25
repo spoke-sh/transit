@@ -222,6 +222,8 @@ baseline must pass; a compiling mutant must trigger a minimized property failure
 Build errors/timeouts do not count as detection. It retains evidence and never
 edits production source in the working tree. Weekly CI runs this larger budget.
 
+## Scale and offered load
+
 [scale.json](scale.json) defines progressive experiment sizes and required
 measurements for the growing profile. These are test datasets, not service SLOs
 or claims that the legacy profile supports them.

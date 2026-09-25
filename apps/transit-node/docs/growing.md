@@ -2,7 +2,8 @@
 
 [transit-node](../README.md) accepts an explicit `"profile": "growing_v3"`
 configuration. Omitting `profile`, or choosing `"v2"`, keeps the existing protocol.
-This is a partially qualified development profile. Launchers, Board, default Station,
+This development profile has [bounded M10 qualification](../../../tests/README.md#m10-verification-and-scale-foundations),
+including repeated disk/S3 growth and recovery. Launchers, Board, default Station,
 provider controllers and foreign bindings still use v2; they do not silently
 negotiate or convert to v3.
 

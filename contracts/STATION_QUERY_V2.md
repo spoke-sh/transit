@@ -1,6 +1,6 @@
 # Growing Station query capture — v2 design
 
-Status: the `GrowingQuery` capture slice is under M10 qualification. The
+Status: the `GrowingQuery` capture slice has bounded M10 qualification. The
 publication/receiver codecs below (`QueryDelivery`, `QueryRecords`) are
 implemented with both in-memory and real disk/node/caller qualification; no
 default end-to-end growing-query capability is advertised. A growing `GenServer`
