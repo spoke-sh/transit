@@ -1,0 +1,249 @@
+{
+  "version": 1,
+  "invariants": [
+    {
+      "id": "AUTH-01",
+      "claim": "One conditional successor publishes a prepared transition",
+      "owner": "docs/TRANSIT.md",
+      "implementation": [
+        "packages/zig/transit-core/src/root.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "test::unit",
+        "test::storage",
+        "test::properties"
+      ],
+      "scenarios": [
+        "Competing prepared successors",
+        "Acknowledgement lost after append"
+      ],
+      "limits": "The test store assumes Ursula conditional append; disk integration checks the provider boundary.",
+      "model": null
+    },
+    {
+      "id": "AUTH-02",
+      "claim": "Current grants and activation generation fence new publication and receipt disclosure",
+      "owner": "docs/SECURITY.md",
+      "implementation": [
+        "packages/zig/transit-core/src/root.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "test::unit",
+        "test::service",
+        "test::state",
+        "test::properties"
+      ],
+      "scenarios": [
+        "Revoke or replace owner between prepare and commit",
+        "Retry committed work after read revocation"
+      ],
+      "limits": "Authorization does not prove application computation or undo external effects.",
+      "model": null
+    },
+    {
+      "id": "STATE-01",
+      "claim": "Mutations, consumed input and outputs have one visibility decision",
+      "owner": "docs/STATE.md",
+      "implementation": [
+        "packages/zig/transit-core/src/resources.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "test::unit",
+        "test::state",
+        "test::storage",
+        "test::station"
+      ],
+      "scenarios": [
+        "Stale resource revisions and private rollback",
+        "Restart before/after conditional append"
+      ],
+      "limits": "Qualified only for the bounded v1 state profile; growing pages and staged publication remain unqualified.",
+      "model": null
+    },
+    {
+      "id": "RETRY-01",
+      "claim": "Exact retry preserves one durable outcome and unknown is not rejection",
+      "owner": "docs/CLIENT.md",
+      "implementation": [
+        "packages/zig/transit-client/src/root.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "test::callers",
+        "test::client-abi",
+        "bindings::test",
+        "test::properties"
+      ],
+      "scenarios": [
+        "Lost accepted response followed by exact retry",
+        "Malformed reply and host loss"
+      ],
+      "limits": "Same-principal concurrent handles and post-commit allocation-failure enumeration need the M10 harness.",
+      "model": null
+    },
+    {
+      "id": "LIFE-01",
+      "claim": "Expiry and settlement closure cannot be reopened by late work or old recovery state",
+      "owner": "docs/RETENTION.md",
+      "implementation": [
+        "packages/zig/transit-core/src/Time.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "test::unit",
+        "test::service",
+        "test::storage"
+      ],
+      "scenarios": [
+        "Uncertain time at admission cutoff",
+        "Paused dispatch and late reconciliation"
+      ],
+      "limits": "Validation occurs at compared journal tail; physical external dispatch may occur later.",
+      "model": null
+    },
+    {
+      "id": "REPLAY-01",
+      "claim": "Recovery restores decisions without running handlers or redispatching effects",
+      "owner": "docs/STREAMS.md",
+      "implementation": [
+        "packages/zig/transit-core/src/root.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "test::storage",
+        "test::service",
+        "test::station",
+        "test::properties"
+      ],
+      "scenarios": [
+        "SIGKILL and WAL recovery",
+        "Checkpoint plus trimmed tail"
+      ],
+      "limits": "Process kill is not host power loss; legacy checkpoint includes the whole bounded catalog.",
+      "model": null
+    },
+    {
+      "id": "CAP-01",
+      "claim": "Pressure never silently deletes accepted work and control reserve permits closure",
+      "owner": "docs/RETENTION.md",
+      "implementation": [
+        "packages/zig/transit-core/src/root.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "test::unit",
+        "test::capacity"
+      ],
+      "scenarios": [
+        "Admission ceiling with outstanding input",
+        "Real ENOSPC followed by revocation and restart"
+      ],
+      "limits": "Finite legacy reserve formula; growing-profile accounting and overload qualification outstanding.",
+      "model": null
+    },
+    {
+      "id": "HOST-01",
+      "claim": "Cancellation and disposal join owned native work without manufacturing rollback",
+      "owner": "docs/CLIENT.md",
+      "implementation": [
+        "packages/zig/transit-station/src/Abi.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "bindings::test",
+        "test::client-abi"
+      ],
+      "scenarios": [
+        "Cancel host await during native operation",
+        "Child/port failure and malformed framing"
+      ],
+      "limits": "Finite target-language schedules, not exhaustive interleaving or non-Linux qualification.",
+      "model": null
+    },
+    {
+      "id": "ARROW-01",
+      "claim": "Complete query bytes retain exact schema, values, nulls and source revision",
+      "owner": "docs/ARROW.md",
+      "implementation": [
+        "packages/zig/transit-fuze/src/execute.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "test::arrow",
+        "test::station",
+        "bindings::test"
+      ],
+      "scenarios": [
+        "Independent PyArrow and wide integers",
+        "Missing fragments and consumer restart"
+      ],
+      "limits": "Bounded synchronous results only; paged multi-batch execution remains unqualified.",
+      "model": null
+    },
+    {
+      "id": "RUNTIME-01",
+      "claim": "Provider recovery and upgrades cannot grant ownership or redirect durable work",
+      "owner": "docs/DEPLOYMENT.md",
+      "implementation": [
+        "packages/zig/transit-runtime-substrate/src/root.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "test::runtime-upgrade",
+        "launchers::local::test",
+        "launchers::local::test-station",
+        "launchers::reference::test",
+        "launchers::reference::test-station"
+      ],
+      "scenarios": [
+        "Lost provider create/update response",
+        "Fresh activation after pod replacement"
+      ],
+      "limits": "Only Zig workers qualified in the reference substrate; native tests do not establish sandbox isolation.",
+      "model": null
+    },
+    {
+      "id": "READ-01",
+      "claim": "Inspection preserves current authorization, revision boundaries and explicit gaps",
+      "owner": "docs/BOARD.md",
+      "implementation": [
+        "packages/zig/transit-core/src/resource_read.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "test::inspection",
+        "test::state",
+        "transit-board::test",
+        "transit-board::browser"
+      ],
+      "scenarios": [
+        "Read revoked between pages",
+        "Resource/view expiry and history gap"
+      ],
+      "limits": "Board is private-boundary inspection; the legacy view is a full bounded resource copy.",
+      "model": null
+    },
+    {
+      "id": "O11Y-01",
+      "claim": "Diagnostic pressure cannot stall authority or expose application credentials",
+      "owner": "docs/OBSERVABILITY.md",
+      "implementation": [
+        "packages/zig/transit-observability/src/root.zig"
+      ],
+      "profile": "transit-v2/state-v1/station-v1",
+      "tasks": [
+        "test::telemetry",
+        "test::observability"
+      ],
+      "scenarios": [
+        "Stalled log pipe on one CPU",
+        "Lost HTTP acknowledgement retains receipt semantics"
+      ],
+      "limits": "Bounded diagnostics may be dropped; they are not durable authority.",
+      "model": null
+    }
+  ]
+}

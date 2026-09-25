@@ -7,30 +7,19 @@ import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-LANES = {
-    "core": (
-        "check-core", "test::build", "test::dev-environment", "test::kubectl-transit",
-        "test::deployments", "test::telemetry", "test::packages",
-        "test::arrow", "test::client-abi", "test::station", "test::storage",
-        "test::service", "test::runtime-upgrade", "test::callers",
-        "test::inspection", "test::state",
-    ),
-    "experience": (
-        "transit-board::check", "bindings::node-check", "test::observability",
-        "transit-board::test", "launchers::local::test", "launchers::local::test-station",
-    ),
-    "browser": ("transit-board::browser",),
-    "bindings": ("bindings::check", "bindings::test"),
-}
+SUITE = json.loads((ROOT / "tests/verification/suite.json").read_text())
+if SUITE["version"] != 1:
+    raise ValueError("Unsupported verification suite version")
+LANES = SUITE["lanes"]
+
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("lane", choices=("all", "complete", *LANES))
+    parser.add_argument("lane", choices=("all", *SUITE["tiers"], *LANES))
     args = parser.parse_args()
-    lanes = ("core", "experience", "bindings") if args.lane in {"all", "complete"} else (args.lane,)
-    if args.lane == "complete":
-        lanes += ("browser",)
+    tier = "ordinary" if args.lane == "all" else args.lane
+    lanes = SUITE["tiers"].get(tier, [tier])
     results = []
     destination = ROOT / ".cache/ci" / f"{args.lane}.json"
     destination.parent.mkdir(parents=True, exist_ok=True)

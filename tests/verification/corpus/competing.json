@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "kind": "send"
+    },
+    {
+      "kind": "prepare",
+      "slot": 0,
+      "value": 1
+    },
+    {
+      "kind": "prepare",
+      "slot": 1,
+      "value": 2
+    },
+    {
+      "kind": "commit",
+      "slot": 1
+    },
+    {
+      "kind": "commit",
+      "slot": 0
+    },
+    {
+      "kind": "retry",
+      "slot": 0
+    },
+    {
+      "kind": "restart"
+    },
+    {
+      "kind": "retry",
+      "slot": 1
+    }
+  ]
+}

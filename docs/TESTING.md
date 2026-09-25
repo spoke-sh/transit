@@ -2,7 +2,8 @@
 
 Status: [M10](roadmap/M10.md) in progress. Conservative workflow selection,
 separate unit/build checks and retained clean-run timings are implemented;
-new transition harnesses, formal models and scale qualification remain planned. The
+an authority/retry transition harness and reviewed bound inventory are implemented.
+Formal models, broader generated scenarios and scale qualification remain in progress. The
 [test guide](../tests/README.md) records what actually runs and what has passed.
 [Conformance](CONFORMANCE.md) owns required adversarial guarantees; this document
 owns how we obtain and maintain their evidence without making every edit run
@@ -16,6 +17,9 @@ design owner, implementation boundary, positive/negative cases, and a mapping
 to fast checks and real integration evidence. A scenario records its preconditions,
 action/fault schedule, durable outcomes, forbidden outcomes and supported profile.
 Keep one machine-readable catalog rather than divergent language-specific lists.
+The [verification inventory](../tests/verification/README.md) owns the initial
+executable task/invariant mapping, source-checked bound classifications, generated
+schedules and saved corpus. Its qualification limits are part of each claim.
 
 Report revision, toolchain/provider versions, workload, topology, seed/trace and
 limits with results. Distinguish passed, failed, intentionally not selected and

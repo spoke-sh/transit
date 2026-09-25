@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "status": "measurement-plan; not qualified capacity",
+  "profile": "single authority, disk Ursula, fixed resident budget",
+  "service_slo": null,
+  "dimensions": {
+    "keys_per_resource": [32, 256, 4096, 65536],
+    "resources": [4, 16, 128],
+    "processes": [16, 64, 256],
+    "principals": [4, 16, 64],
+    "resident_pages": [4, 16],
+    "active_views": [1, 4, 16],
+    "retained_calls": [16, 256, 4096],
+    "hot_key_percent": [0, 90],
+    "overload": ["closed-loop baseline", "offered load independent of completion"]
+  },
+  "required_measurements": [
+    "revision", "toolchain", "CPU", "memory", "filesystem", "provider versions",
+    "working set budget", "dataset size", "cold/warm state", "repeat count",
+    "latency p50/p95/p99", "throughput", "RSS", "stack budget", "threads", "file descriptors",
+    "disk bytes", "index bytes", "cache hits/misses", "queue age", "control latency",
+    "checkpoint time", "recovery time", "admitted/rejected work", "generator saturation"
+  ],
+  "correctness": [
+    "all admitted inputs remain accounted for",
+    "no partial state/input/output publication",
+    "retained call/result evidence survives cache eviction and restart",
+    "revocation and permanent retirement remain effective during overload",
+    "finite admission preserves its declared control reserve"
+  ],
+  "notes": [
+    "Values are experiment sizes, not promised production limits or an exhaustive Cartesian product.",
+    "Legacy profile must reject unsupported sizes; a failed allocation is not a growth result.",
+    "Hold resident budget fixed while data grows; unlimited retention is the baseline.",
+    "Record any unsupported dimension as unqualified, never a successful skip.",
+    "Agree production SLOs separately; no user-specific service target has been selected."
+  ]
+}

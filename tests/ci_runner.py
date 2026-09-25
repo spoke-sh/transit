@@ -73,6 +73,8 @@ def main():
         runner = path / "tests/ci.py"
         runner.parent.mkdir()
         runner.write_bytes((ROOT / "tests/ci.py").read_bytes())
+        (runner.parent / "verification").mkdir()
+        (runner.parent / "verification/suite.json").write_bytes((ROOT / "tests/verification/suite.json").read_bytes())
         env = os.environ | {"PATH": str(path) + os.pathsep + os.environ["PATH"],
                             "GITHUB_STEP_SUMMARY": str(path / "summary")}
         result = subprocess.run([sys.executable, "-B", runner, "browser"], env=env, capture_output=True)

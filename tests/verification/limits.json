@@ -1,0 +1,226 @@
+{
+  "version": 1,
+  "profile": "legacy v2/state v1",
+  "limits": [
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_principals",
+      "expression": "16",
+      "classification": "total-cardinality",
+      "meaning": "Principal records and grant/receipt arrays; replace with paged identities and wider wire principal IDs."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_processes",
+      "expression": "64",
+      "classification": "total-cardinality",
+      "meaning": "Retained process catalog; opt-in collection does not provide unlimited-retention growth."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_effects",
+      "expression": "128",
+      "classification": "total-cardinality",
+      "meaning": "Pending and retained completed effects share slots."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_effect_observations",
+      "expression": "16",
+      "classification": "operation",
+      "meaning": "Finite external reconciliation attempts per effect; explicit protocol bound."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_outputs",
+      "expression": "256",
+      "classification": "total-cardinality",
+      "meaning": "Undelivered and retained delivered outputs share slots."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_payloads",
+      "expression": "16",
+      "classification": "total-cardinality",
+      "meaning": "Retained payload metadata; bytes live outside the journal."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_payload_bytes",
+      "expression": "64 * 1024",
+      "classification": "operation",
+      "meaning": "Single external immutable payload proof limit."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_turn_outputs",
+      "expression": "4",
+      "classification": "operation",
+      "meaning": "One atomic turn output batch."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_counter",
+      "expression": "(1 << 53) - 1",
+      "classification": "encoding",
+      "meaning": "JSON-safe 53-bit identifiers and journal positions; explicit versioned widening required."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_admission_ceiling",
+      "expression": "65536",
+      "classification": "quota-ceiling",
+      "meaning": "Maximum configurable journal admission ceiling in the legacy reserve proof."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_entry_bytes",
+      "expression": "8192",
+      "classification": "operation",
+      "meaning": "Serialized journal entry bound."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_checkpoint_bytes",
+      "expression": "1024 * 1024",
+      "classification": "total-cardinality",
+      "meaning": "Whole-catalog checkpoint bound; replace with roots and durable segments."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_body",
+      "expression": "256 * 1024",
+      "classification": "operation",
+      "meaning": "HTTP input parsing budget."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_resources",
+      "expression": "4",
+      "classification": "total-cardinality",
+      "meaning": "Four catalog slots; collection is not a growing-state implementation."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_entries",
+      "expression": "32",
+      "classification": "total-cardinality",
+      "meaning": "32 keys shared by application rows, schemas, waits and retained results."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_associations",
+      "expression": "64",
+      "classification": "total-cardinality",
+      "meaning": "64 retained named process/resource relationships."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_views",
+      "expression": "4",
+      "classification": "total-cardinality",
+      "meaning": "Four durable active views with full entry copies; introduce explicit active-view quota and page roots."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_mutations",
+      "expression": "4",
+      "classification": "operation",
+      "meaning": "Atomic proposal mutation budget."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_key_bytes",
+      "expression": "32",
+      "classification": "encoding",
+      "meaning": "Maximum one key encoding."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "page_size",
+      "expression": "8",
+      "classification": "working-set",
+      "meaning": "Entries returned in one page, independent of total collection size in the target profile."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_view_ms",
+      "expression": "60_000",
+      "classification": "operation",
+      "meaning": "Maximum finite snapshot lifetime, not history retention."
+    },
+    {
+      "source": "packages/zig/transit-station/src/Query.zig",
+      "symbol": "chunk_bytes",
+      "expression": "224",
+      "classification": "operation",
+      "meaning": "One encoded result fragment."
+    },
+    {
+      "source": "packages/zig/transit-station/src/Query.zig",
+      "symbol": "max_chunks",
+      "expression": "3",
+      "classification": "total-cardinality",
+      "meaning": "Whole captured result limited to three fragments; use durable batch references."
+    },
+    {
+      "source": "packages/zig/transit-station/src/Query.zig",
+      "symbol": "max_bytes",
+      "expression": "chunk_bytes * max_chunks",
+      "classification": "total-cardinality",
+      "meaning": "Total result ceiling derived from chunk count; not a streaming memory budget."
+    },
+    {
+      "source": "packages/zig/transit-station/src/Supervisor.zig",
+      "symbol": "max_children",
+      "expression": "4",
+      "classification": "total-cardinality",
+      "meaning": "Four children per supervisor materialization; needs paged child catalog."
+    },
+    {
+      "source": "packages/zig/transit-station/src/Abi.zig",
+      "symbol": "minimum_stack_bytes",
+      "expression": "8 * 1024 * 1024",
+      "classification": "working-set",
+      "meaning": "Eight MiB host stack required by the legacy Debug materialization path."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/model.zig",
+      "symbol": "max_rows",
+      "expression": "32",
+      "classification": "total-cardinality",
+      "meaning": "Whole query input row count; needs batches independent of total source."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/execute.zig",
+      "symbol": "working_bytes",
+      "expression": "1024 * 1024",
+      "classification": "working-set",
+      "meaning": "Finite compute workspace; exceeding this must not truncate results."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/model.zig",
+      "symbol": "max_cell_bytes",
+      "expression": "220",
+      "classification": "encoding",
+      "meaning": "Single qualified cell encoding."
+    }
+  ],
+  "identities": [
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "anchor": "after: u16 = 0",
+      "meaning": "Physical slot cursor cannot address a growing ordered key space; versioned opaque resume token required."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "anchor": "principal: u8",
+      "meaning": "All grants, bindings, origins, resource views, ABI/host schemas must widen together, with old histories rejected or explicitly upgraded."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/model.zig",
+      "anchor": "names: [2]Name",
+      "meaning": "Two-column schema qualification; schema width is a per-operation budget, not a total row limit."
+    }
+  ]
+}

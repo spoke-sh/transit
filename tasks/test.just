@@ -14,6 +14,10 @@ unit:
 build:
     zig build test-build
 
+# Replay saved regressions and deterministic generated authority schedules.
+properties *args:
+    zig build test-properties -- {{args}}
+
 # Qualify finite IPC schemas/values against an independent Arrow reader.
 arrow:
     zig build test-arrow

@@ -727,6 +727,13 @@ Flight/ADBC remain later milestones.
 
 ## M10 verification and scale foundations
 
+The [verification guide](verification/README.md) owns the versioned inventory,
+bound audit and generated transition harness. `just test::properties` checks the
+real Zig authority against an independent mailbox/fencing/retry projection,
+including replay after every step and bounded failure minimization. The initial
+21-trace corpus/generation run passed 826 boundaries in 8.46 seconds on this host.
+That measures the harness, not service throughput or exhaustive exploration.
+
 M10 is in progress. The first CI changes separate library unit tests from
 application/probe builds, avoid duplicate feature-push/PR runs, and select
 runtime checks conservatively. `tests/ci_runner.py` exercises actual Git rename/

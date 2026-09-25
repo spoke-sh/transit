@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "kind": "send"
+    },
+    {
+      "kind": "prepare"
+    },
+    {
+      "kind": "own"
+    },
+    {
+      "kind": "commit"
+    },
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "prepare",
+      "stale_generation": true
+    },
+    {
+      "kind": "prepare",
+      "stale_revision": true
+    },
+    {
+      "kind": "prepare"
+    },
+    {
+      "kind": "revoke"
+    },
+    {
+      "kind": "commit"
+    },
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "grant"
+    },
+    {
+      "kind": "retry"
+    }
+  ]
+}

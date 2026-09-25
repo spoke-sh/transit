@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "seed": 1,
+  "actions": [
+    {
+      "kind": "revoke"
+    },
+    {
+      "kind": "send"
+    },
+    {
+      "kind": "prepare",
+      "slot": 0,
+      "value": 70,
+      "stale_generation": false,
+      "stale_revision": false
+    },
+    {
+      "kind": "retry",
+      "slot": 0
+    }
+  ]
+}

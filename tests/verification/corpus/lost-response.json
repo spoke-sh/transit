@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "kind": "send"
+    },
+    {
+      "kind": "prepare"
+    },
+    {
+      "kind": "commit",
+      "fault": "before_append"
+    },
+    {
+      "kind": "commit",
+      "fault": "after_append"
+    },
+    {
+      "kind": "restart"
+    },
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "revoke"
+    },
+    {
+      "kind": "retry"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "lanes": {
+    "core": [
+      "check-core",
+      "test::build",
+      "test::properties",
+      "test::dev-environment",
+      "test::kubectl-transit",
+      "test::deployments",
+      "test::telemetry",
+      "test::packages",
+      "test::arrow",
+      "test::client-abi",
+      "test::station",
+      "test::storage",
+      "test::service",
+      "test::runtime-upgrade",
+      "test::callers",
+      "test::inspection",
+      "test::state"
+    ],
+    "experience": [
+      "transit-board::check",
+      "bindings::node-check",
+      "test::observability",
+      "transit-board::test",
+      "launchers::local::test",
+      "launchers::local::test-station"
+    ],
+    "browser": [
+      "transit-board::browser"
+    ],
+    "bindings": [
+      "bindings::check",
+      "bindings::test"
+    ]
+  },
+  "tiers": {
+    "ordinary": [
+      "core",
+      "experience",
+      "bindings"
+    ],
+    "complete": [
+      "core",
+      "experience",
+      "bindings",
+      "browser"
+    ]
+  },
+  "external_tasks": {
+    "reference": [
+      "launchers::reference::test",
+      "launchers::reference::test-launcher",
+      "launchers::reference::test-station",
+      "launchers::compose::test",
+      "launchers::compose::test-station",
+      "test::capacity"
+    ]
+  },
+  "nested_tasks": {
+    "check-core": [
+      "test::unit",
+      "contract::check"
+    ]
+  }
+}

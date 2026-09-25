@@ -43,6 +43,19 @@ pub fn build(b: *std.Build) void {
     b.step("test-telemetry", "Prove bounded telemetry under stalled and closed sinks").dependOn(&telemetry_test.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = observations.module("transit_observability") })).step);
     const core = b.dependency("transit_core", .{ .target = target, .optimize = optimize });
+    const transition_driver = b.addExecutable(.{ .name = "transit-transition-driver", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/transition_driver.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_core", .module = core.module("transit_core") }},
+    }) });
+    const properties = b.addSystemCommand(&.{ "python3", "-B" });
+    properties.addFileArg(b.path("tests/verification/transitions.py"));
+    properties.addArtifactArg(transition_driver);
+    properties.addPassthruArgs();
+    properties.has_side_effects = true;
+    properties.stdio = .inherit;
+    b.step("test-properties", "Run reproducible authority schedules and saved regressions").dependOn(&properties.step);
     const protocol = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize });
     const exporter = b.addExecutable(.{ .name = "transit-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-protocol/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }} }) });
     b.step("contract", "Export public contract JSON Schema to stdout").dependOn(&b.addRunArtifact(exporter).step);
