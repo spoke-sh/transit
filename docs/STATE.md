@@ -210,6 +210,12 @@ it cannot be silently refreshed inside an uncertain submission. Retry an
 uncertain commit with the same identity and proposal until its outcome is known.
 Grants and expiry remain current checks even when the requested version exists.
 
+M10's proposed [retained read versions](../contracts/READ_VERSIONS_V1.md) separate
+a long-lived query's source basis from its short-lived turn views. They are not
+implemented yet. Publication must bind the version to durable progress, with
+current access and lifetime checks across later turns and worker replacement;
+retaining a root cannot extend hard expiry or imply a complete query result.
+
 Recovery applies committed mutations and protocol transitions without executing
 application handlers. Historical re-execution, where supported by the caller,
 requires retained read versions or recorded observations and compatible code;
