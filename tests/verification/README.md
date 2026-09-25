@@ -35,6 +35,16 @@ does not establish an overall speedup. Timings and completion metadata remain in
 `.cache/ci/clean/94ab60ae889d-transit-ci-z0etigj7/`. The later public v3 service and
 activation-session changes have focused evidence, not that clean run's coverage.
 
+A subsequent complete clean run at `ce751a3` passed all 32 tasks, including the
+public growing client/maintenance proofs, foreign bindings, TLA+ checks and five
+Chromium checks. Total elapsed task execution was 787.23 seconds (about 13m 7s).
+Evidence is in `.cache/ci/clean/ce751a3cccb6-transit-ci-fg16ffzz/`. Core checks took
+42.28 seconds; local counter and Station launcher qualification took 208.26 and
+96.04 seconds. These are sequential local tasks on a shared host, not hosted
+parallel lane timing or cold Nix transfer measurements. This run predates named
+association lookup and the growing Station changes; it cannot qualify those
+later revisions. No overall CI latency/cost gate is closed by this comparison.
+
 Profiling the standalone Debug core binary at `94ab60a` found 38.73 seconds of
 execution, including 24.20 seconds in the retained-catalog exchange test. That
 test crosses the legacy capacity boundaries and retains its full scenario.
