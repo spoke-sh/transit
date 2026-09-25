@@ -9,18 +9,33 @@ import tempfile
 import yaml
 from ci import LANES, ROOT
 from ci_select import select
+from ci_cost import summarize
 
 
 def main():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     selected = [row["lane"] for row in workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]]
-    assert selected == ["core", "experience", "bindings"]
+    assert selected == ["core", "growth", "experience", "launchers", "bindings"]
     assert workflow["jobs"]["checks"]["strategy"]["fail-fast"] is False
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks"]
+    matrix = workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]
+    for cache in {row["cache"] for row in matrix}:
+        assert sum(row["cache_writer"] for row in matrix if row["cache"] == cache) == 1
     events = workflow.get("on", workflow.get(True))
     assert events["push"]["branches"] == ["main"]
     assert {"pull_request", "merge_group", "workflow_dispatch"} <= events.keys()
+    budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 1000}
+    sample = dict(id=1, head_sha='fixture', html_url='https://example.invalid', conclusion='success', created_at='2026-01-01T00:00:00Z')
+    job = dict(name='core', conclusion='success', started_at='2026-01-01T00:00:01Z', completed_at='2026-01-01T00:00:10Z', steps=[])
+    log = 'core\tCache hit for: nix-key\ncore\tCache Size: ~0 MB (100 B)\ncore\tCache hit for: zig-key\ncore\tCache Size: ~0 MB (200 B)\n'
+    measured = summarize(sample, [job], log, budgets)
+    assert measured['budget_met'] and measured['restored_cache_bytes'] == 300
+    assert measured['feedback_seconds'] == 10 and measured['aggregate_runner_seconds'] == 9
+    assert not summarize(sample, [job], '', budgets)['budget_met']
+    assert not summarize(sample, [dict(job, conclusion='failure')], log, budgets)['budget_met']
+    assert not summarize(sample, [dict(job, completed_at=None)], log, budgets)['budget_met']
+    assert not summarize(sample, [job], log, dict(budgets, feedback_seconds=10))['budget_met']
     assert not select(["docs/STATE.md", "README.md"])["full"]
     for paths in ([], ["docs/schema.json"], ["contracts/STATE_V1.md"],
                   ["build.zig"], ["unknown"], ["docs/../../build.zig"],

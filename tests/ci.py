@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import time
+import platform
 
 ROOT = Path(__file__).resolve().parents[1]
 SUITE = json.loads((ROOT / "tests/verification/suite.json").read_text())
@@ -58,6 +59,11 @@ def main():
                     "seconds": round(time.monotonic() - started_suite, 2),
                     "run_id": os.getenv("GITHUB_RUN_ID"),
                     "run_attempt": os.getenv("GITHUB_RUN_ATTEMPT")}
+        metadata['machine'] = {
+            'platform': platform.platform(), 'logical_cpus': os.cpu_count(),
+            'affinity': sorted(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else None,
+            'runner': os.getenv('RUNNER_NAME'), 'runner_arch': os.getenv('RUNNER_ARCH'),
+        }
         destination.with_suffix(".meta.json").write_text(json.dumps(metadata, indent=2) + "\n")
         summary = os.getenv("GITHUB_STEP_SUMMARY")
         if summary:

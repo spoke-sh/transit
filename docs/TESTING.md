@@ -177,6 +177,35 @@ serialization point, and [M18](roadmap/M18.md) owns broader cluster qualificatio
 
 ## CI selection, cost and local parity
 
+The M10 feedback target is **under 10 minutes**, with **under 5 minutes** as a
+stretch target. The provisional aggregate budget is 50 runner minutes and 12 GiB
+of restored dependency caches per full run. These are CI budgets, not service
+SLOs; [ci-budgets.json](../tests/verification/ci-budgets.json) records their
+measurement rules. Require at least three complete samples per cold/warm mode
+before claiming the target met. Failed, cancelled or incomplete runs do not count.
+
+`just ci::cost RUN_ID` reads GitHub's completed job/step timestamps and cache
+byte counts into a small JSON artifact. It requires authenticated `gh` with read
+access to Actions. The separate `CI cost evidence` workflow runs the same trusted
+default-branch tool after CI completes. It does not execute code from the tested
+PR or upload raw logs. Its report distinguishes dependency-cache restores,
+setup, checks (including compilation), cleanup and cache saves; individual timed
+task artifacts retain the build-smoke and scenario owners. Mixed build/test task
+time must not be presented as pure execution time. Workflow creation to final
+job completion includes queue time; aggregate runner time sums actual jobs and
+does not estimate a monetary price.
+
+Manual CI has a `cache_mode=cold` option disabling GitHub Nix/Zig restores and
+saves. Nix can still use upstream binary substitutes. Ordinary runs restore
+dependencies into fresh checkout object caches. The five lanes separate core,
+growing state, frontend/Station experience, launcher/build smoke and bindings;
+browser checks remain in experience. Core/growth share the core Nix cache, and
+experience/launchers share theirs, with one writer per key. All tasks retain
+one owner in the local/hosted inventory. `TRANSIT_CI_RUNNER` can select an explicitly
+provisioned runner label; absent that variable CI still uses `ubuntu-24.04`.
+No larger paid runner is implicitly provisioned. Compare both feedback and
+aggregate cost before selecting one.
+
 Use one inventory mapping invariants/scenarios to artifacts, dependencies, tasks
 and tiers. Preserve stable aggregate required checks. A selector must understand
 shared contracts/build/test infrastructure, select unknown paths conservatively,

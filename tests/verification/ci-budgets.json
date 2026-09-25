@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "status": "targets; requires representative hosted cold and warm qualification",
+  "feedback_seconds": 600,
+  "stretch_feedback_seconds": 300,
+  "aggregate_runner_seconds": 3000,
+  "restored_cache_bytes": 12884901888,
+  "minimum_samples_per_cache_mode": 3,
+  "notes": [
+    "User requested under ten minutes, with under five minutes as a stretch target.",
+    "Fifty aggregate runner minutes and twelve GiB restored per run are proposed cost ceilings derived from the recorded three-lane baseline plus two additional lane setups.",
+    "Feedback includes queue/selection time from workflow creation through required lane completion; aggregate cost sums job wall time, not billable price.",
+    "Cold means GitHub dependency restores disabled, not an empty upstream Nix substitute cache.",
+    "Incomplete, failed or cancelled runs and missing cache evidence cannot qualify a budget.",
+    "A larger runner needs a measured comparison and explicit selection; no paid runner is chosen by these targets."
+  ]
+}

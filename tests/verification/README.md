@@ -28,6 +28,19 @@ inventory coverage does not imply all M10 gates have passed.
 
 ## Local execution cost evidence
 
+The [CI budgets](ci-budgets.json) target under ten minutes of feedback (five as a
+stretch goal). `just ci::cost RUN_ID` retains hosted phase timing and restored
+bytes separately from local task measurements. The completed warm-dependency run
+[`36181871580`](https://github.com/rupurt/rey/actions/runs/36181871580) used 1,000s
+for core, 874s for experience and 529s for bindings, plus selection/final gating.
+The three lanes restored approximately 7.0 GiB total. Its task artifacts identify
+growing-service qualification (260.38s), the counter launcher (344.52s), Station
+launcher (172.07s), core checks (193.67s) and build smoke (97.29s) as major costs.
+This baseline does **not** meet the feedback target. Splitting into five lanes
+preserves each task once and shares dependency-cache keys with one writer; its
+effect on cold/warm hosted feedback remains unqualified until measured. Local
+success or projections from the old task durations cannot close that gate.
+
 The complete clean run at `94ab60a` passed all required lanes, including language
 bindings and five Chromium checks. Its sequential task total was 795.69 seconds;
 the earlier `b9dd595` run took 765.71 seconds with less coverage. This comparison

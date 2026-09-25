@@ -18,9 +18,21 @@ select base head="HEAD":
 core:
     python3 -B tests/ci.py core
 
+# Growing state, Station and independent Arrow qualification.
+growth:
+    python3 -B tests/ci.py growth
+
 # Frontend, instrumentation, Board and persistent native launcher proofs.
 experience:
     python3 -B tests/ci.py experience
+
+# Persistent counter launcher, artifact updates and foreground lifecycle.
+launchers:
+    python3 -B tests/ci.py launchers
+
+# Read hosted run timings and cache cost; requires authenticated GitHub CLI.
+cost run:
+    python3 -B tests/ci_cost.py --run {{quote(run)}}
 
 # Shared native boundary and cross-language Station behavior/Arrow proofs.
 bindings:

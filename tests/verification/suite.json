@@ -3,7 +3,6 @@
   "lanes": {
     "core": [
       "check-core",
-      "test::build",
       "test::properties",
       "test::codecs",
       "test::dev-environment",
@@ -12,46 +11,55 @@
       "test::telemetry",
       "test::packages-build",
       "test::compute",
-      "test::arrow",
       "test::client-abi",
       "test::station",
       "test::storage",
-      "test::pages",
-      "test::growing",
-      "test::growing-service",
       "test::service",
       "test::runtime-upgrade",
       "test::callers",
       "test::inspection",
       "test::state"
     ],
+    "growth": [
+      "test::arrow",
+      "test::pages",
+      "test::growing",
+      "test::growing-service"
+    ],
     "experience": [
       "transit-board::check",
       "bindings::node-check",
       "test::observability",
       "transit-board::test",
-      "launchers::local::test",
       "launchers::local::test-station"
     ],
-    "browser": [
-      "transit-board::browser"
+    "launchers": [
+      "test::build",
+      "launchers::local::test"
     ],
     "bindings": [
       "bindings::check",
       "bindings::test",
       "test::model",
       "test::model-delivery"
+    ],
+    "browser": [
+      "transit-board::browser"
     ]
   },
   "tiers": {
     "ordinary": [
       "core",
+      "growth",
       "experience",
+      "launchers",
       "bindings"
     ],
     "complete": [
       "core",
+      "growth",
       "experience",
+      "launchers",
       "bindings",
       "browser"
     ]
