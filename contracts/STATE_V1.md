@@ -27,6 +27,12 @@ or multi-stream commit. Larger upload-backed resources require another profile.
 
 ## Bounds and storage
 
+These are enforced compile-time ceilings in the legacy v1 implementation, not
+runtime cache settings or Ursula service limits. The target collection model
+decouples retained data from working memory; [M10](../docs/roadmap/M10.md) plans
+and qualifies that correction. This document still specifies the unchanged v1
+profile; a future storage/encoding change needs explicit compatibility evidence.
+
 | Item | v1 bound |
 | --- | --- |
 | Resource identities | 4 working slots; lifetime by default; opt-in collection never reuses identities |

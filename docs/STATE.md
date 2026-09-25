@@ -11,6 +11,11 @@ resource per turn in the existing realm journal. Inline-state callers coexist;
 no existing realm is automatically migrated. Table abstractions, per-key TTL,
 writer transfer and transactions across resources are outside this profile.
 
+The fixed catalog sizes are real constraints of that implementation, not the
+intended size of a resource. [M10](roadmap/M10.md) replaces the coupling between
+total retained state and resident arrays before [SDKs M11](roadmap/M11.md).
+The target collection model below is not yet implemented by state v1.
+
 ## Purpose
 
 Application data should live in durable, versioned resources that a process
@@ -26,6 +31,52 @@ This adds no independent database or task store whose decisions compete with
 Transit history. It also does not require one service or physical stream per
 resource. [Streams](STREAMS.md) owns the transport boundary.
 
+## Collection size and working memory
+
+KV resources, Tables, future Documents and retained framework records are
+logically growing durable collections. Their total size must not be fixed by
+the number of slots in an authority, worker or read-view buffer. A handler should
+read the keys/pages it needs, not materialize the entire resource before handling
+an input. The same separation applies to process/resource catalogs and pending
+or completed protocol work, not only application values.
+
+| Bound | Target meaning |
+| --- | --- |
+| Resident cache, pages, worker stacks and in-flight work | Bounded working memory; eviction of derived pages never deletes durable data |
+| Request bytes, mutation batches, result batches and scan work | Explicit operation budgets; reject unsupported work or continue through a declared protocol without splitting atomic semantics silently |
+| Storage, active-work and tenant quotas | Explicit deployment/admission policy, observable to callers; backpressure before acceptance and preserve control headroom |
+| Retention and expiry | Application-selected data/lifecycle contracts; unlimited by default, independent of cache pressure |
+| Legacy total-cardinality arrays | Temporary implementation ceilings to remove from the growing-state profile, not user-facing storage semantics |
+
+Logically growing does not mean infinite physical storage or no safety limits.
+It means a collection can exceed a machine's resident budget through durable
+pages/segments and bounded access, up to explicit capacity and representation
+limits. Growing a collection must not require recompiling a larger array or
+deleting live values and retained completion evidence.
+
+Today [state v1](../contracts/STATE_V1.md) stores four resources with 32 entries
+each in the authority catalog. An opened view copies the resource's entries;
+Station reads all pages into another fixed array. These are admission limits
+enforced by core as well as Station, not pre-allocation hints, operator settings
+or an Ursula stream restriction. The small profile simplified initial atomic
+candidate/checkpoint proofs; larger catalogs also exceeded the Debug stack.
+Those measurements justified a bounded proof, not a permanent data model.
+
+M10 must select and prove paged materialization and versioned reads without
+whole-resource copies. Separate disposable indexes/caches from durable checkpoint
+pages needed after history trim. Bind any staged pages and root/manifest references
+to the same authoritative turn decision as input progress and outputs; an index
+write alone cannot publish state. Exercise orphan staging, index lag, failed
+page reads, revocation, restart and checkpoint recovery. Existing single-record
+atomicity does not automatically prove a new publication mechanism.
+
+Station waits, schema descriptors and query results remain durable records with
+their own access and lifetime semantics. Their growth belongs in this storage
+model. Explicit history removal and compaction remain useful policies, but an
+application must not be forced to opt into them to escape a 32-slot buffer.
+Bounded query batches are distinct from a total-result ceiling; completeness and
+source evidence must survive incremental production/retrieval.
+
 ## Concepts and identity
 
 | Concept | Contract |
@@ -36,7 +87,7 @@ resource. [Streams](STREAMS.md) owns the transport boundary.
 | State association | A versioned, named relationship from a PID to an exact resource identity, declaring intended access and whether recovery requires it |
 | Resource revision | The committed version used for reads and mutation preconditions; distinct from process progress and ownership generation |
 | Read basis | The exact resource identities and revisions used by a turn, with the evidence needed for its declared recovery/replay contract |
-| Materialized index | A bounded access structure derived from committed mutations and checkpoints; losing it cannot lose committed data |
+| Materialized index | An access structure derived from committed mutations and checkpoints; its resident working set is bounded independently of total entries, and losing a disposable index cannot lose committed data |
 
 Resource identities are realm-scoped and never reused after retirement. An
 association name is local to its PID, such as `positions` or `configuration`;
@@ -70,7 +121,7 @@ become a SQL or Arrow compute engine.
 
 [Fuze](FUZE.md) names that shared query engine. Its target source model includes
 KV, Table and a proposed Station Document for structured values and collaborative
-text. [M11](roadmap/M11.md) owns Document change/CRDT semantics above core and
+text. [M12](roadmap/M12.md) owns Document change/CRDT semantics above core and
 the qualification of its storage/lifetime profile. Shared querying does not add
 those semantics to the current KV resource or widen its transaction boundary.
 
@@ -110,9 +161,10 @@ allocation, independently published resource head, or asynchronous index service
 See [core](../packages/zig/transit-core/README.md) and the
 [state contract](../contracts/STATE_V1.md) for the implemented mechanism.
 
-Larger resources may eventually need durable staging and a manifest commit.
-That would require new proofs for abandoned uploads, dependency protection and
-index lag. It cannot inherit atomicity from the current single-record design.
+M10's growing-state path must determine where durable staging and manifest
+publication are needed. Such changes require new proofs for abandoned uploads,
+dependency protection and index lag. They cannot inherit atomicity from the
+current single-record design.
 Splitting resource and process authority also requires an explicit coordination
 contract; independently successful stream appends are insufficient.
 
@@ -248,5 +300,7 @@ primitives.
 The [state v1 contract](../contracts/STATE_V1.md) specifies current encoding,
 limits, and compatibility. Changes to storage layout or numerical budgets need
 new measured evidence. Bounded Table helpers are implemented in [M9](roadmap/M9.md);
-larger indexes, writer transfer, multi-resource/cross-authority transactions,
-per-key TTL and automatic data migration require later explicit scope.
+growing indexes and bounded-memory access are selected for [M10](roadmap/M10.md).
+Writer transfer, multi-resource/cross-authority transactions, per-key TTL and
+automatic data migration require later explicit scope. Compatibility for any
+new storage profile is an M10 gate, not permission for implicit migration.

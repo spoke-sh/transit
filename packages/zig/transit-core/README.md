@@ -97,6 +97,12 @@ per turn. Current data and view copies are bounded materializations recoverable
 from the journal/checkpoint. The [proof guide](../../../tests/README.md#m7-state-resources)
 records serialized/layout limits, stack findings and disk-recovery evidence.
 
+These are compiled total-capacity constraints, not configurable cache sizes.
+[M10](../../../docs/roadmap/M10.md) selects paged growing state and bounded
+working memory before public SDKs. Its future profile must preserve this
+package's authority and recovery guarantees; raising the arrays alone is not
+the target design.
+
 The optional catalog is omitted for inline-only checkpoint encoding. Resource
 grants never replace process execution authority; replacing/revoking a principal
 clears its resource grants, while same-PID activation credential rotation keeps

@@ -4,7 +4,7 @@ Status: experimental v2 Zig client and [M7 state-resource API](roadmap/M7.md)
 implemented. [M9](roadmap/M9.md) adds the shared C ABI, generated signatures and
 exact-request export/import, with [binding evidence](../packages/zig/transit-client/docs/bindings.md).
 [Station's adapters](../bindings/README.md) expose the framework to all target languages.
-[M10](roadmap/M10.md) plans idiomatic public SDKs over those qualified low-level
+[M11](roadmap/M11.md) plans idiomatic public SDKs over those qualified low-level
 bindings; their manual action/turn interfaces remain the current implementation.
 General payload references and migration helpers remain
 separate future work.
@@ -94,7 +94,7 @@ The binding architecture has three parts:
    that implementation. Independently implemented wire clients remain possible
    only with the same conformance evidence.
 
-The [M10 SDK layer](#idiomatic-language-sdks) builds typed application APIs over
+The [M11 SDK layer](#idiomatic-language-sdks) builds typed application APIs over
 this boundary. Generated ABI/wire declarations remain separate from public
 interfaces designed for each language.
 
@@ -167,7 +167,7 @@ host supports them. Do not convert results into JSON rows as the sole API.
 result completeness, snapshots and cleanup independently of host-language
 garbage collection.
 
-[Arrow interoperability M14](roadmap/M14.md) adds Flight/Flight SQL access and
+[Arrow interoperability M15](roadmap/M15.md) adds Flight/Flight SQL access and
 qualification with existing ADBC drivers. Those are Table query clients, distinct
 from these process/behavior bindings. The shared Zig engine remains behind both
 surfaces; neither an Arrow C interface nor an ADBC handle grants Transit rights.
@@ -188,11 +188,17 @@ does not execute application handlers.
 
 ## Idiomatic language SDKs
 
-Status: planned in [M10](roadmap/M10.md). M9 provides generated declarations and
+Status: planned in [M11](roadmap/M11.md). M9 provides generated declarations and
 owned host adapters with real interoperability and recovery evidence. Its public
 surface still exposes JSON actions, raw status codes, hex values and manual
 turn pumping. Preserve those low-level interfaces for conformance and advanced
 use while making normal application code express domain operations directly.
+
+[M10](roadmap/M10.md) first qualifies the growing-state and verification foundation.
+Public SDKs must distinguish working-set and operation budgets from explicit
+deployment quotas. They must not encode the legacy total-key/catalog array sizes
+as the application's state model. Qualify bounded reads, retained results and
+shared-principal sequencing through M10's reusable conformance scenarios.
 
 Generate ABI declarations, wire types, validators and shared fixtures from their
 versioned owners. Design the public SDK separately for each language: native

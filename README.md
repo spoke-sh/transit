@@ -20,7 +20,8 @@ trading application**, using the same primitives as other workloads.
 **Status:** experimental kernel, Board, launchers, instrumentation, and bounded
 KV state are implemented through M8. Station (M9) adds a bounded programming
 profile with durable calls, Tables, Arrow queries and language clients. The
-next milestone adds [idiomatic language SDKs](docs/roadmap/M10.md).
+next milestone establishes [verification and scale foundations](docs/roadmap/M10.md),
+followed by [idiomatic language SDKs](docs/roadmap/M11.md).
 The [roadmap](docs/roadmap/README.md) records supported profiles and qualification limits.
 
 ## Get started

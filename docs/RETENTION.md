@@ -29,6 +29,14 @@ and admission backpressure remain necessary. Reject new work before admission
 when its contract cannot be supported; storage pressure does not authorize
 silently deleting accepted work.
 
+A resident cache budget is not a retention policy or a maximum logical collection
+size. Derived pages may be evicted and read back without deleting durable rows,
+waits or results. The legacy fixed catalogs impose real total-cardinality limits;
+[M10](roadmap/M10.md) must replace that coupling in the growing-state profile.
+Applications must not be forced to select expiry or discard completion evidence
+merely to reuse array slots. [State](STATE.md#collection-size-and-working-memory)
+separates operation budgets, working sets, quotas and retained data.
+
 A duration such as "30 days" must name its subject and consequence. A cleanup
 target allows eligible data to remain while required. A hard logical deadline
 ends availability or execution rights at that boundary, even if physical bytes
@@ -324,11 +332,11 @@ collection can run after process expiry without prolonging its execution rights.
 M1 proves the lifetime contract, deadline fencing, durable recovery basis, and
 basic trim/delete recovery. M7 proves associated-state dependencies, KV compaction,
 and resource expiry. M9 exposes those semantics through Station suspension and
-supervision. [M11](roadmap/M11.md) qualifies Document causal checkpoints, deletion
-evidence and opted-in replica merge/resynchronization horizons. M12 adds connector
-dependency handling; M13 applies it to streaming
-RPCs. M14 distinguishes [Flight handles and retained results](ARROW.md#identity-lifetime-and-failure)
-from transport timeouts. M15 extends the proofs to distributed consumers and
+supervision. [M12](roadmap/M12.md) qualifies Document causal checkpoints, deletion
+evidence and opted-in replica merge/resynchronization horizons. M13 adds connector
+dependency handling; M14 applies it to streaming
+RPCs. M15 distinguishes [Flight handles and retained results](ARROW.md#identity-lifetime-and-failure)
+from transport timeouts. M16 extends the proofs to distributed consumers and
 broader recovery operations. See [roadmap](roadmap/README.md).
 
 ## Working catalog reclamation

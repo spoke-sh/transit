@@ -11,6 +11,10 @@ bounded supervision, including the separate controller trust boundary.
 The [binding guide](docs/bindings.md) covers the shared C ABI and detached
 poll/finish interface used by foreign-language handlers.
 [M9](../../../docs/roadmap/M9.md) records qualification and the bounded profile.
+[M10](../../../docs/roadmap/M10.md) addresses its structural collection limits
+before public SDKs. The current 32-entry resource and complete turn snapshots
+are hard implementation constraints; they are not tunable memory caches or the
+intended maximum size of application state.
 The [lifetime guide](docs/lifetimes.md) explains retention, suspension and
 permanent retirement without hiding the kernel's contracts.
 

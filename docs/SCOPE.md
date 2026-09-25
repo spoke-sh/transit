@@ -6,7 +6,8 @@ Status: kernel direction and deployment reference established. The bounded
 for bounded inspection. The [M7 KV profile](roadmap/M7.md) and
 [M8 runtime readiness](roadmap/M8.md) are also implemented and qualified.
 [M9](roadmap/M9.md) adds Station and the first bounded Fuze Table profile.
-[M10](roadmap/M10.md) plans idiomatic language SDKs over its qualified bindings.
+[M10](roadmap/M10.md) plans verification and scale foundations before
+[M11](roadmap/M11.md)'s idiomatic language SDKs.
 Broader framework, connector and application outcomes below remain design
 direction; they are not implied by those profiles.
 
@@ -34,7 +35,7 @@ The same primitives must support ordinary stateful distributed programs.
   Rust, Python, Node.js, Java, .NET and Elixir/Erlang without changing kernel
   execution semantics. Host-language binding glue, examples and conformance tests
   are in scope; the shared client/framework and service implementations remain Zig.
-  M10 adds language-native typed APIs, handler runners and installable artifacts;
+  M11 adds language-native typed APIs, handler runners and installable artifacts;
   generated wire/ABI declarations and shared protocol semantics retain their owners.
 - Board is the first operator/agent inspection surface, before Station. Its
   TanStack Router frontend uses Vite+ and is embedded in the Zig `transit-board` API
@@ -57,6 +58,12 @@ The same primitives must support ordinary stateful distributed programs.
 - Each Transit process owns a durable PID and an ordered, logically unbounded
   mailbox. Eligible worker recovery preserves the PID; termination or expiry retires it.
   Actors and GenServer behaviors build on this primitive.
+- Durable state collections and retained framework evidence must grow beyond a
+  worker's memory. Bound resident pages, requests and active work independently
+  of logical cardinality; enforce explicit deployment quotas before admission.
+  Current compiled catalog ceilings are temporary implementation constraints,
+  not target semantics. [M10](roadmap/M10.md) qualifies the correction before
+  public SDKs; retention is never a workaround for an in-memory array limit.
 - Retention defaults to unlimited. Applications opt into finite process/mailbox
   lifetimes, history retention, keyed compaction, and workload-scoped resources.
   Suspension fits the available recovery window; activation after known expiry
@@ -76,9 +83,9 @@ The same primitives must support ordinary stateful distributed programs.
 - [Fuze](FUZE.md) is the Zig-native query and compute engine, inspired by Apache
   DataFusion and Acero. It targets one query model across KV, Table and Document,
   while Station owns their distinct mutation and merge semantics. Documents target
-  both structured state and collaborative text in [M11](roadmap/M11.md), together
+  both structured state and collaborative text in [M12](roadmap/M12.md), together
   with unified KV/Table/Document queries. [Arrow](ARROW.md) owns interchange and remote access.
-  M14 adds a read-only SQL subset over qualified Tables; continuous queries and
+  M15 adds a read-only SQL subset over qualified Tables; continuous queries and
   separate-resource transactions remain later work. No foreign query engine
   runs behind the interface or inside Transit authority.
 - HTTP is the first connector; gRPC is the second. Request/response messages and
@@ -123,16 +130,18 @@ bounded recoverable reads, dependency lifetimes, and generic Board inspection.
 outbox delivery, opt-in working catalog reclamation and scoped lifecycle controls.
 The bounded [Station M9](roadmap/M9.md) profile adds GenServer behavior,
 supervision, scoped name registration, language bindings and Arrow Tables,
-respecting those contracts. [M10](roadmap/M10.md) makes those capabilities natural
+respecting those contracts. [M10](roadmap/M10.md) establishes comprehensive
+verification, growing state and measured scale boundaries. [M11](roadmap/M11.md)
+makes those capabilities natural
 to use through typed language SDKs, with explicit lifetime and recovery behavior.
-[Documents M11](roadmap/M11.md) adds structured and collaborative text
+[Documents M12](roadmap/M12.md) adds structured and collaborative text
 state, CRDT/recovery/retention proofs and the remaining Fuze source adapters.
 An HTTP connector follows. A caller
 records a request; a fetch worker executes an authorized attempt; response data and timing are recorded;
 the caller resumes from a correlated mailbox message. Replay uses the transcript.
 Station and connectors add versioned Board lenses as their own primitives land.
-Next, [gRPC](roadmap/M13.md) proves bounded streaming calls, then
-[Arrow interoperability](roadmap/M14.md) exposes the same Tables through Flight,
+Next, [gRPC](roadmap/M14.md) proves bounded streaming calls, then
+[Arrow interoperability](roadmap/M15.md) exposes the same Tables through Flight,
 Flight SQL and tested ADBC clients. These precede the broader clustering milestone.
 These outcomes define the [roadmap](roadmap/README.md).
 

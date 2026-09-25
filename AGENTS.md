@@ -15,11 +15,11 @@ Follow the contracts for the area you change:
 | Protocol, processes, ownership | [Transit](docs/TRANSIT.md), [v2 profile](contracts/TRANSIT_V2.md) |
 | Authentication, grants, credentials, trust | [Security](docs/SECURITY.md), [service contract](contracts/SERVICE_V2.md) |
 | Storage, delivery, producer/consumer behavior | [Streams](docs/STREAMS.md), [Ursula boundary](docs/URSULA.md) |
-| State resources, associations, KV/Table/Document APIs | [State](docs/STATE.md), [M7](docs/roadmap/M7.md), [Document M11](docs/roadmap/M11.md) |
+| State resources, associations, KV/Table/Document APIs | [State](docs/STATE.md), [M7](docs/roadmap/M7.md), [Document M12](docs/roadmap/M12.md) |
 | Fuze/query planning and execution | [Fuze](docs/FUZE.md), [Tables](docs/TABLES.md) |
 | Arrow IPC/C interfaces, Flight/Flight SQL, ADBC | [Arrow](docs/ARROW.md) |
 | Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/RETENTION.md) |
-| Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [SDK milestone M10](docs/roadmap/M10.md), [public protocol package](packages/zig/transit-protocol/README.md) |
+| Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [SDK milestone M11](docs/roadmap/M11.md), [public protocol package](packages/zig/transit-protocol/README.md) |
 | Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [M2 plan](docs/roadmap/M2.md) |
 | Service logs, metrics, traces, probes | [Observability](docs/OBSERVABILITY.md), [M4](docs/roadmap/M4.md) |
 | Behaviors, supervision, names | [Station](docs/STATION.md) |
@@ -32,6 +32,9 @@ to a [roadmap milestone](docs/roadmap/README.md). Preserve the proved M1 gates b
 expanding framework or real-effect integrations. Preserve the
 [M8 runtime readiness](docs/roadmap/M8.md) contracts and qualification limits when
 building Station; the [pre-Station review](docs/reviews/PRE_STATION.md) records their rationale.
+Use the [testing strategy](docs/TESTING.md) and [M10](docs/roadmap/M10.md) for
+verification, CI changes and scale qualification. Distinguish planned checks
+from executable evidence; never treat a skipped or incomplete proof as passed.
 
 ## Implementation rules
 
@@ -45,7 +48,7 @@ building Station; the [pre-Station review](docs/reviews/PRE_STATION.md) records 
   for roles.
 - Write kernel, framework, connectors, and backends in Zig. Use strict TypeScript
   and Vite+ for frontends. Keep external infrastructure in its upstream language.
-  M9's language bindings and M10's public SDKs, host adapters, examples and
+  M9's language bindings and M11's public SDKs, host adapters, examples and
   conformance tests may use their target languages; share the Zig client/framework
   through the [binding boundary](docs/CLIENT.md#language-neutral-boundary) instead of duplicating
   protocol semantics. Keep query execution Zig native and outside kernel authority;
@@ -62,6 +65,11 @@ building Station; the [pre-Station review](docs/reviews/PRE_STATION.md) records 
 - Keep deterministic transitions separate from storage, clocks, and effects.
   Make Zig allocation, ownership, lifetimes, errors, and resident bounds explicit.
   Durable backlog is not an in-memory queue. Never silently discard accepted work.
+- Keep durable collection size independent of resident memory. Bound pages,
+  caches, operation batches and active work; enforce explicit deployment quotas.
+  Fixed total-cardinality arrays in the legacy profile are constraints to replace,
+  not the target programming model. Do not raise constants or require retention
+  opt-in as a substitute for the growing-state foundation required by M10.
 - Enforce current scoped authorization separately from PID ownership, including
   reads/replay. Preserve fencing, permanent retirement, and recorded destinations;
   provider state, names, and restored snapshots cannot grant execution rights.

@@ -56,7 +56,7 @@ Foreign exceptions, cancellation and garbage collection cannot implicitly commit
 or acknowledge a turn. Bindings are part of M9's deliverable, not just a schema
 that leaves each language to build its own SDK.
 
-[M10](roadmap/M10.md) adds idiomatic public SDKs above the implemented adapters.
+[M11](roadmap/M11.md) adds idiomatic public SDKs above the implemented adapters.
 Handlers use typed inputs and associated KV/Table helpers; a runner owns local
 dispatch and drives the shared Zig poll/finish machine. A handler return supplies
 a proposal, including any reply, and is not evidence of a committed turn. The
@@ -125,6 +125,14 @@ publish outputs early or move checkpoints independently of that commit.
 
 ## State resources and Table helpers
 
+The target framework accesses growing durable collections with bounded reads,
+private mutation batches and query batches. M9's complete-resource copies and
+shared 32-key capacity are implementation constraints, not a state-lifetime or
+application data model. [M10](roadmap/M10.md) qualifies the replacement before
+public SDKs; [State](STATE.md#collection-size-and-working-memory) owns the boundary.
+Waits and captured results may remain retained without forcing applications to
+delete evidence to satisfy a worker buffer size.
+
 [STATE.md](STATE.md) owns resource identity, associations, revisions, commit
 visibility, read coverage, and lifetimes. Station uses those public primitives
 for handler state, durable waiting/correlation records, registry entries, and
@@ -137,7 +145,7 @@ proposed API offers typed insert/update/upsert/delete, get/scan, and a bounded
 query plan. Requests to another writer travel through its PID's mailbox;
 local operations contribute to the current handler's proposal. The first query
 surface uses versioned structured operations. SQL is planned as a frontend
-to that same contract: [M14](roadmap/M14.md) scopes the first bounded read-only
+to that same contract: [M15](roadmap/M15.md) scopes the first bounded read-only
 subset, with an explicit grammar and capability matrix.
 
 Tabular results use Apache Arrow: bounded record batches in memory and Arrow IPC
@@ -151,7 +159,7 @@ retention and transactional visibility.
 Acero. Station supplies authorized KV/Table/Document source adapters and owns
 mutations, merge rules and durable result publication. The Document direction
 includes both structured state and collaborative text; its CRDT/storage profile
-and unified querying are scoped in [M11](roadmap/M11.md). Fuze queries accepted
+and unified querying are scoped in [M12](roadmap/M12.md). Fuze queries accepted
 state and does not merge speculative edits. [Arrow interchange](ARROW.md) connects the engine to IPC/C
 interfaces and later Flight, Flight SQL and ADBC. Query operators stay outside
 kernel authority;
@@ -238,7 +246,7 @@ Every namespace declares its authority, visibility, and lifetime. Local and
 cluster-wide registration must identify the logical scope in which a name is
 unique and how that scope survives worker replacement. Neither means an
 unqualified worker-memory map, a Kubernetes namespace, or a Substrate atespace.
-M9 defines the minimal scoped registry; M15 proves cluster-wide conflict and
+M9 defines the minimal scoped registry; M16 proves cluster-wide conflict and
 partition behavior.
 
 Serialize changes for each name under one fenced authority. Conditional updates

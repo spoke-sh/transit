@@ -1,17 +1,19 @@
-# Pre-M10 capability and verification review
+# Post-M9 capability and verification review
 
 Reviewed 2026-09-24 against implementation commit **a7b41da**. This is a
 source, contract, test and CI review of the bounded M0–M9 implementation.
-Recommendations below are proposals, not new guarantees or an approved change
-to the [roadmap](../roadmap/README.md). [M10](../roadmap/M10.md) remains planned.
+This review led to [M10 verification and scale foundations](../roadmap/M10.md);
+idiomatic SDKs moved to [M11](../roadmap/M11.md). References use the current
+sequence; the implementation evidence still describes the reviewed revision.
+The filename preserves the original review link. New capabilities remain planned.
 
 ## Assessment
 
 The architecture is a sound starting point for idiomatic SDKs: authority stays
 in Transit, Station executes on the caller, public contracts are generated, and
 real storage and foreign-host recovery are exercised. The biggest risks before
-M10 are how public APIs expose those semantics, how a long-running application
-fits the small retained-state profile, and how we test combinations without
+M11 are how public APIs expose those semantics, how durable collections grow
+beyond the small resident-state profile, and how we test combinations without
 repeating expensive deployment scenarios for every language.
 
 Prioritize deterministic state-machine testing and reusable SDK conformance
@@ -29,7 +31,7 @@ Substrate isolation.
 | Storage and recovery | [Backend](../../packages/zig/transit-backend-ursula/README.md), [storage proof](../../tests/storage.py), and [physical capacity proof](../../tests/capacity.py) exercise their actual boundaries | Process SIGKILL is not a host power-loss test. Provider behavior and full-store handling cannot be qualified by a pure model. |
 | Station | [GenServer](../../packages/zig/transit-station/src/GenServer.zig), [Turn](../../packages/zig/transit-station/src/Turn.zig) and [services](../../packages/zig/transit-station/docs/services.md) implement detached turns, calls, names, timers and bounded supervision | Host-pumped ABI, one call per input, explicit recovery; no durable suspended language stack or general dynamic supervision tree. |
 | Fuze and Arrow | [Finite execution](../../packages/zig/transit-fuze/src/execute.zig), [tests](../../packages/zig/transit-fuze/src/tests.zig) and independent [PyArrow checks](../../tests/arrow.py) | Two-column bounded Tables; captured replies at most 672 IPC bytes. No optimizer rewrites, SQL, streaming query engine or cross-resource transaction support. |
-| Language bindings | [Matrix](../../tests/bindings.py) exercises service/requester roles and host restart; [ABI proof](../../tests/station_abi.py) and runtime-specific bridge tests cover ownership/cancellation | Low-level bindings are qualified, not installable idiomatic SDKs. Foreign-language Substrate workers and broad platform compatibility remain outside M10. |
+| Language bindings | [Matrix](../../tests/bindings.py) exercises service/requester roles and host restart; [ABI proof](../../tests/station_abi.py) and runtime-specific bridge tests cover ownership/cancellation | Low-level bindings are qualified, not installable idiomatic SDKs. Foreign-language Substrate workers and broad platform compatibility remain outside M11. |
 | Operator surfaces and diagnostics | [Board](../../apps/transit-board/README.md), [observability proof](../../tests/observability.py), browser tests and launcher recovery | Board is inspection-only, admitted through a private deployment boundary. Observations do not grant execution authority. |
 | Deployment | [Runtime adapter](../../packages/zig/transit-runtime-substrate/README.md), launcher upgrade proofs and [reference workflow](../../.github/workflows/reference.yml) | Pinned provider, reviewed Zig workload and topology; reference/physical-capacity qualification is manually triggered, not part of ordinary hosted CI. |
 
@@ -39,7 +41,7 @@ failed overall runs are not presented as successful system qualification.
 For this documentation-only change, just check passed, including Zig unit tests,
 contract generation checks, frontend checks and all local documentation links.
 
-## Priority findings for M10
+## Priority findings for M11
 
 ### 1. Define concurrency at the principal boundary, not just the handle
 
@@ -66,18 +68,18 @@ Completed waits and acknowledged results remain retained. The
 applications eventually exhaust capacity without a chosen reclamation policy.
 M8's kernel catalog collection does not reclaim all Station records.
 
-Expose existing [state capabilities](../../packages/zig/transit-protocol/src/State.zig)
-and describe Station-specific budgets through public types. Test repeated calls
-and queries through exhaustion, preserving the unfinished head and previous
-results. Decide whether M10 supplies an explicit supported cleanup policy or
-clearly exposes the current bound. Never silently evict on acknowledgement.
-Safe cleanup needs retained late-reply/retry disposition evidence and a defined
-unavailable-history outcome; deleting a wait can change a late reply into an
-unknown correlation. Broader retention/capacity work deserves explicit scope.
+The initial recommendation to expose these bounds and select cleanup was
+insufficient: they are compiled total-cardinality ceilings, not cache settings.
+[M10](../roadmap/M10.md) now requires a growing-state path with bounded resident
+memory before SDKs stabilize. Explicit retention remains an application policy,
+not a requirement to make a fixed array reusable. Test retained calls/results
+beyond the old ceilings, then test deliberate quota exhaustion without losing
+accepted work. Safe opted-in cleanup still needs late-reply/retry disposition
+evidence; deleting a wait must not silently change its promised outcome semantics.
 
 ### 3. Make durable continuation different from a local await
 
-**High priority, sharpen the existing M10 entry gate.** A Python coroutine,
+**High priority, sharpen the existing M11 entry gate.** A Python coroutine,
 JavaScript promise or Rust future cannot survive host loss. A cross-process
 Station call closes a turn and later processes a recorded reply, timeout or
 cancellation. An ordinary-looking await inside a held turn can incorrectly imply
@@ -107,7 +109,7 @@ Treat the qualified 8 MiB native calling-stack requirement and bounded worker
 count as runtime requirements, not installation trivia. A per-handle bound does
 not establish a bound for an unbounded number of handles.
 
-Keep M10's clean-consumer installation gate. It catches repository-relative
+Keep M11's clean-consumer installation gate. It catches repository-relative
 imports and native-path assumptions that source-tree tests cannot. Start with
 owned IPC results; qualify optional Arrow adapters and their buffer lifetime
 independently before offering zero-copy claims.
@@ -315,23 +317,23 @@ later help with a selected CRDT merge law, checkpoint preservation theorem or
 Fuze rewrite under precise null/overflow rules. A Lean model does not automatically
 verify our Zig implementation. Establishing that link is additional work.
 Audit theorem assumptions and reject incomplete/admitted proofs in dependencies.
-There is no reason to translate the whole kernel to Lean or gate M10 on it now.
+There is no reason to translate the whole kernel to Lean or gate M11 on it now.
 
 ## Implications for later milestones
 
-- **M11 Documents:** reuse generated histories for duplicate/reordered changes,
+- **M12 Documents:** reuse generated histories for duplicate/reordered changes,
   missing causal dependencies, tombstones and stale offline replicas. Decide
   merge laws and authorization/retention interaction before implementation;
   convergence alone does not establish valid admission. Checkpoint/large-body
   requirements will pressure today's inline state and result bounds.
-- **M12/M13 connectors:** reuse lost-response and cancellation schedules, but
+- **M13/M14 connectors:** reuse lost-response and cancellation schedules, but
   supply protocol-specific remote-effect oracles. Test that replay performs no
   network action. Bounded reconciliation cannot roll back the remote system or
   make an unknown attempt safe to retry. Streaming adds directional flow control.
-- **M14 Arrow interoperability:** extend the independent IPC checks with actual
+- **M15 Arrow interoperability:** extend the independent IPC checks with actual
   Flight/ADBC consumers, ticket revocation and incomplete-stream failures. Preserve
   source evidence and capability reporting; transport success is not completeness.
-- **M15 clustering/portability:** model partition and ownership interleavings,
+- **M16 clustering/portability:** model partition and ownership interleavings,
   measure journal contention and prove provider-specific failure behavior. More
   workers or SDK handles do not remove the current realm serialization point.
 
@@ -339,11 +341,11 @@ There is no reason to translate the whole kernel to Lean or gate M10 on it now.
 
 First remove duplicate CI event work and establish retained timings. Then give
 fast unit checks a narrow build graph, add one reusable deterministic transition
-harness and one SDK failure-scenario catalog. Use those while reviewing M10's
+harness and one SDK failure-scenario catalog. Use those while reviewing M11's
 Python/TypeScript/Rust examples, including shared-principal contention, capacity
 exhaustion and restart during a durable call. Prototype the small TLA+ model
 alongside that work, without making a broad formalization project a prerequisite.
 
-If this preparation is scoped as an independent milestone, insert it before M10
-and renumber the remaining roadmap using the existing sequencing rule. This
-review itself does not insert or renumber milestones.
+This preparation is now scoped as [M10](../roadmap/M10.md), including the
+collection-growth correction above; [M11](../roadmap/M11.md) follows its exit
+gates. The [testing strategy](../TESTING.md) owns the selected verification policy.

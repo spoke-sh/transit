@@ -5,7 +5,7 @@ protocol operations; Station adds detached handler turns, associated state,
 Table queries and durable framework messages. Host adapters own allocation,
 exceptions and runtime scheduling. They do not reimplement those protocols.
 
-These are M9's qualified low-level bindings. [M10](../docs/roadmap/M10.md)
+These are M9's qualified low-level bindings. [M11](../docs/roadmap/M11.md)
 plans language-native public SDKs with typed operations, managed handler runners
 and installable artifacts. The current manual turn/action APIs remain available;
 the [caller design](../docs/CLIENT.md#idiomatic-language-sdks) defines the planned

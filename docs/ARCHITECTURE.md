@@ -59,7 +59,7 @@ runtime adapters and application backends. TypeScript/Vite+ supplies frontend co
 Shared contracts use language-neutral schemas and fixtures. Ursula and Agent
 Substrate are external infrastructure with their own implementation languages.
 Station M9 adds host-language SDK adapters and examples over the shared Zig
-client/framework. [M10](roadmap/M10.md) adds language-native public SDKs over
+client/framework. [M11](roadmap/M11.md) adds language-native public SDKs over
 those bindings. That binding glue does not change the service language or move
 application handlers into Transit authority; [CLIENT.md](CLIENT.md#language-neutral-boundary)
 owns the generated ABI and target-language plan.
@@ -87,6 +87,20 @@ Current authority operations serialize across the entire realm, including
 processes, grants, and state resources. This supplies the initial atomicity domain;
 replicating the HTTP service does not create independent write shards. Mailbox
 semantics promise per-process order, not a portable global order between PIDs.
+
+The target architecture decouples durable cardinality from resident memory:
+resource data, retained work and control catalogs use paged access and bounded
+working sets. The current fixed arrays and complete in-memory resource snapshots
+are a temporary implementation profile, not a scalable storage design or a
+runtime cache setting. [M10](roadmap/M10.md) must qualify a growing-state path
+before public SDKs stabilize; [State](STATE.md#collection-size-and-working-memory)
+defines the required boundary. Larger constants alone do not meet it.
+
+Massive-scale deployment also requires an explicit authority-partition and routing
+design, including grant/revocation and cross-partition delivery semantics. Measure
+the single-realm serialization bottleneck in M10; [M16](roadmap/M16.md) qualifies
+broader clustered execution. Additional node replicas do not by themselves create
+independent write capacity or a cross-partition transaction guarantee.
 
 Station runs in callers and connectors will submit observations through the
 same public boundary. The [delivery courier](../apps/transit-delivery/README.md)
@@ -224,12 +238,12 @@ and protocol assertions belong under [tests/](../tests/README.md).
 ### Planned components
 
 - Add typed public APIs, handler runners and installable artifacts to the existing
-  language packages in [M10](roadmap/M10.md). Generated/raw bindings remain a
+  language packages in [M11](roadmap/M11.md). Generated/raw bindings remain a
   separate interface over the shared Zig client/framework; the
   [caller design](CLIENT.md#idiomatic-language-sdks) owns that boundary.
 - Extend `kubectl-transit` with authorized logical inspection and, later, operator
   controls as scoped in the [full plugin plan](roadmap/M5.md).
-- [M11](roadmap/M11.md) adds Document
+- [M12](roadmap/M12.md) adds Document
   changes/CRDTs and KV/Document query adapters. Add further entity adapters only
   with their implementation and qualification; no standalone engine service is required.
 - `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,
@@ -240,7 +254,7 @@ and protocol assertions belong under [tests/](../tests/README.md).
 - `packages/zig/transit-station-flight` and `apps/transit-station-flight`: Flight/
   Flight SQL query ingress and gateway composition over Station/public client,
   with an explicit identity boundary and no direct storage access. Existing ADBC
-  clients connect through Flight SQL; [ARROW.md](ARROW.md) owns this M14 profile.
+  clients connect through Flight SQL; [ARROW.md](ARROW.md) owns this M15 profile.
 - `apps/transit-station-worker`, `apps/transit-station-http-worker` and
   `apps/transit-station-grpc-worker`: compose behaviors or connector execution
   with explicitly supplied runtime capabilities.

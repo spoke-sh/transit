@@ -29,6 +29,7 @@ are experimental; their bounded implementation does not imply support for every 
 | [Deployment](DEPLOYMENT.md) | Runtime bindings, recovery, isolation, and portability |
 | [Ursula](URSULA.md) | Storage-provider choice and authority boundary |
 | [Conformance](CONFORMANCE.md) | Adversarial obligations and limits on guarantees |
+| [Testing](TESTING.md) | Verification layers, generated/fault/formal checks, scale evidence and CI cost/selection strategy |
 | [Roadmap](roadmap/README.md) | Milestones and observable exit criteria |
 
 For hands-on work, use [development](DEVELOPMENT.md) and the
@@ -43,7 +44,7 @@ For hands-on work, use [development](DEVELOPMENT.md) and the
 | [docs/roadmap/](roadmap/README.md) | Milestone index and individual scope, criteria, and status files |
 | Package/app READMEs | Purpose, public entry points, dependencies, quick start, limits, and links to deeper guides |
 | Package/app `docs/` | Substantial component configuration, caller workflows, storage mappings, and operational details |
-| [Pre-Station review](reviews/PRE_STATION.md), [pre-M10 review](reviews/PRE_M10.md) | Dated comparisons of documented guarantees, implementation, evidence, and upcoming gates |
+| [Pre-Station review](reviews/PRE_STATION.md), [post-M9 review](reviews/PRE_M10.md) | Dated comparisons of documented guarantees, implementation, evidence, and upcoming gates |
 | [contracts/](../contracts) | Exact versioned wire/provider specifications and generated schema |
 | [examples/](../examples/README.md) | Complete calling programs and how to run them |
 | [launchers/](../launchers/README.md) | Running and inspecting persistent development environments; lifecycle and trust limits |
