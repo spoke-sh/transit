@@ -55,6 +55,16 @@ and the user accepted that result as close enough to defer further optimization.
 It fits the revised 15-minute / 60-runner-minute budgets. One sample does not
 qualify variance or the cold-cache case.
 
+The subsequent clean run at `22aa6f0` passed all 33 tasks in 1,026.97s, including
+the Station inspection-cut regression, expanded retained-association reads and
+load-driver build smoke. Artifacts are in
+`.cache/ci/clean/22aa6f0b1ca1-transit-ci-nlnqqjzn/`. Separate reference recovery/
+isolation and counter launcher proofs passed; the Station reference rerun passed
+after the inspection-cut fix, including Arrow exchange, same-PID worker loss,
+upgrades and stop/start. Compose counter/Station and both physical ENOSPC proofs
+also passed. The first Station reference attempt is retained as a failure, not
+a passing retry. `test::pages-cold --keys 1024` passed all four phases separately.
+
 The complete clean run at `264f38e` passed all 33 tasks, including the growing
 service/result delivery, foreign bindings, finite models and five Chromium
 checks, in 1,032.97s of sequential local task time. Evidence is in
