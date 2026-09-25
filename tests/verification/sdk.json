@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "profile": "shared behavioral scenarios; current Linux low-level bindings, M11 public SDK adapters pending",
+  "scenarios": [
+    {
+      "id": "admission-commit-reply",
+      "steps": ["Admit an input without running its handler", "Commit state and a reply intent", "Deliver the reply", "Consume the reply in its destination"],
+      "expected": {"consumed_after_admission": 0, "consumed_after_commit": 1, "reply_admitted_before_delivery": 0, "reply_consumed_after_delivery": 0, "reply_consumed_after_handler": 1, "reply_value_preserved": true},
+      "proofs": [{"task": "test::client-abi", "source": "tests/client_abi.py", "anchor": "check(\"admission-commit-reply\""}]
+    },
+    {
+      "id": "same-principal-handles",
+      "steps": ["Race independent handles with different bodies at the same principal sequence", "Retry each exact request from the other handle", "Race identical requests at the next sequence", "Inspect mailbox progress without running a handler"],
+      "expected": {"conflicting_winners": 1, "duplicate_receipts_equal": true, "admitted_inputs": 2, "consumed_inputs": 0},
+      "proofs": [{"task": "test::client-abi", "source": "tests/client_abi.py", "anchor": "check(\"same-principal-handles\""}]
+    },
+    {
+      "id": "host-loss-retry",
+      "steps": ["Persist a frozen signed request before submission", "Lose the response after acceptance", "Destroy the native operation", "Import in a fresh host without the signing seed", "Recover the original receipt with byte-identical retry"],
+      "expected": {"uncertain_status": 6, "wire_bytes_equal": true, "receipt_position": 1},
+      "proofs": [{"task": "test::client-abi", "source": "tests/client_abi.py", "anchor": "check(\"host-loss-retry\""}]
+    },
+    {
+      "id": "durable-continuation",
+      "steps": ["Commit a durable wait and finish the caller turn", "Exit the caller host", "Capture a reply and exit the service host", "Publish from a new service host", "Resume the caller through its recorded correlation and complete the result"],
+      "expected": {"observed_wide_integer": "9007199254740993", "source_admitted": true, "source_turn_completed_before_reply": true},
+      "proofs": [{"task": "bindings::test", "source": "tests/bindings.py", "anchor": "check(\"durable-continuation\""}]
+    },
+    {
+      "id": "decode-failure",
+      "steps": ["Admit a malformed framework envelope", "Poll until the declared decode-failure policy blocks the input", "Poll again without dispatching a handler", "Inspect the same unconsumed input and unchanged state"],
+      "expected": {"blocked_observations": 2, "input_unchanged": true, "state_unchanged": true, "consumed_inputs": 0},
+      "proofs": [{"task": "bindings::test", "source": "tests/station_abi.py", "anchor": "check(\"decode-failure\""}]
+    },
+    {
+      "id": "local-cancellation-disposal",
+      "steps": ["Hold a native request in flight", "Cancel only its host await", "Dispose the handle while native work is owned", "Keep the event loop responsive until cleanup joins", "Reject use of the disposed handle"],
+      "expected": {"await_cancelled": true, "overlap_rejected": true, "responsive_during_join": true, "disposed_handle_rejected": true},
+      "proofs": [{"task": "bindings::test", "source": "tests/station_abi.py", "anchor": "check(\"local-cancellation-disposal\""}],
+      "limits": "The stalled transport does not establish a durable outcome; cancellation of a local await does not cancel authority work. Exact accepted-response loss is covered separately."
+    },
+    {
+      "id": "post-commit-allocation",
+      "steps": ["Report one accepted receipt through the real native response path", "Fail each response allocation in turn", "Require uncertainty on failure and release all owned buffers", "Verify the transport submitted exactly once"],
+      "expected": {"failure_status": "uncertain", "transport_submissions": 1, "leaked_buffers": 0},
+      "proofs": [{"task": "test::unit", "source": "packages/zig/transit-client/src/Abi.zig", "anchor": "test \"every post-commit response allocation failure remains uncertain and releases buffers\""}],
+      "limits": "Native allocation enumeration uses an injected accepted transport; disk/HTTP and host schedulers have separate proofs."
+    }
+  ]
+}

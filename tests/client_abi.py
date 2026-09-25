@@ -1,5 +1,6 @@
 """Exercise the shared C boundary against real authority and disk storage."""
 import ctypes as c
+from concurrent.futures import ThreadPoolExecutor
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -65,11 +66,95 @@ class Native:
         return result
 
     def call(self, client, operation, status=0):
+        actual, data = self.exchange(client, operation)
+        assert actual == status, (actual, data)
+        return data
+
+    def exchange(self, client, operation):
         result = c.c_void_p()
         actual = self.lib.transit_client_call(client, operation, c.byref(result))
         data = self.take(result)
-        assert actual == status, (actual, data)
-        return json.loads(data) if data else None
+        return actual, json.loads(data) if data else None
+
+
+def contention(native, node, cli):
+    """Independent handles share authority sequencing, never a host mutex."""
+    with System(node, cli) as system:
+        seed = bytes.fromhex(system.seed.read_text().strip())
+        pid = system.command({"spawn": {}})
+        receiver = system.command({"spawn": {}})
+        clients = [native.client(system.url) for _ in range(2)]
+        try:
+            def race(values):
+                operations = []
+                try:
+                    for value in values:
+                        operations.append(native.prepare(1, seed, {"realm": 72, "principal": 0,
+                            "sequence": system.sequence + 1,
+                            "command": {"send": {"pid": pid, "value": value.hex()}}}))
+                    barrier = threading.Barrier(2)
+                    def submit(index):
+                        barrier.wait(timeout=5)
+                        return native.exchange(clients[index], operations[index])
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        futures = [pool.submit(submit, index) for index in range(2)]
+                        results = [future.result(timeout=10) for future in futures]
+                    # Reconcile each frozen operation through the other handle.
+                    # No participant may recover a conflict by renumbering it.
+                    for index, operation in enumerate(operations):
+                        assert native.exchange(clients[1-index], operation) == results[index]
+                    system.sequence += 1
+                    return results
+                finally:
+                    for operation in operations:
+                        native.lib.transit_operation_destroy(operation)
+
+            results = race([b"first", b"second"])
+            assert sorted(status for status, _ in results) == [0, 3], results
+            winner = next(i for i, (status, _) in enumerate(results) if status == 0)
+            assert results[1-winner][1]["err"] == "ConflictingRetry"
+            view = system.post("/v2/view", system.signed({"inspect": pid}))
+            assert view["process"]["admitted"] == 1 and view["process"]["consumed"] == 0
+            assert view["input"]["value"] == [b"first", b"second"][winner].hex()
+            assert system.post("/v2/view", system.signed({"inspect": receiver}))["input"] is None
+            duplicate = race([b"duplicate", b"duplicate"])
+            assert duplicate[0][0] == 0 and duplicate[0] == duplicate[1]
+            after = system.post("/v2/view", system.signed({"inspect": pid}))
+            from sdk_scenarios import check
+            check("same-principal-handles", {
+                "conflicting_winners": sum(status == 0 for status, _ in results),
+                "duplicate_receipts_equal": duplicate[0] == duplicate[1],
+                "admitted_inputs": after["process"]["admitted"],
+                "consumed_inputs": after["process"]["consumed"],
+            })
+
+            # Admission, source commitment, destination admission and destination
+            # consumption are four separately observable durable boundaries.
+            system.command({"own": {"pid": pid, "worker": 0, "expected_generation": 0}})
+            current = system.post("/v2/view", system.signed({"inspect": pid}))
+            system.command({"turn": {"pid": pid, "generation": current["process"]["generation"],
+                "input": view["input"]["position"], "result": b"processed".hex(),
+                "outputs": [{"pid": receiver, "value": b"reply".hex()}, None, None, None]}})
+            committed = system.post("/v2/view", system.signed({"inspect": pid}))
+            before_delivery = system.post("/v2/view", system.signed({"inspect": receiver}))
+            output = system.inspect("outbox", pid)["outbox"][0]
+            system.command({"deliver": {"pid": receiver, "output": output["id"], "courier": 0}})
+            delivered = system.post("/v2/view", system.signed({"inspect": receiver}))
+            system.command({"own": {"pid": receiver, "worker": 0, "expected_generation": 0}})
+            system.command({"turn": {"pid": receiver, "generation": 1,
+                "input": delivered["input"]["position"], "result": delivered["input"]["value"]}})
+            completed = system.post("/v2/view", system.signed({"inspect": receiver}))
+            check("admission-commit-reply", {
+                "consumed_after_admission": view["process"]["consumed"],
+                "consumed_after_commit": committed["process"]["consumed"],
+                "reply_admitted_before_delivery": before_delivery["process"]["admitted"],
+                "reply_consumed_after_delivery": delivered["process"]["consumed"],
+                "reply_consumed_after_handler": completed["process"]["consumed"],
+                "reply_value_preserved": completed["process"]["state"] == b"reply".hex(),
+            })
+        finally:
+            for client in clients:
+                native.lib.transit_client_destroy(client)
 
 
 def retry(library, url, path):
@@ -86,6 +171,7 @@ def retry(library, url, path):
 def run(library, node, cli, c_proof):
     subprocess.run([c_proof], check=True, timeout=10)
     native = Native(library)
+    contention(native, node, cli)
     with System(node, cli) as system:
         seed = bytes.fromhex(system.seed.read_text().strip())
         bodies = []
@@ -123,7 +209,8 @@ def run(library, node, cli, c_proof):
             saved = system.root / "pending.json"
             saved.write_bytes(exported)
             saved.chmod(0o600)
-            native.call(client, operation, status=6)  # Commit happened; receipt lost.
+            uncertain, _ = native.exchange(client, operation)  # Commit happened; receipt lost.
+            assert uncertain == 6
             native.lib.transit_operation_destroy(operation)
             operation = None
             # A fresh host has no native handles or seed, only exact signed retry
@@ -131,6 +218,9 @@ def run(library, node, cli, c_proof):
             result = json.loads(subprocess.check_output([sys.executable, "-B", __file__, "--retry", library, url, str(saved)], timeout=15))
             assert len(bodies) == 2 and bodies[0] == bodies[1]
             assert result["position"] == 1
+            from sdk_scenarios import check
+            check("host-loss-retry", {"uncertain_status": uncertain,
+                "wire_bytes_equal": bodies[0] == bodies[1], "receipt_position": result["position"]})
             system.sequence = 1
             operation = native.restore(exported)
             assert native.export(operation) == exported

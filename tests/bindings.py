@@ -66,6 +66,7 @@ def pair(node, cli, courier, library, raw_library, host, service_command, reques
         once(1)
         s.command({"send": {"pid": records[1][0], "value": frame(b"call")}})
         once(1)
+        suspended = s.post("/v2/view", s.signed({"inspect": records[1][0]}))
         once(0)  # durable capture
         once(0)  # captured publication, in a new foreign/native host
         for _ in range(4):
@@ -73,6 +74,10 @@ def pair(node, cli, courier, library, raw_library, host, service_command, reques
                 break
             once(1)
         assert observed() == b"9007199254740993", label
+        from sdk_scenarios import check
+        check("durable-continuation", {"observed_wide_integer": observed().decode(),
+            "source_admitted": suspended["process"]["admitted"] == 2,
+            "source_turn_completed_before_reply": suspended["process"]["consumed"] == 2 and suspended["input"] is None})
         once(0)  # acknowledgement, without deleting the result
         print(f"Bindings {label}: handler, associated Table, correlation, host restart and exact Arrow int64 passed", flush=True)
 

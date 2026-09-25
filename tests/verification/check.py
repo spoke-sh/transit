@@ -13,7 +13,7 @@ def read(name):
     return value
 
 
-def validate(suite, invariants, limits):
+def validate(suite, invariants, limits, sdk):
     tasks = [task for lane in suite["lanes"].values() for task in lane]
     assert len(tasks) == len(set(tasks)), "duplicate CI task ownership"
     for tier, lanes in suite["tiers"].items():
@@ -57,17 +57,25 @@ def validate(suite, invariants, limits):
             assert (source, symbol) in seen, f"unclassified bound: {source}:{symbol}"
     for item in limits["identities"]:
         assert item["anchor"] in (ROOT / item["source"]).read_text(), item
+    scenario_ids = set()
+    for scenario in sdk["scenarios"]:
+        assert scenario["id"] not in scenario_ids, scenario["id"]
+        scenario_ids.add(scenario["id"])
+        assert scenario["steps"] and scenario["expected"] and scenario["proofs"], scenario["id"]
+        for proof in scenario["proofs"]:
+            assert proof["task"] in tasks, proof
+            assert proof["anchor"] in (ROOT / proof["source"]).read_text(), proof
 
 
 def main():
-    suite, invariants, limits = [read(name) for name in ("suite.json", "invariants.json", "limits.json")]
-    validate(suite, invariants, limits)
+    suite, invariants, limits, sdk = [read(name) for name in ("suite.json", "invariants.json", "limits.json", "sdk.json")]
+    validate(suite, invariants, limits, sdk)
     # Fail closed on lost ownership or silently changed implementation ceilings.
     import copy
     broken = copy.deepcopy(suite)
     broken["lanes"]["core"].append("test::missing-proof")
     try:
-        validate(broken, invariants, limits)
+        validate(broken, invariants, limits, sdk)
     except AssertionError:
         pass
     else:
@@ -75,13 +83,21 @@ def main():
     broken = copy.deepcopy(limits)
     broken["limits"][0]["expression"] = "unreviewed change"
     try:
-        validate(suite, invariants, broken)
+        validate(suite, invariants, broken, sdk)
     except AssertionError:
         pass
     else:
         raise AssertionError("limit drift passed")
+    broken = copy.deepcopy(sdk)
+    broken["scenarios"][0]["proofs"][0]["anchor"] = "missing SDK scenario implementation"
+    try:
+        validate(suite, invariants, limits, broken)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("missing SDK scenario passed")
     print(f"Verification catalog: {len(invariants['invariants'])} invariants, "
-          f"{len(limits['limits'])} classified bounds and all task owners checked.")
+          f"{len(limits['limits'])} classified bounds, {len(sdk['scenarios'])} SDK scenarios and all task owners checked.")
 
 
 if __name__ == "__main__":

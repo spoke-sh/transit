@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "profile": "resource",
+  "actions": [
+    {
+      "kind": "send"
+    },
+    {
+      "kind": "open_view"
+    },
+    {
+      "kind": "prepare",
+      "slot": 0,
+      "value": 17
+    },
+    {
+      "kind": "clock",
+      "time": {
+        "unix_ms": 51
+      }
+    },
+    {
+      "kind": "retry",
+      "slot": 0
+    }
+  ]
+}

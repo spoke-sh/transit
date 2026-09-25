@@ -14,6 +14,7 @@ from station import frame
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "packages/python/transit-station"))
 from transit_station import Client, GenServer, TransitError
+from sdk_scenarios import check
 
 
 def rejects(status, function, *args):
@@ -40,6 +41,7 @@ def run(node, cli, library, raw_library, host):
         libraries.mkdir()
         for name, source in (("station", library), ("client", raw_library)):
             (libraries / f"libtransit_{name}.so").symlink_to(Path(source).resolve())
+        decode_failure(s, libraries)
         pid = s.command({"lifecycle": {"create": {"required": [b"data".hex(), None, None, None]}}})
         resource = s.command({"state": {"create": {"writer": pid}}})
         seed, public = s.key("foreign")
@@ -117,6 +119,33 @@ def run(node, cli, library, raw_library, host):
     print("Station ABI: exact host-loss retry, private rollback, blocked head, fencing, revocation/expiry, port framing and cancellation ownership passed")
 
 
+def decode_failure(system, libraries):
+    pid = system.command({"spawn": {}})
+    resource = system.command({"state": {"create": {"writer": pid}}})
+    seed, public = system.key("malformed-envelope")
+    system.command({"grant": {"subject": 2, "public_key": public, "permissions": 88, "pid": pid}})
+    for subject in (0, 2):
+        system.command({"state": {"grant": {"resource": resource, "subject": subject, "permissions": 7}}})
+    system.command({"state": {"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}}})
+    system.command({"send": {"pid": pid, "value": "00"}})
+    system.command({"own": {"pid": pid, "worker": 2, "expected_generation": 1}})
+    before = system.post("/v2/view", system.signed({"inspect": pid}))
+    with GenServer(libraries, system.url, seed, {"realm": 72, "principal": 2, "pid": pid, "generation": 2}) as server:
+        for _ in range(10):
+            event = server.next()
+            assert event["event"] != "ready", "Malformed input reached a handler"
+            if event["event"] == "blocked":
+                break
+        else:
+            raise AssertionError("Decode failure did not block the input")
+        events = [event, server.next()]
+    after = system.post("/v2/view", system.signed({"inspect": pid}))
+    check("decode-failure", {"blocked_observations": sum(e["event"] == "blocked" for e in events),
+        "input_unchanged": before["input"] == after["input"],
+        "state_unchanged": before["process"]["state"] == after["process"]["state"],
+        "consumed_inputs": after["process"]["consumed"]})
+
+
 async def cancellation(libraries, seed, config):
     entered, release = threading.Event(), threading.Event()
     class Stall(BaseHTTPRequestHandler):
@@ -140,10 +169,11 @@ async def cancellation(libraries, seed, config):
         rejects(9, server.next)
         # Cancellation drops the await, not the native worker's ownership.
         task.cancel()
+        cancelled = False
         try:
             await task
         except asyncio.CancelledError:
-            pass
+            cancelled = True
         closing = asyncio.create_task(asyncio.to_thread(server.close))
         ticks = 0
         while not closing.done():
@@ -151,12 +181,16 @@ async def cancellation(libraries, seed, config):
             ticks += 1
         await closing
         assert ticks > 2, "Closing blocked the event loop or destroyed active native work"
+        disposed = False
         try:
             server.next()
         except ValueError:
-            pass
+            disposed = True
         else:
             raise AssertionError("Closed native handle remained usable")
+        check("local-cancellation-disposal", {"await_cancelled": cancelled,
+            "overlap_rejected": True, "responsive_during_join": ticks > 2,
+            "disposed_handle_rejected": disposed})
     finally:
         release.set()
         await asyncio.to_thread(server.close)

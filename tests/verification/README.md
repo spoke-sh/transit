@@ -156,6 +156,15 @@ append atomicity and is not a substitute for Ursula disk qualification.
 
 ## Model and guard qualification
 
+At `ea62354`, all four compiling mutants were detected and their counterexamples
+minimized. The larger generated run also passed 263 traces / 33,250 boundaries
+in 475.97 seconds on the shared development host. This is a bounded exploration
+cost, not a throughput benchmark. Artifacts are under
+`.cache/verification/mutations/` and `.cache/verification/transitions.json`.
+The five-action [view-expiry regression](corpus/view-expiry-regression.json)
+is the minimized missing-deadline mutant counterexample and runs in the ordinary
+corpus. It records a negative control, not a discovered production defect.
+
 The [finite TLA+ model](models/README.md) checks publication, retry and closure
 safety and replays four removed-guard counterexamples against the real engine.
 `just test::model` is part of the bindings lane so ordinary core/frontend checks
@@ -191,3 +200,31 @@ an accepted receipt through the production status/encoding path. The fake
 transport counts exactly one submission; allocation failure must remain
 `uncertain`. Native allocator checks detect leaks, while real HTTP/host proofs
 retain responsibility for network and scheduler assumptions.
+
+## Shared SDK conformance
+
+[sdk.json](sdk.json) is the version-1 behavioral scenario contract for M11. Each
+scenario defines a sequence, required observations and executable proof owners;
+the catalog checker rejects missing implementations or task ownership. These
+are behavioral observations, not another copy of the wire schema. Presence in
+the catalog is not a passing result.
+
+[sdk_scenarios.py](../sdk_scenarios.py) compares all named observations exactly.
+Future public SDK adapters can execute the same schedule through their own API
+and supply those observations; they must retain real service/host failures and
+cannot substitute expected constants for observed outcomes. Native allocation
+enumeration remains in its Zig owner, linked directly from the same catalog.
+
+`test::client-abi` runs two independent native handles concurrently with one
+principal. Conflicting bodies at the same sequence yield one admission and one
+`ConflictingRetry`; identical bodies recover the same receipt. Cross-handle exact
+retries preserve both results. This does not make independent sequence allocation
+safe. The proof separately observes admission, source processing, reply delivery
+and reply consumption, and recovers a lost accepted reply in a fresh host.
+
+`bindings::test` reuses durable continuation observations across its language
+matrix. Its shared Station ABI checks malformed input becoming durably blocked
+without handler dispatch or input consumption, local await cancellation, and
+responsive disposal that joins native work. The generated SDKs remain M11 work;
+these results qualify the current low-level Linux bindings and their shared
+semantics, not public SDK packaging or foreign deployment isolation.

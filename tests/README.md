@@ -816,6 +816,19 @@ The captured-view extension passed 39 saved/generated traces with 1,682
 boundaries in 18.91 seconds on this host. It additionally compares atomic KV/input
 publication, view release/expiry, clock rollback/uncertainty and current resource
 rights. These finite in-memory schedules preserve the real disk and host checks.
+The larger run passed 263 traces / 33,250 boundaries in 475.97 seconds. At
+`ea62354`, all four compiling guard mutants were detected, with minimized
+counterexamples retained by the mutation task.
+
+The [shared SDK scenario contract](verification/sdk.json) now has executable
+owners for admission/commit/reply distinctions, same-principal multi-handle
+contention, host-loss retry, durable continuation, decode failure, local await
+cancellation/disposal and response allocation after commitment.
+`just test::client-abi` passed its disk-backed contention and boundary checks;
+`just bindings::test` passed the shared host cases and continuation observations
+through every existing language pair. Malformed framework input becomes durably
+blocked without being consumed. Public M11 SDKs must reuse these scenarios
+through their own interfaces; the current matrix qualifies low-level bindings.
 
 M10 is in progress. The first CI changes separate library unit tests from
 application/probe builds, avoid duplicate feature-push/PR runs, and select

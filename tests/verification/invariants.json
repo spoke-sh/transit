@@ -84,9 +84,10 @@
       ],
       "scenarios": [
         "Lost accepted response followed by exact retry",
-        "Malformed reply and host loss"
+        "Malformed reply and host loss",
+        "Independent same-principal native handles race conflicting and identical frozen requests"
       ],
-      "limits": "Response allocation after acceptance is enumerated through the real ABI response/status path with a deterministic transport; real HTTP/host loss remains separately qualified. Same-principal concurrent native handles still need shared SDK schedules.",
+      "limits": "Response allocation after acceptance is enumerated through the real ABI response/status path with a deterministic transport; real HTTP/host loss and same-principal multi-handle races use disk-backed service proofs. Public SDK adapters remain M11 work; shared obligations are in tests/verification/sdk.json.",
       "model": "tests/verification/models/Authority.tla"
     },
     {

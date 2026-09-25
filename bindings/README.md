@@ -31,6 +31,12 @@ qualifies Zig workers; foreign worker isolation remains separate scope.
 authority and Arrow data, not language-specific server routes. Public package
 registry releases and non-Linux platforms are not qualified yet.
 
+The [shared conformance scenarios](../tests/verification/README.md#shared-sdk-conformance)
+define the M10-to-M11 handoff. The current matrix checks durable continuation
+through each language pair against the same observations; shared native proofs
+own sequencing contention, decode-failure policy, uncertain responses and host
+cleanup. M11 must repeat these obligations through its public APIs.
+
 ## Qualification tools
 
 `nix develop .#bindings` adds the locked foreign-language tools to the normal

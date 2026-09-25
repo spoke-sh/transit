@@ -94,5 +94,11 @@ loads the same library from Python against disk-backed Ursula and the real
 authority. It compares signatures with the Zig CLI, drops a successful receipt,
 retries from a fresh host without the signing seed, checks identical transmitted
 bytes, and exercises public view/state reads and malformed-input rejection.
+It also races independent handles sharing one principal: different bodies at
+one sequence produce one admission and one `ConflictingRetry` rejection;
+identical bodies return the same receipt. The application still owns shared
+principal sequencing. These checks use the
+[shared SDK scenarios](../../../../tests/verification/sdk.json), including
+distinct admission, processing, reply delivery and reply consumption boundaries.
 This is entry-gate evidence; full handler/Table examples, runtime adapters and
 the complete adversarial language matrix remain M9 work.
