@@ -7,6 +7,8 @@ pub const Time = @import("Time.zig");
 pub const Runtime = protocol.Runtime;
 pub const resources = @import("resources.zig");
 pub const pages = @import("pages.zig");
+pub const catalog = @import("catalog.zig");
+pub const growing = @import("growing.zig");
 pub const lifecycle = @import("lifecycle.zig");
 pub const collection = @import("collection.zig");
 pub const max_principals = protocol.max_principals;
@@ -309,9 +311,9 @@ pub const State = struct {
                 else => null,
             };
             if (resource) |id| {
-                const catalog = if (self.resources) |*value| value else return error.Forbidden;
-                if (!catalog.allowed(id, request.principal, .inspect)) return error.Forbidden;
-                if (command == .open and !catalog.allowed(id, request.principal, .read)) return error.Forbidden;
+                const resource_catalog = if (self.resources) |*value| value else return error.Forbidden;
+                if (!resource_catalog.allowed(id, request.principal, .inspect)) return error.Forbidden;
+                if (command == .open and !resource_catalog.allowed(id, request.principal, .read)) return error.Forbidden;
             }
         }
     }
@@ -1103,6 +1105,8 @@ test {
     _ = @import("tests.zig");
     _ = @import("resources_test.zig");
     _ = @import("pages_test.zig");
+    _ = @import("catalog_test.zig");
+    _ = @import("growing_test.zig");
 }
 
 pub const inspection = @import("inspection.zig");

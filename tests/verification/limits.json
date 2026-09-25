@@ -239,6 +239,62 @@
       "expression": "8",
       "classification": "working-set",
       "meaning": "One returned scan batch; immutable key continuation permits larger collections."
+    },
+    {
+      "source": "packages/zig/transit-core/src/catalog.zig",
+      "symbol": "record_bytes",
+      "expression": "2048",
+      "classification": "encoding",
+      "meaning": "One encoded catalog record; larger objects require references/segments."
+    },
+    {
+      "source": "packages/zig/transit-core/src/catalog.zig",
+      "symbol": "parser_bytes",
+      "expression": "64 * 1024",
+      "classification": "working-set",
+      "meaning": "Fixed parser workspace per owned record, independent of total catalog size."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "symbol": "page_size",
+      "expression": "8",
+      "classification": "operation",
+      "meaning": "Maximum records in one read page."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "symbol": "turn_views",
+      "expression": "4",
+      "classification": "operation",
+      "meaning": "Captured dependencies in one atomic turn, not retained view count."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "symbol": "turn_mutations",
+      "expression": "4",
+      "classification": "operation",
+      "meaning": "Writes in one atomic proposal, not resource cardinality."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "symbol": "turn_outputs",
+      "expression": "4",
+      "classification": "operation",
+      "meaning": "Outputs in one atomic proposal, not retained output count."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "symbol": "key_bytes",
+      "expression": "32",
+      "classification": "encoding",
+      "meaning": "Maximum opaque key/name bytes."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "symbol": "view_lifetime_ms",
+      "expression": "60_000",
+      "classification": "operation",
+      "meaning": "Maximum requested read-view duration, independent of history retention."
     }
   ],
   "identities": [
@@ -256,6 +312,11 @@
       "source": "packages/zig/transit-fuze/src/model.zig",
       "anchor": "names: [2]Name",
       "meaning": "Two-column schema qualification; schema width is a per-operation budget, not a total row limit."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "anchor": "pub const Id = u64;",
+      "meaning": "Growing-profile value identities; validated at 2^53-1 for exact JSON integers. Does not widen legacy ABI by implication."
     }
   ]
 }

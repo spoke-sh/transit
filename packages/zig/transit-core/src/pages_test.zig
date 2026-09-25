@@ -2,7 +2,7 @@ const std = @import("std");
 const t = std.testing;
 const p = @import("pages.zig");
 
-const Store = struct {
+pub const Store = struct {
     allocator: std.mem.Allocator = t.allocator,
     pages: std.AutoHashMapUnmanaged(p.Reference, p.Page) = .empty,
     writes: usize = 0,
@@ -30,7 +30,7 @@ const Store = struct {
         }
         return error.PageUnavailable;
     }
-    fn deinit(self: *Store) void {
+    pub fn deinit(self: *Store) void {
         self.pages.deinit(self.allocator);
     }
 };

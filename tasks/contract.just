@@ -8,11 +8,19 @@ _default:
 
 # Regenerate the public binding resource from the authoritative Zig wire types.
 generate:
-    zig build contract > contracts/transit-v2.schema.json
+    #!/usr/bin/env bash
+    set -euo pipefail
+    generated=$(mktemp -d)
+    trap 'rm -rf "$generated"' EXIT
+    zig build contract > "$generated/transit-v2.schema.json"
+    zig build growth-contract > "$generated/transit-v3.schema.json"
+    mv "$generated/transit-v2.schema.json" contracts/transit-v2.schema.json
+    mv "$generated/transit-v3.schema.json" contracts/transit-v3.schema.json
 
 # Detect public schema/default/signing changes that were not reviewed together.
 check:
     zig build contract | python3 -B tests/contract.py
+    zig build growth-contract | python3 -B tests/contract.py --growth
     just contract::client-check
     just contract::station-check
     python3 -B bindings/generate.py

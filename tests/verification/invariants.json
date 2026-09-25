@@ -291,6 +291,28 @@
       ],
       "limits": "One closed stream per page; no page GC, application authority integration or power-loss qualification. Cache bytes exclude HTTP/parser/stack memory.",
       "model": null
+    },
+    {
+      "id": "GROWTH-01",
+      "claim": "A growing control root atomically retains mailbox admission and exact retry evidence beyond legacy process/principal counts",
+      "owner": "docs/STATE.md",
+      "implementation": [
+        "packages/zig/transit-core/src/growing.zig"
+      ],
+      "profile": "transit-v3 development control slice; not running service",
+      "tasks": [
+        "test::unit",
+        "contract::check"
+      ],
+      "scenarios": [
+        "Twenty wide principals and seventy processes",
+        "Prepared root loses to revocation",
+        "Acknowledgement lost after root publication",
+        "Historical retry after later acceptance",
+        "Recovery without staging pages"
+      ],
+      "limits": "Injected journal/page store only; state turns, service/current resource reads, lifecycle/provider extensions and quota/control reserve remain unqualified.",
+      "model": null
     }
   ]
 }

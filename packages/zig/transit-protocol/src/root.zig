@@ -7,6 +7,7 @@ pub const Schema = @import("Schema.zig");
 pub const Inspection = @import("Inspection.zig");
 pub const Runtime = @import("Runtime.zig");
 pub const State = @import("State.zig");
+pub const Growth = @import("Growth.zig");
 pub const Lifecycle = @import("Lifecycle.zig");
 pub const Delivery = @import("Delivery.zig");
 pub const max_principals = 16;
@@ -195,6 +196,7 @@ pub const fixtures = struct {
     pub const sequences = @embedFile("fixtures/sequences-v2.json");
 };
 test {
+    _ = Growth;
     _ = Inspection;
     _ = State;
     _ = Value;

@@ -57,6 +57,30 @@ capabilities, Station's handler reads, quota reserves and checkpoint roots still
 need integration. Existing histories must remain readable by their explicit
 legacy profile; they must not be reinterpreted as this page format.
 
+## Typed catalog
+
+`transit_core.catalog` adds owned, bounded typed records, namespace ranges and
+versioned snapshot metadata over the same tree. Record keys contain a namespace,
+two ordered 64-bit identities and an optional opaque suffix. Principals, PIDs,
+mailbox positions, receipts and resource keys are addressed by value rather than
+array offset. This is an internal representation; it does not widen the legacy
+public protocol or ABI by implication.
+
+Candidate catalogs are cheap root/count copies. Reads return owned records;
+scans return at most eight records and a full-key cursor, which cannot cross the
+requested namespace/identity range. Every parser has a 64 KiB workspace and each
+encoded record is limited to 2,048 bytes. Larger logical objects need explicit
+segments/references; loading the whole catalog into an allocator is not supported.
+Those bounds apply to a record or operation, not total retained records.
+
+A successful `put` or `remove` changes only the private candidate root. The caller
+must validate permissions, dependencies and retention before using it and publish
+all changes in one journal decision. Structural deletion grants no reclamation
+permission. Catalog version/shape rejection is implemented; migration from legacy
+checkpoints is not. Tests cover namespace isolation, 96 principals with identities
+above 255, retained snapshots, pagination, count conservation, malformed/oversize
+records and lost staging acknowledgement. Service integration remains in progress.
+
 ## Evidence
 
 [Unit proofs](../src/pages_test.zig) check 256 keys beyond the legacy limit, lookup
