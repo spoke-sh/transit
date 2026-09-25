@@ -225,6 +225,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
     }) });
     growing_service.addArtifactArg(growing_station);
+    const growing_build = b.step("test-growing-service-build", "Compile growing service proof binaries without executing scenarios");
+    for ([_]*std.Build.Step.Compile{ node_artifact, growing_client, growing_station }) |artifact| growing_build.dependOn(&artifact.step);
     growing_service.has_side_effects = true;
     growing_service.stdio = .inherit;
     b.step("test-growing-service", "Prove the explicit growing node/client profile over signed HTTP").dependOn(&growing_service.step);

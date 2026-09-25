@@ -65,10 +65,18 @@ including recompilation and the other growing service faults. Reproduce it with
 `just test::growing-service-release`. Both profiles keep the same fault schedules,
 assertions and single-CPU service restriction. These local runs include slightly
 different scoped-retry coverage and are not a controlled production benchmark.
-Ordinary CI keeps Debug pending cold two-CPU build/lane-cost measurements: faster
-scenario execution alone does not show that another optimized build saves CI
-time or aggregate runner cost. The isolated exchange timings omit compilation,
-Nix setup and cache transfer.
+Ordinary CI keeps Debug. A subsequent two-CPU build experiment at `d567188`
+(with the compile-only target uncommitted) used fresh local object caches and
+warmed fetched packages/global toolchain cache. Debug compiled the three growing
+service proof binaries in 13.22 seconds (18.15 child CPU seconds); ReleaseSafe
+took 111.90 seconds (187.75 child CPU seconds). Both compiled successfully.
+The optimized build cost exceeds the observed scenario saving on a cold object
+cache; these shared-host samples do not justify changing the ordinary CI profile.
+Reproduce the compile step with `just build::debug test-growing-service-build`
+or `just build::release-safe test-growing-service-build`, using a fresh
+`ZIG_LOCAL_CACHE_DIR` for each. Local `growing-build-profiles.json` records the
+cache conditions and timings. Nix setup, cache transfer, warm-cache hit rates
+and hosted lane distributions still need separate measurement.
 
 ## Generated transitions
 
