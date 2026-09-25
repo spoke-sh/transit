@@ -45,6 +45,10 @@ intents, closed views and retry evidence. Current resource grants are required
 when disclosing a retained state receipt, including receipts whose views closed
 long ago. A grant epoch change invalidates old resource grants without scanning
 the resource catalog. Views retain one catalog root, not copies of resource data.
+Resource entry counts obey the public integer encoding range. A batch that would
+exceed it publishes neither mutations, progress nor view closure; an atomic key
+replacement at that range boundary remains valid. This is an encoding limit,
+separate from resident memory or a deployment quota.
 
 Required associations have their own index, separate from optional associations.
 Dependency validation walks lifetime-owner dependencies with a visited set, so

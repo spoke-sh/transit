@@ -349,6 +349,53 @@ test "growing finite work fails closed on clock uncertainty without disabling co
     try t.expectEqual(.terminated, (try fixture.engine.process(pid)).lifecycle);
 }
 
+test "growing row count encoding overflow cannot publish partial rows progress or view closure" {
+    const state = @import("growing_state.zig");
+    const Clock = struct {
+        fn read(_: *anyopaque) anyerror!core.Time.Sample {
+            return .{ .unix_ms = 100 };
+        }
+    };
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    var context: u8 = 0;
+    f.engine.clock = .{ .context = &context, .read = Clock.read };
+    const pid = try f.root(.{ .spawn = .{} });
+    const resource = try f.root(.{ .create_resource = .{ .writer = pid } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+    _ = try f.root(.{ .associate = .{ .pid = pid, .name = try core.Value.init("state"), .resource = resource } });
+    _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 0 } });
+    // Synthetic counter boundary, not a claim to have stored 2^53 rows. Install
+    // metadata in the injected journal/page store before exercising real turns.
+    var current = try f.engine.state();
+    var data = try state.resource(&f.engine, resource);
+    data.entries = core.protocol.max_counter - 1;
+    try current.put(growing.address(.resource, resource), data);
+    f.engine.head.catalog = current.snapshot;
+    f.journal.entries.items[f.journal.entries.items.len - 1].operation.next.catalog = current.snapshot;
+    const first = try core.Value.init("first");
+    const second = try core.Value.init("second");
+    for (0..2) |i| {
+        const process = try f.engine.process(pid);
+        const input = try f.root(.{ .send = .{ .pid = pid, .value = .{} } });
+        const view = try f.root(.{ .open_view = .{ .pid = pid, .generation = 2, .input = input, .expected_revision = process.revision, .resource = resource, .revision = (try state.resource(&f.engine, resource)).revision, .deadline_ms = 200 } });
+        var turn: g.Turn = .{ .pid = pid, .generation = 2, .input = input, .expected_revision = process.revision, .views = .{ view, null, null, null }, .write_view = view, .mutations = .{ .{ .key = if (i == 0) first else second, .value = .{} }, .{ .key = try core.Value.init("extra"), .value = .{} }, null, null } };
+        const before = f.engine.head;
+        try t.expectError(error.Overflow, f.root(.{ .turn = turn }));
+        try t.expect(std.meta.eql(before, f.engine.head));
+        try t.expectEqual(process.consumed, (try f.engine.process(pid)).consumed);
+        try t.expectEqual(@as(?u64, null), (try state.view(&f.engine, view)).meta.closed_at);
+        current = try f.engine.state();
+        try t.expectEqual(@as(?g.Entry, null), try current.get(g.Entry, try core.catalog.key(.entry, resource, 0, second.slice())));
+        // At the ceiling, an insertion followed by a deletion is one legal
+        // replacement. The private intermediate count does not leak publicly.
+        turn.mutations[1] = if (i == 0) null else .{ .key = first, .value = null };
+        _ = try f.root(.{ .turn = turn });
+        try t.expectEqual(core.protocol.max_counter, (try state.resource(&f.engine, resource)).entries);
+    }
+}
+
 test "growing turns publish rows, progress, outputs and retained views as one root" {
     const Clock = struct {
         now: u64 = 100,

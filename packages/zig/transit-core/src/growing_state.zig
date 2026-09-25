@@ -317,6 +317,9 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
             }
         };
         if (write) |*data| {
+            // Validate the final atomic batch, not its intermediate cardinality:
+            // replacing a key at the encoding ceiling must remain possible.
+            if (data.entries > p.max_counter) return error.Overflow;
             data.revision = position;
             try candidate.put(address(.resource, data.id), data.*);
         }
