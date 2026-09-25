@@ -109,6 +109,17 @@
                 source ${./nix/dev-environment.sh}
               '';
             };
+          bindings =
+            let
+              tools = import ./nix/bindings-tools.nix { inherit pkgs; };
+            in
+            pkgs.mkShell {
+              inputsFrom = [ default ];
+              packages = tools.packages;
+              TRANSIT_GSON_JAR = "${tools.gson}";
+              DOTNET_CLI_TELEMETRY_OPTOUT = "1";
+              DOTNET_SKIP_FIRST_TIME_EXPERIENCE = "1";
+            };
         }
       );
 
