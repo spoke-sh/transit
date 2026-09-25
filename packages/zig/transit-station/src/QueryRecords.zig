@@ -142,3 +142,149 @@ pub const Continuation = struct {
         return self;
     }
 };
+
+pub const Transfer = struct {
+    result: u64,
+    source: u64,
+    segments: u64 = 0,
+    bytes: u64 = 0,
+    rows: u64 = 0,
+    chain: [32]u8 = @splat(0),
+    pending: u16 = 0,
+    schema: [32]u8 = @splat(0),
+    pub fn encode(self: Transfer) !p.Value {
+        var value: p.Value = .{};
+        var writer: std.Io.Writer = .fixed(&value.data);
+        try writer.writeAll("GQX2");
+        inline for (.{ "result", "source", "segments", "bytes", "rows" }) |field| try writer.writeInt(u64, @field(self, field), .little);
+        try writer.writeAll(&self.chain);
+        try writer.writeInt(u16, self.pending, .little);
+        try writer.writeAll(&self.schema);
+        value.len = @intCast(writer.end);
+        return value;
+    }
+    pub fn decode(value: p.Value) !Transfer {
+        try value.validate();
+        if (value.len != 110 or !std.mem.eql(u8, value.data[0..4], "GQX2")) return error.InvalidResultTransfer;
+        var reader: std.Io.Reader = .fixed(value.slice()[4..]);
+        var self: Transfer = .{ .result = undefined, .source = undefined };
+        inline for (.{ "result", "source", "segments", "bytes", "rows" }) |field| @field(self, field) = try reader.takeInt(u64, .little);
+        self.chain = (try reader.takeArray(32)).*;
+        self.pending = try reader.takeInt(u16, .little);
+        self.schema = (try reader.takeArray(32)).*;
+        if (self.result == 0 or self.result > p.max_counter or self.source == 0 or self.source > p.max_counter or self.pending > segment_bytes or
+            self.rows / f.model.max_rows + @intFromBool(self.rows % f.model.max_rows != 0) > self.segments or
+            (self.segments == 0 and (self.bytes != 0 or self.rows != 0 or !std.mem.allEqual(u8, &self.chain, 0) or !std.mem.allEqual(u8, &self.schema, 0))) or
+            !value.eql(try self.encode())) return error.InvalidResultTransfer;
+        return self;
+    }
+    pub fn seal(self: *Transfer, manifest: Segment, schema: [32]u8) !void {
+        if (manifest.result != self.result or manifest.ordinal != self.segments or self.pending != manifest.bytes) return error.IncompleteResultSegment;
+        if (self.segments != 0 and !std.mem.eql(u8, &self.schema, &schema)) return error.ResultSchemaChanged;
+        var next = self.*;
+        next.segments = try std.math.add(u64, self.segments, 1);
+        next.bytes = try std.math.add(u64, self.bytes, manifest.bytes);
+        next.rows = try std.math.add(u64, self.rows, manifest.rows);
+        next.chain = try manifest.extend(self.chain);
+        next.schema = schema;
+        next.pending = 0;
+        self.* = next;
+    }
+};
+pub const Manifest = struct {
+    result: u64,
+    destination: u64,
+    correlation: u64,
+    table: u32,
+    policy_revision: u64,
+    basis: f.model.Basis,
+    plan: [32]u8,
+    segments: u64,
+    bytes: u64,
+    rows: u64,
+    chain: [32]u8,
+    schema: [32]u8,
+    pub fn encode(self: Manifest) !p.Value {
+        var value: p.Value = .{};
+        var writer: std.Io.Writer = .fixed(&value.data);
+        try writer.writeAll("GQM2");
+        inline for (.{ "result", "destination", "correlation" }) |field| try writer.writeInt(u64, @field(self, field), .little);
+        try writer.writeInt(u32, self.table, .little);
+        try writer.writeInt(u64, self.policy_revision, .little);
+        try writer.writeInt(u64, self.basis.resource, .little);
+        try writer.writeInt(u64, self.basis.revision, .little);
+        try writer.writeAll(&self.basis.schema);
+        try writer.writeAll(&self.plan);
+        inline for (.{ "segments", "bytes", "rows" }) |field| try writer.writeInt(u64, @field(self, field), .little);
+        try writer.writeAll(&self.chain);
+        try writer.writeAll(&self.schema);
+        value.len = @intCast(writer.end);
+        return value;
+    }
+    pub fn decode(value: p.Value) !Manifest {
+        try value.validate();
+        if (value.len != 208 or !std.mem.eql(u8, value.data[0..4], "GQM2")) return error.InvalidResultManifest;
+        var reader: std.Io.Reader = .fixed(value.slice()[4..]);
+        var self: Manifest = undefined;
+        inline for (.{ "result", "destination", "correlation" }) |field| @field(self, field) = try reader.takeInt(u64, .little);
+        self.table = try reader.takeInt(u32, .little);
+        self.policy_revision = try reader.takeInt(u64, .little);
+        self.basis = .{ .resource = try reader.takeInt(u64, .little), .revision = try reader.takeInt(u64, .little), .schema = (try reader.takeArray(32)).* };
+        self.plan = (try reader.takeArray(32)).*;
+        inline for (.{ "segments", "bytes", "rows" }) |field| @field(self, field) = try reader.takeInt(u64, .little);
+        self.chain = (try reader.takeArray(32)).*;
+        self.schema = (try reader.takeArray(32)).*;
+        if (self.result == 0 or self.result > p.max_counter or self.destination == 0 or self.destination > p.max_counter or self.correlation == 0 or self.table == 0 or self.policy_revision == 0 or
+            self.basis.resource == 0 or self.basis.resource > p.max_counter or self.segments == 0 or self.bytes < 8 or
+            self.rows / f.model.max_rows + @intFromBool(self.rows % f.model.max_rows != 0) > self.segments or !value.eql(try self.encode())) return error.InvalidResultManifest;
+        return self;
+    }
+    pub fn check(self: Manifest, transfer: Transfer) !void {
+        if (transfer.pending != 0 or transfer.result != self.result or transfer.segments != self.segments or transfer.bytes != self.bytes or transfer.rows != self.rows or
+            !std.mem.eql(u8, &self.chain, &transfer.chain) or !std.mem.eql(u8, &self.schema, &transfer.schema)) return error.IncompleteResult;
+    }
+};
+pub const Fragment = struct {
+    result: u64,
+    segment: u64,
+    offset: u16,
+    bytes: []const u8,
+    pub fn encode(self: Fragment) !p.Value {
+        var value: p.Value = .{};
+        var writer: std.Io.Writer = .fixed(&value.data);
+        try writer.writeAll("GQF2");
+        try writer.writeInt(u64, self.result, .little);
+        try writer.writeInt(u64, self.segment, .little);
+        try writer.writeInt(u16, self.offset, .little);
+        try writer.writeAll(self.bytes);
+        value.len = @intCast(writer.end);
+        _ = try decode(&value);
+        return value;
+    }
+    /// The returned byte slice borrows the supplied value.
+    pub fn decode(value: *const p.Value) !Fragment {
+        try value.validate();
+        if (value.len <= 22 or value.len > Frame.max_payload or !std.mem.eql(u8, value.data[0..4], "GQF2")) return error.InvalidResultFragment;
+        const self: Fragment = .{ .result = std.mem.readInt(u64, value.data[4..12], .little), .segment = std.mem.readInt(u64, value.data[12..20], .little), .offset = std.mem.readInt(u16, value.data[20..22], .little), .bytes = value.slice()[22..] };
+        if (self.result == 0 or self.result > p.max_counter or self.offset % fragment_bytes != 0 or @as(usize, self.offset) + self.bytes.len > segment_bytes) return error.InvalidResultFragment;
+        return self;
+    }
+};
+pub const Publication = struct {
+    result: u64,
+    segment: u64,
+    offset: u16 = 0,
+    pub fn encode(self: Publication) !p.Value {
+        var value = try (Continuation{ .result = self.result, .page = self.segment, .written = self.offset }).encode();
+        value.data[0..4].* = "GQP2".*;
+        return value;
+    }
+    pub fn decode(value: p.Value) !Publication {
+        try value.validate();
+        if (value.len != 22 or !std.mem.eql(u8, value.data[0..4], "GQP2")) return error.InvalidQueryContinuation;
+        var normalized = value;
+        normalized.data[0..4].* = "GQC2".*;
+        const decoded = try Continuation.decode(normalized);
+        return .{ .result = decoded.result, .segment = decoded.page, .offset = decoded.written };
+    }
+};

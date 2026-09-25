@@ -28,7 +28,8 @@ def run(node, caller, *, finish_pages=64):
             "ursula_url": fixture.url, "bucket": "growing-query", "journal": "authority",
             "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         manifest = fixture.root / "query.json"
-        fault = {"stage": None, "seal": None, "retries": set(), "queries": 0}
+        fault = {"stage": None, "seal": None, "publish": None, "receive": None,
+                 "retries": set(), "queries": 0}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -55,11 +56,19 @@ def run(node, caller, *, finish_pages=64):
                         command = envelope["request"]["command"]
                         turn = command.get("turn", command.get("turn_with_versions", {}).get("turn", {}))
                         keys = [bytes.fromhex(item["key"]) for item in turn.get("mutations", []) if item]
-                        for name, tag in (("stage", b"s"), ("seal", b"m")):
+                        publishing = any(item and item["value"] and
+                                         bytes.fromhex(item["key"]).startswith(b"\x00Qj") and
+                                         len(bytes.fromhex(item["value"])) == 108 and
+                                         int.from_bytes(bytes.fromhex(item["value"])[106:108], "little") > 0
+                                         for item in turn.get("mutations", []))
+                        for name, selected in (("stage", any(key.startswith(b"\x00Qs") for key in keys)),
+                                               ("seal", any(key.startswith(b"\x00Qm") for key in keys)),
+                                               ("publish", publishing),
+                                               ("receive", any(key.startswith(b"\x00Qd") for key in keys))):
                             if fault[name] is not None and body == fault[name][0]:
                                 assert data == fault[name][1], "Lost result reply changed on exact retry"
                                 fault["retries"].add(name)
-                            elif fault[name] is None and any(key.startswith(b"\x00Q" + tag) for key in keys):
+                            elif fault[name] is None and selected:
                                 fault[name] = (body, data)
                                 data = b'{"position":0}'
                                 break
@@ -92,21 +101,25 @@ def run(node, caller, *, finish_pages=64):
                 return child
 
             authority = start()
-            for phase in ("write", "seal", "recover"):
+            captured_queries = None
+            for phase in ("write", "seal", "recover", "publish", "deliver"):
                 started = time.monotonic()
                 subprocess.run([caller, proxy_url, phase, str(manifest)], check=True, timeout=180)
                 timings[phase] = round(time.monotonic() - started, 3)
-                if phase != "recover":
+                if phase == "recover":
+                    captured_queries = fault["queries"]
+                if phase in ("write", "seal", "publish"):
                     authority.kill()
                     authority.wait(timeout=10)
                     authority = None
                     fixture.stop()
                     fixture.start()
                     recovered = json.loads(config.read_text())
-                    recovered["resident_pages"] = 1 if phase == "write" else finish_pages
+                    recovered["resident_pages"] = 1 if phase == "write" else finish_pages if phase == "seal" else 64
                     config.write_text(json.dumps(recovered))
                     authority = start()
-            assert fault["retries"] == {"stage", "seal"}
+            assert fault["retries"] == {"stage", "seal", "publish", "receive"}
+            assert captured_queries == fault["queries"], "Publication must never reopen source rows"
             result = json.loads(Path(f"{manifest}.result.json").read_text())
             job, progress = result["job"], result["progress"]
             assert job["phase"] == "captured" and progress["finished"] == "source_end"
@@ -127,8 +140,21 @@ def run(node, caller, *, finish_pages=64):
             assert actual == [{"id": i, "value": None if i % 5 == 0 else chr(ord("a") + i % 26) * 220} for i in range(41)]
             assert progress["rows"] == 41 and progress["segments"] == 6
             assert total == job["bytes"] > 672 and chain == bytes(job["chain"])
+            received = json.loads(Path(f"{manifest}.received.json").read_text())
+            completed = received["manifest"]
+            assert completed["basis"] == progress["basis"] and completed["plan"] == progress["plan"]
+            assert completed["rows"] == 41 and completed["bytes"] == total
+            assert completed["chain"] == job["chain"] and received["segments"] == result["segments"]
+            schema_hash = hashlib.sha256(b"transit.fuze.ipc.schema.v1\x00\x02\x02id\x01\x00\x05value\x03\x01").digest()
+            assert bytes(completed["schema"]) == schema_hash
+            for ordinal in range(completed["segments"]):
+                captured_data = Path(f"{manifest}.{ordinal}.arrow").read_bytes()
+                received_data = Path(f"{manifest}.received.{ordinal}.arrow").read_bytes()
+                assert received_data == captured_data
+                with pa.ipc.open_stream(received_data) as reader:
+                    assert reader.read_all().num_rows == received["segments"][ordinal]["rows"]
             print("Growing query timing:", json.dumps({"initial_pages": 64, "seal_pages": 1, "finish_pages": finish_pages, **timings}), flush=True)
-            print(f"Growing query: {len(actual)} rows/{total} captured bytes, partial staging and sealed progress survive two caller/node/provider replacements; lost stage/seal replies and independent Arrow verification passed.", flush=True)
+            print(f"Growing query: {len(actual)} rows/{total} bytes; staging, sealing, publication and partial consumption recover with exact retries, bounded Arrow validation, cancellation and retained acknowledgement.", flush=True)
         except BaseException:
             log.flush()
             log.seek(0)

@@ -23,6 +23,9 @@ pub fn Type(comptime growing: bool) type {
         handler_error: ?anyerror = null,
         ready: ?Turn = null,
         initializing: bool = false,
+        /// Growing result work borrows this bounded workspace and cancellation
+        /// flag. Neither may move or be released while the host can poll it.
+        query: if (growing) ?@import("QueryDelivery.zig").Context else void = if (growing) null else {},
 
         pub const Step = enum { idle, progress, committed, blocked };
         pub const Poll = enum { idle, progress, ready, committed, blocked };
@@ -121,7 +124,14 @@ pub fn Type(comptime growing: bool) type {
                 self.ready = null;
                 return err;
             }) == null;
-            const internal = preprocess(&self.ready.?) catch |err| {
+            const internal = self.preprocess(&self.ready.?) catch |err| {
+                if (growing) if (err == error.Cancelled) {
+                    // Local cancellation before submission is not a failed
+                    // durable handler. Keep pending mutations on their normal
+                    // reconciliation path; only this unsent candidate is lost.
+                    self.ready = null;
+                    return err;
+                };
                 try self.finish(err);
                 return .progress;
             };
@@ -149,7 +159,7 @@ pub fn Type(comptime growing: bool) type {
             self.ready = null;
         }
 
-        fn preprocess(turn: *Turn) !bool {
+        fn preprocess(self: *GenServer, turn: *Turn) !bool {
             if (try turn.read(descriptor_key)) |stored| {
                 if (!stored.eql(descriptor)) return error.UnsupportedBehavior;
             } else {
@@ -158,9 +168,13 @@ pub fn Type(comptime growing: bool) type {
             const frame = try Frame.decode(turn.delivery.input.value);
             if (try @import("Waiting.zig").dispatch(turn, frame)) return true;
             if (growing) {
-                switch (frame.kind) {
-                    .result_chunk, .result_complete, .result_ack => return error.UnsupportedGrowingQuery,
-                    else => {},
+                if (self.query) |context| {
+                    if (try @import("QueryDelivery.zig").dispatch(turn, frame, context)) return true;
+                } else {
+                    switch (frame.kind) {
+                        .result_chunk, .result_complete, .result_ack => return error.UnsupportedGrowingQuery,
+                        else => {},
+                    }
                 }
             } else if (try @import("Query.zig").dispatch(turn, frame)) return true;
             if (frame.kind == .reply) switch (try turn.acceptReply()) {

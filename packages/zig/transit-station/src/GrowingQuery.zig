@@ -15,6 +15,13 @@ const Stage = records.Stage;
 const key = records.key;
 pub const policy = q.policy;
 pub const setPolicy = q.setPolicy;
+const delivery = @import("QueryDelivery.zig");
+pub const Context = delivery.Context;
+pub const Manifest = delivery.Manifest;
+pub const dispatch = delivery.dispatch;
+pub const beginPublication = delivery.begin;
+pub const completed = delivery.completed;
+pub const completedSegment = delivery.completedSegment;
 
 pub fn job(turn: *Turn, identity: u64) !Job {
     const stored = try Job.decode((try turn.read(key('j', identity, 0, 0))) orelse return error.MissingResult);
@@ -24,7 +31,7 @@ pub fn job(turn: *Turn, identity: u64) !Job {
 pub fn progress(turn: *Turn, identity: u64) !f.Stream.Progress {
     return f.Stream.Progress.decode(((try turn.read(key('e', identity, 0, 0))) orelse return error.MissingQueryProgress).slice());
 }
-fn permitted(turn: *Turn, stored: Job) !bool {
+pub fn permitted(turn: *Turn, stored: Job) !bool {
     const grant = (try policy(turn, stored.destination)) orelse return false;
     return grant.allow and grant.table == stored.table and grant.revision == stored.policy_revision;
 }

@@ -11,6 +11,8 @@ const Map = std.AutoHashMapUnmanaged(p.Value, p.Value);
 // Independent in-memory reader/commit fixture. Public service tests qualify
 // actual authority, node and provider failures separately.
 const Store = struct {
+    pid: u64 = 2,
+    resource: u64 = 7,
     state: Map = .empty,
     source: Map = .empty,
     version: ?p.Growth.ReadVersion = null,
@@ -24,7 +26,7 @@ const Store = struct {
     }
     fn turn(self: *Store, frame: Frame, peer: u64) !Turn {
         self.input += 1;
-        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = try frame.encode(), .origin = .{ .process = .{ .pid = peer, .turn = self.input - 1, .output = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 2, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10_000 }, .{ .context = self, .read = read, .version = metadata, .version_entries = entries });
+        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = self.pid, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = try frame.encode(), .origin = .{ .process = .{ .pid = peer, .turn = self.input - 1, .output = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10_000 }, .{ .context = self, .read = read, .version = metadata, .version_entries = entries });
     }
     fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) !?p.Value {
         const self: *Store = @ptrCast(@alignCast(raw));
@@ -241,4 +243,147 @@ test "growing capture rejects changed staging and closes policy or source loss w
     inspect = try revoked.turn(.{ .kind = .cast }, 2);
     try t.expectEqual(r.Phase.denied, (try q.job(&inspect, second.result)).phase);
     try t.expectError(error.IncompleteResult, q.captured(&inspect, second.result));
+}
+
+const Message = struct { source: u64, destination: u64, frame: Frame };
+fn enqueue(queue: *std.ArrayList(Message), turn: Turn) !void {
+    for (turn.decision.outputs) |slot| if (slot) |output| try queue.append(t.allocator, .{ .source = turn.delivery.pid, .destination = output.pid, .frame = try Frame.decode(output.value) });
+}
+
+test "growing result delivery preserves bounded progress through fresh handlers and completes exactly once before acknowledgement" {
+    var producer: Store = .{};
+    defer producer.deinit();
+    const table = try producer.seed(41, .utf8);
+    var receiver: Store = .{ .pid = 8, .resource = 9 };
+    defer receiver.deinit();
+    var initial = try receiver.turn(.{ .kind = .cast }, 8);
+    const correlation = try initial.call(2, .{}, null);
+    try receiver.commit(initial);
+    var queue: std.ArrayList(Message) = .empty;
+    defer queue.deinit(t.allocator);
+    try enqueue(&queue, initial);
+    var workspace: [f.execution.working_bytes]u8 = undefined;
+    const cancel = f.execution.Cancellation.init(false);
+    const context: q.Context = .{ .workspace = &workspace, .cancellation = &cancel };
+    var next: usize = 0;
+    var identity: u64 = 0;
+    var callbacks: usize = 0;
+    var duplicate = false;
+    var first_fragment: ?Frame = null;
+    var completion: ?Frame = null;
+    while (next < queue.items.len) : (next += 1) {
+        try t.expect(next < 512);
+        const message = queue.items[next];
+        const target = if (message.destination == 2) &producer else &receiver;
+        var turn = try target.turn(message.frame, message.source);
+        if (!try q.dispatch(&turn, message.frame, context)) {
+            if (message.frame.kind == .call) {
+                identity = (try q.start(&turn, table, .{})).result;
+            } else {
+                try t.expectEqual(Frame.Kind.result_complete, message.frame.kind);
+                const result = try q.completed(&turn, correlation);
+                try t.expectEqual(@as(u64, 41), result.rows);
+                callbacks += 1;
+                completion = message.frame;
+            }
+        }
+        if (message.frame.kind == .result_chunk and std.mem.startsWith(u8, message.frame.payload.slice(), "GQF2")) {
+            if (first_fragment == null) first_fragment = message.frame;
+            var forged = try target.turn(message.frame, 99);
+            try t.expectError(error.UnexpectedReplySource, q.dispatch(&forged, message.frame, context));
+            try t.expectEqual(.waiting, (try turn.waiting(correlation)).?.phase);
+            if (!duplicate) {
+                try queue.append(t.allocator, message);
+                duplicate = true;
+            }
+        }
+        if (message.frame.kind != .result_complete and message.frame.kind != .result_ack and message.destination == 8) {
+            try t.expectError(error.IncompleteResult, q.completed(&turn, correlation));
+        }
+        try target.commit(turn);
+        try enqueue(&queue, turn);
+    }
+    try t.expectEqual(@as(usize, 1), callbacks);
+    var sender = try producer.turn(.{ .kind = .cast }, 2);
+    try t.expectEqual(r.Phase.acknowledged, (try q.job(&sender, identity)).phase);
+    var inspect = try receiver.turn(.{ .kind = .cast }, 8);
+    const result = try q.completed(&inspect, correlation);
+    try t.expect(result.bytes > 672 and result.segments == 6);
+    var buffer: [r.segment_bytes]u8 = undefined;
+    var chain: [32]u8 = @splat(0);
+    var rows: u64 = 0;
+    for (0..result.segments) |ordinal| {
+        const segment = try q.completedSegment(&inspect, correlation, ordinal, &buffer);
+        chain = try segment.manifest.extend(chain);
+        rows += segment.manifest.rows;
+    }
+    try t.expectEqual(result.rows, rows);
+    try t.expectEqualSlices(u8, &result.chain, &chain);
+    try t.expect(producer.state.count() > 32 and receiver.state.count() > 32);
+    var late = try receiver.turn(completion.?, 2);
+    try t.expect(try q.dispatch(&late, completion.?, context));
+    try t.expectEqual(.replied, (try late.waiting(correlation)).?.phase);
+    var fragment = first_fragment.?;
+    fragment.payload.data[22] ^= 1;
+    late = try receiver.turn(fragment, 2);
+    try t.expect(try q.dispatch(&late, fragment, context)); // Closed wait stays closed.
+    const key = r.key('d', correlation, 0, 0);
+    const retained = receiver.state.get(key).?;
+    var corrupt = retained;
+    corrupt.data[0] ^= 1;
+    try receiver.state.put(t.allocator, key, corrupt);
+    try t.expectError(error.InvalidResultDigest, q.completedSegment(&inspect, correlation, 0, &buffer));
+    try receiver.state.put(t.allocator, key, retained);
+    _ = receiver.state.remove(key);
+    try t.expectError(error.IncompleteResultSegment, q.completedSegment(&inspect, correlation, 0, &buffer));
+}
+
+test "receiver rejects out-of-order conflicting and premature result evidence without closing its wait" {
+    var receiver: Store = .{ .pid = 8, .resource = 9 };
+    defer receiver.deinit();
+    var initial = try receiver.turn(.{ .kind = .cast }, 8);
+    const correlation = try initial.call(2, .{}, null);
+    try receiver.commit(initial);
+    var workspace: [f.execution.working_bytes]u8 = undefined;
+    var cancel = f.execution.Cancellation.init(false);
+    const context: q.Context = .{ .workspace = &workspace, .cancellation = &cancel };
+    const data: [r.fragment_bytes]u8 = @splat(1);
+    var fragment: r.Fragment = .{ .result = 55, .segment = 0, .offset = r.fragment_bytes, .bytes = &data };
+    var frame: Frame = .{ .kind = .result_chunk, .correlation = correlation, .payload = try fragment.encode() };
+    var turn = try receiver.turn(frame, 2);
+    const before = turn.decision;
+    try t.expectError(error.UnorderedResultFragment, q.dispatch(&turn, frame, context));
+    try t.expect(std.meta.eql(before, turn.decision));
+    fragment.offset = 0;
+    frame.payload = try fragment.encode();
+    turn.delivery.input.value = try frame.encode();
+    cancel.store(true, .release);
+    try t.expectError(error.Cancelled, q.dispatch(&turn, frame, context));
+    cancel.store(false, .release);
+    try t.expect(try q.dispatch(&turn, frame, context));
+    try receiver.commit(turn);
+    turn = try receiver.turn(frame, 2);
+    try t.expect(try q.dispatch(&turn, frame, context));
+    for (turn.decision.mutations) |slot| try t.expect(slot == null);
+    frame.payload.data[22] ^= 1;
+    turn.delivery.input.value = try frame.encode();
+    try t.expectError(error.ConflictingResultFragment, q.dispatch(&turn, frame, context));
+    fragment.result += 1;
+    frame.payload = try fragment.encode();
+    turn.delivery.input.value = try frame.encode();
+    try t.expectError(error.ConflictingResultIdentity, q.dispatch(&turn, frame, context));
+    const schema: f.model.Schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 };
+    const manifest: q.Manifest = .{ .result = 55, .destination = 8, .correlation = correlation, .table = 1, .policy_revision = 1, .basis = .{ .resource = 7, .revision = 1, .schema = try schema.fingerprint() }, .plan = @splat(1), .segments = 1, .bytes = data.len, .rows = 1, .chain = @splat(0), .schema = @splat(0) };
+    frame = .{ .kind = .result_complete, .correlation = correlation, .payload = try manifest.encode() };
+    turn.delivery.input.value = try frame.encode();
+    try t.expectError(error.IncompleteResult, q.dispatch(&turn, frame, context));
+    try t.expectEqual(.waiting, (try turn.waiting(correlation)).?.phase);
+    // A matching fragment digest alone cannot turn non-IPC bytes into a result.
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(&data, &digest, .{});
+    frame = .{ .kind = .result_chunk, .correlation = correlation, .payload = try (r.Segment{ .result = 55, .ordinal = 0, .bytes = data.len, .rows = 1, .digest = digest }).encode() };
+    turn.delivery.input.value = try frame.encode();
+    try t.expectError(error.InvalidArrowResult, q.dispatch(&turn, frame, context));
+    try t.expectEqual(.waiting, (try turn.waiting(correlation)).?.phase);
+    for (turn.decision.outputs) |slot| try t.expect(slot == null);
 }

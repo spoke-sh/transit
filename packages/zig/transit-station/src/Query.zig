@@ -195,30 +195,9 @@ fn validateFragment(value: p.Value) !void {
 /// Parse only after bounded reassembly. A fixed arena limits decoded allocation,
 /// and the profile requires exactly one batch followed by an explicit end marker.
 pub fn validateArrow(bytes: []const u8, expected_rows: u8) !void {
-    if (bytes.len > max_bytes or bytes.len < 8 or !std.mem.eql(u8, bytes[bytes.len - 8 ..], &.{ 255, 255, 255, 255, 0, 0, 0, 0 })) return error.InvalidArrowResult;
+    if (bytes.len > max_bytes) return error.InvalidArrowResult;
     var memory: [f.execution.working_bytes]u8 = undefined;
-    var arena = std.heap.FixedBufferAllocator.init(&memory);
-    var source = std.Io.Reader.fixed(bytes);
-    var reader = f.arrow.IpcStreamReader(*std.Io.Reader).init(arena.allocator(), &source);
-    defer reader.deinit();
-    const schema = try reader.readSchema();
-    if (schema.fields.len == 0 or schema.fields.len > 2) return error.InvalidArrowResult;
-    for (schema.fields) |field| {
-        _ = try f.model.Name.init(field.name);
-        switch (field.data_type.*) {
-            .int64, .bool, .string, .binary => {},
-            else => return error.InvalidArrowResult,
-        }
-    }
-    var batch = (try reader.nextRecordBatch()) orelse return error.InvalidArrowResult;
-    defer batch.deinit();
-    if (batch.numRows() != expected_rows or expected_rows > f.model.max_rows) return error.InvalidArrowResult;
-    if (try reader.nextRecordBatch()) |extra| {
-        var unexpected = extra;
-        unexpected.deinit();
-        return error.InvalidArrowResult;
-    }
-    if (source.bufferedLen() != 0) return error.InvalidArrowResult;
+    _ = try f.Inspect.segment(bytes, expected_rows, &memory);
 }
 /// True means an internal message was completely handled. A verified completion
 /// returns false so application code can consume the captured IPC in this turn.
