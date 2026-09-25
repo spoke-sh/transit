@@ -1067,6 +1067,13 @@ test "growing capacity backpressure blocks new admission but drains and closes e
     var f: Fixture = .{};
     defer f.deinit();
     try f.initCapacity(20, 10);
+    // The configured ceiling and reserve are observable from the start, not
+    // only discoverable by hitting AdmissionClosed/ControlCapacity blind.
+    {
+        const observed = try f.query(0, .{ .capabilities = {} });
+        try t.expectEqual(@as(?u64, 20), observed.body.capabilities.admission_ceiling);
+        try t.expectEqual(@as(u64, 10), observed.body.capabilities.control_reserve);
+    }
     const pid = try f.root(.{ .spawn = .{} });
     const doomed = try f.root(.{ .spawn = .{} });
     _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
@@ -1077,6 +1084,15 @@ test "growing capacity backpressure blocks new admission but drains and closes e
     defer inputs.deinit(t.allocator);
     while (f.engine.head.position < 20) try inputs.append(t.allocator, try f.root(.{ .send = .{ .pid = pid, .value = core.Value.integer(1) } }));
     try t.expectEqual(@as(u64, 20), f.engine.head.position);
+    // A caller reading capabilities plus the response's own position can
+    // compute remaining ordinary (0) and control-reserve (10) headroom
+    // without provoking AdmissionClosed/ControlCapacity to discover it.
+    {
+        const observed = try f.query(0, .{ .capabilities = {} });
+        try t.expectEqual(@as(u64, 20), observed.position);
+        try t.expectEqual(@as(u64, 0), observed.body.capabilities.admission_ceiling.? - observed.position);
+        try t.expectEqual(@as(u64, 10), observed.body.capabilities.admission_ceiling.? + observed.body.capabilities.control_reserve - observed.position);
+    }
     // New growth is refused before it is even acknowledged, not accepted and
     // silently truncated.
     try t.expectError(error.AdmissionClosed, f.root(.{ .send = .{ .pid = pid, .value = core.Value.integer(1) } }));
@@ -1110,6 +1126,13 @@ test "growing capacity backpressure blocks new admission but drains and closes e
     while (f.engine.head.position < 20 + 10) _ = try f.root(.{ .revoke = 65536 });
     try t.expectError(error.ControlCapacity, f.root(.{ .revoke = 65536 }));
     try t.expectError(error.ControlCapacity, f.root(.{ .checkpoint = {} }));
+    // Reads remain available even once every write is refused; the exhausted
+    // reserve is itself observable, not just inferable from a stream of errors.
+    {
+        const observed = try f.query(0, .{ .capabilities = {} });
+        try t.expectEqual(@as(u64, 20 + 10), observed.position);
+        try t.expectEqual(observed.body.capabilities.admission_ceiling.? + observed.body.capabilities.control_reserve, observed.position);
+    }
     // A restarted engine recovers the same ceiling and reserve exhaustion; the
     // limit is durable protocol state, not a process-local counter.
     var recovered = try Engine.open(&f.journal, &f.pages, f.genesis);

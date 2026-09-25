@@ -191,6 +191,11 @@ pub const Capabilities = struct {
     history_reclamation: bool = false,
     retained_history: enum { unlimited, checkpointed } = .unlimited,
     station: bool = false,
+    /// Null means unlimited (no configured ceiling). Combine with the
+    /// enclosing Response's `position` to compute remaining ordinary and
+    /// control-reserve headroom; neither is a physical-capacity guarantee.
+    admission_ceiling: ?u64 = null,
+    control_reserve: u64 = 0,
 };
 pub const Response = struct {
     version: u32 = version,

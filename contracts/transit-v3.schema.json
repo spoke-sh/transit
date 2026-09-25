@@ -4886,7 +4886,9 @@
                     "runtime_bindings",
                     "history_reclamation",
                     "retained_history",
-                    "station"
+                    "station",
+                    "admission_ceiling",
+                    "control_reserve"
                   ],
                   "properties": {
                     "profile": {
@@ -4988,6 +4990,27 @@
                     },
                     "station": {
                       "type": "boolean"
+                    },
+                    "admission_ceiling": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "control_reserve": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
                     }
                   },
                   "required": [
@@ -5010,7 +5033,9 @@
                     "runtime_bindings": false,
                     "history_reclamation": false,
                     "retained_history": "unlimited",
-                    "station": false
+                    "station": false,
+                    "admission_ceiling": null,
+                    "control_reserve": 0
                   }
                 }
               }
