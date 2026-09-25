@@ -131,6 +131,13 @@ zero unrooted store bytes, preserving the live closure rather than an arbitrary
 build-store allowance. No cache-purge permission or external cache secret is
 needed. The self-hosted reference workflow keeps its existing local store.
 
+Disposable GitHub-hosted runners remove the image's unused Android and .NET
+installations before Nix setup; consumed SDKs come from the pinned shell.
+The first explicit cold run (`36196325993`) exhausted disk while copying the
+freshly built Ursula binary in the bindings lane. Its failure is inconclusive,
+not a cache-miss qualification. The cleanup step is excluded from user-managed
+runners and records filesystem space before and after removal.
+
 The first cache miss still builds the pinned toolchain. The
 [first measured warm run](https://github.com/rupurt/rey/actions/runs/35815675439)
 restored the cache in 1m32s and prepared the shell in eight seconds, with no
@@ -204,8 +211,8 @@ The accepted warm feedback budget is under fifteen minutes, based on the
 and restore costs; `just ci::cost RUN_ID` collects completed hosted evidence.
 Manual `cache_mode=cold` runs disable GitHub dependency restores/saves while
 retaining upstream Nix substitutes. The recorded fourteen-minute source build
-already exceeds the feedback target on a dependency-cache miss; lane balancing
-alone cannot qualify that case. A faster runner or prebuilt pinned dependency
+consumes almost the entire warm feedback budget before application checks;
+dependency-cache misses need a separately calibrated rebuild budget. A faster runner or prebuilt pinned dependency
 closure needs measured qualification. `TRANSIT_CI_RUNNER` can select a configured
 runner; it defaults to `ubuntu-24.04` and does not provision a paid runner.
 

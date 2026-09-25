@@ -82,6 +82,15 @@ jobs:
         env:
           MODE: ${{ inputs.cache_mode || 'reuse' }}
         run: 'echo "CI dependency cache mode: $MODE"'
+      - name: Reclaim unused hosted SDKs
+        if: runner.environment == 'github-hosted'
+        # Every consumed SDK comes from the pinned Nix shell. Cold Ursula builds
+        # otherwise compete with the image's unrelated Android/.NET installs.
+        # Never remove software from a user-managed runner.
+        run: |
+          df -h /
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet
+          df -h /
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
         with:
           extra_nix_config: |
