@@ -472,22 +472,30 @@
         "packages/zig/transit-station/src/Turn.zig",
         "packages/zig/transit-station/src/Table.zig",
         "packages/zig/transit-station/src/Waiting.zig",
-        "packages/zig/transit-station/src/growing_test.zig"
+        "packages/zig/transit-station/src/growing_test.zig",
+        "packages/zig/transit-station/src/GenServer.zig",
+        "tests/growing_station.zig",
+        "tests/growing_station.py"
       ],
-      "profile": "Station growing development private-turn slice",
+      "profile": "Station growing development behavior/point-state slice",
       "tasks": [
         "test::unit",
         "test::station",
-        "test::client-abi"
+        "test::client-abi",
+        "test::growing-service"
       ],
       "scenarios": [
         "Point access beyond 32 Table rows without materializing the resource",
         "Caught read failure poisons validation without publishing partial private work",
         "Cross-resource atomic rollback and read-your-own writes",
         "Wide observer identity and authenticated timeout/reply closure",
-        "Legacy wait versions reject growing records and vice versa"
+        "Legacy wait versions reject growing records and vice versa",
+        "Real retained calls and Table rows survive caller/node/provider restart beyond 32 keys",
+        "Caught malformed state response cannot publish private work or a failure marker",
+        "Lost accepted turn response retries exact signed bytes without rerunning a handler",
+        "Fresh ownership fences an old prepared turn and skips committed initialization"
       ],
-      "limits": "Injected reader evidence only. Growing behavior loop, service recovery, query paging, large captured results, registries, supervision and foreign ABIs remain unqualified. Legacy service and ABI checks protect unchanged defaults.",
+      "limits": "No growing query/result capture, registries, supervision, runtime bindings, foreign ABIs or scale SLO. Real service proof uses explicit public-client outbox delivery and a one-page cache after restart; it does not qualify a growing background courier.",
       "model": null
     }
   ]

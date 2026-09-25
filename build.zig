@@ -218,6 +218,13 @@ pub fn build(b: *std.Build) void {
     growing_service.addFileArg(b.path("tests/growing_service.py"));
     growing_service.addArtifactArg(node_artifact);
     growing_service.addArtifactArg(growing_client);
+    const growing_station = b.addExecutable(.{ .name = "transit-growing-station-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/growing_station.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+    }) });
+    growing_service.addArtifactArg(growing_station);
     growing_service.has_side_effects = true;
     growing_service.stdio = .inherit;
     b.step("test-growing-service", "Prove the explicit growing node/client profile over signed HTTP").dependOn(&growing_service.step);

@@ -67,6 +67,32 @@ test "caught growing read failures poison private proposals without hiding uncer
     try turn.validate();
 }
 
+test "growing behavior finish distinguishes incomplete reads from application failure" {
+    const Server = @import("GenServer.zig").Growing;
+    var wire: @import("transit_client").Client = undefined;
+    var host = try Server.init(.{ .client = &wire, .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
+    var store: Store = .{};
+    host.ready = try store.turn(.{});
+    try host.ready.?.put(try p.Value.init("local"), .{});
+    try host.ready.?.cast(8, .{});
+    store.fail = true;
+    try t.expectError(error.Unavailable, host.ready.?.read(try p.Value.init("missing")));
+    try t.expectError(error.Unavailable, host.finish(null));
+    try t.expect(host.ready == null and host.pending == null and !host.blocked);
+    store.fail = false;
+    host.ready = try store.turn(.{});
+    try host.ready.?.put(try p.Value.init("local"), .{});
+    try host.ready.?.cast(8, .{});
+    try host.finish(error.ApplicationFailed);
+    const proposal = host.pending.?.signed.request.command.turn;
+    try t.expect(proposal.failed);
+    try t.expectEqual(@as(?u64, 6), proposal.views[0]);
+    try t.expect(proposal.write_view == null);
+    for (proposal.mutations) |slot| try t.expect(slot == null);
+    for (proposal.outputs) |slot| try t.expect(slot == null);
+    try t.expectEqual(@as(?anyerror, error.ApplicationFailed), host.handler_error);
+}
+
 test "growing waits preserve wide observer identities and authenticate closure" {
     var store: Store = .{};
     var caller = try store.turn(.{});

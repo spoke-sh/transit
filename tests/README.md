@@ -802,6 +802,18 @@ rejects mixed realm/revision, page holes and invalid continuations while accepti
 empty filtered catalog pages. No launcher, Station or foreign ABI changes profile
 implicitly. Existing v2 ingress and observability proofs cover the shared loop.
 
+The task also runs two real [growing Station callers](growing_station.zig),
+retaining 41 typed Table rows and completed calls without reclamation. A proxy
+enforces point reads during handlers, corrupts a captured read and loses an
+accepted turn reply. A swallowed read failure cannot publish its private work;
+the accepted turn retries byte-for-byte without rerunning the handler. After
+caller/node/provider restart, fresh ownership fences a prepared old turn and
+recovers the unconsumed call without rerunning committed initialization. The
+proof uses the default bounded cache for exchange, one resident backend page
+after restart, and explicit public-client delivery. It
+does not qualify growing query results, background courier, registries,
+supervision, runtime bindings, quotas or foreign APIs.
+
 The same service task runs growing maintenance on one CPU with owned proxy
 faults: kill after an accepted snapshot loses its reply, then restart from the
 recorded trim intent; loss of an accepted immutable-page reply before root

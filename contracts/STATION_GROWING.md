@@ -1,6 +1,6 @@
 # Station growing development profile
 
-Status: M10 implementation in progress over the explicit
+Status: M10 development behavior/point-state slice over the explicit
 [Transit v3 profile](TRANSIT_V3.md). Existing launchers, Station v1, Board lenses
 and foreign ABIs continue to use [Station v1](STATION_V1.md). There is no implicit
 upgrade, mixed-profile resource or claim that all M9 services are available here.

@@ -4,7 +4,8 @@ pub const protocol = client.protocol;
 pub const Frame = @import("Frame.zig");
 pub const GrowingTurn = @import("Turn.zig").Growing;
 pub const Turn = @import("Turn.zig").Legacy;
-pub const GenServer = @import("GenServer.zig");
+pub const GenServer = @import("GenServer.zig").Legacy;
+pub const GrowingGenServer = @import("GenServer.zig").Growing;
 pub const Table = @import("Table.zig");
 pub const Query = @import("Query.zig");
 pub const Registry = @import("Registry.zig");
@@ -19,6 +20,7 @@ test {
     _ = Turn;
     _ = GrowingTurn;
     _ = GenServer;
+    _ = GrowingGenServer;
     _ = Table;
     _ = Query;
     _ = Registry;

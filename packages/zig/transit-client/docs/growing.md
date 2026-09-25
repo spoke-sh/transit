@@ -6,8 +6,9 @@ use the [v3 contract](../../../../contracts/TRANSIT_V3.md). They call only
 identity, view or cursor. Select a node configured for the
 [development profile](../../../../apps/transit-node/docs/growing.md) and inspect
 its capabilities before using an extension. `GrowingSession` supplies explicit
-v3 activation/turn helpers; the existing `Session`, Station and foreign bindings
-remain v2 until their growing interfaces are qualified.
+v3 activation/turn helpers, used by Station's explicit
+[growing behavior](../../transit-station/docs/growing.md). The existing `Session`,
+default Station interface and foreign bindings remain v2.
 
 ## Caller responsibilities
 
