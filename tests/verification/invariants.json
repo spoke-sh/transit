@@ -430,7 +430,35 @@
         "Single-CPU HTTP concurrency and no legacy-route fallback",
         "Activation helper reads bounded captured keys and freezes owned retry material"
       ],
-      "limits": "No Station/foreign binding support, automatic growing maintenance, runtime binding, migration, load qualification or quota/control reserve claim. Host synchronized clock is a deployment premise.",
+      "limits": "No Station/foreign binding support, runtime binding, migration, load qualification or quota/control reserve claim. Host synchronized clock is a deployment premise.",
+      "model": null
+    },
+    {
+      "id": "GROWTH-07",
+      "claim": "Bounded background suggestions revalidate before publication and physical trimming requires current control authority and committed opt-in",
+      "owner": "docs/RETENTION.md",
+      "implementation": [
+        "packages/zig/transit-core/src/growing_maintenance.zig",
+        "packages/zig/transit-core/src/growing.zig",
+        "apps/transit-node/GrowingMaintenance.zig",
+        "packages/zig/transit-backend-ursula/src/GrowingStore.zig",
+        "tests/growing_maintenance.py"
+      ],
+      "profile": "transit-v3 development maintenance; one record per rotating scan step",
+      "tasks": [
+        "test::unit",
+        "test::growing-service"
+      ],
+      "scenarios": [
+        "Clock failure cannot expire finite work or block recorded terminal-source disposition",
+        "Continuing admissions cannot extend a scan pass indefinitely",
+        "Stale suggestions cannot authorize expiry under an earlier clock sample",
+        "Snapshot publication reply loss and worker restart precede verified trim",
+        "Accepted trim with stalled acknowledgement times out on one CPU",
+        "Current maintenance revocation prevents new physical trim; regrant resumes committed intent",
+        "Retained bytes, independent state and authorized external attempts survive terminal-source cleanup and disk restart"
+      ],
+      "limits": "Full process/resource sweep cost still grows with retained metadata. No page GC, due-time index, sweep-lag SLO, full-store control reserve or multi-maintainer performance claim. Physical work authorized before revocation may finish later.",
       "model": null
     }
   ]

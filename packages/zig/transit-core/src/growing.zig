@@ -36,6 +36,7 @@ pub const Principal = struct { grant: g.Grant, revision: u64, epoch: u64, sequen
 pub const Receipt = struct { position: u64, digest: [32]u8 };
 pub const StoredView = struct { meta: g.View, snapshot: catalog.Snapshot };
 pub const ResourceGrant = struct { principal_epoch: u64, permissions: u8 };
+pub const Maintenance = @import("growing_maintenance.zig");
 
 fn genesisHash(genesis: Genesis) ![32]u8 {
     if (genesis.version != g.version or genesis.realm == 0 or genesis.realm > p.max_counter) return error.InvalidGenesis;
@@ -135,6 +136,18 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         pub fn query(self: *Self, signed: g.SignedQuery) !g.Response {
             return @import("growing_read.zig").read(self, signed);
         }
+        /// Privileged maintenance must reestablish current realm-wide admin
+        /// authority before using the storage adapter. This publishes nothing.
+        pub fn authorizeMaintenance(self: *Self, signed: g.SignedRequest) !void {
+            if (signed.request.command != .checkpoint) return error.Forbidden;
+            try self.refresh();
+            _ = try self.authenticate(signed);
+        }
+        pub fn validateTime(self: *Self, now: core.Time.Sample) !void {
+            const bound = self.genesis.max_clock_error_ms orelse return error.UnsupportedDeadline;
+            if (now.error_ms > bound or now.unix_ms > p.max_counter) return error.UntrustedTime;
+            if (now.unix_ms < self.head.time_floor_ms) return error.ClockRollback;
+        }
         fn authenticate(self: *Self, signed: g.SignedRequest) !Principal {
             try g.validate(signed.request);
             if (signed.request.realm != self.genesis.realm) return error.WrongProtocolRealm;
@@ -190,14 +203,21 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             const needs_time = switch (request.command) {
                 .grant, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint => false,
                 .close_effect => |c| c.reason == .deadline,
+                .deliver => |id| (try self.process((try work_ops.output(self, id)).source)).lifecycle == .running,
+                .cancel_effect => |c| (try self.process(c.pid)).lifecycle == .running,
+                .expire => |id| needs: {
+                    work_ops.expired(self, try self.process(id), null) catch |err| switch (err) {
+                        error.ClockUnavailable => break :needs true,
+                        else => return err,
+                    };
+                    break :needs false;
+                },
                 .spawn => |c| c.work_before_ms != null,
                 else => true,
             };
             const sample = if (needs_time) (if (self.clock) |clock| try clock.sample() else null) else null;
             if (sample) |now| {
-                const bound = self.genesis.max_clock_error_ms orelse return error.UnsupportedDeadline;
-                if (now.error_ms > bound or now.unix_ms > p.max_counter) return error.UntrustedTime;
-                if (now.unix_ms < next.time_floor_ms) return error.ClockRollback;
+                try self.validateTime(now);
                 next.time_floor_ms = now.unix_ms;
             }
             try self.apply(&candidate, &next, request, sample);

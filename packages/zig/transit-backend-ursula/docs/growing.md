@@ -71,8 +71,10 @@ not provider memory qualification. Timeouts/errors stay inconclusive.
 
 The page cache is bounded, but fanout, path-copy and protocol-operation request
 amplification remain substantial. This is not millisecond execution evidence.
-Framework handler/result paging, background bounded
-disposition, quotas/control reserve, runtime bindings and migration tooling remain
+The node now composes a separate bounded maintenance process and qualifies its
+snapshot-reply loss, trim timeout, current revocation and restart through
+`just test::growing-service`. Framework handler/result paging,
+quotas/control reserve, runtime bindings and migration tooling remain
 M10 work. Old deployed v2 history stays on its explicit legacy path; rejection
 of incompatible formats is not a completed migration facility.
 

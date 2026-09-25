@@ -108,8 +108,19 @@ its settlement deadline, but cannot issue fresh outputs/effects after its work
 cutoff. Ownership changes fence the old activation without renewing that permit.
 
 The [explicit node profile](../../../../apps/transit-node/docs/growing.md) exposes
-signed commands and bounded queries. Background disposition and terminal dependency materialization,
-runtime/lifecycle extensions, quotas/control reserve, retained results and Station
+signed commands, bounded queries and a separate maintenance process.
+`growing.Maintenance` visits one record from a bounded catalog page per step,
+rotating four families with separate finite-pass cursors. It suggests known
+process/resource expiry, terminal-source dispositions and timed effect closure;
+it neither stages pages nor publishes authority. Cursor loss repeats inspection,
+not execution. Every signed suggestion is revalidated against current state/time.
+Clock failure does not prevent terminal-source cancellation or dependency expiry
+already established by recorded retirement. Unknown external attempts retain
+their own settlement contract. The current scan revisits retained process/resource
+metadata, so full sweep cost grows with cardinality; deadline indexes and measured
+sweep-lag objectives remain scale work.
+
+Runtime/lifecycle extensions, quotas/control reserve, retained results and Station
 remain integration work within M10. Unimplemented commands fail explicitly with
 `UnsupportedGrowthCommand`. The profile must not be selected by a launcher before
 the complete advertised profile and its proofs are ready. Existing histories are

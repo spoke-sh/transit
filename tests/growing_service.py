@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 from storage import Fixture, free_port, wait_ready
+from growing_maintenance import run as maintenance
 
 
 def main(node, caller):
@@ -115,6 +116,7 @@ def main(node, caller):
             thread.join(timeout=5)
             log.close()
     print("Growing public profile: signed paged reads/turns, invalid reply, exact retry after restart and revocation passed on one CPU.")
+    maintenance(node, caller)
 
 
 if __name__ == "__main__":

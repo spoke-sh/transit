@@ -5,6 +5,7 @@ const p = wire.protocol;
 const g = p.Growth;
 const t = std.testing;
 const Expected = struct { pid: u64, resource: u64, receipt: u64, pending: g.SignedRequest };
+const MaintenanceExpected = struct { source: u64, destination: u64, dependent: u64, owned: u64, independent: u64, pending: u64, active: u64, attempt: u64, checkpoint: u64 };
 const Caller = struct {
     client: *wire.Client,
     principal: u64,
@@ -17,6 +18,20 @@ const Caller = struct {
         const receipt = try self.client.submitGrowing(try self.sign(command));
         self.sequence += 1;
         return receipt.position;
+    }
+    fn retryConflict(self: *@This(), command: g.Command) !u64 {
+        // This calling program deliberately shares authority/page storage with
+        // maintenance. Reconcile the same bytes; never choose a fresh sequence.
+        const signed = try self.sign(command);
+        for (0..4) |_| {
+            const receipt = self.client.submitGrowing(signed) catch |err| {
+                if (err != error.Conflict) return err;
+                continue;
+            };
+            self.sequence += 1;
+            return receipt.position;
+        }
+        return error.Conflict;
     }
     fn query(self: *@This(), kind: @FieldType(g.Query, "kind")) !g.Response {
         return self.client.queryGrowing(.{ .realm = 42, .principal = self.principal, .kind = kind }, self.key);
@@ -51,6 +66,75 @@ fn verify(worker: *Caller, expected: Expected) !void {
     }
     try t.expectEqual(@as(usize, 64), count);
 }
+
+fn maintenanceReady(root: *Caller, expected: MaintenanceExpected) !bool {
+    const output = try root.query(.{ .outputs = .{} });
+    if (output.body.outputs.entries[0].?.phase != .cancelled) return false;
+    try t.expectEqualStrings("retained", output.body.outputs.entries[0].?.value.slice());
+    const effects = (try root.query(.{ .effects = .{ .pid = expected.source } })).body.effects;
+    try t.expectEqual(expected.active, effects.entries[0].?.id);
+    try t.expectEqual(.authorized, effects.entries[0].?.phase);
+    try t.expectEqual(expected.pending, effects.entries[1].?.id);
+    if (effects.entries[1].?.phase != .cancelled) return false;
+    if ((try root.query(.{ .resource = expected.owned })).body.resource.phase != .retired) return false;
+    if ((try root.query(.{ .process = expected.dependent })).body.process.process.lifecycle != .expired) return false;
+    try t.expectEqual(.active, (try root.query(.{ .resource = expected.independent })).body.resource.phase);
+    try t.expectEqual(@as(u64, 0), (try root.query(.{ .process = expected.destination })).body.process.process.admitted);
+    return true;
+}
+fn maintenance(init: std.process.Init, root: *Caller, phase: []const u8, path: []const u8) !void {
+    root.sequence = (try root.query(.{ .capabilities = {} })).principal_sequence;
+    if (std.mem.eql(u8, phase, "maintenance-seed")) {
+        const capabilities = (try root.query(.{ .capabilities = {} })).body.capabilities;
+        try t.expect(capabilities.history_reclamation);
+        try t.expectEqual(.checkpointed, capabilities.retained_history);
+        const keypair = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
+        _ = try root.submit(.{ .grant = .{ .subject = 131072, .public_key = keypair.public_key.toBytes(), .permissions = p.permission(.admin) | p.permission(.effect) | p.permission(.delivery) } });
+        const source = try root.submit(.{ .spawn = .{} });
+        const destination = try root.submit(.{ .spawn = .{} });
+        const dependent = try root.submit(.{ .spawn = .{} });
+        const owned = try root.submit(.{ .create_resource = .{ .writer = source } });
+        const independent = try root.submit(.{ .create_resource = .{ .writer = source, .owned = false } });
+        for ([_]u64{ owned, independent }) |id| _ = try root.submit(.{ .grant_resource = .{ .resource = id, .subject = 0, .permissions = p.State.all_permissions } });
+        _ = try root.submit(.{ .associate = .{ .pid = dependent, .name = try p.Value.init("required"), .resource = owned } });
+        _ = try root.submit(.{ .own = .{ .pid = source, .expected_generation = 0, .worker = 0 } });
+        const a = try root.submit(.{ .send = .{ .pid = source, .value = .{} } });
+        const active = try root.submit(.{ .turn = .{ .pid = source, .generation = 1, .input = a, .expected_revision = 0, .effect = .{} } });
+        const attempt = try root.submit(.{ .dispatch = .{ .pid = source, .effect = active } });
+        const b = try root.submit(.{ .send = .{ .pid = source, .value = .{} } });
+        const pending = try root.submit(.{ .turn = .{ .pid = source, .generation = 1, .input = b, .expected_revision = active, .effect = .{}, .outputs = .{ .{ .pid = destination, .value = try p.Value.init("retained") }, null, null, null } } });
+        _ = try root.submit(.{ .terminate = source });
+        const checkpoint = try root.submit(.{ .checkpoint = {} });
+        const expected: MaintenanceExpected = .{ .source = source, .destination = destination, .dependent = dependent, .owned = owned, .independent = independent, .pending = pending, .active = active, .attempt = attempt, .checkpoint = checkpoint };
+        const bytes = try std.json.Stringify.valueAlloc(init.gpa, expected, .{});
+        defer init.gpa.free(bytes);
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = bytes });
+        return;
+    }
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(wire.max_body));
+    defer init.gpa.free(bytes);
+    const parsed = try std.json.parseFromSlice(MaintenanceExpected, init.gpa, bytes, .{});
+    defer parsed.deinit();
+    const expected = parsed.value;
+    if (std.mem.eql(u8, phase, "maintenance-check")) {
+        const until = std.Io.Clock.awake.now(init.io).addDuration(.fromSeconds(30));
+        while (true) {
+            const done = maintenanceReady(root, expected) catch |err| switch (err) {
+                error.Conflict => false, // Read cut raced a maintenance publication.
+                else => return err,
+            };
+            if (done) break;
+            if (std.Io.Clock.awake.now(init.io).compare(.gte, until)) return error.MaintenanceTimeout;
+            try init.io.sleep(.fromMilliseconds(50), .awake);
+        }
+    } else if (std.mem.eql(u8, phase, "maintenance-revoke")) {
+        _ = try root.retryConflict(.{ .revoke = 131072 });
+        _ = try root.retryConflict(.{ .checkpoint = {} });
+    } else if (std.mem.eql(u8, phase, "maintenance-grant")) {
+        const keypair = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
+        _ = try root.retryConflict(.{ .grant = .{ .subject = 131072, .public_key = keypair.public_key.toBytes(), .permissions = p.permission(.admin) | p.permission(.effect) | p.permission(.delivery) } });
+    } else return error.UnknownPhase;
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const root_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
@@ -66,11 +150,17 @@ pub fn main(init: std.process.Init) !void {
     client.timeout_ms = 10000;
     var root: Caller = .{ .client = &client, .principal = 0, .key = root_key };
     var worker: Caller = .{ .client = &client, .principal = 65536, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) };
+    if (std.mem.startsWith(u8, args[2], "maintenance-")) {
+        try maintenance(init, &root, args[2], args[3]);
+        try output.interface.print("Growing client {s}: passed\n", .{args[2]});
+        return output.interface.flush();
+    }
     const writing = std.mem.eql(u8, args[2], "write");
     if (writing) {
         const capabilities = (try root.query(.{ .capabilities = {} })).body.capabilities;
-        try t.expect(!capabilities.station and !capabilities.runtime_bindings and !capabilities.history_reclamation);
+        try t.expect(!capabilities.station and !capabilities.runtime_bindings and capabilities.history_reclamation);
         try t.expectEqual(.unlimited, capabilities.retained_history);
+        try t.expectError(error.Rejected, root.submit(.{ .checkpoint = {} }));
         _ = try root.submit(.{ .grant = .{ .subject = 65536, .public_key = worker.key.public_key.toBytes(), .permissions = p.all_permissions } });
         const pid = try root.submit(.{ .spawn = .{} });
         const resource = try root.submit(.{ .create_resource = .{ .writer = pid } });

@@ -96,8 +96,9 @@ for new observations; an administrator with effect permission can close an orpha
 attempt. A result after caller retirement remains evidence and cannot revive that
 PID. Closed attempts reject new results; exact historical retries still require
 current permission. The growing engine currently enforces these rules internally;
-the explicit HTTP profile exposes them; background materialization and provider
-deployment remain unqualified.
+the explicit HTTP profile exposes them. A separate node maintenance process
+materializes terminal dispositions with bounded scans. Provider deployment and
+large-catalog maintenance lag remain unqualified.
 
 The [immutable catalog](../packages/zig/transit-core/docs/pages.md#typed-catalog)
 is the storage basis. One conditional journal decision must publish state roots,
@@ -116,9 +117,12 @@ not delete catalog pages, receipts, accepted inputs, values or captured roots.
 This does not add a public history query or page-GC capability.
 
 The declared capabilities expose unsupported runtime-binding and Station
-extensions explicitly. The service capability response leaves runtime bindings, Station and automated
-history reclamation disabled. Its `checkpoint` route command is rejected until
-growing maintenance is composed; the backend/core proof supports that intent. Before service qualification, M10 must
+extensions explicitly. The service reports history-reclamation support separately
+from its selected unlimited/checkpointed policy; only genesis opt-in allows a
+public `checkpoint`. A trusted `--maintain` process authenticates current
+realm-wide control authority, verifies committed intent and performs physical
+trimming. Its optional interval cannot authorize retention on its own.
+Before completing service qualification, M10 must
 qualify all authority transitions, provider persistence, current read/receipt
 authorization, finite lifetime/settlement behavior, quotas/control reserves,
 client/Station usage, failure schedules and compatibility tests. There is no

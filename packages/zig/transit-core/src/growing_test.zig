@@ -28,6 +28,123 @@ const Journal = struct {
 };
 const Engine = growing.Engine(Journal, PageStore);
 
+test "growing maintenance bounds each pass and preserves terminal work during clock failure" {
+    const work = @import("growing_work.zig");
+    const state = @import("growing_state.zig");
+    const Clock = struct {
+        now: core.Time.Sample = .{ .unix_ms = 10 },
+        failed: bool = false,
+        fn read(context: *anyopaque) anyerror!core.Time.Sample {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            if (self.failed) return error.ClockUnavailable;
+            return self.now;
+        }
+    };
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    var clock: Clock = .{};
+    f.engine.clock = .{ .context = &clock, .read = Clock.read };
+    const finite = try f.root(.{ .spawn = .{ .work_before_ms = 90, .settle_before_ms = 100 } });
+    const source = try f.root(.{ .spawn = .{} });
+    const destination = try f.root(.{ .spawn = .{} });
+    const owned = try f.root(.{ .create_resource = .{ .writer = source } });
+    const independent = try f.root(.{ .create_resource = .{ .writer = source, .owned = false } });
+    _ = try f.root(.{ .own = .{ .pid = source, .expected_generation = 0, .worker = 0 } });
+    const active = try f.emit(source, @splat(null), .{});
+    _ = try f.root(.{ .dispatch = .{ .pid = source, .effect = active, .reconcile_before_ms = 100 } });
+    const pending = try f.emit(source, .{ .{ .pid = destination, .value = .{} }, .{ .pid = destination, .value = .{} }, null, null }, .{});
+    _ = try f.root(.{ .terminate = source });
+    clock.failed = true;
+    var scan: growing.Maintenance = .{};
+    var errors: usize = 0;
+    for (0..64) |_| {
+        const before = f.engine.head.position;
+        const writes = f.pages.writes;
+        const command = scan.next(&f.engine, error.ClockUnavailable) catch |err| {
+            try t.expectEqual(error.ClockUnavailable, err);
+            errors += 1;
+            continue;
+        };
+        try t.expectEqual(before, f.engine.head.position);
+        try t.expectEqual(writes, f.pages.writes); // A scan never publishes/stages.
+        if (command) |value| _ = try f.root(value);
+    }
+    try t.expect(errors > 0);
+    try t.expectEqual(.running, (try f.engine.process(finite)).lifecycle);
+    try t.expectEqual(.authorized, (try work.effect(&f.engine, active)).phase);
+    try t.expectEqual(.cancelled, (try work.effect(&f.engine, pending)).phase);
+    try t.expectEqual(.cancelled, (try work.output(&f.engine, 1)).phase);
+    try t.expectEqual(.cancelled, (try work.output(&f.engine, 2)).phase);
+    try t.expectEqual(@as(u64, 0), (try f.engine.process(destination)).admitted);
+    try t.expectEqual(.retired, (try state.resource(&f.engine, owned)).phase);
+    try t.expectEqual(.active, (try state.resource(&f.engine, independent)).phase);
+    try t.expectEqual(@as(u64, 0), f.engine.head.history_floor);
+
+    // An uncertainty interval crossing the deadline never authorizes closure.
+    clock.failed = false;
+    clock.now = .{ .unix_ms = 100, .error_ms = 5 };
+    for (0..32) |_| try t.expectEqual(@as(?g.Command, null), try scan.next(&f.engine, clock.now));
+    clock.now = .{ .unix_ms = 105, .error_ms = 5 };
+    for (0..32) |_| {
+        if (try scan.next(&f.engine, clock.now)) |command| _ = try f.root(command);
+    }
+    try t.expectEqual(.expired, (try f.engine.process(finite)).lifecycle);
+    try t.expectEqual(.closed_unknown, (try work.effect(&f.engine, active)).phase);
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    // Restarted cursors rediscover durable state, not already completed work.
+    scan = .{};
+    const after = f.engine.head.position;
+    for (0..32) |_| try t.expectEqual(@as(?g.Command, null), try scan.next(&f.engine, clock.now));
+    try t.expectEqual(after, f.engine.head.position);
+}
+
+test "growing maintenance revisits skipped expiry despite continuing admission" {
+    const Clock = struct {
+        fn read(_: *anyopaque) anyerror!core.Time.Sample {
+            return .{ .unix_ms = 10 };
+        }
+    };
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    var context: u8 = 0;
+    f.engine.clock = .{ .context = &context, .read = Clock.read };
+    const finite = try f.root(.{ .spawn = .{ .work_before_ms = 90, .settle_before_ms = 100 } });
+    for (0..3) |_| _ = try f.root(.{ .spawn = .{} });
+    var scan: growing.Maintenance = .{};
+    try t.expectError(error.ClockUnavailable, scan.next(&f.engine, error.ClockUnavailable));
+    var found = false;
+    for (0..32) |_| {
+        _ = try f.root(.{ .spawn = .{} });
+        if (try scan.next(&f.engine, .{ .unix_ms = 101 })) |command| {
+            try t.expectEqual(finite, command.expire);
+            found = true;
+            break;
+        }
+    }
+    try t.expect(found);
+    // A suggestion made at another sample is not authority: submit revalidates.
+    try t.expectError(error.DeadlineNotReached, f.root(.{ .expire = finite }));
+}
+
+test "growing maintenance authenticates current realm control without publishing" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.admin), .pid = pid } });
+    const signed = try f.worker(1, .{ .checkpoint = {} });
+    try t.expectError(error.Forbidden, f.engine.authorizeMaintenance(signed));
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.admin) } });
+    const before = f.engine.head;
+    try f.engine.authorizeMaintenance(signed);
+    try t.expect(std.meta.eql(before, f.engine.head));
+    _ = try f.root(.{ .revoke = 65536 });
+    try t.expectError(error.Forbidden, f.engine.authorizeMaintenance(signed));
+    try t.expectError(error.Forbidden, f.engine.authorizeMaintenance(try f.worker(1, .{ .terminate = pid })));
+}
+
 test "growing submit fences revocation at the publication boundary" {
     var f: Fixture = .{};
     defer f.deinit();

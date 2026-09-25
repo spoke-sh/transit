@@ -7,6 +7,7 @@ const observations = @import("transit_observability");
 const telemetry = observations.telemetry;
 const g = wire.protocol.Growth;
 const Engine = core.growing.Engine(adapter.GrowingStore, adapter.PackedPageStore);
+const Maintenance = @import("GrowingMaintenance.zig");
 const Config = struct {
     profile: enum { growing_v3 },
     genesis: core.growing.Genesis,
@@ -18,13 +19,13 @@ const Config = struct {
     request_timeout_ms: u32 = 2000,
     resident_pages: u16 = 16,
     accept_trace_parent: bool = false,
+    maintenance: ?Maintenance.Config = null,
 };
 
 pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics: *telemetry.Runtime, comptime serve: anytype) !void {
     const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
     defer parsed.deinit();
     const config = parsed.value;
-    if (mode.maintain) return error.UnsupportedGrowthMaintenance;
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = config.ursula_url, .max_response_bytes = 256 * 1024 });
     defer client.deinit();
@@ -51,6 +52,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     if (mode.initialize) return;
     var clock_context: u8 = 0;
     if (config.genesis.max_clock_error_ms != null) engine.clock = .{ .context = &clock_context, .read = @import("Clock.zig").read };
+    if (mode.maintain) return Maintenance.run(init, &engine, config.maintenance orelse return error.MissingMaintenanceConfig, diagnostics);
     var server: Server = .{ .io = init.io, .allocator = init.gpa, .engine = &engine, .accept_trace_parent = config.accept_trace_parent };
     return serve(init, &server, config.listen, config.port, config.request_timeout_ms, diagnostics);
 }
@@ -115,9 +117,6 @@ const Server = struct {
             const parsed = std.json.parseFromSlice(g.SignedRequest, self.allocator, bytes, .{}) catch return self.json(&request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
             defer parsed.deinit();
             g.validate(parsed.value.request) catch return self.json(&request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-            // The backend proof supports committed checkpoint intents, but
-            // this service profile has no growing maintenance loop yet.
-            if (parsed.value.request.command == .checkpoint) return self.json(&request, .unprocessable_entity, wire.protocol.ErrorResponse{ .err = .UnsupportedGrowthCommand });
             self.observation.protocol_outcome = .uncertain;
             const position = self.engine.submit(parsed.value) catch |err| return self.failure(&request, err);
             self.observation.protocol_outcome = .receipt;
@@ -131,8 +130,7 @@ const Server = struct {
         const parsed = std.json.parseFromSlice(g.SignedQuery, self.allocator, bytes, .{}) catch return self.json(&request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
         defer parsed.deinit();
         g.validateQuery(parsed.value.query) catch return self.json(&request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-        var response = self.engine.query(parsed.value) catch |err| return self.failure(&request, err);
-        if (response.body == .capabilities) response.body.capabilities.history_reclamation = false;
+        const response = self.engine.query(parsed.value) catch |err| return self.failure(&request, err);
         self.observation.protocol_outcome = .read;
         self.observation.realm = response.realm;
         self.observation.operation = @tagName(parsed.value.query.kind);

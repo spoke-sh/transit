@@ -801,3 +801,13 @@ then denies both reads and that historical retry. The response validator also
 rejects mixed realm/revision, page holes and invalid continuations while accepting
 empty filtered catalog pages. No launcher, Station or foreign ABI changes profile
 implicitly. Existing v2 ingress and observability proofs cover the shared loop.
+
+The same service task runs growing maintenance on one CPU with owned proxy
+faults: kill after an accepted snapshot loses its reply, then restart from the
+recorded trim intent; timeout after accepted physical trim; current maintenance
+revocation and later regrant; node/provider/worker restart. Terminal-source work
+is disposed without delivering to the destination, independent state and an
+unresolved authorized attempt survive, and retained output bytes stay readable.
+Core checks separately cover clock loss/uncertainty, bounded finite scan passes
+under continuing admission, current control authorization and revalidation of
+stale scan suggestions. These are not sweep-latency or full-store guarantees.
