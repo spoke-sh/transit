@@ -92,12 +92,22 @@ fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const
             try t.expectError(error.CorruptPage, store.load(wrong));
             var page: p.Page = .{ .count = 1, .body = .{ .leaf = @splat(null) } };
             page.body.leaf[0] = .{ .key = key(keys + 2), .value = value(keys + 2) };
-            _ = try store.stage(try page.reference(), &page);
             var competing = try PageStore.init(init.gpa, journal, 0);
             defer competing.deinit();
-            _ = try competing.stage(try page.reference(), &page);
-            try t.expectError(error.Conflict, store.stage(try page.reference(), &page));
-            _ = try store.stage(try page.reference(), &page); // Explicit retry reconciles the tail.
+            var references: [8]p.Reference = undefined;
+            const requests = store.requests;
+            for (&references, 0..) |*ref, i| {
+                page.body.leaf[0].?.value = value(keys + i + 2);
+                ref.* = try (if (i % 2 == 0) &store else &competing).stage(try page.reference(), &page);
+                if (i != 0) try t.expect(!std.mem.eql(u8, &ref.location, &references[i - 1].location));
+            }
+            try t.expectEqual(@as(u64, 4), store.requests - requests);
+            try t.expectEqual(@as(u64, 4), competing.requests); // One append each, no tail HEAD or retry.
+            store.clearCache();
+            for (references, 0..) |ref, i| {
+                const retained = try store.load(ref);
+                try t.expectEqualSlices(u8, value(keys + i + 2).slice(), retained.body.leaf[0].?.value.slice());
+            }
             try t.expectEqual(@as(u64, 2), try journal.tail());
         }
     } else if (!std.mem.eql(u8, args[2], "recover") and !std.mem.eql(u8, args[2], "checkpoint") and !std.mem.eql(u8, args[2], "trim_recover")) return error.UnknownPhase;

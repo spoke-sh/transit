@@ -12,7 +12,6 @@ authority: adapter.Journal,
 name: [45]u8,
 cache: []?Cached,
 slot: usize = 0,
-next_record: ?u64 = null,
 hits: u64 = 0,
 misses: u64 = 0,
 created: u64 = 0,
@@ -45,11 +44,9 @@ fn journal(self: *Self) adapter.Journal {
 /// Bootstrap-only creation. Loads never recreate missing history.
 pub fn create(self: *Self) !void {
     try self.journal().create();
-    self.next_record = null;
 }
 pub fn clearCache(self: *Self) void {
     @memset(self.cache, null);
-    self.next_record = null;
 }
 pub fn residentBytes(self: *const Self) usize {
     return self.cache.len * @sizeOf(?Cached);
@@ -117,24 +114,45 @@ pub fn stage(self: *Self, ref: pages.Reference, page: *const pages.Page) !pages.
     };
 }
 fn append(self: *Self, ref: pages.Reference, page: *const pages.Page) !pages.Reference {
-    // Do not silently retry CAS or lost acknowledgements. A failed candidate
-    // may leave an unreachable immutable page, never a published resource root.
-    errdefer self.next_record = null;
-    if (self.next_record == null) {
-        self.requests += 1;
-        self.next_record = try self.journal().tail();
-    }
-    const position = self.next_record.?;
+    // Page order carries no execution authority. Let storage assign this
+    // immutable record's coordinate so independent candidates can interleave.
+    // Only the separate authority journal needs conditional successor fencing.
+    // Never retry a lost/malformed acknowledgement here: no usable locator was
+    // established, and the unpublished bytes may have become an orphan.
     var bytes: [pages.max_encoded_bytes]u8 = undefined;
     const body = try page.encode(&bytes);
     self.requests += 1;
     self.create_payload_bytes_attempted += body.len;
-    if (!try self.journal().append(position, body)) return error.Conflict;
-    self.next_record = try std.math.add(u64, position, 1);
+    var response = try self.authority.client.send(.{ .append = .{
+        .stream = self.journal().stream,
+        .body = body,
+        .options = .{ .content_type = "application/json" },
+    } });
+    defer response.deinit();
+    try response.head.requireSuccess();
+    const metadata = try response.head.metadata();
+    const position = try appendedAt(metadata.record_start, metadata.record_next);
     self.created += 1;
     const result = located(ref, position);
     self.remember(result, page.*);
     return result;
+}
+
+fn appendedAt(start: ?u64, next: ?u64) !u64 {
+    const position = start orelse return error.InvalidAppendReceipt;
+    const expected = std.math.add(u64, position, 1) catch return error.InvalidAppendReceipt;
+    if (next != expected) return error.InvalidAppendReceipt;
+    return position;
+}
+
+test "packed staging requires a complete single-record coordinate acknowledgement" {
+    try std.testing.expectEqual(@as(u64, 0), try appendedAt(0, 1));
+    try std.testing.expectEqual(@as(u64, 65536), try appendedAt(65536, 65537));
+    try std.testing.expectError(error.InvalidAppendReceipt, appendedAt(null, 1));
+    try std.testing.expectError(error.InvalidAppendReceipt, appendedAt(0, null));
+    try std.testing.expectError(error.InvalidAppendReceipt, appendedAt(0, 0));
+    try std.testing.expectError(error.InvalidAppendReceipt, appendedAt(0, 2));
+    try std.testing.expectError(error.InvalidAppendReceipt, appendedAt(std.math.maxInt(u64), 0));
 }
 
 test "packed page locators remain opaque and reject a different storage mapping" {

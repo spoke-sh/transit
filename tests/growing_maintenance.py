@@ -32,8 +32,10 @@ def run(node, caller):
         manifest = fixture.root / "expected.json"
         lost = threading.Event()
         resume = threading.Event()
+        page_lost = threading.Event()
+        resume_page = threading.Event()
         release_timeout = threading.Event()
-        fault = {"armed": True, "timeout": False}
+        fault = {"armed": True, "page": False, "timeout": False}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -41,6 +43,8 @@ def run(node, caller):
 
             def forward(self):
                 if lost.is_set() and not resume.wait(timeout=20):
+                    return
+                if page_lost.is_set() and not resume_page.wait(timeout=20):
                     return
                 body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
                 upstream = HTTPConnection("127.0.0.1", fixture.port, timeout=10)
@@ -50,6 +54,15 @@ def run(node, caller):
                     upstream.request(self.command, self.path, body, headers)
                     response = upstream.getresponse()
                     data = response.read()
+                    if self.command == "POST" and "/q-" in self.path and fault["page"]:
+                        assert 200 <= response.status < 300
+                        assert self.headers.get("Stream-Record-Match") is None
+                        fault["page"] = False
+                        page_lost.set()
+                        # The immutable page was accepted but no locator was
+                        # acknowledged. No retry/publication may hide this gap.
+                        self.close_connection = True
+                        return
                     if self.command == "PUT" and "/snapshot" in self.path and fault["armed"]:
                         assert 200 <= response.status < 300
                         fault["armed"] = False
@@ -128,6 +141,14 @@ def run(node, caller):
             stop(worker)
             assert first() == 0, "unacknowledged snapshot was followed by trim"
             resume.set()
+            fault["page"] = True
+            worker, _ = start(maintenance_config, "--maintain")
+            assert page_lost.wait(timeout=20), "immutable staging fault never reached"
+            stop(worker)
+            request = urllib.request.Request(fixture.url + "/growing-maintenance/authority", method="HEAD")
+            with fixture.http.open(request, timeout=5) as response:
+                assert int(response.headers["Stream-Record-Next"]) == expected["checkpoint"] + 1, "unacknowledged page published authority"
+            resume_page.set()
             worker, _ = start(maintenance_config, "--maintain")
             await_condition(lambda: first() >= expected["checkpoint"], worker)
             invoke("maintenance-check")
@@ -165,6 +186,7 @@ def run(node, caller):
             raise
         finally:
             resume.set()
+            resume_page.set()
             release_timeout.set()
             for child in reversed(children):
                 stop(child)
@@ -173,4 +195,4 @@ def run(node, caller):
             thread.join(timeout=5)
             for log in logs:
                 log.close()
-    print("Growing maintenance: bounded retirement, snapshot reply loss, trim timeout, revocation and disk restart passed.")
+    print("Growing maintenance: bounded retirement, snapshot/page reply loss, trim timeout, revocation and disk restart passed.")

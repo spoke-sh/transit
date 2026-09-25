@@ -804,7 +804,8 @@ implicitly. Existing v2 ingress and observability proofs cover the shared loop.
 
 The same service task runs growing maintenance on one CPU with owned proxy
 faults: kill after an accepted snapshot loses its reply, then restart from the
-recorded trim intent; timeout after accepted physical trim; current maintenance
+recorded trim intent; loss of an accepted immutable-page reply before root
+publication; timeout after accepted physical trim; current maintenance
 revocation and later regrant; node/provider/worker restart. Terminal-source work
 is disposed without delivering to the destination, independent state and an
 unresolved authorized attempt survive, and retained output bytes stay readable.

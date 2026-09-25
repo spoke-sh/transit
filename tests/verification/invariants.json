@@ -456,7 +456,8 @@
         "Snapshot publication reply loss and worker restart precede verified trim",
         "Accepted trim with stalled acknowledgement times out on one CPU",
         "Current maintenance revocation prevents new physical trim; regrant resumes committed intent",
-        "Retained bytes, independent state and authorized external attempts survive terminal-source cleanup and disk restart"
+        "Retained bytes, independent state and authorized external attempts survive terminal-source cleanup and disk restart",
+        "Accepted immutable-page reply loss leaves authority unchanged across a staging-worker restart"
       ],
       "limits": "Full process/resource sweep cost still grows with retained metadata. No page GC, due-time index, sweep-lag SLO, full-store control reserve or multi-maintainer performance claim. Physical work authorized before revocation may finish later.",
       "model": null

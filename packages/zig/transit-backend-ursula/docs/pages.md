@@ -37,11 +37,14 @@ plus an opaque format-tagged record locator. Core page/catalog format 2 includes
 the locator without interpreting Ursula coordinates. The adapter reads exactly
 one record, verifies returned coordinates and checks the page digest.
 
-Staging conditionally appends against a cached verified tail. Conflicts or lost
-acknowledgements invalidate that cached tail and return an error; they do not
-silently retry or publish a root. A caller's later retry may leave a duplicate
-unreachable page, which remains retained. Only the separate authority decision
-publishes the new root. Packing changes placement, not the commit boundary.
+Staging appends one immutable record and takes its locator from the verified
+single-record acknowledgement. It does not predict a tail or compete for an
+authority position. Independent node/maintenance candidates can interleave page
+records without spurious staging conflicts. Missing/malformed acknowledgements
+fail without a hidden retry or a usable locator; a caller's later retry may leave
+a duplicate unreachable page, which remains retained. Only the separate,
+conditional authority append publishes the root and fences concurrent changes.
+Packing changes placement, not the commit boundary.
 
 The page journal has no trimming, page GC or rotation yet. Root-journal trimming
 in the proof cannot remove referenced page records. Access is privileged storage
@@ -71,6 +74,13 @@ It then publishes a root-only snapshot, trims the root journal, restarts again
 and recovers the same views without creating any page streams. This isolates
 page/root persistence; it does not claim process progress or authorization is
 yet included in that publication.
+Interleaved independent page writers each issue one append, obtain distinct
+verified locators and reload their exact content without advancing the authority.
+Competing root publication still admits exactly one successor.
+`just test::growing-service` also drops an actual accepted page append's reply
+and kills its staging worker before another request can pass. Authority stays
+unchanged; a fresh worker stages again and completes from committed roots.
+The orphan never becomes a discovered root or an implicit accepted operation.
 
 The default exercises packed format-2 pages with 64 KiB of values and two decoded
 cache slots; the artifact reports their actual size. The original format-1 cache
