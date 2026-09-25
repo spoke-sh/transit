@@ -25,6 +25,12 @@ resource bodies or realms is not implied by the mock search field.
 
 ## Visual grammar
 
+This table records D1's original proposal. Later reviews separate selection
+from age: [D5's mapping reference](../D5.md#visual-mapping-reference) uses a
+teal selection outline and reserves amber well walls for process age.
+[D6](../D6.md) defines the proposed emphasis switch and preserves both identities
+as zoom reveals detail; use those reviews for the current visual direction.
+
 | Element | Meaning |
 | --- | --- |
 | Single hexagonal outline | Layout frame for the configured realm |
@@ -99,6 +105,11 @@ plots retain one backing identity, with logical Table wings and selected
 association links. Its current-value-byte height measure is separate from
 process queue relief; both flatten toward inspection. Size summaries and
 Document structure remain proposed evidence, not existing Board fields.
+
+[D6](../D6.md) visualizes that emphasis switch separately from zoom. It keeps
+the selected resource and camera through a neutral presentation handoff, then
+shows a closer flat resource detail. It also clarifies that opening a full
+Browse page is explicit; zoom alone does not change the selected view or kind.
 
 The [fabric exploration](../D2.md) extends this initial height-only study with
 an inbox shoulder and an independently readable outbox well. It compares count

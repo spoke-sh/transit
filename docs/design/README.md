@@ -3,7 +3,7 @@
 Design reviews form one numbered sequence, read from top to bottom. Each review
 owns one question, its proposal, visual evidence and recorded outcome.
 
-**Current review:** [D5 — Resources as a cityscape](D5.md).
+**Current review:** [D6 — Canvas emphasis and zoom](D6.md).
 **Selected visual direction:** [D2, Figure 7 — Queue-count fabric](D2.md#figure-7-queue-counts-with-age-on-the-well-walls).
 
 | Review | Focus | Status | Outcome or next decision |
@@ -12,9 +12,10 @@ owns one question, its proposal, visual evidence and recorded outcome.
 | [D2](D2.md) | Board inbox, outbox and age | Accepted in part | Figure 7 selected; age-driven depth remains an alternative |
 | [D3](D3.md) | Board fabric at 100–100,000 processes | Reviewed | Scale visuals favored; grouping remains open; D4 extends scale and simplifies the UI |
 | [D4](D4.md) | Board fabric at 1 million–1 billion processes | Reviewed | Visual direction endorsed; exact metrics and grouping remain open; D5 adds resources |
-| [D5](D5.md) | Table, KV and Document resource cityscapes | In review | Review building forms, size measures, aggregation and shared resource sites |
+| [D5](D5.md) | Table, KV and Document resource cityscapes | Reviewed | Direction welcomed; mappings documented; exact metrics remain open; D6 explores the transition |
+| [D6](D6.md) | Process/resource emphasis and semantic zoom | In review | Compare an explicit canvas switch with zoom; review the shared-location transition and flat resource detail |
 
-Review status records the design discussion. All five reviews contain proposed
+Review status records the design discussion. All six reviews contain proposed
 interfaces and synthetic imagery; none is an implemented UI or capacity claim.
 Delivery scope and qualification belong in the [roadmap](../roadmap/README.md).
 [Board](../BOARD.md) owns the product boundary and current inspection contracts.
@@ -62,7 +63,7 @@ the review ID supplies context.
 
 Keep images, prompts, fixtures and technical appendices in a named supporting
 directory and link them from their owning reviews. The
-[Board materials](board-atlas/README.md) support D1–D5. Supporting directories
+[Board materials](board-atlas/README.md) support D1–D6. Supporting directories
 do not introduce another review sequence.
 
 ## Review statuses

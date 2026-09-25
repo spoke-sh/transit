@@ -1,0 +1,184 @@
+{
+  "synthetic": true,
+  "status": "Design storyboard assertions, not executable Transit records, read cuts, pixel coordinates or an implemented transition.",
+  "scope": "A.01",
+  "layoutKey": "shared-neighborhood-v1",
+  "selection": {
+    "kind": "resource",
+    "id": 17
+  },
+  "resourceSource": {
+    "file": "d5-fixture.json",
+    "path": "neighborhood.resources",
+    "ids": [
+      17,
+      18,
+      19
+    ],
+    "note": "Reuse these backing resource identities and their exact currentValueBytes/partitions. R17 has independent lifetime and writer PID41. T1/T2 are components, not new resources."
+  },
+  "processes": [
+    {
+      "pid": 41,
+      "pendingInbox": 36,
+      "pendingOutbox": 12,
+      "oldestPendingOutputAgeSeconds": 1080
+    },
+    {
+      "pid": 52,
+      "pendingInbox": 12,
+      "pendingOutbox": 0,
+      "oldestPendingOutputAgeSeconds": null
+    },
+    {
+      "pid": 63,
+      "pendingInbox": 0,
+      "pendingOutbox": 6,
+      "oldestPendingOutputAgeSeconds": 480
+    }
+  ],
+  "associations": [
+    {
+      "pid": 41,
+      "name": "state",
+      "resourceId": 17
+    },
+    {
+      "pid": 52,
+      "name": "shared",
+      "resourceId": 17
+    },
+    {
+      "pid": 63,
+      "name": "reference",
+      "resourceId": 17
+    }
+  ],
+  "observations": {
+    "processBasis": "synthetic-process-summary-v1",
+    "resourceBasis": "synthetic-resource-summary-v1",
+    "associationBasis": "synthetic-associations-v1",
+    "coverage": "Complete only for this three-resource/three-process illustration.",
+    "note": "Fixed facts across these frames; different bases do not establish a real cross-entity snapshot. Ages and byte metrics are unsupported synthetic assertions."
+  },
+  "frames": [
+    {
+      "figure": 1,
+      "image": "images/d6-01-process-emphasis.png",
+      "cameraKey": "shared-neighborhood",
+      "layoutKey": "shared-neighborhood-v1",
+      "view": "map",
+      "emphasis": "processes",
+      "phase": "stable",
+      "selection": {
+        "kind": "resource",
+        "id": 17
+      },
+      "selectedCurrentValueBytes": 33554432,
+      "visibleResourceIds": [
+        17,
+        18,
+        19
+      ],
+      "visibleProcessIds": [
+        41,
+        52,
+        63
+      ],
+      "quantitativeRelief": "inbox-count/outbox-count",
+      "ageTint": true,
+      "geometryMetricPicking": true,
+      "note": "Resources are flat context plots. Process shapes illustrate both queues, inbox-only and outbox-only."
+    },
+    {
+      "figure": 2,
+      "image": "images/d6-02-neutral-handoff.png",
+      "cameraKey": "shared-neighborhood",
+      "layoutKey": "shared-neighborhood-v1",
+      "view": "map",
+      "emphasis": "resources",
+      "phase": "handoff",
+      "selection": {
+        "kind": "resource",
+        "id": 17
+      },
+      "selectedCurrentValueBytes": 33554432,
+      "visibleResourceIds": [
+        17,
+        18,
+        19
+      ],
+      "visibleProcessIds": [
+        41,
+        52,
+        63
+      ],
+      "quantitativeRelief": null,
+      "ageTint": false,
+      "geometryMetricPicking": false,
+      "note": "Both kinds retain flat identity anchors. A transient presentation state, never zero data or a third selectable mode."
+    },
+    {
+      "figure": 3,
+      "image": "images/d6-03-resource-emphasis.png",
+      "cameraKey": "shared-neighborhood",
+      "layoutKey": "shared-neighborhood-v1",
+      "view": "map",
+      "emphasis": "resources",
+      "phase": "stable",
+      "selection": {
+        "kind": "resource",
+        "id": 17
+      },
+      "selectedCurrentValueBytes": 33554432,
+      "visibleResourceIds": [
+        17,
+        18,
+        19
+      ],
+      "visibleProcessIds": [
+        41,
+        52,
+        63
+      ],
+      "quantitativeRelief": "current-value-bytes",
+      "ageTint": false,
+      "geometryMetricPicking": true,
+      "note": "Resources rise from their own neutral plots. Flat process context anchors do not imply zero queues."
+    },
+    {
+      "figure": 4,
+      "image": "images/d6-04-resource-detail.png",
+      "cameraKey": "r17-reading-distance",
+      "layoutKey": "shared-neighborhood-v1",
+      "view": "map",
+      "emphasis": "resources",
+      "phase": "stable",
+      "selection": {
+        "kind": "resource",
+        "id": 17
+      },
+      "selectedCurrentValueBytes": 33554432,
+      "visibleResourceIds": [
+        17
+      ],
+      "visibleProcessIds": [
+        41,
+        52,
+        63
+      ],
+      "quantitativeRelief": null,
+      "ageTint": false,
+      "geometryMetricPicking": false,
+      "note": "Relief is flattened for reading. R18/R19 are outside the viewport and still exist in the same scene."
+    }
+  ],
+  "invariants": [
+    "Figures 1–3 request the same camera and all four retain the same layout/selection; generated pixels only approximate this.",
+    "Emphasis and zoom never mutate or interpolate the process facts, resource facts or associations.",
+    "The selected 32 MiB is the same R17 total in every frame; its logical Table components and association paths add no bytes.",
+    "Process and resource identities have separate stable anchors. Neither changes kind during a switch.",
+    "Only one emphasis has quantitative relief at a time; flat context/handoff/detail geometry is not a zero measurement.",
+    "All numbers are synthetic. A shipping implementation requires authorized bounded evidence and explicit coverage/freshness."
+  ]
+}

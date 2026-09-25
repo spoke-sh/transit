@@ -86,6 +86,14 @@ appear as wings of one site, preserving identity, transaction and lifetime
 boundaries. These generated designs establish no new resource metrics or
 application-value interpretation.
 
+The [D6 transition review](design/D6.md) separates an explicit Processes/Resources
+canvas emphasis from semantic zoom. Switching emphasis preserves the camera,
+stable identity anchors and selection; zoom changes detail within that emphasis
+and flattens relief for reading. A neutral handoff is presentation-only, with
+unchanged facts and no active height scale. The four-frame storyboard and
+[mapping reference](design/D5.md#visual-mapping-reference) document proposed
+behavior, not an implemented state machine or new read surface.
+
 ## Boundary and packaging
 
 ```mermaid
