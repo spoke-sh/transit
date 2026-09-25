@@ -97,6 +97,14 @@ remain 16. Reproduce either configuration with
 `just test::growing-station --resident-pages 16` (or `64`). This changes no Nix
 setup/cache transfer and does not by itself establish whole-CI latency savings.
 
+The subsequent complete clean run at `52e64df` passed all 32 tasks, including
+retained-version recovery/trim, growing Station scan recovery, the full foreign
+binding matrix, TLA+ and all five browser checks. Completion metadata records
+882.23 seconds (about 14m 42s) of sequential local execution. Artifacts are in
+`.cache/ci/clean/52e64df5daae-transit-ci-nhobq0gy/`. This run includes the test-cache
+change and predates incremental Fuze/query capture. It retains more scenarios
+than `fd0d2d4`; neither sample measures cold Nix transfer or hosted CI percentiles.
+
 ## Generated transitions
 
 ```sh
