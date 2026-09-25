@@ -78,6 +78,9 @@ protocol. M14 must specify and prove it before enabling interactive calls:
   before capacity is exhausted; control progress must survive a blocked peer.
   Receiving flow-control credit or completing a transport write is not evidence
   of durable remote admission. Publish observations only after local capture.
+  This is application admission credit, not transport flow control; specify it
+  as an instance of [FLOW_CONTROL.md](FLOW_CONTROL.md)'s pattern (the captured
+  message/attempt as the credit unit) rather than a bespoke scheme.
 
 [gRPC flow control](https://grpc.io/docs/guides/flow-control/) regulates transport
 pressure; it does not acknowledge the application's durable handling. Exercise

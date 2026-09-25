@@ -211,13 +211,15 @@ See [STREAMS.md](STREAMS.md), [TRANSIT.md](TRANSIT.md), and [URSULA.md](URSULA.m
 See [RETENTION.md](RETENTION.md) for lifetime interaction, policy changes,
 checkpoint authority, and reclamation guarantees.
 
-## Effects and connectors
+## Transports, effects and connectors
 
 | Term | Meaning |
 | --- | --- |
+| Transport | Byte/stream carriage with connection lifecycle, multiplexing and wire flow control but no effect-shaped contract of its own: TCP, QUIC, SCTP, and HTTP/2's session layer as gRPC uses it. Never a connector; nothing to capture, retry or reconcile until a connector's protocol is layered on it. |
 | Effect | Work at an external or nondeterministic boundary, requested through a committed intent and observed through recorded outcomes. |
 | Capability | Scoped authority to request or perform particular operations, enforced by the protocol and runtime boundaries. |
-| Connector | Library and executor logic for a particular effect family, including its capture, retry, and reconciliation semantics. |
+| Connector | Library and executor logic for a particular effect family, including its capture, retry, and reconciliation semantics. Built on one transport; HTTP, gRPC, and (planned) FTP/SFTP/FTPS, filesystem, S3, GCS and SSH each fit this shape. |
+| Integration | A provider-specific library built on one connector, adding that provider's schema/pagination/auth-flow knowledge without owning a new durability contract; it reuses the connector's attempt/reconciliation machinery rather than inventing its own. |
 | Fetch worker | A connector executor authorized to issue HTTP requests and record response data and attempt metadata. |
 | gRPC connector worker | Trusted executor of committed, authorized RPC sends with durable captures, finite streaming budgets and bounded reconciliation. |
 | Attempt | One authorized execution attempt of an effect, with its own identity. Retries and redirects remain individually observable. |
@@ -232,9 +234,13 @@ checkpoint authority, and reclamation guarantees.
 | Reconciliation lifetime | The accepted window and work budget for reconciliation. Recovery cannot renew it implicitly. |
 | Reconciliation closure | The irreversible end of an attempt's result-acceptance path. Late submissions are rejected; historical receipts remain receipts. |
 | Closed with outcome unknown | A terminal local disposition ending reconciliation without claiming remote success, failure, or cancellation. |
+| Transport flow control | Wire-pressure regulation owned by the selected transport (TCP's window, QUIC's limits, HTTP/2's frame credit). Never evidence of durable application admission by itself. |
+| Application admission credit | Transit's own bound on how far a sender may run ahead of what the receiver has durably stored, independent of transport flow control; quantized to the protocol's own durable unit (a segment, a captured attempt) and receiver-issued, not sender-self-paced. |
 
 See [CONNECTORS.md](CONNECTORS.md) for shared attempt/reconciliation and HTTP
-capture, and [GRPC.md](GRPC.md) for streaming RPC authority and transcripts.
+capture, [GRPC.md](GRPC.md) for streaming RPC authority and transcripts, and
+[FLOW_CONTROL.md](FLOW_CONTROL.md) for the shared admission-credit pattern and
+its distinction from transport flow control.
 
 ## Inspection and interpretation
 

@@ -13,6 +13,54 @@ The connector milestones will add [Board](BOARD.md) enrichment for exchanges and
 attempts, respecting transcript permissions, secret omissions, retained-body
 gaps, and the distinction between authorization and observed remote outcomes.
 
+## Transport, connector and integration
+
+Three distinct tiers sit outside the kernel, and only the middle one is a
+connector in this document's sense. Getting the boundary right now, before a
+third or fourth connector exists, is cheaper than re-deriving it later.
+
+**Transport** carries bytes and has no effect-shaped contract of its own: TCP,
+QUIC, SCTP, and HTTP/2's own session/framing layer as gRPC uses it. A raw
+socket has no application-level outcome to record, no idempotency boundary,
+no redirect and nothing to reconcile — there is nothing yet to capture, retry
+or close under policy until a connector's own protocol is layered on top of
+it. A transport instead owns connection lifecycle (open, reset, close), stream
+multiplexing where the protocol has native streams (QUIC, SCTP; TCP has
+exactly one ordered byte stream per connection), and wire-level flow control.
+[FLOW_CONTROL.md](FLOW_CONTROL.md) is explicit that this last one is never
+evidence of durable application admission on its own; see GRPC.md's
+[streaming authority and backpressure](GRPC.md#streaming-authority-and-backpressure)
+for what a connector must check in addition.
+[M14](roadmap/M14.md)'s entry gates already treat HTTP/2 this way — an
+immutable, Zig-compatible dependency selected and proved once (generation,
+trailers, framing, compression bounds, flow control, cancellation),
+independently of the gRPC connector built on it — without naming the tier;
+this section names it so a future transport choice (HTTP/3 over QUIC, a raw
+transport for a non-HTTP protocol) extends a settled vocabulary instead of
+re-deriving this boundary. No transport implementation or interface is
+proposed here.
+
+**Connector** is this document's subject: something that executes a committed
+effect intent, with attempt identity, dispatch authorization, idempotency,
+retry/redirect handling, and a reconciliation policy distinguishing a
+confirmed outcome from closed-with-outcome-unknown. HTTP ([M13](roadmap/M13.md))
+and gRPC ([M14](roadmap/M14.md)) are the two planned connectors. FTP/SFTP/FTPS,
+filesystem, S3, GCS and SSH effects fit the same shape — each has a natural
+per-operation attempt/outcome boundary (put, get, list, delete) — and belong
+here when they are built, reusing this document's attempt/reconciliation
+contract rather than each inventing its own.
+
+**Integration** is a provider-specific library built on top of one connector,
+adding that provider's schema, pagination, auth flow and rate-limit knowledge
+without owning any new durability contract of its own — it inherits the
+connector's attempt/reconciliation machinery. This is already implied by this
+document's closing line about LLM/tool and data-source libraries reusing "the
+same effect/group contract without embedding provider-specific behavior in
+the kernel"; naming it distinguishes "a new connector" (a new effect/attempt
+shape, reviewed here) from "a new integration" (a new library over an existing
+connector, reviewed at the library boundary only). A Slack or GitHub library
+built over the HTTP connector is an integration, not a third connector.
+
 ## Effect boundary
 
 A connector executes a committed effect intent, records its external observations,

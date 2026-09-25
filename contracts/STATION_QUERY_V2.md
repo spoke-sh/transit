@@ -83,6 +83,11 @@ retain durable work, rather than keeping a native Arrow task or stack alive.
 
 ## Flow control
 
+This is the first concrete instance of [FLOW_CONTROL.md](../docs/FLOW_CONTROL.md)'s
+application-admission-credit pattern; that document owns the general shape and
+its distinction from transport flow control, this section owns this protocol's
+specific unit and open decisions.
+
 The implemented sender paces itself: `publishing` writes at most three
 fragments per authority turn before recording its cursor and self-casting a
 continuation. This bounds each proposal to the ordinary four-mutation budget;
