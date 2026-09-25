@@ -56,13 +56,15 @@
         "test::unit",
         "test::state",
         "test::storage",
-        "test::station"
+        "test::station",
+        "test::properties"
       ],
       "scenarios": [
         "Stale resource revisions and private rollback",
-        "Restart before/after conditional append"
+        "Restart before/after conditional append",
+        "Generated captured-view turns publish one KV value and input progress together"
       ],
-      "limits": "Qualified only for the bounded v1 state profile; growing pages and staged publication remain unqualified.",
+      "limits": "Bounded state-v1 projection; growing publication has separate GROWTH invariants and real disk proofs.",
       "model": null
     },
     {
@@ -265,11 +267,13 @@
         "test::inspection",
         "test::state",
         "transit-board::test",
-        "transit-board::browser"
+        "transit-board::browser",
+        "test::properties"
       ],
       "scenarios": [
         "Read revoked between pages",
-        "Resource/view expiry and history gap"
+        "Resource/view expiry and history gap",
+        "Generated view expiry, uncertain time, rollback and current resource grants"
       ],
       "limits": "Board is private-boundary inspection; the legacy view is a full bounded resource copy.",
       "model": null

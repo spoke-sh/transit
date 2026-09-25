@@ -138,10 +138,20 @@ actual action list as well as the seed. Bounded delta debugging removes irreleva
 actions and writes a replayable trace. Corpus cases cover competing same-principal
 proposals, lost acknowledgements, historical retries, revocation and stale owners.
 
-This first generator does not model resource views, finite lifetimes, external
-settlement, checkpoint pages or concurrent native handles. Existing focused
-tests still own those obligations; M10 must extend the harness before closing
-its generated-schedule gate. The in-memory fault store assumes conditional
+The additive `resource` trace profile also generates captured-view opening and
+closure, independent resource grants, atomic KV/input publication, clock rollback,
+uncertainty and expiry. Its separate oracle tracks one value and one view; replay
+compares the entire actual authority after every boundary. Saved schedules check
+that prepared publication can win after its validation deadline at an unchanged
+tail, while fresh retry must validate current time. Lost-reply retries disclose
+only the original receipt under current resource rights, even after view release.
+Generation preserves the original inline xorshift sequence and names the added
+resource generator separately. Failure artifacts retain both the original and
+minimized actions; successful evidence identifies the revision and binary hash.
+
+The generator does not model finite process settlement, checkpoint pages or
+concurrent native handles. Existing focused tests still own those obligations.
+The in-memory fault store assumes conditional
 append atomicity and is not a substitute for Ursula disk qualification.
 
 ## Model and guard qualification
@@ -152,7 +162,8 @@ safety and replays four removed-guard counterexamples against the real engine.
 do not acquire a Java dependency. Its tools use the existing nixpkgs lock.
 
 `just test::mutations` requires committed HEAD, clones it independently and removes
-one actual generation, revision or permission guard at a time. The unmodified
+one actual generation, revision, permission or captured-view deadline guard at a
+time. The unmodified
 baseline must pass; a compiling mutant must trigger a minimized property failure.
 Build errors/timeouts do not count as detection. It retains evidence and never
 edits production source in the working tree. Weekly CI runs this larger budget.

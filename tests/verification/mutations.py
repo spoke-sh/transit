@@ -8,19 +8,30 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = Path("packages/zig/transit-core/src/root.zig")
+CORE = Path("packages/zig/transit-core/src")
 MUTANTS = {
     "generation": (
+        "root.zig",
         "if (c.generation != p.generation or p.owner != record.request.principal) return error.StaleGeneration;",
         "// Mutation: omit activation fencing.",
     ),
     "revision": (
+        "root.zig",
         "if (c.expected_revision != p.revision) return error.StaleState;",
         "// Mutation: omit state revision comparison.",
     ),
     "permission": (
+        "root.zig",
         "if (p.grant.permissions & permission(required) == 0) return error.Forbidden;",
         "_ = required; // Mutation: omit current grant validation.",
+    ),
+    "view_deadline": (
+        "resources.zig",
+        """now.before(view.meta.deadline_ms) catch |err| {
+                    if (err == error.DeadlineExpired) return error.StateViewExpired;
+                    return err;
+                };""",
+        "// Mutation: omit captured-view deadline validation.",
     ),
 }
 
@@ -51,14 +62,15 @@ def main():
             checkout = Path(directory) / "src"
             subprocess.run(["git", "clone", "--quiet", "--local", "--no-hardlinks", "--no-checkout", str(ROOT), str(checkout)], check=True)
             subprocess.run(["git", "checkout", "--quiet", "--detach", revision], cwd=checkout, check=True)
-            original = (checkout / SOURCE).read_text()
             code, output = execute(checkout)
             (destination / "baseline.log").write_text(output)
             if code or "Transition properties passed:" not in output:
                 raise RuntimeError("unmodified mutation baseline failed; no mutant result is qualified")
-            for name, (guard, replacement) in MUTANTS.items():
+            for name, (filename, guard, replacement) in MUTANTS.items():
+                source = checkout / CORE / filename
+                original = source.read_text()
                 assert original.count(guard) == 1, f"review changed guard: {name}"
-                (checkout / SOURCE).write_text(original.replace(guard, replacement))
+                source.write_text(original.replace(guard, replacement))
                 started = time.monotonic()
                 code, output = execute(checkout)
                 (destination / f"{name}.log").write_text(output)
@@ -70,9 +82,9 @@ def main():
                     raise RuntimeError(f"{name}: mutant survived or did not execute; inspect {destination}")
                 failure = checkout / ".cache/verification/transitions/failure.json"
                 (destination / f"{name}.json").write_bytes(failure.read_bytes())
-                (checkout / SOURCE).write_text(original)
+                source.write_text(original)
         evidence["status"] = "passed"
-        print("Targeted mutations: generation, revision and current-permission omissions detected by real-engine schedules.")
+        print("Targeted mutations: generation, revision, current-permission and view-deadline omissions detected by real-engine schedules.")
     finally:
         (destination / "evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
 

@@ -812,6 +812,10 @@ real Zig authority against an independent mailbox/fencing/retry projection,
 including replay after every step and bounded failure minimization. The initial
 21-trace corpus/generation run passed 826 boundaries in 8.46 seconds on this host.
 That measures the harness, not service throughput or exhaustive exploration.
+The captured-view extension passed 39 saved/generated traces with 1,682
+boundaries in 18.91 seconds on this host. It additionally compares atomic KV/input
+publication, view release/expiry, clock rollback/uncertainty and current resource
+rights. These finite in-memory schedules preserve the real disk and host checks.
 
 M10 is in progress. The first CI changes separate library unit tests from
 application/probe builds, avoid duplicate feature-push/PR runs, and select

@@ -27,7 +27,7 @@ const Store = struct {
 };
 const Engine = core.Engine(Store);
 const Action = struct {
-    kind: enum { send, own, revoke, grant, prepare, commit, retry, restart, clock, terminate },
+    kind: enum { send, own, revoke, grant, prepare, commit, retry, restart, clock, terminate, open_view, close_view, resource_grant },
     slot: u2 = 0,
     owner: u8 = 1,
     value: i64 = 1,
@@ -35,8 +35,10 @@ const Action = struct {
     stale_revision: bool = false,
     fault: Fault = .none,
     time: core.Time.Sample = .{ .unix_ms = 10 },
+    deadline_ms: u64 = 50,
+    resource_permissions: u8 = p.State.all_permissions,
 };
-const Trace = struct { version: u32, seed: u64 = 0, actions: []const Action };
+const Trace = struct { version: u32, seed: u64 = 0, profile: enum { inline_state, resource } = .inline_state, actions: []const Action };
 const Saved = struct { signed: core.SignedRequest, prepared: Engine.Prepared };
 
 fn clock(context: *anyopaque) !core.Time.Sample {
@@ -57,6 +59,25 @@ fn act(engine: *Engine, saved: *[4]?Saved, now: *core.Time.Sample, action: Actio
         .own => return try engine.submit(try request(engine, 0, .{ .own = .{ .pid = 2, .worker = action.owner, .expected_generation = (try engine.state.process(2)).generation } })),
         .revoke => return try engine.submit(try request(engine, 0, .{ .revoke = 1 })),
         .grant => return try engine.submit(try request(engine, 0, try grant())),
+        .resource_grant => return try engine.submit(try request(engine, 0, .{ .state = .{ .grant = .{ .resource = 3, .subject = 1, .permissions = action.resource_permissions } } })),
+        .open_view => {
+            const process = try engine.state.process(2);
+            const input = (try engine.nextInput(2, engine.state.position)) orelse return error.NoInput;
+            const resource = try engine.state.resources.?.resource(3);
+            return try engine.submit(try request(engine, 1, .{ .state = .{ .open = .{
+                .pid = 2,
+                .generation = process.generation,
+                .input = input.position,
+                .expected_revision = process.revision,
+                .resource = 3,
+                .revision = resource.meta.revision,
+                .deadline_ms = action.deadline_ms,
+            } } }));
+        },
+        .close_view => {
+            const view = engine.state.resources.?.views[0] orelse return error.NoView;
+            return try engine.submit(try request(engine, 0, .{ .state = .{ .close = .{ .pid = 2, .view = view.meta.id } } }));
+        },
         .terminate => return try engine.submit(try request(engine, 0, .{ .terminate = 2 })),
         .prepare => {
             // Replace a slot before validation: a failed preparation cannot
@@ -64,13 +85,21 @@ fn act(engine: *Engine, saved: *[4]?Saved, now: *core.Time.Sample, action: Actio
             saved[action.slot] = null;
             const process = try engine.state.process(2);
             const input = (try engine.nextInput(2, engine.state.position)) orelse return error.NoInput;
-            const signed = try request(engine, 1, .{ .turn = .{
+            const turn: p.Turn = .{
                 .pid = 2,
                 .generation = process.generation + @as(u64, if (action.stale_generation) 1 else 0),
                 .expected_revision = process.revision + @as(u64, if (action.stale_revision) 1 else 0),
                 .input = input.position,
                 .result = core.Value.integer(action.value),
-            } });
+            };
+            const command: core.Command = if (engine.state.resources) |cat| blk: {
+                const view = cat.views[0] orelse return error.NoView;
+                var state_turn: p.State.Turn = .{ .turn = turn, .write_view = view.meta.id };
+                state_turn.views[0] = view.meta.id;
+                state_turn.mutations[0] = .{ .key = try core.Value.init("value"), .value = turn.result };
+                break :blk .{ .state = .{ .turn = state_turn } };
+            } else .{ .turn = turn };
+            const signed = try request(engine, 1, command);
             const prepared = try engine.prepare(signed);
             saved[action.slot] = .{ .signed = signed, .prepared = prepared };
             return null;
@@ -98,6 +127,12 @@ pub fn main(init: std.process.Init) !void {
         var trace = try std.json.parseFromSlice(Trace, init.gpa, bytes, .{});
         defer trace.deinit();
         if (trace.value.version != 1 or trace.value.actions.len > 4096) return error.UnsupportedTrace;
+        if (trace.value.profile == .inline_state) for (trace.value.actions) |action| {
+            switch (action.kind) {
+                .open_view, .close_view, .resource_grant => return error.UnsupportedTrace,
+                else => {},
+            }
+        };
         var store: Store = .{ .allocator = init.gpa };
         defer store.entries.deinit(init.gpa);
         const genesis: core.Genesis = .{ .realm = 42, .root_key = (try key(0)).public_key.toBytes(), .max_clock_error_ms = 2 };
@@ -105,7 +140,14 @@ pub fn main(init: std.process.Init) !void {
         var now: core.Time.Sample = .{ .unix_ms = 10 };
         _ = try engine.submit(try request(&engine, 0, try grant()));
         _ = try engine.submit(try request(&engine, 0, .{ .spawn = .{} }));
-        _ = try engine.submit(try request(&engine, 0, .{ .own = .{ .pid = 2, .worker = 1, .expected_generation = 0 } }));
+        if (trace.value.profile == .resource) {
+            _ = try engine.submit(try request(&engine, 0, .{ .state = .{ .create = .{ .writer = 2, .owned = false } } }));
+            for ([_]u8{ 0, 1 }) |subject| {
+                _ = try engine.submit(try request(&engine, 0, .{ .state = .{ .grant = .{ .resource = 3, .subject = subject, .permissions = p.State.all_permissions } } }));
+            }
+            _ = try engine.submit(try request(&engine, 0, .{ .state = .{ .associate = .{ .pid = 2, .name = try core.Value.init("state"), .resource = 3 } } }));
+        }
+        _ = try engine.submit(try request(&engine, 0, .{ .own = .{ .pid = 2, .worker = 1, .expected_generation = (try engine.state.process(2)).generation } }));
         // Candidate copies are part of the legacy profile; allocate this
         // test scheduler's four slots explicitly instead of exhausting stack.
         const saved = try init.gpa.create([4]?Saved);
@@ -142,6 +184,11 @@ pub fn main(init: std.process.Init) !void {
                 .value = try process.state.asInteger(),
                 .permissions = (try engine.state.principal(1)).grant.permissions,
                 .sequence = (try engine.state.principal(1)).sequence,
+                .resource_revision = if (engine.state.resources) |cat| cat.resources[0].?.meta.revision else null,
+                .resource_value = if (engine.state.resources) |cat| (if (cat.resources[0].?.entries[0]) |entry| try entry.value.asInteger() else null) else null,
+                .resource_permissions = if (engine.state.resources) |cat| cat.resources[0].?.grants[1] else null,
+                .view = if (engine.state.resources) |cat| (if (cat.views[0]) |view| view.meta.id else null) else null,
+                .time_floor = engine.state.time_floor_ms,
             }, .{}, &output.interface);
             try output.interface.writeByte('\n');
         }

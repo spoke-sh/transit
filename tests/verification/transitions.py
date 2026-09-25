@@ -1,6 +1,7 @@
 """Generated schedules against real Zig transitions with a small independent oracle."""
 import argparse
 import copy
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -122,7 +123,152 @@ class Model:
         return receipt
 
 
-def generated(seed, count):
+class ResourceModel(Model):
+    """One retained KV value and one captured view, independent of engine pages.
+
+    Time belongs to validation, not publication: an unchanged prepared tail can
+    still win after its view deadline. A retry requiring fresh validation cannot.
+    """
+    def __init__(self):
+        super().__init__()
+        self.state.update(position=8, generation=2, resource_revision=3,
+                          resource_value=None, resource_permissions=7,
+                          view=None, time_floor=0)
+        self.now = dict(unix_ms=10, error_ms=0)
+        self.view = None
+
+    def time_error(self):
+        if self.now.get("error_ms", 0) > 2:
+            return "UntrustedTime"
+        if self.now["unix_ms"] < self.state["time_floor"]:
+            return "ClockRollback"
+
+    def deadline_error(self, deadline, expired):
+        now, uncertainty = self.now["unix_ms"], self.now.get("error_ms", 0)
+        if max(0, now - uncertainty) >= deadline:
+            return expired
+        if now + uncertainty >= deadline:
+            return "DeadlineUncertain"
+
+    def validate(self, candidate):
+        s, view = self.state, self.view
+        if not s["permissions"]:
+            return "Forbidden"
+        if failure := self.time_error():
+            return failure
+        if view is None or candidate["view"] != view["id"]:
+            return "StateViewExpired"
+        if any(candidate[field] != view[field] for field in ("generation", "revision", "input")):
+            return "InvalidStateView"
+        if failure := self.deadline_error(view["deadline"], "StateViewExpired"):
+            return failure
+        if s["resource_permissions"] != 7:
+            return "Forbidden"
+        if view["resource_revision"] != s["resource_revision"]:
+            return "StaleStateResource"
+        if s["lifecycle"] != "running":
+            return "RetiredProcess"
+        if s["owner"] != 1 or candidate["generation"] != s["generation"]:
+            return "StaleGeneration"
+        if candidate["revision"] != s["revision"]:
+            return "StaleState"
+        if s["consumed"] == len(self.inputs) or candidate["input"] != self.inputs[s["consumed"]]:
+            return "InvalidInput"
+
+    def step(self, action):
+        s = self.state
+        kind, slot = action["kind"], action.get("slot", 0)
+        failure = receipt = None
+        if kind == "clock":
+            self.now = action.get("time", dict(unix_ms=10))
+        elif kind == "resource_grant":
+            s["resource_permissions"] = action.get("resource_permissions", 7)
+            receipt = s["position"]
+            s["position"] += 1
+        elif kind == "close_view":
+            if self.view is None:
+                failure = "NoView"
+            else:
+                self.view = s["view"] = None
+                receipt = s["position"]
+                s["position"] += 1
+        elif kind == "open_view":
+            deadline = action.get("deadline_ms", 50)
+            if s["consumed"] + s["cancelled"] == len(self.inputs):
+                failure = "NoInput"
+            elif not s["permissions"] or s["resource_permissions"] & 3 != 3:
+                failure = "Forbidden"
+            elif failure := self.time_error():
+                pass
+            elif s["owner"] != 1:
+                failure = "StaleGeneration"
+            elif deadline > max(0, self.now["unix_ms"] - self.now.get("error_ms", 0)) + 60000:
+                failure = "InvalidLifetime"
+            elif failure := self.deadline_error(deadline, "DeadlineExpired"):
+                pass
+            elif self.view is not None:
+                failure = "StateViewInUse"
+            else:
+                receipt = s["position"]
+                self.view = dict(id=receipt, deadline=deadline, generation=s["generation"],
+                                 revision=s["revision"], input=self.inputs[s["consumed"]],
+                                 resource_revision=s["resource_revision"])
+                s.update(view=receipt, position=receipt + 1, sequence=s["sequence"] + 1,
+                         time_floor=self.now["unix_ms"])
+                self.receipts[s["sequence"]] = (None, receipt)
+        elif kind == "prepare":
+            self.prepared.pop(slot, None)
+            if s["consumed"] + s["cancelled"] == len(self.inputs):
+                failure = "NoInput"
+            elif self.view is None:
+                failure = "NoView"
+            else:
+                candidate = dict(position=s["position"], sequence=s["sequence"] + 1,
+                    generation=s["generation"] + int(action.get("stale_generation", False)),
+                    revision=s["revision"] + int(action.get("stale_revision", False)),
+                    input=self.inputs[s["consumed"]], value=action.get("value", 1),
+                    view=self.view["id"], time=self.now["unix_ms"])
+                failure = self.validate(candidate)
+                if failure is None:
+                    self.prepared[slot] = candidate
+        elif kind == "retry":
+            candidate = self.prepared.get(slot)
+            if candidate is None:
+                failure = "NoPreparation"
+            elif not s["permissions"]:
+                failure = "Forbidden"
+            elif candidate["sequence"] in self.receipts:
+                previous, at = self.receipts[candidate["sequence"]]
+                fields = ("sequence", "generation", "revision", "input", "value", "view")
+                if previous is None or any(candidate[f] != previous[f] for f in fields):
+                    failure = "ConflictingRetry"
+                elif s["resource_permissions"] != 7:
+                    failure = "Forbidden"
+                else:
+                    receipt = at
+            elif failure := self.validate(candidate):
+                pass
+            else:
+                receipt = self.publish(dict(candidate, time=self.now["unix_ms"]))
+        else:
+            result = super().step(action)
+            if kind in {"revoke", "grant"}:
+                s["resource_permissions"] = 0
+                result["resource_permissions"] = 0
+            if kind in {"own", "terminate"} and result["failure"] is None:
+                self.view = s["view"] = result["view"] = None
+            return result
+        return dict(s, failure=failure, receipt=receipt)
+
+    def publish(self, candidate):
+        receipt = super().publish(candidate)
+        self.view = None
+        self.state.update(resource_value=candidate["value"], resource_revision=receipt,
+                          view=None, time_floor=candidate["time"])
+        return receipt
+
+
+def generated(seed, count, resource=False):
     # Owned xorshift64 sequence: a Python/runtime upgrade cannot silently change
     # seed interpretation. The actual trace is also persisted on failure.
     state = seed or 1
@@ -135,6 +281,9 @@ def generated(seed, count):
     actions = [{"kind": "send"}]
     choices = ("send", "send", "prepare", "prepare", "commit", "commit", "retry",
                "own", "revoke", "grant", "restart")
+    if resource:
+        choices += ("open_view", "open_view", "close_view", "resource_grant", "clock")
+        actions.append({"kind": "open_view"})
     for _ in range(count):
         kind = choices[draw(len(choices))]
         action = {"kind": kind}
@@ -147,13 +296,21 @@ def generated(seed, count):
             action["fault"] = ("none", "none", "before_append", "after_append")[draw(4)]
         if kind == "own":
             action["owner"] = draw(2)
+        if kind == "resource_grant":
+            action["resource_permissions"] = (0, 3, 7)[draw(3)]
+        if kind == "clock":
+            action["time"] = dict(unix_ms=(0, 10, 49, 50, 51, 100)[draw(6)],
+                                  error_ms=draw(4))
+        if kind == "open_view":
+            action["deadline_ms"] = (50, 100, 200)[draw(3)]
         actions.append(action)
-    return {"version": 1, "seed": seed, "actions": actions}
+    return {"version": 1, "seed": seed,
+            "profile": "resource" if resource else "inline_state", "actions": actions}
 
 
 def compare(trace, lines):
     assert len(lines) == len(trace["actions"]), "incomplete trace output"
-    model = Model()
+    model = ResourceModel() if trace.get("profile") == "resource" else Model()
     for index, (action, actual) in enumerate(zip(trace["actions"], lines)):
         assert actual["index"] == index, "missing/reordered observation"
         expected = model.step(action)
@@ -221,7 +378,8 @@ def main():
     assert 0 < args.seeds <= 10000 and 0 < args.steps < 4096
     traces = ([json.loads(args.trace.read_text())] if args.trace else
               [json.loads(path.read_text()) for path in sorted(CORPUS.glob("*.json"))] +
-              [generated(seed, args.steps) for seed in range(1, args.seeds + 1)])
+              [generated(seed, args.steps, resource) for resource in (False, True)
+               for seed in range(1, args.seeds + 1)])
     started = time.monotonic()
     with tempfile.TemporaryDirectory(prefix="transit-properties-") as directory:
         directory = Path(directory)
@@ -244,13 +402,18 @@ def main():
             destination = ROOT / ".cache/verification/transitions"
             destination.mkdir(parents=True, exist_ok=True)
             (destination / "failure.json").write_text(json.dumps(small, indent=2) + "\n")
+            (destination / "original.json").write_text(json.dumps(trace, indent=2) + "\n")
             difference = run(args.binary, [small], directory)[0]
             (destination / "difference.json").write_text(json.dumps(difference, indent=2) + "\n")
             raise SystemExit(f"Transition invariant failed; minimized replay at {destination / 'failure.json'}")
     # Validate the minimizer itself against a schedule-dependent defect.
     assert minimize(list(range(20)), lambda values: 3 in values and 14 in values) == [3, 14]
-    evidence = {"version": 1, "profile": "single PID, one caller; authority/retry only",
-                "passed": True, "traces": len(traces), "generator": "xorshift64-v1",
+    evidence = {"version": 1, "profile": "single PID/caller; authority/retry and captured KV views",
+                "passed": True, "traces": len(traces),
+                "generators": ["xorshift64-v1", "xorshift64-resource-v1"],
+                "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+                "dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT)),
+                "binary_sha256": hashlib.sha256(Path(args.binary).read_bytes()).hexdigest(),
                 "steps": sum(len(trace["actions"]) for trace in traces),
                 "seconds": round(time.monotonic() - started, 3)}
     destination = ROOT / ".cache/verification"
