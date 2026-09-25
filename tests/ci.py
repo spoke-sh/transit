@@ -11,12 +11,12 @@ LANES = {
     "core": (
         "check-core", "test::dev-environment", "test::kubectl-transit",
         "test::deployments", "test::telemetry", "test::packages",
-        "test::arrow", "test::client-abi", "test::station", "bindings::test", "test::storage",
+        "test::arrow", "test::client-abi", "test::station", "bindings::native", "test::storage",
         "test::service", "test::runtime-upgrade", "test::callers",
         "test::inspection", "test::state",
     ),
     "experience": (
-        "transit-board::check", "test::observability",
+        "transit-board::check", "bindings::node-check", "test::observability",
         "transit-board::test", "launchers::local::test",
     ),
     "browser": ("transit-board::browser",),

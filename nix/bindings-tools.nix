@@ -3,6 +3,7 @@
   packages = with pkgs; [
     rustc
     cargo
+    rustfmt
     jdk
     dotnet-sdk
     erlang

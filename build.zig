@@ -165,6 +165,20 @@ pub fn build(b: *std.Build) void {
     binding_tests.addArtifactArg(station.artifact("transit_station"));
     binding_tests.addArtifactArg(client.artifact("transit_client"));
     binding_tests.addArtifactArg(station_host);
+    const binding_examples = b.step("bindings-examples", "Install the C and C++ Station callers");
+    inline for (.{ "c", "cpp" }) |language| {
+        const cpp = std.mem.eql(u8, language, "cpp");
+        const caller = b.addExecutable(.{ .name = "station-" ++ language ++ "-example", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true, .link_libcpp = cpp }) });
+        caller.root_module.addIncludePath(b.path("packages/zig/transit-station/include"));
+        caller.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));
+        caller.root_module.addIncludePath(b.path("packages/cpp/transit-station/include"));
+        caller.root_module.addCSourceFile(.{ .file = b.path("examples/station-bindings/" ++ language ++ "/main." ++ language), .flags = if (cpp) &.{ "-std=c++17", "-Wall", "-Wextra", "-Werror" } else &.{ "-std=c11", "-D_POSIX_C_SOURCE=200809L", "-Wall", "-Wextra", "-Werror" } });
+        caller.root_module.linkLibrary(station.artifact("transit_station"));
+        caller.root_module.linkLibrary(client.artifact("transit_client"));
+        binding_examples.dependOn(&b.addInstallArtifact(caller, .{}).step);
+        binding_tests.addArtifactArg(caller);
+    }
+    if (b.option(bool, "bindings-foreign", "Qualify additional runtimes from the bindings development shell") orelse false) binding_tests.addArg("foreign");
     binding_tests.has_side_effects = true;
     binding_tests.stdio = .inherit;
     b.step("test-bindings", "Qualify foreign Station callers against durable authority").dependOn(&binding_tests.step);

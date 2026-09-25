@@ -5,6 +5,10 @@ set working-directory := ".."
 _default:
     @just --list bindings
 
+# Install shared libraries, the native port and the C/C++ example executables.
+build:
+    zig build client-abi station-abi transit-station-host bindings-examples
+
 # Regenerate declarations and shared schemas from the reviewed Zig ABI exports.
 generate:
     just contract::client-generate contract::station-generate
@@ -14,6 +18,17 @@ check:
     just contract::client-check contract::station-check
     python3 -B bindings/generate.py
 
-# Exercise implemented adapters against isolated, disk-backed authority.
-test:
+# Qualify the native boundary and C/C++/Python callers in the normal dev shell.
+native:
     zig build test-bindings
+
+# Qualify every implemented language; enter nix develop .#bindings first.
+test:
+    cargo fmt --manifest-path packages/rust/transit-station/Cargo.toml --check
+    zig build test-bindings -Dbindings-foreign=true
+
+# Validate the Node adapter and its bounded asynchronous port transport.
+node-check:
+    cd packages/ts/transit-station && vp check
+    vp exec --filter @rey/transit-station tsc --noEmit
+    vp exec --filter @rey/transit-station node --test src/host.test.ts

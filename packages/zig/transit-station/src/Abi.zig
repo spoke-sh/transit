@@ -5,6 +5,7 @@ const p = s.protocol;
 pub const actions = @import("Actions.zig");
 pub const host = @import("HostProtocol.zig");
 pub const version: u32 = 1;
+pub const minimum_stack_bytes: usize = 8 * 1024 * 1024;
 pub const Status = enum(u32) { ok = 0, invalid_argument = 1, out_of_memory = 2, rejected = 3, denied = 4, conflict = 5, uncertain = 6, unavailable = 7, invalid_response = 8, busy = 9, incompatible_version = 10, stale_activation = 11, blocked = 12, not_ready = 13, budget_exceeded = 14 };
 pub const Server = opaque {};
 pub const Buffer = opaque {};
@@ -160,7 +161,14 @@ pub const Api = struct {
             event.resource = turn.view.resource;
             event.resource_revision = turn.view.revision;
         }
-        output(event, out) catch |err| return status(err); // keep event until copied
+        output(event, out) catch |err| {
+            // Keep the event for the next call, but a foreign host losing this
+            // handle must not interpret response-allocation failure as rejection.
+            return switch (server.event.?) {
+                .progress, .committed, .blocked => .uncertain,
+                .idle, .ready => status(err),
+            };
+        };
         server.event = null;
         return .ok;
     }

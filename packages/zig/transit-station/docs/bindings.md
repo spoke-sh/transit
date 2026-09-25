@@ -42,6 +42,16 @@ first. All non-null pointers must be valid, lengths must match their allocations
 and native buffers are not NUL terminated. `station_buffer_data/size` borrow
 bytes until exactly one `station_buffer_destroy`. No callback crosses the ABI.
 
+The qualified Debug build requires an **8 MiB calling-thread stack**, published
+as `minimum_stack_bytes`/`STATION_MINIMUM_STACK_BYTES`. The Rust default 2 MiB
+worker stack failed the real service proof; its adapter supplies an explicit
+worker with the generated budget. Use that worker, a suitably configured native
+thread, or the port. Do not call into this build on small executor/green stacks.
+Bound the number of native workers as well as their stack size. The host port
+uses the ordinary Linux process stack. Smaller native stack requirements need
+a separate allocation refactor and qualification; optimized builds alone are
+not evidence for lowering this declared bound.
+
 Calls are synchronous and deadline-bounded; adapters move them off event loops
 and BEAM schedulers. Cancelling an await never proves that a submitted request
 was cancelled. Keep the handle alive until native work returns. A fresh host
@@ -75,7 +85,10 @@ without another parser: slash-separated object keys/array indices, JSON or raw
 string output. It is deliberately not a complete JSON Pointer implementation
 and has no escaping syntax. Returned raw strings may contain NUL bytes.
 
-`zig build test-bindings` currently qualifies the Python adapter and native port,
+`just bindings::native` qualifies C/C++/Python and the native port,
 including a real handler/Table exchange, exact pending retry after handle loss,
 failed-turn rollback, fencing/revocation, full-width data and cancellation while
-native I/O is blocked. The complete language matrix remains M9 work.
+native I/O is blocked. `just bindings::test` in the bindings shell additionally
+qualifies Rust, Node and Java through cross-language service/requester pairs.
+Node also checks its schemas/transport independently. .NET and BEAM remain work
+in progress; the complete language/failure matrix remains M9 work.

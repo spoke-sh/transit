@@ -11,9 +11,13 @@ resources. `just bindings::check` rejects drift. The
 contract; the [native port](../apps/transit-station-host/README.md) supplies a
 versioned child-process route for Node, Java and BEAM.
 
-The Python adapter and native host proof are implemented. C/C++, Rust, Node,
-Java, .NET and Elixir/Erlang adapters and the complete cross-language matrix are
-still M9 work. [The examples](../examples/station-bindings/README.md) use real
+The [C/C++](../packages/cpp/transit-station/README.md),
+[Rust](../packages/rust/transit-station/README.md),
+[Python](../packages/python/transit-station/README.md),
+[Node](../packages/ts/transit-station/README.md) and
+[Java](../packages/java/transit-station/README.md) adapters exchange real Table
+queries across languages. .NET and Elixir/Erlang adapters and the complete
+adversarial matrix are still M9 work. [The examples](../examples/station-bindings/README.md) use real
 authority and Arrow data, not language-specific server routes. Public package
 registry releases and non-Linux platforms are not qualified yet.
 
@@ -29,7 +33,7 @@ shell. The current Linux x86_64 baselines are:
 | Zig / C / C++ | 0.17.0-dev.2267+48abf1a34 |
 | Python | CPython 3.13.15; PyArrow 23.0.0 for independent IPC checks |
 | Rust / Cargo | 1.95.0 |
-| Node.js | 24 from the existing frontend toolchain |
+| Node.js | 24.21.0 from the existing frontend toolchain |
 | Java | OpenJDK 21.0.12.1+1; Gson 2.12.1, separately checksummed |
 | .NET SDK | 8.0.425 |
 | Erlang | OTP 28.5.0.6 |

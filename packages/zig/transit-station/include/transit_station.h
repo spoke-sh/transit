@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 #define STATION_ABI_VERSION 1u
+#define STATION_MINIMUM_STACK_BYTES 8388608u
 typedef struct station_server station_server;
 typedef struct station_buffer station_buffer;
 #define STATION_STATUS_OK 0u

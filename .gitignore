@@ -20,3 +20,4 @@ coverage/
 *.log
 __pycache__/
 *.pyc
+target/

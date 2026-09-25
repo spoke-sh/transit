@@ -8,7 +8,7 @@ pub fn field(out: *std.json.Stringify, name: []const u8, value: anytype) !void {
 pub fn schema(comptime T: type, out: *std.json.Stringify) std.Io.Writer.Error!void {
     return write(T, out, .{});
 }
-pub const Options = struct { output: bool = false, safe_integers: bool = false };
+pub const Options = struct { output: bool = false, safe_integers: bool = false, text_max_length: usize = 256 };
 pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
     @setEvalBranchQuota(100000);
     try out.beginObject();
@@ -28,7 +28,7 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
         .pointer => |info| {
             if (info.size != .slice or info.child != u8) @compileError("Only text slices are public wire pointers");
             try field(out, "type", "string");
-            try field(out, "maxLength", 256);
+            try field(out, "maxLength", options.text_max_length);
         },
         .bool => try field(out, "type", "boolean"),
         .void => {

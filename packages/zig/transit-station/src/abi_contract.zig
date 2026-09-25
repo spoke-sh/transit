@@ -20,6 +20,7 @@ pub fn main(init: std.process.Init) !void {
     var out: std.json.Stringify = .{ .writer = &writer.interface, .options = .{ .whitespace = .indent_2 } };
     try out.beginObject();
     try s.protocol.Schema.field(&out, "version", abi.version);
+    try s.protocol.Schema.field(&out, "minimum_stack_bytes", abi.minimum_stack_bytes);
     try out.objectField("statuses");
     try out.beginObject();
     inline for (@typeInfo(abi.Status).@"enum".field_names, @typeInfo(abi.Status).@"enum".field_values) |name, value| try s.protocol.Schema.field(&out, name, value);
@@ -42,7 +43,10 @@ pub fn main(init: std.process.Init) !void {
     try out.beginObject();
     inline for (.{ "Config", "Action", "Result", "Event", "ArrowCell", "HostConfig", "HostRequest" }, .{ abi.Config, abi.actions.Action, abi.actions.Result, abi.Event, abi.actions.ArrowCell, abi.host.Config, abi.host.Request }) |name, T| {
         try out.objectField(name);
-        try s.protocol.Schema.write(T, &out, .{ .safe_integers = true });
+        // Foreign text includes whole frozen requests and IPC encoded as hex.
+        // It is not the kernel's 256-byte opaque Value. Domain helpers impose
+        // their narrower field budgets, and the host bounds the complete line.
+        try s.protocol.Schema.write(T, &out, .{ .safe_integers = true, .text_max_length = s.protocol.max_body * 2, .output = T == abi.Event or T == abi.actions.Result or T == abi.actions.ArrowCell });
     }
     try out.endObject();
     try out.endObject();

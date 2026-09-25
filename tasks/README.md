@@ -7,7 +7,8 @@ Run commands from the repository root inside `nix develop`.
 The root [justfile](../justfile) keeps common commands: `check`, `ci-clean`,
 `fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
 [build](build.just), [launchers](launchers.just), [test](test.just),
-[examples](examples.just), [contract](contract.just), [ci](ci.just), and [transit-board](transit-board.just).
+[examples](examples.just), [contract](contract.just), [ci](ci.just),
+[bindings](bindings.just), and [transit-board](transit-board.just).
 Use double colons, for example `just launchers::reference::up` or `just examples::run counter`.
 Space-separated module paths also work: `just build debug` is equivalent to
 `just build::debug`.

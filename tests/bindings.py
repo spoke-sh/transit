@@ -73,14 +73,43 @@ def pair(node, cli, courier, library, raw_library, host, service_command, reques
             once(1)
         assert observed() == b"9007199254740993", label
         once(0)  # acknowledgement, without deleting the result
-        print(f"Bindings {label}: handler, associated Table, correlation, host restart and exact Arrow int64 passed")
+        print(f"Bindings {label}: handler, associated Table, correlation, host restart and exact Arrow int64 passed", flush=True)
 
 
-def run(node, cli, courier, library, raw_library, host):
+def run(node, cli, courier, library, raw_library, host, c, cpp, *extra):
     from station_abi import run as abi_proof
     abi_proof(node, cli, library, raw_library, host)
     python = [sys.executable, str(ROOT / "examples/station-bindings/python/main.py")]
     pair(node, cli, courier, library, raw_library, host, python, python, "Python")
+    pair(node, cli, courier, library, raw_library, host, [c], [cpp], "C → C++")
+    pair(node, cli, courier, library, raw_library, host, [cpp], python, "C++ → Python")
+    pair(node, cli, courier, library, raw_library, host, python, [c], "Python → C")
+    if extra:
+        assert extra == ("foreign",)
+        libraries = ROOT / ".cache/bindings/lib"
+        libraries.mkdir(parents=True, exist_ok=True)
+        for name, source in (("station", library), ("client", raw_library)):
+            path = libraries / f"libtransit_{name}.so"
+            path.unlink(missing_ok=True)
+            path.symlink_to(Path(source).resolve())
+        target = ROOT / ".cache/bindings/rust"
+        env = os.environ | {"TRANSIT_LIBRARY_DIR": str(libraries), "CARGO_TARGET_DIR": str(target)}
+        subprocess.run(["cargo", "build", "--locked", "--manifest-path", ROOT / "packages/rust/transit-station/Cargo.toml", "--example", "station"], env=env, check=True)
+        rust = [target / "debug/examples/station"]
+        pair(node, cli, courier, library, raw_library, host, rust, [cpp], "Rust → C++")
+        pair(node, cli, courier, library, raw_library, host, [c], rust, "C → Rust")
+        nodejs = ["node", ROOT / "examples/station-bindings/node/main.ts"]
+        pair(node, cli, courier, library, raw_library, host, nodejs, rust, "Node → Rust")
+        pair(node, cli, courier, library, raw_library, host, python, nodejs, "Python → Node")
+        classes = ROOT / ".cache/bindings/java"
+        classes.mkdir(parents=True, exist_ok=True)
+        gson = os.environ["TRANSIT_GSON_JAR"]
+        sources = list((ROOT / "packages/java/transit-station/src").rglob("*.java"))
+        subprocess.run(["javac", "-Xlint:all,-classfile", "-Werror", "-cp", gson, "-d", classes,
+                        *sources, ROOT / "examples/station-bindings/java/StationExample.java"], check=True)
+        java = ["java", "-cp", str(classes) + os.pathsep + gson, "StationExample"]
+        pair(node, cli, courier, library, raw_library, host, java, nodejs, "Java → Node")
+        pair(node, cli, courier, library, raw_library, host, rust, java, "Rust → Java")
 
 
 if __name__ == "__main__":
