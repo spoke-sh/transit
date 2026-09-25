@@ -88,10 +88,11 @@ def run(node, cli, library, raw_library, host):
         s.command({"terminate": pid})
         with GenServer(libraries, s.url, seed, config) as retired:
             assert rejects(3, retired.next)["err"] == "ProcessTerminated"
-        deadline = int(time.time() * 1000) + 1500
+        deadline = int(time.time() * 1000) + 15000
         finite = s.command({"spawn": {"deadline_ms": deadline, "settle_before_ms": deadline + 1000}})
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 88, "pid": finite}})
-        while int(time.time() * 1000) <= deadline + 10050: time.sleep(.05)
+        # Expiry is after settlement, including the whole admitted clock error.
+        while int(time.time() * 1000) <= deadline + 1000 + 10050: time.sleep(.05)
         s.command({"expire": finite})
         with GenServer(libraries, s.url, seed, {**config, "pid": finite}) as expired:
             assert rejects(3, expired.next)["err"] == "ProcessExpired"

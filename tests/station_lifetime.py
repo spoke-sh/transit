@@ -60,7 +60,9 @@ def run(node, cli, worker):
         key = b"\x00r" + (1).to_bytes(4, "little") + ((1 << 63) + 1).to_bytes(8, "big")
         row = bytes.fromhex(query("entries", key=key.hex())["entries"][0]["value"])
         assert int.from_bytes(row[2:], "little", signed=True) == 12
-        bound = int(time.time() * 1000) + 1500
+        # Admission must also fit the full configured uncertainty bound, not
+        # just the smaller error reported by a particular developer machine.
+        bound = int(time.time() * 1000) + 15000
         s.command({"lifecycle": {"suspend": {"pid": pid, "expected_generation": 6, "resume_before_ms": bound}}})
         # The profile admits up to 10s of trusted-clock uncertainty. Wait beyond
         # that full bound; local wall time alone is not proof of known expiry.
