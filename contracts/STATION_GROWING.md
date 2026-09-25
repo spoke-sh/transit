@@ -11,8 +11,9 @@ A growing behavior resolves one required named association and captures its
 writable resource through the public client. A handler reads individual keys
 through that view and retains at most four private mutations and four outputs.
 It never receives a complete resource snapshot. Typed Table point operations
-share the same codec and transaction semantics as Station v1. Query paging and
-large retained Arrow results require separate qualification within M10.
+share the same codec and transaction semantics as Station v1. Bounded Table
+iteration returns at most eight typed rows and an explicit continuation. Query
+execution and large retained Arrow results require further qualification in M10.
 
 Each state read enforces current authority and checks the exact captured view.
 Private writes take precedence over captured values. Read/transport failures
@@ -26,7 +27,15 @@ the kernel failure marker. Initialization and the first successfully handled
 input commit together. The descriptor is `station.genserver.growing.v1` at
 `00 station`; an incompatible descriptor is an explicit error.
 
+Table page continuations name the captured view, resource, resource revision,
+Table, schema fingerprint and exclusive signed row key. They are local query
+state, not bearer capabilities or restartable jobs. Every page still needs the
+current captured-read authorization. Iteration excludes private mutations and
+must preserve its view until completion or explicit failure. A page boundary
+does not establish a complete Arrow result or a transaction over another input.
+
 ## Calls and lifetimes
+
 
 Message framing and authenticated reply rules remain `STN1`. Durable waits use
 the same `00 w <correlation:u64le>` keys with a version-2, 34-byte value:

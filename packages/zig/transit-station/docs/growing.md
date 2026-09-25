@@ -54,9 +54,24 @@ deployment isolation remains necessary for untrusted native code.
 
 `Table.create/open`, point reads/mutations and `Table.atomic` accept either turn
 profile. They share codecs, type checks and rollback rules. `scan`, `snapshot`
-and captured query results remain legacy-only until paged query execution and
-result capture are qualified. No helper promises to fit a whole growing Table
-into the old Fuze snapshot.
+and captured query results remain legacy-only. No helper promises to fit a whole
+growing Table into the old Fuze snapshot.
+
+`GrowingTurn.page(after)` reads at most eight committed KV entries; private
+mutations must be absent. `Table.page(turn, cursor)` decodes a bounded batch of
+typed rows and stops at that Table's key boundary. Its returned `next` binds the
+view ID, resource, revision, Table and schema. Passing it to another view or
+Table fails with `StaleTableCursor`. Only null establishes completion; an empty
+final page is possible. Keep one captured view throughout iteration. Failure or
+expiry cannot silently recapture a newer version, and read failures poison the
+private proposal as point reads do.
+
+These methods expose bounded iteration, not an unbounded query response or a
+paged Fuze execution engine. Existing view lifetime and turn budgets still apply.
+Long queries, resumable result capture, whole-query limits/aggregates and retained
+Arrow batches need their own durable progress and complete-result evidence before
+M10 can qualify them. A Table cursor does not preserve a native stack across a
+worker restart or extend its view's lifetime.
 
 Durable wait version 2 retains full-width timer principal identities. `Waiting`
 shares cancellation, timeout and authenticated-source checks across both profiles.
@@ -80,3 +95,9 @@ proves the bounded behavior path, not production throughput, growing registries,
 query results, runtime integration or foreign ABI support. The test explicitly
 delivers committed outboxes through the public client; it does not qualify a
 growing background courier.
+
+The recovered writer also scans its 41 typed rows in six bounded pages before
+committing a completion count. The proxy rejects unrequested whole-resource
+reads during ordinary calls and checks that scan continuations stay in the
+Table's key range. Unit checks add negative/extreme keys, neighboring Tables,
+stale views/schemas, private-write exclusion and mid-scan transport failure.

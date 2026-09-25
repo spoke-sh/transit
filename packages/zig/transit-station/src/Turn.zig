@@ -8,9 +8,11 @@ pub const Legacy = Type(false);
 pub const Growing = Type(true);
 pub const WaitPhase = enum(u8) { waiting = 1, replied = 2, timed_out = 3, cancelled = 4 };
 const Entries = [p.State.max_entries]?p.State.Entry;
+pub const Page = p.Growth.Batch(p.Growth.Entry, p.Value);
 pub const Reader = struct {
     context: *anyopaque,
     read: *const fn (*anyopaque, p.Growth.View, p.Value) anyerror!?p.Value,
+    page: ?*const fn (*anyopaque, p.Growth.View, ?p.Value) anyerror!Page = null,
 };
 pub fn Type(comptime growing: bool) type {
     return struct {
@@ -101,6 +103,18 @@ pub fn Type(comptime growing: bool) type {
         pub fn put(self: *Turn, key: p.Value, value: p.Value) !void {
             try userKey(key);
             try self.write(key, value);
+        }
+        /// One page of committed state. Private mutations cannot be silently
+        /// mixed into a query over a captured version.
+        pub fn page(self: *Turn, after: ?p.Value) !Page {
+            if (!growing) @compileError("Paged reads require the growing profile");
+            if (self.read_error) |err| return err;
+            for (self.decision.mutations) |slot| if (slot != null) return error.QueryAfterMutation;
+            const scan = self.reader.page orelse return error.UnsupportedStateScan;
+            return scan(self.reader.context, self.view, after) catch |err| {
+                self.read_error = err;
+                return err;
+            };
         }
         pub fn delete(self: *Turn, key: p.Value) !void {
             try userKey(key);

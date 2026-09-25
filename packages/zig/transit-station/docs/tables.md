@@ -7,6 +7,11 @@ proposal on failure, including a cross-resource or distinct-key budget error.
 It never splits a transaction. Queries select a committed snapshot; querying
 after private mutations is rejected. Commit changes and query on a later input.
 
+The explicit [growing profile](growing.md) shares these point operations and adds
+`Table.page` with bounded typed batches and captured-view continuations. It does
+not yet use the captured Arrow result protocol described below; that protocol's
+fixed result-size limits remain specific to Station v1.
+
 Descriptors use key `00 t <table:u32le>` and `TBL1`, value-type byte, then two
 length-prefixed column names. Rows use `00 r <table:u32le> <key:u64be>`, where
 the signed key's high bit is flipped to preserve numeric order. Values start

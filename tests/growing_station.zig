@@ -55,6 +55,24 @@ const Handler = struct {
         const self = context(raw);
         self.handled += 1;
         if (self.writer) {
+            if (frame.kind == .cast and std.mem.eql(u8, frame.payload.slice(), "scan")) {
+                const table = try station.Table.open(turn, 1);
+                var cursor: ?station.Table.Cursor = null;
+                var count: usize = 0;
+                while (true) {
+                    const page = try table.page(turn, cursor);
+                    for (page.rows[0..page.len]) |row| {
+                        try t.expectEqual(@as(i64, @intCast(count)), row.key);
+                        try t.expectEqual(row.key * 2, row.value.int64);
+                        count += 1;
+                    }
+                    cursor = page.next;
+                    if (cursor == null) break;
+                }
+                try t.expectEqual(@as(usize, Count + 1), count);
+                try turn.put(try p.Value.init("scanned"), p.Value.integer(@intCast(count)));
+                return;
+            }
             if (frame.kind != .call) return error.ExpectedCall;
             const table = try station.Table.open(turn, 1);
             const index = try frame.payload.asInteger();
@@ -219,6 +237,11 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqual(@as(usize, 0), request_handler.initialized + write_handler.initialized);
         try t.expectEqual(@as(usize, 2), request_handler.handled + write_handler.handled);
         try verify(&admin, expected, Count + 1);
+        _ = try admin.submit(.{ .send = .{ .pid = expected.writer, .value = try (station.Frame{ .kind = .cast, .payload = try p.Value.init("scan") }).encode() } });
+        _ = try drive(init.io, &write_server, &write_handler, false);
+        const resource = (try admin.query(.{ .resource = expected.rows })).body.resource;
+        const scanned = (try admin.query(.{ .entries = .{ .resource = resource.id, .revision = resource.revision, .key = try p.Value.init("scanned") } })).body.entries.page.entries[0].?;
+        try t.expectEqual(@as(i64, Count + 1), try scanned.value.asInteger());
     } else return error.UnknownPhase;
     try output.interface.print("Growing Station {s}: passed\n", .{args[2]});
     try output.interface.flush();

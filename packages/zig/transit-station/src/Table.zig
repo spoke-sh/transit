@@ -141,6 +141,42 @@ pub const Snapshot = struct {
         return .{ .basis = self.basis, .schema = self.schema, .rows = self.rows[0..self.len] };
     }
 };
+/// Local continuation, not a bearer capability. It cannot be reused with a
+/// different view, resource, Table or schema to silently mix query versions.
+pub const Cursor = struct {
+    view: u64,
+    resource: u64,
+    revision: u64,
+    table: u32,
+    schema: [32]u8,
+    after: i64,
+};
+pub const Page = struct {
+    rows: [p.Growth.page_size]m.Row = undefined,
+    len: u8 = 0,
+    basis: m.Basis,
+    next: ?Cursor = null,
+};
+pub fn page(self: Table, turn: *@import("Turn.zig").Growing, cursor: ?Cursor) !Page {
+    const fingerprint = try self.schema.fingerprint();
+    if (cursor) |previous| {
+        if (previous.view != turn.view.id or previous.resource != self.resource or
+            previous.revision != turn.view.revision or previous.table != self.id or
+            !std.mem.eql(u8, &previous.schema, &fingerprint)) return error.StaleTableCursor;
+    }
+    try self.check(turn);
+    const prefix = try p.Value.init(rowKey(self.id, 0).data[0..6]);
+    const batch = try turn.page(if (cursor) |previous| rowKey(self.id, previous.after) else prefix);
+    var result: Page = .{ .basis = .{ .resource = self.resource, .revision = turn.view.revision, .schema = fingerprint } };
+    for (batch.entries) |slot| if (slot) |entry| {
+        if (!std.mem.startsWith(u8, entry.key.slice(), prefix.slice())) return result;
+        if (entry.key.len != 14) return error.InvalidTableRow;
+        result.rows[result.len] = .{ .key = @bitCast(std.mem.readInt(u64, entry.key.data[6..14], .big) ^ (@as(u64, 1) << 63)), .value = try self.decodeCell(entry.value) };
+        result.len += 1;
+    };
+    if (batch.next != null and result.len != 0) result.next = .{ .view = turn.view.id, .resource = self.resource, .revision = turn.view.revision, .table = self.id, .schema = fingerprint, .after = result.rows[result.len - 1].key };
+    return result;
+}
 pub fn scan(self: Table, turn: *const Turn, rows: *[m.max_rows]m.Row) !u8 {
     try self.check(turn);
     var keys: [p.State.max_entries + p.State.max_mutations]p.Value = undefined;

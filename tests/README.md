@@ -818,6 +818,11 @@ proof uses the default bounded cache for exchange, one resident backend page
 after restart, and explicit public-client delivery. It
 does not qualify growing query results, background courier, registries,
 supervision, runtime bindings, quotas or foreign APIs.
+After restart, the writer also reads all 41 Table rows in six typed pages before
+committing its completion count. Continuations cannot change view, resource,
+Table or schema; unit cases cover extreme keys, a neighboring Table, caught scan
+failure and exclusion of private writes. This is paged state access, not yet
+large-result capture or whole-query execution.
 
 The same service task runs growing maintenance on one CPU with owned proxy
 faults: kill after an accepted snapshot loses its reply, then restart from the

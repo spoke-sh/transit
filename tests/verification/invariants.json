@@ -493,7 +493,11 @@
         "Real retained calls and Table rows survive caller/node/provider restart beyond 32 keys",
         "Caught malformed state response cannot publish private work or a failure marker",
         "Lost accepted turn response retries exact signed bytes without rerunning a handler",
-        "Fresh ownership fences an old prepared turn and skips committed initialization"
+        "Fresh ownership fences an old prepared turn and skips committed initialization",
+        "Typed bounded Table pages preserve order across negative and extreme keys without entering a neighboring Table",
+        "Table continuations reject changed views, resources, Tables and schemas",
+        "Private writes cannot enter a committed query scan; scan failures poison publication",
+        "Real recovered writer scans 41 rows in six pages before committing completion"
       ],
       "limits": "No growing query/result capture, registries, supervision, runtime bindings, foreign ABIs or scale SLO. Real service proof uses explicit public-client outbox delivery and a one-page cache after restart; it does not qualify a growing background courier.",
       "model": null

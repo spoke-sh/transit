@@ -22,7 +22,8 @@ def run(node, caller, *, resident_pages=16):
             "ursula_url": fixture.url, "bucket": "growing-station", "journal": "authority",
             "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
         manifest = fixture.root / "pending.json"
-        fault = {"read": False, "pending": None, "receipt": None, "retried": False, "point_reads": 0}
+        fault = {"read": False, "pending": None, "receipt": None, "retried": False,
+                 "point_reads": 0, "scan_allowed": False, "page_reads": 0}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -40,14 +41,24 @@ def run(node, caller, *, resident_pages=16):
                         query = envelope["query"]
                         entries = query["kind"].get("entries")
                         if query["principal"] != 0 and entries is not None:
-                            assert entries.get("key") is not None, "Handler materialized a resource"
-                            fault["point_reads"] += 1
-                            if entries["key"] == b"read-fault".hex() and not fault["read"]:
+                            if entries.get("key") is None:
+                                assert fault["scan_allowed"], "Handler materialized a resource before a scan request"
+                                assert entries.get("view") is not None
+                                assert entries.get("after", "").startswith(b"\x00r\x01\x00\x00\x00".hex())
+                                fault["page_reads"] += 1
+                            else:
+                                fault["point_reads"] += 1
+                            if entries.get("key") == b"read-fault".hex() and not fault["read"]:
                                 assert response.status == 200
                                 changed = json.loads(data)
                                 changed["realm"] += 1
                                 data = json.dumps(changed).encode()
                                 fault["read"] = True
+                    elif self.path == "/v3/command" and "send" in envelope["request"]["command"]:
+                        sent = envelope["request"]["command"]["send"]["value"]
+                        if sent == (b"STN1\x01" + bytes(8) + b"scan").hex():
+                            assert envelope["request"]["principal"] == 0
+                            fault["scan_allowed"] = True
                     elif self.path == "/v3/command" and "turn" in envelope["request"]["command"]:
                         if fault["pending"] is None:
                             assert response.status == 200
@@ -102,6 +113,7 @@ def run(node, caller, *, resident_pages=16):
             authority = start()
             started = time.monotonic()
             subprocess.run([caller, proxy_url, "recover", str(manifest)], check=True, timeout=60)
+            assert fault["page_reads"] == 6, "Expected bounded, ordered Table pages after recovery"
             print("Growing Station timing:", json.dumps({
                 "write_resident_pages": resident_pages, "recover_resident_pages": 1,
                 "write_seconds": write_seconds,
