@@ -54,6 +54,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
 | `just test::properties [--seeds N --steps N]` | Runs saved and generated authority schedules; failures retain a minimized replay trace |
+| `just test::growing-quota` | Checks service/Station admission refusal, retained backlog and reserve exhaustion across disk restart |
+| `just test::growing-capacity` | Uses an owned Docker/ext4 fixture to qualify growing pages, ENOSPC, physical reserve release and control/recovery progress |
 | `just test::pages [--keys N --cache N --layout packed\|closed]` | Checks immutable page roots through disk restart and checkpoint/trim with a bounded cache; records measurements |
 | `just test::pages-cold [--keys N --cache N]` | Linux/Docker: repeats the page proof with an owned persistent S3-compatible cold store and measures both providers |
 | `just test::growing [--rows N --cold-s3]` | Proves v3 growing-authority atomic publication, retained reads/receipts and restart/checkpoint/trim against disk Ursula; service integration remains separate |

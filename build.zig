@@ -232,11 +232,25 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
     }) });
     growing_service.addArtifactArg(growing_query);
+    const growing_quota = b.addExecutable(.{ .name = "transit-growing-quota-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/growing_quota.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+    }) });
+    growing_service.addArtifactArg(growing_quota);
     const growing_build = b.step("test-growing-service-build", "Compile growing service proof binaries without executing scenarios");
-    for ([_]*std.Build.Step.Compile{ node_artifact, growing_client, growing_station, growing_query }) |artifact| growing_build.dependOn(&artifact.step);
+    for ([_]*std.Build.Step.Compile{ node_artifact, growing_client, growing_station, growing_query, growing_quota }) |artifact| growing_build.dependOn(&artifact.step);
     growing_service.has_side_effects = true;
     growing_service.stdio = .inherit;
     b.step("test-growing-service", "Prove the explicit growing node/client profile over signed HTTP").dependOn(&growing_service.step);
+    const quota_proof = b.addSystemCommand(&.{ "python3", "-B" });
+    quota_proof.addFileArg(b.path("tests/growing_quota.py"));
+    quota_proof.addArtifactArg(node_artifact);
+    quota_proof.addArtifactArg(growing_quota);
+    quota_proof.has_side_effects = true;
+    quota_proof.stdio = .inherit;
+    b.step("test-growing-quota", "Focus service and Station quota/recovery behavior").dependOn(&quota_proof.step);
     const growing_behavior = b.addSystemCommand(&.{ "python3", "-B" });
     growing_behavior.addFileArg(b.path("tests/growing_station.py"));
     growing_behavior.addArtifactArg(node_artifact);
@@ -440,4 +454,15 @@ pub fn build(b: *std.Build) void {
     }) });
     b.step("capacity-proof", "Install the physical storage pressure proof driver").dependOn(&b.addInstallArtifact(capacity, .{}).step);
     build_test_step.dependOn(&capacity.step);
+    const growing_capacity = b.addExecutable(.{ .name = "transit-growing-capacity-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/growing_capacity.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "transit_core", .module = core.module("transit_core") },
+            .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
+        },
+    }) });
+    b.step("growing-capacity-proof", "Install the growing physical pressure proof driver").dependOn(&b.addInstallArtifact(growing_capacity, .{}).step);
+    build_test_step.dependOn(&growing_capacity.step);
 }

@@ -120,10 +120,20 @@ signed `capabilities` query now returns `admission_ceiling` and
 compute remaining ordinary and control-reserve headroom directly instead of
 discovering the boundary by provoking `AdmissionClosed`/`ControlCapacity` —
 proved by reading it back at three points (before, at the ceiling, and once
-the reserve is exhausted) in the same test. It does not close CAP-01's second
-scenario for the growing profile: no proof yet exercises a real
-physical-storage/ENOSPC condition against disk Ursula, and
-`apps/transit-node`'s JSON config accepts the new `Genesis` fields (they
-deserialize like any other field, defaulting when absent) without yet
-documenting or qualifying an operational profile — or a Station/client-level
-ergonomic surface — around them.
+the reserve is exhausted) in the same test.
+
+`test::growing-capacity` additionally qualifies a real disk Ursula profile:
+96 admission positions, a 96-position reserve, one resident page, 40 retained
+rows and a separately preallocated 1 GiB physical reserve in an owned 2 GiB ext4
+filesystem. ENOSPC refuses publication without losing accepted work. Releasing
+only that reserve permits revocation, opted-in expiry, effect closure, backlog
+drain and checkpoint/trim. SIGKILL/restart recovers the same state and receipts
+without writes. The [proof guide](../../../../tests/README.md#growing-physical-capacity)
+records amplification and limits; this is not a worst-case formula for arbitrary
+growing catalogs or a claim that the node reserves disk automatically.
+
+`test::growing-quota` qualifies the node/client/Station boundary separately.
+An output-free turn with an existing view can commit from the reserve; the next
+input remains durable when opening a new view is refused. Restart preserves the
+pending request and backlog. Exhausting the reserve through signed controls
+still permits authorized reads; neither exhaustion nor revocation consumes input.

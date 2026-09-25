@@ -142,13 +142,15 @@
       "profile": "transit-v2/state-v1/station-v1",
       "tasks": [
         "test::unit",
-        "test::capacity"
+        "test::capacity",
+        "test::growing-capacity",
+        "test::growing-quota"
       ],
       "scenarios": [
         "Admission ceiling with outstanding input",
         "Real ENOSPC followed by revocation and restart"
       ],
-      "limits": "Finite legacy reserve formula; see GROWTH-11 for the growing profile's admission accounting. Real ENOSPC/overload qualification for the growing profile remains outstanding.",
+      "limits": "Legacy derived reserve and separately configured growing reserve have finite real ENOSPC proofs. Their owned ext4 fixtures preallocate physical headroom; nodes do not provision it automatically. GROWTH-11 covers growing service/Station quota semantics. No arbitrary workload worst-case sizing claim.",
       "model": null
     },
     {
@@ -630,13 +632,17 @@
       ],
       "profile": "transit-v3 development control slice; not running service",
       "tasks": [
-        "test::unit"
+        "test::unit",
+        "test::growing-capacity",
+        "test::growing-quota"
       ],
       "scenarios": [
         "Admission ceiling with outstanding input, reserve exhaustion and restart",
-        "Signed capabilities query reports ceiling/reserve headroom before, at and past the ceiling"
+        "Signed capabilities query reports ceiling/reserve headroom before, at and past the ceiling",
+        "Real ENOSPC, physical reserve release, retained rows/receipts, backlog drain, checkpoint/trim and SIGKILL recovery",
+        "Station pending view and accepted backlog survive public quota refusal, restart and reserve exhaustion"
       ],
-      "limits": "Explicit configured control_reserve band, not a formula derived from fixed catalog sizes (growing catalogs are unbounded, so no such formula exists). No idempotency guard against spending the reserve on redundant revoke/checkpoint calls, unlike the legacy profile's. The signed capabilities query now returns admission_ceiling/control_reserve so headroom is directly readable. No real ENOSPC/physical-capacity proof or Station/client-level ergonomic surface yet.",
+      "limits": "Finite single-authority capacity profile: 96 admission and 96 control positions on owned 2 GiB ext4 with a preallocated 1 GiB physical reserve. Separate one-CPU Station service proof uses 24 plus 4 positions. Bounds are deployment policy; no automatic physical provisioning or arbitrary-scale reserve guarantee.",
       "model": null
     },
     {

@@ -96,6 +96,11 @@ capacity:
     zig build capacity-proof
     nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-capacity-proof
 
+# Linux/Docker: retain growing pages/backlog through real ENOSPC and reserve use.
+growing-capacity:
+    zig build growing-capacity-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-growing-capacity-proof --growing
+
 # Exercise bounded discovery and retained inspection through the public client.
 inspection:
     zig build test-inspection
@@ -119,6 +124,10 @@ growing *args:
 # Exercise the explicit v3 node/client profile and lost replies on one CPU.
 growing-service:
     zig build test-growing-service
+
+# Focus service/Station quota refusal and reserved control progress after restart.
+growing-quota:
+    zig build test-growing-quota
 
 # Focus incremental Arrow capture, lost receipts and two disk recovery boundaries.
 [positional-arguments]

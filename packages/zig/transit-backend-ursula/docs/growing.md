@@ -78,9 +78,12 @@ The page cache is bounded, but fanout, path-copy and protocol-operation request
 amplification remain substantial. This is not millisecond execution evidence.
 The node now composes a separate bounded maintenance process and qualifies its
 snapshot-reply loss, trim timeout, current revocation and restart through
-`just test::growing-service`. Framework handler/result paging,
-quotas/control reserve, runtime bindings and migration tooling remain
-M10 work. Old deployed v2 history stays on its explicit legacy path; rejection
+`just test::growing-service`. Its separate Station scenarios qualify bounded
+handler/result paging. Runtime bindings and migration tooling remain outside the
+qualified growing profile.
+The [finite capacity proof](../../../../tests/README.md#growing-physical-capacity)
+now covers one-page-cache state through real ENOSPC, reserved control writes,
+root trim and read-only restart. Old deployed v2 history stays on its explicit legacy path; rejection
 of incompatible formats is not a completed migration facility.
 
 Initial local Debug evidence (single runs, not a latency distribution):

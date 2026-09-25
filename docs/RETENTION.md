@@ -300,8 +300,11 @@ accounting for that engine specifically; see
 for why growing's unbounded catalogs rule out reusing the legacy formula. The
 signed `capabilities` query now returns the configured ceiling/reserve so
 remaining headroom is directly readable, not just inferable from errors. What
-remains open: no physical-capacity/ENOSPC proof, and no `apps/transit-node` or
-Station-level operational profile around the new fields yet.
+is qualified: a [finite physical-capacity proof](../tests/README.md#growing-physical-capacity)
+with real ENOSPC, retained pages, reserved control progress and disk recovery,
+plus node/Station quota refusal and reserve exhaustion across restart. The node
+does not allocate physical headroom automatically; capacity beyond that declared
+workload still requires its own provisioning and measurements.
 
 The M1 [immutable payload profile](../packages/zig/transit-backend-ursula/docs/storage.md#immutable-payload-deletion)
 implements opted-in whole-stream deletion after permanent owner retirement,

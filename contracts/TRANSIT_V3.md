@@ -29,8 +29,8 @@ cursor queries before signing. Encoded requests are bounded at 8 KiB.
 
 Legacy signatures, grant identities, checkpoints, slot cursors and ABI structs
 are not v3 values. A realm must select its profile explicitly; automatic migration,
-mixed-profile writers and rollback into an older format are forbidden. Explicit
-migration remains an M10 integration obligation. Existing v2 histories and their
+mixed-profile writers and rollback into an older format are forbidden. Migration
+is unimplemented; use a fresh realm for v3. Existing v2 histories and their
 qualified code path remain available with their documented limits.
 
 ## Bounded operations over growing collections
@@ -106,6 +106,15 @@ computation remains in the caller. The kernel validates dependencies and effects
 it does not execute application computations.
 
 ## Integration obligations
+
+Finite deployments may configure a journal admission ceiling and a separate
+control-reserve band in genesis. These fields are exposed in signed capabilities;
+they are independent of row cardinality, retention and resident pages. At the
+ceiling new obligations fail with `AdmissionClosed`; at the end of the reserve
+new control mutations also fail with `ControlCapacity`. Exact accepted retries
+and currently authorized reads remain available. Neither trim nor restart resets
+this accounting. The [authority guide](../packages/zig/transit-core/docs/authority.md#growing-profile-an-explicit-control-reserve-not-a-derived-one)
+owns allowed reserve operations and the finite physical qualification.
 
 Delivery resolves one retained output under current courier authority. Pending
 route order is per source/destination pair; a later output cannot bypass an

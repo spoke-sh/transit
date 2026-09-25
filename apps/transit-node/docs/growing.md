@@ -2,7 +2,7 @@
 
 [transit-node](../README.md) accepts an explicit `"profile": "growing_v3"`
 configuration. Omitting `profile`, or choosing `"v2"`, keeps the existing protocol.
-This is a partially qualified development profile. Launchers, Board, Station,
+This is a partially qualified development profile. Launchers, Board, default Station,
 provider controllers and foreign bindings still use v2; they do not silently
 negotiate or convert to v3.
 
@@ -25,6 +25,33 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | `request_timeout_ms` | Whole-request deadline, default 2000 ms, range 1–60000 |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
 | `maintenance` | Configuration for the separate `--maintain` process, below |
+
+Genesis may opt into `admission_ceiling` (2–65,536 journal positions) and
+`control_reserve` (0–65,536 further positions; default 4,096). The ceiling is
+unset by default. These are finite deployment quotas, independent of retained
+row counts and the page cache. They cannot be changed by editing the expected
+genesis after bootstrap, and neither restart nor checkpoint reopens admission.
+
+At the ceiling, new obligations are refused with `AdmissionClosed`; existing
+control/drain operations can use the reserve. At exhaustion all new mutations
+return `ControlCapacity`. Signed capabilities expose both values and the current
+position. The service returns these refusals as HTTP 503 with the exact error
+code; the Zig client preserves it in `last_rejection`. Keep exact pending work
+when a transport exchange is uncertain. A quota error does not establish the
+outcome of an earlier attempt with a lost reply.
+
+Station can commit a previously captured, output-free turn from the reserve,
+but cannot open a new view there. Such accepted inputs stay queued; quota pressure
+is not expiry or permission to skip them. `just test::growing-quota` qualifies
+this with one resident page, 15 admitted inputs, one consumed input and an exact
+pending view request across caller/node/provider replacement, then exhausts the
+reserve through authorized control work. It also checks current revocation.
+
+The node does not provision physical space. The separate
+[growing physical-capacity proof](../../../tests/README.md#growing-physical-capacity)
+qualifies a finite 96-position admission / 96-position reserve workload in an
+owned ext4 fixture. A deployment must provision headroom for page/WAL amplification
+and provider housekeeping; the configured record band alone cannot ensure it.
 
 `--initialize` and `--bootstrap` explicitly create the authority and packed page
 journals. Ordinary startup requires existing history. Both use the same
@@ -51,9 +78,9 @@ selected history policy is independently `unlimited` or `checkpointed`; supporti
 maintenance does not opt an application into trimming. Clock-based operations
 fence known-expired work immediately; materialized terminal metadata can lag.
 
-No quota/control-reserve, large-result, migration, production throughput or
-clustered-provider guarantee is implied. The public profile must retain these
-limits until its remaining M10 gates are implemented and qualified. The node
+Beyond the finite capacity profile above, no migration, production throughput or
+clustered-provider guarantee is implied. Large results use the explicit Station
+query profile, not an unbounded node response. The node
 remains sequential within a realm; additional replicas still share its one
 conditional publication journal.
 

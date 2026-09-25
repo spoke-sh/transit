@@ -889,9 +889,9 @@ alongside every response's own `position`, checked at three points in the
 same test (before, at the ceiling, and past the exhausted reserve) so a
 caller can compute remaining headroom directly rather than discovering it by
 provoking `AdmissionClosed`/`ControlCapacity`. This qualifies the admission
-mechanism and its observability; a real physical-storage/ENOSPC proof and an
-operational `apps/transit-node`/Station profile around it remain open, per
-CAP-01's second scenario.
+mechanism and its observability. The additional
+[physical-capacity and service/Station proofs](#growing-physical-capacity)
+qualify the finite deployment profile separately.
 
 
 `just test::growing` runs the growing core against real Ursula and a single-page
@@ -963,3 +963,40 @@ unresolved authorized attempt survive, and retained output bytes stay readable.
 Core checks separately cover clock loss/uncertainty, bounded finite scan passes
 under continuing admission, current control authorization and revalidation of
 stale scan suggestions. These are not sweep-latency or full-store guarantees.
+
+### Growing physical capacity
+
+`just test::growing-capacity` uses the same owned Docker/ext4 fixture as the
+legacy capacity proof, with the real v3 authority and disk Ursula. The declared
+profile has 96 admission positions and a 96-position control reserve. One decoded
+page (8,532 bytes) serves 40 retained 256-byte rows, retained receipts, accepted
+backlog, a finite process and an unresolved authorized effect. Applications have
+not opted into row/result reclamation; root-history trimming is explicitly enabled.
+
+The 2 GiB filesystem preallocates a 1 GiB reserve. Filling the remainder triggers
+real ENOSPC and Ursula's WAL pressure gate. A control publication then fails while
+the authority stays at position 96 and all data and permissions remain intact.
+Only the reserve file is released; the filler remains throughout control work
+and restart. Revocation, opted-in expiry, effect closure, complete backlog drain
+and root checkpoint/trim finish at position 154. SIGKILL/restart preserves every
+row, exact historical receipt, retirement and closure. Repeated maintenance and
+verification issue only GET/HEAD requests and stage no pages.
+
+One local Debug run took 29.43 s for setup, 0.95 s under pressure, 31.55 s for
+control/drain/checkpoint and 1.42 s for recovery/verification. Control work added
+1,310,720 allocated WAL bytes while using 58 of the 96 reserved positions. These
+are one finite workload's measurements, not a worst-case allocation formula,
+production reserve recommendation or host-power-loss proof. The node does not
+provision physical headroom automatically. Evidence is written to
+`.cache/growing-capacity-evidence.json`; the legacy task retains its own artifact.
+The dedicated reference workflow runs both proofs and preserves their metadata.
+
+`just test::growing-quota`, also included in `test::growing-service`, uses the real
+node and Station on one CPU with one resident page, a 24-position ceiling and four
+control positions. A previously captured output-free handler turn commits after
+admission closes. Opening a view for the next input is refused, and the host
+retains its exact signed proposal. Caller/node/provider replacement preserves
+15 admitted inputs, one consumption and zero cancellations. The same request
+still receives `AdmissionClosed`; authorized revocations exhaust the reserve,
+after which a new control operation receives `ControlCapacity`. Current rights
+still govern retry disclosure. Reads confirm the same retained data and backlog.

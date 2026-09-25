@@ -5,6 +5,7 @@ live inside one owned privileged container; no host mount or block device is
 selected. Ursula runs as nobody against that filesystem using its official image.
 """
 import json
+import hashlib
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
@@ -21,7 +22,7 @@ import urllib.request
 import uuid
 
 
-def run(binary):
+def run(binary, growing=False):
     assert sys.platform == "linux", "Physical capacity proof requires Linux"
     repo = Path(__file__).resolve().parents[1]
     image = json.loads((repo / "deploy/reference/versions.json").read_text())["ursula"]
@@ -96,6 +97,7 @@ done
             "--env", "RUST_LOG=warn", "--env", "TOKIO_WORKER_THREADS=2", "--entrypoint", tools["bash"],
             image, "/proof/start.sh"], text=True, timeout=60).strip()
         requests = []
+        phases = []
 
         class ObserveAdapter(BaseHTTPRequestHandler):
             def forward(self):
@@ -158,7 +160,16 @@ print(json.dumps({'available': s.f_bavail*s.f_frsize, 'wal_bytes': sum(f.stat().
                 time.sleep(0.1)
 
         def proof(phase):
-            subprocess.run([str(binary), f"http://127.0.0.1:{proxy.server_port}", phase], check=True, timeout=120)
+            started = time.monotonic()
+            result = subprocess.run([str(binary), f"http://127.0.0.1:{proxy.server_port}", phase],
+                check=not growing, timeout=120, capture_output=growing, text=True)
+            if growing:
+                if result.returncode:
+                    raise RuntimeError(f"Growing capacity {phase}: {result.stderr[-12000:]}")
+                value = json.loads(result.stdout)
+                value["seconds"] = round(time.monotonic() - started, 3)
+                phases.append(value)
+                print(f"Growing capacity: {json.dumps(value)}", flush=True)
 
         try:
             subprocess.run(["docker", "start", container], check=True, stdout=subprocess.DEVNULL, timeout=20)
@@ -200,6 +211,8 @@ os.sync()
                 assert error.code == 503 and b"WalDiskPressure" in error.read()
             else:
                 raise AssertionError("Storage accepted a write under disk pressure")
+            if growing:
+                proof("pressure")
             # Admissions are already durably closed. Releasing only the reserve
             # cannot reopen them; the filler stays allocated throughout recovery.
             inside("import os; os.unlink('/proof/mount/reserve'); os.sync()")
@@ -223,11 +236,15 @@ os.sync()
             proof("recover")
             after_reconcile = stats()
             assert requests and set(requests) <= {"GET", "HEAD"}, "Completed maintenance issued a mutation"
-            evidence = {"image": image, "admission_ceiling": 256, "control_record_bound": 4385,
+            evidence = {"version": 1, "status": "passed", "image": image, "profile": "growing_v3" if growing else "v2",
+                "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip(),
+                "dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=repo)),
+                "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
+                "admission_ceiling": 96 if growing else 256, "control_record_bound": 96 if growing else 4385,
                 "reserve_bytes": 1024**3, "before_pressure": before_pressure, "pressured": pressured,
                 "released": released, "after_control": after_control, "before_recovery": before_reconcile,
-                "after_recovery": after_reconcile, "recovery_methods": sorted(set(requests))}
-            output = repo / ".cache/capacity-evidence.json"
+                "after_recovery": after_reconcile, "recovery_methods": sorted(set(requests)), "phases": phases}
+            output = repo / (".cache/growing-capacity-evidence.json" if growing else ".cache/capacity-evidence.json")
             output.parent.mkdir(exist_ok=True)
             output.write_text(json.dumps(evidence, indent=2) + "\n")
             print("Physical ENOSPC, reserved control progress, checkpoint/trim and disk restart passed.")
@@ -243,4 +260,5 @@ os.sync()
 
 
 if __name__ == "__main__":
-    run(Path(sys.argv[1]).resolve(strict=True))
+    assert sys.argv[2:] in ([], ["--growing"]), "Expected binary [--growing]"
+    run(Path(sys.argv[1]).resolve(strict=True), growing=bool(sys.argv[2:]))

@@ -11,9 +11,10 @@ from storage import Fixture, free_port, wait_ready
 from growing_maintenance import run as maintenance
 from growing_station import run as station
 from growing_query import run as query_capture
+from growing_quota import run as quota
 
 
-def main(node, caller, station_caller, query_caller):
+def main(node, caller, station_caller, query_caller, quota_caller):
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     if hasattr(os, "sched_getaffinity"):
         os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
@@ -122,6 +123,7 @@ def main(node, caller, station_caller, query_caller):
     maintenance(node, caller)
     station(node, station_caller)
     query_capture(node, query_caller)
+    quota(node, quota_caller)
 
 
 if __name__ == "__main__":

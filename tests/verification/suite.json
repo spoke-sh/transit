@@ -64,6 +64,7 @@
       "launchers::compose::test",
       "launchers::compose::test-station",
       "test::capacity",
+      "test::growing-capacity",
       "test::pages-cold"
     ],
     "discovery": [
@@ -73,6 +74,7 @@
       "test::packages",
       "test::growing-service-release",
       "test::growing-station",
+      "test::growing-quota",
       "test::growing-query"
     ]
   },

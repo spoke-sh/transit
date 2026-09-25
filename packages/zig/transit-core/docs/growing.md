@@ -138,8 +138,10 @@ their own settlement contract. The current scan revisits retained process/resour
 metadata, so full sweep cost grows with cardinality; deadline indexes and measured
 sweep-lag objectives remain scale work.
 
-Runtime/lifecycle extensions, quotas/control reserve, retained results and Station
-remain integration work within M10. Unimplemented commands fail explicitly with
+Runtime/lifecycle extensions remain outside the qualified growing profile.
+The explicit Station behavior/query and finite capacity integrations have
+[separate proofs](../../../../tests/README.md#m10-verification-and-scale-foundations).
+Unimplemented commands fail explicitly with
 `UnsupportedGrowthCommand`. The profile must not be selected by a launcher before
 the complete advertised profile and its proofs are ready. Existing histories are
 never silently upgraded or parsed as v3.

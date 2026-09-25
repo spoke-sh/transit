@@ -27,6 +27,14 @@ jobs:
       - run: nix develop --command just launchers::compose::test-station
       - run: nix develop --command just launchers::reference::test-station
       - run: nix develop --command just test::capacity
+      - run: nix develop --command just test::growing-capacity
+      - name: Preserve capacity evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: reference-capacity-${{ github.run_attempt }}
+          path: .cache/*capacity-evidence.json
+          retention-days: 14
       - if: always()
         run: |
           if test -f .cache/reference/state.json; then
