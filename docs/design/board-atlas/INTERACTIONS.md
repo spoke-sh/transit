@@ -87,6 +87,13 @@ aggregate marks and separate outlier pins at 100 to 100,000 synthetic processes.
 Its grouping and aggregation rules extend this interaction intent; M9's bounded
 completion does not establish those capacities or a bulk inspection API.
 
+[D4](../D4.md) extends the scale studies to one billion synthetic processes and
+proposes a roomier interface: a full-width surface, one header and combined
+legend, with inspection shown on selection. Its
+[information placement](../D4.md#give-each-piece-of-information-one-place)
+updates the persistent panels in the earlier images while preserving critical
+coverage/freshness state and access to detailed evidence.
+
 The [fabric exploration](../D2.md) extends this initial height-only study with
 an inbox shoulder and an independently readable outbox well. It compares count
 depth plus age tint with an explicit age-depth layer. The interface uses Inbox

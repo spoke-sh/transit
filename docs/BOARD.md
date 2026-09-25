@@ -70,6 +70,13 @@ and individual age pins. M9's authorized Station lenses can inform grouping;
 bulk summaries, durable age evidence and these larger runtime populations are
 not implemented or qualified by the completed M9 profile.
 
+The [D4 scale and interface review](design/D4.md) continues from one million
+to one billion synthetic processes. It proposes progressively broader group
+landforms and a full-width map with contextual inspection, a single header and
+a combined legend. It explores simpler geometry while retaining precise scoped
+counts, age outliers and evidence on inspection; it establishes no larger
+runtime capacity or cross-realm read surface.
+
 ## Boundary and packaging
 
 ```mermaid

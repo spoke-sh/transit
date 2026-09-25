@@ -3,16 +3,17 @@
 Design reviews form one numbered sequence, read from top to bottom. Each review
 owns one question, its proposal, visual evidence and recorded outcome.
 
-**Current review:** [D3 — Process scale](D3.md).
+**Current review:** [D4 — Million-to-billion scale and a roomier interface](D4.md).
 **Selected visual direction:** [D2, Figure 7 — Queue-count fabric](D2.md#figure-7-queue-counts-with-age-on-the-well-walls).
 
 | Review | Focus | Status | Outcome or next decision |
 | --- | --- | --- | --- |
 | [D1](D1.md) | Board browser and relief atlas | Reviewed | Two coordinated views; D2 extends the initial inbox-only relief |
 | [D2](D2.md) | Board inbox, outbox and age | Accepted in part | Figure 7 selected; age-driven depth remains an alternative |
-| [D3](D3.md) | Board fabric at 100–100,000 processes | In review | Choose grouping, aggregation and how individual outliers remain visible |
+| [D3](D3.md) | Board fabric at 100–100,000 processes | Reviewed | Scale visuals favored; grouping remains open; D4 extends scale and simplifies the UI |
+| [D4](D4.md) | Board fabric at 1 million–1 billion processes | In review | Review broader landforms, a full-width map and contextual inspection |
 
-Review status records the design discussion. All three reviews contain proposed
+Review status records the design discussion. All four reviews contain proposed
 interfaces and synthetic imagery; none is an implemented UI or capacity claim.
 Delivery scope and qualification belong in the [roadmap](../roadmap/README.md).
 [Board](../BOARD.md) owns the product boundary and current inspection contracts.
@@ -60,7 +61,7 @@ the review ID supplies context.
 
 Keep images, prompts, fixtures and technical appendices in a named supporting
 directory and link them from their owning reviews. The
-[Board materials](board-atlas/README.md) support D1–D3. Supporting directories
+[Board materials](board-atlas/README.md) support D1–D4. Supporting directories
 do not introduce another review sequence.
 
 ## Review statuses
