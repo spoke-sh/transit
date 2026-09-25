@@ -6,7 +6,17 @@ const catalog = @import("catalog.zig");
 const pages = @import("pages.zig");
 const p = core.protocol;
 const g = p.Growth;
-pub const Genesis = struct { version: u32 = g.version, realm: u64, root_key: [32]u8, max_clock_error_ms: ?u32 = null };
+const state_ops = @import("growing_state.zig");
+pub const Genesis = struct {
+    version: u32 = g.version,
+    realm: u64,
+    root_key: [32]u8,
+    max_clock_error_ms: ?u32 = null,
+    /// Operational bound on required resources checked at one process boundary.
+    /// Non-required associations and retained resources have no catalog ceiling.
+    required_dependencies: u16 = 16,
+    dependency_vertices: u16 = 64,
+};
 pub const Head = struct {
     version: u32 = g.version,
     position: u64,
@@ -25,6 +35,8 @@ pub const ResourceGrant = struct { principal_epoch: u64, permissions: u8 };
 fn genesisHash(genesis: Genesis) ![32]u8 {
     if (genesis.version != g.version or genesis.realm == 0 or genesis.realm > p.max_counter) return error.InvalidGenesis;
     _ = try p.Ed25519.PublicKey.fromBytes(genesis.root_key);
+    if (genesis.required_dependencies == 0 or genesis.required_dependencies > 4096) return error.InvalidCapacity;
+    if (genesis.dependency_vertices == 0 or genesis.dependency_vertices > state_ops.graph_vertices) return error.InvalidCapacity;
     var bytes: [1024]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&bytes);
     try std.json.Stringify.value(genesis, .{}, &writer);
@@ -33,7 +45,7 @@ fn genesisHash(genesis: Genesis) ![32]u8 {
     hash.update(writer.buffered());
     return hash.finalResult();
 }
-fn address(namespace: catalog.Namespace, id: u64) pages.Key {
+pub fn address(namespace: catalog.Namespace, id: u64) pages.Key {
     return catalog.key(namespace, id, 0, "") catch unreachable;
 }
 
@@ -150,6 +162,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             var current = try self.state();
             const receipt = (try current.get(Receipt, try catalog.key(.receipt, request.principal, request.sequence, ""))) orelse return error.MissingReceipt;
             if (!std.mem.eql(u8, &receipt.digest, &try g.digest(request))) return error.ConflictingRetry;
+            try state_ops.authorizeReceipt(self, request);
             return receipt.position;
         }
         pub const Prepared = struct { record: Record };
@@ -172,9 +185,10 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 if (now.unix_ms < next.time_floor_ms) return error.ClockRollback;
                 next.time_floor_ms = now.unix_ms;
             }
-            try self.apply(&candidate, signed.request, sample);
+            try self.apply(&candidate, &next, signed.request, sample);
             // Grant changes may target this caller only when the root's own
             // identity is unchanged; administrative root replacement is invalid.
+            principal_value = (try candidate.get(Principal, address(.principal, signed.request.principal))) orelse return error.InvalidHistory;
             principal_value.sequence = signed.request.sequence;
             try candidate.put(address(.principal, signed.request.principal), principal_value);
             try candidate.put(try catalog.key(.receipt, signed.request.principal, signed.request.sequence, ""), Receipt{ .position = self.head.position, .digest = try g.digest(signed.request) });
@@ -193,17 +207,18 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             if (try self.duplicate(signed.request, principal_value)) |receipt| return receipt;
             return self.commit(try self.prepare(signed));
         }
-        fn before(self: *Self, sample: ?core.Time.Sample, deadline: u64) !void {
+        pub fn before(self: *Self, sample: ?core.Time.Sample, deadline: u64) !void {
             _ = self.genesis.max_clock_error_ms orelse return error.UnsupportedDeadline;
             const now = sample orelse return error.ClockUnavailable;
             try now.before(deadline);
         }
-        fn executable(self: *Self, process_value: g.Process, sample: ?core.Time.Sample, settlement: bool) !void {
+        pub fn executable(self: *Self, process_value: g.Process, sample: ?core.Time.Sample, settlement: bool) !void {
             if (process_value.lifecycle != .running) return error.RetiredProcess;
             if (process_value.failure != null) return error.BlockedProcess;
             if (process_value.work_before_ms) |cutoff| try self.before(sample, if (settlement and process_value.turn_permit != null) process_value.settle_before_ms.? else cutoff);
+            try state_ops.dependencies(self, process_value.pid, sample);
         }
-        fn apply(self: *Self, candidate: *Catalog, request: g.Request, sample: ?core.Time.Sample) !void {
+        fn apply(self: *Self, candidate: *Catalog, next: *Head, request: g.Request, sample: ?core.Time.Sample) !void {
             const position = self.head.position;
             switch (request.command) {
                 .grant => |grant| {
@@ -258,7 +273,9 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     process_value.cancelled = process_value.admitted - process_value.consumed;
                     process_value.owner = null;
                     try candidate.put(address(.process, pid), process_value);
+                    try state_ops.retireIndexes(candidate, pid);
                 },
+                .create_resource, .grant_resource, .associate, .open_view, .close_view, .retire_resource, .expire_resource, .begin_turn, .turn => try state_ops.apply(self, candidate, next, request, sample),
                 else => return error.UnsupportedGrowthCommand,
             }
         }

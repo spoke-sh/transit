@@ -153,6 +153,9 @@ pub const Capabilities = struct {
     mutation_budget: u16 = turn_mutations,
     view_budget: u16 = turn_views,
     output_budget: u16 = turn_outputs,
+    required_resources_per_process: u16,
+    dependency_validation_vertices: u16,
+    dependency_changes: enum { quiescent_owner_and_borrowers } = .quiescent_owner_and_borrowers,
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
     runtime_bindings: bool = false,
     history_reclamation: bool = false,

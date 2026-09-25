@@ -313,6 +313,27 @@
       ],
       "limits": "Injected journal/page store only; state turns, service/current resource reads, lifecycle/provider extensions and quota/control reserve remain unqualified.",
       "model": null
+    },
+    {
+      "id": "GROWTH-02",
+      "claim": "Growing state turns atomically publish bounded mutations, progress, captured outputs and closed views without loading the whole resource",
+      "owner": "docs/STATE.md",
+      "implementation": [
+        "packages/zig/transit-core/src/growing_state.zig"
+      ],
+      "profile": "transit-v3 development state slice; not running service",
+      "tasks": [
+        "test::unit",
+        "contract::check"
+      ],
+      "scenarios": [
+        "More than four resources, thirty-two rows and four retained views",
+        "Rejected destination after staged rows preserves live root",
+        "Current resource rights on historical receipt disclosure",
+        "Expiry through lifetime-owner dependency graph cannot be rebound away"
+      ],
+      "limits": "In-memory injected page/journal proof. Public paged reads, delivery/settlement, terminal projection, quota reserves and real service/Station remain unqualified.",
+      "model": null
     }
   ]
 }

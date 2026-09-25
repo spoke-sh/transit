@@ -295,6 +295,13 @@
       "expression": "60_000",
       "classification": "operation",
       "meaning": "Maximum requested read-view duration, independent of history retention."
+    },
+    {
+      "source": "packages/zig/transit-core/src/growing_state.zig",
+      "symbol": "graph_vertices",
+      "expression": "4096",
+      "classification": "working-set",
+      "meaning": "Maximum visited owner PIDs in one dependency validation; genesis selects an explicit smaller operational budget. Not total PID cardinality."
     }
   ],
   "identities": [
@@ -317,6 +324,16 @@
       "source": "packages/zig/transit-protocol/src/Growth.zig",
       "anchor": "pub const Id = u64;",
       "meaning": "Growing-profile value identities; validated at 2^53-1 for exact JSON integers. Does not widen legacy ABI by implication."
+    },
+    {
+      "source": "packages/zig/transit-core/src/growing.zig",
+      "anchor": "required_dependencies: u16 = 16",
+      "meaning": "Configured per-process dependency validation budget, not total resource/association cardinality."
+    },
+    {
+      "source": "packages/zig/transit-core/src/growing.zig",
+      "anchor": "dependency_vertices: u16 = 64",
+      "meaning": "Configured connected owner graph validation budget; larger unrelated realm catalogs do not consume this work budget."
     }
   ]
 }

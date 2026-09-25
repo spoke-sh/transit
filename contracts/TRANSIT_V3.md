@@ -41,6 +41,14 @@ These are per-operation bounds, not limits on resource rows, processes, principa
 retained calls or receipts. Large logical results require explicit segments and
 complete-result evidence above these bounded records.
 
+Capabilities must report the configured required-resource and lifetime-owner
+graph validation budgets. The development profile requires quiescence of an
+owner and its borrowers before changing that owner's required dependency topology;
+it rejects changes that could invalidate an existing borrower's admitted work
+budget. These are explicit operation/admission constraints, not limits on total
+realm catalogs. The [core guide](../packages/zig/transit-core/docs/growing.md)
+describes the current defaults and restrictions.
+
 Entry reads use a durable view ID and an optional exclusive key cursor. The
 authority owns the root corresponding to that view; clients never supply roots.
 Each read must recheck current grants, activation, dependencies and view lifetime.
@@ -67,7 +75,7 @@ receipt, wait and result history; cache eviction cannot authorize deletion.
 The declared capabilities expose unsupported runtime-binding and history-
 reclamation extensions explicitly. These fields currently describe the contract
 shape, not a live capability response. Before service qualification, M10 must
-provide real authority transitions, provider persistence, current read/receipt
+qualify all authority transitions, provider persistence, current read/receipt
 authorization, finite lifetime/settlement behavior, quotas/control reserves,
 client/Station usage, failure schedules and compatibility tests. There is no
 implicit feature equivalence with v2 merely because command names resemble it.

@@ -20,6 +20,10 @@ pub const Namespace = enum(u8) {
     pending_output,
     pending_effect,
     entry,
+    required_association,
+    associated_resource,
+    required_resource_users,
+    owner_required_users,
 };
 pub const Snapshot = struct {
     version: u32 = version,

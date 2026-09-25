@@ -3254,6 +3254,9 @@
                     "mutation_budget",
                     "view_budget",
                     "output_budget",
+                    "required_resources_per_process",
+                    "dependency_validation_vertices",
+                    "dependency_changes",
                     "runtime_bindings",
                     "history_reclamation",
                     "station"
@@ -3307,6 +3310,26 @@
                       "x-transit-bits": 16,
                       "x-transit-signed": false
                     },
+                    "required_resources_per_process": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 65535,
+                      "x-transit-bits": 16,
+                      "x-transit-signed": false
+                    },
+                    "dependency_validation_vertices": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 65535,
+                      "x-transit-bits": 16,
+                      "x-transit-signed": false
+                    },
+                    "dependency_changes": {
+                      "type": "string",
+                      "enum": [
+                        "quiescent_owner_and_borrowers"
+                      ]
+                    },
                     "runtime_bindings": {
                       "type": "boolean"
                     },
@@ -3317,7 +3340,10 @@
                       "type": "boolean"
                     }
                   },
-                  "required": [],
+                  "required": [
+                    "required_resources_per_process",
+                    "dependency_validation_vertices"
+                  ],
                   "x-transit-defaults": {
                     "profile": "growing_v1",
                     "version": 3,
@@ -3326,6 +3352,7 @@
                     "mutation_budget": 4,
                     "view_budget": 4,
                     "output_budget": 4,
+                    "dependency_changes": "quiescent_owner_and_borrowers",
                     "runtime_bindings": false,
                     "history_reclamation": false,
                     "station": false
