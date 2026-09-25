@@ -1,11 +1,11 @@
-# Growing query capture
+# Growing query capture and delivery
 
 The explicit Zig `GrowingQuery` API captures incremental Fuze results across
-ordinary growing turns. It is an M10 development slice. Publication, consumer
-reassembly and acknowledgement are still being implemented; `GrowingGenServer`
-continues to reject unsupported result frames. Legacy `Query` and foreign ABI
+ordinary growing turns. `QueryDelivery` publishes the captured segments, validates
+receiver completion and retains acknowledgements through the same turn boundary.
+This explicit M10 Zig profile requires a host-supplied query context. Legacy `Query` and foreign ABI
 result limits remain unchanged. The [v2 design and layout](../../../../contracts/STATION_QUERY_V2.md)
-separate implemented capture from the remaining delivery contract.
+owns the capture, delivery and credit contracts.
 
 Set a revisioned peer/Table policy with `GrowingQuery.setPolicy`. A handler for
 an authenticated call invokes `start(turn, table, stream_plan)` after its behavior
@@ -37,6 +37,37 @@ jobs, missing fragments and altered bytes. It does not return the whole result
 as one allocation or claim separate IPC streams can be concatenated. The source
 version is released with the final seal; captured data remains ordinary retained
 state. End-to-end publication must still validate the complete ordered chain.
+
+## Publication and receipt
+
+Configure both growing hosts with `server.query = .{ .workspace = workspace,
+.cancellation = &cancellation }`, keeping the borrowed workspace and flag alive
+through each poll/finish operation. Without that opt-in, result frames fail with
+`UnsupportedGrowingQuery`. The host does not allocate an unbounded result buffer
+or advertise the complete Station service family.
+
+After capture, call `QueryDelivery.begin(turn, result_id)` in a fresh turn. It
+records a self-continuation; subsequent `GrowingGenServer` polls dispatch
+publication, incoming result fragments, completion and acknowledgement through
+`QueryDelivery`. Standalone private-turn runners can call `dispatch` explicitly.
+The sender uses retained sealed segments after the source is released. Each
+receiver independently checks Arrow schema/rows, segment bytes, ordered digests
+and the complete manifest before closing its durable wait and acknowledging.
+Receiver-issued credit permits at most two uncredited segments. Only committed
+segment seals grant new credit; a stalled receiver backpressures the sender.
+
+`QueryDelivery.completed(turn, correlation)` reads the retained complete
+manifest. `completedSegment(turn, correlation, ordinal, buffer)` returns one
+verified segment using a caller-owned bounded buffer. Missing or incomplete
+evidence fails explicitly. Duplicate delivery cannot reopen a closed wait;
+acknowledgement retains both peers' records under default unlimited retention.
+Cancellation of a local poll while a turn is uncertain retains its signed
+proposal for reconciliation. No cancellation flag can undo a committed turn.
+
+The real-service proof explicitly opts in and drives both peers through public
+delivery operations. A production query host and general public query ingress
+remain [M13](../../../../docs/roadmap/M13.md) work; existing launchers and foreign
+bindings continue to use their declared legacy profile.
 
 Read failures poison the private turn; catching one cannot authorize publishing
 partial work. `close(turn, result_id, .cancelled)` is an explicit owner decision

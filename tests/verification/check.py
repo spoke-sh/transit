@@ -57,6 +57,19 @@ def validate(suite, invariants, limits, sdk):
             assert (source, symbol) in seen, f"unclassified bound: {source}:{symbol}"
     for item in limits["identities"]:
         assert item["anchor"] in (ROOT / item["source"]).read_text(), item
+    ceilings = {(item['source'], item['symbol']) for item in limits['limits'] if item['classification'] == 'total-cardinality'}
+    replacements = set()
+    for item in limits['growing_replacements']:
+        key = item['legacy_source'], item['symbol']
+        assert key in ceilings and key not in replacements, key
+        replacements.add(key)
+        assert item['status'] in {'paged', 'segmented', 'unsupported'} and item['meaning'], key
+        assert item['anchor'] in (ROOT / item['source']).read_text(), item
+    assert replacements == ceilings, f'unreviewed growing replacement: {ceilings - replacements}'
+    schema = json.loads((ROOT / 'contracts/transit-v3.schema.json').read_text())
+    for name in ('Request', 'Query'):
+        principal = schema['$defs'][name]['properties']['principal']
+        assert principal['maximum'] == (1 << 53) - 1, principal
     scenario_ids = set()
     for scenario in sdk["scenarios"]:
         assert scenario["id"] not in scenario_ids, scenario["id"]
@@ -88,6 +101,14 @@ def main():
         pass
     else:
         raise AssertionError("limit drift passed")
+    broken = copy.deepcopy(limits)
+    broken['growing_replacements'].pop()
+    try:
+        validate(suite, invariants, broken, sdk)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError('missing growing replacement passed')
     broken = copy.deepcopy(sdk)
     broken["scenarios"][0]["proofs"][0]["anchor"] = "missing SDK scenario implementation"
     try:

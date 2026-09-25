@@ -20,6 +20,14 @@ in the audited files. Other component-specific transport/parser bounds still
 require review when those components change. It does not infer that a fixed
 array is scalable because its memory use is bounded.
 
+Every legacy total-cardinality ceiling also has a checked `growing_replacements`
+entry. It names the paged/segmented replacement or explicitly unsupported family.
+The checker rejects missing reviews and narrow generated v3 principal fields.
+This includes process/principal/association catalogs, retained work and checkpoint
+roots as well as application rows. External payload operations and growing
+registry/supervision APIs are not implicitly supplied by the legacy bindings;
+their unsupported status is part of the SDK handoff.
+
 `python3 -B tests/verification/check.py` validates owners, links, classifications
 and drift; `just check` includes it. Missing tasks and unreviewed limit changes
 are negative controls. The growing profile's partial qualification is recorded
@@ -207,7 +215,9 @@ dimensions remain distinct from this executable sample matrix.
 
 `just test::codecs` runs valid/malformed/truncated signed JSON and Station frame
 corpora, canonical-identity roundtrips and parser/output allocation enumeration.
-`just test::codecs --fuzz=1000` gives each of the two targets a bounded native Zig
+The growing request/query corpus additionally exercises full-width principal
+and retained-version identities under their distinct v3 signature domains.
+`just test::codecs --fuzz=1000` gives each of the three targets a bounded native Zig
 fuzz budget. The request parser has a fixed 128 KiB workspace and bounded input;
 no generated input can initiate a request or authority mutation.
 

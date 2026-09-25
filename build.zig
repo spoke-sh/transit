@@ -99,7 +99,7 @@ pub fn build(b: *std.Build) void {
     });
     const codec_step = b.step("test-codecs", "Run bounded codec corpus and allocation failure enumeration");
     // Separate runs give both boundaries their own finite fuzz budget.
-    inline for (.{ "signed request", "Station frames" }) |filter| {
+    inline for (.{ "signed request", "Station frames", "growing request" }) |filter| {
         const codecs = b.addTest(.{ .use_llvm = true, .root_module = codec_module, .filters = &.{ filter, "allocation failures release parser" } });
         codec_step.dependOn(&b.addRunArtifact(codecs).step);
     }

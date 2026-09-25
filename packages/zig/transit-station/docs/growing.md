@@ -34,11 +34,12 @@ identity, then acquire new ownership and create a replacement host. The old host
 does not clear its own block, and retry does not skip or acknowledge the input.
 
 Growing call/reply and timed-wait preprocessing use shared framework logic.
-Result fragment/completion/acknowledgement frames fail with
-`UnsupportedGrowingQuery`; a result must not look verified before growing
-publication/consumption is implemented. The separate
-[capture helper](queries.md) stages and seals results; complete Station capability
-remains unadvertised.
+Result fragment/completion/acknowledgement frames require an explicit host
+`query` context; otherwise they fail with `UnsupportedGrowingQuery`. The
+[query guide](queries.md) covers implemented capture, publication, receiver
+verification, bounded credit and acknowledgement. Complete Station capability
+remains unadvertised because registries, supervision and runtime bindings are
+outside this growing slice.
 
 ## Private turns
 
@@ -98,7 +99,8 @@ inside one proposal does not consume additional slots.
 This supplies source access and dependency wiring. The application still owns
 durable continuation scheduling and the interpretation of its progress records.
 `GrowingQuery` now composes those primitives for resumable capture. Complete
-result publication and receiver verification remain M10 work.
+result publication and receiver verification use the separate `QueryDelivery`
+helper and explicit host context described in the query guide.
 
 Durable wait version 2 retains full-width timer principal identities. `Waiting`
 shares cancellation, timeout and authenticated-source checks across both profiles.
@@ -119,7 +121,8 @@ nothing; the second retries identical bytes without rerunning the handler. A
 caller/node/provider restart fences a previously prepared turn and recovers the
 unconsumed input under fresh ownership without rerunning initialization. This
 proves the bounded behavior path, not production throughput, growing registries,
-query results, runtime integration or foreign ABI support. The test explicitly
+runtime integration or foreign ABI support. The separate growing-query proof
+qualifies result delivery. The test explicitly
 delivers committed outboxes through the public client; it does not qualify a
 growing background courier.
 

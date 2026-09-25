@@ -13,8 +13,9 @@ through that view and retains at most four private mutations and four outputs.
 It never receives a complete resource snapshot. Typed Table point operations
 share the same codec and transaction semantics as Station v1. Bounded Table
 iteration returns at most eight typed rows and an explicit continuation. The
-[query v2 capture slice](STATION_QUERY_V2.md) composes retained sources, Fuze
-progress and sealed Arrow segments; publication and consumption remain M10 work.
+[query v2 profile](STATION_QUERY_V2.md) composes retained sources, Fuze progress,
+sealed Arrow segments and verified bounded delivery. Hosts explicitly supply a
+`QueryDelivery.Context`; the default growing behavior does not enable it.
 
 Each state read enforces current authority and checks the exact captured view.
 Private writes take precedence over captured values. Read/transport failures
@@ -66,7 +67,9 @@ waits or Table rows than fit the legacy snapshot do not require deletion.
 Association, current grants, activation, view deadlines and one authoritative
 state/input/output decision retain their kernel meanings.
 
-This profile does not yet advertise growing registries, supervision, captured
-query results, runtime bindings, foreign bindings or complete Station capability.
-Unsupported framework result frames fail explicitly rather than being treated
-as verified result completion. These remain M10 integration work.
+This profile does not advertise growing registries, supervision, runtime bindings,
+foreign bindings or complete Station capability. Result frames require explicit
+host query configuration; otherwise they fail with `UnsupportedGrowingQuery`.
+The configured capture/publication/receipt slice has real disk/node/caller
+recovery and independent Arrow evidence in the [test guide](../tests/README.md#m10-verification-and-scale-foundations).
+A production query host and public query ingress remain M13 scope.

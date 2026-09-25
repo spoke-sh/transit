@@ -2,8 +2,8 @@
 
 Status: the `GrowingQuery` capture slice is under M10 qualification. The
 publication/receiver codecs below (`QueryDelivery`, `QueryRecords`) are
-implemented and unit-tested against an in-memory authority fixture; no
-end-to-end growing-query capability is advertised. A growing `GenServer`
+implemented with both in-memory and real disk/node/caller qualification; no
+default end-to-end growing-query capability is advertised. A growing `GenServer`
 still rejects `result_chunk`/`result_complete`/`result_ack` frames with
 `error.UnsupportedGrowingQuery` unless a host explicitly supplies a
 `QueryDelivery.Context` (bounded workspace and cancellation flag) — this is a

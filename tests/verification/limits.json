@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "profile": "legacy v2/state v1",
+  "profile": "legacy v2/state v1 and explicit growing v3; bounds are classified per owner",
   "limits": [
     {
       "source": "packages/zig/transit-protocol/src/root.zig",
@@ -376,6 +376,120 @@
       "source": "packages/zig/transit-core/src/growing.zig",
       "anchor": "dependency_vertices: u16 = 64",
       "meaning": "Configured connected owner graph validation budget; larger unrelated realm catalogs do not consume this work budget."
+    }
+  ],
+  "growing_replacements": [
+    {
+      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_principals",
+      "status": "paged",
+      "meaning": "Principal grants, sequence and receipts are addressed by full-width catalog keys; no resident principal slots.",
+      "source": "packages/zig/transit-core/src/growing.zig",
+      "anchor": "pub const Principal = struct"
+    },
+    {
+      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_processes",
+      "status": "paged",
+      "meaning": "PID metadata and mailbox entries use paged process/mailbox namespaces. Retired PID records remain retained.",
+      "source": "packages/zig/transit-core/src/catalog.zig",
+      "anchor": "    mailbox,"
+    },
+    {
+      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_effects",
+      "status": "paged",
+      "meaning": "Effect records and pending/by-PID indexes use paged identities; each attempt still has a bounded observation budget.",
+      "source": "packages/zig/transit-core/src/catalog.zig",
+      "anchor": "    effects_by_pid,"
+    },
+    {
+      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_outputs",
+      "status": "paged",
+      "meaning": "Outputs, pending routes and delivery receipts retain independent keys. Output batches remain bounded per turn.",
+      "source": "packages/zig/transit-core/src/catalog.zig",
+      "anchor": "    pending_route,"
+    },
+    {
+      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_payloads",
+      "status": "unsupported",
+      "meaning": "Legacy external payload operations are absent from v3 Command. Growing Station results use explicit segments in KV state, not this legacy catalog.",
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "anchor": "pub const Command = union(enum)"
+    },
+    {
+      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_checkpoint_bytes",
+      "status": "paged",
+      "meaning": "Growing heads contain a constant-size catalog root; page storage remains durable after root-history trim.",
+      "source": "packages/zig/transit-core/src/growing.zig",
+      "anchor": "pub const Head = struct"
+    },
+    {
+      "legacy_source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_resources",
+      "status": "paged",
+      "meaning": "Resources and scoped grants use paged identities, independent of dependency graph budgets.",
+      "source": "packages/zig/transit-core/src/catalog.zig",
+      "anchor": "    resource,"
+    },
+    {
+      "legacy_source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_entries",
+      "status": "paged",
+      "meaning": "KV entries, Table rows, waits and result records share paged state, accessed by bounded keys/pages.",
+      "source": "packages/zig/transit-core/src/catalog.zig",
+      "anchor": "    entry,"
+    },
+    {
+      "legacy_source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_associations",
+      "status": "paged",
+      "meaning": "Named associations and their discovery/dependency indexes use catalog keys. Required graph validation remains an explicit operation budget.",
+      "source": "packages/zig/transit-core/src/catalog.zig",
+      "anchor": "    association_order,"
+    },
+    {
+      "legacy_source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_views",
+      "status": "paged",
+      "meaning": "Captured and retained views store root references, never complete copies of resource entries.",
+      "source": "packages/zig/transit-core/src/growing.zig",
+      "anchor": "pub const StoredReadVersion = struct"
+    },
+    {
+      "legacy_source": "packages/zig/transit-station/src/Query.zig",
+      "symbol": "max_chunks",
+      "status": "segmented",
+      "meaning": "Result ordinals and fragments use durable keys and a verified completion manifest; receiver credit bounds active delivery.",
+      "source": "packages/zig/transit-station/src/QueryRecords.zig",
+      "anchor": "pub const Manifest = struct"
+    },
+    {
+      "legacy_source": "packages/zig/transit-station/src/Query.zig",
+      "symbol": "max_bytes",
+      "status": "segmented",
+      "meaning": "An 8192-byte segment is an operation budget, not a total-result bound; result ordinals and total bytes are retained.",
+      "source": "packages/zig/transit-station/src/QueryRecords.zig",
+      "anchor": "pub const segment_bytes = 8192;"
+    },
+    {
+      "legacy_source": "packages/zig/transit-station/src/Supervisor.zig",
+      "symbol": "max_children",
+      "status": "unsupported",
+      "meaning": "Growing supervision and registry services are not advertised. Their legacy arrays must not become an M11 growing SDK API by aliasing v1 types.",
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "anchor": "station: bool = false"
+    },
+    {
+      "legacy_source": "packages/zig/transit-fuze/src/model.zig",
+      "symbol": "max_rows",
+      "status": "segmented",
+      "meaning": "Fuze Stream processes bounded batches over retained sources with owned progress; legacy whole-result execute remains a separate API.",
+      "source": "packages/zig/transit-fuze/src/Stream.zig",
+      "anchor": "pub const progress_bytes = 143;"
     }
   ]
 }

@@ -19,8 +19,9 @@ The explicit [growing interface](docs/growing.md) adds bounded captured reads,
 shared private-turn/Table operations and full-width durable wait identities;
 it is under M10 qualification and does not change the default profile.
 Its [incremental query capture](docs/queries.md) stages and seals growing Arrow
-results over retained sources. Growing publication/consumer completion remains
-under implementation; capture alone does not complete a remote call.
+results over retained sources. Explicit query-enabled hosts publish and verify
+segments with receiver credit and a complete-result manifest; capture alone does
+not complete a remote call. Existing launchers and foreign ABIs do not opt in.
 The [lifetime guide](docs/lifetimes.md) explains retention, suspension and
 permanent retirement without hiding the kernel's contracts.
 

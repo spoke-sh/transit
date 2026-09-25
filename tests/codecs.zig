@@ -25,6 +25,29 @@ fn fuzzRequest(_: void, smith: *t.Smith) !void {
     var bytes: [p.max_entry_bytes]u8 = undefined;
     try requestBytes(bytes[0..smith.slice(&bytes)]);
 }
+fn growingBytes(comptime query: bool, bytes: []const u8) !void {
+    const g = p.Growth;
+    const Signed = if (query) g.SignedQuery else g.SignedRequest;
+    var memory: [128 * 1024]u8 = undefined;
+    var fixed = std.heap.FixedBufferAllocator.init(&memory);
+    const alloc = fixed.allocator();
+    const parsed = std.json.parseFromSlice(Signed, alloc, bytes, .{ .max_value_len = p.max_entry_bytes }) catch return;
+    defer parsed.deinit();
+    const before = if (query) g.queryDigest(parsed.value.query) catch return else g.digest(parsed.value.request) catch return;
+    const encoded = try std.json.Stringify.valueAlloc(alloc, parsed.value, .{});
+    defer alloc.free(encoded);
+    const again = try std.json.parseFromSlice(Signed, alloc, encoded, .{});
+    defer again.deinit();
+    const after = if (query) try g.queryDigest(again.value.query) else try g.digest(again.value.request);
+    try t.expectEqualSlices(u8, &before, &after);
+    try t.expectEqualSlices(u8, &parsed.value.signature, &again.value.signature);
+}
+fn fuzzGrowing(_: void, smith: *t.Smith) !void {
+    var bytes: [p.max_entry_bytes]u8 = undefined;
+    const input = bytes[0..smith.slice(&bytes)];
+    try growingBytes(false, input);
+    try growingBytes(true, input);
+}
 fn frameBytes(bytes: []const u8) !void {
     const encoded = p.Value.init(bytes) catch return;
     const decoded = Frame.decode(encoded) catch return;
@@ -58,6 +81,22 @@ test "fuzz Station frames preserve exact correlation and owned payload bytes" {
     for (0..frame.len) |length| try frameBytes(frame.slice()[0..length]);
     var buffer: [p.Value.max_bytes + 4]u8 = undefined;
     try t.fuzz({}, fuzzFrame, .{ .corpus = &.{ seed(frame.slice(), &buffer), "\x04\x00\x00\x00STN1" } });
+}
+
+test "fuzz growing request and query encodings preserve wide identity and signature domains" {
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
+    const signed = try p.Growth.sign(.{ .realm = 42, .principal = 65536, .sequence = p.max_counter, .command = .{ .send = .{ .pid = p.max_counter, .value = try p.Value.init(&.{ 0, 255, 34, 10 }) } } }, key);
+    const query = try p.Growth.signQuery(.{ .realm = 42, .principal = p.max_counter, .kind = .{ .version_entries = .{ .id = .{ .pid = p.max_counter, .input = 65536, .index = 0 }, .generation = 2 } } }, key);
+    const command_bytes = try std.json.Stringify.valueAlloc(t.allocator, signed, .{});
+    defer t.allocator.free(command_bytes);
+    const query_bytes = try std.json.Stringify.valueAlloc(t.allocator, query, .{});
+    defer t.allocator.free(query_bytes);
+    try growingBytes(false, command_bytes);
+    try growingBytes(true, query_bytes);
+    for (0..query_bytes.len) |length| try growingBytes(true, query_bytes[0..length]);
+    var command_seed: [p.max_entry_bytes + 4]u8 = undefined;
+    var query_seed: [p.max_entry_bytes + 4]u8 = undefined;
+    try t.fuzz({}, fuzzGrowing, .{ .corpus = &.{ seed(command_bytes, &command_seed), seed(query_bytes, &query_seed), "\x04\x00\x00\x00null" } });
 }
 
 fn allocatedRoundtrip(allocator: std.mem.Allocator) !void {
