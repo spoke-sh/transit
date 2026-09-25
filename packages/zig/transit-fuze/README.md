@@ -10,6 +10,10 @@ the schema, operator and allocation limits. No optimizer rewrites are enabled.
 Station owns authorized Table adapters and durable result publication; the
 [Fuze design](../../../docs/FUZE.md) describes the broader direction.
 
+M10's [incremental execution contract](../../../contracts/FUZE_STREAM_V1.md)
+plans bounded steps with durable progress, whole-query limits/aggregates and
+Arrow segments. It is not implemented or an advertised query capability yet.
+
 `Plan.bind(source)` validates the source's schema, capability and exact read
 basis. `execution.run` consumes that basis with caller-supplied workspace/output
 buffers and a cancellation flag. It retains no pointers or background tasks;

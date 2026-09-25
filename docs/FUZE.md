@@ -14,6 +14,8 @@ bounded query/result batches before public SDKs. The existing finite M9 source
 and IPC ceilings remain current implementation limits; they are not the intended
 maximum Table or retained-result size. A larger dataset must not imply collecting
 all rows or result bytes in a worker's memory.
+The proposed [incremental execution contract](../contracts/FUZE_STREAM_V1.md)
+separates bounded engine steps from Station's durable fragment/result publication.
 
 ## Purpose and ownership
 
