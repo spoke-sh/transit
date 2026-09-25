@@ -537,3 +537,32 @@ test "growing finite settlement preserves its permit and closes permanently with
     try t.expect(state.owner == null and state.turn_permit == null);
     try t.expectError(error.RetiredProcess, fixture.root(.{ .own = .{ .pid = pid, .expected_generation = 2, .worker = 0 } }));
 }
+
+test "growing root compaction requires explicit retention opt-in and keeps retry evidence" {
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.init();
+    try t.expectError(error.RetentionNotEnabled, fixture.root(.{ .checkpoint = {} }));
+    try t.expectEqual(@as(u64, 0), fixture.engine.head.history_floor);
+    const capabilities = (try fixture.query(0, .{ .capabilities = {} })).body.capabilities;
+    try t.expectEqual(.unlimited, capabilities.retained_history);
+    var pages: PageStore = .{};
+    defer pages.deinit();
+    var journal: Journal = .{};
+    defer journal.entries.deinit(t.allocator);
+    var genesis = fixture.genesis;
+    genesis.allow_history_trim = true;
+    var engine = try Engine.bootstrap(&journal, &pages, genesis);
+    const spawn = try g.sign(.{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } }, fixture.root_key);
+    const pid = try engine.submit(spawn);
+    const checkpoint = try g.sign(.{ .realm = 42, .principal = 0, .sequence = 2, .command = .{ .checkpoint = {} } }, fixture.root_key);
+    const prepared = try engine.prepare(checkpoint);
+    try t.expectEqual(@as(u64, 0), engine.head.history_floor);
+    _ = try engine.commit(prepared);
+    try t.expectEqual(engine.head.position - 1, engine.head.history_floor);
+    var reopened = try Engine.open(&journal, &pages, genesis);
+    try t.expectEqual(pid, try reopened.submit(spawn));
+    try t.expectEqual(@as(u64, 3), try journal.tail());
+    journal.entries.items[2].operation.next.history_floor = 3;
+    try t.expectError(error.InvalidHistory, Engine.open(&journal, &pages, genesis));
+}

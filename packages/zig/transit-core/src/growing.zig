@@ -17,6 +17,9 @@ pub const Genesis = struct {
     /// Non-required associations and retained resources have no catalog ceiling.
     required_dependencies: u16 = 16,
     dependency_vertices: u16 = 64,
+    /// Explicit realm/application opt-in for protocol journal prefix compaction.
+    /// Does not authorize page, receipt, mailbox, view or value deletion.
+    allow_history_trim: bool = false,
 };
 pub const Head = struct {
     version: u32 = g.version,
@@ -25,6 +28,7 @@ pub const Head = struct {
     catalog: catalog.Snapshot,
     time_floor_ms: u64 = 0,
     outputs: u64 = 0,
+    history_floor: u64 = 0,
 };
 pub const Record = struct { position: u64, previous: ?pages.Reference, next: Head, request: g.Request, time: ?core.Time.Sample };
 pub const Entry = union(enum) { genesis: struct { genesis: Genesis, head: Head }, operation: Record };
@@ -99,6 +103,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 },
             };
             if (next.version != g.version or next.position != tail or next.position > p.max_counter) return error.InvalidPosition;
+            if (next.history_floor >= next.position or next.history_floor < self.head.history_floor) return error.InvalidHistory;
             if (!std.mem.eql(u8, &next.genesis, &self.head.genesis)) return error.GenesisMismatch;
             try next.catalog.validate();
             if (next.catalog.records == 0) return error.InvalidHistory;
@@ -178,7 +183,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             var candidate = try self.state();
             var next = self.head;
             const needs_time = switch (signed.request.command) {
-                .grant, .revoke, .terminate, .close_view, .grant_resource, .retire_resource => false,
+                .grant, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint => false,
                 .close_effect => |c| c.reason == .deadline,
                 .spawn => |c| c.work_before_ms != null,
                 else => true,
@@ -284,6 +289,13 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 },
                 .create_resource, .grant_resource, .associate, .open_view, .close_view, .retire_resource, .expire_resource, .begin_turn, .turn => try state_ops.apply(self, candidate, next, request, sample),
                 .deliver, .dispatch, .observe, .close_effect, .cancel_effect => try work_ops.apply(self, candidate, request, sample),
+                .checkpoint => {
+                    if (!self.genesis.allow_history_trim) return error.RetentionNotEnabled;
+                    // This publication is itself a complete root checkpoint.
+                    // Keep it (or a newer complete head) in the journal so
+                    // recovery never guesses a root from provider discovery.
+                    next.history_floor = position;
+                },
             }
         }
     };

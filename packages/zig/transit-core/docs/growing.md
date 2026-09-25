@@ -28,8 +28,17 @@ including a genesis fingerprint. Opening/refreshing reads the latest published
 head and materializes records on demand. It relies on the trusted journal's
 conditional append/record-coordinate contract; page identity checks protect
 referenced content. Recovery never stages pages or runs application code.
-Root-history checkpoint/trim and compatibility rejection still need composition
-into this engine; the separate page proof is not that integration.
+The [Ursula integration](../../transit-backend-ursula/docs/growing.md) supplies
+real conditional journal/page persistence. Each published record is a complete
+root checkpoint. `allow_history_trim` in genesis is explicit application/realm
+opt-in, defaulting to false. An administrative `checkpoint` records a monotonic
+floor that retains its own complete publication. Maintenance verifies that intent
+and a separately published root snapshot before trimming the earlier journal.
+It never trims the page journal. All mailbox entries, receipts, views, outputs
+and application values remain in the catalog, including old captured roots.
+This is protocol-history compaction, not permission to expire or reclaim values.
+Recovery reads the latest retained complete head and uses its genesis fingerprint;
+it never guesses a root from page or snapshot listings.
 
 State turns stage bounded mutations alongside process progress, output/effect
 intents, closed views and retry evidence. Current resource grants are required
@@ -117,7 +126,9 @@ checks reject an older materialization root attached to a newer publication and
 legacy genesis versions. Clock uncertainty, rollback and elapsed work deadlines
 fail closed; clock failure does not disable revocation or termination. The injected
 journal/page store is deterministic test infrastructure; these checks do not
-qualify Ursula integration, complete M10 or demonstrate production throughput.
+qualify service integration, complete M10 or demonstrate production throughput.
+`just test::growing` separately exercises the real provider boundary described
+in the adapter guide.
 
 The state-turn proof exceeds four resources, 32 rows and four retained views.
 It verifies that staged rows/progress are invisible before commit, rejected

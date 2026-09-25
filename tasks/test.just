@@ -88,6 +88,10 @@ pages *args:
 pages-cold *args:
     zig build test-pages -- --cold-s3 {{args}}
 
+# Prove v3 authority publication with retained views/receipts and disk restart.
+growing *args:
+    zig build test-growing -- {{args}}
+
 # Prove bounded diagnostics, independent metrics and cancelable log sinks.
 telemetry:
     zig build test-telemetry

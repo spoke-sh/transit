@@ -56,6 +56,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::properties [--seeds N --steps N]` | Runs saved and generated authority schedules; failures retain a minimized replay trace |
 | `just test::pages [--keys N --cache N --layout packed\|closed]` | Checks immutable page roots through disk restart and checkpoint/trim with a bounded cache; records measurements |
 | `just test::pages-cold [--keys N --cache N]` | Linux/Docker: repeats the page proof with an owned persistent S3-compatible cold store and measures both providers |
+| `just test::growing [--rows N --cold-s3]` | Proves v3 growing-authority atomic publication, retained reads/receipts and restart/checkpoint/trim against disk Ursula; service integration remains separate |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |
 | `just ci::complete`, `just ci-clean --complete` | Includes installed Chromium in ordinary local or clean-checkout qualification |
 | `just test::packages` | Checks each library independently of root build orchestration |

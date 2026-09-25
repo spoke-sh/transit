@@ -1159,6 +1159,19 @@
                   "x-transit-defaults": {}
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "checkpoint"
+              ],
+              "properties": {
+                "checkpoint": {
+                  "type": "object",
+                  "maxProperties": 0
+                }
+              }
             }
           ]
         }
@@ -2321,6 +2334,19 @@
                       "x-transit-defaults": {}
                     }
                   }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "checkpoint"
+                  ],
+                  "properties": {
+                    "checkpoint": {
+                      "type": "object",
+                      "maxProperties": 0
+                    }
+                  }
                 }
               ]
             }
@@ -3413,6 +3439,7 @@
                     "dependency_changes",
                     "runtime_bindings",
                     "history_reclamation",
+                    "retained_history",
                     "station"
                   ],
                   "properties": {
@@ -3490,6 +3517,13 @@
                     "history_reclamation": {
                       "type": "boolean"
                     },
+                    "retained_history": {
+                      "type": "string",
+                      "enum": [
+                        "unlimited",
+                        "checkpointed"
+                      ]
+                    },
                     "station": {
                       "type": "boolean"
                     }
@@ -3509,6 +3543,7 @@
                     "dependency_changes": "quiescent_owner_and_borrowers",
                     "runtime_bindings": false,
                     "history_reclamation": false,
+                    "retained_history": "unlimited",
                     "station": false
                   }
                 }

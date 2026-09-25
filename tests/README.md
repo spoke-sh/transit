@@ -772,5 +772,17 @@ roots. State checks also publish rows, input progress and outputs together,
 reject staged partial proposals and fence expired required dependencies. Signed
 read checks cover bounded current/captured pages, current permissions, stale
 ownership/cuts, expiry and hidden association filtering. These engine checks
-use injected storage; delivery/settlement, service/client/Station integration and
-control reserves still need evidence. The running system continues to use v2.
+use injected storage; delivery/settlement also have injected-storage checks.
+Service/client/Station integration and control reserves still need evidence. The running system continues to use v2.
+
+
+`just test::growing` runs the growing core against real Ursula and a single-page
+Transit cache. It crosses legacy process/principal/resource/row bounds, stages
+private candidates, rejects stale publication after revocation, injects failure
+before append and response loss after real acceptance, and verifies retained
+views/receipts/progress/outboxes across SIGKILL. Opted-in root checkpoint/trim
+retains all that state and rejects an uncommitted retention intent. It finally
+removes page storage in its disposable fixture to prove recovery fails closed.
+The [adapter guide](../packages/zig/transit-backend-ursula/docs/growing.md) owns
+measurement details and compatibility limits. This is authority/provider
+qualification, not node/client/Station support or a scale SLO.

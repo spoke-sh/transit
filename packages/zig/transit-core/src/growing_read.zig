@@ -37,7 +37,7 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     const position = engine.head.position;
     var current = try engine.state();
     const body: @FieldType(g.Response, "body") = switch (query.kind) {
-        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices } },
+        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited } },
         .process => |pid| blk: {
             try scope(principal, pid);
             const process = try engine.process(pid);

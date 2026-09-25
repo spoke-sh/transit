@@ -16,6 +16,7 @@
       "test::station",
       "test::storage",
       "test::pages",
+      "test::growing",
       "test::service",
       "test::runtime-upgrade",
       "test::callers",

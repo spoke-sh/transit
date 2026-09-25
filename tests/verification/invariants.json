@@ -362,9 +362,14 @@
       "id": "GROWTH-04",
       "claim": "Indexed delivery and bounded settlement preserve order, retry identity and permanent closure without scanning retained work",
       "owner": "docs/CONNECTORS.md",
-      "implementation": ["packages/zig/transit-core/src/growing_work.zig"],
+      "implementation": [
+        "packages/zig/transit-core/src/growing_work.zig"
+      ],
       "profile": "transit-v3 development work slice; not running service",
-      "tasks": ["test::unit", "contract::check"],
+      "tasks": [
+        "test::unit",
+        "contract::check"
+      ],
       "scenarios": [
         "Independent routes and stale prepared admission after revocation",
         "Lost delivery and observation acknowledgements",
@@ -372,6 +377,31 @@
         "Finite turn settlement, late-result rejection and permanent expiry"
       ],
       "limits": "Injected storage/time; no HTTP connector, automatic maintenance, real provider or service integration evidence.",
+      "model": null
+    },
+    {
+      "id": "GROWTH-05",
+      "claim": "Published growing authority roots recover through disk restart and opted-in root-history compaction without materializing all retained state",
+      "owner": "docs/STATE.md",
+      "implementation": [
+        "packages/zig/transit-backend-ursula/src/GrowingStore.zig",
+        "packages/zig/transit-backend-ursula/src/PackedPageStore.zig",
+        "tests/growing.zig"
+      ],
+      "profile": "transit-v3 development authority and disk Ursula; not running service",
+      "tasks": [
+        "test::growing",
+        "test::unit",
+        "contract::check"
+      ],
+      "scenarios": [
+        "Twenty wide principals, seventy processes, six resources and sixty-four rows with one resident page",
+        "Revocation fences an already staged candidate",
+        "Failure before publication and acknowledgement loss after publication",
+        "Captured version and exact receipt survive restart and opted-in root checkpoint/trim",
+        "Uncommitted trim intent and missing pages reject; retained outboxes/mailboxes remain"
+      ],
+      "limits": "Trusted test clock and injected acknowledgement loss at the real journal boundary. No service/SDK/Station integration, provider cluster, quota/control reserve or throughput qualification. Root history retains its latest complete head; pages are not reclaimed.",
       "model": null
     }
   ]

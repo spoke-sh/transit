@@ -52,6 +52,7 @@ pub const Command = union(enum) {
     observe: struct { pid: Id, effect: Id, attempt: Id, result: ?p.Value },
     close_effect: struct { pid: Id, effect: Id, attempt: Id, reason: enum { abandoned, deadline } = .abandoned },
     cancel_effect: struct { pid: Id, effect: Id },
+    checkpoint: void,
 };
 pub const Request = struct { version: u32 = version, realm: Id, principal: Id, sequence: u64, command: Command };
 pub const SignedRequest = struct { request: Request, signature: [64]u8 };
@@ -160,6 +161,7 @@ pub const Capabilities = struct {
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
     runtime_bindings: bool = false,
     history_reclamation: bool = false,
+    retained_history: enum { unlimited, checkpointed } = .unlimited,
     station: bool = false,
 };
 pub const Response = struct {

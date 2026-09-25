@@ -104,8 +104,17 @@ does not accept work. Recovery must consume published roots without dispatching
 effects or executing handlers. Unlimited retention requires growing durable
 receipt, wait and result history; cache eviction cannot authorize deletion.
 
-The declared capabilities expose unsupported runtime-binding and history-
-reclamation extensions explicitly. These fields currently describe the contract
+The development `checkpoint` command requires explicit realm/application
+`allow_history_trim` genesis opt-in; unlimited journal history remains the default.
+Capabilities distinguish support for root-history reclamation from the selected
+retained-history policy. The checkpoint publication records a monotonic floor
+that retains its own complete root-bearing journal entry. Trusted maintenance
+verifies committed intent and root snapshot before advancing that floor. It does
+not delete catalog pages, receipts, accepted inputs, values or captured roots.
+This does not add a public history query or page-GC capability.
+
+The declared capabilities expose unsupported runtime-binding and Station
+extensions explicitly. These fields currently describe the contract
 shape, not a live capability response. Before service qualification, M10 must
 qualify all authority transitions, provider persistence, current read/receipt
 authorization, finite lifetime/settlement behavior, quotas/control reserves,

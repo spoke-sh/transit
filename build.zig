@@ -56,6 +56,19 @@ pub fn build(b: *std.Build) void {
     page_test.has_side_effects = true;
     page_test.stdio = .inherit;
     b.step("test-pages", "Qualify immutable pages and bounded cache over disk Ursula").dependOn(&page_test.step);
+    const growth_proof = b.addExecutable(.{ .name = "transit-growth-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/growing.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
+    }) });
+    const growth_test = b.addSystemCommand(&.{ "python3", "-B" });
+    growth_test.addFileArg(b.path("tests/growing.py"));
+    growth_test.addArtifactArg(growth_proof);
+    growth_test.addPassthruArgs();
+    growth_test.has_side_effects = true;
+    growth_test.stdio = .inherit;
+    b.step("test-growing", "Prove growing authority publication and recovery through disk Ursula").dependOn(&growth_test.step);
     const transition_driver = b.addExecutable(.{ .name = "transit-transition-driver", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/transition_driver.zig"),
         .target = target,
