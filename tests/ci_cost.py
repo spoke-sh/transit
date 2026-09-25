@@ -47,13 +47,18 @@ def summarize(run, jobs, log, budgets):
     cost = sum(seconds(j['started_at'], j['completed_at']) for j in jobs if j.get('started_at') and j.get('completed_at'))
     cache_known = all(row['cache']['restored_bytes'] is not None for row in lanes)
     cache_bytes = sum(row['cache']['restored_bytes'] or 0 for row in lanes) if cache_known else None
+    modes = {row['cache']['mode'] for row in lanes}
+    profile = next(iter(modes)) if len(modes) == 1 else 'mixed'
+    limits = budgets.get('cold') if profile == 'cold' else budgets if profile == 'warm' else None
+    recorded_limits = {key: limits[key] for key in ('feedback_seconds', 'aggregate_runner_seconds', 'restored_cache_bytes')} if limits else None
     qualified = complete and run['conclusion'] == 'success' and cache_known
     return dict(version=1, run_id=run['id'], revision=run['head_sha'], url=run['html_url'],
+                run_attempt=run.get('run_attempt', 1), cache_profile=profile, budget=recorded_limits,
                 conclusion=run['conclusion'], status='measured' if qualified else 'inconclusive',
                 feedback_seconds=feedback, aggregate_runner_seconds=cost,
                 restored_cache_bytes=cache_bytes, lanes=lanes,
-                budget_met=qualified and feedback < budgets['feedback_seconds'] and cost <= budgets['aggregate_runner_seconds']
-                           and cache_bytes <= budgets['restored_cache_bytes'])
+                budget_met=qualified and limits is not None and feedback < limits['feedback_seconds'] and cost <= limits['aggregate_runner_seconds']
+                           and cache_bytes <= limits['restored_cache_bytes'])
 
 
 def main():

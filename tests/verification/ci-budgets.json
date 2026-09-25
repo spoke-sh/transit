@@ -1,17 +1,20 @@
 {
   "version": 1,
   "status": "targets; requires representative hosted cold and warm qualification",
-  "feedback_seconds": 600,
+  "feedback_seconds": 900,
   "stretch_feedback_seconds": 300,
-  "aggregate_runner_seconds": 3000,
+  "aggregate_runner_seconds": 3600,
   "restored_cache_bytes": 12884901888,
-  "minimum_samples_per_cache_mode": 3,
   "notes": [
-    "User requested under ten minutes, with under five minutes as a stretch target.",
-    "Fifty aggregate runner minutes and twelve GiB restored per run are proposed cost ceilings derived from the recorded three-lane baseline plus two additional lane setups.",
+    "User accepted the measured 12m37s feedback as close enough to the ten-minute preference to stop further optimization. Fifteen-minute feedback and sixty aggregate runner-minute qualification budgets allow measured-run headroom; under ten minutes remains an improvement target and under five a stretch.",
+    "Sixty aggregate runner minutes derive from the 53m27s five-lane warm run; twelve GiB restore derives from its 10.69 GiB transfer.",
     "Feedback includes queue/selection time from workflow creation through required lane completion; aggregate cost sums job wall time, not billable price.",
     "Cold means GitHub dependency restores disabled, not an empty upstream Nix substitute cache.",
     "Incomplete, failed or cancelled runs and missing cache evidence cannot qualify a budget.",
-    "A larger runner needs a measured comparison and explicit selection; no paid runner is chosen by these targets."
-  ]
+    "A larger runner needs a measured comparison and explicit selection; no paid runner is chosen by these targets.",
+    "Three ordinary warm samples qualify normal feedback. One explicit dependency-cache-miss baseline calibrates exceptional rebuild cost; it does not establish cold-run variance."
+  ],
+  "improvement_feedback_seconds": 600,
+  "minimum_warm_samples": 3,
+  "minimum_cold_samples": 1
 }

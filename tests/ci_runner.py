@@ -36,6 +36,12 @@ def main():
     assert not summarize(sample, [dict(job, conclusion='failure')], log, budgets)['budget_met']
     assert not summarize(sample, [dict(job, completed_at=None)], log, budgets)['budget_met']
     assert not summarize(sample, [job], log, dict(budgets, feedback_seconds=10))['budget_met']
+    cold_log = 'core\tCI dependency cache mode: cold\n'
+    assert not summarize(sample, [job], cold_log, budgets)['budget_met']
+    cold_budget = dict(feedback_seconds=20, aggregate_runner_seconds=20, restored_cache_bytes=0)
+    cold = summarize(sample, [job], cold_log, dict(budgets, cold=cold_budget))
+    assert cold['budget_met'] and cold['budget'] == cold_budget and cold['cache_profile'] == 'cold'
+    assert measured['budget'] == budgets and measured['cache_profile'] == 'warm'
     assert not select(["docs/STATE.md", "README.md"])["full"]
     for paths in ([], ["docs/schema.json"], ["contracts/STATE_V1.md"],
                   ["build.zig"], ["unknown"], ["docs/../../build.zig"],

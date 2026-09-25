@@ -198,7 +198,8 @@ outside successful temporary clones in `.cache/ci/clean/`.
 wall time and total runner time must be measured after deployment; local timings
 and smaller closures alone do not establish the final speedup.
 
-The feedback target is under ten minutes, with five minutes as a stretch.
+The accepted warm feedback budget is under fifteen minutes, based on the
+12m37s five-lane run; under ten remains an improvement target, five a stretch.
 [CI budgets](../tests/verification/ci-budgets.json) also track provisional runner
 and restore costs; `just ci::cost RUN_ID` collects completed hosted evidence.
 Manual `cache_mode=cold` runs disable GitHub dependency restores/saves while

@@ -177,12 +177,15 @@ serialization point, and [M18](roadmap/M18.md) owns broader cluster qualificatio
 
 ## CI selection, cost and local parity
 
-The M10 feedback target is **under 10 minutes**, with **under 5 minutes** as a
-stretch target. The provisional aggregate budget is 50 runner minutes and 12 GiB
-of restored dependency caches per full run. These are CI budgets, not service
+The M10 warm feedback budget is **under 15 minutes**, with **60 runner minutes**
+and **12 GiB** restored per full run. These budgets follow the accepted 12m37s /
+53m27s five-lane measurement. Under ten minutes remains an improvement target,
+with under five as a stretch; further runner optimization is deferred. These are CI budgets, not service
 SLOs; [ci-budgets.json](../tests/verification/ci-budgets.json) records their
-measurement rules. Require at least three complete samples per cold/warm mode
-before claiming the target met. Failed, cancelled or incomplete runs do not count.
+measurement rules. Require three complete warm samples for ordinary feedback
+and one explicit cache-miss baseline for exceptional rebuild cost. The latter
+is a calibration, not a cold-run variance claim. Failed, cancelled or incomplete
+runs do not count.
 
 `just ci::cost RUN_ID` reads GitHub's completed job/step timestamps and cache
 byte counts into a small JSON artifact. It requires authenticated `gh` with read
@@ -196,7 +199,8 @@ job completion includes queue time; aggregate runner time sums actual jobs and
 does not estimate a monetary price.
 
 Manual CI has a `cache_mode=cold` option disabling GitHub Nix/Zig restores and
-saves. Nix can still use upstream binary substitutes. Ordinary runs restore
+saves. Its concurrency group is separate so calibration does not supersede
+ordinary feedback. Nix can still use upstream binary substitutes. Ordinary runs restore
 dependencies into fresh checkout object caches. The five lanes separate core,
 growing state, frontend/Station experience, launcher/build smoke and bindings;
 browser checks remain in experience. Core/growth share the core Nix cache, and

@@ -36,8 +36,9 @@ inventory coverage does not imply all M10 gates have passed.
 
 ## Local execution cost evidence
 
-The [CI budgets](ci-budgets.json) target under ten minutes of feedback (five as a
-stretch goal). `just ci::cost RUN_ID` retains hosted phase timing and restored
+The [CI budgets](ci-budgets.json) allow under fifteen minutes of warm feedback
+and sixty aggregate runner minutes, following the accepted five-lane sample.
+Under ten minutes remains an improvement target and five a stretch. `just ci::cost RUN_ID` retains hosted phase timing and restored
 bytes separately from local task measurements. The completed warm-dependency run
 [`36181871580`](https://github.com/rupurt/rey/actions/runs/36181871580) used 1,000s
 for core, 874s for experience and 529s for bindings, plus selection/final gating.
@@ -50,8 +51,9 @@ first hosted warm run
 [`36194234944`](https://github.com/rupurt/rey/actions/runs/36194234944) passed in
 12m37s, using 53m27s of aggregate job time and 10.69 GiB restored. Core/growth
 took 622/626s, experience/launchers 696/712s and bindings 540s. Feedback improved
-but both the ten-minute and provisional fifty-runner-minute targets remain unmet.
-One sample does not qualify variance or the cold-cache case.
+and the user accepted that result as close enough to defer further optimization.
+It fits the revised 15-minute / 60-runner-minute budgets. One sample does not
+qualify variance or the cold-cache case.
 
 The complete clean run at `264f38e` passed all 33 tasks, including the growing
 service/result delivery, foreign bindings, finite models and five Chromium
