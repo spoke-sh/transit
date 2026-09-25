@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "status": "targets; requires representative hosted cold and warm qualification",
+  "status": "three warm samples qualified; final cold baseline pending",
   "feedback_seconds": 900,
   "stretch_feedback_seconds": 300,
   "aggregate_runner_seconds": 3600,
@@ -9,12 +9,18 @@
     "User accepted the measured 12m37s feedback as close enough to the ten-minute preference to stop further optimization. Fifteen-minute feedback and sixty aggregate runner-minute qualification budgets allow measured-run headroom; under ten minutes remains an improvement target and under five a stretch.",
     "Sixty aggregate runner minutes derive from the 53m27s five-lane warm run; twelve GiB restore derives from its 10.69 GiB transfer.",
     "Feedback includes queue/selection time from workflow creation through required lane completion; aggregate cost sums job wall time, not billable price.",
-    "Cold means GitHub dependency restores disabled, not an empty upstream Nix substitute cache.",
+    "Cold means GitHub dependency restores disabled, not an empty upstream Nix substitute cache. Restored bytes exclude upstream Nix substitute traffic.",
     "Incomplete, failed or cancelled runs and missing cache evidence cannot qualify a budget.",
     "A larger runner needs a measured comparison and explicit selection; no paid runner is chosen by these targets.",
-    "Three ordinary warm samples qualify normal feedback. One explicit dependency-cache-miss baseline calibrates exceptional rebuild cost; it does not establish cold-run variance."
+    "Three ordinary warm samples qualify normal feedback. One explicit dependency-cache-miss baseline calibrates exceptional rebuild cost; it does not establish cold-run variance.",
+    "The separate cold budget allows 35 minutes and 135 aggregate runner minutes, with no GitHub dependency-cache restore. This gives headroom above the observed 30m31s / 120m43s deadline-limited run, which remains inconclusive and cannot qualify the budget."
   ],
   "improvement_feedback_seconds": 600,
   "minimum_warm_samples": 3,
-  "minimum_cold_samples": 1
+  "minimum_cold_samples": 1,
+  "cold": {
+    "feedback_seconds": 2100,
+    "aggregate_runner_seconds": 8100,
+    "restored_cache_bytes": 0
+  }
 }

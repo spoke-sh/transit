@@ -34,7 +34,7 @@ are negative controls. The growing profile's partial qualification is recorded
 in the [test guide](../README.md#m10-verification-and-scale-foundations);
 inventory coverage does not imply all M10 gates have passed.
 
-## Local execution cost evidence
+## CI and clean-run cost evidence
 
 The [CI budgets](ci-budgets.json) allow under fifteen minutes of warm feedback
 and sixty aggregate runner minutes, following the accepted five-lane sample.
@@ -52,8 +52,29 @@ first hosted warm run
 12m37s, using 53m27s of aggregate job time and 10.69 GiB restored. Core/growth
 took 622/626s, experience/launchers 696/712s and bindings 540s. Feedback improved
 and the user accepted that result as close enough to defer further optimization.
-It fits the revised 15-minute / 60-runner-minute budgets. One sample does not
-qualify variance or the cold-cache case.
+Three ordinary warm samples now meet the 15-minute / 60-runner-minute budgets:
+
+| Run | Revision | Feedback | Aggregate runner time | Restored |
+| --- | --- | --- | --- | --- |
+| [36194234944](https://github.com/rupurt/rey/actions/runs/36194234944) | `97f3b7e` | 12m37s | 53m27s | 10.69 GiB |
+| [36197767974](https://github.com/rupurt/rey/actions/runs/36197767974) | `22aa6f0` | 14m35s | 58m08s | 10.69 GiB |
+| [36199109839](https://github.com/rupurt/rey/actions/runs/36199109839) | `22aa6f0` | 13m31s | 51m53s | 10.69 GiB |
+
+All three ran the same 33 required tasks on five 2-vCPU Linux x86_64 runners.
+These samples establish the bounded calibration, not a percentile or future
+latency guarantee. A fourth passing test run,
+[36197683518](https://github.com/rupurt/rey/actions/runs/36197683518) at `72552a3`,
+took 14m49s and 62m05s of aggregate runner time, exceeding the cost budget.
+That revision unnecessarily removed unused SDKs even on warm cache hits; cleanup
+is now limited to cache misses. The over-budget result remains evidence of that
+regression and does not count toward the three qualifying warm samples.
+
+The final implementation clean run at `082ea76` passed all 33 tasks in 1,018.18s
+(sequential local task time), including the Process Compose restart regression,
+all language bindings and five Chromium checks. Evidence is in
+`.cache/ci/clean/082ea767f278-transit-ci-fo_r55s_/`. The restart test reproduces
+the late shutdown error after a real child exits and verifies that errors for
+a live child or unrelated manager failure do not start a duplicate process.
 
 The subsequent clean run at `22aa6f0` passed all 33 tasks in 1,026.97s, including
 the Station inspection-cut regression, expanded retained-association reads and
