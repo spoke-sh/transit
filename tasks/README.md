@@ -4,24 +4,24 @@ Run commands from the repository root inside `nix develop`.
 
 ## Task interface
 
-The root [justfile](../justfile) keeps common commands: `check`, `ci`, `ci-clean`,
+The root [justfile](../justfile) keeps common commands: `check`, `ci-clean`,
 `fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
 [build](build.just), [launchers](launchers.just), [test](test.just),
-[examples](examples.just), [contract](contract.just), and [transit-board](transit-board.just).
+[examples](examples.just), [contract](contract.just), [ci](ci.just), and [transit-board](transit-board.just).
 Use double colons, for example `just launchers::reference::up` or `just examples::run counter`.
 Space-separated module paths also work: `just build debug` is equivalent to
 `just build::debug`.
 
 `just` lists common commands and namespaces. `just launchers` lists environment
 groups; `just launchers::local` or `just --list launchers local` lists one
-environment's recipes. Bare module commands only
-list tasks. In particular, `just test` lists the test recipes; use
+environment's recipes. Most bare module commands list tasks; `just ci` is the
+exception and runs the complete local suite. `just test` lists the test recipes; use
 `just test::unit` to run unit tests. `just --list --list-submodules` shows the full
 tree.
 
 Each module explicitly sets the strict Bash shell and repository-root working
 directory. Recipes work from repository subdirectories after entering the dev
-shell. `just ci` composes checks through module dependencies;
+shell. `just ci` uses the same timed task inventory as the hosted lanes;
 reference deployment and physical-capacity tests remain explicit commands.
 
 | Command | What it does today |
@@ -30,6 +30,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just doctor` | Prints tool versions, including Ursula and Kubernetes tooling, without contacting a cluster |
 | `just check` | Checks Nix/Zig formatting, tooling, Zig unit tests, Transit/Board contract drift, frontend formatting/lint/types/tests, local Markdown links, and diff whitespace; install locked frontend dependencies first |
 | `just ci` | Runs foundation, package, telemetry, recovery, caller, inspection, Board API/frontend and local launcher checks in the same development shell |
+| `just ci::core`, `just ci::experience`, `just ci::browser` | Run individual hosted lanes with task timings; browser installation remains an explicit prerequisite |
 | `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs `just ci` without existing workspace outputs |
 | `just fmt` | Formats Nix, Zig and frontend source/Markdown; contract regeneration stays explicit |
 | `just build` | Lists Zig build profiles |

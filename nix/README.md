@@ -129,12 +129,45 @@ and successful preparation is saved even if a later protocol test fails. The
 not a hard size bound. No cache-purge permission or external cache secret is
 needed. The self-hosted reference workflow keeps using its existing local store.
 
-All checks still run via `just ci`. The first cache miss still builds the pinned
-toolchain. The [first measured warm run](https://github.com/rupurt/rey/actions/runs/35815675439)
+The first cache miss still builds the pinned toolchain. The
+[first measured warm run](https://github.com/rupurt/rey/actions/runs/35815675439)
 restored the cache in 1m32s and prepared the shell in eight seconds, with no
 Ursula rebuild. Its service test exposed a deadline bug under limited CPU
 availability, so it is not a passing end-to-end timing. Compare the separate
 restore, preparation, checks, and save step timings on subsequent runs.
+
+### CI lanes
+
+The [pre-split run](https://github.com/rupurt/rey/actions/runs/36073815381)
+took 18m29s: restore/save used 2m28s, the checks used 14m22s, and native launcher
+qualification accounted for 5m39s of those checks. The workflow now runs two
+lanes concurrently. `just ci::core` owns foundation/library/protocol proofs;
+`just ci::experience` owns frontend, cross-service observability, Board and
+native launcher proofs, followed by `just ci::browser`. `just ci` runs the same
+core and experience task inventory sequentially in a development shell.
+
+The experience lane uses `nix develop .#ci-experience`, a shell without provider
+or Kubernetes tools and without PyArrow. Its measured environment closure is
+1.2 GiB. Each lane restores its own Nix cache; successful preparation is rooted
+before collection, and a miss saves only the live closure. Small changes to the
+packaged inspection plugin or environment helper can rebuild without uploading
+the store. Exact cache hits do not upload again. Cache keys deliberately change
+for heavy toolchain/pin updates; the first new-key run pays that upload cost.
+New lane caches can fall back to the previous shared cache for their first run,
+so the split itself does not force rebuilding Ursula from Rust source.
+
+Both lanes reuse a compiler/dependency cache keyed by the locked toolchain and
+Zig manifests. Only core writes it. It holds fetched packages and global compiler
+objects, excluding checkout objects, launchers, credentials and the Git archive
+transport cache. This avoids caching the tens of gigabytes accumulated by local
+Debug/ReleaseSafe builds. No application tests are skipped on a cache hit.
+
+The workflow cancels superseded runs on the same branch/PR and retains the old
+`foundation-and-protocol` required-check name as an aggregate gate. Each task's
+duration and status goes to the Actions summary and `.cache/ci/*.json` locally.
+`just check` runs Actionlint so workflow syntax is checked before CI. Hosted
+wall time and total runner time must be measured after deployment; local timings
+and smaller closures alone do not establish the final speedup.
 
 ## Updating tools
 

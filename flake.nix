@@ -67,7 +67,15 @@
             kubectl-transit
             ;
         in
-        {
+        rec {
+          ci-experience = import ./nix/ci-experience.nix {
+            inherit
+              pkgs
+              zig
+              vite-plus
+              ursula
+              ;
+          };
           default =
             assert pkgs.lib.assertMsg (pkgs.lib.hasPrefix "0.17." zig.version)
               "Rey targets Zig 0.17 master; review the compiler target before updating zig-overlay.";
@@ -87,6 +95,7 @@
                 pkgs.nodejs_24
                 pkgs.pnpm
                 pkgs.nixfmt
+                pkgs.actionlint
                 pkgs.kubectl
                 pkgs.kubernetes-helm
                 pkgs.k9s

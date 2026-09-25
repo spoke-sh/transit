@@ -4,10 +4,24 @@ on:
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
-  foundation-and-protocol:
+  checks:
+    name: ${{ matrix.lane }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: core
+            shell: default
+          - lane: experience
+            shell: ci-experience
+    env:
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.cache/ci-zig
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -21,28 +35,69 @@ jobs:
         id: nix-cache
         uses: nix-community/cache-nix-action/restore@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
-          # Include packaged CLI sources/pins and Vite+ npm inputs.
-          primary-key: nix-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', '**/*.nix', 'nix/dev-environment.sh', 'nix/vite-plus/**', 'nix/ate-upgrade/**', 'deploy/reference/versions.json', 'apps/kubectl-transit/*.zig') }}
-          restore-prefixes-first-match: nix-v1-${{ runner.os }}-${{ runner.arch }}-
+          # Separate closures: the experience lane never restores Kubernetes,
+          # provider CLIs, PyArrow, or their build dependencies. Small local
+          # plugin/environment changes rebuild locally without a store upload.
+          primary-key: nix-v2-${{ matrix.lane }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix', 'nix/*.nix', 'nix/vite-plus/**', 'nix/ate-upgrade/**', 'deploy/reference/versions.json') }}
+          # Seed new lane caches from the existing store once, avoiding a cold
+          # Ursula Rust build just because the workflow was decomposed.
+          restore-prefixes-first-match: |
+            nix-v2-${{ matrix.lane }}-${{ runner.os }}-${{ runner.arch }}-
+            nix-v1-${{ runner.os }}-${{ runner.arch }}-
       - name: Prepare development shell
         id: shell
         # Keep the shell closure rooted through cache GC; a temporary `-c true`
         # alone would let GC discard the binaries we just spent time building.
-        run: nix develop --profile "$RUNNER_TEMP/rey-ci-shell" --command true
+        run: nix develop .#${{ matrix.shell }} --profile "$RUNNER_TEMP/transit-ci-shell" --command true
+      - name: Restore Zig standard libraries and fetched packages
+        id: zig-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          # Deliberately exclude checkout object files (multi-GB per profile),
+          # mutable launcher data and Zig's Git transport archive cache.
+          path: |
+            .cache/ci-zig/o
+            .cache/ci-zig/h
+            .cache/ci-zig/p
+          key: zig-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-${{ hashFiles('**/build.zig.zon') }}
+          restore-keys: zig-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}-
       - name: Install locked Board frontend dependencies
-        run: nix develop --command just transit-board::install
-      - name: Run foundation and protocol checks
-        run: nix develop --command just ci
+        if: matrix.lane == 'experience'
+        run: nix develop .#${{ matrix.shell }} --command just transit-board::install
+      - name: Run ${{ matrix.lane }} checks
+        run: nix develop .#${{ matrix.shell }} --command just ci::${{ matrix.lane }}
       - name: Install browser and host dependencies
-        run: nix develop --command vp exec --filter @rey/transit-board-web playwright install --with-deps chromium
+        if: matrix.lane == 'experience'
+        run: nix develop .#${{ matrix.shell }} --command vp exec --filter @rey/transit-board-web playwright install --with-deps chromium
       - name: Qualify embedded Board in Chromium
-        run: nix develop --command just transit-board::browser
+        if: matrix.lane == 'experience'
+        run: nix develop .#${{ matrix.shell }} --command just ci::browser
+      - name: Save Zig standard libraries and fetched packages
+        # One writer; source changes reuse the same immutable compiler cache.
+        if: ${{ !cancelled() && matrix.lane == 'core' && steps.zig-cache.outcome == 'success' && steps.zig-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            .cache/ci-zig/o
+            .cache/ci-zig/h
+            .cache/ci-zig/p
+          key: ${{ steps.zig-cache.outputs.cache-primary-key }}
       - name: Save Nix store
         # Preserve expensive successful toolchain builds even if a test fails.
         if: ${{ !cancelled() && steps.shell.outcome == 'success' && steps.nix-cache.outputs.hit-primary-key != 'true' }}
         uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
           primary-key: ${{ steps.nix-cache.outputs.primary-key }}
-          # The current rooted build closure is ~5 GiB. This is a GC target,
-          # not a hard limit; live roots are retained. No cache purge permission.
-          gc-max-store-size-linux: 6G
+          # Keep the rooted lane closure, not arbitrary downloaded build state.
+          # A GC target is not a hard cap; live roots are always retained.
+          gc-max-store-size-linux: '0'
+  foundation-and-protocol:
+    # Preserve the previous required-check name across the decomposition.
+    if: always()
+    needs: checks
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every CI lane
+        env:
+          RESULT: ${{ needs.checks.result }}
+        run: test "$RESULT" = success
