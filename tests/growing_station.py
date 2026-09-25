@@ -23,7 +23,8 @@ def run(node, caller, *, resident_pages=16):
             "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
         manifest = fixture.root / "pending.json"
         fault = {"read": False, "pending": None, "receipt": None, "retried": False,
-                 "point_reads": 0, "scan_allowed": False, "page_reads": 0}
+                 "point_reads": 0, "scan_allowed": False, "page_reads": 0,
+                 "version_pages": 0}
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -39,13 +40,14 @@ def run(node, caller, *, resident_pages=16):
                     data = response.read()
                     if self.path == "/v3/query":
                         query = envelope["query"]
-                        entries = query["kind"].get("entries")
-                        if query["principal"] != 0 and entries is not None:
+                        retained = "version_entries" in query["kind"]
+                        entries = query["kind"].get("version_entries" if retained else "entries")
+                        if query["principal"] != 0 and entries is not None and response.status == 200:
                             if entries.get("key") is None:
                                 assert fault["scan_allowed"], "Handler materialized a resource before a scan request"
-                                assert entries.get("view") is not None
+                                assert entries.get("id" if retained else "view") is not None
                                 assert entries.get("after", "").startswith(b"\x00r\x01\x00\x00\x00".hex())
-                                fault["page_reads"] += 1
+                                fault["version_pages" if retained else "page_reads"] += 1
                             else:
                                 fault["point_reads"] += 1
                             if entries.get("key") == b"read-fault".hex() and not fault["read"]:
@@ -114,6 +116,15 @@ def run(node, caller, *, resident_pages=16):
             started = time.monotonic()
             subprocess.run([caller, proxy_url, "recover", str(manifest)], check=True, timeout=60)
             assert fault["page_reads"] == 6, "Expected bounded, ordered Table pages after recovery"
+            assert fault["version_pages"] == 1, "Exactly one retained source page before interruption"
+            authority.kill()
+            authority.wait(timeout=10)
+            authority = None
+            fixture.stop()
+            fixture.start()
+            authority = start()
+            subprocess.run([caller, proxy_url, "resume", str(manifest)], check=True, timeout=60)
+            assert fault["version_pages"] == 6, "Retained continuation must resume without rescanning committed pages"
             print("Growing Station timing:", json.dumps({
                 "write_resident_pages": resident_pages, "recover_resident_pages": 1,
                 "write_seconds": write_seconds,
@@ -133,3 +144,16 @@ def run(node, caller, *, resident_pages=16):
             thread.join(timeout=5)
             log.close()
     print("Growing Station: retained calls/Tables beyond 32 keys, bounded handler reads, poisoned read, lost turn reply and fresh-activation disk recovery passed.")
+
+
+if __name__ == "__main__":
+    import argparse
+    import os
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("node")
+    parser.add_argument("caller")
+    parser.add_argument("--resident-pages", type=int, default=16)
+    args = parser.parse_args()
+    if hasattr(os, "sched_getaffinity"):
+        os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
+    run(args.node, args.caller, resident_pages=args.resident_pages)

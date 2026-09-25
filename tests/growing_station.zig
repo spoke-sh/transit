@@ -9,7 +9,7 @@ const Turn = station.GrowingTurn;
 const t = std.testing;
 const Realm = 43;
 const Count = 40;
-const Expected = struct { requester: u64, writer: u64, requests: u64, rows: u64, stale: ?g.SignedRequest = null };
+const Expected = struct { requester: u64, writer: u64, requests: u64, rows: u64, retained_input: u64 = 0, stale: ?g.SignedRequest = null };
 
 const Admin = struct {
     wire: *client.Client,
@@ -55,6 +55,13 @@ const Handler = struct {
         const self = context(raw);
         self.handled += 1;
         if (self.writer) {
+            if (frame.kind == .cast and std.mem.eql(u8, frame.payload.slice(), "retain")) {
+                const id = try turn.retain();
+                try t.expectEqual(@as(u8, 0), id.index);
+                try turn.put(try p.Value.init("retained"), p.Value.integer(@intCast(id.input)));
+                return;
+            }
+            if (frame.kind == .cast and std.mem.eql(u8, frame.payload.slice(), "version-scan")) return scanVersion(turn);
             if (frame.kind == .cast and std.mem.eql(u8, frame.payload.slice(), "scan")) {
                 const table = try station.Table.open(turn, 1);
                 var cursor: ?station.Table.Cursor = null;
@@ -102,6 +109,40 @@ const Handler = struct {
     }
     fn interface(self: *Handler) Server.Handler {
         return .{ .context = self, .initialize = initialize, .handle = handle };
+    }
+    fn scanVersion(turn: *Turn) !void {
+        const input = try (try turn.read(try p.Value.init("retained"))).?.asInteger();
+        var source = try turn.openVersion(.{ .pid = turn.delivery.pid, .input = @intCast(input), .index = 0 });
+        const table = try station.Table.open(&source, 1);
+        const progress_key = try p.Value.init("version-progress");
+        const progress = try turn.read(progress_key);
+        var count: u64 = 0;
+        var after: i64 = 0;
+        if (progress) |value| {
+            if (value.len != 16) return error.InvalidScanProgress;
+            count = std.mem.readInt(u64, value.data[0..8], .little);
+            after = std.mem.readInt(i64, value.data[8..16], .little);
+            try t.expectEqual(turn.delivery.pid, try station.Frame.source(turn.delivery.input));
+        }
+        const cursor: ?station.Table.Cursor = if (progress != null) .{ .source = .{ .version = source.view.id }, .resource = source.view.resource, .revision = source.view.revision, .table = table.id, .schema = try table.schema.fingerprint(), .after = after } else null;
+        const page = try table.page(&source, cursor);
+        for (page.rows[0..page.len]) |row| {
+            try t.expectEqual(@as(i64, @intCast(count)), row.key);
+            try t.expectEqual(row.key * 2, row.value.int64);
+            count += 1;
+            after = row.key;
+        }
+        var saved: [16]u8 = undefined;
+        std.mem.writeInt(u64, saved[0..8], count, .little);
+        std.mem.writeInt(i64, saved[8..16], after, .little);
+        try turn.put(progress_key, try p.Value.init(&saved));
+        if (page.next != null) {
+            try turn.cast(turn.delivery.pid, try p.Value.init("version-scan"));
+        } else {
+            try t.expectEqual(@as(u64, Count), count); // Excludes the later 41st row.
+            try turn.put(try p.Value.init("version-scanned"), p.Value.integer(@intCast(count)));
+            try turn.release(source.view.id);
+        }
     }
 };
 
@@ -160,7 +201,7 @@ fn verify(admin: *Admin, expected: Expected, count: usize) !void {
     }
     try t.expectEqual(count, waits);
     const rows = (try admin.query(.{ .resource = expected.rows })).body.resource;
-    try t.expectEqual(@as(u64, count + 2), rows.entries); // descriptor, schema, rows
+    try t.expectEqual(@as(u64, count + 2 + @intFromBool(expected.retained_input != 0)), rows.entries); // descriptor, schema, rows, optional pin manifest
     for (0..count) |i| {
         const page = (try admin.query(.{ .entries = .{ .resource = rows.id, .revision = rows.revision, .key = station.Table.rowKey(1, @intCast(i)) } })).body.entries.page;
         const value = page.entries[0].?.value;
@@ -172,7 +213,7 @@ pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const root_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
     var output_buffer: [4096]u8 = undefined;
-    var output = std.Io.File.stdout().writer(init.io, &output_buffer);
+    var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     if (args.len == 2 and std.mem.eql(u8, args[1], "public")) {
         try std.json.Stringify.value(root_key.public_key.toBytes(), .{}, &output.interface);
         return output.interface.flush();
@@ -209,6 +250,8 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqual(@as(usize, Count), write_handler.handled);
         var expected: Expected = .{ .requester = requester.pid, .writer = writer.pid, .requests = requester.resource, .rows = writer.resource };
         try verify(&admin, expected, Count);
+        expected.retained_input = try admin.submit(.{ .send = .{ .pid = writer.pid, .value = try (station.Frame{ .kind = .cast, .payload = try p.Value.init("retain") }).encode() } });
+        _ = try drive(init.io, &write_server, &write_handler, false);
         try admin.send(requester.pid, Count);
         _ = try drive(init.io, &request_server, &request_handler, false);
         _ = try admin.submit(.{ .deliver = Count * 2 + 1 });
@@ -217,12 +260,37 @@ pub fn main(init: std.process.Init) !void {
         const bytes = try std.json.Stringify.valueAlloc(init.gpa, expected, .{});
         defer init.gpa.free(bytes);
         try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = args[3], .data = bytes });
-    } else if (std.mem.eql(u8, args[2], "recover")) {
+    } else if (std.mem.eql(u8, args[2], "recover") or std.mem.eql(u8, args[2], "resume")) {
         const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.gpa, .limited(client.max_body));
         defer init.gpa.free(bytes);
         const parsed = try std.json.parseFromSlice(Expected, init.gpa, bytes, .{});
         defer parsed.deinit();
         const expected = parsed.value;
+        if (std.mem.eql(u8, args[2], "resume")) {
+            _ = try admin.submit(.{ .own = .{ .pid = expected.writer, .expected_generation = 3, .worker = 65537 } });
+            var server = try makeServer(&wire, 65537, expected.writer, 4, writer_key);
+            var handler: Handler = .{ .writer = true, .peer = expected.requester };
+            var complete = false;
+            for (0..6) |i| {
+                _ = try admin.submit(.{ .deliver = Count * 2 + 3 + i });
+                _ = try drive(init.io, &server, &handler, false);
+                const resource = (try admin.query(.{ .resource = expected.rows })).body.resource;
+                const value = (try admin.query(.{ .entries = .{ .resource = resource.id, .revision = resource.revision, .key = try p.Value.init("version-scanned") } })).body.entries.page.entries[0];
+                if (value) |entry| {
+                    try t.expectEqual(@as(i64, Count), try entry.value.asInteger());
+                    complete = true;
+                    break;
+                }
+            }
+            try t.expect(complete and handler.initialized == 0);
+            const id: g.ReadVersionId = .{ .pid = expected.writer, .input = expected.retained_input, .index = 0 };
+            const version = try server.session.version(id);
+            try t.expect(version.released_at != null);
+            try t.expectError(error.Rejected, wire.queryGrowing(.{ .realm = Realm, .principal = 65537, .kind = .{ .version_entries = .{ .id = id, .generation = 4 } } }, writer_key));
+            try t.expectEqual(.ReadVersionReleased, wire.last_rejection.?);
+            try output.interface.writeAll("Growing Station resume: passed\n");
+            return output.interface.flush();
+        }
         _ = try admin.submit(.{ .own = .{ .pid = expected.requester, .expected_generation = 2, .worker = 65536 } });
         _ = try admin.submit(.{ .own = .{ .pid = expected.writer, .expected_generation = 2, .worker = 65537 } });
         try t.expectError(error.Rejected, wire.submitGrowing(expected.stale.?));
@@ -242,6 +310,10 @@ pub fn main(init: std.process.Init) !void {
         const resource = (try admin.query(.{ .resource = expected.rows })).body.resource;
         const scanned = (try admin.query(.{ .entries = .{ .resource = resource.id, .revision = resource.revision, .key = try p.Value.init("scanned") } })).body.entries.page.entries[0].?;
         try t.expectEqual(@as(i64, Count + 1), try scanned.value.asInteger());
+        _ = try admin.submit(.{ .send = .{ .pid = expected.writer, .value = try (station.Frame{ .kind = .cast, .payload = try p.Value.init("version-scan") }).encode() } });
+        _ = try drive(init.io, &write_server, &write_handler, false);
+        // One source page/progress/output committed. The harness loses this
+        // caller and both services before delivering its self-continuation.
     } else return error.UnknownPhase;
     try output.interface.print("Growing Station {s}: passed\n", .{args[2]});
     try output.interface.flush();

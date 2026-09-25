@@ -27,12 +27,27 @@ the kernel failure marker. Initialization and the first successfully handled
 input commit together. The descriptor is `station.genserver.growing.v1` at
 `00 station`; an incompatible descriptor is an explicit error.
 
-Table page continuations name the captured view, resource, resource revision,
-Table, schema fingerprint and exclusive signed row key. They are local query
-state, not bearer capabilities or restartable jobs. Every page still needs the
-current captured-read authorization. Iteration excludes private mutations and
-must preserve its view until completion or explicit failure. A page boundary
-does not establish a complete Arrow result or a transaction over another input.
+Table page continuations name their source (turn-view ID or retained-version ID),
+resource, revision, Table, schema fingerprint and exclusive signed row key. Every
+page still needs current read authorization. Iteration over a turn view excludes
+private mutations and must preserve that view until completion or explicit failure.
+A page boundary does not establish a complete Arrow result.
+
+`GrowingTurn.retain` stages retention of its committed source and returns its
+future durable ID. `openVersion(id)` supplies a read-only Table/KV source using
+the [retained-version contract](READ_VERSIONS_V1.md); `release(id)` stages terminal
+release. They publish only with the handler's final proposal. Metadata and data
+reads automatically register the version in that proposal's read dependencies,
+so access changes between reading and publication are checked by the authority.
+Read failures poison the whole proposal. Private writes can record continuation
+progress while reading a retained source; they do not enter the source snapshot.
+
+A retained source borrows the current private turn. Never keep that native pointer
+across handlers. A later handler reopens the durable ID and may resume a matching
+Table cursor. The application must persist its job/cursor/progress and send durable
+continuations in the same turn decision. Station does not infer a restartable job
+from a native iterator, and no general query scheduler or Arrow result protocol
+is implied by these helpers. V2/foreign bindings do not expose them yet.
 
 ## Calls and lifetimes
 

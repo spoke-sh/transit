@@ -117,6 +117,11 @@ growing-service:
 growing-service-release:
     zig build test-growing-service -Doptimize=ReleaseSafe
 
+# Focus Station growth/recovery without rerunning unrelated service scenarios.
+[positional-arguments]
+growing-station *args:
+    zig build test-growing-station -- "$@"
+
 # Prove bounded diagnostics, independent metrics and cancelable log sinks.
 telemetry:
     zig build test-telemetry

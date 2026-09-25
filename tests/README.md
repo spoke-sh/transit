@@ -832,6 +832,13 @@ Table or schema; unit cases cover extreme keys, a neighboring Table, caught scan
 failure and exclusion of private writes. This is paged state access, not yet
 large-result capture or whole-query execution.
 
+Run just this scenario with `just test::growing-station`. It also retains the
+earlier 40-row source, commits one scan page plus a self-continuation, and loses
+caller/node/provider again. A replacement continues from durable progress across
+new handler views, finishes the same source in six pages total, and releases it
+with the final count. Retained reads automatically become proposal dependencies.
+This is an application-managed scan; it does not implement the Arrow result gate.
+
 The same service task runs growing maintenance on one CPU with owned proxy
 faults: kill after an accepted snapshot loses its reply, then restart from the
 recorded trim intent; loss of an accepted immutable-page reply before root

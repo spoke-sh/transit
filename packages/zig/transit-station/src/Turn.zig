@@ -13,6 +13,8 @@ pub const Reader = struct {
     context: *anyopaque,
     read: *const fn (*anyopaque, p.Growth.View, p.Value) anyerror!?p.Value,
     page: ?*const fn (*anyopaque, p.Growth.View, ?p.Value) anyerror!Page = null,
+    version: ?*const fn (*anyopaque, p.Growth.ReadVersionId) anyerror!p.Growth.ReadVersion = null,
+    version_entries: ?*const fn (*anyopaque, p.Growth.ReadVersion, ?p.Value, ?p.Value) anyerror!Page = null,
 };
 pub fn Type(comptime growing: bool) type {
     return struct {
@@ -28,6 +30,82 @@ pub fn Type(comptime growing: bool) type {
         read_error: ?anyerror = null,
         decision: Decision,
         resource_deadline_ms: ?u64 = null,
+
+        /// A read-only source borrowed for this handler. Reopen its durable ID
+        /// from a later turn; never retain the native pointer across handlers.
+        pub const Retained = struct {
+            turn: *Turn,
+            view: p.Growth.ReadVersion,
+            pub fn read(self: *@This(), key: p.Value) !?p.Value {
+                try p.Growth.validateKey(key);
+                const result = try self.fetch(key, null);
+                return if (result.entries[0]) |entry| entry.value else null;
+            }
+            pub fn page(self: *@This(), after: ?p.Value) !Page {
+                if (after) |key| try p.Growth.validateKey(key);
+                return self.fetch(null, after);
+            }
+            fn fetch(self: *@This(), key: ?p.Value, after: ?p.Value) !Page {
+                if (self.turn.read_error) |err| return err;
+                try self.turn.dependVersion(self.view.id);
+                const read_version = self.turn.reader.version_entries orelse return error.UnsupportedReadVersion;
+                return read_version(self.turn.reader.context, self.view, key, after) catch |err| {
+                    self.turn.read_error = err;
+                    return err;
+                };
+            }
+        };
+
+        /// Retain this turn's committed source. Private writes are excluded.
+        /// The returned identity becomes live only with the whole proposal.
+        pub fn retain(self: *Turn) !p.Growth.ReadVersionId {
+            if (!growing) @compileError("Retained versions require the growing profile");
+            if (self.read_error) |err| return err;
+            var free: ?usize = null;
+            for (self.decision.retain, 0..) |slot, i| {
+                if (slot == self.view.id) return .{ .pid = self.delivery.pid, .input = self.delivery.input.position, .index = @intCast(i) };
+                if (slot == null and free == null) free = i;
+            }
+            const index = free orelse return error.VersionBudgetExceeded;
+            self.decision.retain[index] = self.view.id;
+            return .{ .pid = self.delivery.pid, .input = self.delivery.input.position, .index = @intCast(index) };
+        }
+        fn versionSlot(self: *Turn, slots: *[p.Growth.version_changes]?p.Growth.ReadVersionId, id: p.Growth.ReadVersionId) !void {
+            try p.Growth.validateVersionId(id);
+            if (id.pid != self.delivery.pid) return error.WrongActivation;
+            var free: ?usize = null;
+            for (slots, 0..) |slot, i| {
+                if (slot) |value| {
+                    if (std.meta.eql(id, value)) return;
+                } else if (free == null) {
+                    free = i;
+                }
+            }
+            slots[free orelse return error.VersionBudgetExceeded] = id;
+        }
+        fn dependVersion(self: *Turn, id: p.Growth.ReadVersionId) !void {
+            if (!growing) @compileError("Retained versions require the growing profile");
+            try self.versionSlot(&self.decision.read_versions, id);
+        }
+        pub fn release(self: *Turn, id: p.Growth.ReadVersionId) !void {
+            if (!growing) @compileError("Retained versions require the growing profile");
+            try self.versionSlot(&self.decision.release, id);
+        }
+        pub fn openVersion(self: *Turn, id: p.Growth.ReadVersionId) !Retained {
+            if (!growing) @compileError("Retained versions require the growing profile");
+            if (self.read_error) |err| return err;
+            try self.dependVersion(id);
+            const get_version = self.reader.version orelse return error.UnsupportedReadVersion;
+            const version = get_version(self.reader.context, id) catch |err| {
+                self.read_error = err;
+                return err;
+            };
+            if (!std.meta.eql(id, version.id) or version.released_at != null) {
+                self.read_error = error.InvalidReadVersion;
+                return error.InvalidReadVersion;
+            }
+            return .{ .turn = self, .view = version };
+        }
 
         pub const Wait = struct {
             target: u64,

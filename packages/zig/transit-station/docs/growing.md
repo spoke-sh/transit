@@ -60,7 +60,7 @@ growing Table into the old Fuze snapshot.
 `GrowingTurn.page(after)` reads at most eight committed KV entries; private
 mutations must be absent. `Table.page(turn, cursor)` decodes a bounded batch of
 typed rows and stops at that Table's key boundary. Its returned `next` binds the
-view ID, resource, revision, Table and schema. Passing it to another view or
+source ID, resource, revision, Table and schema. Passing it to another source or
 Table fails with `StaleTableCursor`. Only null establishes completion; an empty
 final page is possible. Keep one captured view throughout iteration. Failure or
 expiry cannot silently recapture a newer version, and read failures poison the
@@ -72,6 +72,32 @@ Long queries, resumable result capture, whole-query limits/aggregates and retain
 Arrow batches need their own durable progress and complete-result evidence before
 M10 can qualify them. A Table cursor does not preserve a native stack across a
 worker restart or extend its view's lifetime.
+
+## Retained sources across handlers
+
+`try turn.retain()` stages retention of the current committed source and returns
+its future `{pid, input, index}` identity. Store that ID in the same private
+proposal as the job/progress that will use it. No bytes become visible early;
+the retained source excludes this turn's private writes.
+
+`var source = try turn.openVersion(id)` opens a read-only source.
+`Table.open(&source, table_id)`, `table.get(&source, key)` and
+`table.page(&source, cursor)` reuse the ordinary Table decoder and bounded paging.
+The cursor's `source` distinguishes a turn view from a retained version. Reopen
+the same durable ID in a replacement handler to resume its saved cursor; do not
+reuse the borrowed `source` pointer after the turn ends. KV callers can use
+`source.read(key)` or `source.page(after)` directly.
+
+Opening/reading automatically includes the version in the final proposal's read
+dependencies, deduplicated within a four-version budget. Current grants, source
+expiry or explicit release can reject the later commit. Failures poison private
+work even when caught. `try turn.release(id)` stages a release, and may accompany
+the final read/progress update. Repeating retain/release for the same identity
+inside one proposal does not consume additional slots.
+
+This supplies source access and dependency wiring. The application still owns
+durable continuation scheduling and the interpretation of its progress records.
+Resumable Fuze execution and large Arrow-result capture remain M10 work.
 
 Durable wait version 2 retains full-width timer principal identities. `Waiting`
 shares cancellation, timeout and authenticated-source checks across both profiles.
@@ -101,3 +127,10 @@ committing a completion count. The proxy rejects unrequested whole-resource
 reads during ordinary calls and checks that scan continuations stay in the
 Table's key range. Unit checks add negative/extreme keys, neighboring Tables,
 stale views/schemas, private-write exclusion and mid-scan transport failure.
+
+The writer also retains the earlier 40-row source before admitting row 41. It
+commits one retained scan page and a self-continuation, then loses its caller,
+node and provider. A fresh activation resumes the saved row position without
+rescanning committed pages and releases the version with the final count. The
+six source pages span different handler views; current state still has 41 rows.
+This is an application-managed scan, not the deferred Arrow result protocol.

@@ -203,7 +203,7 @@ pub fn Type(comptime growing: bool) type {
                 const view = page.view orelse return error.InvalidAuthorityResponse;
                 if (view.resource != self.resource.?.id) return error.InvalidAuthorityResponse;
                 const fresh = try self.freshDelivery();
-                self.ready = try Turn.init(fresh, view, .{ .context = self, .read = readKey, .page = readPage });
+                self.ready = try Turn.init(fresh, view, .{ .context = self, .read = readKey, .page = readPage, .version = readVersion, .version_entries = readVersionEntries });
                 return;
             }
             var page = try self.session.readStateView(self.view_id.?, null);
@@ -244,6 +244,14 @@ pub fn Type(comptime growing: bool) type {
             const page = try self.session.readView(view.id, null, after);
             if (page.view == null or !std.meta.eql(page.view.?, view)) return error.InvalidAuthorityResponse;
             return page.page;
+        }
+        fn readVersion(context: *anyopaque, id: p.Growth.ReadVersionId) anyerror!p.Growth.ReadVersion {
+            const self: *GenServer = @ptrCast(@alignCast(context));
+            return self.session.version(id);
+        }
+        fn readVersionEntries(context: *anyopaque, basis: p.Growth.ReadVersion, key: ?p.Value, after: ?p.Value) anyerror!@import("Turn.zig").Page {
+            const self: *GenServer = @ptrCast(@alignCast(context));
+            return (try self.session.readVersion(basis, key, after)).page;
         }
     };
 }

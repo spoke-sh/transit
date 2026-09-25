@@ -211,3 +211,83 @@ test "growing waits preserve wide observer identities and authenticate closure" 
     try t.expect(try next.acceptReply() == .closed);
     try t.expect((try next.waiting(correlation)).?.phase == .timed_out);
 }
+
+test "retained Table sources survive new handler views and stage their dependency automatically" {
+    const Fixture = struct {
+        live: Store = .{},
+        snapshot: Store = .{},
+        identity: p.Growth.ReadVersionId = .{ .pid = 2, .input = 1, .index = 0 },
+        fail: bool = false,
+        fn metadata(raw: *anyopaque, id: p.Growth.ReadVersionId) anyerror!p.Growth.ReadVersion {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            try t.expect(std.meta.eql(self.identity, id));
+            return .{ .id = id, .resource = 7, .revision = 8, .created_at = 9 };
+        }
+        fn entries(raw: *anyopaque, basis: p.Growth.ReadVersion, key: ?p.Value, after: ?p.Value) anyerror!@import("Turn.zig").Page {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (self.fail) return error.Unavailable;
+            try t.expect(std.meta.eql(self.identity, basis.id));
+            const view: p.Growth.View = .{ .id = 6, .pid = 2, .principal = 65536, .generation = 3, .input = 4, .process_revision = 0, .resource = 7, .revision = 8, .deadline_ms = 100 };
+            if (key) |point| {
+                var result: @import("Turn.zig").Page = .{};
+                if (try Store.read(&self.snapshot, view, point)) |value| result.entries[0] = .{ .key = point, .value = value, .revision = 8 };
+                return result;
+            }
+            return Store.page(&self.snapshot, view, after);
+        }
+        fn liveRead(raw: *anyopaque, view: p.Growth.View, key: p.Value) anyerror!?p.Value {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            return Store.read(&self.live, view, key);
+        }
+        fn turn(self: *@This()) !Turn {
+            var result = try self.live.turn(.{});
+            result.reader = .{ .context = self, .read = liveRead, .version = metadata, .version_entries = entries };
+            return result;
+        }
+    };
+    var fixture: Fixture = .{};
+    const schema: @import("transit_fuze").model.Schema = .{ .names = .{ try .init("id"), try .init("amount") }, .value_type = .int64 };
+    fixture.snapshot.entries[0] = .{ .key = Table.descriptorKey(1), .value = try Table.encodeSchema(schema), .revision = 8 };
+    for (0..12) |i| {
+        var value: [10]u8 = .{ 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
+        std.mem.writeInt(i64, value[2..10], @intCast(i), .little);
+        fixture.snapshot.entries[i + 1] = .{ .key = Table.rowKey(1, @intCast(i)), .value = try p.Value.init(&value), .revision = 8 };
+    }
+    var first = try fixture.turn();
+    const retained = try first.retain();
+    try t.expect(std.meta.eql(retained, try first.retain())); // One private slot.
+    try t.expectEqual(@as(u8, 0), retained.index);
+    try t.expectEqual(@as(?u64, 6), first.decision.retain[0]);
+    try first.put(try p.Value.init("manifest"), p.Value.integer(1));
+    var source = try first.openVersion(fixture.identity);
+    const table = try Table.open(&source, 1);
+    const one = try table.page(&source, null);
+    try t.expectEqual(@as(u8, 8), one.len);
+    try t.expect(std.meta.eql(fixture.identity, first.decision.read_versions[0].?));
+    try t.expect(first.decision.read_versions[1] == null); // Repeated reads deduplicate.
+    try first.validate(); // Manifest writes do not mix into retained source rows.
+
+    var next = try fixture.turn();
+    next.view.id = 100;
+    next.delivery.input.position = 101;
+    next.delivery.generation = 4;
+    var resumed = try next.openVersion(fixture.identity);
+    const two = try table.page(&resumed, one.next);
+    try t.expectEqual(@as(u8, 4), two.len);
+    try t.expectEqual(@as(i64, 8), two.rows[0].key);
+    try t.expect(two.next == null);
+    try next.release(fixture.identity);
+    try next.release(fixture.identity);
+    try t.expect(next.decision.release[1] == null);
+    try t.expect(std.meta.eql(fixture.identity, next.decision.read_versions[0].?));
+    var wrong = one.next.?;
+    wrong.source = .{ .version = .{ .pid = 2, .input = 2, .index = 0 } };
+    try t.expectError(error.StaleTableCursor, table.page(&resumed, wrong));
+    wrong.source = .{ .view = 9 };
+    try t.expectError(error.StaleTableCursor, table.page(&resumed, wrong));
+    try t.expectError(error.WrongActivation, next.release(.{ .pid = 3, .input = 1, .index = 0 }));
+    fixture.fail = true;
+    try t.expectError(error.Unavailable, resumed.read(Table.rowKey(1, 0)));
+    try next.put(try p.Value.init("ignored"), .{});
+    try t.expectError(error.Unavailable, next.validate());
+}

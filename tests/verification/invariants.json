@@ -482,7 +482,8 @@
         "test::unit",
         "test::station",
         "test::client-abi",
-        "test::growing-service"
+        "test::growing-service",
+        "test::growing-station"
       ],
       "scenarios": [
         "Point access beyond 32 Table rows without materializing the resource",
@@ -497,7 +498,10 @@
         "Typed bounded Table pages preserve order across negative and extreme keys without entering a neighboring Table",
         "Table continuations reject changed views, resources, Tables and schemas",
         "Private writes cannot enter a committed query scan; scan failures poison publication",
-        "Real recovered writer scans 41 rows in six pages before committing completion"
+        "Real recovered writer scans 41 rows in six pages before committing completion",
+        "Retained source helpers register proposal dependencies and poison caught failures",
+        "Table cursor resumes the same retained version across later handler views",
+        "Durable scan progress and self-continuations survive caller/node/provider loss between pages"
       ],
       "limits": "No growing query/result capture, registries, supervision, runtime bindings, foreign ABIs or scale SLO. Real service proof uses explicit public-client outbox delivery and a one-page cache after restart; it does not qualify a growing background courier.",
       "model": null
