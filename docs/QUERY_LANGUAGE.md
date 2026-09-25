@@ -254,14 +254,6 @@ point — a gap analysis that only lists gaps overclaims the comparison.
 **Real, currently unnamed gaps** — nothing in the roadmap today has a
 position on these, unlike the excluded items below:
 
-- **Windowing.** Tumbling/hopping/session windows are the central primitive
-  of every system named above, and Fuze's plan has no time-windowed
-  aggregation concept at all — not excluded, just absent. Before naming it a
-  milestone, decide whether Transit's model even wants wall-clock event-time
-  windowing, or whether its append-only durable history with explicit
-  revisions (closer to an OLTP snapshot model than a late-arriving event
-  stream) makes "window" mean something else here, e.g. a bounded revision
-  range rather than a wall-clock interval.
 - **Ingestion format decoding at the SOURCE boundary.** A `CREATE SOURCE`
   needs a story for turning connector bytes into typed rows (JSON/Avro/
   Protobuf/CSV, schema-on-read vs. a bound schema). `CONNECTORS.md` specifies
@@ -291,18 +283,64 @@ pattern for:
   forces attempt identity, idempotency and explicit reconciliation for
   *every* effect — a `CREATE SINK` inherits that for free; it would be a
   regression to design something weaker.
-- **`AS OF` / time travel.** Retained read versions
+- **`AS OF` / forensic reconstruction.** Retained read versions
   ([`READ_VERSIONS_V1.md`](../contracts/READ_VERSIONS_V1.md), `GROWTH-10`)
   already durably support historical reads more rigorously than these
-  systems typically offer out of the box. `TransitExtensions.g4`'s
-  `asOfClause` fragment names this as a natural extension of infrastructure
-  that already exists, not a feature to build from nothing.
+  systems typically offer out of the box — see the dedicated section below.
 - **Flow control.** [`FLOW_CONTROL.md`](FLOW_CONTROL.md)'s receiver-driven,
   formally modeled credit pattern is a more explicit backpressure contract
   than most of these systems document for their own internal operator chains.
 - **Retention.** [`RETENTION.md`](RETENTION.md)'s explicit lifetime/compaction
   contract is more precisely specified than typical topic/table retention
   policies.
+
+## Forensic first: OLTP-snapshot semantics, windowing deferred
+
+Decided: the query model targets exact point-in-time reconstruction over an
+OLTP-shaped snapshot history, not wall-clock event-time windowing. Windowing
+stays a later, explicitly deferred addition — not excluded, not designed,
+revisited once forensic reconstruction itself is solid — rather than a
+parallel initial priority. This is a scoping decision worth stating plainly:
+it resolves the open question the windowing gap above used to leave open,
+and it changes what "the query language" is for at this stage — proving
+exactly what happened, not approximating what a stream looked like over an
+interval.
+
+This is not a compromise relative to the systems compared above — it is
+leaning into what Transit's kernel already *is*: an append-only durable
+history with explicit monotonic revisions that already answers "what
+changed, in what order, provably," backed by `QueryRecords.Segment`'s
+domain-separated digest chain, `Authority.tla`'s publication safety, and
+[`STATE.md`](STATE.md#turn-and-commit-boundary)'s one durable commit decision
+per turn. That is a stronger starting point for forensic reconstruction than
+typical OLTP audit logs, which usually bolt change-data-capture on after the
+fact rather than having it as the kernel's native representation. Windowed
+aggregation is a different, later problem — summarizing approximately over
+time — that should not be allowed to shape the initial grammar or planner
+around wall-clock intervals this kernel does not natively organize itself by.
+
+Concretely, this is why `TransitExtensions.g4`'s time-travel fragment is
+named `FOR SYSTEM_TIME AS OF <revision>` — SQL:2011's actual
+system-versioned-table clause, real standard syntax rather than an invented
+`AS OF`, deliberately taking a Transit **revision** (an integer journal
+position) as its argument rather than the standard's wall-clock `TIMESTAMP`
+literal, because Transit's time is protocol-position-based, not wall-clock —
+consistent with this section's decision, not a shortcut around it.
+
+Two more forensic primitives worth naming now, both already real concepts in
+Board's inspection model rather than new capability to design:
+[Journey](GLOSSARY.md#inspection-and-interpretation) ("a bounded view of
+recorded causal relationships between inputs, turns, outputs, admissions and
+effects") is the provenance question — *what produced this value, through
+what chain* — and a natural target for a relational read the same way
+`connector.*`/`transport.*` are proposed above (`journey.*`, read-only,
+through Board's existing inspection contract, not Fuze's mutation-capable
+plan). [Observation basis](GLOSSARY.md#inspection-and-interpretation) (source,
+read position, policy revision, retained boundary and coverage) is what
+every forensic answer needs to carry explicitly so "what happened" and "how
+confident/complete is this view of what happened" are never conflated —
+exactly the discipline `FOR SYSTEM_TIME AS OF` and a `journey` read both need
+to inherit, not something either gets to skip for convenience.
 
 ## A second use for this: a checked interface for human/agent development
 
