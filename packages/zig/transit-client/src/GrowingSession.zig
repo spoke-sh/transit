@@ -49,8 +49,8 @@ pub fn receive(self: *Self) !?Delivery {
         .expired => return error.ProcessExpired,
         .running => {},
     }
-    if (process.owner != self.principal or process.generation != self.generation) return error.StaleActivation;
     if (process.failure != null) return error.BlockedProcess;
+    if (process.owner != self.principal or process.generation != self.generation) return error.StaleActivation;
     const input = response.body.process.input orelse return null;
     return .{ .realm = self.realm, .principal = self.principal, .pid = self.pid, .generation = self.generation, .sequence = try std.math.add(u64, response.principal_sequence, 1), .revision = process.revision, .input = input, .permit = if (process.turn_permit) |permit| permit.id else null, .needs_permit = process.work_before_ms != null and process.turn_permit == null, .work_before_ms = process.work_before_ms, .settle_before_ms = process.settle_before_ms };
 }

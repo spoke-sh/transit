@@ -273,6 +273,53 @@
               "type": "object",
               "additionalProperties": false,
               "required": [
+                "retry"
+              ],
+              "properties": {
+                "retry": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "pid",
+                    "expected_generation",
+                    "failure_input"
+                  ],
+                  "properties": {
+                    "pid": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "expected_generation": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "failure_input": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "expected_generation",
+                    "failure_input"
+                  ],
+                  "x-transit-defaults": {}
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
                 "send"
               ],
               "properties": {
@@ -1439,6 +1486,53 @@
                         "pid",
                         "expected_generation",
                         "worker"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "retry"
+                  ],
+                  "properties": {
+                    "retry": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "pid",
+                        "expected_generation",
+                        "failure_input"
+                      ],
+                      "properties": {
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "expected_generation": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "failure_input": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "pid",
+                        "expected_generation",
+                        "failure_input"
                       ],
                       "x-transit-defaults": {}
                     }
@@ -3528,6 +3622,7 @@
                     "dependency_validation_vertices",
                     "dependency_changes",
                     "association_lookup",
+                    "scoped_retry",
                     "runtime_bindings",
                     "history_reclamation",
                     "retained_history",
@@ -3605,6 +3700,9 @@
                     "association_lookup": {
                       "type": "boolean"
                     },
+                    "scoped_retry": {
+                      "type": "boolean"
+                    },
                     "runtime_bindings": {
                       "type": "boolean"
                     },
@@ -3636,6 +3734,7 @@
                     "output_budget": 4,
                     "dependency_changes": "quiescent_owner_and_borrowers",
                     "association_lookup": false,
+                    "scoped_retry": false,
                     "runtime_bindings": false,
                     "history_reclamation": false,
                     "retained_history": "unlimited",

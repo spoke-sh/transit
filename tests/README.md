@@ -801,6 +801,11 @@ then denies both reads and that historical retry. The response validator also
 rejects mixed realm/revision, page holes and invalid continuations while accepting
 empty filtered catalog pages. No launcher, Station or foreign ABI changes profile
 implicitly. Existing v2 ingress and observability proofs cover the shared loop.
+The caller also inspects blocked metadata, uses a PID-scoped administrator to
+retry the exact failed input and consumes it only after fresh ownership. Core
+tests additionally race retry with revocation, recover a lost retry receipt,
+reject stale repeated-failure generations, and preserve dependency expiry,
+process deadlines and permanent retirement.
 
 The task also runs two real [growing Station callers](growing_station.zig),
 retaining 41 typed Table rows and completed calls without reclamation. A proxy

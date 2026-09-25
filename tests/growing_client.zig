@@ -67,6 +67,38 @@ fn verify(worker: *Caller, expected: Expected) !void {
     try t.expectEqual(@as(usize, 64), count);
 }
 
+fn retryBlocked(root: *Caller) !void {
+    const capabilities = (try root.query(.{ .capabilities = {} })).body.capabilities;
+    try t.expect(capabilities.scoped_retry);
+    const pid = try root.submit(.{ .spawn = .{} });
+    _ = try root.submit(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } });
+    const input = try root.submit(.{ .send = .{ .pid = pid, .value = try p.Value.init("retry me") } });
+    _ = try root.submit(.{ .turn = .{ .pid = pid, .generation = 1, .input = input, .expected_revision = 0, .failed = true } });
+    const queued = try root.submit(.{ .send = .{ .pid = pid, .value = try p.Value.init("queued") } });
+    var session: wire.GrowingSession = .{ .client = root.client, .realm = 42, .principal = 0, .pid = pid, .generation = 1, .key = root.key };
+    // A failed activation is recognizable even though failure fenced its owner.
+    try t.expectError(error.BlockedProcess, session.receive());
+    var admin: Caller = .{ .client = root.client, .principal = 65537, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9)) };
+    _ = try root.submit(.{ .grant = .{ .subject = admin.principal, .public_key = admin.key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.admin), .pid = pid } });
+    const observed = (try admin.query(.{ .process = pid })).body.process;
+    try t.expect(observed.input == null);
+    try t.expectEqual(@as(?u64, input), observed.process.failure);
+    _ = try admin.submit(.{ .retry = .{ .pid = pid, .expected_generation = observed.process.generation, .failure_input = input } });
+    _ = try root.submit(.{ .own = .{ .pid = pid, .expected_generation = 3, .worker = 0 } });
+    session.generation = 4;
+    const delivery = (try session.receive()).?;
+    try t.expectEqual(input, delivery.input.position);
+    try t.expectEqualStrings("retry me", delivery.input.value.slice());
+    const pending = try session.prepareCommit(delivery, .{});
+    _ = try pending.submit(root.client);
+    root.sequence = delivery.sequence;
+    const next = (try session.receive()).?;
+    try t.expectEqual(queued, next.input.position);
+    _ = try (try session.prepareCommit(next, .{})).submit(root.client);
+    root.sequence = next.sequence;
+    try t.expectEqual(@as(?wire.GrowingSession.Delivery, null), try session.receive());
+}
+
 fn maintenanceReady(root: *Caller, expected: MaintenanceExpected) !bool {
     const output = try root.query(.{ .outputs = .{} });
     if (output.body.outputs.entries[0].?.phase != .cancelled) return false;
@@ -219,6 +251,7 @@ pub fn main(init: std.process.Init) !void {
             _ = try root.submit(.{ .revoke = 65536 });
             try t.expectError(error.AccessDenied, client.submitGrowing(expected.pending));
             try t.expectError(error.AccessDenied, worker.query(.{ .entries = .{ .resource = expected.resource, .revision = expected.receipt } }));
+            try retryBlocked(&root);
         } else return error.UnknownPhase;
     }
     try output.interface.print("Growing client {s}: passed\n", .{args[2]});

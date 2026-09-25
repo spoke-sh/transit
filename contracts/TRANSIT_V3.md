@@ -79,6 +79,20 @@ execution eligibility before releasing its next mailbox input. Required dependen
 expiry may fence execution before background work materializes terminal metadata;
 these two observations must not be presented as equivalent readiness claims.
 
+With `scoped_retry`, a current PID-scoped administrator can retry a blocked input
+using `retry: {pid, expected_generation, failure_input}`. `Process.failure`
+identifies the failed input in this profile; the generation distinguishes repeated
+failed attempts at that same input. Retry clears the block, advances the generation
+and removes ownership without consuming input or publishing application state.
+It rechecks current work lifetime and required dependencies, cannot revive a
+retired process, and does not authorize execution. Fresh ownership is a separate
+operation. Permission, generation or failure-identity mismatches reject atomically.
+Current inspection may disclose blocked process metadata with `input: null`;
+that observation grants no permission to execute the retained head input.
+A blocked handler does not close its mailbox: current send permission, work
+lifetime and required state still govern admission behind the failed head.
+Retry cannot move those later messages ahead of it.
+
 Framework code should read individual keys or bounded batches through this
 interface, retaining private mutations for one final authority decision. It must
 not fetch the entire resource as a prerequisite to invoking a handler. Query

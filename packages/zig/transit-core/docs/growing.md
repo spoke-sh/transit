@@ -134,6 +134,15 @@ remain integration work within M10. Unimplemented commands fail explicitly with
 the complete advertised profile and its proofs are ready. Existing histories are
 never silently upgraded or parsed as v3.
 
+The `scoped_retry` capability permits a current PID administrator to clear a
+reported handler failure using its observed generation and failed input ID.
+Retry preserves the input, state revision and consumption cursor, advances the
+generation and leaves ownership empty. Current lifetimes/dependencies are checked
+before publication. Blocked process point reads disclose metadata without the
+head payload; this does not assert that it remains executable. Fresh ownership
+and an ordinary turn are required to consume the input. Initialization barriers,
+suspension/resumption, upgrades and runtime/provider bindings remain growth work.
+
 ## Initial evidence
 
 Core tests retain 20 principals with identities above 65,535 and 70 processes,

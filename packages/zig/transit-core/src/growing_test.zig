@@ -349,6 +349,77 @@ test "growing finite work fails closed on clock uncertainty without disabling co
     try t.expectEqual(.terminated, (try fixture.engine.process(pid)).lifecycle);
 }
 
+test "growing scoped retry preserves the failed input and fences revocation retirement and repeated failure" {
+    const Clock = struct {
+        now: u64 = 100,
+        fn read(raw: *anyopaque) anyerror!core.Time.Sample {
+            return .{ .unix_ms = @as(*@This(), @ptrCast(@alignCast(raw))).now };
+        }
+    };
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    var clock: Clock = .{};
+    f.engine.clock = .{ .context = &clock, .read = Clock.read };
+    const pid = try f.root(.{ .spawn = .{ .work_before_ms = 150, .settle_before_ms = 200 } });
+    const other = try f.root(.{ .spawn = .{} });
+    const resource = try f.root(.{ .create_resource = .{ .writer = pid, .deadline_ms = 140 } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+    _ = try f.root(.{ .associate = .{ .pid = pid, .name = try core.Value.init("state"), .resource = resource } });
+    _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 0 } });
+    const input = try f.root(.{ .send = .{ .pid = pid, .value = try core.Value.init("retained") } });
+    const permit = try f.root(.{ .begin_turn = .{ .pid = pid, .generation = 2, .input = input } });
+    _ = try f.root(.{ .turn = .{ .pid = pid, .generation = 2, .input = input, .expected_revision = 0, .permit = permit, .failed = true } });
+    _ = try f.root(.{ .send = .{ .pid = pid, .value = try core.Value.init("queued behind failure") } });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) | core.permission(.admin), .pid = other } });
+    const retry: g.Command = .{ .retry = .{ .pid = pid, .expected_generation = 3, .failure_input = input } };
+    try t.expectError(error.Forbidden, f.engine.submit(try f.worker(1, retry)));
+    var grant: g.Grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect), .pid = pid };
+    _ = try f.root(.{ .grant = grant });
+    const blocked = (try f.query(65536, .{ .process = pid })).body.process;
+    try t.expectEqual(@as(?u64, input), blocked.process.failure);
+    try t.expect(blocked.input == null and blocked.process.owner == null);
+    try t.expectError(error.Forbidden, f.engine.submit(try f.worker(1, retry)));
+    grant.permissions |= core.permission(.admin);
+    _ = try f.root(.{ .grant = grant });
+    try t.expect((try f.query(65536, .{ .capabilities = {} })).body.capabilities.scoped_retry);
+    try t.expectError(error.InvalidFailure, f.engine.submit(try f.worker(1, .{ .retry = .{ .pid = pid, .expected_generation = 3, .failure_input = input + 1 } })));
+    const signed = try f.worker(1, retry);
+    const prepared = try f.engine.prepare(signed);
+    _ = try f.root(.{ .revoke = 65536 });
+    try t.expectError(error.Conflict, f.engine.commit(prepared));
+    try t.expectError(error.Forbidden, f.engine.submit(signed));
+    try t.expectEqual(@as(?u64, input), (try f.engine.process(pid)).failure);
+    _ = try f.root(.{ .grant = grant });
+    f.journal.fail = .after;
+    try t.expectError(error.LostAcknowledgement, f.engine.submit(signed));
+    f.journal.fail = .none;
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    f.engine.clock = .{ .context = &clock, .read = Clock.read };
+    const receipt = try f.engine.submit(signed);
+    try t.expectEqual(receipt, try f.engine.submit(signed));
+    const ready = (try f.query(65536, .{ .process = pid })).body.process;
+    try t.expectEqual(@as(u64, 4), ready.process.generation);
+    try t.expectEqual(@as(u64, 0), ready.process.consumed);
+    try t.expectEqual(@as(u64, 2), ready.process.admitted);
+    try t.expectEqual(@as(u64, 0), ready.process.revision);
+    try t.expect(ready.process.owner == null and ready.process.failure == null and ready.process.turn_permit == null);
+    try t.expectEqual(input, ready.input.?.position);
+    _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 4, .worker = 0 } });
+    const next_permit = try f.root(.{ .begin_turn = .{ .pid = pid, .generation = 5, .input = input } });
+    _ = try f.root(.{ .turn = .{ .pid = pid, .generation = 5, .input = input, .expected_revision = 0, .permit = next_permit, .failed = true } });
+    try t.expectError(error.StaleGeneration, f.engine.submit(try f.worker(2, retry)));
+    const next_retry = try f.worker(2, .{ .retry = .{ .pid = pid, .expected_generation = 6, .failure_input = input } });
+    clock.now = 145;
+    try t.expectError(error.StateResourceExpired, f.engine.submit(next_retry));
+    clock.now = 151;
+    try t.expectError(error.DeadlineExpired, f.engine.submit(next_retry));
+    clock.now = 100;
+    _ = try f.root(.{ .terminate = pid });
+    try t.expectError(error.RetiredProcess, f.engine.submit(next_retry));
+    try t.expectEqual(@as(u64, 0), (try f.engine.process(pid)).consumed);
+}
+
 test "growing row count encoding overflow cannot publish partial rows progress or view closure" {
     const state = @import("growing_state.zig");
     const Clock = struct {

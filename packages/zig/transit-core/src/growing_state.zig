@@ -75,7 +75,7 @@ pub fn associated(engine: anytype, pid: u64, id: u64) !bool {
     var current = try engine.state();
     return (try current.get(u64, try c.key(.associated_resource, pid, id, "")) orelse 0) > 0;
 }
-fn nextInput(engine: anytype, process: g.Process, id: u64) !g.Input {
+pub fn nextInput(engine: anytype, process: g.Process, id: u64) !g.Input {
     if (process.consumed >= process.admitted) return error.MissingInput;
     var current = try engine.state();
     const input = (try current.get(g.Input, try c.key(.mailbox, process.pid, process.consumed + 1, ""))) orelse return error.IncompleteHistory;

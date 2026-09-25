@@ -168,7 +168,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             };
             if (principal_value.grant.permissions & p.permission(needed) == 0) return error.Forbidden;
             const pid: ?u64 = switch (command) {
-                inline .own, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .dispatch, .observe, .close_effect, .cancel_effect => |c| c.pid,
+                inline .own, .retry, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .dispatch, .observe, .close_effect, .cancel_effect => |c| c.pid,
                 .deliver => |id| (try work_ops.output(self, id)).destination,
                 .create_resource => |c| c.writer,
                 .terminate, .expire => |id| id,
@@ -250,6 +250,12 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         pub fn executable(self: *Self, process_value: g.Process, sample: ?core.Time.Sample, settlement: bool) !void {
             if (process_value.lifecycle != .running) return error.RetiredProcess;
             if (process_value.failure != null) return error.BlockedProcess;
+            try self.admissible(process_value, sample, settlement);
+        }
+        /// A handler failure blocks execution, not the durable mailbox. New
+        /// external admission still obeys work lifetime and required state.
+        fn admissible(self: *Self, process_value: g.Process, sample: ?core.Time.Sample, settlement: bool) !void {
+            if (process_value.lifecycle != .running) return error.RetiredProcess;
             if (process_value.work_before_ms) |cutoff| try self.before(sample, if (settlement and process_value.turn_permit != null) process_value.settle_before_ms.? else cutoff);
             try state_ops.dependencies(self, process_value.pid, sample);
         }
@@ -295,11 +301,26 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 },
                 .send => |send| {
                     var process_value = try self.process(send.pid);
-                    try self.executable(process_value, sample, false);
+                    try self.admissible(process_value, sample, false);
                     process_value.admitted += 1;
                     const input: g.Input = .{ .position = position, .ordinal = process_value.admitted, .value = send.value, .origin = .{ .external = .{ .principal = request.principal, .policy_revision = (try self.principal(request.principal)).revision } } };
                     try candidate.put(try catalog.key(.mailbox, send.pid, input.ordinal, ""), input);
                     try candidate.put(address(.process, send.pid), process_value);
+                },
+                .retry => |command| {
+                    var process_value = try self.process(command.pid);
+                    if (process_value.lifecycle != .running) return error.RetiredProcess;
+                    if (process_value.generation != command.expected_generation) return error.StaleGeneration;
+                    if (process_value.failure == null or process_value.failure != command.failure_input) return error.InvalidFailure;
+                    _ = try state_ops.nextInput(self, process_value, command.failure_input);
+                    process_value.failure = null;
+                    // Validate current work lifetime/dependencies after clearing
+                    // only the candidate's block. No accepted input is skipped.
+                    try self.executable(process_value, sample, false);
+                    process_value.owner = null;
+                    process_value.turn_permit = null;
+                    process_value.generation += 1;
+                    try candidate.put(address(.process, command.pid), process_value);
                 },
                 .terminate, .expire => |pid| {
                     var process_value = try self.process(pid);

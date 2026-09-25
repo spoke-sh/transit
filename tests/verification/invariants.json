@@ -497,6 +497,36 @@
       ],
       "limits": "No growing query/result capture, registries, supervision, runtime bindings, foreign ABIs or scale SLO. Real service proof uses explicit public-client outbox delivery and a one-page cache after restart; it does not qualify a growing background courier.",
       "model": null
+    },
+    {
+      "id": "GROWTH-09",
+      "claim": "Scoped growing failure retry preserves accepted input and cannot bypass current control authority or lifetime fencing",
+      "owner": "contracts/TRANSIT_V3.md",
+      "implementation": [
+        "packages/zig/transit-core/src/growing.zig",
+        "packages/zig/transit-core/src/growing_read.zig",
+        "packages/zig/transit-client/src/GrowingSession.zig",
+        "packages/zig/transit-core/src/growing_test.zig",
+        "tests/growing_client.zig"
+      ],
+      "profile": "transit-v3 scoped retry development capability",
+      "tasks": [
+        "test::unit",
+        "test::growing-service",
+        "contract::check"
+      ],
+      "scenarios": [
+        "Blocked metadata has no executable head input",
+        "PID scope and current admin permission independently enforced",
+        "Revocation fences a prepared retry at publication",
+        "Lost accepted retry reply recovers one receipt with unchanged input/progress",
+        "Same-input repeated failures require the observed generation",
+        "Required-resource expiry, process cutoff and permanent retirement reject retry",
+        "Public caller needs fresh ownership before consuming the retained input",
+        "New mailbox input can queue behind a failed head without bypassing its ordered retry"
+      ],
+      "limits": "No growing initialization barrier, suspension/resumption, same-PID code upgrade, runtime binding or automatic supervision policy. Injected lost-reply/revocation schedules complement the public service path.",
+      "model": null
     }
   ]
 }

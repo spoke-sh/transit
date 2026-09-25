@@ -35,6 +35,7 @@ pub const Command = union(enum) {
     revoke: Id,
     spawn: Create,
     own: struct { pid: Id, expected_generation: u64, worker: Id },
+    retry: struct { pid: Id, expected_generation: u64, failure_input: Id },
     send: struct { pid: Id, value: p.Value },
     begin_turn: struct { pid: Id, generation: u64, input: Id },
     turn: Turn,
@@ -160,6 +161,7 @@ pub const Capabilities = struct {
     dependency_validation_vertices: u16,
     dependency_changes: enum { quiescent_owner_and_borrowers } = .quiescent_owner_and_borrowers,
     association_lookup: bool = false,
+    scoped_retry: bool = false,
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
     runtime_bindings: bool = false,
     history_reclamation: bool = false,
@@ -255,9 +257,9 @@ pub fn validateResponse(response: Response, query: Query) !void {
             if (value.process.pid != pid or value.process.consumed > value.process.admitted or
                 value.process.cancelled > value.process.admitted - value.process.consumed) return error.InvalidRead;
             if (value.input) |input| {
-                if (value.process.lifecycle != .running or input.ordinal != value.process.consumed + 1 or
+                if (value.process.lifecycle != .running or value.process.failure != null or input.ordinal != value.process.consumed + 1 or
                     input.ordinal > value.process.admitted or input.position >= response.position) return error.InvalidRead;
-            } else if (value.process.lifecycle == .running and value.process.consumed < value.process.admitted) return error.InvalidRead;
+            } else if (value.process.lifecycle == .running and value.process.failure == null and value.process.consumed < value.process.admitted) return error.InvalidRead;
         },
         .resource => |id| if (response.body.resource.id != id) return error.InvalidRead,
         .view => |id| if (response.body.view.id != id) return error.InvalidRead,
@@ -367,6 +369,18 @@ test "growing identities are explicit and cannot reuse legacy signature domains"
     const legacy = p.digest(.{ .realm = 1, .principal = 1, .sequence = 1, .command = .{ .send = .{ .pid = 2, .value = .{} } } });
     try std.testing.expect(!std.mem.eql(u8, &legacy, &try digest(request)));
     try std.testing.expectError(error.InvalidRead, signQuery(.{ .realm = 1, .principal = 1, .kind = .{ .entries = .{ .view = 3, .key = try p.Value.init("k"), .after = try p.Value.init("k") } } }, key));
+}
+
+test "growing blocked process reads disclose metadata without claiming executable input" {
+    const query: Query = .{ .realm = 1, .principal = 0, .kind = .{ .process = 1 } };
+    var response: Response = .{ .realm = 1, .position = 4, .principal_sequence = 0, .body = .{ .process = .{ .process = .{ .pid = 1, .code = 1, .failure = 2, .admitted = 1 }, .input = null } } };
+    try validateResponse(response, query);
+    response.body.process.input = .{ .position = 2, .ordinal = 1, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } };
+    try std.testing.expectError(error.InvalidRead, validateResponse(response, query));
+    response.body.process.process.failure = null;
+    try validateResponse(response, query);
+    response.body.process.input = null;
+    try std.testing.expectError(error.InvalidRead, validateResponse(response, query));
 }
 
 test "growing named association response binds the requested PID and exact name" {

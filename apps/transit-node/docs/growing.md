@@ -42,8 +42,9 @@ applicable. Values remain opaque application bytes. Computation runs in the
 caller; the node validates identity, ordering, state dependencies and publication.
 Requests use the common bounded, cancelable HTTP loop and diagnostics.
 
-Capabilities advertise the implemented operation budgets and support for root
-history reclamation. Runtime bindings and Station support remain false. The
+Capabilities advertise the implemented operation budgets, named association
+lookup, scoped failed-input retry and support for root history reclamation.
+Runtime bindings and complete Station support remain false. The
 selected history policy is independently `unlimited` or `checkpointed`; supporting
 maintenance does not opt an application into trimming. Clock-based operations
 fence known-expired work immediately; materialized terminal metadata can lag.

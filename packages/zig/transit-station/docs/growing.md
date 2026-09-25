@@ -28,6 +28,11 @@ There is no hidden retry or extension of a view deadline. After worker loss,
 obtain fresh ownership before constructing a replacement host. Initialization
 is skipped when its descriptor already committed.
 
+A handler failure records a kernel block and returns `blocked`. Policy outside
+the handler may use the node's `scoped_retry` capability with a PID administrator
+identity, then acquire new ownership and create a replacement host. The old host
+does not clear its own block, and retry does not skip or acknowledge the input.
+
 Growing call/reply and timed-wait preprocessing use shared framework logic.
 Result fragment/completion/acknowledgement frames fail with
 `UnsupportedGrowingQuery`; a result must not look verified before growing result

@@ -43,6 +43,12 @@ owner/generation returns `StaleActivation`. Authority/clock uncertainty is not
 converted into permanent expiry. Known protocol rejection details remain on
 `Client.last_rejection`.
 
+Nodes advertising `scoped_retry` expose blocked process metadata without its
+head payload. A separately authorized administrator can submit
+`retry: {pid, expected_generation, failure_input}`; the session never retries
+application failures automatically. Retry preserves accepted input, advances the
+generation and requires a fresh ownership operation. Old sessions remain fenced.
+
 `prepareBegin`, `prepareView`, `prepareCloseView` and `prepareCommit` freeze owned
 signed `Pending` values without network I/O. `Pending.submit` sends once through
 the shared transport. After a view-open or permit mutation, receive again for the

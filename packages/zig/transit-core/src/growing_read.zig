@@ -37,12 +37,12 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     const position = engine.head.position;
     var current = try engine.state();
     const body: @FieldType(g.Response, "body") = switch (query.kind) {
-        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited } },
+        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited } },
         .process => |pid| blk: {
             try scope(principal, pid);
             const process = try engine.process(pid);
             var input: ?g.Input = null;
-            if (process.lifecycle == .running) {
+            if (process.lifecycle == .running and process.failure == null) {
                 try engine.executable(process, try sample(engine), true);
                 if (process.consumed < process.admitted) input = (try current.get(g.Input, try c.key(.mailbox, pid, process.consumed + 1, ""))) orelse return error.IncompleteHistory;
             }
