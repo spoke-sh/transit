@@ -23,6 +23,14 @@ Provisioning must establish a required association, resource permissions,
 execute/inspect/publish grants, and fresh ownership before starting a worker.
 Never put root credentials in this configuration.
 
+The provider form, `--bootstrap-json '<configuration>'`, omits `seed_file` and
+`generation`. It creates a fresh in-memory key, emits one public registration,
+and waits for a provider-verified activation through the public client. The
+runtime adapter must select the reviewed `station` container and validate its
+current worker incarnation. No signing key or authority is saved in Substrate's
+durable directory. The host pins one generation; replacement uses a new worker
+and key. Merely cold-booting within the old pod cannot establish that activation.
+
 The host proposes a short state-view deadline and drives the framework; the
 handler receives neither a clock nor a network client. A lost submission retains
 the exact proposal before any subsequent handler. The [Station package](../../packages/zig/transit-station/README.md)

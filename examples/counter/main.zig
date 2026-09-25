@@ -101,40 +101,18 @@ fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer parsed.deinit();
     var config = parsed.value;
     if (inline_config and (config.seed_file != null or config.generation != 0)) return error.InvalidBootstrap;
-    const key = if (config.seed_file) |path| try wire.readKey(init.gpa, init.io, path) else key: {
+    var key = if (config.seed_file) |path| try wire.readKey(init.gpa, init.io, path) else key: {
         var seed: [32]u8 = undefined;
         defer std.crypto.secureZero(u8, &seed);
         try init.io.randomSecure(&seed);
         break :key try protocol.Ed25519.KeyPair.generateDeterministic(seed);
     };
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     var client = wire.Client.init(init.gpa, init.io, config.url);
     defer client.deinit();
     client.observer = diagnostics;
     if (config.seed_file == null) {
-        // Access denial is expected until the controller accepts this key.
-        // Per-poll diagnostics would fill the bounded bootstrap log transport
-        // and prevent a delayed controller from ever reading the registration.
-        client.observer = null;
-        defer client.observer = diagnostics;
-        // Public evidence only. The controller must read this from the current
-        // provider worker and verify its incarnation before granting authority.
-        var buffer: [1024]u8 = undefined;
-        var writer = std.Io.File.stdout().writerStreaming(init.io, &buffer);
-        try std.json.Stringify.value(.{ .bootstrap = .{ .realm = config.realm, .pid = config.pid, .public_key = key.public_key.toBytes() } }, .{}, &writer.interface);
-        try writer.interface.writeByte('\n');
-        try writer.interface.flush();
-        while (true) {
-            const view = client.view(.{ .realm = config.realm, .principal = config.principal, .sequence = 0, .command = .{ .inspect = config.pid } }, key) catch {
-                try init.io.sleep(.fromMilliseconds(200), .awake);
-                continue;
-            };
-            if (view.process.lifecycle != .running) return error.StaleActivation;
-            if (view.process.owner == config.principal and view.process.binding != null and view.process.binding.?.activation != null) {
-                config.generation = view.process.generation;
-                break;
-            }
-            try init.io.sleep(.fromMilliseconds(200), .awake);
-        }
+        config.generation = try wire.bootstrap.awaitActivation(&client, config.realm, config.pid, config.principal, key);
     }
     var activation = observations.begin(diagnostics, .caller_activation, "configured", null);
     activation.event.realm = config.realm;

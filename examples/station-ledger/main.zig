@@ -10,8 +10,8 @@ const Config = struct {
     realm: u64,
     principal: u8,
     pid: u64,
-    generation: u64,
-    seed_file: []const u8,
+    generation: u64 = 0,
+    seed_file: ?[]const u8 = null,
     association: []const u8 = "data",
     role: @FieldType(handler.Application, "role") = .ledger,
     destination: ?u64 = null,
@@ -33,17 +33,26 @@ pub fn main(init: std.process.Init) !void {
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const once = args.len == 3 and std.mem.eql(u8, args[1], "--once");
-    if (args.len != 2 and !once) return error.ExpectedConfiguration;
-    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[if (once) 2 else 1], init.gpa, .limited(wire.max_body));
-    defer init.gpa.free(bytes);
+    const bootstrap = args.len == 3 and std.mem.eql(u8, args[1], "--bootstrap-json");
+    if (args.len != 2 and !once and !bootstrap) return error.ExpectedConfiguration;
+    const bytes = if (bootstrap) args[2] else try std.Io.Dir.cwd().readFileAlloc(init.io, args[if (once) 2 else 1], init.gpa, .limited(wire.max_body));
+    defer if (!bootstrap) init.gpa.free(bytes);
     var parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
     defer parsed.deinit();
-    const config = parsed.value;
-    var key = try wire.readKey(init.gpa, init.io, config.seed_file);
+    var config = parsed.value;
+    if (bootstrap and (config.seed_file != null or config.generation != 0)) return error.InvalidBootstrap;
+    if (!bootstrap and config.seed_file == null) return error.MissingSeedFile;
+    var key = if (config.seed_file) |path| try wire.readKey(init.gpa, init.io, path) else key: {
+        var seed: [32]u8 = undefined;
+        defer std.crypto.secureZero(u8, &seed);
+        try init.io.randomSecure(&seed);
+        break :key try wire.protocol.Ed25519.KeyPair.generateDeterministic(seed);
+    };
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     var client = wire.Client.init(init.gpa, init.io, config.url);
     defer client.deinit();
     client.observer = diagnostics;
+    if (bootstrap) config.generation = try wire.bootstrap.awaitActivation(&client, config.realm, config.pid, config.principal, key);
     var behavior = try station.GenServer.init(.{
         .client = &client,
         .realm = config.realm,

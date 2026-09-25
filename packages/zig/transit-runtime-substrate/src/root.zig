@@ -14,6 +14,7 @@ pub const Config = struct {
     template: []const u8,
     template_uid: [16]u8,
     image: []const u8,
+    container: []const u8 = "counter",
     egress_policy_file: []const u8,
     authority_host: []const u8,
     previous_workload: ?PreviousWorkload = null,
@@ -53,7 +54,7 @@ pub const Adapter = struct {
         return hash.finalResult();
     }
     pub fn validate(self: Adapter) !void {
-        for ([_][]const u8{ self.config.atespace, self.config.actor, self.config.template }) |value| try name(value);
+        for ([_][]const u8{ self.config.atespace, self.config.actor, self.config.template, self.config.container }) |value| try name(value);
         if (self.config.context.len == 0 or self.config.kubeconfig.len == 0 or self.config.cli.len == 0) return error.MissingProviderTrust;
         if ((self.config.endpoint == null) != (self.config.token_file == null)) return error.MissingProviderTrust;
         if (std.mem.find(u8, self.config.image, "@sha256:") == null) return error.UnpinnedImage;
@@ -73,6 +74,7 @@ pub const Adapter = struct {
         if (!std.meta.eql(try uuid(try string(try member(meta, "uid"))), self.config.template_uid)) return error.TemplateMismatch;
         const containers = try member(parsed.value, "containers");
         if (containers != .array or containers.array.items.len != 1) return error.TemplateMismatch;
+        if (!std.mem.eql(u8, try string(try member(containers.array.items[0], "name")), self.config.container)) return error.TemplateMismatch;
         if (!std.mem.eql(u8, try string(try member(containers.array.items[0], "image")), self.config.image)) return error.TemplateMismatch;
         const volumes = try member(parsed.value, "volumes");
         if (volumes != .array or volumes.array.items.len != 1) return error.UnsupportedVolumes;
@@ -198,7 +200,7 @@ pub const Adapter = struct {
             !std.mem.eql(u8, try string(patterns.array.items[0]), self.config.authority_host)) return error.UnsafeEgressPolicy;
     }
     pub fn bootstrap(self: Adapter, expected: Actor) !Bootstrap {
-        const logs = try self.call(&.{ "logs", "actor", self.config.actor, "-a", self.config.atespace, "-c", "counter" });
+        const logs = try self.call(&.{ "logs", "actor", self.config.actor, "-a", self.config.atespace, "-c", self.config.container });
         defer self.allocator.free(logs);
         var lines = std.mem.splitScalar(u8, logs, '\n');
         var found: ?Bootstrap = null;

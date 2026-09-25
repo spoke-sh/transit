@@ -3,6 +3,7 @@ const std = @import("std");
 pub const observability = @import("transit_observability");
 const telemetry = observability.telemetry;
 pub const Session = @import("Session.zig");
+pub const bootstrap = @import("bootstrap.zig");
 pub const Value = protocol.Value;
 pub const protocol = @import("transit_protocol");
 const transit = protocol;

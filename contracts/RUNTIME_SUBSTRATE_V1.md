@@ -17,7 +17,10 @@ and validation independently of command-line usage.
 The binding records opaque hashes of the scoped resource and template/image
 identity. The adapter validates the template UID and image, requires DATA
 snapshots with COLD_BOOT resumption, and rejects a changed Actor incarnation.
-The template must declare one `durableDir` volume named `runtime-data`, mounted
+The template's single container must match the configured `container` name
+(`counter` for existing installations, `station` for the Station example). That
+same name selects the provider-attributed bootstrap logs; a mismatch fails before
+activation. The template must declare one `durableDir` volume named `runtime-data`, mounted
 at `/runtime-data`; Substrate refuses DATA suspension without a durable directory.
 The fixed worker stores no signing keys or authority there. Additional or
 external volume mounts are rejected by this profile's template validation.

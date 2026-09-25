@@ -41,7 +41,7 @@ else:
 ''')
         fake.chmod(0o755)
         def template(uid):
-            return {"metadata": {"uid": str(uid)}, "containers": [{"image": image, "volumeMounts": [{"name": "runtime-data", "mountPath": "/runtime-data"}]}],
+            return {"metadata": {"uid": str(uid)}, "containers": [{"name": "counter", "image": image, "volumeMounts": [{"name": "runtime-data", "mountPath": "/runtime-data"}]}],
                     "volumes": [{"name": "runtime-data", "durableDir": {}}],
                     "snapshotsConfig": {"onPause": "SNAPSHOT_CONTENT_SCOPE_DATA", "onCommit": "SNAPSHOT_CONTENT_SCOPE_DATA", "onResume": {"fromData": "RESUME_SOURCE_COLD_BOOT"}}}
         data = {"templates": {"old": template(old_uid), "new": template(new_uid)}, "switches": 0,
@@ -67,6 +67,9 @@ else:
             else:
                 assert result.returncode == 0, result.stderr
             return result.stdout
+        config["provider"]["container"] = "station"
+        scan("TemplateMismatch")  # Bootstrap evidence must come from the reviewed container.
+        config["provider"]["container"] = "counter"
         scan("BindingMismatch")  # Old controller cannot mutate the new binding.
         config["provider"].update(template="new", template_uid=list(new_uid.bytes), previous_workload={"template": "old", "template_uid": list(old_uid.bytes), "image": image})
         cut = s.inspect("process", pid)["cut"]

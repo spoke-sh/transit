@@ -24,6 +24,7 @@ explicit argument arrays, bounded output (64 KiB stdout / 8 KiB stderr), and a
 | `atespace`, `actor` | Exclusive, never-reused scoped Actor name |
 | `template`, `template_uid` | Expected template name and 16-byte incarnation UUID |
 | `image` | Immutable workload image reference with `@sha256:` digest |
+| `container` | Reviewed template container supplying bootstrap logs; defaults to `counter` for existing deployments |
 | `egress_policy_file`, `authority_host` | Default-deny policy and allowed Transit hostname |
 | `endpoint`, `token_file` | Optional direct Substrate API endpoint and token file; supply both together |
 | `previous_workload` | Optional prior template/UID/image during an authorized same-PID upgrade |

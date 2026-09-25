@@ -30,12 +30,21 @@ loop, durable waiting, and supervision.
 | `Client.inspect` | Follow bounded process/history pages with explicit cut/expiry handling |
 | `Client.state` | Discover state capabilities and read metadata, associations, entries or captured views |
 | `Session.prepare*` / `Pending.submit` | Freeze activation-aware proposals; no hidden retry, persistence or background loop |
+| `bootstrap.awaitActivation` | Publish a fresh public key and pin the first controller-granted generation for a provider-bound worker |
 
 Each client is used by one operation at a time; sessions sharing a principal also
 share its mutation sequence. Delivered input includes position, opaque value and
 versioned authenticated origin. `Session.receive` rejects unsupported origin
 versions. Match the expected source PID/turn or effect attempt before interpreting
 application correlation; claimed senders inside opaque bytes carry no authority.
+
+The optional [worker bootstrap](src/bootstrap.zig) performs no provider calls.
+Its caller supplies a fresh in-memory key; the trusted runtime controller must
+attribute the public registration to the configured container and current worker
+incarnation before granting activation. Expected denied polls suppress repeated
+diagnostics to preserve the bounded bootstrap log. After the first activation,
+the host never adopts a newer generation. Counter and Station workers share this
+path; imports and ordinary client construction never start it.
 
 ## Instrumentation
 
