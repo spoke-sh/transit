@@ -145,7 +145,7 @@
         "Admission ceiling with outstanding input",
         "Real ENOSPC followed by revocation and restart"
       ],
-      "limits": "Finite legacy reserve formula; growing-profile accounting and overload qualification outstanding.",
+      "limits": "Finite legacy reserve formula; see GROWTH-11 for the growing profile's admission accounting. Real ENOSPC/overload qualification for the growing profile remains outstanding.",
       "model": null
     },
     {
@@ -613,6 +613,23 @@
         "Live versions survive physical authority-prefix trim and provider restart"
       ],
       "limits": "No resumable Station/Fuze result capture, quota accounting or page garbage collection. Catalog roots may retain unrelated physical pages. Disk provider proof checks authority-prefix trim while preserving immutable page storage.",
+      "model": null
+    },
+    {
+      "id": "GROWTH-11",
+      "claim": "A growing control root refuses new admission before an explicit journal reserve, while revocation, retry, termination, delivery, observation, checkpoint and output-free turns keep draining and closing existing work through it",
+      "owner": "docs/RETENTION.md",
+      "implementation": [
+        "packages/zig/transit-core/src/growing.zig"
+      ],
+      "profile": "transit-v3 development control slice; not running service",
+      "tasks": [
+        "test::unit"
+      ],
+      "scenarios": [
+        "Admission ceiling with outstanding input, reserve exhaustion and restart"
+      ],
+      "limits": "Explicit configured control_reserve band, not a formula derived from fixed catalog sizes (growing catalogs are unbounded, so no such formula exists). No idempotency guard against spending the reserve on redundant revoke/checkpoint calls, unlike the legacy profile's. No real ENOSPC/physical-capacity proof, service/client exposure, or observable quota read API yet.",
       "model": null
     },
     {

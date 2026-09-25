@@ -74,6 +74,13 @@
     },
     {
       "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_control_reserve",
+      "expression": "65536",
+      "classification": "quota-ceiling",
+      "meaning": "Maximum configurable growing-profile control reserve (growing.Genesis.control_reserve); an explicit reviewed band, not a formula derived from fixed catalog sizes like the legacy reserve."
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
       "symbol": "max_entry_bytes",
       "expression": "8192",
       "classification": "operation",

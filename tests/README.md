@@ -855,8 +855,22 @@ reject staged partial proposals and fence expired required dependencies. Signed
 read checks cover bounded current/captured pages, current permissions, stale
 ownership/cuts, expiry and hidden association filtering. These engine checks
 use injected storage; delivery/settlement also have injected-storage checks.
-Station integration and control reserves still need evidence. Launcher defaults
-continue to use v2; the explicit growing service is qualified separately below.
+Station integration still needs evidence. Launcher defaults continue to use v2;
+the explicit growing service is qualified separately below.
+
+An explicit control reserve now has injected-storage evidence too
+(`GROWTH-11`, [growing capacity](../packages/zig/transit-core/docs/authority.md#growing-profile-an-explicit-control-reserve-not-a-derived-one)):
+past a configured ceiling, sends/spawns/grants/new resources/views/associations
+and turns that would emit a new output or effect are refused before
+acknowledgement, while ownership reassignment, revocation, retry, termination,
+delivery, effect observation/closure, an opted-in checkpoint and output-free
+turns keep draining and closing existing work through an explicit reserve band
+— until even that is exhausted and every command is refused. A restarted
+engine recovers the identical ceiling and reserve state. This qualifies the
+admission mechanism itself; a real physical-storage/ENOSPC proof, a
+service/client read surface for remaining headroom, and an operational
+`apps/transit-node` profile around it remain open, per CAP-01's second
+scenario.
 
 
 `just test::growing` runs the growing core against real Ursula and a single-page
