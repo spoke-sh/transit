@@ -77,7 +77,7 @@ def run(node, cli, worker, courier):
                 time.sleep(.025)
             raise AssertionError(("no delivered input", pid))
 
-        control = {"mode": "drop", "bodies": []}
+        control = {"mode": "drop", "bodies": [], "expired_cuts": 0}
         committed, release = threading.Event(), threading.Event()
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -86,7 +86,14 @@ def run(node, cli, worker, courier):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
                 command = envelope.get("request", {}).get("command", {})
-                is_turn = "turn" in command.get("state", {})
+                is_turn = "turn" in command.get("state", {}) and envelope["request"]["principal"] == 1
+                query = envelope.get("query", {})
+                if self.path == "/v2/state" and query.get("after", 0) and not control["expired_cuts"]:
+                    # Real concurrent journal progress invalidates this inspection
+                    # cut. The framework must restart all pages without invoking
+                    # a handler on a partial snapshot or abandoning its view.
+                    s.command({"state": {"grant": {"resource": ledger_resource, "subject": 0, "permissions": 7}}})
+                    control["expired_cuts"] += 1
                 if is_turn:
                     control["bodies"].append(body)
                 connection = HTTPConnection("127.0.0.1", s.port, timeout=5)
@@ -111,6 +118,7 @@ def run(node, cli, worker, courier):
         thread = threading.Thread(target=proxy.serve_forever, daemon=True)
         thread.start()
         proxied = {**ledger_config, "url": f"http://127.0.0.1:{proxy.server_port}"}
+        requester_config["url"] = proxied["url"]
         try:
             s.command({"send": {"pid": requester, "value": frame(b"7")}})
             once(requester_config)
@@ -226,7 +234,8 @@ def run(node, cli, worker, courier):
             # Lifecycle control stays available after a recorded handler block.
             s.command({"terminate": ledger})
             assert s.inspect("process", ledger)["processes"][0]["lifecycle"] == "terminated"
-            print("Station: two-table turns, call/reply, exact retries, worker/store recovery, authorized captured Arrow replies, fencing and blocked-handler control passed.")
+            assert control["expired_cuts"] == 1, "No paged inspection cut was invalidated"
+            print("Station: two-table turns, call/reply, exact retries, expired inspection cuts, worker/store recovery, authorized captured Arrow replies, fencing and blocked-handler control passed.")
         finally:
             release.set()
             proxy.shutdown()

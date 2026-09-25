@@ -99,7 +99,10 @@ pub fn Type(comptime growing: bool) type {
                 }
             }
             if (self.resource == null) {
-                const id = try self.resolveAssociation();
+                const id = self.resolveAssociation() catch |err| {
+                    if (err == error.Conflict and self.session.client.last_rejection == .QueryExpired) return .progress;
+                    return err;
+                };
                 const resource = if (growing) (try self.session.client.queryGrowing(.{ .realm = self.session.realm, .principal = self.session.principal, .kind = .{ .resource = id } }, self.session.key)).body.resource else blk: {
                     const page = try self.session.client.state(.{ .realm = self.session.realm, .principal = self.session.principal, .kind = .resources, .resource = id }, self.session.key);
                     break :blk page.resources[0] orelse return error.MissingStateResource;
@@ -117,7 +120,14 @@ pub fn Type(comptime growing: bool) type {
                 self.pending_kind = .open;
                 return .progress;
             }
-            try self.prepareTurn();
+            self.prepareTurn() catch |err| {
+                // A legacy inspection cut can expire between pages when another
+                // process commits. No handler or mutation has run: discard the
+                // local page assembly and restart it on the next bounded poll.
+                // Keep the captured view and distinguish mutation conflicts.
+                if (err == error.Conflict and self.session.client.last_rejection == .QueryExpired) return .progress;
+                return err;
+            };
             self.ready.?.resource_deadline_ms = self.resource.?.deadline_ms;
             self.handler_error = null;
             self.initializing = (self.ready.?.read(descriptor_key) catch |err| {

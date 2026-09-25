@@ -41,6 +41,11 @@ after worker recovery. Handler errors discard all private work and commit a
 kernel failure, leaving the input visible and blocking further execution.
 Administrative lifecycle control remains independent of the handler.
 
+If concurrent journal progress expires a legacy inspection cut while loading
+associations or a captured view, the next poll restarts the complete page read.
+No handler sees a partial snapshot. This read retry preserves the captured view;
+it does not retry or discard a conflicting mutation or renew an expired view.
+
 An unresolved operation stays ahead of the next handler as an exact signed
 proposal. The same host retries those bytes. After host loss, acquire fresh
 ownership before recomputation: the previous activation is fenced and the
