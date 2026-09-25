@@ -83,6 +83,14 @@ workerPool:
 # Version-specific pools permit fresh physical worker incarnations on upgrades.
 workerPools: []
 
+# Additional PID-scoped reconcilers. Each item overrides the controller defaults
+# below and requires a unique nameOverride, config and existingSecret.
+runtimeControllers: []
+
+# Framework observation/lifecycle identities are separate from runtime/provider
+# control. Each item supplies nameOverride, image, existingSecret and config.
+stationControllers: []
+
 controller:
   enabled: false
   nameOverride: ""

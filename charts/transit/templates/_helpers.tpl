@@ -44,8 +44,8 @@ app: {{ include "transit.name" . | quote }}
 {{- toJson $config -}}
 {{- else if eq .component "board" -}}
 {{- include "transit.boardConfig" .root -}}
-{{- else if eq .component "delivery" -}}
-{{- $config := deepCopy .root.Values.delivery.config -}}
+{{- else if has .component (list "delivery" "station") -}}
+{{- $config := deepCopy (index .root.Values .component).config -}}
 {{- $_ := set $config "url" (printf "http://%s:8080" (include "transit.name" (dict "root" .root "component" "node"))) -}}
 {{- $_ := set $config "seed_file" "/secrets/seed" -}}
 {{- toJson $config -}}

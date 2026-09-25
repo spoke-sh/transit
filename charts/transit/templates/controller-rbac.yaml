@@ -1,3 +1,5 @@
+{{- define "transit.controllerRbac" -}}
+---
 {{- if .Values.controller.enabled }}
 {{- $ctx := dict "root" . "component" "controller" }}
 {{- $name := include "transit.name" $ctx }}
@@ -41,3 +43,5 @@ metadata:
 subjects: [{kind: ServiceAccount, name: {{ $name }}, namespace: {{ .Release.Namespace }}}]
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ printf "%s-%s" .Release.Namespace $name }}}
 {{- end }}
+{{- end }}
+{{ include "transit.controllerRbac" . }}

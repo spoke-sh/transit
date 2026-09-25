@@ -42,6 +42,29 @@ def run():
         pins = json.loads((ROOT / "deploy/reference/versions.json").read_text())
         assert defaults["ursula"]["image"] == pins["ursula"]
         assert not any(kind in ("Secret", "Job", "RoleBinding", "ClusterRoleBinding") for kind, _ in manifests)
+        station = copy.deepcopy(VALUES)
+        station["controller"] = {"image": "example.invalid/runtime:proof"}
+        station["runtimeControllers"] = [{"nameOverride": "runtime-ledger", "existingSecret": "runtime-ledger-key",
+            "config": {"realm": 49, "principal": 8, "pid": 1, "worker": 1, "provider": {"authority_host": "transit.proof.svc.cluster.local", "container": "station"}}}]
+        station["stationControllers"] = [{"nameOverride": "station-observer", "image": "example.invalid/station:proof", "existingSecret": "station-observer-key",
+            "config": {"realm": 49, "principal": 10, "mode": "observe", "watches": [{"pid": 1, "resource": 2}]}}]
+        composed = render(station)
+        for name in ("runtime-ledger", "station-observer"):
+            spec = composed["Deployment", name]["spec"]["template"]["spec"]
+            assert spec["automountServiceAccountToken"] is False
+            assert next(v["secret"]["secretName"] for v in spec["volumes"] if "secret" in v) == name + "-key"
+            config = json.loads(composed["ConfigMap", name]["data"]["config.json"])
+            assert config["url"] == "http://test-runtime-node:8080" and config["seed_file"] == "/secrets/seed"
+        assert {v["name"] for v in composed["Deployment", "station-observer"]["spec"]["template"]["spec"]["volumes"]} == {"config", "secrets"}
+        assert ("RoleBinding", "runtime-ledger") in composed and ("RoleBinding", "station-observer") not in composed
+        assert ("NetworkPolicy", "station-observer") in composed
+        duplicate = copy.deepcopy(station)
+        duplicate["stationControllers"][0]["nameOverride"] = "runtime-ledger"
+        render(duplicate, "duplicate additional controller name")
+        station["running"] = False
+        stopped = render(station)
+        assert stopped["Deployment", "runtime-ledger"]["spec"]["replicas"] == 0
+        assert stopped["Deployment", "station-observer"]["spec"]["replicas"] == 0
         pvc = manifests["PersistentVolumeClaim", "test-runtime-ursula"]
         assert pvc["metadata"]["annotations"]["helm.sh/resource-policy"] == "keep"
         for component in ("node", "ursula", "board", "maintenance", "delivery"):

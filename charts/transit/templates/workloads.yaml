@@ -1,4 +1,7 @@
-{{- range $component := list "node" "ursula" "maintenance" "board" "initialize" "controller" "delivery" }}
+{{- define "transit.workload" -}}
+{{- $component := .component }}
+{{- $ := .root }}
+{{- with $ }}
 {{- $settings := index $.Values $component }}
 {{- if $settings.enabled }}
 {{- $ctx := dict "root" $ "component" $component }}
@@ -114,7 +117,7 @@ spec:
             - {name: config, mountPath: /config, readOnly: true}
             {{- if eq $component "ursula" }}
             - {name: data, mountPath: /data}
-            {{- else if has $component (list "maintenance" "board" "controller" "delivery") }}
+            {{- else if has $component (list "maintenance" "board" "controller" "delivery" "station") }}
             - {name: secrets, mountPath: /secrets, readOnly: true}
             {{- if eq $component "controller" }}
             - {name: provider, mountPath: /provider, readOnly: true}
@@ -133,7 +136,7 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: {{ default (include "transit.name" $ctx) $settings.persistence.existingClaim }}
-        {{- else if has $component (list "maintenance" "board" "controller" "delivery") }}
+        {{- else if has $component (list "maintenance" "board" "controller" "delivery" "station") }}
         - name: secrets
           secret:
             secretName: {{ required (printf "%s.existingSecret is required; never put credentials in values" $component) $settings.existingSecret }}
@@ -151,4 +154,8 @@ spec:
         {{- end }}
         {{- end }}
 {{- end }}
+{{- end }}
+{{- end }}
+{{- range $component := list "node" "ursula" "maintenance" "board" "initialize" "controller" "delivery" }}
+{{ include "transit.workload" (dict "root" $ "component" $component) }}
 {{- end }}

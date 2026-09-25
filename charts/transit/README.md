@@ -2,13 +2,15 @@
 
 [Transit](../../docs/TRANSIT.md) is the streaming runtime subsystem. This chart
 packages its current single-realm deployment: a node, disk-backed Ursula,
-optional maintenance, [delivery](../../apps/transit-delivery/README.md), [Board](../../apps/transit-board/README.md), a runtime controller, and
+optional maintenance, [delivery](../../apps/transit-delivery/README.md), [Board](../../apps/transit-board/README.md), runtime/framework controllers, and
 Agent Substrate worker capacity. Rey is the intended downstream trading
 application.
 
 The [reference proof](../../deploy/reference/README.md) installs this chart and
 qualifies controller/worker recovery, persistent storage, maintenance, and Board
-isolation. It packages the current bounded reference profile through M8;
+isolation. The [Station example](../../examples/station-ledger/docs/running.md)
+uses three PID-scoped runtime controllers and separate framework controllers.
+The chart packages the bounded reference profile;
 it is not an HA production installer.
 
 ## Resources and values
@@ -27,10 +29,16 @@ and validated by their binaries; the chart does not duplicate those schemas.
 | `delivery` | Optional single-replica Recreate courier. Supply `image`, `existingSecret` with `seed`, `config.realm` and a dedicated `config.principal` granted delivery/send. Its signed exec probe reads status; it has no storage mount or Kubernetes token. |
 | `board` | Optional Deployment, private Service and ConfigMap. Supply `image`, `existingSecret` containing the Transit `seed`, and `config` with realm, inspection principal and public origin. |
 | `controller` | Optional one-PID Recreate Deployment with a PID-scoped Transit seed, projected provider/API tokens, public trust-bundle read permission and namespace-local worker-log access. Supply its packaged image and provider configuration. |
+| `runtimeControllers` | Up to 15 additional PID-scoped controllers using the same deployment and credential boundary. Each requires a unique `nameOverride`, `config`, and `existingSecret`; supply its image. |
+| `stationControllers` | Up to 15 framework observers/lifecycle controllers. Each requires a unique `nameOverride`, image, public-client `config`, and separate `existingSecret`. They receive no provider token or storage mount; egress is limited to Transit and DNS. |
 | `workerPools` | Named version-specific pools; keep old capacity until a recorded workload switch has reconciled and a fresh activation is established. |
 | `workerPool` | Optional Substrate WorkerPool. Supply `spec` and any workload selector labels. Requires the pinned Substrate CRD/controller already installed. |
 
 Names default to `<release>-<component>` and can be overridden per component.
+Additional controller names must be unique across both arrays and base components.
+Their `config` is public configuration: signing credentials come from the
+mounted Secret's `seed` key. Use separate recorded grants for each responsibility;
+creating a Deployment does not grant access to a PID or state resource.
 HTTP services listen on port 8080; the courier has no listener. The chart fixes listener/credential paths and
 sets internal service URLs; disable Ursula and provide `node.config.ursula_url`
 for an external backend. Board and delivery require the chart's node. Log level/format and
@@ -127,6 +135,7 @@ just test::deployments
 just launchers::reference::infra-up
 just launchers::reference::images
 just launchers::reference::test
+just launchers::reference::test-station
 just launchers::reference::infra-down
 ```
 

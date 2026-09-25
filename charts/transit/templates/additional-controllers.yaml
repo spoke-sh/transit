@@ -1,0 +1,49 @@
+{{- $names := dict }}
+{{- range $component := list "node" "ursula" "maintenance" "board" "initialize" "controller" "delivery" }}
+{{- $_ := set $names (include "transit.name" (dict "root" $ "component" $component)) true }}
+{{- end }}
+{{- range $settings := .Values.runtimeControllers }}
+{{- $name := required "runtimeControllers require nameOverride" $settings.nameOverride }}
+{{- if hasKey $names $name }}{{ fail "duplicate additional controller name" }}{{ end }}
+{{- $_ := set $names $name true }}
+{{- $root := deepCopy $ }}
+{{- $config := mergeOverwrite (deepCopy $.Values.controller) $settings (dict "enabled" true) }}
+{{- $_ := set $root.Values "controller" $config }}
+{{ include "transit.configMap" (dict "root" $root "component" "controller") }}
+{{ include "transit.workload" (dict "root" $root "component" "controller") }}
+{{ include "transit.controllerRbac" $root }}
+{{- end }}
+{{- range $settings := .Values.stationControllers }}
+{{- $name := required "stationControllers require nameOverride" $settings.nameOverride }}
+{{- if hasKey $names $name }}{{ fail "duplicate additional controller name" }}{{ end }}
+{{- $_ := set $names $name true }}
+{{- $root := deepCopy $ }}
+{{- $config := mergeOverwrite (dict "resources" (deepCopy $.Values.delivery.resources) "logging" (deepCopy $.Values.delivery.logging)) $settings (dict "enabled" true) }}
+{{- $_ := set $root.Values "station" $config }}
+{{ include "transit.configMap" (dict "root" $root "component" "station") }}
+{{ include "transit.workload" (dict "root" $root "component" "station") }}
+{{- if $.Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "transit.labels" (dict "root" $root "component" "station") | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "transit.labels" (dict "root" $ "component" "node") | nindent 14 }}
+      ports: [{protocol: TCP, port: 8080}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ $.Values.networkPolicy.dnsNamespace | quote }}}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+{{- end }}
+{{- end }}
