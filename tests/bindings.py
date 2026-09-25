@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import time
 
 from inspection import System
@@ -106,10 +107,42 @@ def run(node, cli, courier, library, raw_library, host, c, cpp, *extra):
         gson = os.environ["TRANSIT_GSON_JAR"]
         sources = list((ROOT / "packages/java/transit-station/src").rglob("*.java"))
         subprocess.run(["javac", "-Xlint:all,-classfile", "-Werror", "-cp", gson, "-d", classes,
-                        *sources, ROOT / "examples/station-bindings/java/StationExample.java"], check=True)
+                        *sources, ROOT / "examples/station-bindings/java/StationExample.java",
+                        ROOT / "tests/BindingPort.java"], check=True)
         java = ["java", "-cp", str(classes) + os.pathsep + gson, "StationExample"]
+        with tempfile.TemporaryDirectory(prefix="station-java-") as temporary:
+            subprocess.run(["java", "-cp", str(classes) + os.pathsep + gson, "BindingPort",
+                            ROOT / "tests/binding_port_fixture.py", temporary], check=True, timeout=20)
         pair(node, cli, courier, library, raw_library, host, java, nodejs, "Java → Node")
         pair(node, cli, courier, library, raw_library, host, rust, java, "Rust → Java")
+        artifacts = ROOT / ".cache/bindings/dotnet"
+        subprocess.run(["dotnet", "build", ROOT / "examples/station-bindings/dotnet/StationExample.csproj",
+                        "--configfile", ROOT / "packages/dotnet/transit-station/NuGet.Config",
+                        "--artifacts-path", artifacts], check=True)
+        dotnet = ["dotnet", artifacts / "bin/StationExample/debug/StationExample.dll"]
+        subprocess.run([*dotnet, "--boundary-proof"], env=env, check=True, timeout=20)
+        pair(node, cli, courier, library, raw_library, host, dotnet, java, ".NET → Java")
+        pair(node, cli, courier, library, raw_library, host, nodejs, dotnet, "Node → .NET")
+        beam = ROOT / ".cache/bindings/beam"
+        beam.mkdir(parents=True, exist_ok=True)
+        (beam / "Elixir.Transit.Station.beam").unlink(missing_ok=True)
+        beam_env = os.environ | {"ERL_FLAGS": "+S 2:2 +SDcpu 1 +SDio 1"}
+        subprocess.run(["erlc", "-Werror", "-I", ROOT / "packages/beam/transit-station/include",
+                        "-o", beam, ROOT / "packages/beam/transit-station/src/transit_station.erl",
+                        ROOT / "examples/station-bindings/erlang/station_example.erl",
+                        ROOT / "tests/binding_port.erl"], env=beam_env, check=True)
+        subprocess.run(["elixirc", "--warnings-as-errors", "-pa", beam, "-o", beam,
+                        ROOT / "packages/beam/transit-station/lib/transit_station.ex"], env=beam_env, check=True)
+        erlang = ["erl", "-noshell", "-pa", beam, "-eval",
+                  "station_example:main(init:get_plain_arguments()), halt().", "-extra"]
+        elixir = ["elixir", "-pa", beam, ROOT / "examples/station-bindings/elixir/main.exs"]
+        with tempfile.TemporaryDirectory(prefix="station-beam-") as temporary:
+            subprocess.run(["erl", "-noshell", "-pa", beam, "-s", "binding_port", "run", "-extra",
+                            ROOT / "tests/binding_port_fixture.py", temporary], env=beam_env, check=True, timeout=20)
+        pair(node, cli, courier, library, raw_library, host, erlang, dotnet, "Erlang → .NET")
+        pair(node, cli, courier, library, raw_library, host, java, erlang, "Java → Erlang")
+        pair(node, cli, courier, library, raw_library, host, elixir, erlang, "Elixir → Erlang")
+        pair(node, cli, courier, library, raw_library, host, python, elixir, "Python → Elixir")
 
 
 if __name__ == "__main__":

@@ -14,7 +14,9 @@ a provisioned host-config path, role and peer PID. Compile against the Nix
 explicit native executable. Public Maven publication is not qualified.
 
 `NativeHost.open` negotiates versions. Each host admits one operation; a bounded
-worker performs pipe I/O and completes the future. A 65-second deadline kills
+worker performs pipe I/O; futures complete on the common pool so user
+continuations cannot occupy the pipe worker or shared deadline thread.
+A 65-second deadline kills
 a stuck port, and cancelled futures terminate their port too. The child owns
 native stack/I/O requirements; no native calls run on JVM threads. Use
 try-with-resources to close explicitly. Dropped or cancelled futures do not

@@ -14,10 +14,13 @@ versioned child-process route for Node, Java and BEAM.
 The [C/C++](../packages/cpp/transit-station/README.md),
 [Rust](../packages/rust/transit-station/README.md),
 [Python](../packages/python/transit-station/README.md),
-[Node](../packages/ts/transit-station/README.md) and
-[Java](../packages/java/transit-station/README.md) adapters exchange real Table
-queries across languages. .NET and Elixir/Erlang adapters and the complete
-adversarial matrix are still M9 work. [The examples](../examples/station-bindings/README.md) use real
+[Node](../packages/ts/transit-station/README.md),
+[Java](../packages/java/transit-station/README.md),
+[.NET](../packages/dotnet/transit-station/README.md) and
+[Elixir/Erlang](../packages/beam/transit-station/README.md) adapters exchange real
+Table queries across languages. Native/managed cancellation, host loss, malformed
+ports and ownership cleanup have executable checks; reference worker qualification
+is separate M9 work. [The examples](../examples/station-bindings/README.md) use real
 authority and Arrow data, not language-specific server routes. Public package
 registry releases and non-Linux platforms are not qualified yet.
 
@@ -40,4 +43,6 @@ shell. The current Linux x86_64 baselines are:
 | Elixir | 1.18.5 built against OTP 28 |
 
 The Nix lock and [binding tools](../nix/bindings-tools.nix) own these versions.
-Tool availability is separate from completed language qualification.
+Every listed language runs both service and requester roles in the Linux matrix.
+Only Zig is the intended M9 reference worker; these checks do not qualify foreign
+runtimes as Substrate workers.

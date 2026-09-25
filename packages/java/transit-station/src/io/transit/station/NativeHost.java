@@ -45,6 +45,13 @@ public final class NativeHost implements AutoCloseable {
         } catch (Exception error) { host.close(); throw error; }
     }
     private static TransitException failure(int status, String detail) { return new TransitException(status, new JsonPrimitive(detail)); }
+    private static void complete(CompletableFuture<JsonElement> future, JsonElement value, Throwable error) {
+        // User continuations must never occupy the pipe worker or the shared
+        // deadline thread: a continuation may synchronously await another call.
+        ForkJoinPool.commonPool().execute(() -> {
+            if (error == null) future.complete(value); else future.completeExceptionally(error);
+        });
+    }
     public static JsonObject tag(String name, JsonElement value) {
         JsonObject object = new JsonObject(); object.add(name, value); return object;
     }
@@ -90,7 +97,7 @@ public final class NativeHost implements AutoCloseable {
         CompletableFuture<JsonElement> result = new CompletableFuture<>();
         ScheduledFuture<?> timer = TIMERS.schedule(() -> {
             closed.set(true); process.destroyForcibly();
-            result.completeExceptionally(failure(uncertain ? 6 : 7, "Native deadline elapsed"));
+            complete(result, null, failure(uncertain ? 6 : 7, "Native deadline elapsed"));
         }, 65, TimeUnit.SECONDS);
         result.whenComplete((value, error) -> {
             if (result.isCancelled()) { closed.set(true); process.destroyForcibly(); }
@@ -105,7 +112,7 @@ public final class NativeHost implements AutoCloseable {
                     closed.set(true); process.destroyForcibly();
                     failure = failure(uncertain ? 6 : 8, "Native completion unavailable or malformed");
                 } finally { timer.cancel(false); busy.set(false); }
-                if (failure == null) result.complete(value); else result.completeExceptionally(failure);
+                complete(result, value, failure);
             });
         } catch (RejectedExecutionException error) {
             timer.cancel(false); busy.set(false); result.completeExceptionally(failure(7, "Closed worker"));

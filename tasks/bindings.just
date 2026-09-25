@@ -25,6 +25,7 @@ native:
 # Qualify every implemented language; enter nix develop .#bindings first.
 test:
     cargo fmt --manifest-path packages/rust/transit-station/Cargo.toml --check
+    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-station/lib/transit_station.ex examples/station-bindings/elixir/main.exs
     zig build test-bindings -Dbindings-foreign=true
 
 # Validate the Node adapter and its bounded asynchronous port transport.

@@ -89,6 +89,7 @@ and has no escaping syntax. Returned raw strings may contain NUL bytes.
 including a real handler/Table exchange, exact pending retry after handle loss,
 failed-turn rollback, fencing/revocation, full-width data and cancellation while
 native I/O is blocked. `just bindings::test` in the bindings shell additionally
-qualifies Rust, Node and Java through cross-language service/requester pairs.
-Node also checks its schemas/transport independently. .NET and BEAM remain work
-in progress; the complete language/failure matrix remains M9 work.
+qualifies Rust, Node, Java, .NET, Erlang and Elixir through cross-language
+service/requester pairs. Node checks its schemas/transport independently. Java
+and BEAM exercise malformed/oversized/lost ports and cancellation; .NET proves
+bounded admission, await cancellation, asynchronous close and GC cleanup.

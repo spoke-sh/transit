@@ -8,7 +8,9 @@ the exact value and commits its observation. Each invocation consumes one turn;
 the proof restarts hosts between capture, publication and result fragments.
 
 Implemented examples are [C](c/main.c), [C++](cpp/main.cpp), [Rust](rust/main.rs),
-[Python](python/main.py), [Node](node/main.ts) and [Java](java/StationExample.java):
+[Python](python/main.py), [Node](node/main.ts), [Java](java/StationExample.java),
+[.NET](dotnet/Program.cs), [Erlang](erlang/station_example.erl) and
+[Elixir](elixir/main.exs):
 
 ```sh
 just bindings::native
@@ -25,4 +27,5 @@ share the existing per-resource budgets.
 For an already-provisioned installation, use the commands and ownership rules in
 the [Python adapter](../../packages/python/transit-station/README.md) and
 [shared binding guide](../../packages/zig/transit-station/docs/bindings.md).
-The .NET, Elixir and Erlang examples are still being implemented in M9.
+The matrix also exercises managed/native cancellation and ownership, port failure,
+malformed output, busy admission and scheduler/event-loop responsiveness.
