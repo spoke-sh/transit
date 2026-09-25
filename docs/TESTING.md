@@ -203,7 +203,25 @@ clean clones and upload small redacted failure traces/logs. Preserve Nix closure
 roots, bounded cache contents and clear cache-writer ownership. More parallel jobs
 are justified by measured benefit after duplicate work has been removed.
 
+Standalone package composition remains a separate compile check. Root library
+unit checks execute the shared suites once; Fuze's configured upstream compute
+suite runs through `test::compute`. `test::packages` remains a focused full
+standalone run, while CI uses `test::packages-build`. Compile success never stands
+in for a missing runtime owner. This removes duplicate execution without adding
+a Nix/cache lane; hosted timing improvements still require measurement.
+
 Expose focused, ordinary and complete checks through just only when implemented.
 Keep local/hosted selection and environment requirements consistent. Update the
 pre-push instructions when adopting tiers; the current instructions remain in
 force until that change. Add regression tests for the selector and failure gate.
+
+A local M10 package comparison found that fully warm runs already reuse Zig's
+successful test results: complete standalone checks took 0.335 s versus 0.402 s
+for standalone compilation plus the extra compute suite. Those numbers do not
+show a warm-cache speedup. A separate fresh-cache core experiment compiled its
+test artifact in 894 ms, then executed 89 tests in 39 s with compilation cached.
+CI now retains that execution under root unit tests and avoids repeating it
+through the standalone package task. This identifies removable execution work;
+it is not a measured hosted critical-path or aggregate Nix-cache improvement.
+The local evidence is in `.cache/verification/package-core-profile.log` and
+`.cache/verification/package-task-timings.json`.

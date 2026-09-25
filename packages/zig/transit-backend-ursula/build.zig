@@ -15,5 +15,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "transit_core", .module = core.module("transit_core") },
         },
     });
-    b.step("test", "Test the Ursula adapter").dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = module })).step);
+    const tests = b.addTest(.{ .root_module = module });
+    b.step("test", "Test the Ursula adapter").dependOn(&b.addRunArtifact(tests).step);
+    b.step("check", "Compile standalone package tests without executing them").dependOn(&tests.step);
 }

@@ -5,5 +5,7 @@ pub fn build(b: *std.Build) void {
         .target = b.standardTargetOptions(.{}),
         .optimize = b.standardOptimizeOption(.{}),
     });
-    b.step("test", "Test bounded telemetry and correlation").dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = module })).step);
+    const tests = b.addTest(.{ .root_module = module });
+    b.step("test", "Test bounded telemetry and correlation").dependOn(&b.addRunArtifact(tests).step);
+    b.step("check", "Compile standalone package tests without executing them").dependOn(&tests.step);
 }

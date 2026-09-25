@@ -10,7 +10,8 @@
       "test::kubectl-transit",
       "test::deployments",
       "test::telemetry",
-      "test::packages",
+      "test::packages-build",
+      "test::compute",
       "test::arrow",
       "test::client-abi",
       "test::station",
@@ -65,6 +66,9 @@
     ],
     "discovery": [
       "test::mutations"
+    ],
+    "focused": [
+      "test::packages"
     ]
   },
   "nested_tasks": {

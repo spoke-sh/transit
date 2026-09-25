@@ -29,6 +29,10 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(contract);
     b.step("contract", "Export reflected C ABI signatures").dependOn(&b.addRunArtifact(contract).step);
     const test_step = b.step("test", "Check the protocol client");
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = module })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = abi })).step);
+    const check_step = b.step("check", "Compile standalone client and ABI tests without executing them");
+    for ([_]*std.Build.Module{ module, abi }) |subject| {
+        const tests = b.addTest(.{ .root_module = subject });
+        test_step.dependOn(&b.addRunArtifact(tests).step);
+        check_step.dependOn(&tests.step);
+    }
 }

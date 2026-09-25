@@ -25,6 +25,13 @@ pub fn build(b: *std.Build) !void {
         .imports = &.{ .{ .name = "zarrow", .module = arrow }, .{ .name = "zarrow_compute", .module = compute } },
     });
     const tests = b.step("test", "Qualify Fuze and the pinned Arrow compute dependency");
-    tests.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = module })).step);
-    tests.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = compute })).step);
+    const own_tests = b.addTest(.{ .root_module = module });
+    const compute_tests = b.addTest(.{ .root_module = compute });
+    const compute_run = b.addRunArtifact(compute_tests);
+    tests.dependOn(&b.addRunArtifact(own_tests).step);
+    tests.dependOn(&compute_run.step);
+    b.step("test-compute", "Qualify the pinned compute dependency with Fuze's Arrow configuration").dependOn(&compute_run.step);
+    const check = b.step("check", "Compile standalone Fuze and compute tests without executing them");
+    check.dependOn(&own_tests.step);
+    check.dependOn(&compute_tests.step);
 }

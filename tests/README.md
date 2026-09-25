@@ -736,7 +736,10 @@ That measures the harness, not service throughput or exhaustive exploration.
 
 M10 is in progress. The first CI changes separate library unit tests from
 application/probe builds, avoid duplicate feature-push/PR runs, and select
-runtime checks conservatively. `tests/ci_runner.py` exercises actual Git rename/
+runtime checks conservatively. Standalone package manifests are compile-checked
+with `test::packages-build`; root unit tests own their shared runtime suites, and
+`test::compute` separately owns the upstream compute tests. Focused
+`test::packages` remains a complete standalone run. `tests/ci_runner.py` exercises actual Git rename/
 delete selection, missing revisions, failure propagation and all combinations
 of aggregate-gate results. Unknown/shared changes remain full; only foundational
 prose-only PRs omit runtime lanes. Main, release tags and merge queues run full.

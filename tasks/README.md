@@ -59,7 +59,9 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::growing [--rows N --cold-s3]` | Proves v3 growing-authority atomic publication, retained reads/receipts and restart/checkpoint/trim against disk Ursula; service integration remains separate |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |
 | `just ci::complete`, `just ci-clean --complete` | Includes installed Chromium in ordinary local or clean-checkout qualification |
-| `just test::packages` | Checks each library independently of root build orchestration |
+| `just test::packages` | Runs each library’s standalone test suite for focused package work |
+| `just test::packages-build` | Compiles those test suites through each package’s own manifest; CI executes shared tests once through root unit checks |
+| `just test::compute` | Runs the pinned Arrow compute dependency’s additional tests with Fuze’s configuration |
 | `just test::dev-environment`, `just test::kubectl-transit` | Verify checkout kubeconfig isolation and the plugin CLI, query limits, origin checks and signal handling offline; included in `ci` |
 | `just test::deployments` | Renders/lints the Transit Helm chart and checks bootstrap, credential, storage and network boundaries without a cluster; included in `ci` |
 | `just test::telemetry` | Checks bounded log emission and independent metrics with disabled, drained, stalled and closed sinks on one CPU |

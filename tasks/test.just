@@ -55,6 +55,23 @@ packages:
     cd packages/zig/transit-client && zig build test
     cd packages/zig/transit-runtime-substrate && zig build test
 
+# Compile each library independently; root unit checks own shared test execution.
+packages-build:
+    cd packages/zig/transit-station && zig build check
+    cd packages/zig/transit-fuze && zig build check
+    cd packages/zig/transit-observability && zig build check
+    cd packages/zig/telemetry && zig build check
+    cd packages/zig/transit-board-api && zig build check
+    cd packages/zig/transit-protocol && zig build check
+    cd packages/zig/transit-core && zig build check
+    cd packages/zig/transit-backend-ursula && zig build check
+    cd packages/zig/transit-client && zig build check
+    cd packages/zig/transit-runtime-substrate && zig build check
+
+# Run the upstream compute tests absent from the root library suite.
+compute:
+    cd packages/zig/transit-fuze && zig build test-compute
+
 # Run isolated persistent Ursula tests, including SIGKILL and restart.
 storage:
     zig build test-storage

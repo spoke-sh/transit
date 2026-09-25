@@ -58,7 +58,11 @@ owns configuration, private access boundaries and runnable commands.
 Each implemented Zig library owns `build.zig`, `build.zig.zon`, direct dependencies,
 and an exported module. Local dependencies allow coordinated monorepo changes;
 consumers use module interfaces, not sibling source imports. The root build
-composes those packages; `just test::packages` checks them independently.
+composes those packages; `just test::packages` runs their tests independently.
+CI uses `just test::packages-build` to compile each test suite through its own
+manifest while `just test::unit` owns shared runtime execution. Fuze's extra
+upstream suite has the explicit `just test::compute` owner. Package-local
+`zig build test` still compiles and executes; `zig build check` compiles only.
 Package READMEs give focused commands and integration requirements.
 
 All packages use the Nix-pinned compiler. External dependencies belong to their

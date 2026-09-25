@@ -10,5 +10,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }},
     });
-    b.step("test", "Test Transit protocol and authentication").dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = module })).step);
+    const tests = b.addTest(.{ .root_module = module });
+    b.step("test", "Test Transit protocol and authentication").dependOn(&b.addRunArtifact(tests).step);
+    b.step("check", "Compile standalone package tests without executing them").dependOn(&tests.step);
 }

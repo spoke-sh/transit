@@ -63,6 +63,18 @@ def main():
                 }), (plan, full, result)
     tasks = [task for lane in selected for task in LANES[lane]]
     assert len(tasks) == len(set(tasks)), "a proof is duplicated across lanes"
+    assert {"test::packages-build", "test::compute"} <= set(LANES["core"])
+    assert "test::packages" not in LANES["core"]
+    recipes = (ROOT / "tasks/test.just").read_text()
+    compile_recipe = recipes.split("\npackages-build:\n", 1)[1].split("\n\n", 1)[0]
+    full_recipe = recipes.split("\npackages:\n", 1)[1].split("\n\n", 1)[0]
+    assert compile_recipe.replace("zig build check", "zig build test") == full_recipe
+    for build in (ROOT / "packages/zig").glob("*/build.zig"):
+        assert 'b.step("check",' in build.read_text(), build
+        assert f"packages/zig/{build.parent.name}" in compile_recipe, build
+    # Compile-only checks cannot replace Fuze's upstream runtime owner.
+    assert 'zig build test-compute' in recipes
+    assert 'b.step("test-compute",' in (ROOT / "packages/zig/transit-fuze/build.zig").read_text()
     # Run the actual entry point with a deterministic failing task executable.
     # Later tasks must not run and the original status/evidence must survive.
     with tempfile.TemporaryDirectory(prefix="transit-ci-runner-") as directory:
