@@ -94,6 +94,17 @@ The format contains no source read capability, Table cursor or result manifest.
 Station must durably associate those with the same query identity. A resumed
 worker must support this plan, progress and IPC segment representation explicitly.
 
+`Stream.PlanCodec` separately owns a compact `FZP1` plan encoding (at most 241
+bytes). After the four-byte magic are: aggregate u8 (rows=0, count=1, sum=2),
+two projection bytes (0/1, 255 absent), limit presence 0/1, and little-endian u64
+limit (zero when absent). The predicate follows: tag 0 means all; tag 1 adds a
+column byte for `is_null`; tag 2 adds column, comparison (eq/ne/lt/le/gt/ge =
+0–5) and literal tag. Literals use null=0, int64=1 plus eight little-endian bytes,
+boolean=2 plus 0/1, utf8=3 or binary=4 plus u8 length and that many bytes.
+Decoding rejects trailing bytes and noncanonical encodings. Schema-dependent
+validation still belongs to binding. Typed byte-literal padding must be canonical
+zero, so durable encode/decode cannot silently change a plan fingerprint.
+
 ## Station integration gates
 
 The [Station query v2 design](STATION_QUERY_V2.md) specifies the durable job,

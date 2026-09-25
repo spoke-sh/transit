@@ -5,6 +5,7 @@ const f = @import("root.zig");
 const m = f.model;
 const a = f.arrow;
 pub const progress_bytes = 143;
+pub const PlanCodec = @import("StreamPlan.zig");
 pub const Plan = struct {
     version: u8 = 1,
     predicate: f.Plan.Predicate = .all,

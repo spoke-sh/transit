@@ -146,3 +146,37 @@ test "incremental steps reject changed evidence and preserve progress through al
     changed.end = true;
     try t.expectError(error.Overflow, s.step(count, huge, changed, &workspace, &output, &cancellation));
 }
+
+test "durable plan codec owns all admitted literals and rejects truncation aliases and incompatible versions" {
+    const cells = [_]m.Cell{ .null, .{ .int64 = std.math.minInt(i64) }, .{ .int64 = std.math.maxInt(i64) }, .{ .boolean = true }, .{ .utf8 = try m.Bytes.init("東京") }, .{ .binary = try m.Bytes.init(&@as([m.max_cell_bytes]u8, @splat(255))) } };
+    var bytes: [s.PlanCodec.encoded_bytes + 1]u8 = undefined;
+    for (cells) |cell| {
+        const plan: s.Plan = .{ .predicate = .{ .compare = .{ .column = 1, .op = .eq, .value = cell } }, .limit = std.math.maxInt(u64), .projection = .{ 1, null } };
+        const encoded = try s.PlanCodec.encode(plan, &bytes);
+        try t.expect(std.meta.eql(plan, try s.PlanCodec.decode(encoded)));
+        for (0..encoded.len) |len| {
+            if (s.PlanCodec.decode(encoded[0..len])) |_| return error.TruncatedPlanAccepted else |_| {}
+        }
+        try t.expectError(error.InvalidPlanEncoding, s.PlanCodec.decode(bytes[0 .. encoded.len + 1]));
+    }
+    const defaults: s.Plan = .{};
+    const encoded = try s.PlanCodec.encode(defaults, &bytes);
+    try t.expect(std.meta.eql(defaults, try s.PlanCodec.decode(encoded)));
+    bytes[8] = 1; // Absent limit has canonical zero bytes.
+    try t.expectError(error.InvalidPlanEncoding, s.PlanCodec.decode(encoded));
+    _ = try s.PlanCodec.encode(defaults, &bytes);
+    bytes[7] = 2;
+    try t.expectError(error.InvalidPlanEncoding, s.PlanCodec.decode(encoded));
+    _ = try s.PlanCodec.encode(defaults, &bytes);
+    bytes[3] = '2';
+    try t.expectError(error.InvalidPlanEncoding, s.PlanCodec.decode(encoded));
+    try t.expectError(error.WriteFailed, s.PlanCodec.encode(defaults, bytes[0..1]));
+    try t.expectError(error.UnsupportedPlan, s.PlanCodec.encode(.{ .version = 2 }, &bytes));
+    var padded = try m.Bytes.init("one");
+    padded.data[100] = 1;
+    try t.expectError(error.InvalidPlanEncoding, s.PlanCodec.encode(.{ .predicate = .{ .compare = .{ .column = 1, .op = .eq, .value = .{ .utf8 = padded } } } }, &bytes));
+    inline for (.{ .count, .sum }) |aggregate| {
+        const plan: s.Plan = .{ .aggregate = aggregate, .projection = .{ 1, null }, .predicate = .{ .is_null = 1 }, .limit = 0 };
+        try t.expect(std.meta.eql(plan, try s.PlanCodec.decode(try s.PlanCodec.encode(plan, &bytes))));
+    }
+}
