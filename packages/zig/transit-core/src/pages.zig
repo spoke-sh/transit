@@ -1,13 +1,20 @@
 //! Immutable ordered pages. Staging returns a candidate root; only the authority
 //! journal may publish it. A store is injected and owns persistence/cache policy.
 const std = @import("std");
-pub const version = 1;
+pub const version = 2;
 pub const leaf_entries = 4;
 pub const branch_children = 5;
 pub const max_height = 32;
 pub const max_encoded_bytes = 24 * 1024;
 pub const page_entries = 8;
-pub const Reference = [32]u8;
+pub const Reference = struct {
+    digest: [32]u8,
+    /// Opaque storage address; core never interprets provider coordinates.
+    location: [16]u8 = @splat(0),
+    pub fn verify(self: Reference, page: *const Page) !void {
+        if (!std.mem.eql(u8, &self.digest, &(try page.reference()).digest)) return error.CorruptPage;
+    }
+};
 
 pub fn Bytes(comptime capacity: usize) type {
     return struct {
@@ -119,14 +126,15 @@ pub const Page = struct {
         var bytes: [max_encoded_bytes]u8 = undefined;
         const encoded = try self.encode(&bytes);
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("transit.immutable.page.v1\x00");
+        hash.update("transit.immutable.page.v2\x00");
         hash.update(encoded);
-        return hash.finalResult();
+        return .{ .digest = hash.finalResult() };
     }
 };
 
 /// Store.load returns an owned Page; Store.stage durably writes immutable bytes
-/// under the supplied digest or reports uncertainty. Neither method publishes a
+/// under the supplied digest and returns an owned locator, or reports uncertainty.
+/// Neither method publishes a
 /// resource head. Missing/corrupt pages are errors, never empty state.
 pub fn Tree(comptime Store: type) type {
     return struct {
@@ -136,13 +144,13 @@ pub fn Tree(comptime Store: type) type {
 
         fn load(self: Self, ref: Reference, height: ?u8) !Page {
             const page = try self.store.load(ref);
-            if (!std.mem.eql(u8, &ref, &try page.reference())) return error.CorruptPage;
+            try ref.verify(&page);
             if (height) |expected| if (page.height != expected) return error.InvalidPageHeight;
             return page;
         }
         fn stage(self: Self, page: *const Page) !Child {
-            const ref = try page.reference();
-            try self.store.stage(ref, page);
+            const ref = try self.store.stage(try page.reference(), page);
+            try ref.verify(page);
             return .{ .minimum = page.minimum(), .reference = ref };
         }
         fn leaf(self: Self, entries: []const Entry) !Child {

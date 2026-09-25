@@ -14,7 +14,7 @@ import urllib.request
 
 class Fixture:
     """An isolated owned disk store, reusable by service and storage proofs."""
-    def __init__(self):
+    def __init__(self, storage_config=None):
         self.directory = tempfile.TemporaryDirectory(prefix="rey-storage-")
         self.root = Path(self.directory.name)
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
@@ -23,6 +23,11 @@ class Fixture:
         self.port = free_port()
         self.url = f"http://127.0.0.1:{self.port}"
         self.config = self.root / "ursula.toml"
+        storage_config = storage_config or '''[storage.cold]
+backend = "none"
+[storage.snapshot]
+backend = "inline"
+'''
         self.config.write_text(f'''[server]
 listen = "127.0.0.1:{self.port}"
 admin_listen = "127.0.0.1:0"
@@ -34,10 +39,7 @@ group_count = 1
 [raft.wal]
 backend = "disk"
 path = "{self.root / 'wal'}"
-[storage.cold]
-backend = "none"
-[storage.snapshot]
-backend = "inline"
+{storage_config}
 ''')
         self.server = None
         self.log = (self.root / "ursula.log").open("w+")

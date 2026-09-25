@@ -755,6 +755,9 @@ survive under `.cache/ci/clean/b9dd595faade-transit-ci-7c3pzmzd/`.
 
 `just test::pages` qualifies the immutable page primitive with disk-backed Ursula,
 cold bounded caches, old roots, unpublished staging and root-only checkpoint/trim.
+`just test::pages-cold` separately exercises the pinned S3-compatible cold tier
+with owned Docker MinIO and measures both provider processes. The ordinary WAL
+fixture disables that tier; it cannot establish bounded provider memory.
 The [adapter guide](../packages/zig/transit-backend-ursula/docs/pages.md) describes
 measurement fields and their limits. These roots do not yet replace the running
 authority's bounded catalogs. Unit checks also compare randomly ordered updates

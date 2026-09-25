@@ -4,8 +4,13 @@ const observations = @import("transit_observability");
 pub const ursula = @import("ursula");
 pub const Store = @import("Store.zig");
 pub const PageStore = @import("PageStore.zig");
+pub const PackedPageStore = @import("PackedPageStore.zig");
 pub const max_record_bytes = 64 * 1024;
 pub const read_window = 16;
+
+test {
+    _ = PackedPageStore;
+}
 
 /// Borrows its client and stream names. Never implicitly creates missing history.
 pub const Journal = struct {

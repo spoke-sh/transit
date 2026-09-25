@@ -11,11 +11,12 @@ pub const Store = struct {
     lose_at: ?usize = null,
     missing: bool = false,
     corrupt: bool = false,
-    pub fn stage(self: *Store, ref: p.Reference, page: *const p.Page) !void {
+    pub fn stage(self: *Store, ref: p.Reference, page: *const p.Page) !p.Reference {
         if (self.fail_at == self.writes) return error.StagingFailed;
         self.writes += 1;
         if (!self.pages.contains(ref)) try self.pages.put(self.allocator, ref, page.*);
         if (self.lose_at == self.writes - 1) return error.StagingAcknowledgementLost;
+        return ref;
     }
     pub fn load(self: *Store, ref: p.Reference) !p.Page {
         self.reads += 1;
@@ -24,7 +25,7 @@ pub const Store = struct {
             var result = item.*;
             if (self.corrupt) switch (result.body) {
                 .leaf => result.body.leaf[0].?.value.data[0] ^= 1,
-                .branch => result.body.branch[0].?.reference[0] ^= 1,
+                .branch => result.body.branch[0].?.reference.digest[0] ^= 1,
             };
             return result;
         }
@@ -120,7 +121,7 @@ test "page codec is versioned, bounded and owns decoded values" {
     const encoded = try page.encode(&bytes);
     const decoded = try p.Page.decode(t.allocator, encoded);
     try t.expect(std.meta.eql(page, decoded));
-    try t.expectEqualSlices(u8, &try page.reference(), &try decoded.reference());
+    try t.expect(std.meta.eql(try page.reference(), try decoded.reference()));
     page.version += 1;
     try t.expectError(error.UnsupportedPageVersion, page.reference());
     page.version = p.version;

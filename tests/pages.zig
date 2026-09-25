@@ -4,8 +4,8 @@ const core = @import("transit_core");
 const adapter = @import("transit_backend_ursula");
 const p = core.pages;
 const t = std.testing;
-const Root = struct { version: u32 = 1, root: p.Reference, entries: u64 };
-const Checkpoint = struct { version: u32 = 1, position: u64 = 2, current: Root, view: Root };
+const Root = struct { version: u32 = 2, root: p.Reference, entries: u64 };
+const Checkpoint = struct { version: u32 = 2, position: u64 = 2, current: Root, view: Root };
 
 fn checkpoint(journal: adapter.Journal) !Checkpoint {
     var latest = try journal.client.send(.{ .read_snapshot = .{ .stream = journal.stream } });
@@ -17,7 +17,7 @@ fn checkpoint(journal: adapter.Journal) !Checkpoint {
     try response.head.requireSuccess();
     const parsed = try std.json.parseFromSlice(Checkpoint, journal.client.http.allocator, response.body, .{});
     defer parsed.deinit();
-    if (parsed.value.version != 1 or parsed.value.position != 2) return error.InvalidPageCheckpoint;
+    if (parsed.value.version != 2 or parsed.value.position != 2) return error.InvalidPageCheckpoint;
     return parsed.value;
 }
 
@@ -44,24 +44,34 @@ fn recorded(journal: adapter.Journal, at: u64) !Root {
     const first = lines.next() orelse return error.MissingRoot;
     const parsed = try std.json.parseFromSlice(Root, journal.client.http.allocator, first, .{});
     defer parsed.deinit();
-    if (parsed.value.version != 1) return error.UnsupportedRoot;
+    if (parsed.value.version != 2) return error.UnsupportedRoot;
     return parsed.value;
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 5) return error.ExpectedUrlPhaseKeysAndCache;
+    if (args.len != 6) return error.ExpectedUrlPhaseKeysCacheAndLayout;
+    if (std.mem.eql(u8, args[5], "packed")) return run(adapter.PackedPageStore, init, args);
+    if (std.mem.eql(u8, args[5], "closed")) return run(adapter.PageStore, init, args);
+    return error.UnknownPageLayout;
+}
+fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const u8) !void {
     const keys = try std.fmt.parseInt(usize, args[3], 10);
     const cache_pages = try std.fmt.parseInt(usize, args[4], 10);
     if (keys < 64 or keys > 16384 or keys % 2 != 0) return error.InvalidDataset;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 256 * 1024 });
     defer client.deinit();
     const journal: adapter.Journal = .{ .client = &client, .stream = .{ .bucket = "transit-page-proof", .name = "roots" } };
-    var store = try adapter.PageStore.init(init.gpa, journal, cache_pages);
+    var store = try PageStore.init(init.gpa, journal, cache_pages);
     defer store.deinit();
-    const tree: p.Tree(adapter.PageStore) = .{ .store = &store };
+    const tree: p.Tree(PageStore) = .{ .store = &store };
     if (std.mem.eql(u8, args[2], "write")) {
         try journal.create();
-        try t.expectError(error.PageUnavailable, store.load(@splat(1)));
+        var missing: p.Reference = .{ .digest = @splat(1) };
+        if (PageStore == adapter.PackedPageStore) {
+            try store.create();
+            missing.location[0] = 1;
+        }
+        try t.expectError(error.PageUnavailable, store.load(missing));
         var root: ?p.Reference = null;
         for (0..keys) |i| root = try tree.put(root, key(i), value(i));
         try t.expect(keys * 1024 > store.residentBytes());
@@ -74,6 +84,22 @@ pub fn main(init: std.process.Init) !void {
         // the authoritative journal, never page timestamps or stream listing.
         _ = try tree.put(root, key(keys + 1), value(keys + 1));
         try t.expectEqual(@as(u64, 2), try journal.tail());
+        if (PageStore == adapter.PackedPageStore) {
+            // A packed locator is not trusted without the matching digest.
+            var wrong = root.?;
+            wrong.location[8..16].* = @splat(0);
+            store.clearCache();
+            try t.expectError(error.CorruptPage, store.load(wrong));
+            var page: p.Page = .{ .count = 1, .body = .{ .leaf = @splat(null) } };
+            page.body.leaf[0] = .{ .key = key(keys + 2), .value = value(keys + 2) };
+            _ = try store.stage(try page.reference(), &page);
+            var competing = try PageStore.init(init.gpa, journal, 0);
+            defer competing.deinit();
+            _ = try competing.stage(try page.reference(), &page);
+            try t.expectError(error.Conflict, store.stage(try page.reference(), &page));
+            _ = try store.stage(try page.reference(), &page); // Explicit retry reconciles the tail.
+            try t.expectEqual(@as(u64, 2), try journal.tail());
+        }
     } else if (!std.mem.eql(u8, args[2], "recover") and !std.mem.eql(u8, args[2], "checkpoint") and !std.mem.eql(u8, args[2], "trim_recover")) return error.UnknownPhase;
 
     store.clearCache();
@@ -119,7 +145,7 @@ pub fn main(init: std.process.Init) !void {
     }
     var output_buffer: [2048]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    try std.json.Stringify.value(.{ .phase = args[2], .keys = keys, .retained_value_bytes = keys * 1024, .resident_pages = cache_pages, .cache_bytes = store.residentBytes(), .hits = store.hits, .misses = store.misses, .created_page_streams = store.created, .page_http_requests = store.requests, .page_create_payload_bytes_attempted = store.create_payload_bytes_attempted }, .{}, &output.interface);
+    try std.json.Stringify.value(.{ .page_version = p.version, .layout = args[5], .phase = args[2], .keys = keys, .retained_value_bytes = keys * 1024, .resident_pages = cache_pages, .cache_bytes = store.residentBytes(), .hits = store.hits, .misses = store.misses, .created_pages = store.created, .created_page_streams = if (PageStore == adapter.PackedPageStore) @as(u64, if (std.mem.eql(u8, args[2], "write")) 1 else 0) else store.created, .page_http_requests = store.requests, .page_payload_bytes_attempted = store.create_payload_bytes_attempted }, .{}, &output.interface);
     try output.interface.writeByte('\n');
     try output.interface.flush();
 }

@@ -2,7 +2,7 @@
 //! candidate; only an authority journal decision may publish its Snapshot.
 const std = @import("std");
 const pages = @import("pages.zig");
-pub const version = 1;
+pub const version = 2;
 pub const record_bytes = 2048;
 pub const parser_bytes = 64 * 1024;
 pub const Namespace = enum(u8) {

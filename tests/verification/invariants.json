@@ -276,9 +276,10 @@
       "owner": "docs/STATE.md",
       "implementation": [
         "packages/zig/transit-core/src/pages.zig",
-        "packages/zig/transit-backend-ursula/src/PageStore.zig"
+        "packages/zig/transit-backend-ursula/src/PageStore.zig",
+        "packages/zig/transit-backend-ursula/src/PackedPageStore.zig"
       ],
-      "profile": "immutable-page-v1 primitive; not a public authority profile",
+      "profile": "immutable-page-v2 primitive; not a public authority profile",
       "tasks": [
         "test::unit",
         "test::pages"
@@ -289,7 +290,7 @@
         "Cache eviction, old-root reads and deletion churn",
         "Missing/corrupt pages and lost staging acknowledgement"
       ],
-      "limits": "One closed stream per page; no page GC, application authority integration or power-loss qualification. Cache bytes exclude HTTP/parser/stack memory.",
+      "limits": "Packed append-only page journal and original closed-stream mapping under qualification. No page GC, authority integration or power-loss proof. Cache bytes exclude provider/HTTP/parser/stack memory.",
       "model": null
     },
     {

@@ -37,7 +37,7 @@ pub fn residentBytes(self: *const Self) usize {
 }
 fn cached(self: *Self, ref: pages.Reference) ?pages.Page {
     for (self.cache) |slot| if (slot) |entry| {
-        if (std.mem.eql(u8, &ref, &entry.reference)) {
+        if (std.meta.eql(ref, entry.reference)) {
             self.hits += 1;
             return entry.page;
         }
@@ -56,7 +56,7 @@ fn stream(self: *Self, ref: pages.Reference, name: *[45]u8) adapter.ursula.Strea
     hash.update("\x00");
     hash.update(self.journal.stream.name);
     hash.update("\x00");
-    hash.update(&ref);
+    hash.update(&ref.digest);
     const digest = hash.finalResult();
     name[0..2].* = "g-".*;
     _ = std.base64.url_safe_no_pad.Encoder.encode(name[2..], &digest);
@@ -64,6 +64,7 @@ fn stream(self: *Self, ref: pages.Reference, name: *[45]u8) adapter.ursula.Strea
 }
 
 pub fn load(self: *Self, ref: pages.Reference) !pages.Page {
+    if (!std.mem.allEqual(u8, &ref.location, 0)) return error.UnsupportedPageLocation;
     if (self.cached(ref)) |page| return page;
     self.misses += 1;
     const page = try self.fetch(ref);
@@ -93,22 +94,24 @@ fn fetchImpl(self: *Self, ref: pages.Reference) !pages.Page {
     try body.head.requireSuccess();
     if (!((try body.head.metadata()).up_to_date orelse false)) return error.IncompletePage;
     const page = try pages.Page.decode(self.allocator, body.body);
-    if (!std.mem.eql(u8, &ref, &try page.reference())) return error.CorruptPage;
+    try ref.verify(&page);
     return page;
 }
 
-pub fn stage(self: *Self, ref: pages.Reference, page: *const pages.Page) !void {
-    if (!std.mem.eql(u8, &ref, &try page.reference())) return error.CorruptPage;
-    if (self.cached(ref) != null) return;
+pub fn stage(self: *Self, ref: pages.Reference, page: *const pages.Page) !pages.Reference {
+    if (!std.mem.allEqual(u8, &ref.location, 0)) return error.UnsupportedPageLocation;
+    try ref.verify(page);
+    if (self.cached(ref) != null) return ref;
     var observation = observations.begin(self.journal.observer, .storage_operation, "page.stage", self.journal.parent_context);
     defer observation.finish();
     const parent = self.journal.parent_context;
     self.journal.parent_context = observation.span.context;
     defer self.journal.parent_context = parent;
-    return self.stageImpl(ref, page) catch |err| {
+    self.stageImpl(ref, page) catch |err| {
         observation.fail(err);
         return err;
     };
+    return ref;
 }
 fn stageImpl(self: *Self, ref: pages.Reference, page: *const pages.Page) !void {
     // Content identity makes a repeated staging attempt reconcilable. Verify

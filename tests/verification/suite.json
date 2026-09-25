@@ -59,7 +59,8 @@
       "launchers::reference::test-station",
       "launchers::compose::test",
       "launchers::compose::test-station",
-      "test::capacity"
+      "test::capacity",
+      "test::pages-cold"
     ],
     "discovery": [
       "test::mutations"

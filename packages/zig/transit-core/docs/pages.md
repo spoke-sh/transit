@@ -13,13 +13,18 @@ they do not change the caller's previously published root.
 ## Representation and access
 
 Each versioned page is either an ordered leaf or a branch with child minima and
-SHA-256 references. The hash covers a domain-separated canonical encoding.
+SHA-256 references. Page/catalog format 2 adds an opaque 16-byte storage locator
+beside each digest. Core never interprets that address; the adapter verifies its
+mapping. The hash covers a domain-separated canonical encoding, including child
+locators. Format 1 pages/catalogs are rejected explicitly; these development
+formats have never been selected by the running v2 service.
 Every read checks the expected digest, page shape and child height. Unknown
 versions, malformed ordering, missing pages and corrupted bytes fail explicitly.
 There is no missing-page-as-empty fallback.
 
 `Tree(Store)` borrows a provider exposing `load(reference)` and
-`stage(reference, page)`. The provider owns durable placement and cache policy;
+`stage(reference, page)`, which returns the persisted reference with its locator.
+Core checks that staging preserved the content digest. The provider owns durable placement and cache policy;
 core does not import provider APIs. `get`, `put`, `remove` and `scan` operate on
 root references. A snapshot retains one immutable root instead of copying all
 entries. Deleting a key creates a new version; older roots keep their values.

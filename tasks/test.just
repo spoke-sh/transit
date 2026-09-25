@@ -84,6 +84,10 @@ state:
 pages *args:
     zig build test-pages -- {{args}}
 
+# Linux/Docker: qualify packed pages with persistent S3-compatible cold storage.
+pages-cold *args:
+    zig build test-pages -- --cold-s3 {{args}}
+
 # Prove bounded diagnostics, independent metrics and cancelable log sinks.
 telemetry:
     zig build test-telemetry
