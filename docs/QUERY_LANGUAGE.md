@@ -189,6 +189,17 @@ unambiguous — but ANTLR's parser construction succeeding without conflicts
 class it builds, and worth stating precisely as that rather than as a
 stronger claim.
 
+[`contracts/sql/TransitExtensions.g4`](../contracts/sql/TransitExtensions.g4)
+is a first, checked instance: the CONNECTION/SOURCE/SINK/AS-OF statement
+forms named above, plus the CREATE TABLE/DOCUMENT/KV/GRANT/REVOKE/SHOW/
+DESCRIBE spellings of existing typed commands. It generates with ANTLR
+4.13.2 with zero ambiguity/conflict warnings, and nine representative
+statements parse to the expected tree with zero errors while a deliberately
+malformed one is correctly rejected — see
+[`contracts/sql/README.md`](../contracts/sql/README.md) for the exact
+commands. It does not define `SELECT`/expression syntax and is not composed
+with a Postgres base grammar yet; both remain open.
+
 ### Is LEAN4 or TLA+ the right tool? Mostly no, with one real exception each
 
 **TLA+ is the wrong tool for grammar syntax.** It specifies state machines —
@@ -212,14 +223,127 @@ CRDT's merge laws **or a Fuze rewrite with exact error semantics**." A query
 planning section requires to "preserve the specified result schema,
 null/missing/conflict interpretation, numeric/error behavior and ordering" —
 is precisely that kind of theorem, and grammar work is what would finally
-generate enough concrete rewrite rules to make proving one worthwhile. Using
-Lean to prove "this grammar is a superset of Postgres's" would mean first
+generate enough concrete rewrite rules to make proving one worthwhile.
+[`contracts/sql/FuzeRewrite.lean`](../contracts/sql/FuzeRewrite.lean) is a
+first, complete instance — a `sorry`-free Lean 4 proof (checked, axioms
+`[propext]` only, never `sorryAx`) that reordering two sequential
+row-selecting predicates never changes the selected rows or their order, at
+the abstraction level `FUZE_V1.md` already specifies. It formalizes the
+specification, not `transit-fuze`'s Zig code — that correspondence is a
+separate, stated assumption, the same relationship `Authority.tla` has to
+the real engine. It is deliberately the *smallest* real instance of the
+theorem class TESTING.md scopes, not the most valuable one; projection,
+aggregation and limit interactions would each need their own stated theorem.
+Using Lean to prove "this grammar is a superset of Postgres's" would mean first
 formalizing the whole of Postgres's grammar in Lean, which doesn't exist and
 would be a vastly bigger undertaking than the differential-testing approach
 above for the same practical confidence. Don't reach for Lean until a
 specific rewrite rule is written down and its preservation claim needs more
 than test coverage — which may never be this grammar's job at all, since
 rewrites operate on the compiled plan, not on parsed syntax.
+
+## What we're missing, against RisingWave/ksqlDB/Flink SQL/Materialize
+
+Modeling entities on these systems (as inspiration, not a compatibility
+target) surfaces gaps worth naming honestly rather than discovering later.
+Some are already named elsewhere in this repo; some are not named anywhere
+yet; and on a few axes Transit's existing design is already ahead of what's
+typical in that class of system. Keeping all three lists explicit is the
+point — a gap analysis that only lists gaps overclaims the comparison.
+
+**Real, currently unnamed gaps** — nothing in the roadmap today has a
+position on these, unlike the excluded items below:
+
+- **Windowing.** Tumbling/hopping/session windows are the central primitive
+  of every system named above, and Fuze's plan has no time-windowed
+  aggregation concept at all — not excluded, just absent. Before naming it a
+  milestone, decide whether Transit's model even wants wall-clock event-time
+  windowing, or whether its append-only durable history with explicit
+  revisions (closer to an OLTP snapshot model than a late-arriving event
+  stream) makes "window" mean something else here, e.g. a bounded revision
+  range rather than a wall-clock interval.
+- **Ingestion format decoding at the SOURCE boundary.** A `CREATE SOURCE`
+  needs a story for turning connector bytes into typed rows (JSON/Avro/
+  Protobuf/CSV, schema-on-read vs. a bound schema). `CONNECTORS.md` specifies
+  HTTP text capture; it does not yet specify decoding captured bytes into
+  Fuze rows.
+- **`SHOW`/`DESCRIBE` as the relational-surface answer to `transit-cli`'s
+  planned `/`-prefixed meta-commands** (`docs/roadmap/M12.md`). Both need to
+  read the same catalog; today only the CLI side is named.
+- **Multi-column schema evolution.** Already flagged in this document's DDL
+  section as a Table-model prerequisite; every system named above has an
+  `ALTER`/schema-registry story this repo hasn't needed yet because Table
+  has had no columns to alter.
+
+**Already named and deliberately excluded**, not missing from the analysis,
+just missing from scope right now: continuous/materialized/subscribed
+queries (M12, M13 both exclude them explicitly), cross-source joins
+(`FUZE.md`), multi-resource/cross-table transactions (M10), UDFs and
+dynamic plugins (`FUZE.md`'s extensibility section).
+
+**Places Transit's existing design is already ahead of the typical bar in
+this class of system**, worth leaning into rather than importing an external
+pattern for:
+
+- **Sink delivery semantics.** Most streaming-SQL sinks default to
+  at-least-once with exactly-once as a per-connector special case. Transit's
+  connector model ([`CONNECTORS.md`](CONNECTORS.md#effect-boundary)) already
+  forces attempt identity, idempotency and explicit reconciliation for
+  *every* effect — a `CREATE SINK` inherits that for free; it would be a
+  regression to design something weaker.
+- **`AS OF` / time travel.** Retained read versions
+  ([`READ_VERSIONS_V1.md`](../contracts/READ_VERSIONS_V1.md), `GROWTH-10`)
+  already durably support historical reads more rigorously than these
+  systems typically offer out of the box. `TransitExtensions.g4`'s
+  `asOfClause` fragment names this as a natural extension of infrastructure
+  that already exists, not a feature to build from nothing.
+- **Flow control.** [`FLOW_CONTROL.md`](FLOW_CONTROL.md)'s receiver-driven,
+  formally modeled credit pattern is a more explicit backpressure contract
+  than most of these systems document for their own internal operator chains.
+- **Retention.** [`RETENTION.md`](RETENTION.md)'s explicit lifetime/compaction
+  contract is more precisely specified than typical topic/table retention
+  policies.
+
+## A second use for this: a checked interface for human/agent development
+
+Everything above was scoped as an end-user query surface. It is also,
+incidentally, a better interface for developing and verifying Transit
+itself — worth stating explicitly since it changes how "done" some of this
+work should be judged.
+
+A machine-checked grammar rejects a malformed statement at parse time with a
+precise error, not three layers deep in a runtime failure. That is exactly
+the class of mistake that costs real time in this repo's own session
+history — a wrong field (an input ordinal where a journal position was
+required), a misordered setup call, an off-by-one discovered only after a
+build/test cycle. A typed DDL surface for constructing test fixtures and
+scenarios — "spawn a process, create this table, grant this principal" as
+checked statements — catches that class of error before either a human or
+an agent burns a build cycle on it, the same value a type system provides
+over untyped data, just one layer higher.
+
+The same idea applies to `tests/verification/invariants.json`'s scenario
+catalog and `transitions.py`'s generated schedules: both are currently
+hand-written prose/Python. A grammar-checked scenario language — expressing
+"competing prepared successors," "revoke or replace owner between prepare
+and commit" as structured, parseable statements rather than free text a
+human transcribes into Python — would let an agent propose new adversarial
+scenarios that are mechanically well-formed before a human reviews their
+substance, narrowing review to "is this the right scenario" instead of also
+"did they write valid Python."
+
+`EXPLAIN` (already planned in `FUZE.md`) is the same idea from the other
+direction: a versioned, structured plan explanation is something an agent
+can parse and reason about precisely, where a prose log forces re-deriving
+structure from text every time. And the `libpg_query` differential corpus
+proposed above is reusable exactly this way too — an acceptance check either
+a human or an agent can run against a grammar change without re-deriving
+"is this still Postgres-compatible" from first principles each time.
+
+None of this is a reason to build the full grammar faster than the query
+capability it serves needs it. It is a reason to keep it machine-checked
+rather than prose-only as it grows, since the checking is most of the value
+described here.
 
 ## What this document is not
 
