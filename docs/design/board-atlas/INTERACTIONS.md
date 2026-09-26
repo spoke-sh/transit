@@ -1,7 +1,7 @@
 # Board atlas: interaction and evidence specification
 
-Status: proposed technical appendix to [D1](../D1.md).
-Return to the [design review index](../README.md) for the review sequence and outcomes.
+Status: proposed technical appendix to [D1](D1.md).
+Return to the [Board atlas review index](README.md) for the review sequence and outcomes.
 The existing [Board contract](../../BOARD.md), [frontend limits](../../../apps/transit-board-web/README.md)
 and [API bounds](../../../apps/transit-board/README.md#bounds-and-observations)
 remain the implemented baseline.
@@ -26,9 +26,9 @@ resource bodies or realms is not implied by the mock search field.
 ## Visual grammar
 
 This table records D1's original proposal. Later reviews separate selection
-from age: [D5's mapping reference](../D5.md#visual-mapping-reference) uses a
+from age: [D5's mapping reference](D5.md#visual-mapping-reference) uses a
 teal selection outline and reserves amber well walls for process age.
-[D6](../D6.md) defines the proposed emphasis switch and preserves both identities
+[D6](D6.md) defines the proposed emphasis switch and preserves both identities
 as zoom reveals detail; use those reviews for the current visual direction.
 
 | Element | Meaning |
@@ -87,45 +87,45 @@ relabels the units. Unavailable evidence makes a layer unavailable, not zero.
 
 ## Inbox, outbox and age follow-up
 
-The subsequent [scale study](../D3.md) keeps D2's Figure 7 queue-count fabric as its
+The subsequent [scale study](D3.md) keeps D2's Figure 7 queue-count fabric as its
 baseline. It adds a proposed hierarchy of stable presentation groups, disjoint
 aggregate marks and separate outlier pins at 100 to 100,000 synthetic processes.
 Its grouping and aggregation rules extend this interaction intent; M9's bounded
 completion does not establish those capacities or a bulk inspection API.
 
-[D4](../D4.md) extends the scale studies to one billion synthetic processes and
+[D4](D4.md) extends the scale studies to one billion synthetic processes and
 proposes a roomier interface: a full-width surface, one header and combined
 legend, with inspection shown on selection. Its
-[information placement](../D4.md#give-each-piece-of-information-one-place)
+[information placement](D4.md#give-each-piece-of-information-one-place)
 updates the persistent panels in the earlier images while preserving critical
 coverage/freshness state and access to detailed evidence.
 
-[D5](../D5.md) proposes resource cityscapes as another map emphasis. Resource
+[D5](D5.md) proposes resource cityscapes as another map emphasis. Resource
 plots retain one backing identity, with logical Table wings and selected
 association links. Its current-value-byte height measure is separate from
 process queue relief; both flatten toward inspection. Size summaries and
 Document structure remain proposed evidence, not existing Board fields.
 
-[D6](../D6.md) visualizes that emphasis switch separately from zoom. It keeps
+[D6](D6.md) visualizes that emphasis switch separately from zoom. It keeps
 the selected resource and camera through a neutral presentation handoff, then
 shows a closer flat resource detail. It also clarifies that opening a full
 Browse page is explicit; zoom alone does not change the selected view or kind.
 
-[D7](../D7.md) develops the selected D6 fabric and overhead detail into a proposed
+[D7](D7.md) develops the selected D6 fabric and overhead detail into a proposed
 resource doorway. It explores Auto emphasis alongside explicit pins, while
 keeping process/resource identity separate. A future query workspace shares a
 draft and result between Canvas/Browse; navigation never executes queries.
 This extends the original metadata-only inspection intent and needs a separately
 scoped public capability before implementation.
 
-[D8](../D8.md) adds shared-resource venue candidates and a contextual time view.
+[D8](D8.md) adds shared-resource venue candidates and a contextual time view.
 Process cohorts preserve separate membership/coverage; association is not
 activity. Observed size stays solid, conditional growth is dashed, and readiness
 requires metric-specific evidence. Horizon/assumption changes are local planning
 actions; they do not run queries, invent historical/future rows or change
 resource lifecycle policy.
 
-The [fabric exploration](../D2.md) extends this initial height-only study with
+The [fabric exploration](D2.md) extends this initial height-only study with
 an inbox shoulder and an independently readable outbox well. It compares count
 depth plus age tint with an explicit age-depth layer. The interface uses Inbox
 as the mailbox display name. All illustrated ages are synthetic: current

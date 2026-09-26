@@ -37,7 +37,7 @@ evidence. Resource entries render as exact hex bytes after an explicit read.
 ## Visual design exploration
 
 The growing profile implements a bounded relief atlas and Table workspace from
-D5/D6's architecture and a focused D7 interaction, recorded in [D9](../../docs/design/D9.md).
+D5/D6's architecture and a focused D7 interaction, recorded in [D9](../../docs/design/board-atlas/D9.md).
 Processes/Resources emphasis and overhead detail share stable selection. Resource
 entry is explicit; Canvas and Browse retain one SQL draft and identified result.
 Run compiles/submits once; switching views never runs it. Editing a completed
