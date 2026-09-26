@@ -18,7 +18,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M8](M8.md) | Transit runtime readiness | Bounded origins, automatic delivery, catalog reclamation and lifecycle controls implemented and verified |
 | [M9](M9.md) | Station behaviors, language bindings, and Arrow Tables | Bounded profile implemented and qualified on Linux x86_64 across its target languages; Zig reference workers |
 | [M10](M10.md) | Verification and scale foundations | Explicit growing profile, verification harness and measured CI budgets qualified; v2 remains the default |
-| [M11](M11.md) | Idiomatic language SDKs | In progress; All target public SDKs qualified; public interoperability open |
+| [M11](M11.md) | Idiomatic language SDKs | Qualified raw/Station SDKs, installed examples and ten public language pairs on Linux x86_64 |
 | [M12](M12.md) | Declarative interface readiness | Planned |
 | [M13](M13.md) | Board relief atlas and public query access | Planned |
 | [M14](M14.md) | Documents, collaborative text and unified querying | Planned |
@@ -38,7 +38,7 @@ led to [M10](M10.md): the [testing strategy](../TESTING.md), measured CI budgets
 and an explicit growing profile that separates durable collection growth from
 resident caches. Legacy catalog ceilings remain compatibility constraints;
 SDKs must preserve the qualified profile and its capability boundaries.
-[M11](M11.md) then builds language-native public SDKs
+[M11](M11.md) builds qualified language-native public SDKs
 over those bindings, including typed handlers/state, recoverable operations,
 runtime integration and installable artifacts. [M12](M12.md) makes the
 relational/dataframe declarative interface [QUERY_LANGUAGE.md](../QUERY_LANGUAGE.md)

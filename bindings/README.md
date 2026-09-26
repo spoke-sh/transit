@@ -6,15 +6,15 @@ Table queries and durable framework messages. Host adapters own allocation,
 exceptions and runtime scheduling. They do not reimplement those protocols.
 
 These are M9's qualified low-level bindings. [M11](../docs/roadmap/M11.md)
-plans language-native public SDKs with typed operations, managed handler runners
+provides qualified language-native public SDKs with typed operations, managed handler runners
 and installable artifacts. The current manual turn/action APIs remain available;
-the [caller design](../docs/CLIENT.md#idiomatic-language-sdks) defines the planned
+the [caller design](../docs/CLIENT.md#idiomatic-language-sdks) defines the public
 layer above them.
 
-Public Python, TypeScript, Rust and Ruby SDKs are now implemented separately from these
-low-level adapters. Their package guides and installation/recovery proofs are
-linked from [M11](../docs/roadmap/M11.md); other language SDKs and public
-cross-language qualification remain open.
+All target public SDKs are implemented separately from these low-level adapters.
+Their package guides and installation/recovery proofs are linked from
+[M11](../docs/roadmap/M11.md). The [public language ring](../tests/README.md#public-sdk-interoperability)
+qualifies every target in both roles with installed artifacts.
 
 Independent public [C](../packages/c/transit-client/README.md) and
 [C++](../packages/cpp/transit-client/README.md) raw clients now have installed
@@ -137,6 +137,7 @@ shell. The current Linux x86_64 baselines are:
 
 The Nix lock and [binding tools](../nix/bindings-tools.nix) own these versions.
 Every M9 language runs both service and requester roles in the Linux matrix.
-Ruby runs both roles through its M11 public SDK schedule.
+All ten public interfaces, including Ruby, run both roles through M11's public
+SDK schedules and ten-edge interoperability ring.
 Only Zig is the intended M9 reference worker; these checks do not qualify foreign
 runtimes as Substrate workers.

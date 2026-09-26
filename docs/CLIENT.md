@@ -4,7 +4,7 @@ Status: experimental v2 Zig client and [M7 state-resource API](roadmap/M7.md)
 implemented. [M9](roadmap/M9.md) adds the shared C ABI, generated signatures and
 exact-request export/import, with [binding evidence](../packages/zig/transit-client/docs/bindings.md).
 [Station's adapters](../bindings/README.md) expose the framework to M9's target languages.
-[M11](roadmap/M11.md) plans idiomatic public SDKs over those qualified low-level
+[M11](roadmap/M11.md) provides qualified public SDKs over those low-level
 bindings; their manual action/turn interfaces remain the current implementation.
 General payload references and migration helpers remain
 separate future work.
@@ -188,7 +188,7 @@ does not execute application handlers.
 
 ## Idiomatic language SDKs
 
-Status: design and shared-boundary work started in [M11](roadmap/M11.md).
+Status: all target public SDKs are qualified in [M11](roadmap/M11.md).
 The [SDK design](SDK.md) links concrete Python, TypeScript and Rust API proposals
 for services/requesters, raw recovery, runner ownership and packaging. It records
 the required shared native changes. Python, TypeScript, Rust, Ruby, C/C++, Java
@@ -197,7 +197,8 @@ Java's JARs and .NET's NuGet packages add bounded asynchronous operations, joine
 cleanup and typed scoped handlers. Erlang/Elixir also have independent raw OTP
 clients with tagged recovery, supervised ownership and caller-loss/join proofs.
 Their Station behaviours, scoped helpers and installed examples also pass the
-shared authority schedule. Public mixed-language qualification remains open.
+shared authority schedule. The public interoperability ring qualifies each target
+in both roles; the [test guide](../tests/README.md#public-sdk-interoperability) records its limits.
 M9 provides generated declarations and
 owned host adapters with real interoperability and recovery evidence. Its public
 surface still exposes JSON actions, raw status codes, hex values and manual

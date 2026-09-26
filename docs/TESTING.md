@@ -192,6 +192,12 @@ GitHub cache archives, not upstream Nix substitute traffic. The
 [measurement record](../tests/verification/results/m10-ci-2026-09-25.json)
 preserves all qualifying samples and the excluded failures/regression.
 
+M11 adds installed public SDK schedules and the ten-edge language ring to the
+bindings lane. Its [local cost record](../tests/verification/results/m11-sdk-2026-09-26.json)
+covers consumer installation and public interoperability only. The M10 samples
+above do not establish a budget pass for this larger inventory; new hosted cost
+measurement and further runner optimization remain deferred.
+
 `just ci::cost RUN_ID` reads GitHub's completed job/step timestamps and cache
 byte counts into a small JSON artifact. It requires authenticated `gh` with read
 access to Actions. The separate `CI cost evidence` workflow runs the same trusted

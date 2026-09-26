@@ -64,7 +64,9 @@ The public [C](../packages/c/transit-station/README.md) and
 handler/recovery/Table/query schedule with installed example binaries.
 The [Java SDK](../packages/java/transit-station-sdk/README.md) qualifies typed
 records/interfaces, scoped synchronous callbacks, bounded asynchronous runner
-operations and owned query IPC through the same schedule.
+operations and owned query IPC through the same schedule. .NET, Erlang and Elixir
+now qualify corresponding native-language interfaces. All public targets run
+both roles in the [interoperability ring](../tests/README.md#public-sdk-interoperability).
 Handlers use typed inputs and associated KV/Table helpers; a runner owns local
 dispatch and drives the shared Zig poll/finish machine. A handler return supplies
 a proposal, including any reply, and is not evidence of a committed turn. The

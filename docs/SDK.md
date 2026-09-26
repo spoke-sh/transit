@@ -16,8 +16,10 @@ qualify bounded futures, typed scoped handlers, exact recovery, retained Tables
 and owned query IPC. .NET's independent raw/Station NuGet packages qualify typed
 handlers, exact recovery, cancelled awaits, joined native ownership, retained
 Tables and owned IPC. Erlang/Elixir raw clients now qualify independent OTP
-installation, tagged recovery and supervised caller-loss cleanup. BEAM Station
-and public mixed-language pairs remain open.
+installation, tagged recovery and supervised caller-loss cleanup. Both BEAM
+Station APIs also pass scoped handlers, recovery and Table/query ownership proofs.
+The public interoperability ring qualifies every target in both roles; see the
+[test guide](../tests/README.md#public-sdk-interoperability) for its ten pairs and limits.
 [M11](roadmap/M11.md) owns delivery, including public interoperability. The
 [M9 adapters](../bindings/README.md) remain executable low-level interfaces.
 
@@ -30,7 +32,10 @@ packages, and proof results in the [test guide](../tests/README.md).
 
 Raw Transit and Station have separate installable public packages. Raw Transit
 owns references, credentials, signed operations, receipts, bounded reads and
-recovery. Station adds messages, private turns, Tables and runners. Loading a
+recovery. M11's typed raw surface covers capability reads, prepared sends and
+exact saved-mutation recovery. Broader administration/inspection remains at the
+explicit low-level boundary; this is not a typed wrapper for every wire command.
+Station adds messages, private turns, Tables and runners. Loading a
 package performs no credential discovery, network I/O or worker startup.
 Generated ABI/wire declarations stay internal or under an explicit raw interface.
 
@@ -260,13 +265,13 @@ General query ingress and a production query host remain M13 scope.
 
 | Shared prerequisite | Required implementation/proof before public release |
 | --- | --- |
-| Growing Station ABI | Explicit C/port profile, full-width identities, bounded point/page reads, scoped turns and capability rejection implemented; public language adapters remain |
-| Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; Python, TypeScript, Rust, Ruby, C/C++ and Java persistence/confirmation callbacks and their fault proofs pass; other hosts remain |
-| Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; Python cancellation/join and TypeScript/Rust/Ruby/C/C++/Java stop/join are qualified; other hosts remain |
+| Growing Station ABI | Explicit C/port profile, full-width identities, bounded point/page reads, scoped turns and capability rejection implemented and qualified through every target public SDK |
+| Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; all target persistence/confirmation callbacks and their shared fault proofs pass |
+| Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; all target cancellation/stop/join ownership paths are qualified under their documented host rules |
 | Typed operation metadata | Implemented native classification and canonical identity through C/port, with owned buffers; public typed operations must use it without decoding retry bytes |
 | Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
-| Application codecs | Shared [counter/query definition](../examples/station-sdk/README.md) and [fixtures](../tests/verification/sdk-codecs-v1.json) defined; Python/TypeScript/Rust/Ruby/C/C++/Java implementations pass; remaining languages and public cross-language execution remain |
-| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python/PyArrow, TypeScript/Arrow JavaScript and Rust/Arrow Rust readers are qualified; Ruby, C/C++ and Java own IPC independently decoded by PyArrow; other hosts remain |
+| Application codecs | Shared [counter/query definition](../examples/station-sdk/README.md) and [fixtures](../tests/verification/sdk-codecs-v1.json) defined; all target implementations and the ten-edge public language ring pass |
+| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python/PyArrow, TypeScript/Arrow JavaScript and Rust/Arrow Rust readers are qualified; Ruby, C/C++, Java, .NET, Erlang and Elixir own IPC independently decoded by PyArrow |
 
 The public declarations should first compile/type-check against real packages;
 then run the same service/requester against a disk-backed authority. Cover wide
@@ -279,5 +284,5 @@ obligations rather than creating competing language catalogs.
 Add runner-specific failures: turn escape/overlap, failures at every persistence
 gate, confirmation-store failure after acceptance, read poisoning, cooperative
 shutdown and abrupt host loss. Finally install built artifacts and their explicit
-native dependencies into clean consumers outside the repository. Until these
-checks run, the designs do not qualify public SDKs, Arrow adapters or packaging.
+native dependencies into clean consumers outside the repository. The [M11 evidence](../tests/README.md#public-sdk-interoperability) records these
+executed checks and their platform, adapter and cost limits.
