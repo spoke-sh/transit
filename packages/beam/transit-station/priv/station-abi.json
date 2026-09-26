@@ -5983,6 +5983,46 @@
                           "x-transit-defaults": {}
                         }
                       }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "http_stage"
+                      ],
+                      "properties": {
+                        "http_stage": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "reference",
+                            "metadata",
+                            "body"
+                          ],
+                          "properties": {
+                            "reference": {
+                              "type": "string",
+                              "pattern": "^(?:[0-9a-f]{2})*$",
+                              "maxLength": 512,
+                              "x-transit-encoding": "lowercase-hex"
+                            },
+                            "metadata": {
+                              "type": "string",
+                              "maxLength": 524288
+                            },
+                            "body": {
+                              "type": "string",
+                              "maxLength": 524288
+                            }
+                          },
+                          "required": [
+                            "reference",
+                            "metadata",
+                            "body"
+                          ],
+                          "x-transit-defaults": {}
+                        }
+                      }
                     }
                   ]
                 }
@@ -8046,6 +8086,46 @@
               "x-transit-defaults": {}
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_stage"
+          ],
+          "properties": {
+            "http_stage": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "reference",
+                "metadata",
+                "body"
+              ],
+              "properties": {
+                "reference": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                },
+                "metadata": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 524288
+                }
+              },
+              "required": [
+                "reference",
+                "metadata",
+                "body"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
         }
       ]
     },
@@ -8209,6 +8289,18 @@
           ],
           "properties": {
             "collected": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "staged"
+          ],
+          "properties": {
+            "staged": {
               "type": "boolean"
             }
           }

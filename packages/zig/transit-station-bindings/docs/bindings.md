@@ -226,6 +226,14 @@ and output. Publish and call in separate turns: publication reads reject private
 mutations. Capacity/error rollback, frozen pending envelopes and exact signed
 recovery follow the existing growing boundary.
 
+`http_stage` composes those publication steps through `RequestRecord.stage`.
+It accepts the exact reference, metadata and body, freezes the namespace's request
+identity, and returns `staged:false` after at most one durable upload step.
+`staged:true` means both immutable records predate this turn, permitting `http_call`
+in the same turn. Fresh owners resume with identical recoverable bytes; changed
+identity or retired records reject without consuming a mutation budget. Hosts own
+source recovery and continuation scheduling, never a second upload state machine.
+
 `station_growing_http_read` (port `growing_http_read`) is separate from scoped
 handler actions. `open` accepts a complete reference and replay policy; `next`
 accepts the returned opaque local reader ID; `close` disposes that reader. A handle

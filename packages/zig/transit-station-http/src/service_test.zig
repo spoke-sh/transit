@@ -212,3 +212,41 @@ test "request commitment validates body length and full width namespace without 
     malformed.data[malformed.len] = 0;
     try t.expectError(error.InvalidExchangeRecord, http.RequestRecord.Reference.decode(malformed));
 }
+test "upload steps recover only the frozen complete request and become callable in a later turn" {
+    var buffer: [8192]u8 = undefined;
+    var body: [513]u8 = undefined;
+    for (&body, 0..) |*byte, i| byte.* = @truncate(i * 13);
+    const prepared = try http.RequestRecord.prepare(7, 99, .{ .method = .POST, .target = &.{.{ .literal = "/write" }}, .body_bytes = body.len }, &body, 7, 9000, 2, &buffer);
+    const wire = try prepared.reference.encode();
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture(9, 99, wire);
+    for (0..3) |i| try turn.write(try p.Value.init(&.{ 'k', @intCast(i) }), .{});
+    const before = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, http.RequestRecord.stage(&turn, prepared.reference, prepared.metadata, &body));
+    try t.expectEqualDeep(before, turn.decision);
+    turn = try store.capture(9, 99, wire);
+    try t.expect(!try http.RequestRecord.stage(&turn, prepared.reference, prepared.metadata, &body));
+    try store.commit(turn);
+    turn = try store.capture(9, 99, wire);
+    var changed = prepared.reference;
+    body[0] ^= 1;
+    changed.body_digest = (try x.Publication.Digest.of(1, &body)).digest;
+    try t.expectError(error.HttpRequestIdentityConflict, http.RequestRecord.stage(&turn, changed, prepared.metadata, &body));
+    body[0] ^= 1;
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    var steps: usize = 0;
+    while (!try http.RequestRecord.stage(&turn, prepared.reference, prepared.metadata, &body)) {
+        try t.expect(steps < 16);
+        steps += 1;
+        try store.commit(turn);
+        turn = try store.capture(9, 99, wire);
+    }
+    try t.expect(steps > 3);
+    const publication: x.Publication = .{ .resource = 7, .namespace = 99 };
+    try t.expectEqual(prepared.reference.bodySpec(), (try publication.open(&turn, 2)).spec);
+    _ = try publication.retire(&turn, 2);
+    try store.commit(turn);
+    turn = try store.capture(9, 99, wire);
+    try t.expectError(error.PublicationNotPublished, http.RequestRecord.stage(&turn, prepared.reference, prepared.metadata, &body));
+}

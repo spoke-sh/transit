@@ -47,6 +47,18 @@ PID-scoped readers additionally require a recorded association to foreign reques
 or capture resources. These associations are optional dependencies; they grant
 no access and do not make the connector's execution lifetime depend on the caller.
 
+`RequestRecord.stage` is the optional shared uploader. Its namespace marker is
+`00 48` followed by the namespace as eight big-endian bytes; its value is the
+exact HTQ1 reference. The first step atomically reserves a new Publication
+namespace and freezes that marker. Preexisting generic namespaces reject. Each
+subsequent call validates the complete source commitments and advances at most
+one begin, 256-byte append or publish step. Changed identity and retired records
+reject; the marker is never recycled. A false result requires another turn with
+the same recoverable source bytes. A true result means both records were already
+published before this turn and may be used by a call. The helper performs no
+dispatch or scheduling. Applications own source recovery until publication;
+an in-memory upload object is not durable state.
+
 The initial service admits one exchange per provisioned worker PID. Its configured
 policy fixes one authenticated caller PID, caller-written request resource,
 endpoint revision, latest reconciliation deadline, maximum attempts, exact HTTP

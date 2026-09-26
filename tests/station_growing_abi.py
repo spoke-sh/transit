@@ -387,6 +387,52 @@ def run(node, cli, library, raw_library, host):
             assert bytes.fromhex(outgoing['value'])[13:] == bytes.fromhex(prepared['reference'])
             operation({'publication_retire': {'namespace': namespace, 'id': '1'}})
             assert operation({'publication_collect': {'namespace': namespace, 'id': '1'}}) == {'collected': True}
+
+            # The shared bounded uploader owns its namespace and resumes after
+            # loss of the host and a fresh owner. Changed identity cannot use
+            # partially staged bytes, including after logical retirement.
+            source = bytes((index * 17 + 3) % 256 for index in range(513))
+            request = {'resource': resource, 'namespace': str(2**64-2),
+                'request': {'method': 'POST', 'target': [{'literal': '/write'}]},
+                'body': source.hex(), 'endpoint_revision': '7',
+                'reconcile_before_ms': now + 120000}
+            document = _json({'prepare': request})
+            prepared = server.api.call('station_http_codec', document, len(document))['prepared']
+            stage = {'http_stage': {'reference': prepared['reference'],
+                'metadata': prepared['metadata'], 'body': source.hex()}}
+            assert operation(stage) == {'staged': False}
+            assert operation(stage) == {'staged': False}
+            assert operation(stage) == {'staged': False}
+            server.close()
+            server = None
+            command({'own': {'pid': caller, 'worker': 65538, 'expected_generation': 2}})
+            server = Native(libraries, url, caller_seed, {**config, 'principal': 65538, 'pid': caller, 'generation': 3})
+            document = _json({'prepare': {**request, 'endpoint_revision': '8'}})
+            changed = server.api.call('station_http_codec', document, len(document))['prepared']
+            command({'send': {'pid': caller, 'value': frame(b'changed-upload')}})
+            scope = ready(server)['scope']
+            before = server.apply(scope, {'budgets': {}})
+            assert rejects(1, server.apply, scope, {'http_stage': {
+                **stage['http_stage'], 'reference': changed['reference']}})['err'] == 'HttpRequestIdentityConflict'
+            assert server.apply(scope, {'budgets': {}}) == before
+            finish(server, scope)
+            for _ in range(16):
+                if operation(stage)['staged']:
+                    break
+            else:
+                raise AssertionError('HTTP upload did not complete within its bounded steps')
+            command({'send': {'pid': caller, 'value': frame(b'resumed-call')}})
+            scope = ready(server)['scope']
+            assert server.apply(scope, stage) == {'staged': True}
+            resumed = server.apply(scope, {'http_call': {'pid': destination,
+                'reference': prepared['reference']}})['correlation']
+            assert int(resumed) > int(correlation)
+            finish(server, scope)
+            operation({'publication_retire': {'namespace': request['namespace'], 'id': '1'}})
+            command({'send': {'pid': caller, 'value': frame(b'retired-upload')}})
+            scope = ready(server)['scope']
+            assert rejects(1, server.apply, scope, stage)['err'] == 'PublicationNotPublished'
+            finish(server, scope)
         finally:
             if port is not None:
                 port.close()

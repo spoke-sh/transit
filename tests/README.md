@@ -67,6 +67,10 @@ Growing native actions reject unpublished or mismatched request references,
 preserve duplicate chunks and publish the ordinary durable call through the
 existing preparation/dispatch gate. `just bindings::native` includes these
 checks alongside the existing Table/query and C/C++/Python interoperability proofs.
+The shared `http_stage` helper freezes namespace ownership and advances one
+publication step per turn. Its disk/native proof replaces the host and owner
+after a committed metadata prefix, rejects a changed endpoint revision without
+consuming mutation budget, resumes to a validated call and rejects retired reuse.
 
 The 2026-09-26 Linux x86_64 worker run took **242.31 seconds**, excluding compilation.
 This is local proof time, not a hosted CI or aggregate runner-minute measurement.

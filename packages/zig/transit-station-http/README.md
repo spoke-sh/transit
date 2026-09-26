@@ -59,3 +59,9 @@ and allowed header names; endpoint, credential and current resource grants remai
 separate worker checks. `Outcome.reference` refuses unknown/not-dispatched results.
 The [worker admission guide](../../../apps/transit-station-http-worker/docs/admission.md)
 describes the finite service profile and recovery limits.
+
+`RequestRecord.stage` reserves a namespace, freezes the full request identity and
+advances one bounded publication step per turn. Repeat with identical recoverable
+metadata/body until it returns true, then call in that turn. It rejects changed
+identity after restart and cannot resurrect retired records. The caller supplies
+continuation scheduling and keeps source bytes recoverable until publication.

@@ -67,6 +67,7 @@ pub const Action = union(enum) {
     publication_retire: struct { namespace: []const u8, id: []const u8 },
     publication_collect: struct { namespace: []const u8, id: []const u8 },
     http_call: struct { pid: u64, reference: p.Value },
+    http_stage: struct { reference: p.Value, metadata: []const u8, body: []const u8 },
 
     pub fn requiresQuery(self: Action) bool {
         return switch (self) {
@@ -83,6 +84,7 @@ pub const Result = union(enum) {
     cancelled: bool,
     publication: s.Publication.Outcome,
     collected: bool,
+    staged: bool,
     row: ?a.Row,
     schema: struct { id: u32, key_name: []const u8, value_name: []const u8, value_type: s.fuze.model.Type, basis: s.fuze.model.Basis },
     page: struct { entries: [p.Growth.page_size]?p.Growth.Entry, next: ?[]const u8 },
@@ -149,6 +151,15 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action)
             const body = try publication.open(turn, http.RequestRecord.body_id);
             if (!std.meta.eql(metadata.spec, reference.metadataSpec()) or !std.meta.eql(body.spec, reference.bodySpec())) return error.InvalidHttpRequestReference;
             return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, v.reference, null)) };
+        },
+        .http_stage => |v| {
+            const reference = try http.RequestRecord.Reference.decode(v.reference);
+            if (v.metadata.len != @as(usize, reference.metadata_bytes) * 2 or v.body.len != @as(usize, reference.body_bytes) * 2) return error.InvalidHttpRequestReference;
+            const metadata = try allocator.alloc(u8, reference.metadata_bytes);
+            const body = try allocator.alloc(u8, reference.body_bytes);
+            _ = try std.fmt.hexToBytes(metadata, v.metadata);
+            _ = try std.fmt.hexToBytes(body, v.body);
+            return .{ .staged = try http.RequestRecord.stage(turn, reference, metadata, body) };
         },
         .page => |cursor| return page(allocator, turn, cursor),
         .table_page => |request| {

@@ -35,6 +35,56 @@ pub const Reference = struct {
     }
 };
 pub const Prepared = struct { reference: Reference, metadata: []const u8 };
+/// Caller-side upload identity, separate from Publication's generic key space.
+pub fn key(namespace: u64) x.p.Value {
+    var bytes: [10]u8 = undefined;
+    bytes[0..2].* = "\x00H".*;
+    std.mem.writeInt(u64, bytes[2..10], namespace, .big);
+    return x.p.Value.init(&bytes) catch unreachable;
+}
+/// Advance at most one durable upload step. False means the caller must schedule
+/// another turn with the same owned source bytes. True means both records were
+/// published before this turn, so call admission may share this turn safely.
+pub fn stage(turn: *x.station.GrowingTurn, reference: Reference, metadata: []const u8, body: []const u8) !bool {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    try reference.validate();
+    if (reference.resource != turn.view.resource or metadata.len != reference.metadata_bytes or body.len != reference.body_bytes) return error.InvalidHttpRequestReference;
+    if (!std.meta.eql(try Pub.Digest.of(http.protocol_format, metadata), reference.metadataSpec()) or !std.meta.eql(try Pub.Digest.of(http.protocol_format, body), reference.bodySpec())) return error.InvalidHttpRequestReference;
+    const frozen = try reference.encode();
+    const publication: Pub = .{ .resource = reference.resource, .namespace = reference.namespace };
+    if (try turn.read(key(reference.namespace))) |previous| {
+        if (!previous.eql(frozen)) return error.HttpRequestIdentityConflict;
+    } else {
+        if (try turn.read(Pub.key(reference.namespace, 'b', 0, 0)) != null) return error.HttpNamespaceInUse;
+        _ = try Pub.create(turn, reference.namespace, .{ .record_bytes = maximum_body_bytes, .staging_bytes = maximum_body_bytes + http.Request.maximum_head_bytes, .staging_records = 2 });
+        try turn.write(key(reference.namespace), frozen);
+        return false;
+    }
+    const Record = struct { id: u64, bytes: []const u8, spec: Pub.Spec };
+    for ([_]Record{ .{ .id = metadata_id, .bytes = metadata, .spec = reference.metadataSpec() }, .{ .id = body_id, .bytes = body, .spec = reference.bodySpec() } }) |record| {
+        const descriptor = publication.inspect(turn, record.id) catch |err| switch (err) {
+            error.PublicationNotFound => {
+                _ = try publication.begin(turn, record.id, record.spec);
+                return false;
+            },
+            else => return err,
+        };
+        if (!std.meta.eql(descriptor.spec, record.spec)) return error.HttpRequestIdentityConflict;
+        switch (descriptor.state) {
+            .published => continue,
+            .retired, .abandoned => return error.PublicationNotPublished,
+            .staging => if (descriptor.written < record.spec.chunks()) {
+                const index = descriptor.written;
+                _ = try publication.append(turn, record.id, index, record.bytes[@as(usize, index) * Pub.chunk_bytes ..][0..try record.spec.size(index)]);
+            } else {
+                _ = try publication.publish(turn, record.id);
+            },
+        }
+        return false;
+    }
+    return true;
+}
 /// Caller-owned buffers stay local. Publication owns durable staging and sealing.
 pub fn prepare(resource: u64, namespace: u64, request: http.Request, body: []const u8, endpoint_revision: u64, deadline: u64, attempts: u32, metadata_buffer: []u8) !Prepared {
     if (body.len > maximum_body_bytes or request.body_bytes != body.len or metadata_buffer.len > http.Request.maximum_head_bytes) return error.InvalidHttpBodyLength;
