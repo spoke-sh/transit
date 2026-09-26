@@ -12,7 +12,10 @@ lines = [
     "#include <stddef.h>", "#include <stdint.h>",
     '#ifdef __cplusplus\nextern "C" {\n#endif',
     f'#define TRANSIT_CLIENT_ABI_VERSION {contract["version"]}u',
+    f'#define TRANSIT_CLIENT_MINIMUM_STACK_BYTES {contract["minimum_stack_bytes"]}u',
 ]
+for name, value in contract['limits'].items():
+    lines.append(f'#define TRANSIT_CLIENT_{name.upper()} {value}ULL')
 for name in ("client", "operation", "buffer"):
     lines.append(f"typedef struct transit_{name} transit_{name};")
 for group in ("statuses", "kinds"):

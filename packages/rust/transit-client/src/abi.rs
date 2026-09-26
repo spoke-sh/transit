@@ -13,6 +13,7 @@ pub const HOST_CONFIG_BYTES: usize = 8192;
 pub struct Api {
     pub transit_client_abi_version: unsafe extern "C" fn() -> u32,
     pub transit_client_supports_kind: unsafe extern "C" fn(u32) -> u32,
+    pub transit_json_extract: unsafe extern "C" fn(*const u8, usize, *const u8, usize, u32, *mut *mut transit_buffer) -> u32,
     pub transit_client_create: unsafe extern "C" fn(u32, *const u8, usize, u32, *mut *mut transit_client) -> u32,
     pub transit_client_destroy: unsafe extern "C" fn(*mut transit_client) -> (),
     pub transit_operation_prepare: unsafe extern "C" fn(u32, *const u8, *const u8, usize, *mut *mut transit_operation) -> u32,
@@ -31,6 +32,7 @@ impl Api {
         Ok(Self {
             transit_client_abi_version: *unsafe { library.get(b"transit_client_abi_version\0")? },
             transit_client_supports_kind: *unsafe { library.get(b"transit_client_supports_kind\0")? },
+            transit_json_extract: *unsafe { library.get(b"transit_json_extract\0")? },
             transit_client_create: *unsafe { library.get(b"transit_client_create\0")? },
             transit_client_destroy: *unsafe { library.get(b"transit_client_destroy\0")? },
             transit_operation_prepare: *unsafe { library.get(b"transit_operation_prepare\0")? },

@@ -21,6 +21,16 @@ library without that export or those kinds; it must not fall back to v2. Existin
 clients remain compatible with the extended library. New generated bindings
 require the matching native library exports.
 
+The additive `transit_json_extract` helper lets C/C++ SDK implementation layers
+read native metadata without depending on Station or another JSON parser. It
+accepts at most the public body bound and a 128-byte slash-separated object/array
+path. Format 0 returns owned JSON; format 1 returns owned string bytes, including
+embedded NULs. Length remains authoritative. Full-width numeric values remain
+exact. The helper does not classify, authenticate or validate an operation;
+canonical recovery still uses `transit_operation_import` and native metadata.
+Station's existing JSON helper delegates to the same implementation. Unit checks
+cover invalid selectors/formats and allocation-failure cleanup.
+
 ## Calls and ownership
 
 1. `transit_client_create(version, url, url_length, timeout_ms, &client)` creates

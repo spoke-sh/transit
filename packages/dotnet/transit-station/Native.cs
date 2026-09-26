@@ -10,6 +10,8 @@ internal static class Native {
     [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint transit_client_supports_kind(uint arg0);
     [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint transit_json_extract([In] byte[] arg0, nuint arg1, [In] byte[] arg2, nuint arg3, uint arg4, out IntPtr arg5);
+    [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint transit_client_create(uint arg0, [In] byte[] arg1, nuint arg2, uint arg3, out IntPtr arg4);
     [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
     internal static extern void transit_client_destroy(IntPtr arg0);

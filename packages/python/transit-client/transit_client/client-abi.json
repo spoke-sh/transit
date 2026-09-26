@@ -44,6 +44,18 @@
       ]
     },
     {
+      "name": "transit_json_extract",
+      "result": "uint32_t",
+      "parameters": [
+        "const uint8_t *",
+        "size_t",
+        "const uint8_t *",
+        "size_t",
+        "uint32_t",
+        "transit_buffer **"
+      ]
+    },
+    {
       "name": "transit_client_create",
       "result": "uint32_t",
       "parameters": [

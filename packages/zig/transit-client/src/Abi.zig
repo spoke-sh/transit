@@ -89,6 +89,30 @@ fn bufferWithAllocator(alloc: std.mem.Allocator, value: anytype, out: *?*Buffer)
     result.bytes = try std.json.Stringify.valueAlloc(alloc, value, .{});
     out.* = @ptrCast(result);
 }
+/// Bounded JSON access shared by foreign SDK implementation layers. This does
+/// not interpret an operation or substitute for protocol validation.
+pub fn extractJson(alloc: std.mem.Allocator, bytes: []const u8, path: []const u8, format: u32) ![]u8 {
+    if (bytes.len == 0 or bytes.len > p.max_body or path.len > 128 or format > 1) return error.InvalidArgument;
+    const parsed = try std.json.parseFromSlice(std.json.Value, alloc, bytes, .{});
+    defer parsed.deinit();
+    var value = parsed.value;
+    if (path.len != 0) {
+        if (path[0] != '/') return error.InvalidArgument;
+        var parts = std.mem.splitScalar(u8, path[1..], '/');
+        while (parts.next()) |part| value = switch (value) {
+            .object => |object| object.get(part) orelse return error.InvalidArgument,
+            .array => |array| blk: {
+                const index = std.fmt.parseInt(usize, part, 10) catch return error.InvalidArgument;
+                if (index >= array.items.len) return error.InvalidArgument;
+                break :blk array.items[index];
+            },
+            else => return error.InvalidArgument,
+        };
+    }
+    if (format == 0) return std.json.Stringify.valueAlloc(alloc, value, .{});
+    if (value != .string) return error.InvalidArgument;
+    return alloc.dupe(u8, value.string);
+}
 fn validate(signed: Signed) !void {
     switch (signed) {
         .command => |s| {
@@ -116,6 +140,19 @@ pub const Api = struct {
     /// Local library support only; authority capabilities still require a read.
     pub fn transit_client_supports_kind(kind_number: u32) callconv(.c) u32 {
         return @intFromBool(std.enums.fromInt(Kind, kind_number) != null);
+    }
+    /// Implementation helper for independent C/C++ SDKs. Format 0 owns selected
+    /// JSON; format 1 owns raw string bytes. Callers release the returned buffer.
+    pub fn transit_json_extract(json: [*]const u8, len: usize, path: [*]const u8, path_len: usize, format: u32, out: *?*Buffer) callconv(.c) Status {
+        out.* = null;
+        const bytes = extractJson(allocator, json[0..len], path[0..path_len], format) catch |err| return fail(err);
+        const result = allocator.create(BufferImpl) catch {
+            allocator.free(bytes);
+            return .out_of_memory;
+        };
+        result.* = .{ .bytes = bytes };
+        out.* = @ptrCast(result);
+        return .ok;
     }
     pub fn transit_client_create(abi_version: u32, url: [*]const u8, url_len: usize, timeout_ms: u32, out: *?*Client) callconv(.c) Status {
         out.* = null;
@@ -280,6 +317,26 @@ fn call(alloc: std.mem.Allocator, client: anytype, signed: Signed, out: *?*Buffe
         .growing_command => |s| try bufferWithAllocator(alloc, try client.submitGrowing(s), out),
         .growing_query => |s| try bufferWithAllocator(alloc, try client.call(p.Growth.Response, "/v3/query", s), out),
     }
+}
+
+test "independent JSON access bounds and owned string bytes" {
+    const document = "{\"items\":[{\"value\":\"a\\u0000b\"}],\"wide\":18446744073709551615}";
+    const bytes = try extractJson(std.testing.allocator, document, "/items/0/value", 1);
+    defer std.testing.allocator.free(bytes);
+    try std.testing.expectEqualSlices(u8, "a\x00b", bytes);
+    const wide = try extractJson(std.testing.allocator, document, "/wide", 0);
+    defer std.testing.allocator.free(wide);
+    try std.testing.expectEqualSlices(u8, "18446744073709551615", wide);
+    try std.testing.expectError(error.InvalidArgument, extractJson(std.testing.allocator, document, "/items/1", 0));
+    try std.testing.expectError(error.InvalidArgument, extractJson(std.testing.allocator, document, "/wide", 1));
+    try std.testing.expectError(error.InvalidArgument, extractJson(std.testing.allocator, document, "missing-slash", 0));
+    try std.testing.expectError(error.InvalidArgument, extractJson(std.testing.allocator, document, "", 2));
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, struct {
+        fn run(alloc: std.mem.Allocator) !void {
+            const result = try extractJson(alloc, document, "/items/0/value", 1);
+            defer alloc.free(result);
+        }
+    }.run, .{});
 }
 
 test "every post-commit response allocation failure remains uncertain and releases buffers" {

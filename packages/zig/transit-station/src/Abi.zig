@@ -86,34 +86,15 @@ pub const Api = struct {
     /// format 0 returns JSON; format 1 returns the selected string's raw bytes.
     pub fn station_json_extract(json: [*]const u8, len: usize, path: [*]const u8, path_len: usize, format: u32, out: *?*Buffer) callconv(.c) Status {
         out.* = null;
-        if (len == 0 or len > p.max_body or path_len > 128 or format > 1) return .invalid_argument;
-        const parsed = std.json.parseFromSlice(std.json.Value, allocator, json[0..len], .{}) catch |err| return failure(err, out);
-        defer parsed.deinit();
-        var value = parsed.value;
-        if (path_len != 0) {
-            if (path[0] != '/') return .invalid_argument;
-            var parts = std.mem.splitScalar(u8, path[1..path_len], '/');
-            while (parts.next()) |part| value = switch (value) {
-                .object => |object| object.get(part) orelse return .invalid_argument,
-                .array => |array| blk: {
-                    const index = std.fmt.parseInt(usize, part, 10) catch return .invalid_argument;
-                    if (index >= array.items.len) return .invalid_argument;
-                    break :blk array.items[index];
-                },
-                else => return .invalid_argument,
-            };
-        }
-        if (format == 0) {
-            output(value, out) catch |err| return status(err);
-        } else {
-            if (value != .string) return .invalid_argument;
-            const buffer = allocator.create(BufferImpl) catch return .out_of_memory;
-            buffer.bytes = allocator.dupe(u8, value.string) catch {
-                allocator.destroy(buffer);
-                return .out_of_memory;
-            };
-            out.* = @ptrCast(buffer);
-        }
+        const bytes = @import("client_abi").extractJson(allocator, json[0..len], path[0..path_len], format) catch |err| {
+            return if (err == error.InvalidArgument) .invalid_argument else failure(err, out);
+        };
+        const result = allocator.create(BufferImpl) catch {
+            allocator.free(bytes);
+            return .out_of_memory;
+        };
+        result.* = .{ .bytes = bytes };
+        out.* = @ptrCast(result);
         return .ok;
     }
     pub fn station_frame_encode(kind: u32, correlation: u64, payload: [*]const u8, len: usize, out: *?*Buffer) callconv(.c) Status {

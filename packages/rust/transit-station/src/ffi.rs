@@ -10,6 +10,7 @@ pub const MINIMUM_STACK_BYTES: usize = 8388608;
 unsafe extern "C" {
     pub fn transit_client_abi_version() -> u32;
     pub fn transit_client_supports_kind(arg0: u32) -> u32;
+    pub fn transit_json_extract(arg0: *const u8, arg1: usize, arg2: *const u8, arg3: usize, arg4: u32, arg5: *mut *mut transit_buffer) -> u32;
     pub fn transit_client_create(arg0: u32, arg1: *const u8, arg2: usize, arg3: u32, arg4: *mut *mut transit_client) -> u32;
     pub fn transit_client_destroy(arg0: *mut transit_client) -> ();
     pub fn transit_operation_prepare(arg0: u32, arg1: *const u8, arg2: *const u8, arg3: usize, arg4: *mut *mut transit_operation) -> u32;
