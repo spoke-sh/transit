@@ -1,5 +1,9 @@
 //! Board v1: evidence-preserving projections over the public Transit contract.
 const std = @import("std");
+pub const Json = @import("Json.zig");
+test {
+    _ = Json;
+}
 pub const protocol = @import("transit_protocol");
 const p = protocol;
 const i = p.Inspection;
@@ -27,6 +31,8 @@ pub const Lens = struct {
 pub const StateResponse = struct { observation: p.State.Page, framework: [p.State.page_size]?Lens = @splat(null) };
 pub const Capabilities = struct {
     version: u32 = 1,
+    profile: enum { legacy_v2, growing_v3 } = .legacy_v2,
+    query_enabled: bool = false,
     realm: u64,
     scope_pid: ?u64,
     read_only: bool = true,
@@ -41,7 +47,19 @@ pub const Capabilities = struct {
     http_connector: bool = false,
     push: bool = false,
 };
-pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired } };
+pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired, QueryDisabled, QueryBusy, UnsupportedQuery, QueryRequestTooLarge, IncompleteResult, InvalidQueryOrdinal, QueryConflict } };
+
+pub const QueryRequest = @import("transit_query").Model.Request;
+pub const QueryResponse = @import("transit_query").Model.Response;
+pub const AtlasResponse = struct {
+    version: u8 = 1,
+    realm: u64,
+    position: u64,
+    identity: p.Growth.Identity,
+    processes: p.Growth.Batch(p.Growth.Process, u64),
+    resources: p.Growth.Batch(p.Growth.Resource, u64),
+    query_resource: ?u64,
+};
 
 fn reference(page: i.Page, pid: u64, kind: @FieldType(Reference, "kind"), id: u64) Reference {
     return .{ .realm = page.realm, .pid = pid, .kind = kind, .id = id };

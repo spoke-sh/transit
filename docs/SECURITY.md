@@ -198,7 +198,17 @@ authorization; bytes already released cannot be recalled. This distinguishes
 bounded subscription shutdown from an unsupported claim of instantaneous
 revocation across every open connection.
 
-## Planned RPC and query boundaries
+## RPC and query boundaries
+
+M13's [public Table query profile](../contracts/PUBLIC_QUERY_V1.md) uses a
+separate configured query identity, durable requester binding and source peer
+policy. Inspection credentials remain read-only. Board's optional POST route
+requires exact Origin/JSON checks and accepts only bounded query operations;
+these browser checks do not authenticate individual viewers. Every reachable
+viewer shares the configured query scope. Typed result reads recheck current
+authority after verification; result IDs and frozen submissions are not bearer
+grants. Browser denial clears protected state, and neither frontend creates an
+offline result cache. Captured execution can continue after local disconnect.
 
 The planned [Flight gateway](ARROW.md#identity-lifetime-and-failure) is a separate
 ingress with an explicitly qualified credential-to-principal and Table-service

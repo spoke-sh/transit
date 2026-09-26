@@ -2,7 +2,8 @@
 
 The typed Board v1 response contract, exported as `transit_board_api`. Depends on
 [transit-protocol](../transit-protocol/README.md) and
-[Station's metadata codecs](../transit-station/src/Metadata.zig). It does not read stores, execute
+[Station's metadata codecs](../transit-station/src/Metadata.zig), plus
+[transit-query](../transit-query/README.md) for the optional query contract. It does not read stores, execute
 handlers, or authenticate viewers; the Board executable composes those boundaries.
 
 `try project(page)` rejects malformed mixed-resource or inconsistent
@@ -20,7 +21,9 @@ registry scopes/bindings, supervised children, calls and captured Arrow results.
 Every lens carries its writer PID, resource, exact key/revisions and observation
 position. Only an authorized entries read can produce these lenses. Unknown or
 malformed versions remain opaque; names and executable code IDs never select a
-decoder. Table row values and Arrow data are not interpreted.
+decoder. These inspection projections do not interpret Table rows or Arrow data.
+The separately authorized query route returns verified typed Arrow cells through
+the shared query client.
 
 ## Public API and extension workflow
 
@@ -28,6 +31,9 @@ decoder. Table row values and Arrow data are not interpreted.
 | --- | --- |
 | `Response` / `project` | One authorized inspection page plus bounded recorded causal edges |
 | `StateResponse` / `projectState` | One authorized state page without business-value interpretation |
+| `AtlasResponse` | Growing process/resource pages and the current inspection identity at one cut |
+| `QueryRequest`, `QueryResponse` | Optional Table query operations, opaque frozen submissions and verified typed pages |
+| `Json.write` | Schema-consistent JSON: fixed byte arrays stay arrays, text slices stay strings |
 | `Capabilities`, `Error` | Board build capabilities and its finite error vocabulary |
 | [export.zig](src/export.zig) | OpenAPI generation over the public typed definitions |
 
@@ -45,8 +51,10 @@ and app state section record them.
 `zig build transit-board-contract` at the repository root generates the
 [OpenAPI 3.1 contract](../../../contracts/transit-board-v1.openapi.json) using the shared
 Transit schema writer. Board output fields are required, and integers are bounded
-to JavaScript's exact safe range. This is a resource inspection contract, not
-an alternate Transit mutation or signature protocol.
+to JavaScript's exact safe range. Query int64 cells use decimal strings; opaque frozen tokens preserve signed
+requests without JavaScript parsing their full-width literals. The query route
+exposes only the [public query profile](../../../contracts/PUBLIC_QUERY_V1.md),
+not arbitrary Transit commands.
 
 From this directory, `zig build test` checks projection boundaries and causal coverage.
 From the repository root, `just test::packages` checks the declared dependencies.

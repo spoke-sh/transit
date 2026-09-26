@@ -29,7 +29,7 @@ pub const Prepared = struct {
     plan: f.Stream.Plan,
     signed: p.Growth.SignedRequest,
 };
-pub const Phase = enum { submitted, busy, rejected, admitted, capturing, delivering, complete, cancelled, denied, expired, failed };
+pub const Phase = enum { unobserved, submitted, busy, rejected, admitted, capturing, delivering, complete, cancelled, denied, expired, failed };
 pub const Status = struct {
     version: u8 = 1,
     correlation: u64,
@@ -51,4 +51,28 @@ pub const Page = struct {
     rows: [f.model.max_rows]?[2]?Cell = @splat(null),
     count: u8,
     next: ?u64,
+};
+
+/// Opaque canonical frozen submission. The browser retains it only in memory
+/// and cannot use it to request arbitrary Transit operations. Avoid putting
+/// full-width plan literals through JavaScript numeric conversion.
+pub const Frozen = struct { token: []const u8 };
+pub const Compiled = struct { source: Source, explanation: f.Stream.Explanation, frozen: Frozen };
+/// Board reflects these Zig-owned operations; no browser-supplied upstream URL.
+pub const Request = union(enum) {
+    describe: void,
+    prepare: struct { sql: []const u8 },
+    submit: Frozen,
+    status: struct { correlation: u64 },
+    page: struct { correlation: u64, ordinal: u64 },
+    prepare_cancel: struct { correlation: u64 },
+    cancel: Frozen,
+};
+pub const Response = union(enum) {
+    source: Source,
+    prepared: Compiled,
+    receipt: p.Receipt,
+    status: Status,
+    page: Page,
+    cancellation: Frozen,
 };

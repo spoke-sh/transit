@@ -5,7 +5,8 @@ Shared Zig public Table query client and application-side Station behaviors for
 frozen request and result readers. The [v1 contract](../../../contracts/PUBLIC_QUERY_V1.md)
 owns authorization, wire encodings, admission, cancellation and limits.
 
-- `Model` owns connection, source, prepared submission, status and typed page.
+- `Model` owns connection, source, prepared submission, status, typed page and
+  Board's opaque frozen-token transport. Tokens preserve full-width SQL literals.
 - `Client.describe/prepare/submit/status/page` use current signed Transit reads
   and commands. Retain `Prepared` on uncertain submission; its receipt identifies
   the requester correlation. A page's strings borrow the supplied request arena.

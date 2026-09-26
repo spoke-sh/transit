@@ -57,3 +57,11 @@ browser:
 demo: build
     zig build apps examples
     python3 -B examples/local.py counter --board
+
+# Qualify the optional growing query API against real hosts and disk Ursula.
+query-test:
+    zig build test-board-query
+
+# Qualify the real growing atlas/workspace, typed results and live revocation.
+query-browser:
+    zig build test-board-query -Dquery-browser=true

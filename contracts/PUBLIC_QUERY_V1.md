@@ -1,6 +1,6 @@
 # Public Table query profile v1
 
-Status: M13 implementation in progress. The owning [query package](../packages/zig/transit-query/README.md)
+Status: implemented M13 public profile. The owning [query package](../packages/zig/transit-query/README.md)
 shares this profile between Board and `transit`. This is an application protocol
 above [growing Transit](TRANSIT_V3.md) and [Station query delivery](STATION_QUERY_V2.md),
 not a new kernel command or authority to execute arbitrary values.
@@ -66,10 +66,12 @@ result resource or a cross-resource transaction.
 
 ## Status, cancellation and disclosure
 
-`submitted`, `busy`, `rejected`, `admitted`, `capturing`, `delivering`, `complete`,
+`unobserved`, `submitted`, `busy`, `rejected`, `admitted`, `capturing`, `delivering`, `complete`,
 `cancelled`, `denied`, `expired` and `failed` are distinct public states. Transport
 errors and unavailable observations are errors, never successful completion.
-Only the receiver's verified manifest plus closed wait establishes `complete`.
+An absent status record returns `unobserved`: an arbitrary correlation proves no
+submission. Frontends can label their own confirmed receipt `submitted` while
+waiting for behavior evidence. Only the receiver's verified manifest plus closed wait establishes `complete`.
 Partial progress counts do not authorize row disclosure in this first profile.
 
 An explicit cancellation is another frozen signed cast: `PQC1` plus little-endian
@@ -100,3 +102,23 @@ Unlimited retention remains the default. Browser/session state creates no
 retention pin, offline result store or saved-query capability. Denial clears
 protected frontend state. Previously printed terminal output remains previously
 disclosed data; no terminal erasure or clipboard recall is promised.
+
+## Board transport
+
+The optional `POST /api/v1/query` exposes `describe`, `prepare`, `submit`,
+`status`, `page`, `prepare_cancel` and `cancel` from the Zig model. It requires
+an exact same-origin Origin and JSON content type, with a 16384-byte body limit.
+Prepare returns source metadata, a compiler explanation and an opaque `frozen`
+token. The token contains canonical prepared-request JSON; the browser retains
+that string unchanged so full-width SQL integers never pass through JavaScript
+numbers. Cancellation uses the same opaque envelope. Tokens carry signed requests,
+not signing seeds, and remain subject to current authority and configured identity.
+The server validates the contained operation, destination, source, schema and plan;
+it does not forward arbitrary Transit commands.
+
+Generated response schemas require fixed arrays even when their bytes are valid
+UTF-8; Board's typed serializer preserves that shape. Integer cells are decimal
+strings. No browser storage or result history is written. One Board installation
+shares its configured query principal across reachable viewers; the one-active
+limit is enforced by that principal's dedicated requester. Operators must not
+provision additional requesters for the same principal and assume a global limit.

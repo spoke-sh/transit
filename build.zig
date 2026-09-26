@@ -141,6 +141,7 @@ pub fn build(b: *std.Build) void {
     embed.has_side_effects = true;
     const asset_module = b.createModule(.{ .root_source_file = asset_source, .target = target, .optimize = optimize });
     const board = b.addExecutable(.{ .name = "transit-board", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-board/main.zig"), .target = target, .optimize = optimize, .imports = &.{
+        .{ .name = "transit_query", .module = query.module("transit_query") },
         .{ .name = "transit_client", .module = client.module("transit_client") },
         .{ .name = "transit_board_api", .module = transit_board_api.module("transit_board_api") },
         .{ .name = "assets", .module = asset_module },
@@ -258,6 +259,13 @@ pub fn build(b: *std.Build) void {
     public_query_test.has_side_effects = true;
     public_query_test.stdio = .inherit;
     b.step("test-public-query", "Qualify the public query hosts and signed shell over disk Ursula").dependOn(&public_query_test.step);
+    const query_board_test = b.addSystemCommand(&.{ "python3", "-B" });
+    query_board_test.addFileArg(b.path("tests/board_query.py"));
+    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, public_query, board }) |artifact| query_board_test.addArtifactArg(artifact);
+    if (b.option(bool, "query-browser", "Include the public query browser proof") orelse false) query_board_test.addArg("--browser");
+    query_board_test.has_side_effects = true;
+    query_board_test.stdio = .inherit;
+    b.step("test-board-query", "Qualify growing Board inspection and its optional query capability").dependOn(&query_board_test.step);
     const growing_client = b.addExecutable(.{ .name = "transit-growing-client-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/growing_client.zig"),
         .target = target,

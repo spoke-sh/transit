@@ -118,7 +118,7 @@ def main():
         assert len(evidence) == 1 and evidence[0]["exit_code"] == 23
         metadata = json.loads((path / ".cache/ci/browser.meta.json").read_text())
         assert metadata["completed"] is False
-        assert metadata["expected_tasks"] == ["transit-board::browser"]
+        assert metadata["expected_tasks"] == LANES["browser"]
         assert "transit-board::browser" in (path / "summary").read_text()
     print("CI lanes: disjoint local/hosted inventory, aggregate gate and failure propagation passed.")
 

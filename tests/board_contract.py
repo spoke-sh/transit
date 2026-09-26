@@ -15,9 +15,11 @@ assert "session_seconds" not in spec["components"]["schemas"]["Capabilities"]["p
 assert "/api/v1/session" not in spec["paths"] and "/api/v1/logout" not in spec["paths"]
 for path, methods in spec["paths"].items():
     assert path.startswith("/api/v1/")
-    assert set(methods) == {"get"}
+    assert set(methods) == ({"post"} if path == "/api/v1/query" else {"get"})
+    if path == "/api/v1/query":
+        assert methods["post"]["requestBody"]["content"]["application/json"]["schema"]["$ref"] == "#/components/schemas/QueryRequest"
     for route in methods.values():
         for status in route["responses"].values():
             ref = status["content"]["application/json"]["schema"]["$ref"]
             assert ref.startswith("#/components/schemas/") and ref.rsplit("/", 1)[1] in spec["components"]["schemas"]
-print("Board OpenAPI matches Zig-owned responses and read-only routes.")
+print("Board OpenAPI matches Zig-owned responses and inspection routes and the separate query contract.")

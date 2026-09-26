@@ -1,14 +1,17 @@
-//! Inspection-only application: all live data crosses the public Transit client.
+//! Public-client inspection plus a separately configured Table query capability.
 const std = @import("std");
 const telemetry = @import("telemetry");
 const client = @import("transit_client");
 const api = @import("transit_board_api");
 const assets = @import("assets");
+const growing = @import("Growing.zig");
 const i = client.protocol.Inspection;
 const Config = struct {
     upstream: []const u8,
     realm: u64,
-    principal: u8,
+    principal: u64,
+    profile: enum { legacy_v2, growing_v3 } = .legacy_v2,
+    query: ?growing.QueryConfig = null,
     seed_file: []const u8,
     public_origin: []const u8,
     development_allow_insecure_http: bool = false,
@@ -44,13 +47,67 @@ const Server = struct {
         self.observation.written = true;
     }
     fn json(self: *Server, req: *std.http.Server.Request, status: std.http.Status, value: anytype) !void {
-        const body = try std.json.Stringify.valueAlloc(self.allocator, value, .{});
-        defer self.allocator.free(body);
-        return self.respond(req, status, body, "application/json");
+        var body: std.Io.Writer.Allocating = .init(self.allocator);
+        defer body.deinit();
+        var out: std.json.Stringify = .{ .writer = &body.writer };
+        try api.Json.write(value, &out);
+        return self.respond(req, status, body.written(), "application/json");
     }
     fn failure(self: *Server, req: *std.http.Server.Request, status: std.http.Status, code: @FieldType(api.Error, "err")) !void {
         self.observation.error_type = @tagName(code);
         return self.json(req, status, api.Error{ .err = code });
+    }
+    fn queryFailure(self: *Server, req: *std.http.Server.Request, upstream: *client.Client, err: anyerror) !void {
+        if (err == error.AccessDenied or err == error.QueryAccessDenied) return self.failure(req, .forbidden, .Forbidden);
+        if (err == error.UnsafePrincipal) return self.failure(req, .forbidden, .UnsafePrincipal);
+        if (err == error.QueryChanged or upstream.last_rejection == .StaleStateResource or upstream.last_rejection == .QueryExpired) return self.failure(req, .conflict, .QueryExpired);
+        if (err == error.QuerySourceUnavailable or upstream.last_rejection == .StateResourceExpired) return self.failure(req, .gone, .StateResourceExpired);
+        if (err == error.QueryBusy) return self.failure(req, .conflict, .QueryBusy);
+        if (err == error.IncompleteResult) return self.failure(req, .conflict, .IncompleteResult);
+        if (err == error.InvalidQueryOrdinal) return self.failure(req, .bad_request, .InvalidQueryOrdinal);
+        if (err == error.QueryRequestTooLarge) return self.failure(req, .bad_request, .QueryRequestTooLarge);
+        if (err == error.Conflict) return self.failure(req, .conflict, .QueryConflict);
+        return self.failure(req, .service_unavailable, .Unavailable);
+    }
+    fn queryRequest(self: *Server, req: *std.http.Server.Request, body: []const u8) !void {
+        const config = self.config.query orelse return self.failure(req, .not_found, .QueryDisabled);
+        if (req.head.method != .POST) return self.failure(req, .not_found, .NotFound);
+        if (self.now() < self.next_read_ms) return self.failure(req, .too_many_requests, .RateLimited);
+        self.next_read_ms = self.now() + self.config.read_interval_ms;
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const parsed = std.json.parseFromSlice(api.QueryRequest, arena.allocator(), body, .{}) catch return self.failure(req, .bad_request, .InvalidQuery);
+        defer parsed.deinit();
+        var upstream = client.Client.init(arena.allocator(), self.io, self.config.upstream);
+        defer upstream.deinit();
+        upstream.timeout_ms = self.config.upstream_timeout_ms;
+        upstream.observer = self.observation.span.runtime;
+        upstream.parent_context = self.observation.span.context;
+        const result = growing.query(&upstream, self.io, config, parsed.value, arena.allocator()) catch |err| {
+            if (err == error.UnsupportedQuery) return self.failure(req, .bad_request, .UnsupportedQuery);
+            if (err == error.InvalidQueryRequest or err == error.InvalidQueryIdentity) return self.failure(req, .bad_request, .InvalidQuery);
+            return self.queryFailure(req, &upstream, err);
+        };
+        return self.json(req, .ok, result);
+    }
+    fn growingRequest(self: *Server, req: *std.http.Server.Request, target: []const u8) !void {
+        const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
+        const cursor = if (capabilities) growing.Cursor{} else parseAtlas(target) catch return self.failure(req, .bad_request, .InvalidQuery);
+        if (self.now() < self.next_read_ms) return self.failure(req, .too_many_requests, .RateLimited);
+        self.next_read_ms = self.now() + self.config.read_interval_ms;
+        var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
+        defer upstream.deinit();
+        upstream.timeout_ms = self.config.upstream_timeout_ms;
+        upstream.observer = self.observation.span.runtime;
+        upstream.parent_context = self.observation.span.context;
+        var key = client.readKey(self.allocator, self.io, self.config.seed_file) catch return self.failure(req, .service_unavailable, .Unavailable);
+        defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+        if (capabilities) {
+            const reader = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailure(req, &upstream, err);
+            return self.json(req, .ok, api.Capabilities{ .profile = .growing_v3, .query_enabled = self.config.query != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = 16384 });
+        }
+        const result = growing.atlas(&upstream, self.config.realm, self.config.principal, key, cursor, if (self.config.query) |config| config.connection.resource else null) catch |err| return self.queryFailure(req, &upstream, err);
+        return self.json(req, .ok, result);
     }
     fn handle(self: *Server, stream: std.Io.net.Stream) anyerror!void {
         var rb: [8192]u8 = undefined;
@@ -67,8 +124,15 @@ const Server = struct {
         const target = try self.allocator.dupe(u8, req.head.target);
         defer self.allocator.free(target);
         if (target.len > 1024) return self.failure(&req, .bad_request, .InvalidQuery);
-        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const query_route = std.mem.eql(u8, target, "/api/v1/query");
+        if (query_route) {
+            const origin = (try header(&req, "origin")) orelse return self.failure(&req, .forbidden, .InvalidOrigin);
+            if (!std.mem.eql(u8, origin, self.config.public_origin)) return self.failure(&req, .forbidden, .InvalidOrigin);
+            if (!std.mem.eql(u8, (try header(&req, "content-type")) orelse "", "application/json")) return self.failure(&req, .bad_request, .InvalidQuery);
+        }
+        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (query_route) 16384 else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
         defer self.allocator.free(body);
+        if (query_route) return self.queryRequest(&req, body);
         if (body.len != 0) return self.failure(&req, .bad_request, .InvalidQuery);
         if (std.mem.eql(u8, target, "/health") and req.head.method == .GET) return self.json(&req, .ok, .{ .ready = true });
         if (std.mem.eql(u8, target, "/openapi/v1.json") and req.head.method == .GET) return self.respond(&req, .ok, assets.openapi, "application/json");
@@ -82,9 +146,11 @@ const Server = struct {
         // The deployment boundary admits viewers. Transit still authenticates
         // this instance's read-only principal and authorizes every data read.
         if (req.head.method != .GET) return self.failure(&req, .not_found, .NotFound);
+        if (self.config.profile == .growing_v3) return self.growingRequest(&req, target);
+        const principal: u8 = @intCast(self.config.principal);
         const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
-        const sq = parseStateQuery(target, self.config.realm, self.config.principal) catch return self.failure(&req, .bad_request, .InvalidQuery);
-        const q = if (capabilities or sq != null) i.Query{ .realm = self.config.realm, .principal = self.config.principal, .resource = .processes } else parseQuery(target, self.config.realm, self.config.principal) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const sq = parseStateQuery(target, self.config.realm, principal) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const q = if (capabilities or sq != null) i.Query{ .realm = self.config.realm, .principal = principal, .resource = .processes } else parseQuery(target, self.config.realm, principal) catch return self.failure(&req, .bad_request, .InvalidQuery);
         if (self.now() < self.next_read_ms) return self.failure(&req, .too_many_requests, .RateLimited);
         self.next_read_ms = self.now() + self.config.read_interval_ms;
         var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
@@ -135,6 +201,8 @@ const Server = struct {
 };
 // Route vocabulary is finite; never log a raw path, query or user-provided PID.
 fn logRoute(target: []const u8) []const u8 {
+    if (std.mem.eql(u8, target, "/api/v1/query")) return "/api/v1/query";
+    if (std.mem.startsWith(u8, target, "/api/v1/atlas")) return "/api/v1/atlas";
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
     inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes" }) |known| if (std.mem.eql(u8, path, known)) return known;
     if (assets.get(path) != null) return "/assets/{asset}";
@@ -237,8 +305,33 @@ fn parseStateQuery(target: []const u8, realm: u64, principal: u8) !?client.proto
     try client.protocol.State.validateQuery(q);
     return q;
 }
+fn parseAtlas(target: []const u8) !growing.Cursor {
+    const sep = std.mem.indexOfScalar(u8, target, '?') orelse target.len;
+    if (!std.mem.eql(u8, target[0..sep], "/api/v1/atlas")) return error.InvalidQuery;
+    var result: growing.Cursor = .{};
+    if (sep < target.len) {
+        var fields = std.mem.splitScalar(u8, target[sep + 1 ..], '&');
+        var seen: u8 = 0;
+        while (fields.next()) |field| {
+            const equal = std.mem.indexOfScalar(u8, field, '=') orelse return error.InvalidQuery;
+            const name = field[0..equal];
+            const value = try number(field[equal + 1 ..]);
+            const bit: u8 = if (std.mem.eql(u8, name, "position")) 1 else if (std.mem.eql(u8, name, "process_after")) 2 else if (std.mem.eql(u8, name, "resource_after")) 4 else return error.InvalidQuery;
+            if (seen & bit != 0) return error.InvalidQuery;
+            seen |= bit;
+            switch (bit) {
+                1 => result.position = value,
+                2 => result.process_after = value,
+                4 => result.resource_after = value,
+                else => unreachable,
+            }
+        }
+        if (seen & 6 != 0 and result.position == null) return error.InvalidQuery;
+    }
+    return result;
+}
 fn browserRoute(path: []const u8) bool {
-    if (std.mem.eql(u8, path, "/") or std.mem.eql(u8, path, "/resources")) return true;
+    if (std.mem.eql(u8, path, "/atlas") or std.mem.eql(u8, path, "/") or std.mem.eql(u8, path, "/resources")) return true;
     if (!std.mem.startsWith(u8, path, "/processes/")) return false;
     var parts = std.mem.splitScalar(u8, path[11..], '/');
     const pid = number(parts.next() orelse return false) catch return false;
@@ -276,7 +369,10 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
     defer parsed.deinit();
     const config = parsed.value;
-    if (config.principal == 0 or config.principal >= client.protocol.max_principals or config.realm == 0 or config.realm > client.protocol.max_counter or config.request_timeout_ms < 100 or config.request_timeout_ms > 5000 or config.upstream_timeout_ms == 0 or config.upstream_timeout_ms >= config.request_timeout_ms or config.read_interval_ms < 100 or config.read_interval_ms > 5000) return error.InvalidConfig;
+    if (config.principal == 0 or (if (config.profile == .legacy_v2) config.principal >= client.protocol.max_principals else config.principal > client.protocol.max_counter) or config.realm == 0 or config.realm > client.protocol.max_counter or config.request_timeout_ms < 100 or config.request_timeout_ms > 5000 or config.upstream_timeout_ms == 0 or config.upstream_timeout_ms >= config.request_timeout_ms or config.read_interval_ms < 100 or config.read_interval_ms > 5000) return error.InvalidConfig;
+    if (config.query) |query| {
+        if (config.profile != .growing_v3 or query.connection.realm != config.realm or query.connection.principal == config.principal or query.connection.principal == 0) return error.InvalidQueryConfiguration;
+    }
     const host = try originHost(config.public_origin, config.development_allow_insecure_http);
     var server: Server = .{ .io = init.io, .allocator = init.gpa, .config = config, .host = host };
     const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);

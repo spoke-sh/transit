@@ -30,7 +30,7 @@ changes or exports a Table. No query or result history is saved to disk.
 | SQL statement | Compile, freeze and submit one query; receipt means submitted |
 | `/status` | Read admission, capture/delivery or verified complete status |
 | `/next` | Read and render one segment of the verified complete result |
-| `/resume ID` | Select an existing authorized correlation without rerunning it |
+| `/resume ID` | Select an authorized correlation without rerunning it; an absent status is `unobserved`, not proof of submission |
 | `/cancel` | Freeze and submit explicit durable cancellation |
 | `/retry` | Retry the exact uncertain submission or cancellation |
 | `/format table`, `/format json` | Change rendering without changing query semantics |
@@ -38,7 +38,7 @@ changes or exports a Table. No query or result history is saved to disk.
 
 Integers remain full-width decimal strings and binary remains hex. Displayed
 strings use JSON escaping so result bytes cannot issue terminal control commands.
-Rows live only in the current command's arena. On observed denial, the shell
+Rows live only in the current command's arena. On observed denial or unavailable/retired source, the shell
 also clears its remembered query/prepared request. Earlier terminal output is
 already disclosed and cannot be recalled; an idle shell holds no result cache.
 

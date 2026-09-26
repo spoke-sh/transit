@@ -1,6 +1,6 @@
 # transit-board-client
 
-Typed resource client for Board's inspection API, exposed in the workspace as
+Typed resource client for Board's inspection and optional Table query APIs, exposed in the workspace as
 `@rey/transit-board-client`. This is the browser's first
 shared TypeScript package, independent of React and Router; it is not a Transit
 execution/signing client. [Zig transit-board-api](../../zig/transit-board-api/README.md) owns the
@@ -14,7 +14,7 @@ range, values use Transit's lowercase hex representation, and unknown fields or
 malformed tagged unions are rejected. A type assertion never replaces validation.
 
 The small transport wrapper exposes `capabilities` and
-`read(resource, pid?, continuation?, signal?)`. Fetches are GET-only and manage
+`read(resource, pid?, continuation?, signal?)`. Inspection fetches are GET-only and manage
 no Board credentials. Same-origin credentials can support deployment-managed
 ingress; Board issues no cookies. Requests use no redirects/cache, a four-second
 timeout, and a streaming 256 KiB decoded-response
@@ -52,3 +52,18 @@ models/schemas/validators are committed; the generator deliberately supports onl
 the JSON Schema vocabulary emitted by the shared Zig writer and fails on unknown
 types. Unit/runtime and real-browser checks live with Board web; API fixtures and
 independent Python consumers live in `tests/board.py`.
+
+## Growing atlas and queries
+
+`atlas(cursor?, signal?)` reads bounded growing catalogs. `query(operation,
+signal?)` posts a Zig-owned query operation to the separately configured route.
+Both validate every response. `validateQuery` additionally checks typed cell
+alignment, exact int64 range, UTF-8/binary bounds, row coverage and continuation.
+It never interprets opaque KV bytes. Query strings are not parsed or executed in
+TypeScript. Frozen submission tokens remain opaque strings and stay in memory
+for an exact retry; the transport retries only pre-dispatch rate refusals.
+
+The real generated validator is exercised against service responses by
+`tests/board_query.py`; the actual browser proof checks exact integers,
+Canvas/Browse state and clearing after live revocation. No browser seed,
+automatic replacement submission or persistent result storage exists.

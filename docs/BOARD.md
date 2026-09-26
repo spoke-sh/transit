@@ -1,9 +1,10 @@
-# Board — system inspection
+# Board — system inspection and Table workspace
 
 Status: bounded [M2](roadmap/M2.md) inspection profile implemented and qualified
 on the reference deployment, before Station. Board is the UI and
 OpenAPI surface through which operators and agents comprehend a running Transit
-system. M2 is inspection-only; operational controls are later scope. The [Board application](../apps/transit-board/README.md) owns configuration,
+system. M2 remains inspection-only. M13 adds a growing atlas and an optional,
+separately credentialed Table query workspace; operational controls remain later scope. The [Board application](../apps/transit-board/README.md) owns configuration,
 commands and access limits; [tests](../tests/README.md#board-qualification) own evidence.
 
 ## Purpose and visual language
@@ -58,11 +59,11 @@ inspection does not establish each output's source-commit time. Age support
 requires its own evidence contract before implementation.
 
 The reviews contain synthetic generated images and an interaction specification,
-not an implemented canvas or a broader read contract. They preserve the current
+not evidence of implemented capacity or a broader read contract. Their original
+inspection proposals preserve the
 single-realm, bounded-page and inspection-only boundaries. Multi-realm maps,
-global aggregation and renderer choices are not established. Implementation
-needs its own numbered milestone under the roadmap sequencing rule; the
-completed M2 profile and its qualification remain unchanged.
+global aggregation and renderer choices are not established. M13 implements the bounded subset recorded in D9; the completed M2 profile
+and its qualification remain unchanged.
 
 The [D3 scale review](design/D3.md) extends that fabric from
 100 to 100,000 synthetic processes using stable groups, aggregate landforms
@@ -100,9 +101,9 @@ emphasis, following a process association to a resource, and an intentional
 doorway from a building's footprint into a flat data workspace. Canvas shows
 declared structures and a visual query worksheet; Browse shows the same query
 and result as controls and rows. Entry and view changes never run a query.
-Query execution is a separately scoped future capability, outside current Board
-inspection: it requires an explicit public service/authorization boundary and
-cannot hide M9's mutating durable query/captured-reply flow behind a read route.
+M13 implements query execution through a separately configured public capability.
+Its explicit POST route retains durable mutation identity; existing inspection
+GET routes and their read-only grant do not gain execution rights.
 The synthetic sample results authorize no application decoding or provider access.
 
 The [D8 venue and growth review](design/D8.md) explores stadium, park and
@@ -114,6 +115,31 @@ compares named planning requirements with matching evidence and preserves
 unknown write/query/recovery capacity. History, scalable participation summaries
 and qualification data require future public read capabilities. Local scenario
 edits authorize no resource mutation, retention change or future-data query.
+
+## Implemented M13 workspace
+
+[D9](design/D9.md) records the focused implementation baseline: explicit
+Processes/Resources emphasis, flat overhead detail, deliberate resource entry,
+and one SQL draft/result across Canvas and Browse. D7 Auto emphasis and motion,
+and D8 venue/growth/readiness proposals, remain open. The original review
+outcomes are unchanged.
+
+The growing atlas uses signed current-identity and catalog reads, with eight
+processes and eight resources per cut. A widened inspection grant is rejected.
+Backing-resource plots have stable IDs; unavailable byte heights, outbox counts,
+ages and totals are labeled unknown. Entry counts include framework keys.
+This first profile supports an unscoped realm inspector with filtered resource
+grants; legacy PID-scoped pages remain in their original profile.
+
+The optional [public query capability](../contracts/PUBLIC_QUERY_V1.md) targets
+one configured Table and dedicated requester per query principal. The same Zig
+client powers Board and the `transit` shell. External Station workers execute
+M12's SELECT subset and deliver captured results through segment/credit flow.
+Only complete verified manifests expose typed cells. Every read rechecks current
+resource and peer policy; observed denial/expiry clears protected workspace
+state. View changes never submit work. Unknown mutations retain exact frozen
+requests for explicit retry; disconnect is not cancellation. No saved query,
+offline result cache or retention pin exists.
 
 ## Boundary and packaging
 
@@ -153,7 +179,8 @@ Implemented ownership:
 | [transit-board-api](../packages/zig/transit-board-api/README.md) | Board response/route definitions and OpenAPI generation, reusing public Transit types |
 | [transit-board-client](../packages/ts/transit-board-client/README.md) | Generated typed Board API client shared by the browser and future TypeScript consumers |
 
-The Board executable composes `transit-client` and `transit-board-api`; public Transit
+The Board executable composes `transit-client`, `transit-board-api` and the
+optional `transit-query` facade; public Transit
 inspection contracts remain in `transit-protocol`. Board belongs to the Transit
 subsystem, with `transit-board*` artifact names. The kernel and public execution
 client must not depend on Board; inspection consumes their public contracts.

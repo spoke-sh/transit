@@ -1,15 +1,15 @@
 # transit-board
 
-Inspection-only Zig service containing the static [Board frontend](../transit-board-web/README.md)
-and [OpenAPI v1](../../contracts/transit-board-v1.openapi.json). Its runtime libraries are `transit-client`, `transit-board-api`, and the neutral
-`telemetry` package. It has no kernel, Ursula, provider, or handler dependency. [Board's design](../../docs/BOARD.md) owns the architecture.
+Zig inspection service with an optional separately credentialed Table query workspace, containing the static [Board frontend](../transit-board-web/README.md)
+and [OpenAPI v1](../../contracts/transit-board-v1.openapi.json). Its runtime libraries are `transit-client`, `transit-board-api`, `transit-query`, and the neutral
+`telemetry` package. It has no kernel, Ursula or provider access and runs no application handlers. [Board's design](../../docs/BOARD.md) owns the architecture.
 
 ## Configuration guide
 
 [Configuration and deployment](docs/configuration.md) covers identity provisioning,
 private access, origin/listener settings, and migration from experimental viewer
 keys/sessions. Board has no viewer authentication layer; its upstream Transit
-identity remains separate and read-only.
+inspection identity remains read-only. The [growing query profile](docs/configuration.md#growing-atlas-and-optional-table-queries) uses a different, explicitly configured identity.
 
 ## Try it
 
@@ -62,10 +62,11 @@ One request executes at a time, with an overall deadline (100–5000 ms). Upstre
 calls have a shorter timeout; no redirects or response cache. The minimum spacing
 between upstream reads is 100 ms by default (configurable up to 5000 ms), shared
 across viewers. Excess reads get `429 RateLimited`; clients back off. Headers are
-8 KiB, request bodies 4 KiB (routes accept empty bodies), request targets 1024 bytes,
+8 KiB, inspection request bodies 4 KiB (routes accept empty bodies), query bodies
+16 KiB, request targets 1024 bytes,
 and upstream responses 256 KiB.
 
-Each data response preserves the public inspection observation plus explicit
+Legacy inspection data preserves the public inspection observation plus explicit
 causal facts. Pages contain at most 16 facts and journeys at most 32 edges.
 Any authority change expires a continuation; busy writes may prevent pagination.
 Coverage is explicit after trimming, and no Board cache pins history. A running
@@ -102,6 +103,8 @@ to turn on debug detail while navigating.
 lint and frontend unit tests. `just transit-board::test` runs Zig ingress/unit tests and
 real disk-backed service proofs. `just transit-board::browser-install` installs the pinned
 Chromium; `just transit-board::browser` exercises the real embedded UI with Playwright.
+`just transit-board::query-test` qualifies the growing API;
+`just transit-board::query-browser` runs its real workspace and revocation proof.
 The [test guide](../../tests/README.md) records measured limits and reference evidence.
 
 ## State resources
@@ -132,3 +135,21 @@ This is an intentional change to the experimental v1 API: regenerate external
 clients from OpenAPI and remove `lenses` from standalone configs. Launcher
 `update board` regenerates its configuration. No application value decoder or
 executable interpretation plugin remains in Board.
+
+## Growing atlas and workspace
+
+The opt-in `growing_v3` profile exposes eight-process/eight-resource atlas pages
+at one current authorized cut. The UI offers Processes/Resources emphasis,
+overhead detail, explicit resource entry, and coordinated Canvas/Browse views.
+Missing size, outbox and age measurements remain labeled unavailable. Catalog
+entry counts include framework keys and do not claim logical Table row counts.
+
+The separate query route compiles M12's Table SELECT subset through the shared
+Zig client. Queries execute in external Station hosts; verified Arrow segments
+become typed cells only through the explicit query capability. Source schemas,
+exact result/source IDs and full-width integer strings survive both views.
+Switching views preserves the draft/result without submitting work. Unknown
+submission outcomes retain a frozen token for an explicit exact retry. Known
+revocation clears the protected workspace. No offline history or result cache is
+created. [Configuration](docs/configuration.md#growing-atlas-and-optional-table-queries)
+and [frontend behavior](../transit-board-web/README.md) describe the limits.

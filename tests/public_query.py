@@ -26,6 +26,8 @@ def run(node, host, cli, proof):
         processes, logs = [], []
         fault = {"lost": None, "retry": False, "stage": threading.Event(), "pause": threading.Event()}
         fault["pause"].set()
+        fault["received"] = threading.Event()
+        fault["receive_pause"] = threading.Event()
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
@@ -53,6 +55,9 @@ def run(node, host, cli, proof):
                         if request["principal"] == 65536 and any(item and bytes.fromhex(item["key"]).startswith(b"\x00Qs") for item in turn.get("mutations", [])):
                             fault["stage"].set()
                             fault["pause"].wait(timeout=20)
+                        if request["principal"] == 65537 and any(item and bytes.fromhex(item["key"]).startswith(b"\x00Qv") for item in turn.get("mutations", [])):
+                            fault["received"].set()
+                            fault["receive_pause"].wait(timeout=30)
                     self.send_response(response.status)
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()
@@ -126,6 +131,21 @@ def run(node, host, cli, proof):
             path = fixture.root / "source.json"
             options = json.loads(path.read_text()); options["generation"] = 4; path.write_text(json.dumps(options))
             source = start("source-recovered", [host, str(path)])
+            assert fault["received"].wait(timeout=60), "receiver never sealed a partial segment"
+            until = time.monotonic() + 20
+            while True:
+                partial = send("/status")
+                if isinstance(partial, dict) and partial["received_segments"] >= 1: break
+                assert time.monotonic() < until, partial
+                time.sleep(0.1)
+            assert partial["phase"] == "delivering" and partial["manifest"] is None
+            assert send("/next") == "error: IncompleteResult"
+            provision("revoke")
+            assert send("/status") == "error: AccessDenied"
+            assert send("/next") == "error: NoQuery"
+            provision("restore")
+            assert send(f"/resume {submitted}")["phase"] == "delivering"
+            fault["receive_pause"].set()
             deadline = time.monotonic() + 90
             phases = set()
             while True:
@@ -181,6 +201,9 @@ def run(node, host, cli, proof):
                 assert time.monotonic() < until, status
                 time.sleep(0.05)
             fault["pause"].set()
+            provision("retire-source")
+            assert send("/status") == "error: QuerySourceUnavailable"
+            assert send("/next") == "error: NoQuery"
             shell.stdin.write("/quit\n"); shell.stdin.flush(); shell.wait(timeout=10)
             print("public query: real shell/hosts, 41 exact int64/null rows, exact retry, fenced crash recovery, busy admission, schema rejection, incomplete-result refusal, cancellation and read-time revocation passed")
         except BaseException:
@@ -189,6 +212,7 @@ def run(node, host, cli, proof):
             raise
         finally:
             fault["pause"].set()
+            fault["receive_pause"].set()
             for process in reversed(processes):
                 if process.poll() is None: process.kill()
                 process.wait(timeout=10)

@@ -12,7 +12,10 @@ connection: m.Connection,
 key: p.Ed25519.KeyPair,
 
 pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
-    return self.wire.queryGrowing(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = kind }, self.key);
+    return self.wire.queryGrowing(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = kind }, self.key) catch |err| {
+        if (err == error.Rejected and self.wire.last_rejection == .StateResourceExpired) return error.QuerySourceUnavailable;
+        return err;
+    };
 }
 /// An exact current resource cut, not an offline cache. Every point read still
 /// checks current authority and fails if that resource has changed.
@@ -68,7 +71,7 @@ fn describeOnce(self: *Self) !m.Source {
 pub fn prepare(self: *Self, sql: []const u8) !m.Prepared {
     const source = try self.describe();
     if (source.active != null) return error.QueryBusy;
-    const plan = try f.Sql.plan(sql, .{ .name = try .init(self.connection.name), .schema = source.schema });
+    const plan = f.Sql.plan(sql, .{ .name = try .init(self.connection.name), .schema = source.schema }) catch return error.UnsupportedQuery;
     const start: r.Start = .{ .schema = try source.schema.fingerprint(), .plan = plan };
     return .{ .source = source, .plan = plan, .signed = try self.freeze(source.sequence + 1, try start.encode()) };
 }
@@ -84,10 +87,11 @@ pub fn submit(self: *Self, prepared: m.Prepared) !p.Receipt {
     if (!std.mem.eql(u8, connection.name, self.connection.name)) return error.InvalidQueryRequest;
     connection.name = self.connection.name;
     if (!std.meta.eql(connection, self.connection) or prepared.source.version != 1) return error.InvalidQueryRequest;
-    const frame = try s.Frame.decode(request.command.send.value);
+    const frame = s.Frame.decode(request.command.send.value) catch return error.InvalidQueryRequest;
     if (frame.kind != .cast) return error.InvalidQueryRequest;
-    const start = try r.Start.decode(frame.payload);
-    if (!std.meta.eql(start.plan, prepared.plan) or !std.mem.eql(u8, &start.schema, &(try prepared.source.schema.fingerprint()))) return error.InvalidQueryRequest;
+    const start = r.Start.decode(frame.payload) catch return error.InvalidQueryRequest;
+    const schema = prepared.source.schema.fingerprint() catch return error.InvalidQueryRequest;
+    if (!std.meta.eql(start.plan, prepared.plan) or !std.mem.eql(u8, &start.schema, &schema)) return error.InvalidQueryRequest;
     _ = try self.describe(); // Explicit current resource/policy checks; no cached grant.
     return self.wire.submitGrowing(prepared.signed);
 }
@@ -99,9 +103,9 @@ pub fn prepareCancel(self: *Self, correlation: u64) !g.SignedRequest {
 pub fn submitCancel(self: *Self, signed: g.SignedRequest) !p.Receipt {
     const request = signed.request;
     if (request.realm != self.connection.realm or request.principal != self.connection.principal or request.command != .send or request.command.send.pid != self.connection.requester) return error.InvalidQueryRequest;
-    const frame = try s.Frame.decode(request.command.send.value);
+    const frame = s.Frame.decode(request.command.send.value) catch return error.InvalidQueryRequest;
     if (frame.kind != .cast) return error.InvalidQueryRequest;
-    _ = try self.status(try r.cancelled(frame.payload));
+    _ = try self.status(r.cancelled(frame.payload) catch return error.InvalidQueryRequest);
     return self.wire.submitGrowing(signed);
 }
 pub fn status(self: *Self, correlation: u64) !m.Status {
@@ -116,7 +120,8 @@ fn statusOnce(self: *Self, correlation: u64) !m.Status {
     var source = try self.reader(self.connection.resource, self.connection.source);
     _ = try self.policy(&source, null);
     var request = try self.requests();
-    const value = (try request.read(r.statusKey(correlation))) orelse return .{ .correlation = correlation, .phase = .submitted };
+    // A supplied correlation alone proves neither a submitted input nor admission.
+    const value = (try request.read(r.statusKey(correlation))) orelse return .{ .correlation = correlation, .phase = .unobserved };
     const phase = std.meta.stringToEnum(m.Phase, value.slice()) orelse return error.InvalidQueryStatus;
     var result: m.Status = .{ .correlation = correlation, .phase = phase };
     if (phase == .complete) {

@@ -2,7 +2,7 @@
 
 Strict TypeScript, React, and TanStack Router file routes built with the pinned
 Vite+ 0.3.3 toolchain, packaged as `@rey/transit-board-web`. The static output is
-embedded by the [Board executable](../transit-board/README.md), which hosts the private inspection API on the
+embedded by the [Board executable](../transit-board/README.md), which hosts the private inspection and optional Table query APIs on the
 same origin. There is no production JavaScript server.
 
 From the repository root:
@@ -36,20 +36,38 @@ evidence. Resource entries render as exact hex bytes after an explicit read.
 
 ## Visual design exploration
 
-The [numbered Board design reviews](../../docs/design/README.md) propose
-coordinated browser and map views, with raised backlog relief flattening into
-readable evidence as the viewer zooms in. Their generated images use synthetic
-data; the canvas, shared mode switch and proposed navigation are not implemented.
+The growing profile implements a bounded relief atlas and Table workspace from
+D5/D6's architecture and a focused D7 interaction, recorded in [D9](../../docs/design/D9.md).
+Processes/Resources emphasis and overhead detail share stable selection. Resource
+entry is explicit; Canvas and Browse retain one SQL draft and identified result.
+Run compiles/submits once; switching views never runs it. Editing a completed
+query preserves its result with a visible draft-changed label.
+
+One verified result segment is resident at a time, with exact int64 strings,
+nulls and binary labels. Five-second current-policy observations continue while
+the resource interior is hidden by Neighborhood. Browser tab hiding clears
+visible results; returning rechecks authority. Known denial/expiry clears the
+source, draft, result and frozen pending request. A connection failure hides
+protected rows and preserves uncertain submission identity for explicit retry.
+No storage, history or retention pin survives leaving the page.
+
+The atlas shows at most eight processes and eight authorized resources. Relief
+marks pending work qualitatively; unavailable bytes, outbox counts and age stay
+unknown. Keys include framework metadata. Only the configured query Table has
+an entry affordance; all other resources remain inspection-only. Auto emphasis,
+animated entry and D8 venues/growth remain open design proposals.
 
 ## Working in the frontend
 
-| Source                               | Owns                                                                        |
-| ------------------------------------ | --------------------------------------------------------------------------- |
-| [routes/](src/routes/)               | Overview, resource and PID/journey routes; stable URLs and route validation |
-| [state.tsx](src/state.tsx)           | Shared process inspection state and polling lifecycle                       |
-| [resources.tsx](src/resources.tsx)   | Resource/association/entry reads and generic state presentation             |
-| [components.tsx](src/components.tsx) | Evidence, status and process views                                          |
-| [model.test.ts](src/model.test.ts)   | Model/client boundary tests                                                 |
+| Source                                         | Owns                                                                              |
+| ---------------------------------------------- | --------------------------------------------------------------------------------- |
+| [routes/](src/routes/)                         | Overview, resource and PID/journey routes; stable URLs and route validation       |
+| [state.tsx](src/state.tsx)                     | Shared process inspection state and polling lifecycle                             |
+| [resources.tsx](src/resources.tsx)             | Resource/association/entry reads and generic state presentation                   |
+| [components.tsx](src/components.tsx)           | Evidence, status and process views                                                |
+| [atlas.tsx](src/atlas.tsx)                     | Growing catalog, emphasis, selection and explicit resource entry                  |
+| [query-workspace.tsx](src/query-workspace.tsx) | One draft/result, explicit submission, current-policy refresh and denial clearing |
+| [model.test.ts](src/model.test.ts)             | Model/client boundary tests                                                       |
 
 Import public types and transports from `@rey/transit-board-client`; do not copy
 wire types into a route. Generated route trees and client validators are not
@@ -64,3 +82,6 @@ denial clearing and connection retries;
 and saves a local screenshot/failed traces under `.cache/`. Chromium needs its
 host libraries; on supported CI Linux images Playwright can provision them with
 `vp exec --filter @rey/transit-board-web playwright install --with-deps chromium`.
+
+`just transit-board::query-browser` qualifies the growing atlas and workspace
+against real hosts, including live revocation and lossless typed values.

@@ -40,7 +40,8 @@ coordinate it with the authority's grant update.
 The OpenAPI lists the process, mailbox, outbox, effect, payload-metadata, history
 and journey routes. See [inspection v1](../../../contracts/INSPECTION_V1.md) for
 cut/continuation semantics. Query errors are JSON, including unknown API routes;
-they never fall through to HTML. POST requests cannot mutate Transit.
+they never fall through to HTML. The default inspection profile has no mutation
+route. The optional growing query profile is configured separately below.
 
 ### Migrating the experimental Board v1 profile
 
@@ -80,3 +81,60 @@ unencrypted HTTP; exact Host/Origin checks and the upstream read-only grant stil
 apply. Its default is false. HTTPS remains required for normal remote
 deployments. The [launcher settings](../../../launchers/README.md#local-development-configuration)
 expose these fields through a Git-ignored `.env` loaded by `.envrc`.
+
+## Growing atlas and optional Table queries
+
+Set `"profile": "growing_v3"` for the growing atlas. The inspection principal
+must be non-root, unscoped, and have **only inspect (16)**; separately provision
+resource metadata grants. Board checks the current signed identity and pins both
+eight-item catalog pages to that observation. Any intervening authority change
+expires the page. Legacy PID-scoped inspection remains on the default `legacy_v2`
+profile and its existing routes; growing atlas does not implement those routes.
+
+Queries are disabled unless `query` is configured. For an already provisioned
+source/requester installation, add these fields to the ordinary Board config:
+
+```json
+{
+  "profile": "growing_v3",
+  "request_timeout_ms": 5000,
+  "upstream_timeout_ms": 1500,
+  "query": {
+    "seed_file": "/run/board/query-seed",
+    "connection": {
+      "realm": 71,
+      "principal": 1234,
+      "source": 1,
+      "resource": 3,
+      "table": 1,
+      "name": "items",
+      "requester": 8,
+      "requests": 10
+    }
+  }
+}
+```
+
+The numeric IDs are examples: use recorded IDs from your own provisioning.
+The query principal must differ from the inspection principal and use the same
+realm/upstream. Provision its inspect/send and resource inspect/read grants, the
+requester binding, source Table and Station peer policy as described in the
+[public contract](../../../contracts/PUBLIC_QUERY_V1.md) and
+[query host guide](../../transit-query-host/README.md). Run the source, requester
+and scoped courier outside Board. Board never runs their handlers or acquires
+ownership. Local/Compose/reference launchers do not provision this optional profile.
+
+Everyone admitted by this Board instance's private deployment boundary can use
+its shared query identity. Separate instances/principals provide separate scopes;
+there is no per-human attribution or delegation. Keep both seed files private.
+Removing `query` restores an inspection-only configuration; the original
+inspection grant is never widened. Existing captured work may continue after a
+browser disconnect or configuration removal.
+
+`GET /api/v1/atlas` accepts optional `position`, `process_after` and
+`resource_after` cursors. `POST /api/v1/query` requires `Origin` exactly equal to
+`public_origin` and `Content-Type: application/json`, with at most 16384 body
+bytes. The OpenAPI specifies the finite operations. No arbitrary upstream URL,
+Transit command or opaque value decoder is accepted. Query routes share Board's
+request deadline and rate limit; an uncertain submission must retain its frozen
+token for an exact retry. A read conflict permits a read retry, never a new query.

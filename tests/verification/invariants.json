@@ -754,9 +754,37 @@
         "Worker SIGKILL requires fresh ownership and resumes captured work",
         "Busy admission and mismatched schemas never create an accepted result",
         "Incomplete results are unreadable; explicit cancellation remains distinct",
-        "Revocation denies new reads and clears the remembered CLI query"
+        "Revocation denies new reads and clears the remembered CLI query",
+        "Revocation after an actually received segment denies disclosure until explicit reauthorization"
       ],
       "limits": "One configured Table/requester per principal; no SQL writes, KV/Document adapters, offline result copies or power-loss proof. Transport inbox quota remains a separate deployment constraint.",
+      "model": null
+    },
+    {
+      "id": "QUERY-02",
+      "claim": "Board keeps inspection read-only and exposes separately credentialed Table queries with one draft/result and current-authority disclosure",
+      "owner": "docs/BOARD.md",
+      "implementation": [
+        "apps/transit-board/Growing.zig",
+        "apps/transit-board-web/src/atlas.tsx",
+        "apps/transit-board-web/src/query-workspace.tsx",
+        "packages/ts/transit-board-client/src/index.ts"
+      ],
+      "profile": "M13 growing Board and optional public query v1",
+      "tasks": [
+        "transit-board::check",
+        "transit-board::query-test",
+        "transit-board::query-browser"
+      ],
+      "scenarios": [
+        "Current identity rejects a widened inspection grant and stale atlas cuts",
+        "Default query-disabled configuration and malformed/arbitrary query ingress refusal",
+        "Opaque frozen retries and typed int64 cells preserve exact values",
+        "Canvas/Browse changes preserve draft/result without new execution",
+        "Open workspace clears protected data after read revocation without browser persistence",
+        "Frozen cancellation and source retirement remain distinct from successful completion"
+      ],
+      "limits": "One configured Table/principal; eight-item catalog pages, no global metrics, default legacy inspection unchanged. No per-human delegation, KV/Document query, power-loss or production capacity claim.",
       "model": null
     }
   ]

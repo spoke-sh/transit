@@ -269,3 +269,14 @@ compatible native dependencies explicitly, allow overrides, and report version
 or missing-artifact errors clearly. Imports acquire no credentials and start no
 work. Public registry publication, additional platforms and foreign worker
 deployment qualification remain separate from SDK usability.
+
+## Public Table query callers
+
+M13 adds [transit-query](../packages/zig/transit-query/README.md), a Zig facade
+above the shared Station implementation, consumed by the
+[interactive shell](../apps/transit-cli/README.md) and Board's optional workspace.
+It compiles M12 SQL against current authorized Table metadata, freezes signed
+submission/cancellation identity and reads verified bounded result segments.
+It owns no kernel authority, storage access or independent query semantics.
+See the [public contract](../contracts/PUBLIC_QUERY_V1.md) for admission,
+uncertainty, current authorization and deployment limits.

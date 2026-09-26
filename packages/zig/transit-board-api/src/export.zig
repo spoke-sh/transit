@@ -28,7 +28,13 @@ fn route(out: *std.json.Stringify, path: []const u8, method: []const u8, name: [
     try out.beginArray();
     if (pid) try out.write(.{ .name = if (std.mem.indexOf(u8, path, "{resource}") != null) "resource" else "pid", .in = "path", .required = true, .schema = .{ .type = "integer", .minimum = 1, .maximum = api.protocol.max_counter } });
     if (paged) for ([_][]const u8{ "after", "position", "policy_revision", "retained_from" }) |param| try out.write(.{ .name = param, .in = "query", .required = false, .schema = .{ .type = "integer", .minimum = 0, .maximum = api.protocol.max_counter }, .description = "Continuation: supply all cut fields together; restart explicitly after 409" });
+    if (std.mem.eql(u8, path, "/api/v1/atlas")) for ([_][]const u8{ "position", "process_after", "resource_after" }) |param| try out.write(.{ .name = param, .in = "query", .required = false, .schema = .{ .type = "integer", .minimum = 0, .maximum = api.protocol.max_counter }, .description = "Growing profile only. An after cursor requires its original position; refresh explicitly after 409." });
+    if (std.mem.eql(u8, method, "post")) try out.write(.{ .name = "Origin", .in = "header", .required = true, .schema = .{ .type = "string" }, .description = "Must exactly match the configured public_origin. Query capability must be explicitly configured." });
     try out.endArray();
+    if (std.mem.eql(u8, method, "post")) {
+        try out.objectField("requestBody");
+        try out.write(.{ .required = true, .content = .{ .@"application/json" = .{ .schema = .{ .@"$ref" = "#/components/schemas/QueryRequest" } } } });
+    }
     try out.objectField("responses");
     try out.beginObject();
     try response(out, "200", name);
@@ -43,11 +49,13 @@ pub fn main(init: std.process.Init) !void {
     var out: std.json.Stringify = .{ .writer = &writer.interface, .options = .{ .whitespace = .indent_2 } };
     try out.beginObject();
     try field(&out, "openapi", "3.1.1");
-    try field(&out, "info", .{ .title = "Transit Board inspection API", .version = "1.0.0", .description = "Private deployment: no Board keys or sessions. Every reachable viewer shares one read-only Transit principal; current permission is checked on every data read. No execution controls." });
+    try field(&out, "info", .{ .title = "Transit Board inspection and optional query API", .version = "1.0.0", .description = "Private deployment: no Board keys or sessions. Every reachable viewer shares one read-only Transit principal; current permission is checked on every data read. A separately configured query identity enables the Table query endpoint; inspection remains read-only." });
     try field(&out, "jsonSchemaDialect", "https://json-schema.org/draft/2020-12/schema");
     try field(&out, "security", [0][]const u8{});
     try out.objectField("paths");
     try out.beginObject();
+    try route(&out, "/api/v1/atlas", "get", "AtlasResponse", false, false);
+    try route(&out, "/api/v1/query", "post", "QueryResponse", false, false);
     try route(&out, "/api/v1/capabilities", "get", "Capabilities", false, false);
     try route(&out, "/api/v1/processes", "get", "Response", false, true);
     try route(&out, "/api/v1/processes/{pid}", "get", "Response", true, true);
@@ -64,9 +72,9 @@ pub fn main(init: std.process.Init) !void {
     try out.beginObject();
     try out.objectField("schemas");
     try out.beginObject();
-    inline for (.{ "Response", "StateResponse", "Capabilities", "Error" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error }) |name, T| {
+    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "QueryRequest", "QueryResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.QueryRequest, api.QueryResponse }) |name, T| {
         try out.objectField(name);
-        try s.write(T, &out, .{ .output = true, .safe_integers = true });
+        try s.write(T, &out, .{ .output = true, .safe_integers = true, .text_max_length = if (T == api.QueryRequest or T == api.QueryResponse) 16384 else 256 });
     }
     try out.endObject();
     try out.endObject();

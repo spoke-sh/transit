@@ -71,7 +71,9 @@ export function Access({ children }: { children: ReactNode }) {
         <a href="/" className="brand">
           <span aria-hidden="true">▥</span> Board <small>REY / TRANSIT</small>
         </a>
-        <span className="profile">INSPECTION ONLY</span>
+        <span className="profile">
+          {scope?.query_enabled ? "INSPECTION · TABLE QUERIES" : "INSPECTION ONLY"}
+        </span>
       </header>
       {!scope ? (
         <main className="access">

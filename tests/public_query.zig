@@ -118,5 +118,15 @@ pub fn main(init: std.process.Init) !void {
         _ = try admin.submit(.{ .grant_resource = .{ .resource = c.resource, .subject = 1234, .permissions = 0 } });
     } else if (std.mem.eql(u8, args[2], "restore")) {
         _ = try admin.submit(.{ .grant_resource = .{ .resource = c.resource, .subject = 1234, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+    } else if (std.mem.eql(u8, args[2], "retire-source")) {
+        _ = try admin.submit(.{ .terminate = c.source });
+        _ = try admin.submit(.{ .retire_resource = c.resource });
+    } else if (std.mem.eql(u8, args[2], "expand-inspector") or std.mem.eql(u8, args[2], "restore-inspector")) {
+        _ = try admin.submit(.{ .grant = .{ .subject = 55, .public_key = (try p.Ed25519.KeyPair.generateDeterministic(@splat(12))).public_key.toBytes(), .permissions = if (std.mem.eql(u8, args[2], "expand-inspector")) p.all_permissions else p.permission(.inspect) } });
+        // Resource grants bind to the principal incarnation. Replacing its
+        // coarse grant never resurrects the previous incarnation's access.
+        if (std.mem.eql(u8, args[2], "restore-inspector")) for ([_]u64{ c.resource, c.requests }) |resource| {
+            _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = 55, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        };
     } else return error.UnknownMode;
 }

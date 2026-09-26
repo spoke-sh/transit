@@ -3,7 +3,7 @@
 Design reviews form one numbered sequence, read from top to bottom. Each review
 owns one question, its proposal, visual evidence and recorded outcome.
 
-**Current review:** [D8 — Shared venues, growth and resource readiness](D8.md).
+**Current review:** [D9 — Implemented bounded atlas and Table workspace](D9.md).
 **Selected visual direction:** [D2, Figure 7 — Queue-count fabric](D2.md#figure-7-queue-counts-with-age-on-the-well-walls).
 The reviewer also endorsed [D5's architecture](D5.md#visual-studies),
 [D6's subtle fabric](D6.md#figure-1-processes-in-front-resources-as-landmarks)
@@ -19,9 +19,11 @@ and [overhead detail](D6.md#figure-4-zoom-within-resources-reveals-flat-detail).
 | [D6](D6.md) | Process/resource emphasis and semantic zoom | Accepted in part | Figures 1 and 4 endorsed; emphasis policy and motion remain open; D7 develops the transition and interior |
 | [D7](D7.md) | Neighborhood navigation, resource portals and query workspaces | In review | Review Auto/pinned emphasis, deliberate resource entry, and Canvas/Browse representations of one sample query |
 | [D8](D8.md) | Shared-resource venues, past/future growth and readiness | In review | Compare stadium/park/fairground layouts, conditional day-to-decade envelopes, and separate capacity/workload evidence |
+| [D9](D9.md) | Implemented bounded atlas and Table workspace | In review | M13 engineering baseline: explicit emphasis/entry and one draft/result; no new reviewer acceptance |
 
-Review status records the design discussion. All eight reviews contain proposed
-interfaces and synthetic imagery; none is an implemented UI or capacity claim.
+Review status records the design discussion. D1–D8 contain proposed
+interfaces and synthetic imagery; none establishes implemented capacity. D9
+records the bounded implemented baseline separately from reviewer acceptance.
 Delivery scope and qualification belong in the [roadmap](../roadmap/README.md);
 [M13](../roadmap/M13.md) scopes the query capability, the accepted D5/D6
 foundation and D7's data workspace, without retroactively accepting D7 or D8's
@@ -71,7 +73,7 @@ the review ID supplies context.
 
 Keep images, prompts, fixtures and technical appendices in a named supporting
 directory and link them from their owning reviews. The
-[Board materials](board-atlas/README.md) support D1–D8. Supporting directories
+[Board materials](board-atlas/README.md) support D1–D9. Supporting directories
 do not introduce another review sequence.
 
 ## Review statuses

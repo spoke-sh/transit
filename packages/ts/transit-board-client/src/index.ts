@@ -28,12 +28,14 @@ export const validateCapabilities = (value: unknown): value is Capabilities =>
 export async function request<T>(
   path: string,
   validate: (value: unknown) => value is T,
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal; body?: QueryRequest },
 ): Promise<T> {
   if (!path.startsWith("/api/v1/")) throw new BoardError(0, "InvalidPath");
   const abort = AbortSignal.timeout(4000);
   const response = await fetch(path, {
-    method: "GET",
+    method: options?.body ? "POST" : "GET",
+    headers: options?.body ? { "content-type": "application/json" } : undefined,
+    body: options?.body ? JSON.stringify(options.body) : undefined,
     // Board owns no credentials; allow a deployment's same-origin ingress.
     credentials: "same-origin",
     cache: "no-store",
@@ -115,4 +117,74 @@ export function readState(
     ? `?${new URLSearchParams(Object.entries({ after: continuation.after, ...continuation.cut }).map(([key, value]) => [key, String(value)]))}`
     : "";
   return request(base + query, validateStateResponse, { signal });
+}
+
+export type { AtlasResponse, QueryRequest, QueryResponse } from "./types";
+import type { AtlasResponse, QueryRequest, QueryResponse } from "./types";
+import { AtlasResponse as atlasValidator, QueryResponse as queryValidator } from "./validators.js";
+export const validateAtlas = (value: unknown): value is AtlasResponse => atlasValidator(value);
+export const validateQuery = (value: unknown): value is QueryResponse => {
+  if (!queryValidator(value)) return false;
+  const result = value as QueryResponse;
+  if (!("page" in result)) return true;
+  const page = result.page;
+  if (
+    page.version !== 1 ||
+    page.count > 32 ||
+    page.count > page.manifest.rows ||
+    page.ordinal >= page.manifest.segments ||
+    page.next !== (page.ordinal + 1 < page.manifest.segments ? page.ordinal + 1 : null) ||
+    page.columns[0] === null ||
+    page.rows.some((row, index) => (row !== null) !== index < page.count)
+  )
+    return false;
+  for (const column of page.columns) {
+    if (column && !/^[A-Za-z_][A-Za-z_0-9]{0,15}$/.test(column.name)) return false;
+  }
+  for (const row of page.rows)
+    if (row)
+      for (const [index, cell] of row.entries()) {
+        const column = page.columns[index];
+        if ((cell !== null) !== (column !== null)) return false;
+        if (cell && column) {
+          if ("null" in cell ? !column.nullable : !(column.type in cell)) return false;
+          if ("int64" in cell) {
+            if (!/^(0|-?[1-9][0-9]{0,18})$/.test(cell.int64)) return false;
+            const integer = BigInt(cell.int64);
+            if (integer < -9223372036854775808n || integer > 9223372036854775807n) return false;
+          } else if ("binary" in cell) {
+            if (cell.binary.length > 440 || !/^(?:[0-9a-f]{2})*$/.test(cell.binary)) return false;
+          } else if (
+            "utf8" in cell &&
+            (new TextEncoder().encode(cell.utf8).length > 220 || /[\uD800-\uDFFF]/u.test(cell.utf8))
+          )
+            return false;
+        }
+      }
+  return true;
+};
+export function atlas(
+  cursor?: { position: number; process_after?: number; resource_after?: number },
+  signal?: AbortSignal,
+) {
+  const fields = new URLSearchParams();
+  for (const [key, value] of Object.entries(cursor ?? {})) {
+    if (value === undefined) continue;
+    if (!Number.isSafeInteger(value) || value < 0) throw new BoardError(0, "InvalidQuery");
+    fields.set(key, String(value));
+  }
+  return request(`/api/v1/atlas${fields.size ? `?${fields}` : ""}`, validateAtlas, { signal });
+}
+export async function query(operation: QueryRequest, signal?: AbortSignal): Promise<QueryResponse> {
+  // A rate refusal occurs before dispatch. Retry the same body; never compile a
+  // replacement for an uncertain signed submission or use a fresh sequence.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await request("/api/v1/query", validateQuery, { signal, body: operation });
+    } catch (cause) {
+      if (!(cause instanceof BoardError) || cause.status !== 429 || attempt >= 3 || signal?.aborted)
+        throw cause;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
 }
