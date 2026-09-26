@@ -42,8 +42,11 @@ impl Error {
         phase: &'static str,
     ) -> Self {
         let code = value
-            .and_then(|v| v.get("protocol_error").or_else(|| v.get("err")))
-            .and_then(serde_json::Value::as_str)
+            .and_then(|v| {
+                v.get("protocol_error")
+                    .and_then(serde_json::Value::as_str)
+                    .or_else(|| v.get("err").and_then(serde_json::Value::as_str))
+            })
             .filter(|s| s.len() <= 256)
             .map(str::to_owned);
         let kind = match code.as_deref() {

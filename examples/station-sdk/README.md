@@ -6,8 +6,8 @@ before language codecs. Implementations, installation commands and executable
 qualification are added with each SDK; this contract alone is not a runnable
 example or proof of support.
 
-Executable installed examples are available in [Python](python/README.md) and
-[TypeScript](typescript/README.md). Their clean-consumer proofs run the same
+Executable installed examples are available in [Python](python/README.md),
+[TypeScript](typescript/README.md) and [Rust](rust/README.md). Their clean-consumer proofs run the same
 counter, requester, retained Table and multi-segment query schedule. Other
 languages and public mixed-language pairs remain M11 work.
 

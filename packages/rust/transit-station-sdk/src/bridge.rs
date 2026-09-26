@@ -1,0 +1,403 @@
+use crate::{Codec, FailurePolicy, FrozenMutation, Purpose, ServiceConfig, abi, types::encode};
+use serde_json::{Value, json};
+use std::{
+    path::Path,
+    ptr, slice,
+    time::{SystemTime, UNIX_EPOCH},
+};
+use transit_client::internal::{
+    Artifact, MAX_BODY, Native, Worker, boolean, credential_seed, mutation_info, native_error,
+    number, settings, string, unhex,
+};
+use transit_client::{Counter, Error, ErrorKind, Result};
+
+pub(crate) fn counter(value: &Value, zero: bool) -> Result<Counter> {
+    Counter::new(number(value, "native-counter", zero)?)
+}
+pub(crate) fn size(value: &Value, zero: bool) -> Result<usize> {
+    Ok(number(value, "native-bound", zero)? as usize)
+}
+pub(crate) fn wide(value: &Value) -> Result<u64> {
+    let text = string(value, "native-u64")?;
+    text.parse::<u64>()
+        .ok()
+        .filter(|v| v.to_string() == text)
+        .ok_or_else(|| Error::new(ErrorKind::IncompatibleNative, "native-u64"))
+}
+pub(crate) fn signed(value: &Value) -> Result<i64> {
+    let text = string(value, "native-i64")?;
+    text.parse::<i64>()
+        .ok()
+        .filter(|v| v.to_string() == text)
+        .ok_or_else(|| Error::new(ErrorKind::IncompatibleNative, "native-i64"))
+}
+pub(crate) fn field<'a>(value: &'a Value, tag: &str) -> Result<&'a Value> {
+    value
+        .get(tag)
+        .ok_or_else(|| Error::new(ErrorKind::IncompatibleNative, "native-action-result"))
+}
+pub(crate) fn digest(value: &Value) -> Result<[u8; 32]> {
+    let items = value
+        .as_array()
+        .filter(|items| items.len() == 32)
+        .ok_or_else(|| Error::new(ErrorKind::IncompatibleNative, "native-digest"))?;
+    let mut bytes = [0; 32];
+    for (byte, value) in bytes.iter_mut().zip(items) {
+        *byte = value
+            .as_u64()
+            .and_then(|v| u8::try_from(v).ok())
+            .ok_or_else(|| Error::new(ErrorKind::IncompatibleNative, "native-digest"))?;
+    }
+    Ok(bytes)
+}
+#[derive(Clone, Copy)]
+pub(crate) struct Caps {
+    pub message: usize,
+    pub value: usize,
+    pub key: usize,
+    pub cell: usize,
+    pub name: usize,
+    pub page: usize,
+    pub segment: usize,
+    pub queries: bool,
+}
+struct Buffer<'a> {
+    pointer: *mut abi::station_buffer,
+    api: &'a abi::Api,
+}
+impl Drop for Buffer<'_> {
+    fn drop(&mut self) {
+        unsafe {
+            (self.api.station_buffer_destroy)(self.pointer);
+        }
+    }
+}
+impl Buffer<'_> {
+    fn bytes(&self) -> Result<Vec<u8>> {
+        if self.pointer.is_null() {
+            return Ok(Vec::new());
+        }
+        let size = unsafe { (self.api.station_buffer_size)(self.pointer) };
+        if size > MAX_BODY {
+            return Err(Error::new(
+                ErrorKind::IncompatibleNative,
+                "native-buffer-bound",
+            ));
+        }
+        if size == 0 {
+            return Ok(Vec::new());
+        }
+        let data = unsafe { (self.api.station_buffer_data)(self.pointer) };
+        if data.is_null() {
+            return Err(Error::new(ErrorKind::IncompatibleNative, "native-buffer"));
+        }
+        Ok(unsafe { slice::from_raw_parts(data, size) }.to_vec())
+    }
+    fn result(&self, status: u32, phase: &'static str, mutation: bool) -> Result<Value> {
+        let invalid = || {
+            Error::new(
+                if mutation {
+                    ErrorKind::UnknownOutcome
+                } else {
+                    ErrorKind::ReadFailed
+                },
+                phase,
+            )
+        };
+        let bytes = self.bytes().map_err(|_| invalid())?;
+        let value = if bytes.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&bytes).map_err(|_| invalid())?
+        };
+        if status != 0 {
+            return Err(native_error(status, Some(&value), phase));
+        }
+        Ok(value)
+    }
+}
+struct Local {
+    api: abi::Api,
+    _artifact: Artifact,
+    caps: Caps,
+}
+impl Local {
+    fn open(directory: Option<&Path>) -> Result<Self> {
+        if transit_native_station::VERSION != "0.2.0" {
+            return Err(Error::new(ErrorKind::IncompatibleNative, "native-version"));
+        }
+        let artifact = Artifact::open(
+            transit_native_station::LIBRARY,
+            "libtransit_station.so",
+            directory,
+        )?;
+        let api = unsafe { abi::Api::load(artifact.load()?) }
+            .map_err(|_| Error::new(ErrorKind::IncompatibleNative, "station-symbols"))?;
+        if unsafe { (api.station_abi_version)() } != abi::ABI_VERSION {
+            return Err(Error::new(ErrorKind::IncompatibleNative, "station-version"));
+        }
+        let caps;
+        {
+            let mut buffer = Buffer {
+                api: &api,
+                pointer: ptr::null_mut(),
+            };
+            let status = unsafe { (api.station_growing_capabilities)(&mut buffer.pointer) };
+            let value = buffer.result(status, "native-capabilities", false)?;
+            if value["version"] != 1 || value["profile"] != "growing_v3" {
+                return Err(Error::new(
+                    ErrorKind::UnsupportedCapability,
+                    "native-profile",
+                ));
+            }
+            for name in [
+                "gated_dispatch",
+                "retained_confirmation",
+                "scoped_turns",
+                "paged_state",
+                "tables",
+                "retained_sources",
+            ] {
+                if !boolean(&value[name], "native-capabilities")? {
+                    return Err(Error::new(
+                        ErrorKind::UnsupportedCapability,
+                        "native-capabilities",
+                    ));
+                }
+            }
+            caps = Caps {
+                message: size(&value["message_bytes"], false)?,
+                value: size(&value["value_bytes"], false)?,
+                key: size(&value["key_bytes"], false)?,
+                cell: size(&value["table_cell_bytes"], false)?,
+                name: size(&value["table_name_bytes"], false)?,
+                page: size(&value["page_entries"], false)?,
+                segment: size(&value["query_segment_bytes"], false)?,
+                queries: boolean(&value["query_results"], "native-capabilities")?,
+            };
+        }
+        Ok(Self {
+            api,
+            _artifact: artifact,
+            caps,
+        })
+    }
+}
+pub(crate) struct Bridge {
+    pointer: *mut abi::station_growing_server,
+    local: Local,
+    raw: Native,
+    pub caps: Caps,
+}
+impl Bridge {
+    pub fn open(config: &ServiceConfig, failure: FailurePolicy) -> Result<Self> {
+        let (url, timeout, directory) = settings(&config.client);
+        let local = Local::open(directory)?;
+        if config.association.len() > local.caps.key || config.query_results && !local.caps.queries
+        {
+            return Err(Error::new(
+                ErrorKind::UnsupportedCapability,
+                "runner-capabilities",
+            ));
+        }
+        let raw = Native::open(&config.client)?;
+        let authority = raw.capabilities(&config.activation.credential)?;
+        if !authority.association_lookup || !authority.scoped_retry || !authority.retained_versions
+        {
+            return Err(Error::new(
+                ErrorKind::UnsupportedCapability,
+                "authority-capabilities",
+            ));
+        }
+        let key = credential_seed(&config.activation.credential)?;
+        let value = json!({"profile":"growing_v3", "realm":config.activation.process.realm(), "principal":config.activation.credential.principal(),
+            "pid":config.activation.process.pid(), "generation":config.activation.generation.get(), "association":config.association, "timeout_ms":timeout,
+            "failure_policy":if failure == FailurePolicy::Stop { "stop" } else { "block_input" }, "query_results":config.query_results});
+        let bytes = serde_json::to_vec(&value)
+            .map_err(|_| Error::new(ErrorKind::InvalidArgument, "runner-configuration"))?;
+        let mut pointer = ptr::null_mut();
+        let status = unsafe {
+            (local.api.station_growing_create)(
+                abi::ABI_VERSION,
+                url.as_ptr(),
+                url.len(),
+                key.pointer(),
+                bytes.as_ptr(),
+                bytes.len(),
+                &mut pointer,
+            )
+        };
+        if status != 0 {
+            return Err(native_error(status, None, "open-runner"));
+        }
+        if pointer.is_null() {
+            return Err(Error::new(ErrorKind::IncompatibleNative, "open-runner"));
+        }
+        let caps = local.caps;
+        Ok(Self {
+            pointer,
+            local,
+            raw,
+            caps,
+        })
+    }
+    pub fn prepare(&mut self) -> Result<Value> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| Error::new(ErrorKind::ReadFailed, "clock"))?
+            .as_millis();
+        let deadline =
+            u64::try_from(now + 30000).map_err(|_| Error::new(ErrorKind::ReadFailed, "clock"))?;
+        let mut buffer = Buffer {
+            api: &self.local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (self.local.api.station_growing_prepare)(self.pointer, deadline, &mut buffer.pointer)
+        };
+        buffer.result(status, "prepare-turn", false)
+    }
+    pub fn apply(&mut self, scope: u64, action: &Value) -> Result<Value> {
+        let bytes = serde_json::to_vec(action)
+            .map_err(|_| Error::new(ErrorKind::InvalidArgument, "action"))?;
+        if bytes.len() > MAX_BODY {
+            return Err(Error::new(ErrorKind::InvalidArgument, "action-bound"));
+        }
+        let mut buffer = Buffer {
+            api: &self.local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (self.local.api.station_growing_apply)(
+                self.pointer,
+                scope,
+                bytes.as_ptr(),
+                bytes.len(),
+                &mut buffer.pointer,
+            )
+        };
+        buffer.result(status, "apply", false)
+    }
+    pub fn finish(&mut self, scope: u64, failed: bool) -> Result<()> {
+        let mut buffer = Buffer {
+            api: &self.local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (self.local.api.station_growing_finish_result)(
+                self.pointer,
+                scope,
+                failed.into(),
+                &mut buffer.pointer,
+            )
+        };
+        buffer.result(status, "finish", false).map(|_| ())
+    }
+    pub fn discard(&mut self, scope: u64) -> Result<()> {
+        let status = unsafe { (self.local.api.station_growing_discard)(self.pointer, scope) };
+        if status != 0 {
+            return Err(native_error(status, None, "discard"));
+        }
+        Ok(())
+    }
+    pub fn pending(&mut self, event: &Value) -> Result<FrozenMutation> {
+        let purpose = match string(&event["pending_kind"], "pending-purpose")? {
+            "permit" => Purpose::Permit,
+            "open" => Purpose::Open,
+            "commit" => Purpose::Commit,
+            _ => return Err(Error::new(ErrorKind::IncompatibleNative, "pending-purpose")),
+        };
+        let input = counter(&event["pending_input"], false)?;
+        let mut buffer = Buffer {
+            api: &self.local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status =
+            unsafe { (self.local.api.station_growing_pending)(self.pointer, &mut buffer.pointer) };
+        if status != 0 {
+            return Err(native_error(status, None, "pending"));
+        }
+        let bytes = buffer.bytes()?;
+        let metadata = mutation_info(&self.raw.metadata(&bytes)?)?;
+        if !match purpose {
+            Purpose::Permit => metadata.command == "begin_turn",
+            Purpose::Open => metadata.command == "open_view",
+            Purpose::Commit => matches!(metadata.command.as_str(), "turn" | "turn_with_versions"),
+        } {
+            return Err(Error::new(ErrorKind::IncompatibleNative, "pending-purpose"));
+        }
+        Ok(FrozenMutation {
+            identity: metadata.identity,
+            purpose,
+            input,
+            bytes: bytes.into_boxed_slice(),
+        })
+    }
+    pub fn dispatch(&mut self) -> Result<Value> {
+        let mut buffer = Buffer {
+            api: &self.local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status =
+            unsafe { (self.local.api.station_growing_dispatch)(self.pointer, &mut buffer.pointer) };
+        buffer.result(status, "dispatch", true)
+    }
+    pub fn confirmation(&mut self, pending: &FrozenMutation) -> Result<Option<Value>> {
+        let mut buffer = Buffer {
+            api: &self.local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (self.local.api.station_growing_confirmation)(self.pointer, &mut buffer.pointer)
+        };
+        let value = match buffer.result(status, "observe-confirmation", false) {
+            Ok(value) => value,
+            Err(error) if error.kind == ErrorKind::TurnExpired => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        if value["confirmation"]["kind"] == pending.purpose.native()
+            && value["confirmation"]["input"] == pending.input.get()
+        {
+            Ok(Some(value))
+        } else {
+            Ok(None)
+        }
+    }
+}
+impl Drop for Bridge {
+    fn drop(&mut self) {
+        unsafe {
+            (self.local.api.station_growing_destroy)(self.pointer);
+        }
+    }
+}
+
+pub fn encode_cast<T: 'static>(
+    value: &T,
+    codec: &dyn Codec<T>,
+    native_directory: Option<&Path>,
+) -> Result<Box<[u8]>> {
+    let directory = native_directory.map(Path::to_owned);
+    let mut worker = Worker::open(abi::MINIMUM_STACK_BYTES, move || {
+        Local::open(directory.as_deref())
+    })?;
+    let bound = worker.call(|local| Ok(local.caps.message))?;
+    let bytes = encode(codec, value, bound)?;
+    let output = worker.call(move |local| {
+        let mut buffer = Buffer {
+            api: &local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (local.api.station_frame_encode)(1, 0, bytes.as_ptr(), bytes.len(), &mut buffer.pointer)
+        };
+        if status != 0 {
+            return Err(native_error(status, None, "encode-cast"));
+        }
+        let value: Value = serde_json::from_slice(&buffer.bytes()?)
+            .map_err(|_| Error::new(ErrorKind::IncompatibleNative, "encode-cast"))?;
+        Ok(unhex(string(&value, "encoded-frame")?, local.caps.message + 13)?.into_boxed_slice())
+    })?;
+    worker.close()?;
+    Ok(output)
+}

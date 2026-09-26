@@ -1,19 +1,20 @@
 # Rust SDK API design
 
 Status: the independent [raw client](../../packages/rust/transit-client/README.md)
-now has typed operations, owned workers, clean crate installation and shared
-authority/ownership proofs. Station contracts below remain proposed. Read the
-[shared design](../SDK.md) for authority, lifecycle and recovery rules. The
-[existing Rust adapter](../../packages/rust/transit-station/README.md) remains
-the executable M9 surface. These are design excerpts: the counter application
-types, codecs and keys still need implementation from shared fixtures. Bootstrap
-configuration and durable recovery storage are application inputs.
+and [Station SDK](../../packages/rust/transit-station-sdk/README.md) implement the
+contracts below. The [compiled examples](../../examples/station-sdk/rust/README.md)
+own the executable counter/query applications and shared fixture codecs. Read the
+[shared design](../SDK.md) for authority, lifecycle and recovery rules and the
+[test guide](../../tests/README.md) for qualification. The
+[existing Rust adapter](../../packages/rust/transit-station/README.md) retains its
+M9 surface. Bootstrap configuration and durable recovery storage are application
+inputs.
 
 ## Crates and ownership
 
 `transit-client` exposes `transit_client` with typed raw operations, references,
-receipts and errors. The separate `transit-station-sdk` crate will depend on it
-and expose handler traits, scoped turns, Tables and runners. The M9
+receipts and errors. The separate `transit-station-sdk` crate depends on it
+and exposes handler traits, scoped turns, Tables and runners. The M9
 `transit-station` crate retains its low-level `Client`/`GenServer` entry points
 and generated FFI without changing existing consumers. Generated FFI
 stays private/raw; new public types must not mirror JSON action unions. Keep
@@ -26,15 +27,15 @@ u64. Byte payloads and exports use owned `Vec<u8>` or `Box<[u8]>`. Preparation
 copies borrowed input before returning; buffers cannot borrow a transient FFI
 response. Secret and payload types do not expose contents through default `Debug`.
 
-Selected proposed declarations:
+Selected public declarations (abbreviated):
 
 ```rust
-pub trait Codec<T>: Send + Sync {
+pub trait Codec<T>: Send + Sync + 'static {
     fn type_id(&self) -> &str;
     fn version(&self) -> u32;
     fn max_encoded_bytes(&self) -> usize;
-    fn encode(&self, value: &T) -> Result<Vec<u8>, CodecError>;
-    fn decode(&self, bytes: &[u8]) -> Result<T, CodecError>;
+    fn encode(&self, value: &T) -> Result<Vec<u8>>;
+    fn decode(&self, bytes: &[u8]) -> Result<T>;
 }
 
 pub trait Handler<M>: Send + 'static {
@@ -47,7 +48,7 @@ impl State<'_> {
     pub fn require<T>(&mut self, key: &Key<T>) -> Result<T>;
     pub fn put<T>(&mut self, key: &Key<T>, value: &T) -> Result<()>;
     pub fn delete<T>(&mut self, key: &Key<T>) -> Result<()>;
-    pub fn page(&mut self, cursor: Option<&StateCursor>) -> Result<Page<KvEntry>>;
+    pub fn page(&mut self, cursor: Option<&Cursor>) -> Result<Page<KvEntry>>;
 }
 
 impl Turn<'_> {
@@ -75,7 +76,7 @@ handler catches `Err`; borrow checking does not substitute for that invariant.
 
 ## Equivalent service and requester
 
-The proposed application module defines `CounterMessage::{Add(u64), Read}`,
+The application module defines `CounterMessage::{Add(u64), Read}`,
 `RequesterMessage::{Start, Total(u64)}`, reply value `Total(u64)`, typed
 `Key<u64>` values `TOTAL`, `REQUEST`, `OBSERVED`, and codecs for `counter`, version 1.
 
@@ -89,14 +90,14 @@ impl Handler<CounterMessage> for Counter {
         match input {
             Incoming::Cast { value: CounterMessage::Add(value), .. } => {
                 let total = turn.state().require(&TOTAL)?;
-                let updated = total.checked_add(value).ok_or(Error::ValueOverflow)?;
+                let updated = total.checked_add(value).ok_or(Error::new(ErrorKind::Handler, "counter-overflow"))?;
                 turn.state().put(&TOTAL, &updated)
             }
             Incoming::Call { value: CounterMessage::Read, .. } => {
                 let total = turn.state().require(&TOTAL)?;
-                turn.reply(&Total(total), &TOTAL_CODEC)
+                turn.reply(&Total(total), &TotalCodec)
             }
-            _ => Err(Error::Application("UnexpectedMessage")),
+            _ => Err(Error::new(ErrorKind::Handler, "unexpected-message")),
         }
     }
 }
@@ -110,21 +111,21 @@ impl Handler<RequesterMessage> for Requester {
         match input {
             Incoming::Cast { value: RequesterMessage::Start, .. } => {
                 if turn.state().find(&REQUEST)?.is_some() {
-                    return Err(Error::Application("AlreadyStarted"));
+                    return Err(Error::new(ErrorKind::Handler, "already-started"));
                 }
                 let correlation = turn.call(self.counter, &CounterMessage::Read,
-                                             &COUNTER_CODEC, WaitPolicy::Untimed)?;
+                                             &CounterCodec, WaitPolicy::Untimed)?;
                 turn.state().put(&REQUEST, &correlation.get())
             }
             Incoming::Reply(reply) => {
                 let RequesterMessage::Total(total) = &reply.value else {
-                    return Err(Error::Application("UnexpectedMessage"));
+                    return Err(Error::new(ErrorKind::Handler, "unexpected-message"));
                 };
                 let expected = Correlation::new(turn.state().require(&REQUEST)?)?;
                 turn.require_reply(&reply, self.counter, expected)?;
                 turn.state().put(&OBSERVED, total)
             }
-            _ => Err(Error::Application("UnexpectedMessage")),
+            _ => Err(Error::new(ErrorKind::Handler, "unexpected-message")),
         }
     }
 }
@@ -140,27 +141,30 @@ waits require the explicit deadline/observer policy validated by native Station.
 
 ```rust
 let mut runner = Runner::open(
-    service_config, Counter, COUNTER_CODEC,
+    service_config, Counter, CounterCodec,
     RunnerOptions {
         failure: FailurePolicy::BlockInput,
         recovery: Recovery::PersistBeforeDispatch(Box::new(store)),
     },
 )?;
-while let Some(event) = runner.next(&stop)? {
+let stop = runner.stop_token(); // Clone into a separate controller if needed.
+while let Some(event) = runner.next()? {
     match event {
         RunnerEvent::Committed { input, receipt } => observe_commit(input, receipt),
         RunnerEvent::Blocked { input, receipt } => report_blocked(input, receipt),
-        RunnerEvent::NeedsRecovery { identity, .. } => report_pending(identity),
+        RunnerEvent::NeedsRecovery { mutation, .. } => { report_pending(mutation); break; }
+        RunnerEvent::Idle => wait_for_more_work(),
+        RunnerEvent::Progress => {},
     }
 }
 let shutdown = runner.close()?;
 save_shutdown_evidence(shutdown)?;
 ```
 
-The requester uses `Requester { counter }`, `REQUESTER_CODEC` and its own
-activation with the same runner API. `next(&mut self, &StopToken)` returns
-`Result<Option<RunnerEvent>, RunnerError>`; `None` means locally stopped, not an
-empty mailbox with no future work. A recovery event ends this run; `reconcile`
+The requester uses `Requester { counter }`, `RequesterCodec` and its own
+activation with the same runner API. `next(&mut self)` returns
+`Result<Option<RunnerEvent>>`; `None` means locally stopped, not an
+empty mailbox with no future work. A recovery event pauses dispatch; `reconcile`
 makes one explicit attempt before native state can allow a new run. No retry
 loop inside a convenience method silently drives new handler decisions.
 
@@ -190,19 +194,19 @@ deadlines cannot promise to terminate arbitrary Rust code.
 `Client::prepare_send(peer, &[u8], &Credential, Sequence)` returns an owned
 `PendingSend`. `export()` returns owned opaque bytes; `recover_send(&[u8])`
 validates the native operation's kind before constructing that type. It needs no
-signing seed. `dispatch(&mut self, &mut PendingSend)` makes one exchange:
+signing seed. `dispatch(&mut self, &PendingSend)` makes one exchange:
 
 ```rust
 pub enum DispatchError {
-    Preflight(ClientError),
-    Rejected(AuthorityRejection),
-    Uncertain { cause: UnknownOutcome, recovery: Box<[u8]> },
+    Preflight(Error),
+    Rejected(Error),
+    Uncertain { cause: Error, recovery: Box<[u8]> },
 }
 
 let mut client = Client::open(client_config)?;
-let mut pending = client.prepare_send(requester, &encoded_start, &credential, sequence)?;
+let pending = client.prepare_send(requester, &encoded_start, &credential, sequence)?;
 outbox.save(pending.identity(), &pending.export())?;
-match client.dispatch(&mut pending) {
+match client.dispatch(&pending) {
     Ok(receipt) => outbox.confirm(pending.identity(), &receipt)?,
     Err(error) => report_attempt(error), // Saved material remains for recovery.
 }
@@ -210,8 +214,8 @@ client.close()?;
 
 // Fresh host; loading an operation does not need credentials or authorize it.
 let mut recovered_client = Client::open(recovery_config)?;
-let mut pending = recovered_client.recover_send(&outbox.load(operation_id)?)?;
-let receipt = recovered_client.dispatch(&mut pending)?;
+let pending = recovered_client.recover_send(&outbox.load(operation_id)?)?;
+let receipt = recovered_client.dispatch(&pending)?;
 outbox.confirm(pending.identity(), &receipt)?;
 recovered_client.close()?;
 ```
@@ -230,8 +234,7 @@ send differ from allocation failure after possible acceptance. Dropping a pendin
 handle releases memory but does not change the durable outcome.
 
 `RecoveryStore: Send + 'static` has synchronous `before_dispatch(&FrozenMutation)`
-and `confirmed(&OperationIdentity, &MutationReceipt)` methods returning a store
-error on failure. They execute serially on the worker outside native locks.
+and `confirmed(&OperationIdentity, MutationReceipt)` methods returning `Result<()>`. They execute serially on the worker outside native locks.
 Owned export bytes are available for persistence; borrowed callback arguments
 cannot escape. Failure before dispatch leaves the request unsent. Failure after
 confirmation returns the receipt plus pending evidence and stops without rerunning
@@ -239,9 +242,11 @@ the handler. The SDK does not provide a hidden durable queue or filesystem store
 
 ## Data, packaging and acceptance
 
-`turn.table(&schema)` returns a borrowing `Table<'_, Row>` with point operations
-and owned bounded `Page<Row>` results. Retained IDs and exported cursors are owned;
-source handles borrow the turn. A query-enabled `ResultReader<'_>` exposes owned
+`turn.table(&schema)` returns a borrowing `Table<'_, C>` with point operations
+and owned bounded `Page<Row<C>>` results. Retained IDs and exported cursors are owned;
+source handles borrow the turn. `handle_result` receives `ResultComplete`; the handler opens
+`turn.result(complete.correlation)` and releases that borrow before mutating
+state. This keeps the reader and mutable turn from aliasing. A query-enabled `ResultReader<'_>` exposes owned
 complete-manifest metadata and bounded `IpcSegment { ipc: Box<[u8]>, ... }` values.
 Segment bytes survive reader/turn disposal; further reads require a live authorized
 source. Optional Arrow adapters must document buffer retention and cannot treat
@@ -251,7 +256,8 @@ Build/install crates with an explicit version-matched native artifact dependency
 for Linux x86_64. Build/runtime discovery must work from installed artifacts,
 with a documented native-directory override and actionable ABI/capability errors.
 Do not require sibling-source imports or manual loader paths in the consumer.
-Keep optional Arrow dependencies locked and separately qualified; registry
+Feature `arrow` qualifies owned record batches from Arrow Rust 59 components;
+the core dependency graph excludes Arrow. Keep those dependencies locked; registry
 publication and non-Linux support are outside the M11 installation baseline.
 
 Acceptance includes compilation of both example roles, compile-fail checks for

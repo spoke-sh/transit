@@ -5,8 +5,8 @@ implemented with typed raw/Station packages, executable counter/query examples,
 clean wheel installation and focused lifecycle/data proofs. The
 [TypeScript](sdk/TYPESCRIPT.md) design now has corresponding public raw/Station
 packages, executable examples, clean tarballs and lifecycle/data proofs.
-The [Rust](sdk/RUST.md) raw client is implemented and qualified through clean
-crate consumers; its Station design remains proposed.
+The [Rust](sdk/RUST.md) raw/Station APIs are implemented with clean crate
+consumers, borrowed turns, panic/recovery and optional Arrow ownership proofs.
 Ruby, C/C++, Java, .NET and BEAM adaptations remain to be implemented.
 [M11](roadmap/M11.md) owns delivery, including public interoperability. The
 [M9 adapters](../bindings/README.md) remain executable low-level interfaces.
@@ -256,7 +256,7 @@ General query ingress and a production query host remain M13 scope.
 | Typed operation metadata | Implemented native classification and canonical identity through C/port, with owned buffers; public typed operations must use it without decoding retry bytes |
 | Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
 | Application codecs | Shared [counter/query definition](../examples/station-sdk/README.md) and [fixtures](../tests/verification/sdk-codecs-v1.json) defined; Python/TypeScript implementations pass; remaining languages and public cross-language execution remain |
-| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python/PyArrow and TypeScript/Arrow JavaScript readers are qualified; other hosts remain |
+| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python/PyArrow, TypeScript/Arrow JavaScript and Rust/Arrow Rust readers are qualified; other hosts remain |
 
 The public declarations should first compile/type-check against real packages;
 then run the same service/requester against a disk-backed authority. Cover wide

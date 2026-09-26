@@ -106,8 +106,24 @@ It runs the same raw authority schedule, plus compile-fail checks for overlappin
 mutable use, shared handles and use after consuming close. Its initial API is
 blocking: `blocking-owner-disposal` abandons an application's receive, keeps
 native work owned through explicit close, joins responsively and recovers the
-same receipt. It does not claim an async executor adapter. Rust Station and
-public mixed-language pairs remain open.
+same receipt. It does not claim an async executor adapter.
+
+The Rust Station consumer installs five crates and builds core and optional
+Arrow variants using the SDK lock. Registry versions/checksums remain unchanged;
+the core dependency tree excludes Arrow. After deleting extracted sources and
+builds, it runs `sdk_station_runner.py`, including both installed counter CLI
+roles. Compiler rejection covers overlapping turn helpers, `Send`/lifetime escape
+and a boolean passed to the u64 codec. The real schedule covers persistence errors
+and panics at permit/open/commit gates, handler errors and panics under stop/block
+policies, retained confirmation receipts, responsive stop/join during an accepted
+commit, caught poisoned reads, exact seedless retry after disk/host restart,
+fencing, retirement and revoked result access. Retained Tables span six pages;
+six owned IPC streams preserve i64 extremes/nulls and complete source metadata.
+The optional Arrow Rust 59 adapter decodes after runner disposal and its batches
+survive mutating the SDK bytes; independent PyArrow verifies the same streams.
+Rust does not inject an allocator failure into its own FFI wrapper; native retained
+confirmation behavior is also covered by the shared ABI/Python proof. Public
+mixed-language pairs and the remaining M11 adaptations are still open.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

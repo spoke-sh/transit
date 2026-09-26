@@ -8,8 +8,8 @@ and decimal string cells/correlations preserve the shared wire contract.
 
 The independent [M11 raw client](../transit-client/README.md) now provides typed
 operations, owned workers and installable native artifacts. The
-[Rust SDK design](../../../docs/sdk/RUST.md) specifies the separate typed Station
-runner still being implemented. This M9 crate retains its existing entry points.
+[typed Station SDK](../transit-station-sdk/README.md) provides borrowed handler
+turns, Tables, query results and explicit recovery stores. This M9 crate retains its existing entry points.
 
 ```sh
 nix develop .#bindings

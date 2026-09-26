@@ -19,6 +19,7 @@ class Consumer:
     command: Callable[[str, Path], list]
     cli: Callable[[Path, str], list]
     invalid_handler: str
+    extra_failures: tuple[str, ...] = ()
 
 
 def run(node, cli, raw_library, install, label):
@@ -149,12 +150,12 @@ def run(node, cli, raw_library, install, label):
             gates = json.loads(invoke('gates', gated))
             assert gates['gates'] == ['commit', 'open', 'permit']
             assert process(gated)['consumed'] == 1
-            for mode in ('decode-stop', 'decode-block', 'handler-stop', 'handler-block', consumer.invalid_handler):
+            for mode in ('decode-stop', 'decode-block', 'handler-stop', 'handler-block', consumer.invalid_handler, *consumer.extra_failures):
                 cfg = provision()
                 send(cfg, b'TSC\x02\x02' if mode.startswith('decode-') else b'TSC\x01\x01' + (1).to_bytes(8, 'little'))
                 invoke(mode, cfg)
                 state = process(cfg)
-                assert state['consumed'] == 0 and (state['failure'] is not None) == (mode in ('decode-block', 'handler-block'))
+                assert state['consumed'] == 0 and (state['failure'] is not None) == mode.endswith('-block')
                 assert read({'resource': cfg['resource']})['body']['resource']['entries'] == 0
             async_cfg = provision()
             send(async_cfg, b'TSC\x01\x01' + (5).to_bytes(8, 'little'))

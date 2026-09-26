@@ -72,7 +72,10 @@ typed raw operations and embedded native artifacts. `just bindings::rust-sdk-tes
 in the bindings shell compiles an external locked consumer, removes its build
 and extracted source trees, and runs the shared authority/recovery schedule.
 Its blocking ownership proof is separate from Python/Node async cancellation;
-compile-fail checks enforce exclusive use and consumed-handle disposal.
+compile-fail checks enforce exclusive use and consumed-handle disposal. The
+[typed Rust Station SDK](../packages/rust/transit-station-sdk/README.md) also runs
+the shared handler/recovery/Table/query schedule, with borrowed turn helpers,
+stop/block panic policies and optional Arrow Rust ownership checks.
 
 ## Qualification tools
 
@@ -85,7 +88,7 @@ shell. The current Linux x86_64 baselines are:
 | --- | --- |
 | Zig / C / C++ | 0.17.0-dev.2267+48abf1a34 |
 | Python | CPython 3.13.15; PyArrow 23.0.0 for independent IPC checks |
-| Rust / Cargo | 1.95.0 |
+| Rust / Cargo | 1.95.0; optional Arrow array/IPC 59.1.0 with locked 59.x components |
 | Node.js | 24.21.0 from the existing frontend toolchain |
 | Java | OpenJDK 21.0.12.1+1; Gson 2.12.1, separately checksummed |
 | .NET SDK | 8.0.425 |

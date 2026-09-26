@@ -1,0 +1,18 @@
+[package]
+name = "transit-sdk-examples-rust"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.95"
+include = ["src", "README.md"]
+
+[lib]
+name = "transit_sdk_examples"
+
+[[bin]]
+name = "transit-rust-counter"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
+transit-client = { version = "=0.2.0", path = "../../../packages/rust/transit-client" }
+transit-station-sdk = { version = "=0.2.0", path = "../../../packages/rust/transit-station-sdk" }

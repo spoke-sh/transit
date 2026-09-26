@@ -13,7 +13,7 @@ def build(output, names):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     for name in names:
-        source = ROOT / 'packages/rust' / name
+        source = ROOT / name if '/' in name else ROOT / 'packages/rust' / name
         manifest = tomllib.loads((source / 'Cargo.toml').read_text())
         stem = f"{manifest['package']['name']}-{manifest['package']['version']}"
         files = {Path('Cargo.toml'): re.sub(r', path = "[^"]+"', '', (source / 'Cargo.toml').read_text()).encode()}
@@ -37,4 +37,5 @@ def build(output, names):
 
 
 if __name__ == '__main__':
-    build(sys.argv[1], sys.argv[2:] or ['transit-native-client', 'transit-client'])
+    build(sys.argv[1], sys.argv[2:] or ['transit-native-client', 'transit-client',
+        'transit-native-station', 'transit-station-sdk', 'examples/station-sdk/rust'])

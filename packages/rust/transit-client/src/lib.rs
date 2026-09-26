@@ -20,6 +20,7 @@ pub use worker::StopToken;
 /// Version-matched package interface for the Station SDK; no protocol duplication.
 #[doc(hidden)]
 pub mod internal {
+    pub use crate::abi::{MAX_BODY, MAX_COUNTER, MINIMUM_STACK_BYTES, VALUE_BYTES};
     pub use crate::library::Artifact;
     pub use crate::native::{Native, Seed, boolean, hex, number, string, unhex};
     pub use crate::worker::Worker;
@@ -32,5 +33,15 @@ pub mod internal {
         phase: &'static str,
     ) -> crate::Error {
         crate::Error::native(status, value, phase)
+    }
+    pub fn settings(config: &crate::ClientConfig) -> (&str, u32, Option<&std::path::Path>) {
+        (
+            &config.url,
+            config.timeout_ms,
+            config.native_directory.as_deref(),
+        )
+    }
+    pub fn credential_seed(credential: &crate::Credential) -> crate::Result<Seed> {
+        Seed::read(credential.seed_file())
     }
 }
