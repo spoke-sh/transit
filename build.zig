@@ -4,6 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
+    const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     b.step("station-contract", "Export reflected Station ABI and host schemas").dependOn(&b.addRunArtifact(station.artifact("transit-station-contract")).step);
     b.step("station-abi", "Build the shared Station implementation").dependOn(&b.addInstallArtifact(station.artifact("transit_station"), .{}).step);
@@ -36,6 +37,7 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("station_abi") })).step);
@@ -226,6 +228,36 @@ pub fn build(b: *std.Build) void {
         }
         build_test_step.dependOn(&app.step);
     }
+    var query_host: *std.Build.Step.Compile = undefined;
+    var query_shell: *std.Build.Step.Compile = undefined;
+    inline for (.{ .{ "transit-query-host", "transit-query-host" }, .{ "transit", "transit-cli" } }) |entry| {
+        const app = b.addExecutable(.{ .name = entry[0], .root_module = b.createModule(.{
+            .root_source_file = b.path("apps/" ++ entry[1] ++ "/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
+        }) });
+        if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) query_host = app else query_shell = app;
+        const install = b.addInstallArtifact(app, .{});
+        b.getInstallStep().dependOn(&install.step);
+        apps_step.dependOn(&install.step);
+        build_test_step.dependOn(&app.step);
+        b.step(entry[0], "Install " ++ entry[0]).dependOn(&install.step);
+    }
+    const public_query = b.addExecutable(.{ .name = "transit-public-query-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/public_query.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
+    }) });
+    b.step("public-query-proof", "Install the public query provisioning proof").dependOn(&b.addInstallArtifact(public_query, .{}).step);
+    build_test_step.dependOn(&public_query.step);
+    const public_query_test = b.addSystemCommand(&.{ "python3", "-B" });
+    public_query_test.addFileArg(b.path("tests/public_query.py"));
+    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, query_shell, public_query }) |artifact| public_query_test.addArtifactArg(artifact);
+    public_query_test.has_side_effects = true;
+    public_query_test.stdio = .inherit;
+    b.step("test-public-query", "Qualify the public query hosts and signed shell over disk Ursula").dependOn(&public_query_test.step);
     const growing_client = b.addExecutable(.{ .name = "transit-growing-client-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/growing_client.zig"),
         .target = target,

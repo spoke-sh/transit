@@ -58,20 +58,24 @@ and the complete manifest before closing its durable wait and acknowledging.
 Receiver-issued credit permits at most two uncredited segments. Only committed
 segment seals grant new credit; a stalled receiver backpressures the sender.
 
-`QueryDelivery.completed(turn, correlation)` reads the retained complete
-manifest. `completedSegment(turn, correlation, ordinal, buffer)` returns one
+`GrowingQuery.completed(reader, correlation)` reads the retained complete
+manifest. `completedSegment(reader, correlation, ordinal, buffer)` returns one
 verified segment using a caller-owned bounded buffer. Missing or incomplete
 evidence fails explicitly. Duplicate delivery cannot reopen a closed wait;
 acknowledgement retains both peers' records under default unlimited retention.
 Cancellation of a local poll while a turn is uncertain retains its signed
 proposal for reconciliation. No cancellation flag can undo a committed turn.
 
-The real-service proof explicitly opts in and drives both peers through public
-delivery operations. A production query host and general public query ingress
-remain [M13](../../../../docs/roadmap/M13.md) work; existing launchers and foreign
-legacy bindings continue to use their declared profile. Growing foreign handles
-opt in through `query_results: true`, with bounded per-handle workspace and copied
-manifest/IPC buffers; public SDK adapters remain separate qualification.
+The read-only completion helpers also accept a public-client reader implementing
+`read(key)`, `waiting(correlation)` and `delivery.pid`. Every read must preserve an
+exact resource cut and check current rights; the adapter must also enforce the
+source's current query policy. [transit-query](../../transit-query/README.md)
+uses this interface so frontends share the framework's manifest/fragment checks.
+
+The [native query host](../../../../apps/transit-query-host/README.md) runs the
+M13 public query behaviors with an explicit context. Growing foreign handles
+continue to opt in through `query_results: true`; legacy launchers do not change
+profiles implicitly.
 
 Read failures poison the private turn; catching one cannot authorize publishing
 partial work. `close(turn, result_id, .cancelled)` is an explicit owner decision

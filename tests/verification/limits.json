@@ -365,6 +365,13 @@
       "expression": "2 + 2 * m.max_cell_bytes",
       "classification": "working-set",
       "meaning": "Owned literal scratch supports full hex representation of one bounded cell."
+    },
+    {
+      "source": "packages/zig/transit-query/src/Request.zig",
+      "symbol": "plan_bytes",
+      "expression": "q.station.Frame.max_payload - 36",
+      "classification": "encoding",
+      "meaning": "207-byte public plan within the existing 243-byte frame after the version tag and exact schema fingerprint; explicit rejection preserves the fence and native plan bounds."
     }
   ],
   "identities": [

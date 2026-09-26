@@ -59,6 +59,7 @@ station:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-query && zig build test
     cd packages/zig/transit-station && zig build test
     cd packages/zig/transit-fuze && zig build test
     cd packages/zig/transit-observability && zig build test
@@ -72,6 +73,7 @@ packages:
 
 # Compile each library independently; root unit checks own shared test execution.
 packages-build:
+    cd packages/zig/transit-query && zig build check
     cd packages/zig/transit-station && zig build check
     cd packages/zig/transit-fuze && zig build check
     cd packages/zig/transit-observability && zig build check
@@ -186,3 +188,7 @@ sql-rewrites:
 # Full reference/production AST, real plan and paged Arrow execution proof.
 sql:
     nix shell .#sql-tools --command zig build test-sql
+
+# Real signed query shell, growing workers, exact retry and current read rights.
+public-query:
+    zig build test-public-query

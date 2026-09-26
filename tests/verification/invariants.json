@@ -733,6 +733,31 @@
       ],
       "limits": "No optimizer enabled; authority, allocation, cancellation and partial projections are outside the model. Limit pushdown and checked-sum reassociation are not claimed.",
       "model": "contracts/sql/FuzeRewrite.lean"
+    },
+    {
+      "id": "QUERY-01",
+      "claim": "Public Table queries preserve exact submission, bounded behavior admission, source/schema identity and current result-read authority",
+      "owner": "contracts/PUBLIC_QUERY_V1.md",
+      "implementation": [
+        "packages/zig/transit-query/src/Client.zig",
+        "packages/zig/transit-query/src/Behavior.zig",
+        "apps/transit-query-host/main.zig",
+        "apps/transit-cli/main.zig"
+      ],
+      "profile": "M13 public query v1 over growing v3",
+      "tasks": [
+        "test::unit",
+        "test::public-query"
+      ],
+      "scenarios": [
+        "Lost admission receipt retries the exact signed request",
+        "Worker SIGKILL requires fresh ownership and resumes captured work",
+        "Busy admission and mismatched schemas never create an accepted result",
+        "Incomplete results are unreadable; explicit cancellation remains distinct",
+        "Revocation denies new reads and clears the remembered CLI query"
+      ],
+      "limits": "One configured Table/requester per principal; no SQL writes, KV/Document adapters, offline result copies or power-loss proof. Transport inbox quota remains a separate deployment constraint.",
+      "model": null
     }
   ]
 }

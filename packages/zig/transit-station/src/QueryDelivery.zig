@@ -79,12 +79,12 @@ fn receiveCredit(turn: *Turn, credit: r.Credit, context: Context) !void {
     try turn.write(credit_key, try credit.encode());
     try continuation(turn, .{ .result = job.result, .segment = job.send_segment, .offset = job.send_offset });
 }
-fn receiveTransfer(turn: *Turn, correlation: u64, result: u64, peer: u64) !r.Transfer {
+fn receiveTransfer(turn: anytype, correlation: u64, result: u64, peer: u64) !r.Transfer {
     const transfer: r.Transfer = if (try turn.read(r.key('r', correlation, 0, 0))) |value| try r.Transfer.decode(value) else .{ .result = result, .source = peer };
     if (transfer.source != peer or transfer.result != result) return error.ConflictingResultIdentity;
     return transfer;
 }
-fn bytes(turn: *Turn, correlation: u64, manifest: r.Segment, output: []u8) ![]const u8 {
+fn bytes(turn: anytype, correlation: u64, manifest: r.Segment, output: []u8) ![]const u8 {
     if (output.len < manifest.bytes) return error.ResultBufferTooSmall;
     var offset: usize = 0;
     while (offset < manifest.bytes) {
@@ -212,7 +212,7 @@ pub fn dispatch(turn: *Turn, frame: Frame, context: Context) !bool {
     try turn.validate();
     return handled;
 }
-pub fn completed(turn: *Turn, correlation: u64) !Manifest {
+pub fn completed(turn: anytype, correlation: u64) !Manifest {
     const wait = (try turn.waiting(correlation)) orelse return error.UnknownCorrelation;
     if (wait.phase != .replied) return error.IncompleteResult;
     const manifest = try Manifest.decode((try turn.read(r.key('c', correlation, 0, 0))) orelse return error.IncompleteResult);
@@ -220,7 +220,7 @@ pub fn completed(turn: *Turn, correlation: u64) !Manifest {
     try manifest.check(try receiveTransfer(turn, correlation, manifest.result, wait.target));
     return manifest;
 }
-pub fn completedSegment(turn: *Turn, correlation: u64, ordinal: u64, output: []u8) !q.CapturedSegment {
+pub fn completedSegment(turn: anytype, correlation: u64, ordinal: u64, output: []u8) !q.CapturedSegment {
     const result = try completed(turn, correlation);
     if (ordinal >= result.segments) return error.InvalidQueryOrdinal;
     const manifest = try r.Segment.decode((try turn.read(r.key('v', correlation, ordinal, 0))) orelse return error.IncompleteResultSegment);

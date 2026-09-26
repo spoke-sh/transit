@@ -1394,3 +1394,31 @@ requires all four names and rejects warnings, incomplete proofs and unexpected
 axioms. This is specification evidence with explicit correspondence assumptions,
 not implementation refinement or an enabled optimizer. False/generalized limit
 and sum rewrites remain excluded, with reasons in the model.
+
+## M13 public query access
+
+`just test::public-query` builds and runs the actual `transit` shell and
+`transit-query-host` source/requester/courier binaries against an isolated growing
+node and disk Ursula. A separate provisioning caller creates a 41-row Table,
+including nulls and integers beyond JavaScript's exact numeric range.
+
+The current proof passes exact decoded typed rows across all six segments;
+unsupported SQL without admission; a malformed/lost admission receipt and
+byte-identical signed retry; worker SIGKILL after accepted staging followed by
+fresh recorded ownership; rejection of reuse of the old activation; explicit
+busy admission; schema mismatch rejection; incomplete result refusal; explicit
+cancellation; and read revocation before completion and after complete disclosure.
+An inspection-only principal cannot use another principal's requester binding.
+Re-authorized reads select the original result without rerunning SQL.
+
+The public client restarts an entire changed read at most three times, retaining
+resource-cut consistency during final acknowledgement. This never retries query
+execution or regenerates an uncertain mutation. Package tests also verify owned
+schema-fenced request encoding, full-width cancellation identity and rejection
+of a predicate that exceeds the existing frame budget.
+
+This is one Table, one query principal, one requester and one authority. It
+qualifies process SIGKILL, not host power loss; the courier's bounded restart scan
+has no latency guarantee over arbitrary retained history. It does not yet qualify
+the M13 Board workspace or browser revocation behavior. Those remain separate
+required milestone evidence.
