@@ -817,13 +817,16 @@
       "implementation": [
         "packages/zig/transit-exchange/src/Exchange.zig",
         "packages/zig/transit-station-http/src/Transport.zig",
-        "apps/transit-station-http-worker/main.zig"
+        "apps/transit-station-http-worker/main.zig",
+        "packages/zig/transit-station-http/src/Service.zig",
+        "packages/zig/transit-station-bindings/src/HttpCodec.zig"
       ],
       "profile": "station-exchange-v1; first HTTP transport profile",
       "tasks": [
         "test::unit",
         "test::http-transport",
-        "test::http-worker"
+        "test::http-worker",
+        "bindings::test"
       ],
       "scenarios": [
         "Four-mutation segment publication, conflicting identities, quota refusal and rollback",
@@ -832,9 +835,12 @@
         "Independent HTTP/TLS peers, binary chunking and trailers, omissions and current hostname verification",
         "Dropped, truncated, ambiguous, oversized and stalled responses; no hidden redirects, retries or ambient proxies",
         "Actual worker disk recovery, lost seal/dispatch/observation replies, current read revocation, entered-generation refusal and SIGKILL after remote application",
-        "TLS worker binds credential versions/header scope, rejects changed numeric destinations and replays after credential removal"
+        "TLS worker binds credential versions/header scope, rejects changed numeric destinations and replays after credential removal",
+        "Public caller admission with immutable request references and exact method/target/header scope; optional read associations keep reconciliation independent of caller lifetime",
+        "Caller termination after remote application, worker/node/store replacement, original attempt closure and retired output destination without replacement activation",
+        "Native/port HTTP fixtures, scoped publication actions and validated calls; one owned replay reader, prefix revocation, sticky failure, stale IDs and allocation rollback"
       ],
-      "limits": "Initial library units, independent transport peers and finite worker over disk Ursula. 1,027-byte worker response; 16,387-byte independent transport response. Public caller admission, managed secret providers, explicit retry/reconciliation, SDK, launcher and hosted cost qualification remain M15 work. Numeric IPv4 endpoint and HTTP/1.1 identity encoding; TLS close-delimited bodies rejected.",
+      "limits": "Finite HTTP/1.1 worker over disk Ursula: one public root call per provisioned connector PID, 64 KiB request profile, 1,027-byte worker response; independent transport response 16,387 bytes. Explicit controller retry/redirect/status/cancel are qualified. Public followup/release conveniences, all language-native HTTP SDKs, Board, launchers and hosted costs remain M15 work. Numeric IPv4 endpoint, identity encoding; TLS close-delimited bodies rejected.",
       "model": null
     }
   ]

@@ -256,6 +256,7 @@ pub fn build(b: *std.Build) void {
     http_worker_test.addArtifactArg(node_artifact);
     http_worker_test.addArtifactArg(http_provision);
     http_worker_test.addArtifactArg(http_worker);
+    http_worker_test.addArtifactArg(station_bindings.artifact("transit_station"));
     http_worker_test.has_side_effects = true;
     http_worker_test.stdio = .inherit;
     b.step("test-http-worker", "Prove durable HTTP capture and unknown-outcome recovery").dependOn(&http_worker_test.step);

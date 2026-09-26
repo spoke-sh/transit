@@ -28,7 +28,7 @@ bodies and exhausted attempt budgets reject. The independent peer records three
 remote requests but only two applications across those retry scenarios. Additional
 explicit status, cancellation and captured same-authority redirect followups each
 have separate effects, giving seven sends, three applications and one cancellation
-request in the full proof. Status/cancellation evidence leaves the original effect
+request across those controller scenarios. Status/cancellation evidence leaves the original effect
 closed unknown. Pure policy cases reject metadata/admin address changes,
 cross-authority/changed redirects, undeclared action targets and policy changes.
 The worker proof uses TLS and a versioned credential file. Changed numeric
@@ -44,13 +44,38 @@ strict replay reports a gap when requested data was redacted.
 Explicit release retires availability before cleanup. The proof rejects replay
 while uncollected bytes remain, restarts node/store during reclamation, and resumes
 bounded cleanup to its durable end without another network attempt.
-The 2026-09-26 Linux x86_64 run took **174.66 seconds**, excluding compilation.
+The public-admission extension publishes metadata/body in a separate caller's
+resource and sends an authenticated Station call to the worker. The proof revokes
+and restores request access, rejects changed method/target scope before dispatch,
+and delivers one correlated observed reply. Capture is independently owned;
+optional associations preserve PID-scoped read access without required caller
+lifetime dependencies. After remote application, caller termination plus worker,
+node and store replacement produces closed unknown with the original attempt.
+The reply's outbox destination is retired; a replacement PID receives no input.
+These additions bring the full proof to **nine sends, five applications and one
+cancellation request**. Naming-service rebinding and public followup APIs remain
+separate qualification work.
+
+The same real capture exercises `station_growing_http_read`: one active reader,
+owned bounded chunks, actual prefix revocation, sticky failure, explicit close,
+stale reader IDs and reopening. Returned body bytes survive native destruction;
+replay completes after deleting the request credential, without another send.
+Native allocation enumeration proves an undisclosed part cannot advance a cursor
+when response allocation fails. Shared HTTP codecs run independently constructed
+admission/outcome fixtures through the native library and local-codec port.
+Growing native actions reject unpublished or mismatched request references,
+preserve duplicate chunks and publish the ordinary durable call through the
+existing preparation/dispatch gate. `just bindings::native` includes these
+checks alongside the existing Table/query and C/C++/Python interoperability proofs.
+
+The 2026-09-26 Linux x86_64 worker run took **242.31 seconds**, excluding compilation.
 This is local proof time, not a hosted CI or aggregate runner-minute measurement.
 Machine output distinguishes sealed capture phase from the kernel outcome.
 
 These checks passed locally on Linux x86_64 with the pinned compiler. They do not
-yet qualify public caller admission, managed secret providers, surviving cross-service reconciliation,
-SDKs, all launchers or hosted CI cost. Those remain explicit
+yet qualify general public multi-call/followup/release APIs, managed secret providers,
+every cross-service lifetime combination, language-native HTTP SDKs, all launchers
+or hosted CI cost. Those remain explicit
 [M15](../docs/roadmap/M15.md) exit obligations. The shared capture
 [contract](../contracts/STATION_EXCHANGE_V1.md) distinguishes library coverage
 from protocol completeness and effect-result acceptance.

@@ -1,8 +1,8 @@
 # Connectors and external exchanges
 
 Status: [HTTP M15](roadmap/M15.md) is the first connector, under implementation;
-[gRPC M16](roadmap/M16.md) is the second. Stream groups, interpolation,
-and connector attempt policy below remain design work. Transit already has
+[gRPC M16](roadmap/M16.md) is the second. The broad group, streaming and provider
+requirements below remain design intent outside the qualified finite HTTP profile. Transit has
 opaque intents, dispatch authorization, observations, and bounded closure in its
 [effect contract](../contracts/TRANSIT_V2.md#effect-intents-and-observations).
 The [synthetic executor proof](../tests/README.md#authority-effects-and-outbox-evidence)
@@ -13,8 +13,14 @@ The initial [exchange library](../packages/zig/transit-exchange/README.md) and
 [HTTP package](../packages/zig/transit-station-http/README.md) now implement bounded
 capture/coverage and a separately tested single-send HTTP/TLS transport. The
 [exchange contract](../contracts/STATION_EXCHANGE_V1.md) fixes intent publication
-and terminal availability. End-to-end connector recovery, SDK and deployment
-qualification remain open; the design below is not a claim of their completion.
+and terminal availability. The finite worker now qualifies explicit controller
+retry/redirect/status/cancel, public root-call admission, immutable request copies,
+independent capture lifetime, caller termination and worker/node/store recovery.
+Its shared native bridge exposes publication, request/outcome codecs and bounded
+replay; replay cannot resolve credentials or refetch external data. The
+[test guide](../tests/README.md#m15-connector-work-in-progress) records the actual
+fault corpus and limits. Language-native HTTP SDKs, broader public lifecycle
+helpers, Board and deployment qualification remain open; this does not complete M15.
 
 The connector milestones will add [Board](BOARD.md) enrichment for exchanges and
 attempts, respecting transcript permissions, secret omissions, retained-body

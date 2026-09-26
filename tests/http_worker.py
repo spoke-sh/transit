@@ -13,9 +13,9 @@ import time
 from storage import Fixture, free_port, wait_ready
 
 
-def run(node, provision, worker):
+def run(node, provision, worker, library):
     started = time.monotonic()
-    node, provision, worker = map(lambda value: str(Path(value).resolve()), (node, provision, worker))
+    node, provision, worker, library = map(lambda value: str(Path(value).resolve()), (node, provision, worker, library))
     payload = bytes((i * 29 + 5) % 256 for i in range(1027))
     with Fixture() as fixture:
         public = json.loads(subprocess.check_output([provision, "public"], timeout=10))
@@ -51,7 +51,7 @@ def run(node, provision, worker):
                     return
                 first_application = key not in applied
                 applied.add(key)
-                if self.path == "/kill" and first_application:
+                if self.path in ("/kill", "/public-kill") and first_application:
                     blocked.set()
                     release.wait(timeout=30)
                 try:
@@ -150,12 +150,22 @@ def run(node, provision, worker):
                 return process
             authority = start_node()
             def admin(operation):
-                return json.loads(subprocess.check_output([provision, url, operation, str(state)], timeout=30))
+                extra = [str(config)] if operation == "call" else []
+                return json.loads(subprocess.check_output([provision, url, operation, str(state), *extra], timeout=60))
             def configure(saved, path, mode):
                 configuration = {"url": proxy_url, "realm": 47, "principal": 65536, "seed_file": str(seed), "pid": saved["pid"], "generation": saved["generation"], "activation_directory": str(fixture.root), "exchange": 1, "endpoint_revision": 1, "endpoint": {"host": "localhost", "address": "127.0.0.1", "port": peer.server_port, "tls": True, "ca_file": str(tls_cert), "timeout_ms": 120000}, "mode": mode, "request": {"method": "POST", "target": [{"literal": path}], "body_bytes": 4, "headers": [{"name": "Authorization", "value": [{"literal": "Bearer "}, {"secret": {"binding": "api", "version": 7}}]}]}, "credentials": [{"binding": "api", "version": 7, "header": "Authorization", "file": str(credential)}], "body_file": str(body_file), "reconcile_before_ms": int(time.time() * 1000) + 240000}
                 configuration.update(max_attempts=4, retry_policy={"id": 77, "revision": 1, "key_header": "Idempotency-Key"}, redirect_policy={"id": 78, "revision": 1}, reconcile_policy={"id": 79, "revision": 1, "method": "GET", "target": "/status/kill"}, cancel_policy={"id": 80, "revision": 1, "method": "DELETE", "target": "/operations/kill"})
                 configuration["endpoint"]["response_headers"] = ["content-type", "content-length", "transfer-encoding", "trailer", "location"]
                 configuration["request"]["headers"].append({"name": "Idempotency-Key", "value": [{"literal": path}]})
+                config.write_text(json.dumps(configuration))
+            def admission(saved, path, mode):
+                configure(saved, path, mode)
+                configuration = json.loads(config.read_text())
+                configuration["admission"] = {"caller": saved["caller"]["pid"], "resource": saved["caller"]["resource"], "scope": {"method": "POST", "target": path, "headers": ["authorization", "idempotency-key"]}}
+                configuration["reconcile_before_ms"] = saved["caller"]["deadline"]
+                # These bytes must come from the authorized caller publication.
+                configuration.pop("request")
+                configuration.pop("body_file")
                 config.write_text(json.dumps(configuration))
             def followup(saved, exchange, mode, reason="retry", path="/kill"):
                 configure(saved, path, mode)
@@ -331,8 +341,102 @@ def run(node, provision, worker):
             assert invoke()["phase"] == "complete"
             assert requests[-2:] == ["/redirect", "/redirected"]
             assert applied == {"/complete", "/kill", "/redirect"}
+
+            # A distinct caller publishes immutable inputs and sends a correlated
+            # process-origin call. Losing its read grant must prevent preparation.
+            saved = admin("provision-public")
+            configure(saved, "/public", "accept")
+            saved = admin("call")
+            admin("revoke-request")
+            admission(saved, "/public", "accept")
+            refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
+            assert refused.returncode != 0 and b"AccessDenied" in refused.stderr, refused
+            admin("restore-request")
+            saved = admin("own")
+            admission(saved, "/public", "accept")
+            assert invoke()["phase"] == "ready"
+            # Recheck current request scope immediately before dispatch.
+            saved = admin("own")
+            admission(saved, "/admin", "execute")
+            refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
+            assert refused.returncode != 0 and b"HttpRequestNotGranted" in refused.stderr, refused
+            saved = admin("own")
+            admission(saved, "/public", "execute")
+            assert invoke()["phase"] == "complete"
+            received = admin("receive")
+            result = received["outcome"]
+            assert result["phase"] == "observed" and result["status"] == 200
+            assert result["effect"] > 0 and result["attempt"] > 0
+            assert requests[-1] == "/public"
+
+            from station_growing_abi import Native
+            from station_abi import rejects
+            libraries = fixture.root / "libraries"
+            libraries.mkdir()
+            (libraries / "libtransit_station.so").symlink_to(library)
+            caller_seed = fixture.root / "caller.seed"
+            caller_seed.write_text("49" * 32)
+            reader = Native(libraries, url, caller_seed, {"profile": "growing_v3", "realm": 47, "principal": 65537, "pid": saved["caller"]["pid"], "generation": 3, "association": "state", "failure_policy": "stop"})
+            try:
+                def native_read(action):
+                    data = json.dumps(action).encode()
+                    return reader.api.call("station_growing_http_read", reader.pointer, data, len(data))
+                data = json.dumps({"outcome": received["wire"]}).encode()
+                converted = reader.api.call("station_http_codec", data, len(data))["outcome"]
+                reference = converted["reference"]
+                identity = native_read({"open": {"reference": reference}})["opened"]
+                rejects(9, native_read, {"open": {"reference": reference}})
+                first = native_read({"next": identity})["part"]
+                assert first["bytes"] and not first["complete"]
+                admin("revoke-capture")
+                rejects(4, native_read, {"next": identity})
+                admin("restore-capture")
+                assert rejects(7, native_read, {"next": identity})["err"] == "HttpReplayFailed"
+                assert native_read({"close": identity}) == {"closed": True}
+                rejects(13, native_read, {"next": identity})
+                credential.unlink()
+                reopened = native_read({"open": {"reference": reference}})["opened"]
+                assert reopened > identity
+                owned_body = bytearray()
+                complete = False
+                while (part := native_read({"next": reopened})["part"]) is not None:
+                    if part["kind"] == "response_body": owned_body.extend(bytes.fromhex(part["bytes"]))
+                    complete = part["complete"]
+                assert complete and bytes(owned_body) == payload
+                native_read({"close": reopened})
+            finally:
+                reader.close()
+                credential.write_text("fixture-request-secret")
+            assert bytes(owned_body) == payload and requests.count("/public") == 1
+
+            # Reconciliation belongs to the surviving connector PID. The caller
+            # can terminate after application; its replacement receives nothing.
+            saved = admin("provision-public")
+            configure(saved, "/public-kill", "accept")
+            saved = admin("call")
+            admission(saved, "/public-kill", "accept")
+            assert invoke()["phase"] == "ready"
+            saved = admin("own")
+            admission(saved, "/public-kill", "execute")
+            blocked.clear(); release.clear()
+            child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE)
+            assert blocked.wait(timeout=60), "Public call never reached remote application"
+            child.kill(); child.wait(timeout=10); child = None
+            release.set()
+            saved = admin("terminate-caller")
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start()
+            authority = start_node()
+            saved = admin("own")
+            admission(saved, "/public-kill", "execute")
+            unknown = invoke()
+            assert unknown["phase"] == "unknown" and unknown["outcome"] == "closed_unknown"
+            result = admin("receive")["outcome"]
+            assert result["phase"] == "closed_unknown" and result["attempt"] > 0
+            assert requests.count("/public-kill") == 1
             assert not failures, failures
-            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup and explicit idempotent retry/redirect/status/cancel passed; seven sends, three applications, one cancellation request.")
+            assert len(requests) == 9 and len(applied) == 5
+            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit retry/redirect/status/cancel, public admission and caller termination passed; nine sends, five applications, one cancellation request.")
             print(f"HTTP worker proof wall time: {time.monotonic() - started:.2f}s (excludes compilation).")
         finally:
             release.set()
