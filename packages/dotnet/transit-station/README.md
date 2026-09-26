@@ -1,7 +1,7 @@
 # Station for .NET
 
 The .NET 8 adapter uses generated P/Invoke declarations for the shared
-[Station ABI](../../zig/transit-station/docs/bindings.md), plus the independent
+[Station ABI](../../zig/transit-station-bindings/docs/bindings.md), plus the independent
 Transit client ABI. It is qualified on Linux x86_64 with the SDK pinned by
 `nix develop .#bindings`. There are no NuGet dependencies; the checked-in
 configuration disables package feeds.

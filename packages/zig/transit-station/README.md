@@ -11,7 +11,8 @@ immutable records with explicit quotas, one final visibility decision and
 resumable cleanup. Document/CRDT APIs remain a separate milestone.
 The [services guide](docs/services.md) covers scoped names, timed waits and
 bounded supervision, including the separate controller trust boundary.
-The [binding guide](docs/bindings.md) covers the shared C ABI and detached
+The separate [binding package](../transit-station-bindings/README.md) owns the
+shared C ABI and its generated declarations. Its [binding guide](../transit-station-bindings/docs/bindings.md) covers the detached
 poll/finish interface used by foreign-language handlers.
 [M9](../../../docs/roadmap/M9.md) records qualification and the bounded profile.
 [M10](../../../docs/roadmap/M10.md) addresses its structural collection limits
@@ -27,7 +28,7 @@ segments with receiver credit and a complete-result manifest; capture alone does
 not complete a remote call. Existing launchers and legacy foreign ABIs do not opt in.
 The separate growing C ABI and native port now expose scoped turns, bounded
 KV/Table pages and retained sources with explicit preparation and dispatch.
-The [binding guide](docs/bindings.md#explicit-growing-turns) describes ownership,
+The [binding guide](../transit-station-bindings/docs/bindings.md#explicit-growing-turns) describes ownership,
 receipt recovery and capabilities, including explicit growing query capture and
 verified manifests/IPC segments. Public SDK runners remain M11 work.
 The [lifetime guide](docs/lifetimes.md) explains retention, suspension and

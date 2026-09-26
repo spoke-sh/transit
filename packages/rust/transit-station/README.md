@@ -33,9 +33,9 @@ executor's blocking workers appropriately. Handles are `Send`, deliberately not
 Dropping an await is not remote cancellation, and panic/unwinding does not
 implicitly finish a handler. Fence/reconcile a lost activation before recomputing.
 
-Actions and results use the [generated shared schema](../../zig/transit-station/abi-v1.json).
+Actions and results use the [generated shared schema](../../zig/transit-station-bindings/abi-v1.json).
 `pending` and raw `Client::prepare` return exact frozen strings; never re-encode
 them before retry. Query results expose original IPC bytes (hex in the action
 result); `arrow_cell` is an optional bounded native reader, preserving int64 as
-decimal text. [ABI rules](../../zig/transit-station/docs/bindings.md) govern the
+decimal text. [ABI rules](../../zig/transit-station-bindings/docs/bindings.md) govern the
 same budgets, grants, failure distinctions and lifetime behavior as Zig callers.

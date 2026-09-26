@@ -42,5 +42,5 @@ busy handles, cancellation, port exit, malformed responses and byte limits.
 Table int64/correlation values stay decimal strings; convert to `bigint` when
 needed. Protocol counters remain limited to safe integers. Queries expose the
 original IPC bytes through the typed `arrow` result; `arrowCell` optionally uses
-the same native reader. [Shared ABI semantics](../../zig/transit-station/docs/bindings.md)
+the same native reader. [Shared ABI semantics](../../zig/transit-station-bindings/docs/bindings.md)
 and resource budgets apply unchanged.

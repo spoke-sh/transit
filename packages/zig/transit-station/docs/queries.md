@@ -4,7 +4,7 @@ The explicit Zig `GrowingQuery` API captures incremental Fuze results across
 ordinary growing turns. `QueryDelivery` publishes the captured segments, validates
 receiver completion and retains acknowledgements through the same turn boundary.
 This explicit M10 Zig profile requires a host-supplied query context. The M11
-[growing ABI](bindings.md#explicit-growing-turns) can own that context when
+[growing ABI](../../transit-station-bindings/docs/bindings.md#explicit-growing-turns) can own that context when
 explicitly enabled; legacy `Query` and foreign ABI result limits remain unchanged.
 The [v2 design and layout](../../../../contracts/STATION_QUERY_V2.md)
 owns the capture, delivery and credit contracts.

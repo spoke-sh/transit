@@ -8,8 +8,9 @@ pub fn build(b: *std.Build) void {
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
-    b.step("station-contract", "Export reflected Station ABI and host schemas").dependOn(&b.addRunArtifact(station.artifact("transit-station-contract")).step);
-    b.step("station-abi", "Build the shared Station implementation").dependOn(&b.addInstallArtifact(station.artifact("transit_station"), .{}).step);
+    const station_bindings = b.dependency("transit_station_bindings", .{ .target = target, .optimize = optimize });
+    b.step("station-contract", "Export reflected Station ABI and host schemas").dependOn(&b.addRunArtifact(station_bindings.artifact("transit-station-contract")).step);
+    b.step("station-abi", "Build the shared Station implementation").dependOn(&b.addInstallArtifact(station_bindings.artifact("transit_station"), .{}).step);
     const arrow_proof = b.addExecutable(.{ .name = "transit-arrow-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/arrow.zig"),
         .target = target,
@@ -52,7 +53,7 @@ pub fn build(b: *std.Build) void {
     http_transport_test.stdio = .inherit;
     b.step("test-http-transport", "Qualify single-send HTTP/TLS against independent peers").dependOn(&http_transport_test.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("station_abi") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_bindings.module("station_abi") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
     test_step.dependOn(&b.addRunArtifact(tests).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = telemetry.module("telemetry") })).step);
@@ -228,7 +229,7 @@ pub fn build(b: *std.Build) void {
         if (std.mem.eql(u8, name, "transit-station-host")) {
             station_host = app;
             app.root_module.addImport("transit_station", station.module("transit_station"));
-            app.root_module.addImport("station_abi", station.module("station_abi"));
+            app.root_module.addImport("station_abi", station_bindings.module("station_abi"));
             app.root_module.addImport("client_abi", client.module("client_abi"));
         }
         if (std.mem.eql(u8, name, "transit-client-host")) {
@@ -418,18 +419,18 @@ pub fn build(b: *std.Build) void {
     binding_tests.addArtifactArg(node_artifact);
     binding_tests.addArtifactArg(cli_artifact);
     binding_tests.addArtifactArg(delivery_artifact);
-    binding_tests.addArtifactArg(station.artifact("transit_station"));
+    binding_tests.addArtifactArg(station_bindings.artifact("transit_station"));
     binding_tests.addArtifactArg(client.artifact("transit_client"));
     binding_tests.addArtifactArg(station_host);
     const binding_examples = b.step("bindings-examples", "Install the C and C++ Station callers");
     inline for (.{ "c", "cpp" }) |language| {
         const cpp = std.mem.eql(u8, language, "cpp");
         const caller = b.addExecutable(.{ .name = "station-" ++ language ++ "-example", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true, .link_libcpp = cpp }) });
-        caller.root_module.addIncludePath(b.path("packages/zig/transit-station/include"));
+        caller.root_module.addIncludePath(b.path("packages/zig/transit-station-bindings/include"));
         caller.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));
         caller.root_module.addIncludePath(b.path("packages/cpp/transit-station/include"));
         caller.root_module.addCSourceFile(.{ .file = b.path("examples/station-bindings/" ++ language ++ "/main." ++ language), .flags = if (cpp) &.{ "-std=c++17", "-Wall", "-Wextra", "-Werror" } else &.{ "-std=c11", "-D_POSIX_C_SOURCE=200809L", "-Wall", "-Wextra", "-Werror" } });
-        caller.root_module.linkLibrary(station.artifact("transit_station"));
+        caller.root_module.linkLibrary(station_bindings.artifact("transit_station"));
         caller.root_module.linkLibrary(client.artifact("transit_client"));
         binding_examples.dependOn(&b.addInstallArtifact(caller, .{}).step);
         binding_tests.addArtifactArg(caller);

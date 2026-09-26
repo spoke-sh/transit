@@ -34,7 +34,7 @@ client-check:
 
 # Regenerate shared Station exports and language-neutral handler operations.
 station-generate:
-    zig build station-contract | python3 -B packages/zig/transit-station/generate.py --write
+    zig build station-contract | python3 -B packages/zig/transit-station-bindings/generate.py --write
 
 station-check:
-    zig build station-contract | python3 -B packages/zig/transit-station/generate.py
+    zig build station-contract | python3 -B packages/zig/transit-station-bindings/generate.py

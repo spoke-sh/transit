@@ -60,7 +60,7 @@ them under the v3 domains and sends only `/v3/command` or `/v3/query`. IDs retai
 the full public range. Query results use the shared growing response validation,
 including realm, identity, revision and page coverage. Growing mutations preserve
 `uncertain` after a lost or malformed accepted response or response-allocation
-failure. The separate [growing Station ABI](../../transit-station/docs/bindings.md#explicit-growing-turns)
+failure. The separate [growing Station ABI](../../transit-station-bindings/docs/bindings.md#explicit-growing-turns)
 adds gated/scoped turns; raw v3 operations alone do not advertise a handler runner.
 
 One operation may execute per client at a time; another call returns `busy`.

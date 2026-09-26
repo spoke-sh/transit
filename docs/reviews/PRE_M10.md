@@ -96,7 +96,7 @@ across languages without forcing identical method signatures.
 
 **High priority before public packages stabilize.** The
 [client ABI](../../packages/zig/transit-client/src/Abi.zig) and
-[Station ABI](../../packages/zig/transit-station/src/Abi.zig) already preserve
+[Station ABI](../../packages/zig/transit-station-bindings/src/Abi.zig) already preserve
 uncertainty, including response-allocation failure after a mutation. Public SDKs
 must preserve both the status category and structured protocol rejection; mapping
 everything to a retryable exception would undo those guarantees.

@@ -26,6 +26,6 @@ share the existing per-resource budgets.
 
 For an already-provisioned installation, use the commands and ownership rules in
 the [Python adapter](../../packages/python/transit-station/README.md) and
-[shared binding guide](../../packages/zig/transit-station/docs/bindings.md).
+[shared binding guide](../../packages/zig/transit-station-bindings/docs/bindings.md).
 The matrix also exercises managed/native cancellation and ownership, port failure,
 malformed output, busy admission and scheduler/event-loop responsiveness.

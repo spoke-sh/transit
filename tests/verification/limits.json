@@ -185,7 +185,7 @@
       "meaning": "Four children per supervisor materialization; needs paged child catalog."
     },
     {
-      "source": "packages/zig/transit-station/src/Abi.zig",
+      "source": "packages/zig/transit-station-bindings/src/Abi.zig",
       "symbol": "minimum_stack_bytes",
       "expression": "8 * 1024 * 1024",
       "classification": "working-set",

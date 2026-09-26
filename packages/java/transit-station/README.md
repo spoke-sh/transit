@@ -33,4 +33,4 @@ protocol reads and typed action semantics. Gson values retain exact numeric
 text; Arrow int64/correlations are decimal strings. Query results expose finite
 IPC bytes; the optional `arrowCell` accessor uses the shared Arrow reader.
 `pending`/`prepare` return canonical frozen strings for exact retry. Follow the
-[shared ownership/recovery contract](../../zig/transit-station/docs/bindings.md).
+[shared ownership/recovery contract](../../zig/transit-station-bindings/docs/bindings.md).

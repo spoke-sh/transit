@@ -9,6 +9,7 @@
         .transit_query = .{ .path = "packages/zig/transit-query" },
         .transit_fuze = .{ .path = "packages/zig/transit-fuze" },
         .transit_station = .{ .path = "packages/zig/transit-station" },
+        .transit_station_bindings = .{ .path = "packages/zig/transit-station-bindings" },
         .transit_observability = .{ .path = "packages/zig/transit-observability" },
         .telemetry = .{ .path = "packages/zig/telemetry" },
         .transit_board_api = .{ .path = "packages/zig/transit-board-api" },

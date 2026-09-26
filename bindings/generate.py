@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 
 root = Path(__file__).resolve().parents[1]
-contracts = {name: (root / f"packages/zig/transit-{name}/abi-v1.json").read_bytes()
+contracts = {name: (root / f"packages/zig/transit-{name}{'-bindings' if name == 'station' else ''}/abi-v1.json").read_bytes()
              for name in ("client", "station")}
 outputs = {root / f"packages/python/transit-station/transit_station/{name}-abi.json": data
            for name, data in contracts.items()}

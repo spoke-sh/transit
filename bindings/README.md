@@ -56,7 +56,7 @@ matrix retains its original scope. See the
 
 `just bindings::generate` reflects the native exports and updates adapter
 resources. `just bindings::check` rejects drift. The
-[shared ABI guide](../packages/zig/transit-station/docs/bindings.md) owns the
+[shared ABI guide](../packages/zig/transit-station-bindings/docs/bindings.md) owns the
 contract; the [native port](../apps/transit-station-host/README.md) supplies a
 versioned child-process route for Node, Java and BEAM.
 

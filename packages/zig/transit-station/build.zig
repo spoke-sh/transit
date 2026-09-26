@@ -21,14 +21,4 @@ pub fn build(b: *std.Build) void {
     const check_step = b.step("check", "Compile standalone package tests without executing them");
     test_step.dependOn(&b.addRunArtifact(tests).step);
     check_step.dependOn(&tests.step);
-    const abi = b.addModule("station_abi", .{ .root_source_file = b.path("src/Abi.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station", .module = module }, .{ .name = "client_abi", .module = client.module("client_abi") } } });
-    const abi_tests = b.addTest(.{ .root_module = abi });
-    test_step.dependOn(&b.addRunArtifact(abi_tests).step);
-    check_step.dependOn(&abi_tests.step);
-    const library = b.addLibrary(.{ .name = "transit_station", .linkage = .dynamic, .root_module = b.createModule(.{ .root_source_file = b.path("src/c.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{.{ .name = "station_abi", .module = abi }} }) });
-    library.installHeader(b.path("include/transit_station.h"), "transit_station.h");
-    b.installArtifact(library);
-    b.step("abi", "Build the shared Station implementation").dependOn(b.getInstallStep());
-    const contract = b.addExecutable(.{ .name = "transit-station-contract", .root_module = b.createModule(.{ .root_source_file = b.path("src/abi_contract.zig"), .target = b.graph.host, .optimize = optimize, .imports = &.{ .{ .name = "transit_station", .module = module }, .{ .name = "station_abi", .module = abi } } }) });
-    b.installArtifact(contract);
 }

@@ -158,7 +158,7 @@
       "claim": "Cancellation and disposal join owned native work without manufacturing rollback",
       "owner": "docs/CLIENT.md",
       "implementation": [
-        "packages/zig/transit-station/src/Abi.zig"
+        "packages/zig/transit-station-bindings/src/Abi.zig"
       ],
       "profile": "transit-v2/state-v1/station-v1",
       "tasks": [

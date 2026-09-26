@@ -22,7 +22,7 @@ def build(output):
         'transit-client-c': {'lib/libtransit_sdk_client.so': sdk.read_bytes()},
         'transit-client-cpp': {},
         'transit-native-station-c': {'lib/libtransit_station.so': (ROOT / 'zig-out/lib/libtransit_station.so').read_bytes(),
-            'include/transit_station.h': (ROOT / 'packages/zig/transit-station/include/transit_station.h').read_bytes()},
+            'include/transit_station.h': (ROOT / 'packages/zig/transit-station-bindings/include/transit_station.h').read_bytes()},
         'transit-station-c': {'lib/libtransit_sdk_station.so': (ROOT / 'packages/c/transit-station/zig-out/lib/libtransit_sdk_station.so').read_bytes()},
         'transit-station-cpp': {},
         'transit-sdk-examples-c': {'lib/libtransit_sdk_examples_c.a': (ROOT / 'examples/station-sdk/c/zig-out/lib/libtransit_sdk_examples_c.a').read_bytes(),

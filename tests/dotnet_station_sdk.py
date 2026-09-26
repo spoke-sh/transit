@@ -45,7 +45,7 @@ def run(node, cli, library, artifacts, *, execute=None):
         shutil.rmtree(target / 'packages')
         bad = target / 'bad-station-version'
         bad.mkdir()
-        contract = json.loads((root / 'packages/zig/transit-station/abi-v1.json').read_text())
+        contract = json.loads((root / 'packages/zig/transit-station-bindings/abi-v1.json').read_text())
         fixture = bad / 'version.c'
         fixture.write_text('#include <stdint.h>\n' + '\n'.join(
             f'uint32_t {function["name"]}(void) {{ return {99 if function["name"] == "station_abi_version" else 0}; }}'

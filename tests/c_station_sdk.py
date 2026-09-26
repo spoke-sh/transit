@@ -34,7 +34,7 @@ def run(node, cli, library, artifacts, *, execute=None):
                 source.unlink()
             wrong = target / 'wrong-native'; wrong.mkdir()
             shutil.copy2(prefix / 'lib/libtransit_client.so', wrong / 'libtransit_client.so')
-            contract = json.loads((root / 'packages/zig/transit-station/abi-v1.json').read_bytes())
+            contract = json.loads((root / 'packages/zig/transit-station-bindings/abi-v1.json').read_bytes())
             lines = ['#include <transit_station.h>']
             for function in contract['functions']:
                 args = ', '.join(f'{kind} arg{i}' for i, kind in enumerate(function['parameters'])) or 'void'

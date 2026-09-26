@@ -4,7 +4,7 @@ This explicit Zig interface targets [Transit v3](../../../../contracts/TRANSIT_V
 The [development contract](../../../../contracts/STATION_GROWING.md) records
 compatibility and the behavior loop. The existing `Turn`, `GenServer`, legacy
 foreign ABIs and launchers still use Station v1. M11's explicit
-[growing ABI](bindings.md#explicit-growing-turns) adds gated foreign turns and
+[growing ABI](../../transit-station-bindings/docs/bindings.md#explicit-growing-turns) adds gated foreign turns and
 bounded state/Table access separately.
 
 ## Behavior loop

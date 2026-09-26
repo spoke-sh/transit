@@ -40,7 +40,7 @@ include both service and requester handlers and versioned application codecs.
 against a real disk-backed node. [Runtime and recovery](docs/runtime.md) describes
 mutation gates, cleanup, errors, Tables and Arrow ownership. The
 [Python API design](../../../docs/sdk/PYTHON.md) provides fuller typed examples;
-the [shared ABI guide](../../zig/transit-station/docs/bindings.md) owns native bounds.
+the [shared ABI guide](../../zig/transit-station-bindings/docs/bindings.md) owns native bounds.
 
 M9's generic `Client` and `GenServer` remain under `transit_station.raw`, with
 compatible root aliases. They retain the legacy profile and explicit JSON actions;
