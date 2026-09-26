@@ -80,3 +80,8 @@ revision-read types, limits, and shared canonical fixture. The
 [state contract](../../../contracts/STATE_V1.md) records compatibility and proof
 obligations. The signed `capabilities` state query advertises a running
 authority’s supported limits; schema presence alone does not.
+
+The shared `Schema` reflection writer keeps kernel wire arrays fixed. A consuming
+host ABI may explicitly opt into `sequence_max_length` for bounded JSON sequences;
+domain validation still enforces narrower per-field limits. This generation option
+does not widen protocol frames, mutation budgets or running-service capabilities.

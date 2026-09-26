@@ -12,6 +12,8 @@ pub const Request = union(enum) {
     finish: bool,
     pending: void,
     growing_capabilities: void,
+    http_codec: abi.http.Action,
+    growing_http_read: abi.http.ReadAction,
     growing_prepare: u64,
     growing_dispatch: void,
     growing_confirmation: void,

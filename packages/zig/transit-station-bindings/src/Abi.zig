@@ -5,6 +5,7 @@ const p = s.protocol;
 pub const actions = @import("Actions.zig");
 pub const host = @import("HostProtocol.zig");
 pub const growing = @import("GrowingAbi.zig");
+pub const http = @import("HttpCodec.zig");
 pub const version: u32 = 1;
 pub const minimum_stack_bytes: usize = 8 * 1024 * 1024;
 pub const Status = enum(u32) { ok = 0, invalid_argument = 1, out_of_memory = 2, rejected = 3, denied = 4, conflict = 5, uncertain = 6, unavailable = 7, invalid_response = 8, busy = 9, incompatible_version = 10, stale_activation = 11, blocked = 12, not_ready = 13, budget_exceeded = 14 };
@@ -68,6 +69,8 @@ pub fn observe(pointer: *Server, observer: *s.client.observability.telemetry.Run
 }
 
 pub const Api = struct {
+    pub const station_http_codec = http.codec;
+    pub const station_growing_http_read = growing.httpRead;
     pub const station_growing_capabilities = growing.capabilities;
     pub const station_growing_create = growing.create;
     pub const station_growing_destroy = growing.destroy;
@@ -247,4 +250,5 @@ pub const Api = struct {
 
 test {
     _ = growing;
+    _ = http;
 }

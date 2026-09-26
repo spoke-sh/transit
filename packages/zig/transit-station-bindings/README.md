@@ -1,7 +1,8 @@
 # transit-station-bindings
 
-The shared native SDK bridge composes [Station](../transit-station/README.md)
-and the [client ABI](../transit-client/docs/bindings.md). It owns detached handler
+The shared native SDK bridge composes [Station](../transit-station/README.md),
+the [client ABI](../transit-client/docs/bindings.md) and
+[HTTP](../transit-station-http/README.md). It owns detached handler
 operations, native handle/buffer lifetime, generated C declarations and the schemas
 used by every language adapter and the [native port](../../../apps/transit-station-host/README.md).
 
@@ -9,7 +10,10 @@ This package sits above the framework so connector and later Document/query
 adapters can compose shared Zig implementations without reversing Station's
 dependency direction. The existing `station_abi` module, `libtransit_station`
 artifact, function signatures and wire schemas are preserved by this extraction.
-No connector SDK capability is claimed merely by moving the bridge.
+Additive M15 exports prepare HTTP request commitments, decode outcomes and expose
+one bounded replay reader. Scoped publication actions and validated HTTP calls
+reuse the same native turn and dispatch gate. These are native composition APIs;
+language-native HTTP convenience APIs remain M15 work.
 
 See the [binding guide](docs/bindings.md) for ownership, scoped turns, explicit
 dispatch, exact pending retry and query buffers. Native foreign pointers never

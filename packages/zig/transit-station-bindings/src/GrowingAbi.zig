@@ -27,6 +27,12 @@ pub const Capabilities = struct {
     paged_state: bool = true,
     tables: bool = true,
     retained_sources: bool = true,
+    publications: bool = true,
+    http_requests: bool = true,
+    http_replay: bool = true,
+    http_active_readers: u32 = 1,
+    http_request_bytes: u32 = @import("HttpCodec.zig").http.RequestRecord.maximum_body_bytes,
+    publication_chunk_bytes: u32 = s.Publication.chunk_bytes,
     query_results: bool = true,
     ipc_cells: bool = true,
     query_segment_bytes: u32 = s.GrowingQuery.records.segment_bytes,
@@ -66,6 +72,9 @@ const Impl = struct {
     scope_counter: u64 = 0,
     workspace: ?[]u8 = null,
     cancellation: s.fuze.execution.Cancellation = .init(false),
+    http_client: @import("HttpCodec.zig").http.exchange.Client = undefined,
+    http_reader: ?@import("HttpCodec.zig").http.Replay = null,
+    http_reader_id: u64 = 0,
 };
 fn cast(pointer: *Server) *Impl {
     return @ptrCast(@alignCast(pointer));
@@ -121,6 +130,7 @@ pub fn create(abi_version: u32, url: [*]const u8, url_len: usize, seed: *const [
 }
 pub fn destroy(pointer: ?*Server) callconv(.c) void {
     const server = cast(pointer orelse return);
+    std.crypto.secureZero(u8, std.mem.asBytes(&server.http_client.key));
     std.crypto.secureZero(u8, std.mem.asBytes(&server.behavior.session.key));
     server.client.deinit();
     server.threaded.deinit();
@@ -281,6 +291,81 @@ pub fn pending(pointer: *Server, out: *?*base.Buffer) callconv(.c) base.Status {
     const frozen = server.behavior.pending orelse return .not_ready;
     base.output(.{ .version = @as(u32, 1), .operation = .{ .growing_command = frozen.signed } }, out) catch |err| return base.status(err);
     return .ok;
+}
+
+/// One bounded reader per native handle, outside an active handler or mutation.
+/// Returned bytes are owned; a cursor never crosses the foreign boundary.
+pub fn httpRead(pointer: *Server, json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
+    out.* = null;
+    if (len == 0 or len > 2048) return .invalid_argument;
+    const server = cast(pointer);
+    if (!lock(server)) return .busy;
+    defer server.busy.store(false, .release);
+    if (server.behavior.ready != null or server.behavior.pending != null) return .busy;
+    const h = @import("HttpCodec.zig");
+    const parsed = std.json.parseFromSlice(h.ReadAction, allocator, json[0..len], .{}) catch |err| return base.failure(err, out);
+    defer parsed.deinit();
+    switch (parsed.value) {
+        .open => |value| {
+            if (server.http_reader != null) return .busy;
+            if (server.http_reader_id == p.max_counter) return .budget_exceeded;
+            const session = server.behavior.session;
+            server.http_client = .{ .wire = &server.client, .realm = session.realm, .principal = session.principal, .key = session.key };
+            const reference = h.http.exchange.Client.Reference.decode(value.reference) catch |err| return base.failure(err, out);
+            const reader = h.http.Replay.open(&server.http_client, reference, value.policy) catch |err| return failure(server, err, false, out);
+            const id = server.http_reader_id + 1;
+            base.output(h.ReadResult{ .opened = id }, out) catch |err| return base.status(err);
+            server.http_reader = reader;
+            server.http_reader_id = id;
+        },
+        .next => |id| {
+            if (id == 0 or id != server.http_reader_id or server.http_reader == null) return .not_ready;
+            // Allocation failure cannot silently consume a verified body part.
+            const before = server.http_reader.?;
+            const part = server.http_reader.?.read() catch |err| return failure(server, err, false, out);
+            return httpPartOutput(allocator, server, before, part, out);
+        },
+        .close => |id| {
+            if (id == 0 or id != server.http_reader_id) return .not_ready;
+            base.output(h.ReadResult{ .closed = true }, out) catch |err| return base.status(err);
+            server.http_reader = null;
+            std.crypto.secureZero(u8, std.mem.asBytes(&server.http_client.key));
+        },
+    }
+    return .ok;
+}
+fn httpPartOutput(alloc: std.mem.Allocator, server: *Impl, before: @import("HttpCodec.zig").http.Replay, part: ?@import("HttpCodec.zig").http.Replay.Part, out: *?*base.Buffer) base.Status {
+    base.outputWithAllocator(alloc, @import("HttpCodec.zig").ReadResult{ .part = part }, out) catch |err| {
+        server.http_reader = before;
+        return base.status(err);
+    };
+    return .ok;
+}
+test "HTTP body response allocation cannot advance a cursor past undisclosed bytes" {
+    const t = std.testing;
+    const h = @import("HttpCodec.zig");
+    const before: h.http.Replay = .{ .client = undefined, .reference = undefined, .cursor = undefined, .validator = .{ .terminal_status = 200 } };
+    var completed = before;
+    completed.done = true;
+    var failures: usize = 0;
+    for (0..32) |index| {
+        var server: Impl = .{ .threaded = undefined, .client = undefined, .url = undefined, .behavior = undefined, .http_reader = completed };
+        var alloc = t.FailingAllocator.init(t.allocator, .{ .fail_index = index });
+        var out: ?*base.Buffer = null;
+        const status = httpPartOutput(alloc.allocator(), &server, before, .{ .kind = .response_body, .bytes = try p.Value.init(&.{ 0, 255, 1 }), .complete = true }, &out);
+        defer base.destroyBufferWithAllocator(alloc.allocator(), out);
+        if (status == .out_of_memory) {
+            failures += 1;
+            try t.expectEqual(null, out);
+            try t.expect(!server.http_reader.?.done);
+        } else {
+            try t.expectEqual(.ok, status);
+            try t.expect(server.http_reader.?.done);
+            try t.expect(failures > 0);
+            return;
+        }
+    }
+    return error.NoSuccessfulAllocation;
 }
 
 test "growing dispatch response allocation preserves uncertainty and the owned confirmation" {

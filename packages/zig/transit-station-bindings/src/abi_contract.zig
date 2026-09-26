@@ -43,12 +43,12 @@ pub fn main(init: std.process.Init) !void {
     try out.endArray();
     try out.objectField("schemas");
     try out.beginObject();
-    inline for (.{ "Config", "Action", "Result", "Event", "ArrowCell", "HostConfig", "HostRequest", "GrowingConfig", "GrowingAction", "GrowingResult", "GrowingEvent", "GrowingCapabilities" }, .{ abi.Config, abi.actions.Action, abi.actions.Result, abi.Event, abi.actions.ArrowCell, abi.host.Config, abi.host.Request, abi.growing.Config, abi.growing.actions.Action, abi.growing.actions.Result, abi.growing.Event, abi.growing.Capabilities }) |name, T| {
+    inline for (.{ "Config", "Action", "Result", "Event", "ArrowCell", "HostConfig", "HostRequest", "GrowingConfig", "GrowingAction", "GrowingResult", "GrowingEvent", "GrowingCapabilities", "HttpCodecAction", "HttpCodecResult", "HttpReadAction", "HttpReadResult" }, .{ abi.Config, abi.actions.Action, abi.actions.Result, abi.Event, abi.actions.ArrowCell, abi.host.Config, abi.host.Request, abi.growing.Config, abi.growing.actions.Action, abi.growing.actions.Result, abi.growing.Event, abi.growing.Capabilities, abi.http.Action, abi.http.Result, abi.http.ReadAction, abi.http.ReadResult }) |name, T| {
         try out.objectField(name);
         // Foreign text includes whole frozen requests and IPC encoded as hex.
         // It is not the kernel's 256-byte opaque Value. Domain helpers impose
         // their narrower field budgets, and the host bounds the complete line.
-        try s.protocol.Schema.write(T, &out, .{ .safe_integers = true, .text_max_length = s.protocol.max_body * 2, .output = T == abi.Event or T == abi.actions.Result or T == abi.actions.ArrowCell or T == abi.growing.Event or T == abi.growing.actions.Result or T == abi.growing.Capabilities });
+        try s.protocol.Schema.write(T, &out, .{ .safe_integers = true, .text_max_length = s.protocol.max_body * 2, .sequence_max_length = abi.http.http.Request.maximum_pieces, .output = T == abi.Event or T == abi.actions.Result or T == abi.actions.ArrowCell or T == abi.growing.Event or T == abi.growing.actions.Result or T == abi.growing.Capabilities or T == abi.http.Result or T == abi.http.ReadResult });
     }
     try out.endObject();
     try out.endObject();

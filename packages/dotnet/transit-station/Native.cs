@@ -34,6 +34,10 @@ internal static class Native {
     [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
     internal static extern void transit_buffer_destroy(IntPtr arg0);
     [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_http_codec([In] byte[] arg0, nuint arg1, out IntPtr arg2);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_growing_http_read(IntPtr arg0, [In] byte[] arg1, nuint arg2, out IntPtr arg3);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint station_growing_capabilities(out IntPtr arg0);
     [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint station_growing_create(uint arg0, [In] byte[] arg1, nuint arg2, [In] byte[] arg3, [In] byte[] arg4, nuint arg5, out IntPtr arg6);

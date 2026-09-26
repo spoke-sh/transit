@@ -8,7 +8,14 @@ pub fn field(out: *std.json.Stringify, name: []const u8, value: anytype) !void {
 pub fn schema(comptime T: type, out: *std.json.Stringify) std.Io.Writer.Error!void {
     return write(T, out, .{});
 }
-pub const Options = struct { output: bool = false, safe_integers: bool = false, text_max_length: usize = 256 };
+pub const Options = struct {
+    output: bool = false,
+    safe_integers: bool = false,
+    text_max_length: usize = 256,
+    /// Opt-in host collection bound. Kernel wire contracts keep fixed arrays;
+    /// domain validation can impose a stricter per-field limit on host slices.
+    sequence_max_length: ?usize = null,
+};
 pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
     @setEvalBranchQuota(100000);
     try out.beginObject();
@@ -26,9 +33,17 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
             try field(out, "x-transit-signed", info.signedness == .signed);
         },
         .pointer => |info| {
-            if (info.size != .slice or info.child != u8) @compileError("Only text slices are public wire pointers");
-            try field(out, "type", "string");
-            try field(out, "maxLength", options.text_max_length);
+            if (info.size != .slice) @compileError("Public wire pointers must be slices");
+            if (info.child == u8) {
+                try field(out, "type", "string");
+                try field(out, "maxLength", options.text_max_length);
+            } else {
+                const bound = options.sequence_max_length orelse @compileError("Public sequences require an explicit finite profile bound");
+                try field(out, "type", "array");
+                try field(out, "maxItems", bound);
+                try out.objectField("items");
+                try write(info.child, out, options);
+            }
         },
         .bool => try field(out, "type", "boolean"),
         .void => {

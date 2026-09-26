@@ -6,7 +6,7 @@ import sys
 import tempfile
 
 
-def run(host):
+def run(host, library=None):
     with tempfile.TemporaryDirectory(prefix='station-local-codecs-') as temporary:
         config = Path(temporary) / 'host.json'
         config.write_text(json.dumps({'local_codec': True}))
@@ -24,6 +24,41 @@ def run(host):
         assert responses[1]['value']['gated_dispatch']
         assert responses[2] == {'status': 0, 'value': (b'STN1\x01' + bytes(8) + b'TSC\x01\x02').hex()}
         assert all(response == {'status': 13, 'value': None} for response in responses[3:])
+        fixture = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-http/src/admission-fixtures.json').read_text())
+        request = {key: value for key, value in fixture['request'].items() if key != 'body_bytes'}
+        actions = [
+            {'prepare': {'resource': 8, 'namespace': str(2**64-1), 'request': request,
+                'body': fixture['body'], 'endpoint_revision': '7', 'reconcile_before_ms': 9000, 'max_attempts': 2}},
+            {'outcome': fixture['outcome']}, {'outcome': fixture['rejection']},
+            {'outcome': fixture['outcome'][:-2]},
+            {'prepare': {'resource': 8, 'namespace': str(2**64), 'request': request,
+                'body': '', 'endpoint_revision': '7', 'reconcile_before_ms': 9000}},
+        ]
+        result = subprocess.run([host, config], input=''.join(json.dumps({'http_codec': a})+'\n' for a in actions),
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=15, check=True)
+        responses = [json.loads(line) for line in result.stdout.splitlines()]
+        prepared = responses[0]['value']['prepared']
+        assert responses[0]['status'] == 0 and prepared['reference'] == fixture['reference']
+        assert bytes.fromhex(prepared['metadata']).decode() == fixture['metadata']
+        assert responses[1]['status'] == 0
+        assert responses[1]['value']['outcome']['exchange'] == str(2**64-1)
+        assert responses[1]['value']['outcome']['status'] == 200
+        assert responses[2] == {'status': 0, 'value': {'rejected': 'denied'}}
+        assert all(r['status'] == 1 for r in responses[3:])
+        if library:
+            # The generated ABI declares the exact same implementation as the port.
+            from transit_station import _Library, TransitError
+            directory = Path(temporary) / 'lib'
+            directory.mkdir()
+            (directory / 'libtransit_station.so').symlink_to(Path(library).resolve())
+            native = _Library(directory, 'station')
+            for action, expected in zip(actions, responses, strict=True):
+                data = json.dumps(action).encode()
+                try:
+                    actual = {'status': 0, 'value': native.call('station_http_codec', data, len(data))}
+                except TransitError as error:
+                    actual = {'status': error.status, 'value': error.detail}
+                assert actual == expected, (actual, expected)
         seed = Path(temporary) / 'test.key'
         seed.write_text('00' * 32)
         activation = {'realm': 72, 'principal': 1, 'pid': 1, 'generation': 1, 'association': 'data'}
@@ -45,7 +80,7 @@ def run(host):
             rejected = subprocess.run([host, config], input='', text=True, stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL, timeout=10)
             assert rejected.returncode != 0 and rejected.stdout == ''
-    print('Station local codecs: shared framing, no authority configuration or credentials, incompatible mode rejection passed.')
+    print('Station local codecs: shared framing and HTTP admission fixtures, full-width IDs, malformed rejection, no authority/credentials, native/port parity and shutdown passed.')
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

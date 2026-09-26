@@ -202,3 +202,45 @@ The companion `tests/station_query_abi.py` proves six segments/41 rows through
 capture, loss/retry and caller/node/store restart, original IPC ownership and
 independent PyArrow decoding, complete metadata, native-port parity, disabled
 queries, stale scope and revoked result access.
+
+## HTTP and immutable publications
+
+M15 adds `station_http_codec`, also available as port `http_codec` in local-codec
+mode. `prepare` accepts typed request pieces, a finite hex body, resource identity,
+namespace, endpoint revision and reconciliation/attempt bounds. Namespace, secret
+versions and endpoint revisions use canonical unsigned decimal strings, preserving
+all 64 bits. The shared Zig HTTP package validates/render-checks the request and
+returns its HTQ1 reference, owned metadata bytes and both Publication specs.
+`outcome` decodes HTR1/HTF1; it returns explicit unknown/not-dispatched/rejected
+states without inventing a complete reference. Preparation and decoding need no
+authority endpoint or credentials and never perform network effects.
+
+Growing capabilities advertise `publications`, `http_requests`, `http_replay`,
+the 65,536-byte finite request profile and 256-byte publication chunks.
+`publication_create/begin/append/publish/abandon/retire/collect` delegate to Station
+Publication inside the active scoped turn. Host adapters schedule bounded steps;
+they do not hash, merge, publish or retry independently. Partial staging remains
+private. `http_call` verifies that both exact referenced records are already
+published in the current caller resource, then records the normal durable wait
+and output. Publish and call in separate turns: publication reads reject private
+mutations. Capacity/error rollback, frozen pending envelopes and exact signed
+recovery follow the existing growing boundary.
+
+`station_growing_http_read` (port `growing_http_read`) is separate from scoped
+handler actions. `open` accepts a complete reference and replay policy; `next`
+accepts the returned opaque local reader ID; `close` disposes that reader. A handle
+owns at most one active reader, with an 8 KiB HTTP validator and native cursors.
+Reader work is rejected while a handler or pending mutation is active. Each read
+returns at most one 256-byte part and rechecks current resource/group access.
+The foreign response owns its bytes. Allocation failure restores cursor progress;
+a failed protocol/authority read poisons the reader and requires reopening.
+Stale IDs cannot access a replacement reader. Destruction releases the local
+reader after the host joins native work; it does not release any durable replay
+dependency. Only `complete: true` establishes full verified capture, and unknown
+outcomes cannot be opened as complete responses. This API has no endpoint, DNS
+or secret resolver for external HTTP work.
+
+Generated declarations remain separate from language-native SDKs. Their JSON
+schemas derive from these Zig types, with an explicit finite slice bound for host
+request arrays. Per-field HTTP validation enforces the stricter header and piece
+limits. Existing kernel wire arrays and protocol limits are unchanged.

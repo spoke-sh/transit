@@ -341,6 +341,52 @@ def run(node, cli, library, raw_library, host):
             server = Native(libraries, url, finite_seed, {**config, 'principal': 65537, 'pid': finite, 'generation': 2})
             ready(server)
             assert observed_kinds == {'open', 'commit', 'permit'}
+            server.close()
+            server = None
+
+            # Native publication and HTTP call composition use the same growing
+            # turn gate. The host never implements digests or admission framing.
+            caller, resource, caller_seed = provision(65538)
+            destination = command({'spawn': {}})
+            server = Native(libraries, url, caller_seed, {**config, 'principal': 65538, 'pid': caller, 'generation': 2})
+            assert caps['publications'] and caps['http_requests'] and caps['publication_chunk_bytes'] == 256
+            document = _json({'prepare': {'resource': resource, 'namespace': str(2**64-1),
+                'request': {'method': 'POST', 'target': [{'literal': '/write'}]}, 'body': '00ff01',
+                'endpoint_revision': '7', 'reconcile_before_ms': now + 120000}})
+            prepared = server.api.call('station_http_codec', document, len(document))['prepared']
+            namespace = str(2**64-1)
+            def operation(action):
+                command({'send': {'pid': caller, 'value': frame(b'publication-step')}})
+                scope = ready(server)['scope']
+                result = server.apply(scope, action)
+                finish(server, scope)
+                return result
+            operation({'publication_create': {'namespace': namespace, 'record_bytes': 8192, 'staging_bytes': '16384', 'staging_records': 2}})
+            for identity, data, spec in (('1', bytes.fromhex(prepared['metadata']), prepared['metadata_spec']), ('2', b'\x00\xff\x01', prepared['body_spec'])):
+                operation({'publication_begin': {'namespace': namespace, 'id': identity, 'spec': spec}})
+                for offset in range(0, len(data), 256):
+                    chunk = {'publication_append': {'namespace': namespace, 'id': identity, 'index': offset // 256, 'bytes': data[offset:offset+256].hex()}}
+                    assert operation(chunk) == {'publication': 'changed'}
+                    assert operation(chunk) == {'publication': 'duplicate'}
+                command({'send': {'pid': caller, 'value': frame(b'incomplete')}})
+                scope = ready(server)['scope']
+                assert rejects(1, server.apply, scope, {'http_call': {'pid': destination, 'reference': prepared['reference']}})['err'] == 'PublicationNotPublished'
+                finish(server, scope)
+                operation({'publication_publish': {'namespace': namespace, 'id': identity}})
+            command({'send': {'pid': caller, 'value': frame(b'http-call')}})
+            scope = ready(server)['scope']
+            before = server.apply(scope, {'budgets': {}})
+            changed = bytearray.fromhex(prepared['reference']); changed[24] ^= 1
+            assert rejects(1, server.apply, scope, {'http_call': {'pid': destination, 'reference': changed.hex()}})['err'] == 'InvalidHttpRequestReference'
+            assert server.apply(scope, {'budgets': {}}) == before
+            correlation = server.apply(scope, {'http_call': {'pid': destination, 'reference': prepared['reference']}})['correlation']
+            assert int(correlation) > 0
+            finish(server, scope)
+            outgoing = next(item for item in query({'outputs': {}})['outputs']['entries'] if item and item['source'] == caller)
+            assert outgoing['destination'] == destination
+            assert bytes.fromhex(outgoing['value'])[13:] == bytes.fromhex(prepared['reference'])
+            operation({'publication_retire': {'namespace': namespace, 'id': '1'}})
+            assert operation({'publication_collect': {'namespace': namespace, 'id': '1'}}) == {'collected': True}
         finally:
             if port is not None:
                 port.close()
@@ -350,7 +396,7 @@ def run(node, cli, library, raw_library, host):
             proxy.shutdown()
             proxy.server_close()
             thread.join(timeout=5)
-    print('Growing Station ABI: gated controls/turns, scoped pages beyond 32 rows, exact host/disk recovery, poison/stop, wide values and current authorization passed')
+    print('Growing Station ABI: gated controls, scoped pages, exact host/disk recovery, poison/stop, wide values, publication and validated HTTP calls passed')
 
 
 if __name__ == '__main__':

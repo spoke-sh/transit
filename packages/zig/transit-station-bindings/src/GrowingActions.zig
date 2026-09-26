@@ -5,6 +5,8 @@ const s = @import("transit_station");
 const p = s.protocol;
 const a = @import("Actions.zig");
 const q = s.GrowingQuery;
+const http = @import("HttpCodec.zig").http;
+const unsigned = @import("HttpCodec.zig").unsigned;
 pub const Plan = struct {
     projection: @FieldType(a.Plan, "projection") = .both,
     limit: ?[]const u8 = null,
@@ -57,6 +59,14 @@ pub const Action = union(enum) {
     query_close: struct { result: u64, reason: enum { cancelled, denied } },
     query_completed: []const u8,
     query_segment: struct { correlation: []const u8, ordinal: []const u8 },
+    publication_create: struct { namespace: []const u8, record_bytes: u32, staging_bytes: []const u8, staging_records: u32 },
+    publication_begin: struct { namespace: []const u8, id: []const u8, spec: s.Publication.Spec },
+    publication_append: struct { namespace: []const u8, id: []const u8, index: u32, bytes: p.Value },
+    publication_publish: struct { namespace: []const u8, id: []const u8 },
+    publication_abandon: struct { namespace: []const u8, id: []const u8 },
+    publication_retire: struct { namespace: []const u8, id: []const u8 },
+    publication_collect: struct { namespace: []const u8, id: []const u8 },
+    http_call: struct { pid: u64, reference: p.Value },
 
     pub fn requiresQuery(self: Action) bool {
         return switch (self) {
@@ -71,6 +81,8 @@ pub const Result = union(enum) {
     value: ?p.Value,
     correlation: []const u8,
     cancelled: bool,
+    publication: s.Publication.Outcome,
+    collected: bool,
     row: ?a.Row,
     schema: struct { id: u32, key_name: []const u8, value_name: []const u8, value_type: s.fuze.model.Type, basis: s.fuze.model.Basis },
     page: struct { entries: [p.Growth.page_size]?p.Growth.Entry, next: ?[]const u8 },
@@ -120,6 +132,24 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action)
     if (try a.basic(Result, allocator, turn, action)) |result| return result;
     switch (action) {
         .budgets => return .{ .budgets = .{ .mutations = remaining(turn.decision.mutations), .outputs = remaining(turn.decision.outputs), .views = remaining(turn.decision.views), .retained_reads = remaining(turn.decision.read_versions), .retains = remaining(turn.decision.retain), .releases = remaining(turn.decision.release) } },
+        .publication_create => |v| {
+            _ = try s.Publication.create(turn, try unsigned(v.namespace), .{ .record_bytes = v.record_bytes, .staging_bytes = try unsigned(v.staging_bytes), .staging_records = v.staging_records });
+        },
+        .publication_begin => |v| return .{ .publication = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).begin(turn, try unsigned(v.id), v.spec) },
+        .publication_append => |v| return .{ .publication = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).append(turn, try unsigned(v.id), v.index, v.bytes.slice()) },
+        .publication_publish => |v| return .{ .publication = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).publish(turn, try unsigned(v.id)) },
+        .publication_abandon => |v| return .{ .publication = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).abandon(turn, try unsigned(v.id)) },
+        .publication_retire => |v| return .{ .publication = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).retire(turn, try unsigned(v.id)) },
+        .publication_collect => |v| return .{ .collected = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).collect(turn, try unsigned(v.id)) },
+        .http_call => |v| {
+            const reference = try http.RequestRecord.Reference.decode(v.reference);
+            if (reference.resource != turn.view.resource) return error.InvalidHttpRequestReference;
+            const publication: s.Publication = .{ .resource = reference.resource, .namespace = reference.namespace };
+            const metadata = try publication.open(turn, http.RequestRecord.metadata_id);
+            const body = try publication.open(turn, http.RequestRecord.body_id);
+            if (!std.meta.eql(metadata.spec, reference.metadataSpec()) or !std.meta.eql(body.spec, reference.bodySpec())) return error.InvalidHttpRequestReference;
+            return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, v.reference, null)) };
+        },
         .page => |cursor| return page(allocator, turn, cursor),
         .table_page => |request| {
             if (request.version) |id| {
