@@ -712,6 +712,27 @@
       ],
       "limits": "Declared syntax subset only; no PostgreSQL execution-equivalence claim, SQL endpoint, catalog access, writes or optimizer rewrite.",
       "model": null
+    },
+    {
+      "id": "SQL-02",
+      "claim": "Named specification rewrites preserve ordered projection/selection and stated first-error behavior under explicit factorization premises",
+      "owner": "contracts/sql/README.md",
+      "implementation": [
+        "contracts/sql/FuzeRewrite.lean",
+        "tests/sql/rewrites.py"
+      ],
+      "profile": "M12 Lean specification, not Zig refinement",
+      "tasks": [
+        "test::sql-rewrites"
+      ],
+      "scenarios": [
+        "Total predicate reordering and projection pruning",
+        "Fallible predicate pushdown through total projection",
+        "Unchanged downstream consumer preserves errors",
+        "Required theorem and axiom inventory rejects incomplete proof"
+      ],
+      "limits": "No optimizer enabled; authority, allocation, cancellation and partial projections are outside the model. Limit pushdown and checked-sum reassociation are not claimed.",
+      "model": "contracts/sql/FuzeRewrite.lean"
     }
   ]
 }

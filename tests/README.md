@@ -1386,3 +1386,11 @@ network query service or SQL DDL/writes. Current authorization, durable Station
 publication, recovery and foreign SDK behavior retain their existing owners and
 proofs. The parser does not change those boundaries. The Lean model's separate
 assumptions and evidence are recorded in the grammar contract.
+
+`just test::sql-rewrites` checks four complete Lean theorems. Filter reordering
+and projection pruning print only `propext`; predicate pushdown with first-error
+preservation and its downstream-consumer corollary print no axioms. The runner
+requires all four names and rejects warnings, incomplete proofs and unexpected
+axioms. This is specification evidence with explicit correspondence assumptions,
+not implementation refinement or an enabled optimizer. False/generalized limit
+and sum rewrites remain excluded, with reasons in the model.

@@ -129,10 +129,14 @@ refinement from all Zig executions. Finite model success does not establish all
 cluster sizes. Retain actual storage/provider/native-runtime proofs. Pin tools
 and give small PR configurations and larger exploration separate budgets.
 
-Lean is deferred until a specific theorem has value, such as a selected CRDT's
-merge laws or a Fuze rewrite with exact error semantics. Review assumptions and
-the implementation/model correspondence; do not equate a model proof with a proof
-of the deployed system. The review links primary tool documentation and rationale.
+M12's [Lean rewrite proofs](../contracts/sql/README.md#lean-scope) now qualify
+four named specification theorems: total filter reordering, projection pruning,
+predicate pushdown through total projection with first-error preservation, and
+an unchanged downstream fallible consumer. `just test::sql-rewrites` checks them
+with pinned Lean and rejects incomplete proofs or unexpected axioms. No optimizer
+rule is enabled. The explicit model/implementation correspondence assumptions
+and omitted allocation, cancellation and authority behavior prevent treating this
+as a proof of Zig or the deployed system. CRDT merge laws remain future work.
 
 ## Scale, overload and recovery
 

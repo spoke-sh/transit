@@ -78,9 +78,25 @@ resolve catalogs or authorize effects. SQL writes are not grammar-checked here.
 
 ## Lean scope
 
-[FuzeRewrite.lean](FuzeRewrite.lean) proves row-selection properties at the
-specification level. The recipe rejects Lean errors, warnings and `sorryAx`,
-and requires printed axiom evidence for named theorems. It does not prove the
-Zig implementation, enable optimizer rewrites, or discharge authorization,
-allocation, cancellation and retained-source assumptions. M12 tracks extension
-of the initial filter-reordering lemma to projection and pushdown.
+[FuzeRewrite.lean](FuzeRewrite.lean) has four complete Lean 4.29.1 theorems:
+
+| Theorem | Exact claim / premises | Printed axioms |
+| --- | --- | --- |
+| `filter_reorder_preserves_selection` | Reordering two total boolean predicates preserves selected rows and order | `propext` |
+| `projection_pruning_preserves_rows` | Final projection factors through retained fields, preserving output values and field/row order | `propext` |
+| `predicate_pushdown_through_projection` | A fallible predicate factors through a total projection; moving it before projection preserves rows and the exact first error | None |
+| `pushdown_preserves_downstream_errors` | The same downstream fallible consumer receives the same rows or earlier error after that pushdown | None |
+
+The recipe requires these named theorems, rejects Lean errors/warnings and
+`sorryAx`, and checks the printed axiom sets. No deferred theorem is represented
+by a placeholder proof. Moving limits across filters and reassociating checked
+int64 sums are generally false and are not asserted. Partial/effectful projection
+rewrites need additional premises; implementation refinement remains deferred.
+
+The correspondence note maps validated `Plan.matches` predicates, null selection,
+ordered projections and `Stream.step`'s unchanged limit/sum consumer to the
+abstract model. It is an explicit assumption, not a proof about Zig or Arrow.
+Schema validation precedes execution. Source identity, current authorization,
+allocation failure, cancellation and retained-source availability require their
+own implementation qualification. No optimizer rewrite is enabled by these
+proofs, and the downstream theorem does not prove moving a limit or aggregate.
