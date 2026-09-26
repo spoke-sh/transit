@@ -20,7 +20,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M10](M10.md) | Verification and scale foundations | Explicit growing profile, verification harness and measured CI budgets qualified; v2 remains the default |
 | [M11](M11.md) | Idiomatic language SDKs | Qualified raw/Station SDKs, installed examples and ten public language pairs on Linux x86_64 |
 | [M12](M12.md) | Declarative interface readiness | Qualified Table SQL compiler, three-parser corpus, pinned tools and four complete Lean theorems |
-| [M13](M13.md) | Board relief atlas and public query access | Planned |
+| [M13](M13.md) | Board relief atlas and public query access | In progress: shared signed query client, SQL shell and Board workspace |
 | [M14](M14.md) | Documents, collaborative text and unified querying | Planned |
 | [M15](M15.md) | HTTP connector and exchange transcripts | Planned |
 | [M16](M16.md) | gRPC connector and streaming calls | Planned |
@@ -44,15 +44,12 @@ runtime integration and installable artifacts. [M12](M12.md) makes the
 read-only relational declarative interface [QUERY_LANGUAGE.md](../QUERY_LANGUAGE.md)
 designed actually usable: a checked grammar through `SELECT`, a real
 `parse -> Fuze plan` compiler, a pinned Postgres-compatibility corpus and an
-extended Lean rewrite-safety proof program — reusable by any later frontend,
-required by none of the milestones around it. [M13](M13.md) hosts the first
-real growing-query process outside a test harness, specifies a bounded public
-query capability distinct from Board's existing inspection grant, and exposes
-it through Board's relief-atlas workspace (the [design review sequence](../design/README.md),
-D1–D8) and a new `transit-cli` interactive shell — both sharing one query
-state rather than duplicating query semantics, with M12's compiled `SELECT`
-as a natural later input surface for the CLI, not a dependency of the
-milestone. Fuze's shared source model targets KV, Table and Document;
+extended Lean rewrite-safety proof program. [M13](M13.md) reuses that completed
+compiler and M11's growing hosts for a bounded public query capability distinct
+from Board's inspection grant. Board's relief-atlas workspace and the new
+`transit` query shell share the Zig query client, request/result contract and
+M12's compiled `SELECT`, without duplicating execution semantics.
+Fuze's shared source model targets KV, Table and Document;
 [M14](M14.md) adds Document/CRDT storage, structured and collaborative text
 editing, and the KV/Document query adapters with their own acceptance
 criteria, reusing M13's query capability rather than replacing it.

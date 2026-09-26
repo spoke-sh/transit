@@ -86,7 +86,9 @@ The same primitives must support ordinary stateful distributed programs.
   while Station owns their distinct mutation and merge semantics. Documents target
   both structured state and collaborative text in [M14](roadmap/M14.md), together
   with unified KV/Table/Document queries. [Arrow](ARROW.md) owns interchange and remote access.
-  M17 adds a read-only SQL subset over qualified Tables; continuous queries and
+  M12 implements the bounded read-only Table SQL compiler. M13 exposes it through
+  a separately authorized Board workspace and `transit` query shell; M17 reuses
+  it for Flight SQL. Continuous queries and
   separate-resource transactions remain later work. No foreign query engine
   runs behind the interface or inside Transit authority.
 - HTTP is the first connector; gRPC is the second. Request/response messages and
