@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transit-sdk-examples"
+version = "0.2.0"
+requires-python = ">=3.13"
+dependencies = ["transit-station==0.2.0"]
+
+[project.scripts]
+transit-python-counter = "transit_sdk_examples.counter:main"
+
+[tool.setuptools.package-data]
+transit_sdk_examples = ["py.typed"]

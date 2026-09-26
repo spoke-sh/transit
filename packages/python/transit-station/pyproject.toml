@@ -4,9 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "transit-station"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.13"
-description = "Shared Zig Transit/Station bindings"
+description = "Typed Station handlers over the shared Zig implementation"
+dependencies = ["transit-client==0.2.0", "transit-native-station==0.2.0"]
+
+[project.optional-dependencies]
+arrow = ["pyarrow==23.0.0"]
 
 [tool.setuptools.package-data]
-transit_station = ["*-abi.json"]
+transit_station = ["*-abi.json", "py.typed"]
+
+[tool.mypy]
+strict = true
+
+# The preserved M9 action adapter is explicitly untyped; public modules stay strict.
+[[tool.mypy.overrides]]
+module = "transit_station.raw"
+ignore_errors = true

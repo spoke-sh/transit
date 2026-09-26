@@ -49,8 +49,7 @@ profile's bounded 64-page cache. It captures and delivers 41 rows in six IPC
 segments, retries lost staging receipts, restarts workers/node/provider after a
 seal, checks complete source metadata and decodes owned IPC with PyArrow after
 native disposal. Port parity, disabled query access, stale scope and revocation
-are covered by the shared `growing-query-abi` scenario. Public SDK handlers,
-optional Arrow adapters and clean package installation remain M11 work.
+are covered by the shared `growing-query-abi` scenario. Public language adapters have separate qualification below.
 
 `just bindings::python-test` builds Python wheels, installs only `transit-client`
 and `transit-native-client` into an isolated consumer outside the source tree,
@@ -59,7 +58,20 @@ copied mutable payloads, canonical classification, a dropped accepted receipt,
 seedless retry in another process, host allocation failure after a receipt,
 revoked historical retry, one-operation admission and responsive async close
 after await cancellation. Strict typing covers the public client and native
-artifact resolvers. Public Station runners remain separate work.
+artifact resolvers. A second isolated consumer installs Station and the example
+package, then exercises the typed runner against a real disk node. It covers
+persistence and confirmation failures for permit/open/commit, post-acceptance
+host allocation, escaped/wrong-thread turns, strict ingress with stop/block
+policies, a poisoned read caught by a handler, responsive cancellation during
+an accepted commit, and exact seedless retry after killing the host and restarting
+node/provider. Installed counter CLI roles preserve a full u64 reply across a
+fresh requester activation. Table/query handlers prove 41 rows/six pages, retained
+point reads after mutation, six original IPC segments after disposal, current
+access revocation during a result read and process expiry. The optional PyArrow
+23 adapter uses the pinned Nix consumer after the independent clean core install.
+The shared `public-runner-lifecycle` scenario records comparable observations for
+later languages. Qualification is Linux x86_64 with Nix-linked native wheels;
+other language public APIs and the final M11 interoperability matrix remain open.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

@@ -48,8 +48,11 @@ The first implemented public raw SDK is [Python transit-client](../packages/pyth
 `just bindings::python-test` builds wheels and installs the client plus its
 independent native dependency in a clean consumer outside the checkout. It checks
 typed preparation, native-classified recovery, lost receipts, host restart,
-revocation and bounded async cancellation/disposal. This does not yet qualify a
-public Station runner. No Station wheel is installed in the raw-client proof.
+revocation and bounded async cancellation/disposal. No Station wheel is installed in the raw-client proof. A separate installed
+consumer qualifies Python's typed Station runner, counter CLI roles, Table/query
+handlers, recovery callbacks, scoped state, full-width values and optional PyArrow.
+The [Python guide](../packages/python/transit-station/README.md) distinguishes the
+public API from its preserved M9 raw adapter.
 
 ## Qualification tools
 

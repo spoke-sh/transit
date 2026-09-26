@@ -1,13 +1,13 @@
 # Python SDK API design
 
-Status: the [typed raw client](../../packages/python/transit-client/README.md)
-is implemented and qualified on the initial Linux target. Station declarations
-below remain proposed M11 APIs. Read the
-[shared design](../SDK.md) for authority, lifecycle and recovery rules. The
-[current Python adapter](../../packages/python/transit-station/README.md) remains
-the executable M9 surface. Examples here are design excerpts: `counter_contract`
-denotes the application models, codecs and typed keys still to be implemented
-from shared fixtures; configuration and durable storage come from the application.
+Status: the [typed raw client](../../packages/python/transit-client/README.md) and
+[Station SDK](../../packages/python/transit-station/README.md) are implemented
+with clean wheel consumers on Linux x86_64 / pinned CPython 3.13. The installable
+[counter/query examples](../../examples/station-sdk/python/README.md) supply the
+application types/codecs used below. Configuration and durable recovery storage
+remain application-owned. The [shared design](../SDK.md) owns cross-language
+contracts; the [runtime guide](../../packages/python/transit-station/docs/runtime.md)
+owns implemented lifecycle, limits and migration from M9.
 
 ## Packages and types
 
@@ -120,7 +120,7 @@ returns a synchronous context manager. Its `run(stop=StopToken)` iterator yields
 context manager exposing the same events through an async iterator:
 
 ```python
-async with AsyncRunner.open(
+async with await AsyncRunner.open(
     service_config,
     handler=Counter(), codec=counter_codec,
     failure_policy=FailurePolicy.BLOCK_INPUT,
@@ -132,7 +132,7 @@ async with AsyncRunner.open(
         elif isinstance(event, Blocked):
             report_blocked(event.input_position, event.receipt)
         elif isinstance(event, NeedsRecovery):
-            report_pending_identity(event.identity)  # Do not log retry bytes.
+            report_pending_identity(event.mutation.identity)  # Do not log retry bytes.
 ```
 
 Run `Requester(counter_ref)` with `requester_codec` and its own activation using
@@ -218,8 +218,11 @@ mismatches and unsupported platforms with actionable errors before dispatch.
 No `PYTHONPATH` or manually assembled loader path in the clean-consumer example.
 Registry publication is outside M11; artifact construction/install proof is not.
 
-Before calling this implemented: type-check the examples, run shared codec and
-failure scenarios, prove context cleanup and loop responsiveness during native
-I/O/handler work, reject escaped turns and concurrent calls, and install/run both
-roles from wheels outside this checkout. Existing adapter tests do not establish
-those public SDK claims.
+`just bindings::python-test` strictly type-checks public APIs and executable
+examples, runs shared codecs and failure schedules, and installs/runs both roles
+from wheels outside the checkout. The proof covers all mutation persistence gates,
+confirmation and allocation failure, exact host/disk recovery, scoped/thread
+access, async cancellation/join, poisoned reads, expiry/fencing/revocation,
+retained Tables and six owned IPC segments with the optional pinned PyArrow
+adapter. [Test evidence](../../tests/README.md) records the qualified scope;
+other language SDKs and cross-language public pairs remain M11 work.

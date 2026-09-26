@@ -1,12 +1,12 @@
 # Public SDK design
 
-Status: proposed M11 public API contracts, ready to guide implementation. The
-[Python](sdk/PYTHON.md), [TypeScript](sdk/TYPESCRIPT.md) and [Rust](sdk/RUST.md)
-designs cover equivalent service/requester code, raw clients, recovery and host
-ownership. Their declarations and examples are **not implemented or executable
-evidence**. [M11](roadmap/M11.md) owns delivery; the existing
-[M9 adapters](../bindings/README.md) remain the executable low-level interfaces.
-Ruby joins the later adaptation group alongside C/C++, Java, .NET and BEAM.
+Status: M11 shared public API contracts. The [Python](sdk/PYTHON.md) design is
+implemented with typed raw/Station packages, executable counter/query examples,
+clean wheel installation and focused lifecycle/data proofs. The
+[TypeScript](sdk/TYPESCRIPT.md) and [Rust](sdk/RUST.md) designs remain proposed;
+Ruby, C/C++, Java, .NET and BEAM adaptations remain to be implemented.
+[M11](roadmap/M11.md) owns delivery, including public interoperability. The
+[M9 adapters](../bindings/README.md) remain executable low-level interfaces.
 
 The [caller model](CLIENT.md#idiomatic-language-sdks) owns shared guarantees.
 This document owns cross-language API decisions; the language pages own native
@@ -46,8 +46,8 @@ operations, capability probing, native operation metadata and opaque retry;
 its standalone client port has no Station dependency. The explicit growing Station
 ABI now adds gated/scoped turns, bounded KV/Table/retained-source access and
 opted-in native query capture/delivery with complete manifests and owned segments;
-legacy foreign entry points retain v2. Public runners require the remaining
-shared changes listed below.
+legacy foreign entry points retain v2. Python uses this boundary; the qualification
+table below distinguishes shared prerequisites from language-specific work.
 
 ## Types, codecs and input dispatch
 
@@ -90,7 +90,7 @@ frames use shared framework dispatch, not the application message codec.
 ## Equivalent application and durable calls
 
 All three designs use the same counter application: `Add(u64)`, `Read`,
-`Total(u64)` and requester `Start`, under the proposed application contract
+`Total(u64)` and requester `Start`, under the shared application contract
 `counter`, version 1. `TOTAL`, `REQUEST` and `OBSERVED` are typed u64 keys.
 Counter initialization writes zero; addition checks overflow; a call carrying
 `Read` replies with the current total. The requester handles `Start`, stages a
@@ -248,12 +248,12 @@ General query ingress and a production query host remain M13 scope.
 | Shared prerequisite | Required implementation/proof before public release |
 | --- | --- |
 | Growing Station ABI | Explicit C/port profile, full-width identities, bounded point/page reads, scoped turns and capability rejection implemented; public language adapters remain |
-| Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; foreign persistence callbacks and their fault proofs remain |
-| Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; public runner cancellation remains |
+| Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; Python persistence/confirmation callbacks and their fault proofs pass; other hosts remain |
+| Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; Python runner cancellation/join is qualified; other hosts remain |
 | Typed operation metadata | Implemented native classification and canonical identity through C/port, with owned buffers; public typed operations must use it without decoding retry bytes |
 | Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
 | Application codecs | Shared [counter/query definition](../examples/station-sdk/README.md) and [fixtures](../tests/verification/sdk-codecs-v1.json) defined; strict language implementations and cross-language execution remain |
-| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; public readers and optional Arrow adapters remain |
+| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python public readers/PyArrow are qualified; other hosts remain |
 
 The public declarations should first compile/type-check against real packages;
 then run the same service/requester against a disk-backed authority. Cover wide

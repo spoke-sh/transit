@@ -13,6 +13,7 @@ from station import frame
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "packages/python/transit-station"))
+sys.path.insert(0, str(ROOT / "packages/python/transit-client"))
 from transit_station import Client, GenServer, TransitError
 from sdk_scenarios import check
 

@@ -305,8 +305,8 @@ M11's first native-boundary slice adds the `growing-profile-abi` scenario to
 canonical v3 bodies, full-width IDs, signature domains and exact signatures.
 `just test::client-abi` checks them and the real one-page-cache node/provider
 restart, lost/invalid responses, fresh-process retry and current revocation.
-The public Python/TypeScript/Rust API sketches and growing Station foreign
-handler runner remain unqualified; this proof only extends the raw ABI.
+This scenario qualifies the raw ABI. The growing Station boundary and public
+language runners have separate scenarios and proof owners.
 
 [sdk.json](sdk.json) is the version-1 behavioral scenario contract for M11. Each
 scenario defines a sequence, required observations and executable proof owners;
@@ -315,7 +315,7 @@ are behavioral observations, not another copy of the wire schema. Presence in
 the catalog is not a passing result.
 
 [sdk_scenarios.py](../sdk_scenarios.py) compares all named observations exactly.
-Future public SDK adapters can execute the same schedule through their own API
+Public SDK adapters execute the same schedule through their own API
 and supply those observations; they must retain real service/host failures and
 cannot substitute expected constants for observed outcomes. Native allocation
 enumeration remains in its Zig owner, linked directly from the same catalog.
@@ -333,3 +333,12 @@ without handler dispatch or input consumption, local await cancellation, and
 responsive disposal that joins native work. The generated SDKs remain M11 work;
 these results qualify the current low-level Linux bindings and their shared
 semantics, not public SDK packaging or foreign deployment isolation.
+
+`bindings::python-test` adds clean installed public clients/runners and the
+`public-runner-lifecycle` observations. It covers every persistence gate and
+confirmation callback, native and host response ownership, exact retry after
+host/node/store loss, full-width reply resumption, retained Table reads and
+six complete owned IPC segments. Separate checks exercise poisoned reads,
+codec stop/block policy, scoped/thread access, cancellation/join, expiry and
+revocation during result reading. Other public languages must add equivalent
+observations; Python evidence does not qualify those runtimes.

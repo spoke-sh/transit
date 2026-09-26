@@ -30,6 +30,14 @@ that object; no credential is needed. Native metadata validates its canonical
 kind/profile/command before the SDK exposes a pending send. Retry material stays
 opaque and out of default representations. Closing a pending object releases its
 local bytes; it does not revoke or cancel the signed request.
+For saved framework mutations, use `recover_mutation(bytes)` and
+`dispatch_mutation(pending)`. Native metadata classifies the canonical growing
+command; `MutationReceipt` confirms that command only. It is distinct from
+`AdmissionReceipt`. The same methods exist on `AsyncClient`, and
+`last_mutation_receipt` retains a known result after local await cancellation.
+Reconcile saved runner work before obtaining fresh ownership; raw recovery does
+not recreate the old handler stack or activation.
+
 `capabilities(credential)` reports current authority budgets and the observed
 principal sequence. It does not reserve a sequence or coordinate other handles;
 local library compatibility alone cannot establish authority support.

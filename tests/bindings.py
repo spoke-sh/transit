@@ -43,7 +43,7 @@ def pair(node, cli, courier, library, raw_library, host, service_command, reques
             (libraries / f"libtransit_{name}.so").symlink_to(Path(source).resolve())
         env = os.environ | {"TRANSIT_LIBRARY_DIR": str(libraries),
             "TRANSIT_HOST": str(Path(host).resolve()),
-            "PYTHONPATH": str(ROOT / "packages/python/transit-station"),
+            "PYTHONPATH": os.pathsep.join(str(ROOT / "packages/python" / name) for name in ("transit-station", "transit-client")),
             "ERL_FLAGS": "+S 2:2 +SDcpu 1 +SDio 1"}
         def once(index):
             pid, _, config = records[index]

@@ -1,7 +1,41 @@
 {
   "version": 1,
-  "profile": "shared behavioral scenarios; current Linux low-level bindings, M11 public SDK adapters pending",
+  "profile": "shared behavioral scenarios; Linux low-level bindings and qualified public SDK adapters",
   "scenarios": [
+    {
+      "id": "public-runner-lifecycle",
+      "steps": [
+        "Install public SDK, examples and native artifacts in a clean consumer outside the checkout",
+        "Fail persistence, native-response allocation and confirmation hooks for every mutation purpose",
+        "Stop without rerunning the handler and recover exact accepted bytes after host/node/store loss",
+        "Resume the requester from durable waiting state and verify its full-width reply",
+        "Read bounded Table pages and retained points, then consume original complete-result IPC after runner disposal",
+        "Revoke access during result reading and preserve retirement/read/ownership errors"
+      ],
+      "expected": {
+        "gated_purposes": [
+          "commit",
+          "open",
+          "permit"
+        ],
+        "handler_calls_after_recovery": 1,
+        "dispatches_after_host_allocation": 3,
+        "exact_commit_retry": true,
+        "restarted_reply_value": "18446744073709551615",
+        "query_rows": 41,
+        "query_segments": 6,
+        "owned_ipc_after_close": true,
+        "revoked_result_denied": true
+      },
+      "proofs": [
+        {
+          "task": "bindings::python-test",
+          "source": "tests/python_station_sdk.py",
+          "anchor": "check('public-runner-lifecycle'"
+        }
+      ],
+      "limits": "Python 3.13 public runner and clean Linux Nix-linked wheels; one worker, serialized synchronous handlers, bounded native I/O and query workspace. Other language adapters must add equivalent observations. Optional PyArrow 23 consumes owned segments separately."
+    },
     {
       "id": "growing-query-abi",
       "steps": ["Require explicit query opt-in and start a typed native plan from an authenticated call", "Persist every control/capture/receive proposal before dispatch", "Lose an accepted staging response and retry the exact signed bytes", "Restart both workers, authority and disk provider after a segment seal", "Verify complete provenance and decode copied IPC after native disposal", "Read the same result through the native port and reject stale scope and revoked access"],

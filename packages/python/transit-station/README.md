@@ -1,45 +1,49 @@
 # transit-station for Python
 
-An owned-handle `ctypes` adapter over the shared Zig libraries. It exposes raw
-`Client` and `GenServer` classes, synchronous calls and `asyncio` wrappers.
-Importing it opens no libraries, connections or credentials. Supply library
-paths and credentials explicitly during construction.
+Typed handlers, scoped KV/Table access, durable calls and synchronous/asynchronous
+runners over the shared Zig Station implementation. The public API selects
+`growing_v3` explicitly. Python owns application codecs and scheduling; Zig owns
+protocol validation, signatures, framework transitions and exact retry.
 
-The [M11 Python SDK design](../../../docs/sdk/PYTHON.md) proposes typed clients,
-handlers and runners above this adapter; those APIs are not implemented yet.
+Build installable wheels with `nix develop --command just bindings::python-build`.
+Install `transit-station==0.2.0` from `.cache/bindings/wheels` with pip's
+`--no-index --find-links` options. It depends on the version-matched
+`transit-client` and `transit-native-station` packages; the client has its own
+independent native dependency. Discovery uses installed packages, with an explicit
+`ServiceConfig.native_directory` override. Import starts no work or credential
+access. Missing native artifacts/exports raise `IncompatibleNative`.
 
-The current qualification baseline is Nix-pinned CPython 3.13 on Linux x86_64.
-No Python runtime dependencies are needed. PyArrow is an independent test/example
-consumer; it is not needed to execute a Station handler or retrieve IPC bytes.
+The qualified target is Nix-pinned CPython 3.13 on Linux x86_64. Native wheels
+carry the local build's Nix runtime linkage; they are not portable manylinux
+artifacts. Registry publishing and other platforms remain unqualified.
 
-```sh
-zig build station-abi client-abi
-export TRANSIT_LIBRARY_DIR="$PWD/zig-out/lib"
-export PYTHONPATH="$PWD/packages/python/transit-station"
-python3 examples/station-bindings/python/main.py /private/host.json service 2
+```python
+from transit_station import Runner, Recovery, FailurePolicy, Committed
+from transit_sdk_examples.counter import Counter
+from transit_sdk_examples.codecs import counter_codec
+
+# config contains an explicitly provisioned activation, associated resource,
+# endpoint and key file. store implements application-owned durable persistence.
+with Runner.open(config, handler=Counter(), codec=counter_codec,
+                 failure_policy=FailurePolicy.STOP,
+                 recovery=Recovery.persist_before_dispatch(store)) as runner:
+    for event in runner.run():
+        if isinstance(event, Committed):
+            observe_commit(event.input_position, event.receipt.position)
+        else:
+            report_recovery_or_stop(event)
 ```
 
-That example needs a provisioned peer and associated resource; run
-`zig build test-bindings` for a fully provisioned, disposable pair. It consumes
-one turn per invocation, demonstrating recovery between handler calls.
+The installable [counter and query examples](../../../examples/station-sdk/python/README.md)
+include both service and requester handlers and versioned application codecs.
+`just bindings::python-test` type-checks them and runs clean installed consumers
+against a real disk-backed node. [Runtime and recovery](docs/runtime.md) describes
+mutation gates, cleanup, errors, Tables and Arrow ownership. The
+[Python API design](../../../docs/sdk/PYTHON.md) provides fuller typed examples;
+the [shared ABI guide](../../zig/transit-station/docs/bindings.md) owns native bounds.
 
-Use `with` or `async with` and close explicitly. Async calls run in Python's
-worker pool and release the GIL during native work; each handle allows one
-operation and rejects overlapping use. Cancellation releases the await, not
-the native request. `close` waits for native work; use async context management
-or `asyncio.to_thread(server.close)` on an event loop. Handle cleanup never
-implicitly acknowledges or commits a message. Explicit contexts are preferred
-to finalizers, particularly during interpreter shutdown.
-
-`GenServer.next` presents detached turns, `apply` uses the generated action
-schema, `finish` freezes success/failure and `pending` preserves exact retry
-text. `Client.prepare`/`call` use the raw protocol and retain its status distinctions.
-`TransitError.status` is the generated numeric status; `detail` contains native
-and protocol errors when available. Table int64/correlation values cross the
-shared action API as decimal strings; Python may convert them to integers after
-reading. IPC is returned as hex and can be passed as bytes to PyArrow directly.
-
-The [shared ABI guide](../../zig/transit-station/docs/bindings.md) owns bounds,
-recovery and current permission semantics. Python-managed secret copies cannot
-be guaranteed erased by the garbage collector; keep credentials explicit,
-private and out of logs. Native copies are erased when their handles close.
+M9's generic `Client` and `GenServer` remain under `transit_station.raw`, with
+compatible root aliases. They retain the legacy profile and explicit JSON actions;
+they are not the public growing runner. New raw callers import `transit_client`
+without Station. Migrating requires explicit profile/activation selection and
+application codecs; no state or wire-profile conversion occurs automatically.

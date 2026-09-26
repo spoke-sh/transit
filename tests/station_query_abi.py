@@ -285,4 +285,5 @@ def run(node, cli, library, raw_library, host):
 
 if __name__ == '__main__':
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'packages/python/transit-station'))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'packages/python/transit-client'))
     run(*sys.argv[1:])

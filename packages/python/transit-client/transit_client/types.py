@@ -88,6 +88,8 @@ class ClientConfig:
             raise ValueError('The public client requires explicit growing_v3; legacy operations use the raw binding')
         if not isinstance(self.url, str):
             raise TypeError('url must be text')
+        if len(self.url) > MAX_BODY or len(self.url.encode()) > MAX_BODY:
+            raise ValueError('url exceeds the native request bound')
         integer(self.timeout_ms, 'timeout_ms', maximum=60000)
         if self.native_directory is not None:
             object.__setattr__(self, 'native_directory', Path(self.native_directory))

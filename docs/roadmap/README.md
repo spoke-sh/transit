@@ -18,7 +18,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M8](M8.md) | Transit runtime readiness | Bounded origins, automatic delivery, catalog reclamation and lifecycle controls implemented and verified |
 | [M9](M9.md) | Station behaviors, language bindings, and Arrow Tables | Bounded profile implemented and qualified on Linux x86_64 across its target languages; Zig reference workers |
 | [M10](M10.md) | Verification and scale foundations | Explicit growing profile, verification harness and measured CI budgets qualified; v2 remains the default |
-| [M11](M11.md) | Idiomatic language SDKs | In progress; Python/TypeScript/Rust API proposals and raw growing ABI; Ruby added to targets |
+| [M11](M11.md) | Idiomatic language SDKs | In progress; Python public SDK and clean-wheel proofs; remaining language SDKs and public interoperability open |
 | [M12](M12.md) | Declarative interface readiness | Planned |
 | [M13](M13.md) | Board relief atlas and public query access | Planned |
 | [M14](M14.md) | Documents, collaborative text and unified querying | Planned |

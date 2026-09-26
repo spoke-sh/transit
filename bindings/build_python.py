@@ -12,7 +12,7 @@ def build(output: Path, packages: list[str]) -> None:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     for name in packages:
-        source = ROOT / 'packages/python' / name
+        source = ROOT / ('examples/station-sdk/python' if name == 'transit-sdk-examples' else 'packages/python/' + name)
         with tempfile.TemporaryDirectory(prefix='transit-wheel-') as temporary:
             staging = Path(temporary) / name
             shutil.copytree(source, staging, ignore=shutil.ignore_patterns('__pycache__', '*.egg-info', 'build', 'dist'))
@@ -29,4 +29,4 @@ def build(output: Path, packages: list[str]) -> None:
 
 
 if __name__ == '__main__':
-    build(Path(sys.argv[1]), sys.argv[2:] or ['transit-native-client', 'transit-native-station', 'transit-client', 'transit-station'])
+    build(Path(sys.argv[1]), sys.argv[2:] or ['transit-native-client', 'transit-native-station', 'transit-client', 'transit-station', 'transit-sdk-examples'])
