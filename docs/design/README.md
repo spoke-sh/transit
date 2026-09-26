@@ -1,51 +1,34 @@
-# Design reviews
+# Design items
 
-Design reviews form one numbered sequence, read from top to bottom. Each review
-owns one question, its proposal, visual evidence and recorded outcome.
+Each design item has its own directory and one linear, D-numbered review
+sequence. Its README owns the single review summary table, current review
+and links to supporting material. This index lists design items.
 
-**Current review:** [D9 — Implemented bounded atlas and Table workspace](D9.md).
-**Selected visual direction:** [D2, Figure 7 — Queue-count fabric](D2.md#figure-7-queue-counts-with-age-on-the-well-walls).
-The reviewer also endorsed [D5's architecture](D5.md#visual-studies),
-[D6's subtle fabric](D6.md#figure-1-processes-in-front-resources-as-landmarks)
-and [overhead detail](D6.md#figure-4-zoom-within-resources-reveals-flat-detail).
-
-| Review | Focus | Status | Outcome or next decision |
-| --- | --- | --- | --- |
-| [D1](D1.md) | Board browser and relief atlas | Reviewed | Two coordinated views; D2 extends the initial inbox-only relief |
-| [D2](D2.md) | Board inbox, outbox and age | Accepted in part | Figure 7 selected; age-driven depth remains an alternative |
-| [D3](D3.md) | Board fabric at 100–100,000 processes | Reviewed | Scale visuals favored; grouping remains open; D4 extends scale and simplifies the UI |
-| [D4](D4.md) | Board fabric at 1 million–1 billion processes | Reviewed | Visual direction endorsed; exact metrics and grouping remain open; D5 adds resources |
-| [D5](D5.md) | Table, KV and Document resource cityscapes | Accepted in part | Architectural visuals endorsed; exact metrics/grouping remain open; D7 explores entering the resource |
-| [D6](D6.md) | Process/resource emphasis and semantic zoom | Accepted in part | Figures 1 and 4 endorsed; emphasis policy and motion remain open; D7 develops the transition and interior |
-| [D7](D7.md) | Neighborhood navigation, resource portals and query workspaces | In review | Review Auto/pinned emphasis, deliberate resource entry, and Canvas/Browse representations of one sample query |
-| [D8](D8.md) | Shared-resource venues, past/future growth and readiness | In review | Compare stadium/park/fairground layouts, conditional day-to-decade envelopes, and separate capacity/workload evidence |
-| [D9](D9.md) | Implemented bounded atlas and Table workspace | In review | M13 engineering baseline: explicit emphasis/entry and one draft/result; no new reviewer acceptance |
-
-Review status records the design discussion. D1–D8 contain proposed
-interfaces and synthetic imagery; none establishes implemented capacity. D9
-records the bounded implemented baseline separately from reviewer acceptance.
-Delivery scope and qualification belong in the [roadmap](../roadmap/README.md);
-[M13](../roadmap/M13.md) scopes the query capability, the accepted D5/D6
-foundation and D7's data workspace, without retroactively accepting D7 or D8's
-still-open interactions. [Board](../BOARD.md) owns the product boundary and
-current inspection contracts.
+| Design item | Focus |
+| --- | --- |
+| [board-atlas](board-atlas/README.md) | Board browser, relief atlas and resource workspace |
 
 ## Maintaining the sequence
 
-Use one `D<number>.md` file per review in this directory. Append the next number
-when a new design question or iteration needs review. Keep existing IDs stable;
-do not create parallel files named after follow-ups, alternatives or revisions.
-Clarifications and corrections to the same review stay in its numbered file.
+For a new design item, create a named directory here, add its README and
+register it in the table above. Start its review sequence at `D1.md`.
 
-Keep this table, the current-review link and previous/next navigation in sync.
-Record acceptance only when a reviewer has selected that direction, and state
-exactly what was accepted. Preserve earlier proposals and their limits when a
-later review extends or supersedes them; link both outcomes.
+Use one `D<number>.md` file per review inside that item’s directory. Append
+the next number within the item when a new design question or iteration needs
+review. Keep existing IDs stable; do not create parallel files named after
+follow-ups, alternatives or revisions. Clarifications and corrections to the
+same review stay in its numbered file. Qualify references outside the item
+with its name, for example **board-atlas D2**.
 
-The index is the single summary of the sequence. Owning product documents and
-PR descriptions link here for navigation and to numbered reviews for details.
-Do not embed a review's gallery in the index or maintain another competing
-review table.
+Keep the item’s review table, current-review link and previous/next navigation
+in sync. Record acceptance only when a reviewer has selected that direction,
+and state exactly what was accepted. Preserve earlier proposals and their
+limits when a later review extends or supersedes them; link both outcomes.
+
+The item’s README is the single summary of its sequence. Owning product
+documents and PR descriptions link there for navigation and to numbered
+reviews for details. Do not embed a review’s gallery in an index or maintain
+another competing review table.
 
 ## Review document structure
 
@@ -55,7 +38,7 @@ needed.
 
 | Section | Content |
 | --- | --- |
-| Title and navigation | Stable D number, topic, index and real previous/next links |
+| Title and navigation | Stable D number within the item, topic, item review index and real previous/next links |
 | Status | Review state and a separate implementation/evidence statement |
 | Question | The decision this review asks the reader to make |
 | Proposal | A short recommendation and the prior direction it builds on |
@@ -67,14 +50,13 @@ needed.
 | Supporting material | Exact prompts, fixtures, technical appendices and asset links |
 
 A figure number identifies an image, not a review. Preserve the existing
-Figure 1–13 labels so prior feedback remains meaningful; refer to a visual as
-**D2, Figure 7**, for example. New reviews can number their own figures, since
-the review ID supplies context.
+Figure 1–13 labels in Board atlas so prior feedback remains meaningful; refer
+to a visual as **board-atlas D2, Figure 7** outside that item. New reviews can
+number their own figures, since the design item and review ID supply context.
 
-Keep images, prompts, fixtures and technical appendices in a named supporting
-directory and link them from their owning reviews. The
-[Board materials](board-atlas/README.md) support D1–D9. Supporting directories
-do not introduce another review sequence.
+Keep images, prompts, fixtures and technical appendices inside their design
+item’s directory and link them from their owning reviews. Supporting material
+does not introduce another review sequence.
 
 ## Review statuses
 

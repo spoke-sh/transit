@@ -2,8 +2,10 @@
 
 [Review index](README.md)
 
-Add real previous/next review links here and at the end when those reviews exist.
-Assign the next unused D number and add its summary row before publishing.
+Copy this template into the design item's directory; the review index above
+refers to that item's README. Add real previous/next review links within the item
+here and at the end when those reviews exist. Assign the next unused D number
+within the item and add its summary row to the item's README before publishing.
 
 Status: **Draft**. Implementation: state what is implemented, proposed or unverified.
 

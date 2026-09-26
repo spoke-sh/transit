@@ -127,9 +127,10 @@ Update the owning document with meaningful changes and distinguish implemented,
 proposed, and unverified behavior. Keep rationale with its topic. Do not add ADRs
 yet; preserve `docs/decisions/README.md` and `TEMPLATE.md` for future use.
 
-Keep design reviews in the [numbered sequence](docs/design/README.md), with one
-summary table and one `D<number>.md` per review. Use its template, preserve
-recorded outcomes, and distinguish accepted design from implemented behavior.
+Register design items in the [design index](docs/design/README.md). Keep one
+linear review sequence and summary table per item in `docs/design/<item>/README.md`,
+with one `D<number>.md` per review in that directory. Use the shared template,
+preserve recorded outcomes, and distinguish accepted design from implemented behavior.
 
 Keep the roadmap linear: give additional work its own numbered milestone and
 renumber upcoming milestones and references, following the
