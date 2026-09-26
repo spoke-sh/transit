@@ -6,7 +6,7 @@
       "id": "public-runner-lifecycle",
       "steps": [
         "Install public SDK, examples and native artifacts in a clean consumer outside the checkout",
-        "Fail persistence, native-response allocation and confirmation hooks for every mutation purpose",
+        "Fail persistence and confirmation hooks for every mutation purpose",
         "Stop without rerunning the handler and recover exact accepted bytes after host/node/store loss",
         "Resume the requester from durable waiting state and verify its full-width reply",
         "Read bounded Table pages and retained points, then consume original complete-result IPC after runner disposal",
@@ -19,7 +19,7 @@
           "permit"
         ],
         "handler_calls_after_recovery": 1,
-        "dispatches_after_host_allocation": 3,
+        "mutation_dispatches": 3,
         "exact_commit_retry": true,
         "restarted_reply_value": "18446744073709551615",
         "query_rows": 41,
@@ -30,7 +30,7 @@
       "proofs": [
         {
           "task": "bindings::python-test",
-          "source": "tests/python_station_sdk.py",
+          "source": "tests/sdk_station_runner.py",
           "anchor": "check('public-runner-lifecycle'"
         }
       ],
