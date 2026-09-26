@@ -1,7 +1,7 @@
 # Station HTTP capture v1
 
-Status: experimental M15 implementation profile. Public service admission and
-all-language bindings remain unfinished. This protocol-specific layer uses the
+Status: experimental M15 implementation profile. Finite public service admission
+is implemented; all-language bindings remain unfinished. This protocol-specific layer uses the
 [exchange contract](STATION_EXCHANGE_V1.md); it adds no kernel authority.
 
 ## Requests and scope
@@ -33,6 +33,67 @@ change during an activation. TLS authenticates the named authority, not the nume
 address. No ambient proxy, DNS choice, redirect or transparent retry changes scope.
 The worker clamps its live timeout to the remaining original reconciliation budget.
 An already-authorized send may still be in flight after policy changes or closure.
+
+## Finite public admission and outcomes
+
+`RequestRecord.prepare` validates the request and computes two Publication specs.
+The caller publishes metadata as record 1 and the body as record 2 in its own
+namespace, both in format 1, before sending a Station `call` carrying `HTQ1`.
+Empty bodies still have a published empty record. Metadata is at most 8,192 bytes;
+the finite request body is at most 65,536 bytes. The reference is a commitment,
+not permission to read either resource. Each chunk read rechecks current grants,
+publication availability and the exact immutable spec before advancing its digest.
+PID-scoped readers additionally require a recorded association to foreign request
+or capture resources. These associations are optional dependencies; they grant
+no access and do not make the connector's execution lifetime depend on the caller.
+
+The initial service admits one exchange per provisioned worker PID. Its configured
+policy fixes one authenticated caller PID, caller-written request resource,
+endpoint revision, latest reconciliation deadline, maximum attempts, exact HTTP
+method and rendered target, and a case-insensitive header-name allowlist. Admission
+checks the authenticated process origin; external inputs cannot impersonate calls.
+The worker copies and validates request data before freezing its effect and
+rechecks current method/target/header scope before dispatch. Endpoint and credential
+scope remain separate checks. There is no wildcard path matching or implicit
+metadata/admin endpoint exception.
+
+Strict binary layouts use little-endian fields without padding:
+
+| Magic | Fields following the magic | Total bytes |
+| --- | --- | --- |
+| HTQ1 | resource:u64, namespace:u64, metadata_bytes:u32, metadata_digest:32 bytes, body_bytes:u32, body_digest:32 bytes, endpoint_revision:u64, reconcile_before_ms:u64, max_attempts:u32 | 112 |
+| HTA1 | caller:u64, input:u64, correlation:u64, phase:u8, request:112 bytes | 141 |
+| HTR1 | phase:u8, resource:u64, exchange:u64, effect:u64, attempt:u64, status:u16, chain:32 bytes | 71 |
+| HTF1 | reason:u8 | 5 |
+
+`HTA1` is private service state at exchange key `r/0`; phases are admitted=1 and
+published=2. Admission creates the exchange and route in three mutations, leaving
+one for framework initialization. Exact repeated calls retain the original input
+and route; conflicting calls reply busy. Rejections are denied=1,
+invalid_request=2 and busy=3. They create no exchange or external effect.
+
+`HTR1` is a Station reply to the recorded caller/correlation. Phases are observed=1,
+closed_unknown=2 and not_dispatched=3. Only observed carries HTTP status and an
+EXR1-equivalent complete capture reference. Unknown has the original effect/attempt
+but no complete reference; not_dispatched has no attempt. Neither invents a remote
+failure or cancellation. The service atomically publishes its reply and marks
+the route published only after terminal kernel settlement, or after preparation
+was explicitly abandoned before intent. It does not release the caller replay hold.
+
+Capture uses an independent resource with no owner or deadline. Its writer and
+effect owner are the connector PID, distinct from the caller. Fresh ownership of
+that PID can reconcile after caller termination; replies still target the old PID
+and never a replacement found through a name. This does not make a terminated
+connector PID restartable. Request publication must remain readable until copied;
+the frozen capture thereafter owns its own bytes. If validation or copying fails,
+the admitted route remains durable. A fresh authorized activation may resume, or
+the controller may explicitly abandon it in `release` mode and publish
+not_dispatched. There is no automatic deletion or implicit expiry on failure.
+
+Public followup submission, multi-exchange queue scheduling and caller release
+conveniences are not part of this initial admission surface. Explicit controller
+followups retain the policies below; the remaining M15 SDK/lifecycle obligations
+must be qualified before claiming a completed public connector.
 
 ## Explicit followup policies
 
@@ -120,3 +181,6 @@ coverage chains. Expected bytes were independently constructed with Python's
 `struct` and `hashlib`; Zig tests consume those bytes, recompute commitments and
 reject malformed versions/lengths. Future host APIs must consume these same
 fixtures and shared Zig behavior rather than implementing another HTTP lifecycle.
+The [admission fixtures](../packages/zig/transit-station-http/src/admission-fixtures.json)
+independently fix caller metadata, binary body commitments, full-width namespaces,
+routes, outcomes and rejection encodings.

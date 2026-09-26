@@ -22,7 +22,8 @@ const Config = struct {
     exchange: u64,
     endpoint_revision: u64,
     endpoint: http.Transport.Endpoint,
-    mode: enum { prepare, execute, release },
+    mode: enum { prepare, accept, execute, release },
+    admission: ?struct { caller: u64, resource: u64, scope: http.Service.Scope } = null,
     cleanup_steps: u32 = 64,
     request: ?http.Request = null,
     body_file: ?[]const u8 = null,
@@ -61,6 +62,19 @@ const Secrets = struct {
             } else return error.HttpCredentialNotGranted;
             if (!std.ascii.eqlIgnoreCase(header.name, binding.header)) return error.HttpCredentialNotGranted;
         };
+        for (request.headers) |header| {
+            var credential_header = false;
+            for ([_][]const u8{ "authorization", "cookie", "x-api-key" }) |name| if (std.ascii.eqlIgnoreCase(header.name, name)) {
+                credential_header = true;
+            };
+            for (config.credentials) |credential| if (std.ascii.eqlIgnoreCase(header.name, credential.header)) {
+                credential_header = true;
+            };
+            const has_reference = for (header.value) |piece| {
+                if (piece == .secret) break true;
+            } else false;
+            if (credential_header and !has_reference) return error.HttpCredentialReferenceRequired;
+        }
     }
     fn resolve(raw: *anyopaque, secret: http.Request.Secret) ![]const u8 {
         const self: *Secrets = @ptrCast(@alignCast(raw));
@@ -96,6 +110,7 @@ const Operation = union(enum) {
     release_caller: u64,
     retire,
     collect,
+    publish,
     finish: u32,
     unknown,
 };
@@ -105,6 +120,10 @@ const Driver = struct {
     config: Config,
     io: std.Io,
     operation: Operation = .idle,
+    fn admission(self: *Driver) !http.Service.Admission {
+        const policy = self.config.admission orelse return error.HttpAdmissionNotConfigured;
+        return .{ .caller = policy.caller, .resource = policy.resource, .endpoint_revision = self.config.endpoint_revision, .reconcile_before_ms = self.config.reconcile_before_ms orelse return error.MissingReconciliationDeadline, .max_attempts = self.config.max_attempts };
+    }
     fn exchange(self: *Driver) !x.Exchange {
         const association = (try self.server.session.association(try p.Value.init(self.config.association))) orelse return error.MissingStateAssociation;
         return .{ .resource = association.resource, .id = self.config.exchange };
@@ -137,7 +156,10 @@ const Driver = struct {
                 if (!std.meta.eql(reference, try ex.reference(turn))) return error.InvalidExchangeCoverage;
                 return;
             },
-            .process => return error.UnexpectedWorkerInput,
+            .process => {
+                _ = try http.Service.admit(turn, ex.id, try self.admission(), .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 });
+                return;
+            },
         }
         switch (self.operation) {
             .idle => {},
@@ -179,6 +201,9 @@ const Driver = struct {
             .collect => {
                 _ = try ex.collect(turn);
             },
+            .publish => {
+                _ = try http.Service.publish(turn, ex);
+            },
             .finish => |code| {
                 _ = try ex.finish(turn, code);
             },
@@ -188,6 +213,9 @@ const Driver = struct {
         }
     }
     fn drive(self: *Driver) !void {
+        return self.driveUntil(null);
+    }
+    fn driveUntil(self: *Driver, input: ?u64) !void {
         const handler: Server.Handler = .{ .context = self, .handle = handle };
         for (0..32) |_| {
             const result = self.server.step(handler, now(self.io) + 30000) catch |err| {
@@ -195,7 +223,11 @@ const Driver = struct {
                 continue;
             };
             switch (result) {
-                .committed, .idle => return,
+                .committed => {
+                    if (input == null) return;
+                    if (self.server.confirmation) |confirmed| if (confirmed.kind == .commit and confirmed.input == input.?) return;
+                },
+                .idle => return if (input == null) {} else error.WorkerMailboxBusy,
                 .progress => {},
                 .blocked => return self.server.handler_error orelse error.BehaviorBlocked,
             }
@@ -203,11 +235,11 @@ const Driver = struct {
         return error.AuthorityOutcomeUnknown;
     }
     fn apply(self: *Driver, operation: Operation) !void {
-        if (try self.server.session.receive() != null) return error.WorkerMailboxBusy;
+        if (self.server.pending != null) return error.AuthorityOutcomeUnknown;
         self.operation = operation;
         defer self.operation = .idle;
-        _ = try self.command(.{ .send = .{ .pid = self.config.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init("http.tick.v1") }).encode() } });
-        try self.drive();
+        const sent = try self.command(.{ .send = .{ .pid = self.config.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init("http.tick.v1") }).encode() } });
+        try self.driveUntil(sent.position);
     }
     fn stage(self: *Driver, kind: http.Kind, bytes: []const u8) !void {
         const ex = try self.exchange();
@@ -359,15 +391,31 @@ pub fn main(init: std.process.Init) !void {
     defer init.gpa.free(marker);
     const file = try std.Io.Dir.cwd().createFile(init.io, marker, .{ .exclusive = true });
     file.close(init.io);
+    const ex = try driver.exchange();
+    const capture_resource = (try driver.reader.query(.{ .resource = ex.resource })).body.resource;
+    if (capture_resource.owner != null or capture_resource.deadline_ms != null) return error.IncompatibleExchangeLifetime;
     // Dispose self-ticks left before an interrupted commit without reconstructing
     // lost network bytes. Capture state remains authoritative and incomplete.
     for (0..64) |_| {
         if (try driver.server.session.receive() == null) break;
         try driver.drive();
     } else return error.WorkerMailboxBusy;
-    const ex = try driver.exchange();
-    if (config.mode == .prepare) {
-        const request = config.request orelse return error.MissingHttpRequest;
+    if (config.mode == .prepare or config.mode == .accept) {
+        var request_buffer: [http.Request.maximum_head_bytes]u8 = undefined;
+        var public_request: ?std.json.Parsed(http.Request) = null;
+        defer if (public_request) |value| value.deinit();
+        var public_reference: ?http.RequestRecord.Reference = null;
+        if (config.mode == .accept) {
+            var source = try driver.reader.reader(ex.resource);
+            const route = (try http.Service.route(ex, &source)) orelse return error.MissingHttpCall;
+            if (!http.Service.allowed(route, try driver.admission())) return error.HttpAdmissionDenied;
+            const reference = try route.reference();
+            const input_resource = (try driver.reader.query(.{ .resource = reference.resource })).body.resource;
+            if (input_resource.writer != route.caller) return error.HttpAdmissionDenied;
+            public_request = try std.json.parseFromSlice(http.Request, init.gpa, try http.RequestRecord.read(&driver.reader, reference, http.RequestRecord.metadata_id, &request_buffer), .{});
+            public_reference = reference;
+        }
+        const request = if (public_request) |value| value.value else config.request orelse return error.MissingHttpRequest;
         if (request.body_bytes > 65536 or request.body_bytes > config.endpoint.request_bytes) return error.HttpRequestTooLarge;
         try Secrets.validate(config, request);
         const prior = driver.reader.inspect(ex.resource, ex.id) catch |err| if (err == error.ExchangeNotFound) null else return err;
@@ -376,17 +424,23 @@ pub fn main(init: std.process.Init) !void {
         if (deadline <= now(init.io)) return error.ExpiredReconciliation;
         var header: [http.Request.maximum_head_bytes]u8 = undefined;
         const rendered = try request.render(config.endpoint.host, config.endpoint.port, &header, null, false);
+        if (public_reference != null) try http.Service.validateRequest(config.admission.?.scope, request, rendered);
         // Prepare metadata before creating any durable obligation.
         const prepared: Prepared = .{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .timeout_ms = config.endpoint.timeout_ms, .request_bytes = config.endpoint.request_bytes, .response_bytes = config.endpoint.response_bytes, .response_headers = config.endpoint.response_headers, .trust_digest = try trustDigest(init.gpa, init.io, config.endpoint), .retry_policy = config.retry_policy, .redirect_policy = config.redirect_policy, .reconcile_policy = config.reconcile_policy, .cancel_policy = config.cancel_policy, .request = request };
         const metadata = try std.json.Stringify.valueAlloc(init.gpa, prepared, .{});
         defer init.gpa.free(metadata);
         if (metadata.len > 8192) return error.HttpRequestTooLarge;
-        const body = if (config.body_file) |path| try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(65536)) else try init.gpa.dupe(u8, "");
+        const body = if (public_reference) |reference| blk: {
+            const buffer = try init.gpa.alloc(u8, reference.body_bytes);
+            errdefer init.gpa.free(buffer);
+            _ = try http.RequestRecord.read(&driver.reader, reference, http.RequestRecord.body_id, buffer);
+            break :blk buffer;
+        } else if (config.body_file) |path| try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(65536)) else try init.gpa.dupe(u8, "");
         defer init.gpa.free(body);
         if (body.len != request.body_bytes) return error.InvalidHttpBodyLength;
         const followup_policy = try driver.validateFollowup(init.gpa, prepared, body);
         try driver.apply(.{ .create = .{ .deadline = deadline, .limits = .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 }, .policy = followup_policy } });
-        if (config.followup == null) try driver.apply(.{ .attempts = config.max_attempts });
+        if (config.followup == null) try driver.apply(.{ .attempts = if (public_reference) |reference| reference.max_attempts else config.max_attempts });
         try driver.stageAt(0, .request_template, metadata);
         try driver.stageAt(1, .request_head, rendered);
         var offset: usize = 0;
@@ -407,6 +461,7 @@ pub fn main(init: std.process.Init) !void {
             try driver.apply(.unknown);
             current = try driver.reader.inspect(ex.resource, ex.id);
         }
+        try driver.apply(.publish);
         var source = try driver.reader.reader(ex.resource);
         if ((try ex.control(&source)).disposition != .no_intent) try driver.apply(.{ .release_caller = current.caller });
         try driver.apply(.retire);
@@ -416,6 +471,8 @@ pub fn main(init: std.process.Init) !void {
             try driver.apply(.collect);
         }
     } else {
+        var route_source = try driver.reader.reader(ex.resource);
+        if (try http.Service.route(ex, &route_source)) |route| if (!http.Service.allowed(route, try driver.admission())) return error.HttpAdmissionDenied;
         var effect = try driver.effect();
         var descriptor = try driver.reader.inspect(ex.resource, ex.id);
         if (descriptor.phase == .ready and effect.phase == .pending) {
@@ -430,6 +487,10 @@ pub fn main(init: std.process.Init) !void {
             // neither response buffering nor durable group count scales with it.
             if (prepared.request.body_bytes > 65536) return error.HttpRequestTooLarge;
             try Secrets.validate(config, prepared.request);
+            if (config.admission) |policy| {
+                var header: [http.Request.maximum_head_bytes]u8 = undefined;
+                try http.Service.validateRequest(policy.scope, prepared.request, try prepared.request.render(config.endpoint.host, config.endpoint.port, &header, null, false));
+            }
             var body_buffer: [65536]u8 = undefined;
             var count: usize = 0;
             for (2..descriptor.segments) |ordinal| {
@@ -465,7 +526,10 @@ pub fn main(init: std.process.Init) !void {
             } else _ = try driver.command(.{ .close_effect = .{ .pid = config.pid, .effect = effect.id, .attempt = effect.attempt.?, .reason = .abandoned } });
         }
         effect = try driver.effect();
-        if (effect.phase == .observed or effect.phase == .cancelled or effect.phase == .closed_unknown) try driver.apply(.{ .settle = effect });
+        if (effect.phase == .observed or effect.phase == .cancelled or effect.phase == .closed_unknown) {
+            try driver.apply(.{ .settle = effect });
+            try driver.apply(.publish);
+        }
     }
     const descriptor = try driver.reader.inspect(ex.resource, ex.id);
     const effect = driver.effect() catch |err| if (err == error.UnknownEffect) null else return err;

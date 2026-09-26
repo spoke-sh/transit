@@ -3,7 +3,7 @@
 An initial finite M15 worker composing the public growing Station client,
 [exchange capture](../../packages/zig/transit-exchange/README.md) and
 [HTTP transport](../../packages/zig/transit-station-http/README.md). It is under
-qualification; this executable does not complete M15's public caller, credential,
+qualification; this executable does not complete M15's public lifecycle, credential,
 SDK or deployment scope.
 
 `just test::http-worker` qualifies the real binary with disk-backed Ursula,
@@ -21,8 +21,11 @@ fresh ownership generation, required `state` association, an activation marker
 directory, exchange ID, endpoint revision and the transport's explicit endpoint
 configuration. The principal needs current inspect/execute/publish/send/effect
 rights scoped to the worker PID and read/write access to its associated resource.
-The private control mailbox admits only this worker's ticks and authenticated
-effect results. Provisioning and ownership remain separate administrative work.
+The mailbox admits this worker's ticks, authenticated effect results and, when
+configured, scoped process-origin calls. Capture requires an independent resource
+with no owner/deadline. Provisioning and ownership remain separate administrative
+work. See [public admission and recovery](docs/admission.md) for `accept` mode,
+request publications, fixed caller destinations and lifetime requirements.
 
 In `prepare` mode, supply a typed `Request`, optional body file and finite
 `reconcile_before_ms`. Preparation captures the metadata, rendered head and body,
@@ -83,8 +86,8 @@ or `not_committed`. Capture completion alone is not kernel outcome acceptance.
 It does not log bodies, request targets or credential material. HTTP status is
 captured evidence, not a claim of business success. Resource retention remains
 unlimited; group retirement and dependency-safe cleanup are explicit operations.
-`release` mode is the trusted controller's explicit disposal of this private
-worker's caller replay hold. It requires a recorded terminal kernel decision,
+`release` mode is the trusted controller's explicit disposal of the
+caller's replay hold. It requires a recorded terminal kernel decision,
 retires group availability, then performs at most `cleanup_steps` bounded steps
 (default 64, maximum 128). Invoke again with fresh ownership to resume. It never
 resolves an unsettled effect or releases other consumer dependencies. The disk

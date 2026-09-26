@@ -5,7 +5,8 @@ const x = http.exchange;
 const s = @import("transit_station");
 const p = s.protocol;
 const Admin = @import("growing_support.zig").Admin(47);
-const Saved = struct { pid: u64, resource: u64, generation: u64 = 2 };
+const Caller = @import("http_caller.zig");
+const Saved = struct { pid: u64, resource: u64, generation: u64 = 2, caller: ?Caller.Saved = null };
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const root = try p.Ed25519.KeyPair.generateDeterministic(@splat(71));
@@ -16,23 +17,44 @@ pub fn main(init: std.process.Init) !void {
         try std.json.Stringify.value(root.public_key.toBytes(), .{}, &output.interface);
         return output.interface.flush();
     }
-    if (args.len != 4) return error.ExpectedAuthorityOperationState;
+    if (args.len != 4 and args.len != 5) return error.ExpectedAuthorityOperationState;
     var wire = s.client.Client.init(init.gpa, init.io, args[1]);
     defer wire.deinit();
     var admin: Admin = .{ .wire = &wire, .key = root };
     admin.sequence = (try admin.query(.{ .capabilities = {} })).principal_sequence;
     var saved: Saved = undefined;
-    if (std.mem.eql(u8, args[2], "provision")) {
-        const created = try admin.provision(65536, worker);
-        saved = .{ .pid = created.pid, .resource = created.resource };
+    if (std.mem.eql(u8, args[2], "provision") or std.mem.eql(u8, args[2], "provision-public")) {
+        const pid = try admin.submit(.{ .spawn = .{} });
+        const resource = try admin.submit(.{ .create_resource = .{ .writer = pid, .owned = false } });
+        saved = .{ .pid = pid, .resource = resource };
         _ = try admin.submit(.{ .grant = .{ .subject = 65536, .public_key = worker.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish) | p.permission(.send) | p.permission(.effect), .pid = saved.pid } });
         // Principal replacement invalidates previous resource grants by epoch.
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 65536, .permissions = p.State.all_permissions } });
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 0, .permissions = p.State.all_permissions } });
+        _ = try admin.submit(.{ .associate = .{ .pid = pid, .name = try p.Value.init("state"), .resource = resource } });
+        if (std.mem.eql(u8, args[2], "provision-public")) {
+            saved.generation = 1;
+        } else _ = try admin.submit(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 65536 } });
     } else {
         const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.arena.allocator(), .limited(4096));
         const parsed = try std.json.parseFromSlice(Saved, init.arena.allocator(), bytes, .{});
         saved = parsed.value;
-        if (std.mem.eql(u8, args[2], "own")) {
+        if (std.mem.eql(u8, args[2], "call")) {
+            if (args.len != 5) return error.MissingRequestConfiguration;
+            saved.caller = try Caller.publish(init, &admin, saved.pid, saved.resource, args[4]);
+            saved.generation = 3;
+        } else if (std.mem.eql(u8, args[2], "terminate-caller")) {
+            _ = try admin.submit(.{ .terminate = saved.caller.?.pid });
+            saved.caller.?.replacement = try admin.submit(.{ .spawn = .{} });
+        } else if (std.mem.eql(u8, args[2], "receive")) {
+            const outcome = try Caller.receive(init, &admin, saved.caller.?, saved.pid);
+            try std.json.Stringify.value(.{ .outcome = outcome, .wire = try outcome.encode() }, .{}, &output.interface);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "revoke-capture") or std.mem.eql(u8, args[2], "restore-capture")) {
+            _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 65537, .permissions = if (std.mem.eql(u8, args[2], "revoke-capture")) 0 else p.State.permission(.inspect) | p.State.permission(.read) } });
+        } else if (std.mem.eql(u8, args[2], "revoke-request") or std.mem.eql(u8, args[2], "restore-request")) {
+            _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.caller.?.resource, .subject = 65536, .permissions = if (std.mem.eql(u8, args[2], "revoke-request")) 0 else p.State.permission(.inspect) | p.State.permission(.read) } });
+        } else if (std.mem.eql(u8, args[2], "own")) {
             _ = try admin.submit(.{ .own = .{ .pid = saved.pid, .expected_generation = saved.generation, .worker = 65536 } });
             saved.generation += 1;
         } else if (std.mem.eql(u8, args[2], "revoke")) {

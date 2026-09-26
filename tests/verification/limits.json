@@ -414,6 +414,13 @@
       "expression": "4096",
       "classification": "working-set",
       "meaning": "One network capture buffer, durably sealed through Publication before reuse."
+    },
+    {
+      "source": "packages/zig/transit-station-http/src/RequestRecord.zig",
+      "symbol": "maximum_body_bytes",
+      "expression": "65536",
+      "classification": "working-set",
+      "meaning": "Finite caller request profile and worker body buffer; independent of durable exchange count and response capture size."
     }
   ],
   "identities": [

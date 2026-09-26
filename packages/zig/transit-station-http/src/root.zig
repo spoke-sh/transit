@@ -5,6 +5,8 @@ pub const Request = @import("Request.zig");
 pub const Transport = @import("Transport.zig");
 pub const Replay = @import("Replay.zig");
 pub const Policy = @import("Policy.zig");
+pub const RequestRecord = @import("RequestRecord.zig");
+pub const Service = @import("Service.zig");
 pub const protocol_format: u32 = 1;
 pub const Kind = enum(u32) { request_template = 1, request_head = 2, request_body = 3, response_head = 4, response_body = 5, response_trailers = 6, timing = 7, omission = 8, completion = 9 };
 pub const Timing = struct {
@@ -85,4 +87,5 @@ pub fn validateResponse(bytes: []const u8) !std.http.Client.Response.Head {
 test {
     _ = Request;
     _ = @import("http_test.zig");
+    _ = @import("service_test.zig");
 }

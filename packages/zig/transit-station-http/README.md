@@ -49,3 +49,13 @@ shared exchange layer owns lineage/budgets; this helper performs no I/O.
 The [connector design](../../../docs/CONNECTORS.md) and
 [exchange contract](../../../contracts/STATION_EXCHANGE_V1.md) own authority,
 lifetime, unknown-outcome and replay requirements.
+
+`RequestRecord.prepare` returns canonical metadata and a typed commitment to the
+caller-published metadata/body records. `Service.admit` stores a fixed authenticated
+caller/correlation route and finite exchange; `Service.publish` emits a durable
+outcome after kernel settlement. Both compose with growing turns under the four
+mutation budget. `Service.validateRequest` enforces exact method/serialized-target
+and allowed header names; endpoint, credential and current resource grants remain
+separate worker checks. `Outcome.reference` refuses unknown/not-dispatched results.
+The [worker admission guide](../../../apps/transit-station-http-worker/docs/admission.md)
+describes the finite service profile and recovery limits.
