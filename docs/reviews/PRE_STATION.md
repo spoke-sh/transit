@@ -191,9 +191,9 @@ and outdated application-lens references are corrected.
 
 [M8 runtime readiness](../roadmap/M8.md) owns the generic runtime prerequisites;
 [M9 Station](../roadmap/M9.md#entry-gates) owns behavior policies and subscriptions.
-[M15](../roadmap/M15.md) must additionally specify large-body references,
+[M16](../roadmap/M16.md) must additionally specify large-body references,
 transcript/secret permissions, capture completeness and bounded external retry;
-the immutable payload proof is not that dependency model. [M18](../roadmap/M18.md)
+the immutable payload proof is not that dependency model. [M19](../roadmap/M19.md)
 needs measured recovery/scaling, portable runtime conformance, distributed
 retention and explicit live-restore/migration procedures. If an expansion needs
 its own delivery milestone, insert it into the linear roadmap before its consumer.

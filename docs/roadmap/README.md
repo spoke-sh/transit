@@ -21,11 +21,12 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M11](M11.md) | Idiomatic language SDKs | Qualified raw/Station SDKs, installed examples and ten public language pairs on Linux x86_64 |
 | [M12](M12.md) | Declarative interface readiness | Qualified Table SQL compiler, three-parser corpus, pinned tools and four complete Lean theorems |
 | [M13](M13.md) | Board relief atlas and public query access | Complete: qualified Table query client/hosts, SQL shell and growing Board workspace |
-| [M14](M14.md) | Documents, collaborative text and unified querying | Planned |
-| [M15](M15.md) | HTTP connector and exchange transcripts | Planned |
-| [M16](M16.md) | gRPC connector and streaming calls | Planned |
-| [M17](M17.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned |
-| [M18](M18.md) | Clustered execution and portability | Planned |
+| [M14](M14.md) | Bounded publication for larger Station records | In progress; prerequisite for useful Document changes/checkpoints |
+| [M15](M15.md) | Documents, collaborative text and unified querying | Planned |
+| [M16](M16.md) | HTTP connector and exchange transcripts | Planned |
+| [M17](M17.md) | gRPC connector and streaming calls | Planned |
+| [M18](M18.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned |
+| [M19](M19.md) | Clustered execution and portability | Planned |
 
 The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -49,8 +50,11 @@ compiler and M11's growing hosts for a bounded public query capability distinct
 from Board's inspection grant. Board's relief-atlas workspace and the new
 `transit` query shell share the Zig query client, request/result contract and
 M12's compiled `SELECT`, without duplicating execution semantics.
+M13's chunked results expose a prerequisite for useful atomic Document changes:
+[M14](M14.md) qualifies bounded immutable publication over growing KV without
+raising kernel value/turn limits. [Documents](../DOCUMENTS.md) records the handoff.
 Fuze's shared source model targets KV, Table and Document;
-[M14](M14.md) adds Document/CRDT storage, structured and collaborative text
+[M15](M15.md) adds Document/CRDT storage, structured and collaborative text
 editing, and the KV/Document query adapters with their own acceptance
 criteria, reusing M13's query capability rather than replacing it.
 HTTP proves shared effect capture; gRPC extends it to bidirectional calls; Arrow

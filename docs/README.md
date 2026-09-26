@@ -18,6 +18,7 @@ are experimental; their bounded implementation does not imply support for every 
 | [Security](SECURITY.md) | Identity, authorization, revocation, and trust boundaries |
 | [Streams](STREAMS.md) | Mailboxes, ordering, durable admission, and delivery |
 | [State](STATE.md) | Durable resources, process associations, KV/Table boundary, and state lifetimes |
+| [Documents](DOCUMENTS.md) | Proposed structured/text model, publication prerequisite, acceptance and unified-query handoff |
 | [Tables](TABLES.md) | Planned Station Table operations, Arrow results, materialization and transaction scope |
 | [Fuze](FUZE.md) | Planned Zig query engine across KV/Table/Document, source adapters, planning and bounded execution |
 | [Query language](QUERY_LANGUAGE.md) | Relational and dataframe surfaces over Fuze's one plan; DDL/DML mapping and the connector/transport namespace idea |

@@ -110,7 +110,7 @@ dataType
     | BINARY
     ;
 
-// CREATE DOCUMENT profile; — M14's Document model, DDL form.
+// CREATE DOCUMENT profile; — M15's Document model, DDL form.
 createDocument
     : CREATE DOCUMENT identifier
     ;

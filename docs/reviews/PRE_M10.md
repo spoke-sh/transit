@@ -321,19 +321,19 @@ There is no reason to translate the whole kernel to Lean or gate M11 on it now.
 
 ## Implications for later milestones
 
-- **M14 Documents:** reuse generated histories for duplicate/reordered changes,
+- **M15 Documents:** reuse generated histories for duplicate/reordered changes,
   missing causal dependencies, tombstones and stale offline replicas. Decide
   merge laws and authorization/retention interaction before implementation;
   convergence alone does not establish valid admission. Checkpoint/large-body
   requirements will pressure today's inline state and result bounds.
-- **M15/M16 connectors:** reuse lost-response and cancellation schedules, but
+- **M16/M17 connectors:** reuse lost-response and cancellation schedules, but
   supply protocol-specific remote-effect oracles. Test that replay performs no
   network action. Bounded reconciliation cannot roll back the remote system or
   make an unknown attempt safe to retry. Streaming adds directional flow control.
-- **M17 Arrow interoperability:** extend the independent IPC checks with actual
+- **M18 Arrow interoperability:** extend the independent IPC checks with actual
   Flight/ADBC consumers, ticket revocation and incomplete-stream failures. Preserve
   source evidence and capability reporting; transport success is not completeness.
-- **M18 clustering/portability:** model partition and ownership interleavings,
+- **M19 clustering/portability:** model partition and ownership interleavings,
   measure journal contention and prove provider-specific failure behavior. More
   workers or SDK handles do not remove the current realm serialization point.
 
