@@ -8,8 +8,10 @@ packages, executable examples, clean tarballs and lifecycle/data proofs.
 The [Rust](sdk/RUST.md) raw/Station APIs are implemented with clean crate
 consumers, borrowed turns, panic/recovery and optional Arrow ownership proofs.
 Ruby's independent raw/Station gems now have clean installation, scoped handlers,
-recovery/ownership and original query IPC proofs. C/C++, Java, .NET and BEAM
-adaptations remain open.
+recovery/ownership and original query IPC proofs. Independent
+[C](../packages/c/transit-client/README.md)/[C++](../packages/cpp/transit-client/README.md)
+raw clients now have installed artifacts and shared recovery/ownership proofs.
+Their Station APIs, Java, .NET and BEAM adaptations remain open.
 [M11](roadmap/M11.md) owns delivery, including public interoperability. The
 [M9 adapters](../bindings/README.md) remain executable low-level interfaces.
 

@@ -152,6 +152,21 @@ adapter; the optional-adapter step is explicitly disabled for it, while the full
 IPC/metadata/independent-consumer proof runs. Public mixed-language pairs and the
 remaining target SDKs are still open.
 
+`just bindings::c-sdk-test` builds versioned C SDK/native archives and C++ headers,
+installs them into external prefixes and compiles separate C11 and C++17 callers
+with standard pkg-config discovery. Consumers use installed rpaths and adjacent
+native discovery without a library-path environment variable or Station library.
+Both run the shared raw-client schedule: owned input/export bytes, metadata and
+canonical-kind checks, lost accepted receipts, seedless recovery, revoked retry
+and responsive joining of an owned blocking task after its controller stops
+waiting. C also checks overlap/closed rejection; C++ checks move-only types and
+distinct process/resource references. Missing libraries, incompatible native
+versions and C SDK version mismatches fail explicitly. The implementation owns
+one admitted job and an 8 MiB worker stack. Asynchronous POSIX thread cancellation
+is not supported; the controller's local wait is the cancellation boundary.
+This qualifies raw clients on pinned Zig/Linux x86_64 with the Nix runtime closure;
+C/C++ Station runners and public mixed-language pairs still require their proofs.
+
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 

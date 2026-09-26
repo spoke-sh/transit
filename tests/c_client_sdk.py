@@ -1,0 +1,51 @@
+"""Installed C/C++ clients share authority scenarios, independently of Station."""
+import json
+import os
+from pathlib import Path
+import shlex
+import shutil
+import subprocess
+import sys
+import tarfile
+from sdk_raw_client import run as schedule
+
+
+def run(node, cli, library, artifacts):
+    root = Path(__file__).resolve().parents[1]
+    artifacts = Path(artifacts).resolve()
+    for language, source, compiler in [('C', 'c_client_sdk.c', 'cc'), ('C++', 'cpp_client_sdk.cpp', 'c++')]:
+        def install(target):
+            prefix = target / 'installed'
+            packages = ['transit-native-client-c-0.2.0-linux-x86_64', 'transit-client-c-0.2.0-linux-x86_64']
+            if language == 'C++': packages.append('transit-client-cpp-0.2.0')
+            for package in packages:
+                with tarfile.open(artifacts / f'{package}.tar.gz') as archive: archive.extractall(prefix, filter='data')
+            environment = {k: v for k, v in os.environ.items() if k not in ('LD_LIBRARY_PATH', 'LIBRARY_PATH', 'CPATH', 'CPLUS_INCLUDE_PATH', 'C_INCLUDE_PATH')}
+            environment['PKG_CONFIG_PATH'] = str(prefix / 'lib/pkgconfig')
+            package = 'transit-client-cpp' if language == 'C++' else 'transit-client-c'
+            flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', package], env=environment, text=True))
+            shutil.copyfile(root / 'tests' / source, target / source)
+            binary = target / 'consumer'
+            subprocess.run(['zig', compiler, '-std=c++17' if language == 'C++' else '-std=c11', '-Wall', '-Wextra', '-Werror',
+                            str(target / source), *flags, '-lpthread', '-o', binary], env=environment, cwd=target, check=True)
+            (target / source).unlink()
+            # Every reflected export exists; only the ABI version is incompatible.
+            wrong = target / 'wrong-native'; wrong.mkdir()
+            contract = json.loads((root / 'packages/zig/transit-client/abi-v1.json').read_bytes())
+            lines = ['#include <transit_client.h>']
+            for function in contract['functions']:
+                args = ', '.join(f'{kind} arg{i}' for i, kind in enumerate(function['parameters'])) or 'void'
+                result = '' if function['result'] == 'void' else 'return 99;' if function['name'] == 'transit_client_abi_version' else 'return 0;'
+                lines.append(f'{function["result"]} {function["name"]}({args}) {{ {result} }}')
+            fake = target / 'incompatible.c'; fake.write_text('\n'.join(lines))
+            subprocess.run(['zig', 'cc', '-shared', '-fPIC', f'-I{prefix / "include"}', fake, '-o', wrong / 'libtransit_client.so'], env=environment, cwd=target, check=True)
+            fake.unlink()
+            assert not (prefix / 'lib/libtransit_station.so').exists()
+            def invoke(mode, config):
+                value = json.loads(Path(config).read_bytes())
+                return subprocess.check_output([binary, mode, value['url'], value['seed'], str(value['pid']), value['pending'], value['spawn'], value['accepted'], wrong], env=environment, cwd=target, timeout=30)
+            return invoke
+        schedule(node, cli, library, install, language)
+
+
+if __name__ == '__main__': run(*sys.argv[1:])

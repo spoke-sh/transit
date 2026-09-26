@@ -104,3 +104,15 @@ ruby-sdk-test: ruby-build
     zig build transit-node rey-cli
     python3 -B tests/ruby_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby
     python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby
+
+# Build independent C/C++ prefixes with standard pkg-config metadata.
+c-build: build
+    zig build --build-file packages/c/transit-client/build.zig
+    zig build check --build-file packages/cpp/transit-client/build.zig
+    python3 -B bindings/build_c.py .cache/bindings/c
+
+# Compile installed public C and C++ consumers and run the shared raw schedule.
+c-sdk-test: c-build
+    zig fmt --check packages/c/transit-client/build.zig packages/cpp/transit-client/build.zig
+    zig build transit-node rey-cli
+    python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c

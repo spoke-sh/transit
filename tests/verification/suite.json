@@ -44,6 +44,7 @@
       "bindings::node-sdk-test",
       "bindings::rust-sdk-test",
       "bindings::ruby-sdk-test",
+      "bindings::c-sdk-test",
       "test::model",
       "test::model-delivery"
     ],

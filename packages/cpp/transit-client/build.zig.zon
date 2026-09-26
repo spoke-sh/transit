@@ -1,0 +1,8 @@
+.{
+    .name = .transit_sdk_client_cpp,
+    .fingerprint = 0x62c83fe51217b80a,
+    .version = "0.2.0",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{ .transit_sdk_client = .{ .path = "../../c/transit-client" } },
+    .paths = .{ "build.zig", "build.zig.zon", "include", "tests", "README.md" },
+}

@@ -16,6 +16,11 @@ low-level adapters. Their package guides and installation/recovery proofs are
 linked from [M11](../docs/roadmap/M11.md); other language SDKs and public
 cross-language qualification remain open.
 
+Independent public [C](../packages/c/transit-client/README.md) and
+[C++](../packages/cpp/transit-client/README.md) raw clients now have installed
+prefixes, typed retry objects and shared authority/worker ownership proofs through
+`just bindings::c-sdk-test`. Their Station APIs remain in progress.
+
 M11 adds **Ruby** through the shared native port, with value objects and
 block-scoped ownership. Ruby 3.4.9 / RubyGems 3.7.2 are pinned by the Nix lock;
 its raw/Station packages have separate public SDK proofs. The historical M9
