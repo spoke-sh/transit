@@ -1,5 +1,10 @@
 # transit-station for Java
 
+This is the preserved M9 low-level adapter. For typed handlers, scoped state,
+bounded runner futures and installed examples, use the
+[M11 public SDK](../transit-station-sdk/README.md); raw applications can use the
+independent [Java client](../transit-client/README.md).
+
 An `AutoCloseable` native port adapter over the shared Zig Transit/Station
 implementation. It exposes asynchronous `CompletableFuture` operations and
 generated status/version constants; the generated ABI resource records action

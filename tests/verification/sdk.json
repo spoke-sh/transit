@@ -59,9 +59,14 @@
           "task": "bindings::c-sdk-test",
           "source": "tests/sdk_station_runner.py",
           "anchor": "check('public-runner-lifecycle'"
+        },
+        {
+          "task": "bindings::java-sdk-test",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('public-runner-lifecycle'"
         }
       ],
-      "limits": "Python 3.13 wheels Node 24 tarballs, Rust 1.95 crates and Ruby 3.4 gems on Linux with Nix-linked native artifacts; one owned worker/port, serial handlers, bounded native I/O and query workspace. Python injects allocation loss at its real C response wrapper; Node separately injects a retained confirmation in the runner unit proof and loss at its real raw port response parser. Rust checks borrowed scopes, panics under both policies and stop/join. Optional PyArrow 23, Arrow JavaScript 21.2 and Arrow Rust 59 consume owned segments separately. Ruby checks thread/fiber scopes, exceptions under both policies and caller interruption/join. It exposes owned IPC decoded independently with PyArrow, with no selected Ruby Arrow adapter. C/C++ add installed pkg-config artifacts, explicit C ownership, typed C++ wrappers, real C11/C++17 example binaries, retained scopes and stop/join on an 8 MiB worker. The shared controller drives C callbacks/direct runner and typed C++ handlers separately; original IPC is independently decoded with PyArrow, with no selected Arrow C/C++ adapter. Other languages and public mixed-language pairs remain open."
+      "limits": "Python 3.13 wheels Node 24 tarballs, Rust 1.95 crates and Ruby 3.4 gems on Linux with Nix-linked native artifacts; one owned worker/port, serial handlers, bounded native I/O and query workspace. Python injects allocation loss at its real C response wrapper; Node separately injects a retained confirmation in the runner unit proof and loss at its real raw port response parser. Rust checks borrowed scopes, panics under both policies and stop/join. Optional PyArrow 23, Arrow JavaScript 21.2 and Arrow Rust 59 consume owned segments separately. Ruby checks thread/fiber scopes, exceptions under both policies and caller interruption/join. It exposes owned IPC decoded independently with PyArrow, with no selected Ruby Arrow adapter. C/C++ add installed pkg-config artifacts, explicit C ownership, typed C++ wrappers, real C11/C++17 example binaries, retained scopes and stop/join on an 8 MiB worker. The shared controller drives C callbacks/direct runner and typed C++ handlers separately; original IPC is independently decoded with PyArrow, with no selected Arrow C/C++ adapter. Java 21 JARs add typed records/interfaces, BigInteger application values, bounded future publication, cancellation/stop/join, callback exceptions and Error failures, scoped access and original IPC after disposal. Java selects no optional Arrow adapter; independent PyArrow decoding is included. Other languages and public mixed-language pairs remain open."
     },
     {
       "id": "growing-query-abi",

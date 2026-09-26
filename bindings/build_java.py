@@ -18,10 +18,11 @@ def build(output, names):
     (output / 'gson-2.12.1.jar').unlink(missing_ok=True)
     shutil.copy2(gson, output / 'gson-2.12.1.jar')
     for name in names:
-        source = ROOT / 'packages/java' / name
+        source = ROOT / name if '/' in name else ROOT / 'packages/java' / name
         tree = ET.parse(source / 'pom.xml')
         ns = {'m': 'http://maven.apache.org/POM/4.0.0'}
-        assert tree.findtext('m:artifactId', namespaces=ns) == name
+        artifact_name = tree.findtext('m:artifactId', namespaces=ns)
+        assert artifact_name == ('transit-sdk-examples' if '/' in name else name)
         assert tree.findtext('m:version', namespaces=ns) == VERSION
         dependencies = tree.findall('m:dependencies/m:dependency', ns)
         classpath = []
@@ -44,16 +45,16 @@ def build(output, names):
             sources = sorted((source / 'src').rglob('*.java'))
             if sources:
                 subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', os.pathsep.join(classpath), '-d', str(classes), *map(str, sources)], check=True)
-            metadata = classes / 'META-INF/maven/io.transit' / name
+            metadata = classes / 'META-INF/maven/io.transit' / artifact_name
             metadata.mkdir(parents=True)
             shutil.copy2(source / 'pom.xml', metadata / 'pom.xml')
             manifest = Path(temporary) / 'MANIFEST.MF'
-            manifest.write_text(f'Manifest-Version: 1.0\nImplementation-Version: {VERSION}\nAutomatic-Module-Name: io.transit.{name.removeprefix("transit-").replace("-", ".")}\n\n')
-            artifact = output / f'{name}-{VERSION}.jar'
+            manifest.write_text(f'Manifest-Version: 1.0\nImplementation-Version: {VERSION}\nAutomatic-Module-Name: io.transit.{artifact_name.removeprefix("transit-").replace("-", ".")}\n\n')
+            artifact = output / f'{artifact_name}-{VERSION}.jar'
             subprocess.run(['jar', '--create', '--file', str(artifact), '--manifest', str(manifest), '-C', str(classes), '.'], check=True)
-            shutil.copy2(source / 'pom.xml', output / f'{name}-{VERSION}.pom')
+            shutil.copy2(source / 'pom.xml', output / f'{artifact_name}-{VERSION}.pom')
             print(f'Built {artifact.name}')
 
 
 if __name__ == '__main__':
-    build(sys.argv[1], sys.argv[2:] or ['transit-native-client', 'transit-client'])
+    build(sys.argv[1], sys.argv[2:] or ['transit-native-client', 'transit-client', 'transit-native-station', 'transit-station-sdk', 'examples/station-sdk/java'])

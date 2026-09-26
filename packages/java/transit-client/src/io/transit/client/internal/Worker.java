@@ -82,6 +82,10 @@ public final class Worker<S extends Worker.State<E>, E> implements AutoCloseable
     public void checkClose() {
         if (Thread.currentThread() == nativeThread) throw new TransitException(BUSY, "callback-close");
     }
+    public void checkBlockingClose() {
+        checkClose();
+        if (Thread.currentThread() == publisher) throw new TransitException(BUSY, "completion-close");
+    }
     public synchronized CompletableFuture<E> closeAsync() {
         checkClose();
         if (!closing) { closing = true; jobs.add(closeJob); }
@@ -90,8 +94,7 @@ public final class Worker<S extends Worker.State<E>, E> implements AutoCloseable
     }
     public E retainedEvidence() { return evidence; }
     public E closeSnapshot() {
-        if (Thread.currentThread() == publisher) throw new TransitException(BUSY, "completion-close");
-        checkClose();
+        checkBlockingClose();
         try { return await(closeAsync()); }
         finally { join(nativeThread); join(publisher); }
     }

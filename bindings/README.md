@@ -27,7 +27,9 @@ The independent [Java client](../packages/java/transit-client/README.md) now has
 typed records, opaque retry and bounded `CompletableFuture` operations.
 `just bindings::java-sdk-test` installs separate client/native JARs outside the
 checkout and qualifies cancellation, joined cleanup, retained receipts and exact
-seedless recovery. Java's public Station layer remains in progress.
+seedless recovery. The [Java Station SDK](../packages/java/transit-station-sdk/README.md)
+also qualifies typed handlers, all mutation gates, scoped state, retained Tables,
+query IPC ownership and both installed counter roles through the shared schedule.
 
 M11 adds **Ruby** through the shared native port, with value objects and
 block-scoped ownership. Ruby 3.4.9 / RubyGems 3.7.2 are pinned by the Nix lock;

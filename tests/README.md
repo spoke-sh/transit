@@ -192,9 +192,23 @@ retry. Cancelling both dispatch and a close-future view preserves owned work;
 joined cleanup retains the accepted receipt while the controller remains
 responsive. Missing/mismatched native JARs, ABI-version overrides, malformed
 status, duplicate JSON members, invalid UTF-8, oversized lines and partial output
-are rejected. No Station JAR is installed. The public Station proof remains open.
+are rejected. No Station JAR is installed in the raw proof.
 The Java artifacts require the Nix runtime closure; Maven resolution/publication,
 portable Linux artifacts and JVM allocation-failure injection are not qualified.
+
+The same task installs Java Station/native/example JARs and strictly compiles a
+consumer outside the checkout. Its shared runner proof covers all mutation hooks,
+exceptions and `Error` callbacks, reentrant/wrong-thread/expired scope rejection,
+stop/cancel/join with retained commitment, malformed ingress, caught poisoned
+reads, stale ownership, expiry, revoked access and exact recovery after host,
+node and disk-provider restart. Both actual counter CLI roles run; full u64 values
+survive restart. Typed compile failures reject boolean values for u64 KV keys and
+int64 Tables. Six-page retained Tables and six owned IPC segments remain valid
+after disposal and are independently decoded with PyArrow; no optional Java Arrow
+adapter is selected. ABI/native-artifact and mismatched public-client versions
+reject before handler work. Status validation uses each generated ABI's range,
+including Station's stale/not-ready/budget statuses. Full-width values are exact
+`BigInteger`/`long`, with no floating-point conversion at the public boundary.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

@@ -11,9 +11,9 @@ Ruby's independent raw/Station gems now have clean installation, scoped handlers
 recovery/ownership and original query IPC proofs. Independent
 [C](../packages/c/transit-client/README.md)/[C++](../packages/cpp/transit-client/README.md)
 raw clients and Station handlers now have installed artifacts and shared
-recovery/ownership/Table/query proofs. Java's independent raw client now has
-installed JARs, bounded futures and exact recovery/cleanup proofs; Java Station,
-.NET and BEAM adaptations remain open.
+recovery/ownership/Table/query proofs. Java's independent raw/Station JARs now
+qualify bounded futures, typed scoped handlers, exact recovery, retained Tables
+and owned query IPC. .NET and BEAM adaptations remain open.
 [M11](roadmap/M11.md) owns delivery, including public interoperability. The
 [M9 adapters](../bindings/README.md) remain executable low-level interfaces.
 
@@ -257,12 +257,12 @@ General query ingress and a production query host remain M13 scope.
 | Shared prerequisite | Required implementation/proof before public release |
 | --- | --- |
 | Growing Station ABI | Explicit C/port profile, full-width identities, bounded point/page reads, scoped turns and capability rejection implemented; public language adapters remain |
-| Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; Python, TypeScript, Rust, Ruby and C/C++ persistence/confirmation callbacks and their fault proofs pass; other hosts remain |
-| Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; Python cancellation/join and TypeScript/Rust/Ruby/C/C++ stop/join are qualified; other hosts remain |
+| Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; Python, TypeScript, Rust, Ruby, C/C++ and Java persistence/confirmation callbacks and their fault proofs pass; other hosts remain |
+| Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; Python cancellation/join and TypeScript/Rust/Ruby/C/C++/Java stop/join are qualified; other hosts remain |
 | Typed operation metadata | Implemented native classification and canonical identity through C/port, with owned buffers; public typed operations must use it without decoding retry bytes |
 | Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
-| Application codecs | Shared [counter/query definition](../examples/station-sdk/README.md) and [fixtures](../tests/verification/sdk-codecs-v1.json) defined; Python/TypeScript/Rust/Ruby/C/C++ implementations pass; remaining languages and public cross-language execution remain |
-| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python/PyArrow, TypeScript/Arrow JavaScript and Rust/Arrow Rust readers are qualified; Ruby and C/C++ own IPC independently decoded by PyArrow; other hosts remain |
+| Application codecs | Shared [counter/query definition](../examples/station-sdk/README.md) and [fixtures](../tests/verification/sdk-codecs-v1.json) defined; Python/TypeScript/Rust/Ruby/C/C++/Java implementations pass; remaining languages and public cross-language execution remain |
+| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python/PyArrow, TypeScript/Arrow JavaScript and Rust/Arrow Rust readers are qualified; Ruby, C/C++ and Java own IPC independently decoded by PyArrow; other hosts remain |
 
 The public declarations should first compile/type-check against real packages;
 then run the same service/requester against a disk-backed authority. Cover wide

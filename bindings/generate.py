@@ -81,9 +81,11 @@ for name, value in station["statuses"].items():
 java += ["}", ""]
 outputs[root / "packages/java/transit-station/src/io/transit/station/Contract.java"] = "\n".join(java).encode()
 outputs[root / "packages/java/transit-station/resources/station-abi.json"] = contracts["station"]
-target = root / 'packages/java/transit-client/resources/io/transit/sdk/client'
-outputs[target / 'contract.json'] = contracts['client']
-outputs[target / 'schemas.json'] = (json.dumps(clean(json.loads(contracts['client'])['schemas']), separators=(',', ':')) + '\n').encode()
+for family in ('client', 'station'):
+    directory = 'transit-client' if family == 'client' else 'transit-station-sdk'
+    target = root / f'packages/java/{directory}/resources/io/transit/sdk/{family}'
+    outputs[target / 'contract.json'] = contracts[family]
+    outputs[target / 'schemas.json'] = (json.dumps(clean(json.loads(contracts[family])['schemas']), separators=(',', ':')) + '\n').encode()
 def cs_type(value, result=False):
     if value == "void": return "void"
     if value == "uint32_t": return "uint"

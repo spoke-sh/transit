@@ -62,6 +62,9 @@ Ruby is outside the M9-qualified binding matrix.
 The public [C](../packages/c/transit-station/README.md) and
 [C++](../packages/cpp/transit-station-sdk/README.md) runners now qualify the same
 handler/recovery/Table/query schedule with installed example binaries.
+The [Java SDK](../packages/java/transit-station-sdk/README.md) qualifies typed
+records/interfaces, scoped synchronous callbacks, bounded asynchronous runner
+operations and owned query IPC through the same schedule.
 Handlers use typed inputs and associated KV/Table helpers; a runner owns local
 dispatch and drives the shared Zig poll/finish machine. A handler return supplies
 a proposal, including any reply, and is not evidence of a committed turn. The

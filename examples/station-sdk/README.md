@@ -8,7 +8,7 @@ example or proof of support.
 
 Executable installed examples are available in [Python](python/README.md),
 [TypeScript](typescript/README.md), [Rust](rust/README.md), [Ruby](ruby/README.md),
-[C](c/README.md) and [C++](cpp/README.md). Their clean-consumer proofs run the same
+[C](c/README.md), [C++](cpp/README.md) and [Java](java/README.md). Their clean-consumer proofs run the same
 counter, requester, retained Table and multi-segment query schedule. Other
 languages and public mixed-language pairs remain M11 work.
 

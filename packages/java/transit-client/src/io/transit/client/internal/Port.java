@@ -19,10 +19,13 @@ public final class Port implements AutoCloseable {
     private final Process process;
     private final JsonObject schemas;
     private final String requestName;
+    private final int maximumStatus;
     private final ScheduledThreadPoolExecutor timer;
     private boolean closed;
     public Port(String family, Path override, JsonObject config, JsonObject schemas, String requestName) {
         this.schemas = schemas; this.requestName = requestName;
+        maximumStatus = Values.resource("/io/transit/sdk/" + family + "/contract.json").getAsJsonObject("statuses")
+            .entrySet().stream().mapToInt(entry -> entry.getValue().getAsInt()).max().orElseThrow();
         byte[] document = config.toString().getBytes(StandardCharsets.UTF_8);
         if (document.length > Values.CONTRACT.getAsJsonObject("limits").get("host_config_bytes").getAsInt()) throw new IllegalArgumentException("Native configuration exceeds its bound");
         artifact = NativeArtifact.open(family, override);
@@ -73,7 +76,6 @@ public final class Port implements AutoCloseable {
             envelope = Values.object(Values.parse(incoming.toByteArray()));
             if (!envelope.keySet().equals(Set.of("status", "value"))) throw new IOException("Malformed native envelope");
             long parsed = Values.number(envelope.get("status"), 0);
-            int maximumStatus = Values.CONTRACT.getAsJsonObject("statuses").entrySet().stream().mapToInt(e -> e.getValue().getAsInt()).max().orElseThrow();
             if (parsed > maximumStatus) throw new IOException("Unknown native status");
             status = (int) parsed;
             if (status == 0 && responseSchema != null) Schema.require(schema(responseSchema), envelope.get("value"));

@@ -240,7 +240,7 @@ and protocol assertions belong under [tests/](../tests/README.md).
 ### Planned components
 
 - Add typed public APIs, handler runners and installable artifacts to the existing
-  language packages in [M11](roadmap/M11.md). Python, TypeScript, Rust, Ruby and C/C++
+  language packages in [M11](roadmap/M11.md). Python, TypeScript, Rust, Ruby, C/C++ and Java
   have public handler/recovery/data proofs; remaining targets and public mixed
   language pairs are still open. Ruby uses the shared native port.
   Generated/raw bindings remain a

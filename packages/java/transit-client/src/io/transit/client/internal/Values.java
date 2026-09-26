@@ -121,13 +121,14 @@ public final class Values {
         String code = null;
         if (value.isJsonObject()) {
             JsonObject object = value.getAsJsonObject();
-            JsonElement field = object.has("protocol_error") ? object.get("protocol_error") : object.get("err");
+            JsonElement field = object.get("protocol_error");
+            if (field == null || field.isJsonNull()) field = object.get("err");
             if (field != null && field.isJsonPrimitive() && field.getAsJsonPrimitive().isString() && field.getAsString().length() <= 256) code = field.getAsString();
         }
         TransitException.Kind kind = switch (status) {
             case 3, 5 -> AUTHORITY_REJECTED; case 4 -> ACCESS_DENIED; case 6 -> UNKNOWN_OUTCOME;
             case 7, 8 -> READ_FAILED; case 9 -> BUSY; case 10 -> INCOMPATIBLE_NATIVE;
-            case 11 -> STALE_OWNERSHIP; case 13 -> TURN_EXPIRED; default -> HANDLER;
+            case 11 -> STALE_OWNERSHIP; case 12 -> BLOCKED; case 13 -> TURN_EXPIRED; case 14 -> BUDGET_EXCEEDED; default -> HANDLER;
         };
         if ("ProcessExpired".equals(code) || "ProcessTerminated".equals(code)) kind = PROCESS_RETIRED;
         if ("HistoryReclaimed".equals(code) || "QueryExpired".equals(code)) kind = HISTORY_UNAVAILABLE;
