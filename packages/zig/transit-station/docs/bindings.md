@@ -169,6 +169,14 @@ the containing turn's commitment. Consumers decode each IPC stream separately;
 concatenation is not the result format. The native port uses the same exports;
 public runners and persistence callbacks remain separate M11 work.
 
+`station_growing_arrow_cell` (port `growing_arrow_cell`) provides the optional
+native decoder for already-owned segment bytes, preserving full-width cells.
+It checks the whole IPC stream within the growing segment bound and has no
+resource access; retrieving a segment still requires the scoped, authorized
+result reader. The older `station_arrow_cell` retains its finite result bound.
+Growing `cancel` actions now return whether a waiting call was closed; `false`
+means it was already closed, and neither outcome retracts work accepted by a peer.
+
 `tests/station_growing_abi.py`, included in the binding proof, uses one resident
 backend page and disk Ursula. It checks 41 Table rows in six pages, stale scopes
 and cursors, full-width values/principals, private stop/read poisoning, control

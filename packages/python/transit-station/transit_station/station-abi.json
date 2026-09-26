@@ -201,6 +201,17 @@
       ]
     },
     {
+      "name": "station_growing_arrow_cell",
+      "result": "uint32_t",
+      "parameters": [
+        "const uint8_t *",
+        "size_t",
+        "uint32_t",
+        "uint32_t",
+        "station_buffer **"
+      ]
+    },
+    {
       "name": "station_buffer_size",
       "result": "size_t",
       "parameters": [
@@ -5110,6 +5121,50 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "growing_arrow_cell"
+          ],
+          "properties": {
+            "growing_arrow_cell": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "ipc",
+                "row",
+                "column"
+              ],
+              "properties": {
+                "ipc": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "row": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "column": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                }
+              },
+              "required": [
+                "ipc",
+                "row",
+                "column"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
             "frame"
           ],
           "properties": {
@@ -6523,6 +6578,18 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "cancelled"
+          ],
+          "properties": {
+            "cancelled": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
             "row"
           ],
           "properties": {
@@ -7647,6 +7714,7 @@
         "tables",
         "retained_sources",
         "query_results",
+        "ipc_cells",
         "query_segment_bytes",
         "query_workspace_bytes",
         "value_bytes",
@@ -7685,6 +7753,9 @@
           "type": "boolean"
         },
         "query_results": {
+          "type": "boolean"
+        },
+        "ipc_cells": {
           "type": "boolean"
         },
         "query_segment_bytes": {
@@ -7760,6 +7831,7 @@
         "tables",
         "retained_sources",
         "query_results",
+        "ipc_cells",
         "query_segment_bytes",
         "query_workspace_bytes",
         "value_bytes",
@@ -7779,6 +7851,7 @@
         "tables": true,
         "retained_sources": true,
         "query_results": true,
+        "ipc_cells": true,
         "query_segment_bytes": 8192,
         "query_workspace_bytes": 1048576,
         "value_bytes": 256,

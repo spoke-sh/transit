@@ -78,7 +78,10 @@ pub fn foreignCell(allocator: std.mem.Allocator, cell: m.Cell) !Cell {
 /// pointers to a foreign runtime. All int64 cells remain decimal strings.
 pub const ArrowCell = struct { rows: u8, columns: u8, name: []const u8, value: Cell };
 pub fn arrowCell(allocator: std.mem.Allocator, bytes: []const u8, row: u32, column: u32) !ArrowCell {
-    if (bytes.len == 0 or bytes.len > s.Query.max_bytes) return error.InvalidArrowResult;
+    return arrowCellBounded(allocator, bytes, row, column, s.Query.max_bytes);
+}
+pub fn arrowCellBounded(allocator: std.mem.Allocator, bytes: []const u8, row: u32, column: u32, limit: usize) !ArrowCell {
+    if (bytes.len == 0 or bytes.len > limit) return error.InvalidArrowResult;
     var workspace: [s.fuze.execution.working_bytes]u8 = undefined;
     var arena = std.heap.FixedBufferAllocator.init(&workspace);
     var source = std.Io.Reader.fixed(bytes);
@@ -89,7 +92,8 @@ pub fn arrowCell(allocator: std.mem.Allocator, bytes: []const u8, row: u32, colu
     var batch = (try reader.nextRecordBatch()) orelse return error.InvalidArrowResult;
     defer batch.deinit();
     if (batch.numRows() > m.max_rows or row >= batch.numRows()) return error.InvalidRow;
-    try s.Query.validateArrow(bytes, @intCast(batch.numRows()));
+    var validation_workspace: [s.fuze.execution.working_bytes]u8 = undefined;
+    _ = try s.fuze.Inspect.segment(bytes, @intCast(batch.numRows()), &validation_workspace);
     const data = batch.column(column).data();
     const cell: m.Cell = if (data.isNull(row)) .null else switch (schema.fields[column].data_type.*) {
         .int64 => .{ .int64 = try (s.fuze.arrow.Int64Array{ .data = data }).value(row) },
@@ -120,7 +124,11 @@ pub fn basic(comptime R: type, allocator: std.mem.Allocator, turn: anytype, acti
         .call => |call| return .{ .correlation = try decimal(allocator, try turn.callWithTimer(call.pid, call.value, call.deadline_ms, call.observer)) },
         .reply => |value| try turn.reply(value),
         .cancel => |correlation| {
-            _ = try s.Waiting.cancel(turn, try std.fmt.parseInt(u64, correlation, 10));
+            const cancelled = try s.Waiting.cancel(turn, try std.fmt.parseInt(u64, correlation, 10));
+            if (@hasField(R, "cancelled")) {
+                try turn.validate();
+                return .{ .cancelled = cancelled };
+            }
         },
         .effect => |value| {
             try value.validate();

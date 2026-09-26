@@ -41,6 +41,7 @@ unsafe extern "C" {
     pub fn station_server_pending(arg0: *mut station_server, arg1: *mut *mut station_buffer) -> u32;
     pub fn station_buffer_data(arg0: *const station_buffer) -> *const u8;
     pub fn station_arrow_cell(arg0: *const u8, arg1: usize, arg2: u32, arg3: u32, arg4: *mut *mut station_buffer) -> u32;
+    pub fn station_growing_arrow_cell(arg0: *const u8, arg1: usize, arg2: u32, arg3: u32, arg4: *mut *mut station_buffer) -> u32;
     pub fn station_buffer_size(arg0: *const station_buffer) -> usize;
     pub fn station_buffer_destroy(arg0: *mut station_buffer) -> ();
 }

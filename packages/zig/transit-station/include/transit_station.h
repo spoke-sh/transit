@@ -46,6 +46,7 @@ uint32_t station_server_finish(station_server * arg0, uint32_t arg1);
 uint32_t station_server_pending(station_server * arg0, station_buffer ** arg1);
 const uint8_t * station_buffer_data(const station_buffer * arg0);
 uint32_t station_arrow_cell(const uint8_t * arg0, size_t arg1, uint32_t arg2, uint32_t arg3, station_buffer ** arg4);
+uint32_t station_growing_arrow_cell(const uint8_t * arg0, size_t arg1, uint32_t arg2, uint32_t arg3, station_buffer ** arg4);
 size_t station_buffer_size(const station_buffer * arg0);
 void station_buffer_destroy(station_buffer * arg0);
 #ifdef __cplusplus

@@ -1,6 +1,11 @@
 {
   "version": 1,
   "minimum_stack_bytes": 8388608,
+  "limits": {
+    "max_counter": 9007199254740991,
+    "value_bytes": 256,
+    "max_body": 262144
+  },
   "statuses": {
     "ok": 0,
     "invalid_argument": 1,
@@ -376,7 +381,9 @@
         "opaque_retry",
         "growing_v3",
         "minimum_stack_bytes",
-        "max_line_bytes"
+        "max_line_bytes",
+        "value_bytes",
+        "max_counter"
       ],
       "properties": {
         "version": {
@@ -408,6 +415,20 @@
           "maximum": 4294967295,
           "x-transit-bits": 32,
           "x-transit-signed": false
+        },
+        "value_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "max_counter": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
         }
       },
       "required": [
@@ -416,7 +437,9 @@
         "opaque_retry",
         "growing_v3",
         "minimum_stack_bytes",
-        "max_line_bytes"
+        "max_line_bytes",
+        "value_bytes",
+        "max_counter"
       ],
       "x-transit-defaults": {
         "version": 1,
@@ -424,7 +447,9 @@
         "opaque_retry": true,
         "growing_v3": true,
         "minimum_stack_bytes": 8388608,
-        "max_line_bytes": 540672
+        "max_line_bytes": 540672,
+        "value_bytes": 256,
+        "max_counter": 9007199254740991
       }
     }
   }

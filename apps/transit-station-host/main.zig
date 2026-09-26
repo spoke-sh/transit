@@ -101,6 +101,12 @@ fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.
             const decoded = try std.fmt.hexToBytes(&bytes, arrow.ipc);
             break :blk abi.Api.station_arrow_cell(decoded.ptr, decoded.len, arrow.row, arrow.column, &buffer);
         },
+        .growing_arrow_cell => |arrow| blk: {
+            if (arrow.ipc.len > s.GrowingQuery.records.segment_bytes * 2) return error.InvalidArrowResult;
+            var bytes: [s.GrowingQuery.records.segment_bytes]u8 = undefined;
+            const decoded = try std.fmt.hexToBytes(&bytes, arrow.ipc);
+            break :blk abi.Api.station_growing_arrow_cell(decoded.ptr, decoded.len, arrow.row, arrow.column, &buffer);
+        },
         .frame => |frame| abi.Api.station_frame_encode(frame.kind, try std.fmt.parseInt(u64, frame.correlation, 10), frame.payload.slice().ptr, frame.payload.len, &buffer),
         .prepare => |prepare| return raw.host.process(init, client, .{ .prepare = prepare }, allocator, out),
         .call => |frozen| return raw.host.process(init, client, .{ .call = frozen }, allocator, out),

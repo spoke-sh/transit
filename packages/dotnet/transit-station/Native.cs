@@ -72,6 +72,8 @@ internal static class Native {
     [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint station_arrow_cell([In] byte[] arg0, nuint arg1, uint arg2, uint arg3, out IntPtr arg4);
     [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_growing_arrow_cell([In] byte[] arg0, nuint arg1, uint arg2, uint arg3, out IntPtr arg4);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
     internal static extern nuint station_buffer_size(IntPtr arg0);
     [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
     internal static extern void station_buffer_destroy(IntPtr arg0);

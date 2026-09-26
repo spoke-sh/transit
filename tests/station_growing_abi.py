@@ -306,6 +306,9 @@ def run(node, cli, library, raw_library, host):
                 raise AssertionError('Port did not expose a growing turn')
             scope = result['scope']
             assert port.call({'growing_apply': {'scope': scope, 'action': {'get': b'local'.hex()}}}) == {'value': None}
+            correlation = port.call({'growing_apply': {'scope': scope, 'action': {'call': {'pid': pid, 'value': ''}}}})['correlation']
+            assert port.call({'growing_apply': {'scope': scope, 'action': {'cancel': correlation}}}) == {'cancelled': True}
+            assert port.call({'growing_apply': {'scope': scope, 'action': {'cancel': correlation}}}) == {'cancelled': False}
             port.call({'growing_discard': scope})
             rejects(13, port.call, {'growing_apply': {'scope': scope, 'action': {'get': b'local'.hex()}}})
             port.close()

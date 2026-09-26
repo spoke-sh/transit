@@ -244,6 +244,16 @@ pub const Api = struct {
         output(result, out) catch |err| return status(err);
         return .ok;
     }
+    /// Decodes owned segment bytes; it performs no resource read or authority
+    /// check. Obtaining those bytes requires the scoped completed-result API.
+    pub fn station_growing_arrow_cell(bytes: [*]const u8, len: usize, row: u32, column: u32, out: *?*Buffer) callconv(.c) Status {
+        out.* = null;
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const result = actions.arrowCellBounded(arena.allocator(), bytes[0..len], row, column, s.GrowingQuery.records.segment_bytes) catch |err| return failure(err, out);
+        output(result, out) catch |err| return status(err);
+        return .ok;
+    }
     pub fn station_buffer_size(pointer: *const Buffer) callconv(.c) usize {
         return cast(BufferImpl, pointer).bytes.len;
     }

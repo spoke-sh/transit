@@ -18,6 +18,7 @@ pub const Request = union(enum) {
     growing_discard: u64,
     growing_pending: void,
     arrow_cell: struct { ipc: []const u8, row: u32, column: u32 },
+    growing_arrow_cell: struct { ipc: []const u8, row: u32, column: u32 },
     frame: struct { kind: u32, correlation: []const u8, payload: p.Value },
     prepare: raw.Prepare,
     call: []const u8,

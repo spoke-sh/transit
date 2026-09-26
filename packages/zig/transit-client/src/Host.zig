@@ -14,6 +14,8 @@ pub const Capabilities = struct {
     growing_v3: bool = true,
     minimum_stack_bytes: u32 = abi.minimum_stack_bytes,
     max_line_bytes: u32 = max_line_bytes,
+    value_bytes: u32 = p.Value.max_bytes,
+    max_counter: u64 = p.max_counter,
 };
 
 pub fn readSeed(init: std.process.Init, path: []const u8) ![32]u8 {

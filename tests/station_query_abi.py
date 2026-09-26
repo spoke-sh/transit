@@ -241,6 +241,11 @@ def run(node, cli, library, raw_library, host):
             rows = [row for ipc in segments for row in pa.ipc.open_stream(ipc).read_all().to_pylist()]
             assert len(rows) == 41 and rows[0] == {'id': -(2**63), 'value': None}
             assert rows[1]['value'] == 2**63 - 1 and rows[2]['value'] == 9007199254740993
+            api = service.api
+            cell = api.call('station_growing_arrow_cell', segments[0], len(segments[0]), 1, 1)
+            assert cell['value'] == {'int64': str(2**63 - 1)} and cell['name'] == 'value'
+            rejects(1, api.call, 'station_growing_arrow_cell', segments[0][:-8], len(segments[0]) - 8, 0, 0)
+            rejects(1, api.call, 'station_growing_arrow_cell', bytes(8193), 8193, 0, 0)
             config = system.root / 'query-host.json'
             config.write_text(json.dumps({'url': endpoint, 'seed_file': str(requester_key), 'growing_server': requester_config}))
             port = Port(host, str(config))
@@ -252,6 +257,7 @@ def run(node, cli, library, raw_library, host):
             assert port.call({'growing_apply': {'scope': scope, 'action': {'query_completed': str(correlation)}}})['manifest'] == manifest
             first = port.call({'growing_apply': {'scope': scope, 'action': {'query_segment': {'correlation': str(correlation), 'ordinal': '0'}}}})['segment']
             assert bytes.fromhex(first['ipc']) == segments[0]
+            assert port.call({'growing_arrow_cell': {'ipc': first['ipc'], 'row': 1, 'column': 1}}) == cell
             port.call({'growing_discard': scope})
             rejects(13, port.call, {'growing_apply': {'scope': scope, 'action': {'query_completed': str(correlation)}}})
             command({'grant_resource': {'resource': requests, 'subject': 65537, 'permissions': 0}})

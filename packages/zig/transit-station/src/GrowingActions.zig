@@ -66,6 +66,7 @@ pub const Result = union(enum) {
     none,
     value: ?p.Value,
     correlation: []const u8,
+    cancelled: bool,
     row: ?a.Row,
     page: struct { entries: [p.Growth.page_size]?p.Growth.Entry, next: ?[]const u8 },
     rows: struct { basis: s.fuze.model.Basis, rows: [p.Growth.page_size]?a.Row, next: ?[]const u8 },

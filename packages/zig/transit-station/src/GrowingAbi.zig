@@ -27,6 +27,7 @@ pub const Capabilities = struct {
     tables: bool = true,
     retained_sources: bool = true,
     query_results: bool = true,
+    ipc_cells: bool = true,
     query_segment_bytes: u32 = s.GrowingQuery.records.segment_bytes,
     query_workspace_bytes: u32 = s.fuze.execution.working_bytes,
     value_bytes: u32 = p.Value.max_bytes,
