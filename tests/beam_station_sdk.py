@@ -6,9 +6,12 @@ import subprocess
 import sys
 import tarfile
 from sdk_station_runner import Consumer, run as schedule
+from sdk_http_runner import run as http_schedule
 
 
-def run(node, cli, library, artifacts, *, execute=None):
+def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
+    if execute is None and http_worker is None:
+        raise ValueError("The full Station SDK schedule requires the HTTP worker binary")
     root = Path(__file__).resolve().parents[1]
     for language in ('erlang', 'elixir'):
         def install(target, language=language):
@@ -23,18 +26,21 @@ def run(node, cli, library, artifacts, *, execute=None):
             env = dict(os.environ, ERL_LIBS=str(lib), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
             classes = target / 'classes'
             classes.mkdir()
-            sources = ['beam_station_controller.erl']
-            if language == 'erlang': sources += ['beam_station_adapter.erl', 'beam_station_reentrant.erl']
+            sources = ['beam_station_controller.erl', 'beam_http_controller.erl']
+            if language == 'erlang': sources += ['beam_station_adapter.erl', 'beam_station_reentrant.erl', 'beam_http_adapter.erl']
             for name in sources:
                 source = target / name
                 shutil.copy2(root / 'tests' / name, source)
                 subprocess.run(['erlc', '-Werror', '-o', str(classes), str(source)], env=env, cwd=target, check=True)
                 source.unlink()
             if language == 'elixir':
-                source = target / 'elixir_station_adapter.ex'
-                shutil.copy2(root / 'tests' / source.name, source)
-                subprocess.run(['elixirc', '--warnings-as-errors', '-pa', str(classes), '-o', str(classes), str(source)], env=env, cwd=target, check=True)
-                source.unlink()
+                for name in ('elixir_station_adapter.ex', 'elixir_http_adapter.ex'):
+                    source = target / name
+                    shutil.copy2(root / 'tests' / source.name, source)
+                    subprocess.run(['elixirc', '--warnings-as-errors', '-pa', str(classes), '-o', str(classes), str(source)], env=env, cwd=target, check=True)
+                    source.unlink()
+            fixtures = target / 'http-fixtures.json'
+            shutil.copyfile(root / 'packages/zig/transit-station-http/src/admission-fixtures.json', fixtures)
             fake = target / 'bad-station-version'
             fake.write_text(f'#!{sys.executable}\nimport sys\nsys.stdin.readline()\nprint(\'{{"status":0,"value":{{"host_version":1,"station_version":99,"transit_version":1}}}}\')\n')
             fake.chmod(0o700)
@@ -54,6 +60,9 @@ def run(node, cli, library, artifacts, *, execute=None):
                 try: subprocess.run(incompatible, env=env, cwd=target, check=True, timeout=20)
                 finally: manifest.write_text(original)
             def command(mode, config):
+                if mode.startswith('http-'):
+                    if language == 'erlang': return ['erl', '-noshell', '-pa', str(classes), '-s', 'beam_http_controller', 'main', '-extra', mode, str(config), str(fixtures)]
+                    return ['elixir', '-pa', str(classes), '-e', ':beam_http_controller.main(ElixirHttpAdapter, System.argv())', '--', mode, str(config), str(fixtures)]
                 import json
                 pending = Path(json.loads(config.read_text())['pending'])
                 if not pending.exists():
@@ -70,6 +79,7 @@ def run(node, cli, library, artifacts, *, execute=None):
                 return ['elixir', '-e', 'Transit.SdkExamples.CounterMain.main()', '--', str(config), role, '--commits', '1']
             return Consumer(env, command, example, 'invalid-handler', extra_failures=('exit-stop', 'exit-block'), arrow_adapter=False)
         (execute or schedule)(node, cli, library, install, language.capitalize())
+        if execute is None: http_schedule(node, cli, library, http_worker, install, language.capitalize())
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

@@ -2,7 +2,7 @@
 -module(transit_station_bridge).
 -include("transit_station_sdk.hrl").
 -export([open/2, local/1, close/1, caps/1, prepare/1, apply/3, finish/3, discard/2,
-         pending/2, dispatch/1, confirmation/2, matches/2, frame/3]).
+         pending/2, dispatch/1, confirmation/2, matches/2, frame/3, http_codec/2, http_read/2]).
 -record(bridge, {port, caps}).
 open(#transit_service{client = #transit_config{url = Url, profile = growing_v3, timeout_ms = Timeout, native_host = Override},
     activation = #transit_activation{process = #transit_process{realm = Realm, pid = Pid}, generation = Generation,
@@ -44,6 +44,12 @@ create(Config, Override) ->
         _:_ -> catch transit_sdk_port:close(Port), transit_sdk_value:fail(incompatible_native, native_version)
     end.
 caps(#bridge{caps = Caps}) -> Caps.
+http_codec(#bridge{port = Port, caps = Caps}, Action) ->
+    case maps:get(<<"http_requests">>, Caps) of true -> ok; false -> transit_sdk_value:fail(unsupported_capability, http_requests) end,
+    transit_sdk_port:request(Port, #{<<"http_codec">> => Action}, http_codec, false, <<"HttpCodecResult">>).
+http_read(#bridge{port = Port, caps = Caps}, Action) ->
+    case maps:get(<<"http_replay">>, Caps) of true -> ok; false -> transit_sdk_value:fail(unsupported_capability, http_replay) end,
+    transit_sdk_port:request(Port, #{<<"growing_http_read">> => Action}, http_replay, false, <<"HttpReadResult">>).
 close(#bridge{port = Port}) -> transit_sdk_port:close(Port).
 prepare(#bridge{port = Port}) -> transit_sdk_port:request(Port, #{<<"growing_prepare">> => erlang:system_time(millisecond) + 30000}, prepare_turn, false, <<"GrowingEvent">>).
 apply(#bridge{port = Port}, Scope, Action) -> transit_sdk_port:request(Port, #{<<"growing_apply">> => #{<<"scope">> => Scope, <<"action">> => Action}}, apply, false, <<"GrowingResult">>).

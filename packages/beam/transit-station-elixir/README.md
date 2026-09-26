@@ -13,3 +13,5 @@ No optional BEAM Arrow adapter is selected; original owned IPC is the result
 interface. Registry publication and foreign Substrate workers remain outside scope.
 
 See [installation, APIs, recovery and migration](docs/usage.md).
+M15's [HTTP structs and replay API](docs/http.md) preserve current authorization,
+owned binaries and joined disposal through the Erlang SDK.

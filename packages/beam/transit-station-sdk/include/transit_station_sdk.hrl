@@ -23,4 +23,9 @@
 -record(transit_blocked, {input = undefined :: undefined | transit_counter(), receipt = undefined :: undefined | #transit_receipt{}}).
 -record(transit_needs_recovery, {mutation :: #transit_frozen{}, phase :: atom(), error :: #transit_error{}, receipt = undefined :: undefined | #transit_receipt{}}).
 -record(transit_runner_shutdown, {pending = undefined :: undefined | #transit_frozen{}, last_event = undefined :: term()}).
+-record(transit_http_request, {method, target = [], headers = []}).
+-record(transit_http_prepared, {resource, namespace, reference, metadata, body}).
+-record(transit_http_outcome, {phase, resource, exchange, effect, attempt, status = undefined, reference = undefined}).
+-record(transit_http_rejected, {reason}).
+-record(transit_http_part, {kind, bytes, complete = false}).
 -endif.

@@ -1,0 +1,88 @@
+# HTTP calls and immutable reader tokens
+
+`transit_http` exposes the M15 HTTP API using ordinary records, binaries and tagged
+results. Shared Zig owns request construction, immutable publication, call framing
+and capture validation. The native `http_requests` and `http_replay` capabilities
+are required. The [finite worker](../../../../apps/transit-station-http-worker/README.md)
+owns exact endpoint scope, credential resolution and network execution. Its
+initial profile admits one root call per provisioned connector PID.
+
+```erlang
+-include_lib("transit_station_sdk/include/transit_station_sdk.hrl").
+Request = #transit_http_request{
+    method = post,
+    target = [{literal, <<"/items/">>}, {variable, <<"id">>, <<"λ /"/utf8>>}],
+    headers = [{<<"Authorization">>,
+                [{literal, <<"Bearer ">>}, {secret, <<"api">>, 7}]}]},
+{ok, Prepared} = transit_http:prepare(
+    Resource, Namespace, Request, Body,
+    #{endpoint_revision => Revision, reconcile_before_ms => Deadline}).
+```
+
+Methods are `get`, `head`, `post`, `put`, `patch`, `delete` and `options`.
+Header order and duplicates are preserved. Pieces distinguish literal bytes,
+named ordinary UTF-8 variables and versioned secret references. The prepared
+record contains immutable owned reference, metadata and body binaries. The body
+limit is 64 KiB and canonical metadata is limited to 8 KiB. Namespace and endpoint/
+secret versions preserve unsigned 64-bit integers; resource IDs and deadlines
+obey the native counter bound. Pure preparation and decoding use an owned local
+native host without credentials or authority operations.
+
+`transit_http:stage(Turn, Prepared)` returns `{ok, false}` when it adds one bounded
+upload step to the private turn. Commit and arrange another application input.
+When true, both immutable records were committed before this turn:
+`transit_http:call(Turn, Connector, Prepared)` may share the turn with persisting
+its returned correlation. Guard against another call using that persisted state.
+Reconstruct the exact prepared request after fresh ownership to resume committed
+staging. The application retains source bytes until publication. A namespace
+permanently identifies one request and cannot be reused. Observe committed runner
+events; a callback return is not a durable acknowledgement.
+
+Application codecs retain ownership of payload dispatch. A byte-oriented codec
+can return immutable payloads to the handler. On a `reply` input, authenticate
+the original connector and persisted correlation with
+`transit_turn:require_reply/4`, then call `transit_http:decode_reply(Realm, Bytes)`.
+It returns `#transit_http_rejected{}` or `#transit_http_outcome{}`. A cast containing
+outcome-shaped bytes is not a reply. Outcomes distinguish observed, closed unknown
+and not dispatched; only observed outcomes contain complete references. HTTP
+status is not business success. No language wrapper duplicates HTTP framing or
+outcome interpretation.
+
+Open replay outside callbacks with `transit_http:open(Runner, Outcome)` or
+`open/3` with `captured` or `require_unredacted` policy. There is one active reader
+per runner, and pending uncertain mutations prevent replay operations.
+
+```erlang
+{ok, Reader0} = transit_http:open(Runner, Outcome),
+{ok, {Part, Reader1}} = transit_http:read(Reader0),
+%% Continue with Reader1; an old token cannot advance the stream.
+{ok, ok} = transit_http:close(Reader1).
+```
+
+Each read returns `{ok, {PartOrDone, NextReader}}`, where a part is
+`#transit_http_part{kind, bytes, complete}` with at most 256 owned bytes and `done`
+marks end of stream. Every read rechecks current resource authority. Only
+`transit_http:complete(NextReader)` establishes validated completion; prior
+prefixes remain provisional. Captured mode reports omissions; unredacted mode
+rejects gaps. Replay never resolves credentials or performs an HTTP request.
+
+Always continue with the returned token. Reusing an older token returns
+`read_failed`/`HttpReplayFailed`, preventing silent progress past a part lost when
+a waiting BEAM process died. It does not invalidate an independently retained
+current token. Any native/read-materialization failure poisons the active reader.
+Restoring permission requires close/reopen. There is no cache that bypasses
+current authorization. Local token state is bounded independently of retained
+capture size.
+
+Runner work remains owned when its waiting process exits. Stop and close join
+native work; owner death follows the existing graceful shutdown path. Local
+shutdown does not cancel remote HTTP execution. Reader close disposes the local
+slot, and repeated close is accepted for the last closed identity. After runner
+close, all reader tokens fail `closed`. Previously returned binaries remain owned.
+Disposal does not release a durable caller hold, retire capture or erase history.
+
+`just bindings::beam-sdk-test` compiles installed Erlang and Elixir consumers
+and runs the shared TLS/recovery/revocation/disposal schedule plus existing SDK
+regressions. See the [proof guide](../../../../tests/README.md#m15-connector-work-in-progress)
+for executed evidence. Native allocation proofs are distinct from BEAM heap-loss
+qualification.

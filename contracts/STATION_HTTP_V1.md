@@ -1,7 +1,9 @@
 # Station HTTP capture v1
 
 Status: experimental M15 implementation profile. Finite public service admission
-is implemented; all-language bindings remain unfinished. This protocol-specific layer uses the
+and all ten public SDK request/call/replay APIs are implemented and locally
+qualified. Public followup/release and deployment qualification remain M15 work.
+This protocol-specific layer uses the
 [exchange contract](STATION_EXCHANGE_V1.md); it adds no kernel authority.
 
 ## Requests and scope
@@ -191,8 +193,8 @@ terminal encodings. The [exchange fixtures](../packages/zig/transit-exchange/src
 fix full-width application identities, empty/binary publication bytes and ordered
 coverage chains. Expected bytes were independently constructed with Python's
 `struct` and `hashlib`; Zig tests consume those bytes, recompute commitments and
-reject malformed versions/lengths. Future host APIs must consume these same
-fixtures and shared Zig behavior rather than implementing another HTTP lifecycle.
+reject malformed versions/lengths. All ten public SDKs consume these shared
+fixtures and Zig behavior; native adapters own language types and scheduling.
 The [admission fixtures](../packages/zig/transit-station-http/src/admission-fixtures.json)
 independently fix caller metadata, binary body commitments, full-width namespaces,
 routes, outcomes and rejection encodings.

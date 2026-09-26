@@ -200,7 +200,7 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 | [transit-board-client](../packages/ts/transit-board-client/README.md) (TypeScript) | Generated Board models/runtime validators and bounded browser transport | AJV runtime helper |
 | [transit-runtime-substrate](../packages/zig/transit-runtime-substrate/README.md) / `transit_runtime_substrate` | Provider identity, template validation, sandbox lifecycle operations | transit-observability; invokes pinned external CLI |
 | [transit-station](../packages/zig/transit-station/README.md) / `transit_station` | GenServer, durable calls, scoped names, supervision, Tables and captured queries | transit-client, transit-fuze |
-| [transit-station-bindings](../packages/zig/transit-station-bindings/README.md) / `station_abi` | Shared native SDK handles, detached turn actions, C exports and generated host schemas; composes above the framework | transit-station, transit-client ABI |
+| [transit-station-bindings](../packages/zig/transit-station-bindings/README.md) / `station_abi` | Shared native SDK handles, detached turn actions, C exports and generated host schemas; composes above the framework | transit-station, transit-client ABI, transit-station-http |
 | [transit-query](../packages/zig/transit-query/README.md) / `transit_query` | Signed public Table queries, admission behaviors and verified typed pages | transit-station |
 | [transit-fuze](../packages/zig/transit-fuze/README.md) / `transit_fuze` | Source/plan contracts, Table SQL compilation and bounded Zig-native Arrow execution | pinned zarrow, zarrow-compute |
 

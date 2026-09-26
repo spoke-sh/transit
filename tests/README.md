@@ -119,6 +119,15 @@ invalidates its local reader; native execution remains owned until disposal.
 in **38.65 seconds**, including immutable copies, explicit typed outcomes,
 revocation/reopening and cancelled task waits joined by runner disposal. Existing
 raw client and Station recovery/query checks passed in the same invocation.
+`just bindings::beam-sdk-test` installs both BEAM archives and exercises Erlang
+records and Elixir structs. Both raw client and Station schedules passed; after
+fixing the shared test controller to accept binary as well as list input, both
+HTTP schedules passed through the task's shared harness in **36.33** and **37.28
+seconds**. Immutable reader tokens reject stale cursor reuse; a killed waiting
+process cannot silently skip a part, and disposal joins the admitted port job.
+All ten SDKs now pass the HTTP fixtures and caller schedule. The existing public
+counter/query interoperability ring was rerun against these installed artifacts:
+all ten edges passed in **255.78 seconds**, including clean consumer installation.
 
 The 2026-09-26 Linux x86_64 worker run took **242.31 seconds**, excluding compilation.
 This is local proof time, not a hosted CI or aggregate runner-minute measurement.
@@ -126,7 +135,7 @@ Machine output distinguishes sealed capture phase from the kernel outcome.
 
 These checks passed locally on Linux x86_64 with the pinned compiler. They do not
 yet qualify general public multi-call/followup/release APIs, managed secret providers,
-every cross-service lifetime combination, the complete language-native HTTP SDK matrix, all launchers
+every cross-service lifetime combination, all launchers
 or hosted CI cost. Those remain explicit
 [M15](../docs/roadmap/M15.md) exit obligations. The shared capture
 [contract](../contracts/STATION_EXCHANGE_V1.md) distinguishes library coverage

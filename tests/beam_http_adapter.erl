@@ -1,0 +1,67 @@
+-module(beam_http_adapter).
+-include_lib("transit_station_sdk/include/transit_station_sdk.hrl").
+-behaviour(transit_station_codec).
+-behaviour(transit_station_handler).
+-export([prepare/1, open/3, next/1, close/1, stop/1, stage/2, open_http/2, read/1, close_http/1,
+         complete/1, decode/1, outcome/1, view/1, event/1, golden/1,
+         type_id/0, version/0, max_encoded_bytes/0, encode/1, handle_message/3]).
+%% The application codec owns ordinary bytes. Decode HTTP only on an authenticated reply.
+type_id() -> <<"test.http-control">>.
+version() -> 1.
+max_encoded_bytes() -> 243.
+encode(Bytes) -> {ok, Bytes}.
+decode(Bytes) -> {ok, Bytes}.
+request() -> #transit_http_request{method = post, target = [{literal, <<"/items/">>}, {variable, <<"id">>, <<"λ /"/utf8>>}],
+    headers = [{<<"X-Tag">>, [{literal, <<"one">>}]}, {<<"X-Tag">>, [{literal, <<"two">>}]},
+        {<<"Authorization">>, [{literal, <<"Bearer ">>}, {secret, <<"api">>, 7}]}]}.
+prepare(Cfg) -> transit_http:prepare(#transit_resource{realm = 72, resource = maps:get(<<"resource">>, Cfg)}, 18446744073709551615,
+    request(), binary:decode_hex(maps:get(<<"body">>, Cfg)), #{endpoint_revision => 7, reconcile_before_ms => maps:get(<<"deadline">>, Cfg)}).
+open(Cfg, S, Request) ->
+    {ok, Client} = transit_client:config(maps:get(<<"url">>, Cfg), growing_v3),
+    Service = #transit_service{client = Client, activation = #transit_activation{process = #transit_process{realm = 72, pid = maps:get(<<"pid">>, Cfg)},
+        generation = maps:get(<<"generation">>, Cfg), credential = #transit_credential{realm = 72, principal = maps:get(<<"principal">>, Cfg), seed_file = maps:get(<<"seed_file">>, Cfg)}}},
+    transit_station_sdk:open(Service, ?MODULE, {S, #transit_process{realm = 72, pid = maps:get(<<"peer">>, Cfg)}, Request}, ?MODULE, stop, fresh_ownership).
+handle_message(Turn, Input, {S, Peer, Request} = Context) ->
+    beam_http_controller:put(S, escaped, Turn), {ok, State} = transit_turn:state(Turn), {ok, Key} = transit_turn:key(<<"http-correlation">>, transit_example_u64_codec),
+    Result = case Input#transit_incoming.kind of
+        cast ->
+            Called = case transit_turn:find(State, Key) of
+                {ok, {found, _}} -> true;
+                {ok, missing} ->
+                    {ok, Ready} = transit_http:stage(Turn, Request),
+                    case Ready of true -> {ok, Correlation} = transit_http:call(Turn, Peer, Request), {ok, ok} = transit_turn:put(State, Key, Correlation); false -> ok end,
+                    Ready
+            end,
+            #{called => Called};
+        reply ->
+            {ok, Correlation} = transit_turn:require(State, Key), {ok, ok} = transit_turn:require_reply(Turn, Input, Peer, Correlation),
+            {ok, #transit_http_outcome{phase = observed, status = 200}} = transit_http:decode_reply(72, Input#transit_incoming.value),
+            {ok, Status} = transit_turn:key(<<"http-status">>, transit_example_u64_codec), {ok, ok} = transit_turn:put(State, Status, 200), #{observed => true}
+    end,
+    beam_http_controller:put(S, result, Result), {ok, Context}.
+next(R) -> transit_station_sdk:next(R).
+close(R) -> transit_station_sdk:close(R).
+stop(R) -> transit_station_sdk:stop(R).
+stage(T, Request) -> transit_http:stage(T, Request).
+outcome(Bytes) -> transit_http:decode_reply(72, Bytes).
+open_http(R, Outcome) -> transit_http:open(R, Outcome).
+read(Reader) -> case transit_http:read(Reader) of
+    {ok, {#transit_http_part{kind = K, bytes = B, complete = C}, Next}} -> {ok, {#{kind => K, bytes => B, complete => C}, Next}};
+    Other -> Other end.
+close_http(R) -> transit_http:close(R).
+complete(R) -> transit_http:complete(R).
+view(#transit_error{kind = Kind, code = Code, phase = Phase}) -> #{kind => Kind, code => Code, phase => Phase}.
+event(#transit_committed{}) -> committed;
+event(Value) -> Value.
+golden(Fixture) ->
+    {ok, Prepared} = transit_http:prepare(#transit_resource{realm = 72, resource = 8}, 18446744073709551615,
+        #transit_http_request{method = post, target = [{literal, <<"/write">>}]}, binary:decode_hex(maps:get(<<"body">>, Fixture)),
+        #{endpoint_revision => 7, reconcile_before_ms => 9000, max_attempts => 2}),
+    true = Prepared#transit_http_prepared.reference =:= binary:decode_hex(maps:get(<<"reference">>, Fixture)),
+    true = Prepared#transit_http_prepared.metadata =:= maps:get(<<"metadata">>, Fixture),
+    Bytes = binary:decode_hex(maps:get(<<"outcome">>, Fixture)),
+    {ok, #transit_http_outcome{phase = observed, status = 200, exchange = 18446744073709551615, reference = Ref}} = transit_http:decode_reply(72, Bytes), true = is_binary(Ref),
+    {ok, #transit_http_rejected{reason = denied}} = transit_http:decode_reply(72, binary:decode_hex(maps:get(<<"rejection">>, Fixture))),
+    {error, _} = transit_http:decode_reply(72, binary:part(Bytes, 0, 70)),
+    {error, _} = transit_http:prepare(#transit_resource{realm = 72, resource = 8}, 1,
+        #transit_http_request{method = get, target = [{literal, <<"//other/">>}]}, <<>>, #{endpoint_revision => 1, reconcile_before_ms => 9000}), ok.

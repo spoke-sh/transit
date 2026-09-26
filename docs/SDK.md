@@ -27,6 +27,9 @@ The [caller model](CLIENT.md#idiomatic-language-sdks) owns shared guarantees.
 This document owns cross-language API decisions; the language pages own native
 shapes. Wire layouts remain in `contracts/`, implementation guides beside their
 packages, and proof results in the [test guide](../tests/README.md).
+The later [HTTP caller boundary](CLIENT.md#http-connector-callers) links M15's
+typed request, outcome and replay guides for each target. Its qualification is
+separate from the M11 counter/Table/query baseline.
 
 ## Packages and authority
 

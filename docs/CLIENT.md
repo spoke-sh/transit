@@ -280,3 +280,51 @@ submission/cancellation identity and reads verified bounded result segments.
 It owns no kernel authority, storage access or independent query semantics.
 See the [public contract](../contracts/PUBLIC_QUERY_V1.md) for admission,
 uncertainty, current authorization and deployment limits.
+
+## HTTP connector callers
+
+M15's native bindings compose above Station and
+[transit-station-http](../packages/zig/transit-station-http/README.md). Language
+SDKs own typed inputs, callback dispatch, local scheduling and returned bytes;
+Zig owns canonical request metadata, publication identity, durable call framing
+and replay validation. The [HTTP contract](../contracts/STATION_HTTP_V1.md) fixes
+the initial wire profile. Protocol semantics do not move into individual SDKs.
+
+Preparation returns immutable metadata/body commitments without authority work.
+Bounded staging advances through ordinary caller turns; the application supplies
+continuation inputs and retains recoverable source bytes until publication.
+Reconstruction after fresh ownership must preserve the same namespace, bytes,
+endpoint revision and original budget. A successful call returns a correlation
+that the application records with state. Authenticate the reply's fixed source
+and that correlation before trusting a decoded outcome. Admission rejection,
+observed response, closed unknown and not dispatched stay distinct.
+
+Replay owns one bounded cursor per native runner, rechecks current resource
+access and exposes provisional parts until validated completion. Returned bytes
+are owned. A failed stream requires close/reopen; cancelled or lost local waits
+cannot justify silently advancing past undisclosed bytes. BEAM APIs return a new
+immutable reader token per read and reject stale tokens. Local disposal joins
+owned work but does not release durable caller holds, authorize cleanup, refetch
+HTTP data or promise remote cancellation.
+
+Language usage and ownership live beside each SDK:
+
+| Language | HTTP guide |
+| --- | --- |
+| Python | [Synchronous and asynchronous readers](../packages/python/transit-station/docs/http.md) |
+| TypeScript | [Async reply handlers and owned readers](../packages/ts/transit-station-sdk/docs/http.md) |
+| Rust | [Owned requests and borrowed readers](../packages/rust/transit-station-sdk/docs/HTTP.md) |
+| Ruby | [Frozen values and joined cleanup](../packages/ruby/transit-station/docs/HTTP.md) |
+| C | [Explicit handles and inline owned parts](../packages/c/transit-station/docs/HTTP.md) |
+| C++ | [Reply unions and RAII readers](../packages/cpp/transit-station-sdk/docs/HTTP.md) |
+| Java | [Immutable values and future ownership](../packages/java/transit-station-sdk/docs/HTTP.md) |
+| .NET | [Typed outcomes and cancellable task waits](../packages/dotnet/transit-station-sdk/docs/HTTP.md) |
+| Erlang | [Tagged records and reader tokens](../packages/beam/transit-station-sdk/docs/http.md) |
+| Elixir | [HTTP structs and immutable readers](../packages/beam/transit-station-elixir/docs/http.md) |
+
+The [M15 proof inventory](../tests/README.md#m15-connector-work-in-progress)
+distinguishes installed-consumer evidence from outstanding connector lifecycle,
+deployment and hosted-cost qualification. The current finite worker admits one
+root call per provisioned connector PID; its
+[admission guide](../apps/transit-station-http-worker/docs/admission.md) owns the
+provisioning and lifetime limits.

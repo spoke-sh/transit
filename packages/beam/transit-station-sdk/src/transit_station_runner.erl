@@ -4,7 +4,7 @@
 -export([open/2, execute/2, evidence/1, close/1]).
 -record(state, {bridge, handler, context, codec, failure, recovery, stop, process,
                 pending = undefined, confirmed = undefined, paused = undefined,
-                attempted = false, last_event = undefined}).
+                attempted = false, last_event = undefined, http_reader = undefined, http_closed = undefined}).
 open({local, Override}, _) -> {local, transit_station_bridge:local(Override)};
 open({#transit_service{activation = #transit_activation{process = Process}} = Service, Handler, Initial, Codec, Failure, Recovery}, Stop) ->
     true = is_atom(Handler), {module, Handler} = code:ensure_loaded(Handler),
@@ -20,6 +20,33 @@ open({#transit_service{activation = #transit_activation{process = Process}} = Se
         #state{bridge = Bridge, handler = Handler, context = Initial, codec = Codec, failure = Failure, recovery = Recovery, stop = Stop, process = Process}
     catch Class:Reason:Stack -> catch transit_station_bridge:close(Bridge), erlang:raise(Class, Reason, Stack) end.
 execute({encode_cast, Value, Codec}, {local, Bridge} = State) -> {{ok, transit_station_bridge:frame(Bridge, Value, Codec)}, State};
+execute({http_codec, Action}, {local, Bridge} = State) -> {{ok, transit_station_bridge:http_codec(Bridge, Action)}, State};
+execute({http, _}, #state{pending = Pending}) when Pending =/= undefined -> transit_sdk_value:fail(busy, pending_mutation);
+execute({http, {open, Realm, Reference, Policy}}, #state{process = #transit_process{realm = Realm}, bridge = Bridge} = State) ->
+    Result = transit_station_bridge:http_read(Bridge, #{<<"open">> => #{<<"reference">> => transit_sdk_value:hex(Reference), <<"policy">> => Policy}}),
+    Id = transit_sdk_value:counter(maps:get(<<"opened">>, Result)),
+    {{ok, {Id, 0}}, State#state{http_reader = {Id, 0, false, false}}};
+execute({http, {open, _, _, _}}, _) -> transit_sdk_value:fail(invalid_argument, http_realm);
+execute({http, {next, Id, Step}}, #state{http_reader = {Id, Step, Complete, false}} = State) ->
+    %% Advance the local token even on failure. Losing a BEAM wait cannot let
+    %% an old immutable handle skip an undisclosed native part on its next use.
+    Next = transit_sdk_value:counter(Step + 1),
+    Result = transit_sdk_value:protect(fun() ->
+        Value = transit_station_bridge:http_read(State#state.bridge, #{<<"next">> => Id}),
+        transit_http:part(Value, Complete)
+    end),
+    case Result of
+        {ok, {Part, Done}} -> {{ok, {Part, Next, Done}}, State#state{http_reader = {Id, Next, Done, false}}};
+        {error, Error} -> {{error, Error}, State#state{http_reader = {Id, Next, Complete, true}}}
+    end;
+execute({http, {next, Id, _}}, #state{http_reader = {Id, _, _, _}}) ->
+    throw({transit_sdk, #transit_error{kind = read_failed, phase = http_reader, code = <<"HttpReplayFailed">>}});
+execute({http, {next, _, _}}, _) -> transit_sdk_value:fail(closed, http_reader);
+execute({http, {close, Id}}, #state{http_closed = Id} = State) -> {{ok, ok}, State};
+execute({http, {close, Id}}, #state{http_reader = {Id, _, _, _}} = State) ->
+    #{<<"closed">> := true} = transit_station_bridge:http_read(State#state.bridge, #{<<"close">> => Id}),
+    {{ok, ok}, State#state{http_reader = undefined, http_closed = Id}};
+execute({http, {close, _}}, _) -> transit_sdk_value:fail(closed, http_reader);
 execute(evidence, State) -> {{ok, evidence(State)}, State};
 execute(next, State) -> next(State, 16);
 execute(reconcile, #state{pending = undefined}) -> transit_sdk_value:fail(closed, no_pending_mutation);

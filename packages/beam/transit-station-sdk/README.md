@@ -19,3 +19,5 @@ require the Nix native closure; registry publication and foreign Substrate image
 are outside qualification. The M9 `transit_station` adapter remains separate.
 
 See [installation, APIs, recovery and migration](docs/usage.md).
+M15 adds [HTTP publication, correlated calls and immutable replay tokens](docs/http.md)
+through the shared native host.
