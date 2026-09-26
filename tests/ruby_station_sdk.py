@@ -21,7 +21,7 @@ def run(node, cli, library, artifacts):
         shutil.copyfile(root / 'tests/ruby_station_sdk.rb', script)
         return Consumer(environment, lambda mode, config: ['ruby', script, mode, config],
             lambda config, role: [target / 'gems/bin/transit-ruby-counter', config, role, '--commits', '1'],
-            'fiber-handler', extra_failures=('exception-stop', 'exception-block'), arrow_adapter=False)
+            'fiber-handler', extra_failures=('exception-stop', 'exception-block', 'codec-poison'), arrow_adapter=False)
     schedule(node, cli, library, install, 'Ruby')
 
 

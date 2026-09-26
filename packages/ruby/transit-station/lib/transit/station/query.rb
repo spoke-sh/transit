@@ -37,6 +37,9 @@ module Transit
         @turn, @correlation = turn, Internal.integer(correlation, max: U64_MAX)
       end
       def manifest
+        @turn.__send__(:operation, read: true) { read_manifest }
+      end
+      private def read_manifest
         value = apply({ 'query_completed' => correlation.to_s }).fetch('manifest')
         realm = @turn.process.realm
         ResultManifest.new(result: value.fetch('result'), source: ProcessRef.new(realm: realm, pid: value.fetch('source')),
@@ -46,17 +49,19 @@ module Transit
           rows: Value.wide(value.fetch('rows')), chain: Value.digest(value.fetch('chain')), schema: Value.digest(value.fetch('schema')))
       end
       def segment(ordinal)
-        Internal.integer(ordinal, min: 0, max: U64_MAX)
-        complete = manifest
-        value = apply({ 'query_segment' => { 'correlation' => correlation.to_s, 'ordinal' => ordinal.to_s } }).fetch('segment')
-        bound = @turn.__send__(:caps).fetch('query_segment_bytes')
-        ipc = Internal.unhex(value.fetch('ipc'), bound)
-        raise IncompatibleNative, 'Native IPC length mismatch' unless ipc.bytesize == value.fetch('bytes')
-        IpcSegment.new(manifest: complete, ordinal: Value.wide(value.fetch('ordinal')), rows: value.fetch('rows'),
-                      digest: Value.digest(value.fetch('digest')), ipc: ipc, bound: bound)
+        @turn.__send__(:operation, read: true) do
+          Internal.integer(ordinal, min: 0, max: U64_MAX)
+          complete = read_manifest
+          value = apply({ 'query_segment' => { 'correlation' => correlation.to_s, 'ordinal' => ordinal.to_s } }).fetch('segment')
+          bound = @turn.__send__(:caps).fetch('query_segment_bytes')
+          ipc = Internal.unhex(value.fetch('ipc'), bound)
+          raise IncompatibleNative, 'Native IPC length mismatch' unless ipc.bytesize == value.fetch('bytes')
+          IpcSegment.new(manifest: complete, ordinal: Value.wide(value.fetch('ordinal')), rows: value.fetch('rows'),
+                        digest: Value.digest(value.fetch('digest')), ipc: ipc, bound: bound)
+        end
       end
       private
-      def apply(action) = @turn.__send__(:apply_native, action, read: true)
+      def apply(action) = @turn.__send__(:raw_native, action)
     end
     class Turn
       def allow_query(peer, table, expected_revision:, allow:)

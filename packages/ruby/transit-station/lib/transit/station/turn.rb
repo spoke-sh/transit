@@ -6,10 +6,12 @@ module Transit
         @turn, @version = turn, version
       end
       def find(key)
-        name = key_bytes(key)
-        action = @version ? { 'version_get' => { 'id' => Value.version_wire(@version), 'key' => name } } : { 'get' => name }
-        bytes = apply(action, read: true).fetch('value')
-        bytes.nil? ? nil : Found.new(value: Value.decode(key.codec, Internal.unhex(bytes, caps.fetch('value_bytes')), caps.fetch('value_bytes')))
+        @turn.__send__(:operation, read: true) do
+          name = key_bytes(key)
+          action = @version ? { 'version_get' => { 'id' => Value.version_wire(@version), 'key' => name } } : { 'get' => name }
+          bytes = apply(action, read: true).fetch('value')
+          bytes.nil? ? nil : Found.new(value: Value.decode(key.codec, Internal.unhex(bytes, caps.fetch('value_bytes')), caps.fetch('value_bytes')))
+        end
       end
       def require(key)
         found = find(key)
@@ -17,33 +19,38 @@ module Transit
         found.value
       end
       def put(key, value)
-        name = key_bytes(key)
-        writable!
-        bytes = Value.encode(key.codec, value, caps.fetch('value_bytes'))
-        apply({ 'put' => { 'key' => name, 'value' => bytes.unpack1('H*') } })
-        nil
+        @turn.__send__(:operation, read: false) do
+          name = key_bytes(key)
+          writable!
+          bytes = Value.encode(key.codec, value, caps.fetch('value_bytes'))
+          apply({ 'put' => { 'key' => name, 'value' => bytes.unpack1('H*') } })
+          nil
+        end
       end
       def delete(key)
-        name = key_bytes(key)
-        writable!
-        apply({ 'delete' => name })
-        nil
+        @turn.__send__(:operation, read: false) do
+          name = key_bytes(key)
+          writable!
+          apply({ 'delete' => name })
+          nil
+        end
       end
       def page(cursor = nil)
-        cursor = Value.cursor(cursor)
-        action = @version ? { 'version_page' => { 'id' => Value.version_wire(@version), 'cursor' => cursor } } : { 'page' => cursor }
-        result = apply(action, read: true).fetch('page')
-        entries = result.fetch('entries').compact.map do |entry|
-          KVEntry.new(key: Internal.unhex(entry.fetch('key'), caps.fetch('key_bytes')).freeze,
-            value: Internal.unhex(entry.fetch('value'), caps.fetch('value_bytes')).freeze, revision: entry.fetch('revision'))
+        @turn.__send__(:operation, read: true) do
+          cursor = Value.cursor(cursor)
+          action = @version ? { 'version_page' => { 'id' => Value.version_wire(@version), 'cursor' => cursor } } : { 'page' => cursor }
+          result = apply(action, read: true).fetch('page')
+          entries = result.fetch('entries').compact.map do |entry|
+            KVEntry.new(key: Internal.unhex(entry.fetch('key'), caps.fetch('key_bytes')).freeze,
+              value: Internal.unhex(entry.fetch('value'), caps.fetch('value_bytes')).freeze, revision: entry.fetch('revision'))
+          end
+          Page.new(entries: entries.freeze, cursor: result['next']&.freeze, basis: nil)
         end
-        Page.new(entries: entries.freeze, cursor: result['next']&.freeze, basis: nil)
       end
       private
       def caps = @turn.__send__(:caps)
-      def apply(action, read: false) = @turn.__send__(:apply_native, action, read: read)
+      def apply(action, read: false) = @turn.__send__(:raw_native, action)
       def key_bytes(key)
-        @turn.__send__(:check!)
         raise ArgumentError, 'Expected Key' unless key.is_a?(Key)
         Internal.bytes(key.name, caps.fetch('key_bytes')).unpack1('H*')
       end
@@ -83,22 +90,27 @@ module Transit
       end
       def cast(peer, value, codec:)
         pid = peer_id(peer)
-        bytes = Value.encode(codec, value, caps.fetch('message_bytes'))
-        apply_native({ 'cast' => { 'pid' => pid, 'value' => bytes.unpack1('H*') } })
-        nil
+        operation do
+          bytes = Value.encode(codec, value, caps.fetch('message_bytes'))
+          raw_native({ 'cast' => { 'pid' => pid, 'value' => bytes.unpack1('H*') } })
+          nil
+        end
       end
       def call(peer, value, codec:, wait:)
         pid = peer_id(peer)
-        raise ArgumentError, 'Select WaitPolicy' unless wait.is_a?(WaitPolicy)
-        bytes = Value.encode(codec, value, caps.fetch('message_bytes'))
-        result = apply_native({ 'call' => { 'pid' => pid, 'value' => bytes.unpack1('H*'), 'deadline_ms' => wait.deadline_ms, 'observer' => wait.observer } })
-        Value.wide(result.fetch('correlation'), min: 1)
+        operation do
+          raise ArgumentError, 'Select WaitPolicy' unless wait.is_a?(WaitPolicy)
+          bytes = Value.encode(codec, value, caps.fetch('message_bytes'))
+          result = raw_native({ 'call' => { 'pid' => pid, 'value' => bytes.unpack1('H*'), 'deadline_ms' => wait.deadline_ms, 'observer' => wait.observer } })
+          Value.wide(result.fetch('correlation'), min: 1)
+        end
       end
       def reply(value, codec:)
-        check!
-        bytes = Value.encode(codec, value, caps.fetch('message_bytes'))
-        apply_native({ 'reply' => bytes.unpack1('H*') })
-        nil
+        operation do
+          bytes = Value.encode(codec, value, caps.fetch('message_bytes'))
+          raw_native({ 'reply' => bytes.unpack1('H*') })
+          nil
+        end
       end
       def require_reply(reply, peer:, correlation:)
         pid = peer_id(peer)
@@ -142,6 +154,7 @@ module Transit
       def check!
         raise TurnExpired, 'Turn scope has ended' unless @active
         raise Busy, 'Turn operations belong to the handler thread and fiber' unless Thread.current == @thread && Fiber.current == @fiber
+        raise Busy, 'One operation per turn' if @mutex.locked?
         raise Closed, 'Local stop requested' if @stop.stopped?
         raise @poison if @poison
       end
@@ -150,13 +163,18 @@ module Transit
         raise ArgumentError, 'Expected a ProcessRef in this realm' unless peer.is_a?(ProcessRef) && peer.realm == process.realm
         peer.pid
       end
+      def raw_native(action) = @bridge.apply(@scope, action)
       def apply_native(action, read: false)
+        operation(read: read) { raw_native(action) }
+      end
+      def operation(read: false)
         check!
         raise Busy, 'One operation per turn' unless @mutex.try_lock
         begin
-          @bridge.apply(@scope, action)
-        rescue Error => error
-          @poison ||= error if read
+          yield
+        rescue Exception => error
+          # A caught codec/materialization failure is still a failed read.
+          @poison ||= error.is_a?(Error) ? error : HandlerError.new('Scoped read failed') if read
           raise
         ensure
           @mutex.unlock

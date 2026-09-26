@@ -57,6 +57,9 @@ Failure policy `:stop` discards private changes and leaves the input pending.
 exceptions, including exceptions outside `StandardError`, use that policy; none
 cross into the native process. Process death follows host-loss recovery. Native
 read failures poison the proposal even when the handler catches the error.
+The guard covers application decoding and typed page/result conversion as well
+as native I/O. Codec reentry returns `Busy`; a caught decoder failure still
+aborts the proposal and cannot record a block marker.
 
 ## Scoped data and messages
 

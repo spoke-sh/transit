@@ -44,6 +44,12 @@ class CounterProof < E::Counter
     @escaped = turn.state
     Thread.new { expect(Busy) { @escaped.require(E::TOTAL) } }.join
     Fiber.new { expect(Busy) { @escaped.require(E::TOTAL) } }.resume
+    codec = E::U64.dup
+    codec.define_singleton_method(:decode) do |bytes|
+      expect(Busy) { turn.budgets }
+      E::U64.dup.decode(bytes)
+    end
+    @escaped.require(S::Key.new('total'.b, codec: codec))
     super
   end
 end
@@ -195,6 +201,12 @@ if mode.start_with?('handler-', 'exception-')
   end
 elsif mode == 'fiber-handler'
   handler.define_singleton_method(:on_start) { |turn| Fiber.new { turn.state.put(E::TOTAL, 73) }.resume }
+elsif mode == 'codec-poison'
+  handler.define_singleton_method(:on_message) do |turn, _input|
+    codec = E::U64.dup
+    codec.define_singleton_method(:decode) { |_bytes| raise 'Injected decode failure' }
+    expect(CodecError) { turn.state.require(S::Key.new('total'.b, codec: codec)) }
+  end
 elsif mode == 'poison'
   handler.define_singleton_method(:on_message) { |turn, _input| expect(ReadFailed) { turn.state.require(E::TOTAL) } }
 end
@@ -263,8 +275,8 @@ begin
       end
     end
     check stopped
-  elsif %w[stale expired revoked-result poison].include?(mode)
-    expected = { 'stale' => StaleOwnership, 'expired' => ProcessRetired, 'revoked-result' => AccessDenied, 'poison' => ReadFailed }.fetch(mode)
+  elsif %w[stale expired revoked-result poison codec-poison].include?(mode)
+    expected = { 'stale' => StaleOwnership, 'expired' => ProcessRetired, 'revoked-result' => AccessDenied, 'poison' => ReadFailed, 'codec-poison' => CodecError }.fetch(mode)
     expect(expected) { 8.times { runner.next } }
     report(denied: true)
   else
