@@ -20,9 +20,11 @@ internal sealed class Bridge : IDisposable
             byte[] endpoint = Value.Utf8.GetBytes(config.Endpoint.ToString());
             uint status = Api.transit_client_create(NativeApi.Version, endpoint, (nuint)endpoint.Length, config.TimeoutMillis, out client);
             if (status != 0) throw Value.NativeError(status, null, "client-create");
-        } catch (Exception) {
+        } catch (Exception error) {
             if (client != IntPtr.Zero) Api?.transit_client_destroy(client);
-            package.Dispose(); throw;
+            package.Dispose();
+            if (error is EntryPointNotFoundException or MarshalDirectiveException) throw Value.Incompatible("native-exports");
+            throw;
         }
     }
     internal byte[] Buffer(uint status, IntPtr pointer, string phase)
@@ -60,7 +62,7 @@ internal sealed class Bridge : IDisposable
             return Buffer(status, buffer, "operation-export");
         } finally { Api.transit_operation_destroy(operation); CryptographicOperations.ZeroMemory(key); }
     }
-    private static byte[] Seed(string path)
+    internal static byte[] Seed(string path)
     {
         byte[] encoded = new byte[130];
         Span<char> characters = stackalloc char[64];
@@ -92,6 +94,7 @@ internal sealed class Bridge : IDisposable
         try {
             uint status = Api.transit_operation_metadata(operation, out var buffer);
             JsonObject value = Value.Object(Value.Parse(Buffer(status, buffer, "operation-metadata")));
+            Schema.Require(Value.Object(Value.Object(Value.Contract["schemas"])["OperationMetadata"]), value);
             if (Value.Number(value["version"], 1) != 1) throw Value.Incompatible("operation-metadata-version");
             if (Value.String(value["profile"]) != "growing_v3" || Value.String(value["kind"]) != "growing_command" || value["command"] is null ||
                 (sendOnly && Value.String(value["command"]) != "send")) throw new TransitException(ErrorKind.UnsupportedCapability, "recovery-kind");

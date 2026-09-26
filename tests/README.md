@@ -219,9 +219,22 @@ lost accepted responses, exact seedless recovery and revoked retry. Cancelled
 dispatch/close awaits preserve owned native work and the accepted receipt while
 the caller stays responsive. Missing artifacts, ABI mismatches and closed handles
 reject explicitly; credential-read errors omit private paths. Native calls and
-destruction use one owned 8 MiB thread. The public .NET Station proof remains open;
-portable Linux packages, NuGet.org publication and CLR allocation-failure injection
-are not qualified.
+destruction use one owned 8 MiB thread. Portable Linux packages, NuGet.org
+publication and CLR allocation-failure injection are not qualified.
+
+The same task independently restores Station/native/example NuGet packages,
+compiles typed consumers with warnings as errors, rejects mismatched state/Table
+value types, and runs the shared runner schedule. Every mutation persistence and
+confirmation hook fails once without rerunning the handler. Both handler failure
+policies, expired/wrong-thread/reentrant scopes, poisoned reads, fencing, expiry,
+revocation, cancellation/stop/join and exact seedless disk recovery are covered.
+`async void` handlers and persistence hooks reject before activation work. The
+installed counter executable resumes a durable requester; Table/query handlers
+verify bounded pages, retained revisions, nullable signed extremes and complete
+provenance. Six owned original IPC segments survive disposal and are decoded by
+independent PyArrow; no optional .NET Arrow adapter is selected. Generated-schema
+checks reject absent nullable fields, invalid cursors, fractions and oversized
+exponents. Native package/ABI checks precede use; SDKs require exact 0.2.0 peers.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

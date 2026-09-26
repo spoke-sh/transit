@@ -136,7 +136,8 @@ java-sdk-test: java-build
 dotnet-build: build
     python3 -B bindings/build_dotnet.py .cache/bindings/dotnet
 
-# Restore only public raw NuGet artifacts into a clean consumer.
+# Restore public raw/Station/example NuGet artifacts into clean consumers.
 dotnet-sdk-test: dotnet-build
     zig build transit-node rey-cli
     python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet
+    python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet

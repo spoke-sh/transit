@@ -34,7 +34,9 @@ query IPC ownership and both installed counter roles through the shared schedule
 The independent [.NET client](../packages/dotnet/transit-client/README.md) now
 restores separate SDK/native NuGet artifacts and qualifies typed retry, cancelled
 awaits, joined 8 MiB native workers and retained receipts through
-`just bindings::dotnet-sdk-test`. Its public Station layer remains in progress.
+`just bindings::dotnet-sdk-test`. Its [Station SDK](../packages/dotnet/transit-station-sdk/README.md)
+also qualifies typed scoped callbacks, all mutation hooks, retained Tables and
+original query IPC after disposal through installed examples.
 
 M11 adds **Ruby** through the shared native port, with value objects and
 block-scoped ownership. Ruby 3.4.9 / RubyGems 3.7.2 are pinned by the Nix lock;
