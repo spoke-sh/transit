@@ -37,11 +37,22 @@ exports; `prepare` and `call` use the raw client. Schemas come from Zig, not a
 second handwritten contract. Canonical pending/prepare results are strings:
 retain those exact bytes instead of parsing and re-encoding signed requests.
 The current input line budget is twice the protocol body limit plus 16 KiB.
+Configuration and line byte bounds are exported by the raw ABI contract from
+the shared host constants.
 Oversized lines terminate the host; malformed complete JSON gets an error response.
 `metadata` classifies opaque retry bytes in the native client; `client_capabilities`
 reports that implementation's support. Raw operations delegate to the same
 owner as the independent [client port](../transit-client-host/README.md).
 New raw-only SDKs can use that executable without importing Station.
+
+For pure framing and owned IPC decoding, select `{"local_codec":true}`. This
+mode creates no authority clients or behavior handles and accepts no endpoint,
+seed path or server configuration. `frame`, `arrow_cell`, `growing_arrow_cell`,
+hello and local growing capabilities remain available; authority operations
+return `not_ready`. A missing endpoint without this explicit mode still rejects.
+SDK encoders can therefore use shared native codecs without inventing an endpoint
+or opening a signing credential. `tests/station_codec_host.py` qualifies this
+mode and conflicting/missing configuration rejection.
 
 EOF releases handles after the current operation. A killed port may leave an
 accepted request uncertain; inspect/retry its frozen request or fence the old

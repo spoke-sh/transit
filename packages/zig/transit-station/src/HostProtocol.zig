@@ -3,7 +3,7 @@ const abi = @import("Abi.zig");
 const p = @import("transit_station").protocol;
 const raw = @import("client_abi").host;
 pub const version = 1;
-pub const Config = struct { url: []const u8, seed_file: ?[]const u8 = null, server: ?abi.Config = null, growing_server: ?abi.growing.Config = null, timeout_ms: u32 = 5000 };
+pub const Config = struct { url: ?[]const u8 = null, local_codec: bool = false, seed_file: ?[]const u8 = null, server: ?abi.Config = null, growing_server: ?abi.growing.Config = null, timeout_ms: u32 = 5000 };
 pub const Request = union(enum) {
     hello: void,
     next: u64,

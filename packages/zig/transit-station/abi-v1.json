@@ -2241,6 +2241,7 @@
       "additionalProperties": false,
       "x-transit-field-order": [
         "url",
+        "local_codec",
         "seed_file",
         "server",
         "growing_server",
@@ -2248,8 +2249,18 @@
       ],
       "properties": {
         "url": {
-          "type": "string",
-          "maxLength": 524288
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 524288
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "local_codec": {
+          "type": "boolean"
         },
         "seed_file": {
           "anyOf": [
@@ -2432,10 +2443,10 @@
           "x-transit-signed": false
         }
       },
-      "required": [
-        "url"
-      ],
+      "required": [],
       "x-transit-defaults": {
+        "url": null,
+        "local_codec": false,
         "seed_file": null,
         "server": null,
         "growing_server": null,

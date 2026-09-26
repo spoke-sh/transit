@@ -4,6 +4,7 @@ const abi = @import("Abi.zig");
 const p = @import("transit_client").protocol;
 pub const version = 1;
 pub const max_line_bytes = p.max_body * 2 + 16384;
+pub const max_config_bytes = 8192;
 pub const Config = struct { url: []const u8, timeout_ms: u32 = 5000 };
 pub const Prepare = struct { kind: u32, seed_file: []const u8, document: []const u8 };
 pub const Request = union(enum) { hello: void, capabilities: void, prepare: Prepare, metadata: []const u8, call: []const u8 };

@@ -4,7 +4,9 @@
   "limits": {
     "max_counter": 9007199254740991,
     "value_bytes": 256,
-    "max_body": 262144
+    "max_body": 262144,
+    "host_line_bytes": 540672,
+    "host_config_bytes": 8192
   },
   "statuses": {
     "ok": 0,

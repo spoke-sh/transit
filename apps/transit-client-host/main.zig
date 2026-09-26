@@ -18,7 +18,7 @@ pub fn main(init: std.process.Init) !void {
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 2) return error.ExpectedHostConfiguration;
-    const config_bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(8192));
+    const config_bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(host.max_config_bytes));
     defer init.gpa.free(config_bytes);
     const config = try std.json.parseFromSlice(host.Config, init.gpa, config_bytes, .{});
     defer config.deinit();
