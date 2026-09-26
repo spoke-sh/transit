@@ -77,9 +77,9 @@ rust-sdk-test: rust-build
     cargo fmt --manifest-path packages/rust/transit-native-station/Cargo.toml --check
     cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
     cargo fmt --manifest-path examples/station-sdk/rust/Cargo.toml --check
-    zig build transit-node rey-cli
+    zig build transit-node rey-cli transit-station-http-worker
     python3 -B tests/rust_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust
-    python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust
+    python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
 
 # Build independent Ruby gems; native executables remain separate dependencies.
 ruby-build: build

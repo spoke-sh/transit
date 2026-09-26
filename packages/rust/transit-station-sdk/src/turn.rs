@@ -95,6 +95,37 @@ impl<'a> Turn<'a> {
     pub fn resource_revision(&self) -> Counter {
         self.revision
     }
+    fn http_request(&self, request: &crate::PreparedHttpRequest) -> Result<()> {
+        self.check()?;
+        if request.resource() != self.resource {
+            return Err(Error::new(ErrorKind::InvalidArgument, "http-resource"));
+        }
+        if !self.caps().http_requests {
+            return Err(Error::new(
+                ErrorKind::UnsupportedCapability,
+                "http-requests",
+            ));
+        }
+        Ok(())
+    }
+    pub fn stage_http(&mut self, request: &crate::PreparedHttpRequest) -> Result<bool> {
+        self.http_request(request)?;
+        let value = self.apply(json!({"http_stage":request.wire()?}), false)?;
+        transit_client::internal::boolean(&value["staged"], "http-staged")
+    }
+    pub fn call_http(
+        &mut self,
+        peer: ProcessRef,
+        request: &crate::PreparedHttpRequest,
+    ) -> Result<Correlation> {
+        let pid = self.peer(peer)?;
+        self.http_request(request)?;
+        let value = self.apply(
+            json!({"http_call":{"pid":pid,"reference":hex(request.reference(),112)?}}),
+            false,
+        )?;
+        Correlation::new(wide(field(&value, "correlation")?)?)
+    }
     pub fn state(&mut self) -> State<'_> {
         State {
             owner: self,

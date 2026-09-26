@@ -60,6 +60,8 @@ pub(crate) struct Caps {
     pub page: usize,
     pub segment: usize,
     pub queries: bool,
+    pub http_requests: bool,
+    pub http_replay: bool,
 }
 struct Buffer<'a> {
     pointer: *mut abi::station_buffer,
@@ -174,6 +176,8 @@ impl Local {
                 page: size(&value["page_entries"], false)?,
                 segment: size(&value["query_segment_bytes"], false)?,
                 queries: boolean(&value["query_results"], "native-capabilities")?,
+                http_requests: boolean(&value["http_requests"], "native-capabilities")?,
+                http_replay: boolean(&value["http_replay"], "native-capabilities")?,
             };
         }
         Ok(Self {
@@ -293,6 +297,29 @@ impl Bridge {
         };
         buffer.result(status, "finish", false).map(|_| ())
     }
+    pub fn http_read(&mut self, action: Value) -> Result<Value> {
+        if !self.caps.http_replay {
+            return Err(Error::new(ErrorKind::UnsupportedCapability, "http-replay"));
+        }
+        let bytes = serde_json::to_vec(&action)
+            .map_err(|_| Error::new(ErrorKind::InvalidArgument, "http-read"))?;
+        if bytes.len() > 2048 {
+            return Err(Error::new(ErrorKind::InvalidArgument, "http-read-bound"));
+        }
+        let mut buffer = Buffer {
+            api: &self.local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (self.local.api.station_growing_http_read)(
+                self.pointer,
+                bytes.as_ptr(),
+                bytes.len(),
+                &mut buffer.pointer,
+            )
+        };
+        buffer.result(status, "http-read", false)
+    }
     pub fn discard(&mut self, scope: u64) -> Result<()> {
         let status = unsafe { (self.local.api.station_growing_discard)(self.pointer, scope) };
         if status != 0 {
@@ -400,4 +427,34 @@ pub fn encode_cast<T: 'static>(
     })?;
     worker.close()?;
     Ok(output)
+}
+
+pub(crate) fn http_codec(action: Value, native_directory: Option<&Path>) -> Result<Value> {
+    let bytes = serde_json::to_vec(&action)
+        .map_err(|_| Error::new(ErrorKind::InvalidArgument, "http-codec"))?;
+    if bytes.len() > MAX_BODY {
+        return Err(Error::new(ErrorKind::InvalidArgument, "http-codec-bound"));
+    }
+    let directory = native_directory.map(Path::to_owned);
+    let mut worker = Worker::open(abi::MINIMUM_STACK_BYTES, move || {
+        Local::open(directory.as_deref())
+    })?;
+    let result = worker.call(move |local| {
+        if !local.caps.http_requests {
+            return Err(Error::new(
+                ErrorKind::UnsupportedCapability,
+                "http-requests",
+            ));
+        }
+        let mut buffer = Buffer {
+            api: &local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (local.api.station_http_codec)(bytes.as_ptr(), bytes.len(), &mut buffer.pointer)
+        };
+        buffer.result(status, "http-codec", false)
+    });
+    worker.close()?;
+    result
 }

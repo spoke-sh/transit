@@ -10,7 +10,7 @@ import tomllib
 from sdk_station_runner import Consumer, run as schedule
 
 
-def run(node, cli, library, artifacts, *, execute=None):
+def run(node, cli, library, artifacts, http_worker, *, execute=None):
     root = Path(__file__).resolve().parents[1]
     def install(target):
         names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station', 'transit-sdk-examples-rust')
@@ -61,6 +61,7 @@ arrow-array = { version = "=59.1.0", optional = true, default-features = false }
             'lifetime may not live long enough': "fn escape<'a>(turn: &'a mut transit_station_sdk::Turn<'a>) -> transit_station_sdk::State<'static> { turn.state() } fn main() {}",
             'E0308': 'use transit_station_sdk::Codec; fn main() { transit_sdk_examples::codecs::U64Codec.encode(&true).unwrap(); }',
         }
+        cases['cannot borrow `*runner` as mutable more than once at a time'] = "fn overlap(runner: &mut transit_station_sdk::Runner<()>, outcome: &transit_station_sdk::HttpOutcome) { let mut reader = runner.open_http(outcome, transit_station_sdk::HttpReplayPolicy::Captured).unwrap(); runner.next().unwrap(); reader.read().unwrap(); } fn main() {}"
         for code, source in cases.items():
             (target / 'src/main.rs').write_text(source)
             checked = subprocess.run(['cargo', 'check', '--locked', '--offline', '--bin', 'transit-rust-station-proof'], cwd=target, env=environment, capture_output=True, text=True)
@@ -70,11 +71,14 @@ arrow-array = { version = "=59.1.0", optional = true, default-features = false }
             # The query handler retains original SDK segments; its optional Arrow
             # consumer decodes them only after closing the runner.
             cfg = json.loads(config.read_text())
-            selected = arrow if cfg['role'] == 'query' and cfg.get('arrow_adapter', True) else core
+            selected = arrow if cfg.get('role') == 'query' and cfg.get('arrow_adapter', True) else core
             return [selected, mode, config]
         return Consumer(environment, command,
             lambda config, role: [executable_cli, config, role, '--commits', '1'], 'panic-handler', ('panic-block',))
     (execute or schedule)(node, cli, library, install, 'Rust')
+    if execute is None:
+        from sdk_http_runner import run as http_schedule
+        http_schedule(node, cli, library, http_worker, install, 'Rust')
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

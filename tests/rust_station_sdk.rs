@@ -10,7 +10,7 @@ use std::{
 };
 use transit_client::{
     Client, ClientConfig, Correlation, Counter as Count, Error, ErrorKind, MutationReceipt,
-    OperationIdentity, ProcessRef, Result,
+    OperationIdentity, ProcessRef, ResourceRef, Result,
 };
 use transit_sdk_examples::codecs::*;
 use transit_sdk_examples::{Counter, QueryRequester, Requester, TABLE, TOTAL, TableService};
@@ -513,6 +513,303 @@ fn codecs(cfg: &Value) -> Result<()> {
     let mut expected = b"STN1\x01\0\0\0\0\0\0\0\0".to_vec();
     expected.extend(CounterCodec.encode(&value)?);
     assert_eq!(&*encode_cast(&value, &CounterCodec, None)?, expected);
+    let fixture: Value =
+        serde_json::from_slice(&fs::read(path(cfg, "http_fixtures")).map_err(io_error)?)
+            .map_err(io_error)?;
+    let prepared = prepare_http(
+        ResourceRef::new(72, 8)?,
+        u64::MAX,
+        &HttpRequest {
+            method: HttpMethod::Post,
+            target: vec![HttpPiece::Literal("/write".into())],
+            headers: vec![],
+        },
+        &transit_client::internal::unhex(fixture["body"].as_str().unwrap(), 65536)?,
+        HttpRequestOptions {
+            endpoint_revision: 7,
+            reconcile_before_ms: Count::new(9000)?,
+            max_attempts: 2,
+        },
+        None,
+    )?;
+    assert_eq!(
+        transit_client::internal::hex(prepared.reference(), 112)?,
+        fixture["reference"]
+    );
+    assert_eq!(
+        std::str::from_utf8(prepared.metadata()).unwrap(),
+        fixture["metadata"]
+    );
+    let bytes = transit_client::internal::unhex(fixture["outcome"].as_str().unwrap(), 71)?;
+    let HttpReply::Outcome(outcome) = decode_http_reply(72, &bytes, None)? else {
+        panic!("HTTP outcome");
+    };
+    assert_eq!(outcome.exchange, u64::MAX);
+    assert_eq!(outcome.status, Some(200));
+    assert_eq!(outcome.phase, HttpPhase::Observed);
+    assert!(outcome.reference().is_some());
+    assert!(matches!(
+        decode_http_reply(
+            72,
+            &transit_client::internal::unhex(fixture["rejection"].as_str().unwrap(), 71)?,
+            None
+        )?,
+        HttpReply::Rejected(HttpRejection::Denied)
+    ));
+    let codec = HttpReplyCodec::new(U64Codec, 72, None)?;
+    assert!(matches!(
+        codec.decode(&bytes)?,
+        HttpMessage::Reply(HttpReply::Outcome(_))
+    ));
+    assert!(matches!(
+        codec.decode(&codec.encode(&HttpMessage::Application(u64::MAX))?)?,
+        HttpMessage::Application(u64::MAX)
+    ));
+    assert!(decode_http_reply(72, &bytes[..70], None).is_err());
+    assert!(
+        prepare_http(
+            ResourceRef::new(72, 8)?,
+            1,
+            &HttpRequest {
+                method: HttpMethod::Get,
+                target: vec![HttpPiece::Literal("//other/".into())],
+                headers: vec![],
+            },
+            b"",
+            HttpRequestOptions {
+                endpoint_revision: 1,
+                reconcile_before_ms: Count::new(9000)?,
+                max_attempts: 1
+            },
+            None
+        )
+        .is_err()
+    );
+    Ok(())
+}
+
+struct ByteCodec;
+impl Codec<Vec<u8>> for ByteCodec {
+    fn type_id(&self) -> &str {
+        "test.http-control"
+    }
+    fn version(&self) -> u32 {
+        1
+    }
+    fn max_encoded_bytes(&self) -> usize {
+        243
+    }
+    fn encode(&self, value: &Vec<u8>) -> Result<Vec<u8>> {
+        Ok(value.clone())
+    }
+    fn decode(&self, bytes: &[u8]) -> Result<Vec<u8>> {
+        Ok(bytes.to_vec())
+    }
+}
+struct HttpHandler {
+    peer: ProcessRef,
+    request: PreparedHttpRequest,
+    observed: Arc<Mutex<Value>>,
+}
+impl Handler<HttpMessage<Vec<u8>>> for HttpHandler {
+    fn initialize(&mut self, _turn: &mut Turn<'_>) -> Result<()> {
+        Ok(())
+    }
+    fn handle(&mut self, turn: &mut Turn<'_>, input: Incoming<HttpMessage<Vec<u8>>>) -> Result<()> {
+        let correlation = Key::new(b"http-correlation", U64Codec)?;
+        match input {
+            Incoming::Cast { .. } => {
+                if turn.state().find(&correlation)?.is_some() {
+                    *self.observed.lock().unwrap() = json!({"called":true});
+                } else if turn.stage_http(&self.request)? {
+                    let call = turn.call_http(self.peer, &self.request)?;
+                    turn.state().put(&correlation, &call.get())?;
+                    *self.observed.lock().unwrap() = json!({"called":true});
+                } else {
+                    *self.observed.lock().unwrap() = json!({"called":false});
+                }
+            }
+            Incoming::Reply(reply) => {
+                let saved = turn.state().require(&correlation)?;
+                turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
+                let HttpMessage::Reply(HttpReply::Outcome(outcome)) = reply.value else {
+                    panic!("HTTP outcome");
+                };
+                assert_eq!(outcome.phase, HttpPhase::Observed);
+                assert_eq!(outcome.status, Some(200));
+                turn.state()
+                    .put(&Key::new(b"http-status", U64Codec)?, &200)?;
+                *self.observed.lock().unwrap() = json!({"observed":true});
+            }
+            _ => panic!("HTTP input"),
+        }
+        Ok(())
+    }
+}
+fn http_consumer(cfg: Value, mode: &str) -> Result<()> {
+    let prepared = prepare_http(
+        ResourceRef::new(72, number(&cfg, "resource"))?,
+        u64::MAX,
+        &HttpRequest {
+            method: HttpMethod::Post,
+            target: vec![
+                HttpPiece::Literal("/items/".into()),
+                HttpPiece::Variable {
+                    name: "id".into(),
+                    value: "λ /".into(),
+                },
+            ],
+            headers: vec![
+                HttpHeader {
+                    name: "X-Tag".into(),
+                    value: vec![HttpPiece::Literal("one".into())],
+                },
+                HttpHeader {
+                    name: "X-Tag".into(),
+                    value: vec![HttpPiece::Literal("two".into())],
+                },
+                HttpHeader {
+                    name: "Authorization".into(),
+                    value: vec![
+                        HttpPiece::Literal("Bearer ".into()),
+                        HttpPiece::Secret {
+                            binding: "api".into(),
+                            version: 7,
+                        },
+                    ],
+                },
+            ],
+        },
+        &transit_client::internal::unhex(&path(&cfg, "body"), 65536)?,
+        HttpRequestOptions {
+            endpoint_revision: 7,
+            reconcile_before_ms: Count::new(number(&cfg, "deadline"))?,
+            max_attempts: 1,
+        },
+        None,
+    )?;
+    let config = ServiceConfig::new(
+        ClientConfig::growing(&path(&cfg, "url"))?,
+        Activation::new(
+            ProcessRef::new(72, number(&cfg, "pid"))?,
+            number(&cfg, "principal"),
+            number(&cfg, "generation"),
+            path(&cfg, "seed_file"),
+        )?,
+    );
+    let observed = Arc::new(Mutex::new(Value::Null));
+    let mut runner = Runner::open(
+        config,
+        HttpHandler {
+            peer: ProcessRef::new(72, number(&cfg, "peer"))?,
+            request: prepared,
+            observed: observed.clone(),
+        },
+        HttpReplyCodec::new(ByteCodec, 72, None)?,
+        RunnerOptions {
+            failure: FailurePolicy::Stop,
+            recovery: Recovery::FenceOnRestart,
+        },
+    )?;
+    if mode == "http-caller" {
+        for action in io::stdin().lock().lines() {
+            let action = action.map_err(io_error)?;
+            if action == "close" {
+                break;
+            }
+            assert_eq!(action, "step");
+            let mut committed = false;
+            for _ in 0..32 {
+                if matches!(runner.next()?, Some(RunnerEvent::Committed { .. })) {
+                    committed = true;
+                    break;
+                }
+            }
+            assert!(committed);
+            report(observed.lock().unwrap().clone());
+        }
+        runner.close().map_err(|e| e.error)?;
+        report(json!({"closed":true,"owned":""}));
+        return Ok(());
+    }
+    let HttpReply::Outcome(outcome) = decode_http_reply(
+        72,
+        &transit_client::internal::unhex(&path(&cfg, "outcome"), 71)?,
+        None,
+    )?
+    else {
+        panic!("HTTP outcome");
+    };
+    if mode == "http-async" {
+        let stop = runner.stop_token();
+        let accepted = path(&cfg, "accepted");
+        let worker = thread::spawn(move || {
+            let mut reader = runner
+                .open_http(&outcome, HttpReplayPolicy::Captured)
+                .unwrap();
+            let first = reader.read().unwrap().unwrap();
+            assert!(!first.data.is_empty());
+            assert!(!first.complete);
+            fs::write(path(&cfg, "ready"), "").unwrap();
+            wait_file(path(&cfg, "continue"));
+            reader.read().unwrap();
+            drop(reader);
+            runner.close().unwrap();
+            assert!(!first.data.is_empty());
+        });
+        wait_file(accepted);
+        stop.stop();
+        let mut beats = 0;
+        while !worker.is_finished() {
+            beats += 1;
+            thread::sleep(Duration::from_millis(10));
+        }
+        worker.join().unwrap();
+        assert!(beats > 5);
+        report(json!({"joined":true}));
+        return Ok(());
+    }
+    let mut owned = Vec::new();
+    {
+        let mut reader = runner.open_http(&outcome, HttpReplayPolicy::Captured)?;
+        for action in io::stdin().lock().lines() {
+            match action.map_err(io_error)?.as_str() {
+                "open" => {
+                    let first = reader.read()?.unwrap();
+                    assert!(!first.data.is_empty());
+                    assert!(!first.complete);
+                    report(json!({"prefix":true}));
+                }
+                "denied" => {
+                    assert_eq!(reader.read().unwrap_err().kind, ErrorKind::AccessDenied);
+                    report(json!({"denied":true}));
+                }
+                "reopen" => {
+                    let error = reader.read().unwrap_err();
+                    assert_eq!(error.kind, ErrorKind::ReadFailed);
+                    assert_eq!(error.code.as_deref(), Some("HttpReplayFailed"));
+                    reader.close()?;
+                    reader.close()?;
+                    drop(reader);
+                    reader = runner.open_http(&outcome, HttpReplayPolicy::Captured)?;
+                    while let Some(part) = reader.read()? {
+                        if part.kind == HttpPartKind::ResponseBody {
+                            owned.extend_from_slice(&part.data);
+                        }
+                    }
+                    assert!(reader.complete());
+                    reader.close()?;
+                    report(
+                        json!({"complete":true,"body":transit_client::internal::hex(&owned,65536)?}),
+                    );
+                }
+                "close" => break,
+                _ => panic!("HTTP command"),
+            }
+        }
+    }
+    runner.close().map_err(|e| e.error)?;
+    report(json!({"closed":true,"owned":transit_client::internal::hex(&owned,65536)?}));
     Ok(())
 }
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -520,6 +817,9 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let mode = &args[1];
     let cfg: Value = serde_json::from_slice(&fs::read(&args[2])?)?;
     assert_eq!(cfg["profile"], "growing_v3");
+    if mode.starts_with("http-") {
+        return Ok(http_consumer(cfg, mode)?);
+    }
     if mode == "codecs" {
         return Ok(codecs(&cfg)?);
     }

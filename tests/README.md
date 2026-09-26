@@ -88,6 +88,12 @@ HTTP reply dispatch and joining a delayed replay read during local stop/disposal
 The 2026-09-26 local HTTP schedule took **33.26 seconds**, with the existing client,
 runner and Arrow regressions also passing. TypeScript handlers opt into the async
 shared decoder through `handleHttpReply`; application codecs stay synchronous.
+`just bindings::rust-sdk-test` qualifies the same binary caller/replay schedule
+through installed source crates and embedded native libraries. The HTTP schedule
+took **61.75 seconds** locally, including clean Rust/Arrow compilation. A compiler
+rejection case proves a live HTTP reader's mutable borrow prevents another runner
+operation; a delayed read finishes before the owned blocking task is joined.
+The ordinary client/runner/Arrow regressions also passed.
 
 The 2026-09-26 Linux x86_64 worker run took **242.31 seconds**, excluding compilation.
 This is local proof time, not a hosted CI or aggregate runner-minute measurement.

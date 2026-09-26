@@ -4,7 +4,7 @@ use crate::{
     bridge::{Bridge, counter, wide},
     types::decode,
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use transit_client::internal::{Worker, boolean, number, string, unhex};
 use transit_client::{
@@ -381,6 +381,43 @@ impl<M: 'static> Runner<M> {
     }
     pub fn evidence(&mut self) -> Result<Shutdown> {
         self.worker.call(|state| Ok(state.evidence()))
+    }
+    pub(crate) fn http_read(&mut self, action: Value) -> Result<Value> {
+        self.worker.call(move |state| {
+            if state.pending.is_some() {
+                return Err(Error::new(ErrorKind::Busy, "pending-mutation"));
+            }
+            state.bridge.http_read(action)
+        })
+    }
+    pub fn open_http(
+        &mut self,
+        outcome: &crate::HttpOutcome,
+        policy: crate::HttpReplayPolicy,
+    ) -> Result<crate::HttpReader<'_, M>> {
+        if outcome.phase != crate::HttpPhase::Observed {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "http-incomplete-outcome",
+            ));
+        }
+        let reference = outcome
+            .reference()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidArgument, "http-reference"))?;
+        let action = json!({"open":{"reference":transit_client::internal::hex(reference,256)?,
+            "policy":match policy { crate::HttpReplayPolicy::Captured => "captured", crate::HttpReplayPolicy::RequireUnredacted => "require_unredacted" }}});
+        let realm = outcome.resource.realm();
+        let identity = self.worker.call(move |state| {
+            if state.process.realm() != realm {
+                return Err(Error::new(ErrorKind::InvalidArgument, "http-realm"));
+            }
+            if state.pending.is_some() {
+                return Err(Error::new(ErrorKind::Busy, "pending-mutation"));
+            }
+            let result = state.bridge.http_read(action)?;
+            number(&result["opened"], "http-reader", false)
+        })?;
+        Ok(crate::HttpReader::new(self, identity))
     }
     pub fn close(mut self) -> std::result::Result<Shutdown, CloseError> {
         self.stop();

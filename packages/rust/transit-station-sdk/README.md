@@ -8,6 +8,8 @@ Read the [usage and recovery guide](docs/USAGE.md), the compiled
 [counter and query examples](../../../examples/station-sdk/rust/README.md), and
 the [Rust design](../../../docs/sdk/RUST.md). Generated declarations are private;
 the independent [raw client](../transit-client/README.md) owns raw operations.
+The [HTTP guide](docs/HTTP.md) covers experimental typed request publication,
+correlated outcomes and replay readers that borrow their runner exclusively.
 
 Build version-matched `.crate` artifacts with
 `nix develop .#bindings --command just bindings::rust-build`. The native dependency
