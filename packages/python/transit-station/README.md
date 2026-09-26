@@ -39,6 +39,10 @@ include both service and requester handlers and versioned application codecs.
 `just bindings::python-test` type-checks them and runs clean installed consumers
 against a real disk-backed node. [Runtime and recovery](docs/runtime.md) describes
 mutation gates, cleanup, errors, Tables and Arrow ownership. The
+[HTTP guide](docs/http.md) describes typed request preparation, resumable bounded
+publication, correlated outcomes and synchronous/asynchronous capture readers.
+These experimental M15 APIs use shared Zig validation and current-grant reads;
+the full connector milestone remains in progress. The
 [Python API design](../../../docs/sdk/PYTHON.md) provides fuller typed examples;
 the [shared ABI guide](../../zig/transit-station-bindings/docs/bindings.md) owns native bounds.
 

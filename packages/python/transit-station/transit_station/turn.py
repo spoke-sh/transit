@@ -6,11 +6,12 @@ import threading
 from typing import Any, Generic, TypeVar, cast, TYPE_CHECKING, Protocol
 from transit_client import ProcessRef, ResourceRef
 from transit_client.types import integer, owned_bytes, MAX_BODY
-from transit_client.errors import Busy, Closed, HandlerError, MissingValue, TurnExpired
+from transit_client.errors import Busy, Closed, HandlerError, MissingValue, TurnExpired, UnsupportedCapability
 from ._growing import Growing
 from .models import Basis, Codec, Found, Key, KVEntry, Page, Reply, WaitPolicy, encoded, decoded
 if TYPE_CHECKING:
     from .query import QueryJob, QueryPlan, ResultReader
+    from .http import PreparedHttpRequest
 
 T = TypeVar('T')
 U64_MAX = (1 << 64) - 1
@@ -294,6 +295,27 @@ class Turn:
     def cancel_call(self, correlation: int) -> bool:
         value: bool = self._apply({'cancel': str(integer(correlation, 'correlation', maximum=U64_MAX))})['cancelled']
         return value
+
+    def _http_request(self, request: PreparedHttpRequest) -> None:
+        from .http import PreparedHttpRequest
+        self._check()
+        if not isinstance(request, PreparedHttpRequest) or request.resource != self.resource:
+            raise ValueError('HTTP publication must use the current associated resource')
+        if not self._native.caps.get('http_requests'):
+            raise UnsupportedCapability('Native Station lacks HTTP request support')
+
+    def stage_http(self, request: PreparedHttpRequest) -> bool:
+        """Advance one upload step; true permits a call in this turn."""
+        self._http_request(request)
+        staged: bool = self._apply({'http_stage': request._wire()})['staged']
+        return staged
+
+    def call_http(self, peer: ProcessRef, request: PreparedHttpRequest) -> int:
+        """Call with two committed immutable records; return durable correlation."""
+        pid = self._peer(peer)
+        self._http_request(request)
+        result = self._apply({'http_call': {'pid': pid, 'reference': owned_bytes(request.reference, 112).hex()}})
+        return int(result['correlation'])
 
     def table(self, schema: TableSchema[C]) -> Table[C]:
         self._check()

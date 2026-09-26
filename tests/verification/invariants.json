@@ -826,7 +826,8 @@
         "test::unit",
         "test::http-transport",
         "test::http-worker",
-        "bindings::test"
+        "bindings::test",
+        "bindings::python-test"
       ],
       "scenarios": [
         "Four-mutation segment publication, conflicting identities, quota refusal and rollback",
@@ -838,9 +839,10 @@
         "TLS worker binds credential versions/header scope, rejects changed numeric destinations and replays after credential removal",
         "Public caller admission with immutable request references and exact method/target/header scope; optional read associations keep reconciliation independent of caller lifetime",
         "Caller termination after remote application, worker/node/store replacement, original attempt closure and retired output destination without replacement activation",
-        "Native/port HTTP fixtures, scoped publication actions and validated calls; one owned replay reader, prefix revocation, sticky failure, stale IDs and allocation rollback"
+        "Native/port HTTP fixtures, scoped publication actions and validated calls; one owned replay reader, prefix revocation, sticky failure, stale IDs and allocation rollback",
+        "Installed Python HTTP caller: bounded upload with fresh ownership after host loss, binary TLS and Unicode/duplicate headers, correlated reply, owned replay without credentials and joined async cancellation"
       ],
-      "limits": "Finite HTTP/1.1 worker over disk Ursula: one public root call per provisioned connector PID, 64 KiB request profile, 1,027-byte worker response; independent transport response 16,387 bytes. Explicit controller retry/redirect/status/cancel are qualified. Public followup/release conveniences, all language-native HTTP SDKs, Board, launchers and hosted costs remain M15 work. Numeric IPv4 endpoint, identity encoding; TLS close-delimited bodies rejected.",
+      "limits": "Finite HTTP/1.1 worker over disk Ursula: one public root call per provisioned connector PID, 64 KiB request profile, 1,027-byte worker response; independent transport response 16,387 bytes. Explicit controller retry/redirect/status/cancel and Python public HTTP SDK are qualified. Public followup/release conveniences, the remaining language SDK matrix, Board, launchers and hosted costs remain M15 work. Numeric IPv4 endpoint, identity encoding; TLS close-delimited bodies rejected.",
       "model": null
     }
   ]

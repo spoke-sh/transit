@@ -15,8 +15,10 @@ from .models import (Blocked, Call, Cast, Codec, Committed, Control, FailurePoli
                      ServiceConfig, Stopped, decoded)
 from .query import ResultReader
 from .turn import Turn
+from .http import HttpOutcome, HttpPhase, HttpReplayPolicy, HttpReader, AsyncHttpReader
 
 M = TypeVar('M')
+R = TypeVar('R')
 
 
 class Handler(Protocol[M]):
@@ -116,7 +118,7 @@ class Runner(Generic[M]):
             if self._iteration is token:
                 self._iteration, self._external_stop = None, None
 
-    def _public(self, function: Callable[[], RunnerEvent]) -> RunnerEvent:
+    def _public(self, function: Callable[[], R]) -> R:
         with self._iteration_lock:
             if self._iteration is not None:
                 raise Busy('Runner already has a consumer')
@@ -128,6 +130,26 @@ class Runner(Generic[M]):
 
     def reconcile(self) -> RunnerEvent:
         return self._public(self._reconcile)
+
+    def _http_action(self, action: object) -> dict[str, Any]:
+        if self._native is None:
+            raise Closed('Runner is closed')
+        if self._pending is not None:
+            raise Busy('Resolve the saved mutation before reading HTTP capture')
+        return self._native.http_read(action)
+
+    def _http_open(self, outcome: HttpOutcome, policy: HttpReplayPolicy) -> int:
+        if (not isinstance(outcome, HttpOutcome) or outcome.phase is not HttpPhase.OBSERVED
+                or outcome.reference is None or outcome.resource.realm != self.config.activation.process.realm):
+            raise ValueError('Expected a completed HTTP outcome in this realm')
+        if not isinstance(policy, HttpReplayPolicy):
+            raise TypeError('Select an HTTP replay policy')
+        result = self._http_action({'open': {'reference': outcome.reference.hex(), 'policy': policy.value}})
+        return int(result['opened'])
+
+    def open_http(self, outcome: HttpOutcome, *, policy: HttpReplayPolicy = HttpReplayPolicy.CAPTURED) -> HttpReader:
+        identity = self._public(lambda: self._http_open(outcome, policy))
+        return HttpReader(identity, lambda action: self._public(lambda: self._http_action(action)))
 
     def _record(self, event: RunnerEvent) -> RunnerEvent:
         self._last_event = event
@@ -328,7 +350,7 @@ class AsyncRunner(Generic[M]):
             raise
         return cls(runner)
 
-    async def _public(self, function: Callable[[], RunnerEvent]) -> RunnerEvent:
+    async def _public(self, function: Callable[[], R]) -> R:
         with self._runner._iteration_lock:
             if self._runner._iteration is not None:
                 raise Busy('Runner already has a consumer')
@@ -341,6 +363,13 @@ class AsyncRunner(Generic[M]):
 
     async def next(self) -> RunnerEvent: return await self._public(self._runner._next)
     async def reconcile(self) -> RunnerEvent: return await self._public(self._runner._reconcile)
+
+    async def open_http(self, outcome: HttpOutcome, *, policy: HttpReplayPolicy = HttpReplayPolicy.CAPTURED) -> AsyncHttpReader:
+        identity = await self._public(lambda: self._runner._http_open(outcome, policy))
+        async def read(action: object) -> dict[str, Any]:
+            return await self._public(lambda: self._runner._http_action(action))
+        return AsyncHttpReader(identity, read)
+
     def stop(self) -> None: self._runner.stop()
     @property
     def last_event(self) -> RunnerEvent | None: return self._runner.last_event

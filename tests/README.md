@@ -72,13 +72,24 @@ publication step per turn. Its disk/native proof replaces the host and owner
 after a committed metadata prefix, rejects a changed endpoint revision without
 consuming mutation budget, resumes to a validated call and rejects retired reuse.
 
+`just bindings::python-test` additionally runs the installed Python HTTP API
+through [the shared HTTP caller schedule](sdk_http_runner.py): a binary request
+with duplicate headers, escaped Unicode target and credential references, fresh
+ownership after a staging prefix, one correlated reply, prefix revocation and
+reopening, owned replay after deleting credentials, and joined asynchronous
+cancellation. Only one request reaches the independent TLS peer. The local
+2026-09-26 HTTP schedule took **30.38 seconds**, including clean wheel installation
+and excluding compilation. The ordinary raw client, runner recovery and Arrow
+consumer regressions also passed. Sticky replay errors report the current local
+failure instead of inheriting a previous authority rejection.
+
 The 2026-09-26 Linux x86_64 worker run took **242.31 seconds**, excluding compilation.
 This is local proof time, not a hosted CI or aggregate runner-minute measurement.
 Machine output distinguishes sealed capture phase from the kernel outcome.
 
 These checks passed locally on Linux x86_64 with the pinned compiler. They do not
 yet qualify general public multi-call/followup/release APIs, managed secret providers,
-every cross-service lifetime combination, language-native HTTP SDKs, all launchers
+every cross-service lifetime combination, the complete language-native HTTP SDK matrix, all launchers
 or hosted CI cost. Those remain explicit
 [M15](../docs/roadmap/M15.md) exit obligations. The shared capture
 [contract](../contracts/STATION_EXCHANGE_V1.md) distinguishes library coverage

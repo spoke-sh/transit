@@ -391,7 +391,8 @@ def run(node, provision, worker, library):
                 admin("revoke-capture")
                 rejects(4, native_read, {"next": identity})
                 admin("restore-capture")
-                assert rejects(7, native_read, {"next": identity})["err"] == "HttpReplayFailed"
+                failed = rejects(7, native_read, {"next": identity})
+                assert failed["err"] == "HttpReplayFailed" and failed["protocol_error"] is None
                 assert native_read({"close": identity}) == {"closed": True}
                 rejects(13, native_read, {"next": identity})
                 credential.unlink()

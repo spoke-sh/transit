@@ -302,6 +302,9 @@ pub fn httpRead(pointer: *Server, json: [*]const u8, len: usize, out: *?*base.Bu
     if (!lock(server)) return .busy;
     defer server.busy.store(false, .release);
     if (server.behavior.ready != null or server.behavior.pending != null) return .busy;
+    // A poisoned replay can reject locally without issuing another query. Do
+    // not attach an earlier request's authority rejection to this operation.
+    server.client.last_rejection = null;
     const h = @import("HttpCodec.zig");
     const parsed = std.json.parseFromSlice(h.ReadAction, allocator, json[0..len], .{}) catch |err| return base.failure(err, out);
     defer parsed.deinit();

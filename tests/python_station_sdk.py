@@ -25,6 +25,8 @@ def consumer(mode, config_path):
     from transit_sdk_examples.query import TableService, QueryRequester
     cfg = json.loads(Path(config_path).read_bytes())
     assert Path(station.__file__).is_relative_to(Path(sys.prefix))
+    if mode.startswith('http-'):
+        return http_consumer(mode, cfg)
     config, peer = configuration(Path(config_path))
     if mode == 'arrow':
         # Core clean-wheel checks already ran without Arrow. Supply the pinned
@@ -55,6 +57,42 @@ def consumer(mode, config_path):
             else: raise AssertionError('Invalid full-width integer accepted')
         from transit_station import encode_cast
         assert encode_cast(codecs.Add(2**53+1), codecs.counter_codec) == b'STN1\x01' + bytes(8) + codecs.counter.encode(codecs.Add(2**53+1))
+        from transit_client import ResourceRef
+        from transit_client.errors import TransitError
+        from transit_station import (HttpMethod, HttpRequest, Literal, Variable, SecretRef,
+            HttpHeader, prepare_http, decode_http_reply, HttpOutcome, HttpPhase,
+            HttpRejected, HttpRejection, HttpReplyCodec)
+        http_fixture = json.loads(Path(cfg['http_fixtures']).read_bytes())
+        request = HttpRequest(HttpMethod.POST, (Literal('/write'),))
+        prepared = prepare_http(ResourceRef(72, 8), 2**64-1, request,
+            bytes.fromhex(http_fixture['body']), endpoint_revision=7,
+            reconcile_before_ms=9000, max_attempts=2)
+        assert prepared.reference.hex() == http_fixture['reference']
+        assert prepared.metadata.decode() == http_fixture['metadata']
+        outcome = decode_http_reply(72, bytes.fromhex(http_fixture['outcome']))
+        assert isinstance(outcome, HttpOutcome) and outcome.phase is HttpPhase.OBSERVED
+        assert outcome.exchange == 2**64-1 and outcome.status == 200 and outcome.reference
+        assert decode_http_reply(72, bytes.fromhex(http_fixture['rejection'])) == HttpRejected(HttpRejection.DENIED)
+        union = HttpReplyCodec(codecs.counter_codec, 72)
+        assert union.decode(bytes.fromhex(http_fixture['outcome'])) == outcome
+        assert union.decode(union.encode(codecs.Add(2**53+1))) == codecs.Add(2**53+1)
+        complex_request = HttpRequest(HttpMethod.POST, (Literal('/items/'), Variable('id', 'λ /')), (
+            HttpHeader('X-Tag', (Literal('one'),)), HttpHeader('X-Tag', (Literal('two'),)),
+            HttpHeader('Authorization', (Literal('Bearer '), SecretRef('api', 2**64-1)))))
+        wide = prepare_http(ResourceRef(72, 8), 2**64-2, complex_request,
+            endpoint_revision=2**64-1, reconcile_before_ms=9000)
+        assert wide.body == b'' and b'18446744073709551615' in wide.metadata
+        assert b'Bearer' not in repr(wide).encode() and b'Bearer' not in repr(complex_request).encode()
+        for bad in (HttpRequest(HttpMethod.GET, (Literal('//other/'),)),
+                    HttpRequest(HttpMethod.GET, (Literal('/'),), (HttpHeader('X-Test', (Literal('a\r\nb'),)),)),
+                    HttpRequest(HttpMethod.GET, (Literal('/'), SecretRef('api', 1)))):
+            try: prepare_http(ResourceRef(72, 8), 1, bad, endpoint_revision=1, reconcile_before_ms=9000)
+            except TransitError: pass
+            else: raise AssertionError('Invalid HTTP request accepted')
+        for data in (b'', bytes.fromhex(http_fixture['outcome'])[:-1], b'HTR2' + bytes(67)):
+            try: decode_http_reply(72, data)
+            except TransitError: pass
+            else: raise AssertionError('Invalid HTTP outcome accepted')
         print('codecs passed')
         return
     class CounterProof(Counter):
@@ -291,7 +329,133 @@ def consumer(mode, config_path):
             print(json.dumps(response), flush=True)
 
 
-def run(node, cli, raw_library, wheels, *, execute=None):
+def http_consumer(mode, cfg):
+    from transit_client import ProcessRef, ResourceRef
+    from transit_client.errors import AccessDenied, Busy, Closed, ReadFailed, TurnExpired
+    from transit_station import (Activation, ServiceConfig, Runner, AsyncRunner,
+        FailurePolicy, Recovery, Key, Cast, Reply, Committed, HttpReplyCodec,
+        HttpRequest, HttpMethod, HttpHeader, Literal, Variable, SecretRef, prepare_http,
+        HttpOutcome, HttpPhase, HttpPartKind, decode_http_reply)
+    from transit_sdk_examples.codecs import u64
+    class Bytes:
+        type_id, version, max_encoded_bytes = 'test.http-control', 1, 243
+        def encode(self, value):
+            assert isinstance(value, bytes)
+            return value
+        def decode(self, value): return value
+    config = ServiceConfig(cfg['url'], 'growing_v3', Activation(ProcessRef(72, cfg['pid']),
+        cfg['principal'], cfg['generation'], Path(cfg['seed_file'])))
+    peer = ProcessRef(72, cfg['peer'])
+    request = prepare_http(ResourceRef(72, cfg['resource']), 2**64-1,
+        HttpRequest(HttpMethod.POST, (Literal('/items/'), Variable('id', 'λ /')), (
+            HttpHeader('X-Tag', (Literal('one'),)), HttpHeader('X-Tag', (Literal('two'),)),
+            HttpHeader('Authorization', (Literal('Bearer '), SecretRef('api', 7))))),
+        bytes.fromhex(cfg['body']), endpoint_revision=7, reconcile_before_ms=cfg['deadline'])
+    correlation = Key(b'http-correlation', u64)
+    status = Key(b'http-status', u64)
+    codec = HttpReplyCodec(Bytes(), 72)
+    class Handler:
+        result = None
+        escaped = None
+        def initialize(self, turn): pass
+        def handle(self, turn, incoming):
+            self.escaped = turn
+            if isinstance(incoming, Cast):
+                if turn.state.find(correlation) is not None:
+                    self.result = {'called': True}
+                elif turn.stage_http(request):
+                    call = turn.call_http(peer, request)
+                    turn.state.put(correlation, call)
+                    self.result = {'called': True}
+                else:
+                    self.result = {'called': False}
+            else:
+                assert isinstance(incoming, Reply) and isinstance(incoming.value, HttpOutcome)
+                turn.require_reply(incoming, peer=peer, correlation=turn.state.require(correlation))
+                assert incoming.value.phase is HttpPhase.OBSERVED and incoming.value.status == 200
+                turn.state.put(status, incoming.value.status)
+                self.result = {'observed': True}
+    handler = Handler()
+    options = dict(handler=handler, codec=codec, failure_policy=FailurePolicy.STOP,
+                   recovery=Recovery.fence_on_restart())
+    if mode == 'http-async':
+        async def check():
+            runner = await AsyncRunner.open(config, **options)
+            outcome = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
+            reader = await runner.open_http(outcome)
+            first = await reader.read()
+            assert first.data and not first.complete
+            Path(cfg['ready']).touch()
+            while not Path(cfg['continue']).exists(): await asyncio.sleep(0.01)
+            pending = asyncio.create_task(reader.read())
+            deadline = time.monotonic() + 15
+            while not Path(cfg['accepted']).exists():
+                assert not pending.done() and time.monotonic() < deadline
+                await asyncio.sleep(0.01)
+            try: await reader.read()
+            except Busy: pass
+            else: raise AssertionError('Overlapping reader call accepted')
+            pending.cancel()
+            try: await pending
+            except asyncio.CancelledError: pass
+            close = asyncio.create_task(runner.aclose())
+            beats = 0
+            while not close.done():
+                beats += 1
+                await asyncio.sleep(0.01)
+            await close
+            assert beats > 5 and first.data
+            try: await reader.read()
+            except Closed: pass
+            else: raise AssertionError('Disposed runner retained reader authority')
+            print(json.dumps({'joined': True}), flush=True)
+        asyncio.run(check())
+        return
+    with Runner.open(config, **options) as runner:
+        reader, owned = None, bytearray()
+        for line in sys.stdin:
+            action = line.strip()
+            if action == 'step':
+                for _ in range(32):
+                    if isinstance(runner.next(), Committed): break
+                else: raise AssertionError('No committed caller turn')
+                try: handler.escaped.stage_http(request)
+                except TurnExpired: pass
+                else: raise AssertionError('Escaped HTTP turn accepted')
+                result = handler.result
+            elif action == 'open':
+                outcome = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
+                reader = runner.open_http(outcome)
+                try: runner.open_http(outcome)
+                except Busy: pass
+                else: raise AssertionError('Second active HTTP reader accepted')
+                first = reader.read()
+                assert first.data and not first.complete
+                result = {'prefix': True}
+            elif action == 'denied':
+                try: reader.read()
+                except AccessDenied: pass
+                else: raise AssertionError('Revoked HTTP capture returned data')
+                result = {'denied': True}
+            elif action == 'reopen':
+                try: reader.read()
+                except ReadFailed as error: assert error.code == 'HttpReplayFailed'
+                else: raise AssertionError('Failed HTTP reader resumed')
+                reader.close()
+                reader.close()
+                with runner.open_http(outcome) as reader:
+                    while (part := reader.read()) is not None:
+                        if part.kind is HttpPartKind.RESPONSE_BODY: owned.extend(part.data)
+                    assert reader.complete
+                result = {'complete': True, 'body': owned.hex()}
+            elif action == 'close':
+                break
+            else: raise AssertionError(action)
+            print(json.dumps(result), flush=True)
+    print(json.dumps({'closed': True, 'owned': owned.hex()}), flush=True)
+
+
+def run(node, cli, raw_library, wheels, http_worker, *, execute=None):
     from sdk_station_runner import Consumer, run as schedule
     def install(target):
         env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'PYTHONHOME', 'TRANSIT_LIBRARY_DIR')}
@@ -306,6 +470,9 @@ def run(node, cli, raw_library, wheels, *, execute=None):
             lambda config, role: [venv / 'bin/transit-python-counter', config, role, '--commits', '1'],
             'coroutine-handler')
     (execute or schedule)(node, cli, raw_library, install, 'Python')
+    if execute is None:
+        from sdk_http_runner import run as http_schedule
+        http_schedule(node, cli, raw_library, http_worker, install, 'Python')
 
 if __name__ == '__main__':
     if sys.argv[1] == '--consumer': consumer(*sys.argv[2:])
