@@ -17,6 +17,8 @@ Substrate worker images remain outside qualification.
 The [usage guide](docs/USAGE.md) covers installation, typed state, recovery,
 cleanup, queries and migration from the M9 adapter. Installed
 [examples](../../../examples/station-sdk/dotnet/README.md) provide both roles.
+M15's [HTTP guide](docs/HTTP.md) covers immutable requests, typed outcomes,
+scoped upload/calls and owned asynchronous capture readers.
 
 Handlers use `Initialize`, `OnMessage`, `OnControl` and `OnResult`; the runner owns
 native preparation/finish and gated dispatch. Explicit `Recovery.FreshOwnership`

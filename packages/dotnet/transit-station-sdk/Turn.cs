@@ -84,6 +84,20 @@ public sealed class Turn
         return true;
     });
     public bool CancelCall(ulong correlation) => Access(false, () => Value.Boolean(Raw(Value.Obj(("cancel", Decimal(Positive(correlation)))))["cancelled"]));
+    private void HttpRequest(Http.Prepared request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Resource != ResourceRef) throw new ArgumentException("HTTP request must use this writable resource");
+        Bridge.HttpCapability("http_requests");
+    }
+    public bool StageHttp(Http.Prepared request) => Access(false, () => {
+        HttpRequest(request);
+        return Value.Boolean(Raw(Value.Obj(("http_stage", Value.Obj(("reference", Http.Hex(request.Reference)), ("metadata", Http.Hex(request.Metadata)), ("body", Http.Hex(request.Body))))))["staged"]);
+    });
+    public ulong CallHttp(ProcessRef connector, Http.Prepared request) => Access(false, () => {
+        HttpRequest(request);
+        return NativeValues.Wide(Raw(Value.Obj(("http_call", Value.Obj(("pid", Peer(connector)), ("reference", Http.Hex(request.Reference))))))["correlation"], true);
+    });
     public Table<T> Table<T>(TableSchema<T> schema) => Access(true, () => Sdk.Table<T>.Open(this, schema, null));
     public Table<T> CreateTable<T>(TableSchema<T> schema)
     {

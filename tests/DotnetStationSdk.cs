@@ -150,6 +150,89 @@ static class Proof
         byte[] frame = await SdkStation.EncodeCastAsync<ICounterMessage>(value, Codecs.Counter); Check(expected.AsSpan().SequenceEqual(frame));
         Expect(ErrorKind.IncompatibleNative, () => SdkStation.EncodeCastAsync<ICounterMessage>(value, Codecs.Counter, Path.Combine(Path.GetDirectoryName(Text(cfg, "fixtures"))!, "bad-station-version")).GetAwaiter().GetResult());
         Check(counter.TypeId == "transit.examples.counter" && query.TypeId == "transit.examples.query" && Codecs.U64.TypeId == "transit.examples.u64");
+        JsonObject http = Read(Text(cfg, "http_fixtures"));
+        Http.Prepared request = await Http.PrepareAsync(new ResourceRef(72, 8), ulong.MaxValue, new(Http.Method.Post, [new Http.Literal("/write")]),
+            Convert.FromHexString(Text(http, "body")), new(7, 9000, 2));
+        Check(Convert.ToHexString(request.Reference.Copy()).ToLowerInvariant() == Text(http, "reference"));
+        Check(System.Text.Encoding.UTF8.GetString(request.Metadata.Copy()) == Text(http, "metadata"));
+        byte[] encoded = Convert.FromHexString(Text(http, "outcome"));
+        var outcome = (Http.Outcome)await Http.DecodeReplyAsync(72, encoded);
+        Check(outcome.Exchange == ulong.MaxValue && outcome.Status == 200 && outcome.Phase == Http.Phase.Observed && outcome.Reference is not null);
+        Check(await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(http, "rejection"))) is Http.Rejected { Reason: Http.Rejection.Denied });
+        Http.ReplyCodec<ulong> httpCodec = new(Codecs.U64, 72);
+        Check(httpCodec.Decode(httpCodec.Encode(new Http.Application<ulong>(ulong.MaxValue))) is Http.Application<ulong> { Value: ulong.MaxValue });
+        Check(httpCodec.Decode(encoded) is Http.Received<ulong> { Value: Http.Outcome { Exchange: ulong.MaxValue } });
+        Expect(ErrorKind.Codec, () => httpCodec.Encode(new Http.Received<ulong>(outcome)));
+        try { await Http.DecodeReplyAsync(72, encoded[..70]); throw new Exception("Truncated HTTP outcome accepted"); } catch (TransitException) { }
+        try { await Http.PrepareAsync(new ResourceRef(72, 8), 1, new(Http.Method.Get, [new Http.Literal("//other/")]), [], new(1, 9000));
+            throw new Exception("Invalid HTTP target accepted"); } catch (TransitException) { }
+    }
+    sealed class HttpBytes : ICodec<Bytes> {
+        public string TypeId => "test.http-control"; public uint Version => 1; public int MaxEncodedBytes => 243;
+        public byte[] Encode(Bytes value) => value.Copy(); public Bytes Decode(byte[] bytes) => new(bytes);
+    }
+    sealed class HttpHandler(ProcessRef peer, Http.Prepared request) : IHandler<Http.Message<Bytes>> {
+        readonly Key<ulong> correlation = new("http-correlation", Codecs.U64);
+        public Turn? Escaped; public JsonObject? Result;
+        public void OnMessage(Turn turn, Incoming<Http.Message<Bytes>> input) {
+            Escaped = turn;
+            if (input is Cast<Http.Message<Bytes>>) {
+                if (turn.State.Find(correlation) is not null) Result = new() { ["called"] = true };
+                else if (turn.StageHttp(request)) { ulong id = turn.CallHttp(peer, request); turn.State.Put(correlation, id); Result = new() { ["called"] = true }; }
+                else Result = new() { ["called"] = false };
+            } else {
+                var reply = (Reply<Http.Message<Bytes>>)input; turn.RequireReply(reply, peer, turn.State.Require(correlation));
+                Check(reply.Value is Http.Received<Bytes> { Value: Http.Outcome { Phase: Http.Phase.Observed, Status: 200 } });
+                turn.State.Put(new Key<ulong>("http-status", Codecs.U64), 200UL); Result = new() { ["observed"] = true };
+            }
+        }
+    }
+    static async Task HttpProof(string mode, JsonObject cfg) {
+        byte[] body = Convert.FromHexString(Text(cfg, "body"));
+        Http.Prepared request = await Http.PrepareAsync(new ResourceRef(72, Number(cfg, "resource")), ulong.MaxValue,
+            new(Http.Method.Post, [new Http.Literal("/items/"), new Http.Variable("id", "λ /")], [
+                new("X-Tag", [new Http.Literal("one")]), new("X-Tag", [new Http.Literal("two")]),
+                new("Authorization", [new Http.Literal("Bearer "), new Http.SecretRef("api", 7)])]), body, new(7, Number(cfg, "deadline")));
+        byte original = request.Body.Copy()[0]; body[0] ^= 127; byte[] copy = request.Body.Copy(); copy[0] ^= 1;
+        Check(request.Body.Copy()[0] == original && request.Body.Length == 513);
+        ServiceConfig config = new(new ClientConfig(new Uri(Text(cfg, "url")), Profile.GrowingV3),
+            new Activation(new ProcessRef(72, Number(cfg, "pid")), Number(cfg, "generation"), new Credential(72, Number(cfg, "principal"), Text(cfg, "seed_file"))));
+        HttpHandler handler = new(new ProcessRef(72, Number(cfg, "peer")), request);
+        await using var runner = await Runner<Http.Message<Bytes>>.OpenAsync(config, handler, new Http.ReplyCodec<Bytes>(new HttpBytes(), 72), FailurePolicy.Stop, new Recovery.FreshOwnership());
+        if (mode == "http-async") {
+            var active = await runner.OpenHttpAsync((Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome"))));
+            Http.Part first = (await active.ReadAsync())!; Check(first.Data.Length > 0 && !first.Complete);
+            File.WriteAllText(Text(cfg, "ready"), ""); await Task.Run(() => WaitFile(Text(cfg, "continue")));
+            using var cancellation = new CancellationTokenSource(); Task<Http.Part?> pending = active.ReadAsync(cancellation.Token);
+            await Task.Run(() => WaitFile(Text(cfg, "accepted"))); Expect(ErrorKind.Busy, () => active.ReadAsync().GetAwaiter().GetResult());
+            cancellation.Cancel(); bool cancelled = false; try { await pending; } catch (OperationCanceledException) { cancelled = true; } Check(cancelled);
+            runner.Stop(); Task<RunnerShutdown> closing = runner.CloseAsync(); int beats = 0;
+            while (!closing.IsCompleted) { beats++; await Task.Delay(10); } await closing; Check(beats > 5 && first.Data.Length > 0);
+            Expect(ErrorKind.Closed, () => active.ReadAsync().GetAwaiter().GetResult()); Report(new() { ["joined"] = true }); return;
+        }
+        Http.Reader? reader = null; Http.Outcome? outcome = null; using MemoryStream owned = new();
+        for (string? line; (line = Console.ReadLine()) is not null;) {
+            switch (line) {
+                case "step":
+                    bool committed = false; for (int n = 0; n < 32; n++) if (await runner.NextAsync() is Committed) { committed = true; break; }
+                    Check(committed); Expect(ErrorKind.TurnExpired, () => handler.Escaped!.StageHttp(request)); Report(handler.Result!); break;
+                case "open":
+                    outcome = (Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome"))); reader = await runner.OpenHttpAsync(outcome);
+                    Expect(ErrorKind.Busy, () => runner.OpenHttpAsync(outcome).GetAwaiter().GetResult());
+                    var first = (await reader.ReadAsync())!; Check(first.Data.Length > 0 && !first.Complete); Report(new() { ["prefix"] = true }); break;
+                case "denied": Expect(ErrorKind.AccessDenied, () => reader!.ReadAsync().GetAwaiter().GetResult()); Report(new() { ["denied"] = true }); break;
+                case "reopen":
+                    try { await reader!.ReadAsync(); throw new Exception("Failed HTTP reader resumed"); }
+                    catch (TransitException error) { Check(error.Kind == ErrorKind.ReadFailed && error.Code == "HttpReplayFailed"); }
+                    await reader!.CloseAsync(); await reader.CloseAsync(); reader = await runner.OpenHttpAsync(outcome!);
+                    while (await reader.ReadAsync() is { } part) if (part.Kind == Http.PartKind.ResponseBody) owned.Write(part.Data.Copy());
+                    Check(reader.Complete); await reader.CloseAsync(); Report(new() { ["complete"] = true, ["body"] = Convert.ToHexString(owned.ToArray()).ToLowerInvariant() }); break;
+                case "close":
+                    await runner.CloseAsync(); if (reader is not null) Expect(ErrorKind.Closed, () => reader.ReadAsync().GetAwaiter().GetResult());
+                    Report(new() { ["closed"] = true, ["owned"] = Convert.ToHexString(owned.ToArray()).ToLowerInvariant() }); return;
+                default: throw new Exception("Unknown HTTP command");
+            }
+        }
     }
     static async Task Execute<T>(string mode, JsonObject cfg, IHandler<T> handler, ICodec<T> codec) where T : notnull {
         ulong realm = Number(cfg, "realm");
@@ -202,6 +285,7 @@ static class Proof
     public static async Task Main(string[] args) {
         string mode = args[0], path = args[1]; var cfg = Read(path);
         Check(typeof(Runner<>).Assembly.Location.StartsWith(Path.GetDirectoryName(path)!, StringComparison.Ordinal)); Check(Text(cfg, "profile") == "growing_v3");
+        if (mode.StartsWith("http-", StringComparison.Ordinal)) { await HttpProof(mode, cfg); return; }
         if (mode == "codecs") { await CodecsProof(cfg); return; }
         if (mode == "recover") { await using var client = await SdkClient.OpenAsync(new ClientConfig(new Uri(Text(cfg, "url")), Profile.GrowingV3));
             using var pending = await client.RecoverMutationAsync(File.ReadAllBytes(Text(cfg, "pending"))); var result = await client.DispatchMutationAsync(pending); Check(result is Confirmed);

@@ -7,9 +7,12 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from sdk_station_runner import Consumer, run as schedule
+from sdk_http_runner import run as http_schedule
 
 
-def run(node, cli, library, artifacts, *, execute=None):
+def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
+    if execute is None and http_worker is None:
+        raise ValueError("The full Station SDK schedule requires the HTTP worker binary")
     root = Path(__file__).resolve().parents[1]
     def install(target):
         source = target / 'source'
@@ -53,6 +56,8 @@ def run(node, cli, library, artifacts, *, execute=None):
         subprocess.run(['zig', 'cc', '-shared', '-fPIC', '-o', str(bad / 'libtransit_station.so'), str(fixture)], env=environment, cwd=target, check=True)
         fixture.unlink()
         def command(mode, config):
+            if mode.startswith('http-'):
+                return ['dotnet', str(output / 'Consumer.dll'), mode, str(config)]
             # Establish a durable private directory entry before the proof's store
             # truncates, writes and Flush(true)s each exact frozen mutation.
             cfg = json.loads(config.read_text())
@@ -67,6 +72,7 @@ def run(node, cli, library, artifacts, *, execute=None):
             lambda config, role: ['dotnet', 'exec', '--depsfile', str(output / 'Consumer.deps.json'), '--runtimeconfig', str(output / 'Consumer.runtimeconfig.json'),
                                   str(output / 'Transit.Sdk.Examples.dll'), str(config), role, '--commits', '1'], 'async-handler', arrow_adapter=False)
     (execute or schedule)(node, cli, library, install, '.NET')
+    if execute is None: http_schedule(node, cli, library, http_worker, install, '.NET')
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

@@ -7,7 +7,7 @@ using StationApi = Transit.Station.Sdk.Internal.NativeApi;
 
 namespace Transit.Station.Sdk;
 
-public sealed class Runner<T> : IDisposable, IAsyncDisposable where T : notnull
+public sealed class Runner<T> : IDisposable, IAsyncDisposable, IHttpOwner where T : notnull
 {
     private sealed class State : IWorkerState<RunnerShutdown>
     {
@@ -136,6 +136,19 @@ public sealed class Runner<T> : IDisposable, IAsyncDisposable where T : notnull
             return Record(new Progress());
         }
         public RunnerShutdown Evidence() => new(pending, lastEvent);
+        internal R HttpAccess<R>(Func<StationBridge, R> action)
+        {
+            if (pending is not null) throw new TransitException(ErrorKind.Busy, "pending-mutation");
+            return action(bridge);
+        }
+        internal Http.Reader OpenHttp(IHttpOwner owner, Http.Outcome outcome, Http.ReplayPolicy policy)
+        {
+            if (outcome.Phase != Http.Phase.Observed || outcome.Reference is null || outcome.Resource.Realm != process.Realm)
+                throw new ArgumentException("Expected an observed outcome in this realm");
+            JsonObject value = HttpAccess(bridge => bridge.HttpRead(Value.Obj(("open", Value.Obj(("reference", Http.Hex(outcome.Reference)),
+                ("policy", policy == Http.ReplayPolicy.Captured ? "captured" : "require_unredacted"))))));
+            return new Http.Reader(owner, Value.Number(value["opened"], 1));
+        }
         public void Dispose() => bridge.Dispose();
     }
     private readonly Worker<State, RunnerShutdown> worker;
@@ -153,6 +166,14 @@ public sealed class Runner<T> : IDisposable, IAsyncDisposable where T : notnull
     public Task<RunnerEvent> NextAsync(CancellationToken cancellation = default) => worker.Invoke(state => state.Next(), cancellation);
     public Task<RunnerEvent> ReconcileAsync(CancellationToken cancellation = default) => worker.Invoke(state => state.Attempt(), cancellation);
     public Task<RunnerShutdown> EvidenceAsync(CancellationToken cancellation = default) => worker.Invoke(state => state.Evidence(), cancellation);
+    Task<R> IHttpOwner.HttpAccess<R>(Func<StationBridge, R> action, CancellationToken cancellation) => worker.Invoke(state => state.HttpAccess(action), cancellation);
+    void IHttpOwner.CheckClose() => worker.CheckClose();
+    public Task<Http.Reader> OpenHttpAsync(Http.Outcome outcome, Http.ReplayPolicy policy = Http.ReplayPolicy.Captured, CancellationToken cancellation = default)
+    {
+        ArgumentNullException.ThrowIfNull(outcome);
+        if (policy is not (Http.ReplayPolicy.Captured or Http.ReplayPolicy.RequireUnredacted)) throw new ArgumentException("Invalid replay policy");
+        return worker.Invoke(state => state.OpenHttp(this, outcome, policy), cancellation);
+    }
     public void Stop() => StopToken.Stop();
     public Task<RunnerShutdown> CloseAsync() { worker.CheckClose(); Stop(); return worker.CloseAsync(); }
     public RunnerShutdown CloseSnapshot() { worker.CheckClose(); Stop(); return worker.CloseSnapshot(); }

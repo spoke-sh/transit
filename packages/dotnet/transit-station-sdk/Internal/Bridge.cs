@@ -59,6 +59,24 @@ internal sealed class Bridge : IWorkerState<object?>
         } catch (Exception) { bridge.Dispose(); throw; }
     }
     internal int Limit(string name) => checked((int)Value.Number(Caps[name], 1));
+    internal void HttpCapability(string name)
+    {
+        if (!Value.Boolean(Caps[name])) throw new TransitException(ErrorKind.UnsupportedCapability, name);
+    }
+    internal JsonObject HttpCodec(JsonObject action)
+    {
+        HttpCapability("http_requests"); byte[] bytes = Value.Json(action);
+        if (bytes.Length > Value.MaxBody) throw new ArgumentException("HTTP action exceeds its bound");
+        uint status = Api.station_http_codec(bytes, (nuint)bytes.Length, out var buffer);
+        return Result(status, buffer, "http-codec", schema: "HttpCodecResult");
+    }
+    internal JsonObject HttpRead(JsonObject action)
+    {
+        HttpCapability("http_replay"); byte[] bytes = Value.Json(action);
+        if (bytes.Length > 2048) throw new ArgumentException("HTTP replay action exceeds its bound");
+        uint status = Api.station_growing_http_read(server, bytes, (nuint)bytes.Length, out var buffer);
+        return Result(status, buffer, "http-replay", schema: "HttpReadResult");
+    }
     internal byte[] Buffer(uint status, IntPtr pointer, string phase)
     {
         byte[] bytes;
