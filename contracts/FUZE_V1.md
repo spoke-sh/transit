@@ -1,7 +1,10 @@
 # Fuze v1 bounded Table profile
 
 Status: implemented bounded M9 profile. This is the structured query contract;
-SQL, joins, grouping, windowing and user-selected sorting are unsupported.
+joins, grouping, windowing and user-selected sorting are unsupported.
+M12's [SQL frontend](../packages/zig/transit-fuze/docs/sql.md) lowers read-only
+Table syntax to the separate incremental `Stream.Plan` without extending these
+operator semantics.
 
 Sources present one authorized snapshot with an identity, schema fingerprint
 and revision. The initial Table schema has two named columns (1–16 ASCII

@@ -1,16 +1,15 @@
 # Query language: relational and dataframe surfaces over one plan
 
-Status: design; nothing here is implemented. It elaborates [FUZE.md](FUZE.md)'s
-already-decided pipeline — *"structured query API / later SQL frontend → typed
-logical plan → qualified logical rewrites → physical plan → bounded Arrow
-operators → result sink"* — into a concrete answer for DDL, DML, a dataframe
-surface, and the connector/transport namespace idea. It does not reopen
-[M17](roadmap/M17.md)'s existing commitment to a bounded **read-only** SQL
-subset over Flight SQL, or [M13](roadmap/M13.md)'s decision that no SQL/textual
-query language ships there. [M12 — Declarative interface
-readiness](roadmap/M12.md) owns completing and compiling the grammar this
-document scopes through `SELECT`; the dataframe API shape and the
-connector/transport namespace idea remain unassigned to any milestone number.
+Status: M12's read-only, single-Table `SELECT` frontend is implemented and
+qualified. The [SQL guide](../packages/zig/transit-fuze/docs/sql.md) owns its
+exact grammar, budgets and `Sql.parse` / `Sql.compile` / `Sql.plan` API.
+It produces the existing `Stream.Plan`/`PlanCodec` and runs through Fuze's
+bounded Arrow engine. It introduces no public query endpoint or CLI.
+The DDL/DML-write, broader dataframe and connector/transport namespace designs
+below remain direction, not implemented SQL capabilities. [M13](roadmap/M13.md)
+owns public typed query access; [M17](roadmap/M17.md) owns Flight SQL ingress
+and should reuse this compiler. Neither milestone acquires new authority from
+accepting query text.
 
 ## The one-line answer
 
@@ -54,18 +53,19 @@ case: it compiles to Fuze's typed `Plan` (predicate, projection, limit,
 aggregate) and executes through the same bounded, credited pipeline
 [M10](roadmap/M10.md) qualified this cycle and [M13](roadmap/M13.md) is
 scoped to expose — `WHERE`/column selection/`LIMIT`/`COUNT`/`SUM` map
-directly onto the plan's existing shape; joins, grouping, subqueries and
-window functions do not exist in that shape yet and would each need their own
-qualification before a relational surface could claim to support them, not be
-silently accepted as parsed syntax with unqualified execution.
+onto the existing plan. The admitted aggregate-input subquery spells
+filter → limit → aggregate without confusing an outer SQL limit with an input
+limit. Omitted limits remain unlimited under `Stream.Plan`; explicit limits
+are 0–32 in this SQL profile. Joins, grouping, general subqueries and window
+functions require separate qualification. Unsupported constructs fail explicitly.
 
 [M17](roadmap/M17.md) already commits to exactly this SELECT-only slice,
 narrower and further out: *"a bounded read-only SQL subset... translating
 into Fuze's M9 plans; no separate engine."* A full DDL/DML relational
 surface — this document's scope — is bigger than that existing commitment in
 two ways: it writes, and M17 ties its SQL specifically to the Flight SQL
-ingress path. Treat M17 as the first, narrowest instance of the relational
-surface described here, not as the whole of it; a general DDL/DML surface
+ingress path. M12 now supplies the local read compiler; M17 supplies remote Flight SQL
+ingress over it. Neither delivers the full relational surface; a general DDL/DML surface
 (`transit query`'s shell, a future direct SQL endpoint) is separate,
 unscoped work this document intentionally does not turn into a milestone
 number yet.
@@ -146,61 +146,55 @@ makes adopting the vocabulary a confirmation, not a borrowed dependency.
   write. A sink is the concrete, scoped form of the speculative `INSERT INTO
   connector.blah` idea above.
 
-None of CONNECTION/SOURCE/SINK exist in Postgres; they are additive statement
-forms, not a reinterpretation of anything Postgres already defines. That is
-consistent with "superset": ordinary Postgres SQL keeps its Postgres meaning,
-and Transit adds statement forms Postgres has no opinion on. Their exact
-grammar productions, capability declarations and authorization checks are
-follow-on work once the base grammar and its verification loop (below) exist;
-this section fixes the shape and its grounding, not the syntax.
+CONNECTION/SOURCE/SINK are additive Transit syntax. Their reference grammar
+productions are checked, but capability declarations, authorization and execution
+remain future connector work. Their presence does not imply that the current
+SELECT subset is a PostgreSQL superset or that every PostgreSQL execution
+semantic is supported.
 
 ## Defining and verifying the grammar
 
 ### Postgres compatibility is a testable claim, not a formal one
 
-"Superset of Postgres" should mean: every query Postgres accepts, ours parses
-to an equivalent statement, and ours additionally accepts CONNECTION/SOURCE/
-SINK and whatever else this document names. That is a *differential-testing*
-claim, and it has a genuinely authoritative oracle: [`libpg_query`](https://github.com/pganalyze/libpg_query),
-which packages Postgres's actual parser (extracted from Postgres source, not
-re-derived) as a standalone library. Compatibility is proved by parsing a
-corpus — Postgres's own regression-test SQL, `sqllogictest`, or a generated
-corpus from a SQL-aware fuzzer such as [SQLancer](https://github.com/sqlancer/sqlancer)
-— through both parsers and asserting agreement, the same "independent
-consumer" pattern this repo already uses everywhere else (independent PyArrow
-decoding, `Delivery.tla`'s independent projection, mutation testing against a
-real guard). It is evidence with a stated corpus and a stated failure mode,
-not a proof that no Postgres query exists that we mishandle.
+A full PostgreSQL grammar superset would accept every PostgreSQL query with
+an equivalent parsed meaning, plus Transit's extensions. M12 does **not** make
+that claim. It establishes acceptance and normalized AST agreement for the
+explicit Table subset in a pinned corpus, using
+[`libpg_query`](https://github.com/pganalyze/libpg_query)'s PostgreSQL parser
+through pglast 7.13. Fourteen unchanged PostgreSQL REL_17_5 regression statements
+and Transit-authored boundary cases run through that parser, ANTLR and Zig.
+Original source hashes, excerpt provenance and exclusions are recorded in
+[the grammar contract](../contracts/sql/README.md).
+
+Corpus agreement is evidence, not a universal grammar theorem or PostgreSQL
+execution-equivalence claim. Fuze retains its deterministic primary-key order
+and checked int64 sum, which differ from PostgreSQL's broader execution model.
+A full regression suite, `sqllogictest` and SQL-aware fuzzing could extend future
+coverage; they have not run as part of this qualification.
 
 ### Grammar definition: a spec-and-checked format, not the production parser
 
-Write the grammar in a format existing tools can mechanically check for
-left-recursion, ambiguity and shift/reduce or reduce/reduce conflicts —
-[ANTLR4](https://github.com/antlr/antlr4)'s `.g4` format is the most
-practical choice: mature conflict/ambiguity diagnostics, and (since ANTLR
-targets Java/Python/C#/Go/C++/JavaScript/Swift, none of them Zig) a
-generated *reference* parser in one of those, used purely for cross-checking,
-never shipped. Fuze's engine, planner and operators stay Zig native — nothing
-about ANTLR's output becomes a runtime dependency. The production parser is
-hand-written (or Zig-generated from the same `.g4` as its single source, if a
-suitable code-generation path exists by then) Zig, tested for AST-equivalence
-against the ANTLR reference parser on the same corpus. General context-free
-grammar ambiguity is undecidable — no tool proves an arbitrary grammar
-unambiguous — but ANTLR's parser construction succeeding without conflicts
-*is* a real, tool-checked, meaningful property for the restricted grammar
-class it builds, and worth stating precisely as that rather than as a
-stronger claim.
+[`TransitExtensions.g4`](../contracts/sql/TransitExtensions.g4) now includes
+`SELECT`, projection, typed predicates, aggregates and the restricted input
+subquery, alongside the grammar-only administrative extensions and AS-OF
+fragment. Pinned ANTLR 4.13.2 generates a Python reference parser with warnings
+fatal and diagnostics required to be empty. The shared corpus also runs with
+exact ambiguity detection. No generation conflict or corpus ambiguity is
+reported; that does not prove global grammar unambiguity.
 
-[`contracts/sql/TransitExtensions.g4`](../contracts/sql/TransitExtensions.g4)
-is a first, checked instance: the CONNECTION/SOURCE/SINK/AS-OF statement
-forms named above, plus the CREATE TABLE/DOCUMENT/KV/GRANT/REVOKE/SHOW/
-DESCRIBE spellings of existing typed commands. It generates with ANTLR
-4.13.2 with zero ambiguity/conflict warnings, and nine representative
-statements parse to the expected tree with zero errors while a deliberately
-malformed one is correctly rejected — see
-[`contracts/sql/README.md`](../contracts/sql/README.md) for the exact
-commands. It does not define `SELECT`/expression syntax and is not composed
-with a Postgres base grammar yet; both remain open.
+The production frontend is a hand-written, bounded recursive-descent Zig parser
+with an iterative lexer, owned fixed-shape AST and no allocations or I/O. Its
+AST is compared with the independent reference tree on every shared SELECT
+case. Compilation resolves only caller-supplied source/schema metadata and
+reuses engine type validation. Generated parser files are verification artifacts,
+never runtime dependencies. `just test::sql` reruns generation, AST comparisons,
+real plan encoding and independent paged Arrow checks on grammar changes.
+
+`CREATE TABLE`/`DOCUMENT`/`KV`/`CONNECTION`/`SOURCE`/`SINK`, `GRANT`, `REVOKE`,
+`SHOW` and `DESCRIBE` remain grammar-only, with `UnsupportedStatement` from the
+production frontend. `INSERT`/`UPDATE`/`DELETE` are not in the grammar. Neither
+accepted grammar nor a compiled plan bypasses the later source authorization
+and exact-revision binding requirements.
 
 ### Is LEAN4 or TLA+ the right tool? Mostly no, with one real exception each
 
@@ -217,32 +211,21 @@ grant changes, does a `SINK` write's effect dispatch compose correctly with
 but that models what a statement *does* once compiled to a plan, not the
 grammar that parses it.
 
-**LEAN4 has a real, narrow use here, already scoped by this repo before this
-conversation**: [`docs/TESTING.md`](TESTING.md#formal-models) already says
-Lean "is deferred until a specific theorem has value, such as a selected
-CRDT's merge laws **or a Fuze rewrite with exact error semantics**." A query
-*rewrite* — predicate pushdown, projection pruning, anything FUZE.md's
-planning section requires to "preserve the specified result schema,
-null/missing/conflict interpretation, numeric/error behavior and ordering" —
-is precisely that kind of theorem, and grammar work is what would finally
-generate enough concrete rewrite rules to make proving one worthwhile.
-[`contracts/sql/FuzeRewrite.lean`](../contracts/sql/FuzeRewrite.lean) is a
-first, complete instance — a `sorry`-free Lean 4 proof (checked, axioms
-`[propext]` only, never `sorryAx`) that reordering two sequential
-row-selecting predicates never changes the selected rows or their order, at
-the abstraction level `FUZE_V1.md` already specifies. It formalizes the
-specification, not `transit-fuze`'s Zig code — that correspondence is a
-separate, stated assumption, the same relationship `Authority.tla` has to
-the real engine. It is deliberately the *smallest* real instance of the
-theorem class TESTING.md scopes, not the most valuable one; projection,
-aggregation and limit interactions would each need their own stated theorem.
-Using Lean to prove "this grammar is a superset of Postgres's" would mean first
-formalizing the whole of Postgres's grammar in Lean, which doesn't exist and
-would be a vastly bigger undertaking than the differential-testing approach
-above for the same practical confidence. Don't reach for Lean until a
-specific rewrite rule is written down and its preservation claim needs more
-than test coverage — which may never be this grammar's job at all, since
-rewrites operate on the compiled plan, not on parsed syntax.
+**Lean checks selected rewrite semantics.** M12's
+[`FuzeRewrite.lean`](../contracts/sql/FuzeRewrite.lean) proves total filter
+reordering, projection pruning, predicate pushdown through a total projection
+with explicit first-error preservation, and preservation by an unchanged
+fallible downstream consumer. The [proof inventory](../contracts/sql/README.md#lean-scope)
+records exact premises and axioms; pinned Lean 4.29.1 reports no `sorryAx`.
+
+These are specification theorems. The correspondence note maps validated
+predicates, ordered projection and unchanged limit/sum consumption to current
+Zig operators, while leaving implementation refinement, allocation, cancellation
+and current authority outside the model. No optimizer rewrite is enabled.
+Limit pushdown and checked-sum reassociation are generally false; partial or
+effectful projection needs stronger premises. Those claims are explicitly
+excluded, not represented by incomplete proofs. A PostgreSQL grammar-superset
+proof remains a different and much larger undertaking than this corpus check.
 
 ## What we're missing, against RisingWave/ksqlDB/Flink SQL/Materialize
 
@@ -376,7 +359,7 @@ substance, narrowing review to "is this the right scenario" instead of also
 direction: a versioned, structured plan explanation is something an agent
 can parse and reason about precisely, where a prose log forces re-deriving
 structure from text every time. And the `libpg_query` differential corpus
-proposed above is reusable exactly this way too — an acceptance check either
+implemented above is reusable exactly this way too — an acceptance check either
 a human or an agent can run against a grammar change without re-deriving
 "is this still Postgres-compatible" from first principles each time.
 
@@ -387,11 +370,9 @@ described here.
 
 ## What this document is not
 
-It does not select a SQL grammar, a dataframe API shape per language, or a
-parser implementation. It does not move DDL/DML ahead of M13's read-only,
-Table-only scope or M14's Document work, and it does not commit the
-connector/transport namespace idea to a milestone number. It exists so the
-next concrete proposal in this area — a grammar, a builder API, a system
-catalog design — starts from one settled shape (surfaces compile to Fuze's
-plan; system state is a different kind of source than data) instead of
-re-deriving it.
+The linked M12 contract fixes the implemented Table read grammar and parser;
+this document also records broader design direction. It does not move SQL writes
+or DDL execution into M13's public query scope or qualify Document queries before
+M14. The connector/transport namespace remains unassigned. Later builder and
+catalog proposals should preserve the same boundary: surfaces compile to Fuze's
+plan, and system inspection is a different source kind from versioned data.

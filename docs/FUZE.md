@@ -6,10 +6,12 @@ dependency integration and finite IPC encoding. Broader capabilities below
 remain design direction. [M9](roadmap/M9.md) introduces Fuze's
 bounded Table execution profile alongside Station. The shared query model targets
 KV, Table and Document sources; Document storage, collaborative editing and CRDT
-qualification belong to [M14](roadmap/M14.md). [M17](roadmap/M17.md) adds the first
-SQL/Flight frontend. Those bounded profiles do not imply the whole target design.
+qualification belong to [M14](roadmap/M14.md). [M12](roadmap/M12.md) adds the
+implemented [Table SQL compiler](../packages/zig/transit-fuze/docs/sql.md);
+[M17](roadmap/M17.md) adds remote Flight SQL ingress. Those bounded profiles
+do not imply the whole target design.
 [QUERY_LANGUAGE.md](QUERY_LANGUAGE.md) elaborates the "structured query API /
-later SQL frontend" line below into relational DDL/DML and a dataframe surface,
+Table SQL frontend" line below into relational DDL/DML and a dataframe surface,
 both compiling to the plan this document defines.
 
 [M10](roadmap/M10.md) requires a measured path from growing durable sources to
@@ -100,7 +102,7 @@ cross-source joins and consistency need a separately qualified extension.
 ## Planning and extension boundaries
 
 ```text
-structured query API / later SQL frontend
+structured query API / Table SQL frontend
     -> typed logical plan
     -> qualified logical rewrites
     -> physical plan bound to authorized source views
@@ -181,5 +183,5 @@ M9 fixes the source/plan/operator contract and proves the bounded Table path.
 collaborative text and the required CRDT/storage/retention qualification.
 The existing 256-byte KV values and bounded mutation batches do not imply a
 usable large-document storage profile. [M17](roadmap/M17.md) remains the first
-bounded SQL/Flight frontend over qualified Table sources; broadening its source
-matrix requires explicit source and interoperability qualification.
+bounded remote Flight SQL frontend over qualified Table sources; broadening
+its source matrix requires explicit source and interoperability qualification.

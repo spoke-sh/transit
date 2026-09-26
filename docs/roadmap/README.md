@@ -19,7 +19,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M9](M9.md) | Station behaviors, language bindings, and Arrow Tables | Bounded profile implemented and qualified on Linux x86_64 across its target languages; Zig reference workers |
 | [M10](M10.md) | Verification and scale foundations | Explicit growing profile, verification harness and measured CI budgets qualified; v2 remains the default |
 | [M11](M11.md) | Idiomatic language SDKs | Qualified raw/Station SDKs, installed examples and ten public language pairs on Linux x86_64 |
-| [M12](M12.md) | Declarative interface readiness | Planned |
+| [M12](M12.md) | Declarative interface readiness | Qualified Table SQL compiler, three-parser corpus, pinned tools and four complete Lean theorems |
 | [M13](M13.md) | Board relief atlas and public query access | Planned |
 | [M14](M14.md) | Documents, collaborative text and unified querying | Planned |
 | [M15](M15.md) | HTTP connector and exchange transcripts | Planned |
@@ -41,7 +41,7 @@ SDKs must preserve the qualified profile and its capability boundaries.
 [M11](M11.md) builds qualified language-native public SDKs
 over those bindings, including typed handlers/state, recoverable operations,
 runtime integration and installable artifacts. [M12](M12.md) makes the
-relational/dataframe declarative interface [QUERY_LANGUAGE.md](../QUERY_LANGUAGE.md)
+read-only relational declarative interface [QUERY_LANGUAGE.md](../QUERY_LANGUAGE.md)
 designed actually usable: a checked grammar through `SELECT`, a real
 `parse -> Fuze plan` compiler, a pinned Postgres-compatibility corpus and an
 extended Lean rewrite-safety proof program — reusable by any later frontend,

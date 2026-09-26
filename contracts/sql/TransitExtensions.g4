@@ -153,8 +153,8 @@ describeStatement
     : DESCRIBE identifier
     ;
 
-// A fragment only: composes into the eventual SELECT grammar attached to a
-// table reference, not defined here — `orders FOR SYSTEM_TIME AS OF 240`.
+// A fragment only: reserved for a future SELECT table-reference extension,
+// deliberately excluded from the executable SELECT profile here — `orders FOR SYSTEM_TIME AS OF 240`.
 // Deliberately the SQL:2011 system-versioned-table clause name (forensic
 // point-in-time reconstruction, not a windowing/event-time concept: see
 // docs/QUERY_LANGUAGE.md's forensic-first scoping), but its argument is a

@@ -198,7 +198,7 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 | [transit-board-client](../packages/ts/transit-board-client/README.md) (TypeScript) | Generated Board models/runtime validators and bounded browser transport | AJV runtime helper |
 | [transit-runtime-substrate](../packages/zig/transit-runtime-substrate/README.md) / `transit_runtime_substrate` | Provider identity, template validation, sandbox lifecycle operations | transit-observability; invokes pinned external CLI |
 | [transit-station](../packages/zig/transit-station/README.md) / `transit_station` | GenServer, durable calls, scoped names, supervision, Tables and captured queries | transit-client, transit-fuze |
-| [transit-fuze](../packages/zig/transit-fuze/README.md) / `transit_fuze` | Source/plan contracts and bounded Zig-native Arrow execution | pinned zarrow, zarrow-compute |
+| [transit-fuze](../packages/zig/transit-fuze/README.md) / `transit_fuze` | Source/plan contracts, Table SQL compilation and bounded Zig-native Arrow execution | pinned zarrow, zarrow-compute |
 
 The [binding packages](../bindings/README.md) expose the shared Zig client and
 Station through a generated C ABI and owned native-port adapters. Each target

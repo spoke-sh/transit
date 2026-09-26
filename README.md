@@ -24,6 +24,8 @@ profile with durable calls, Tables, Arrow queries and language clients. The
 explicit growing profile and measured CI budgets.
 [Idiomatic language SDKs](docs/roadmap/M11.md) add qualified raw/Station APIs,
 installed examples and public interoperability across all target languages on Linux x86_64.
+[M12](docs/roadmap/M12.md) adds a qualified Table SQL compiler over Fuze's existing
+plan, with independent parser/result checks and scoped Lean rewrite proofs.
 The [roadmap](docs/roadmap/README.md) records supported profiles and qualification limits.
 
 ## Get started

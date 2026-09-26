@@ -17,7 +17,9 @@ and aggregate meanings. Its optional 64-bit row limit applies to the entire
 filtered selection; null means no logical row limit. A batch working bound must
 never act as an implicit whole-query limit. Initial operators are rows, count
 and checked int64 sum; joins, grouping, global sorting and external spilling
-remain unsupported. SQL is not introduced.
+remain unsupported. M12's [SQL frontend](../packages/zig/transit-fuze/docs/sql.md)
+now compiles the declared Table SELECT subset to this same plan; it changes
+no engine or authorization semantics.
 
 A bound plan identifies the exact resource revision and schema plus its plan
 fingerprint. Explicit owned progress records contain that identity, source batch
