@@ -43,6 +43,33 @@ outside this growing slice.
 
 ## Private turns
 
+### Explicit mutation dispatch for SDK hosts
+
+M11 adds `prepare(read_deadline_ms)` and `dispatchPending()` to the shared
+behavior machine. `prepare` performs bounded reads/private preparation, but never
+submits a mutation. When `pending` is present, persist its exact signed operation
+before calling `dispatchPending`. This gate includes permit and view-opening
+requests, internal framework turns and handler/failure commits. Repeated prepare
+calls preserve the pending bytes. `dispatchPending` makes one attempt; errors
+retain the same request. A successful dispatch records an owned `confirmation`
+with purpose, input position and receipt. Copy/record it before the next dispatch.
+The existing `poll`/`step` interface still composes both phases for Zig/M9 callers.
+
+`discard()` drops only an unsent private turn and rejects when a signed mutation
+is pending. It neither consumes the input nor records a failure. Selecting
+`failure_policy = .stop` applies that behavior to handler/preprocessing errors;
+the default `.block_input` retains the existing failure-proposal policy. Read
+failures poison/discard the private turn under both policies. These are native
+Zig capabilities; the foreign SDK dispatch/persistence adapters remain separate
+implementation work.
+
+The real growing Station recovery proof now uses the explicit phases and checks
+confirmation identity; native units exercise frozen permit/open/commit requests
+with no usable I/O client, plus discard/stop and caught-read failures. Existing
+legacy Station service, recovery and lifetime proofs preserve `poll` behavior.
+
+### Bounded access
+
 `GrowingTurn` uses the same implementation of private mutation, output, call and
 reply rules as `Turn`. It replaces the complete entry array with a view-bound
 reader supplied by the host. `try turn.read(key)` fetches one committed value

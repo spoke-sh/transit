@@ -15,7 +15,11 @@ pub fn Type(comptime growing: bool) type {
         session: Session,
         association: p.Value,
         pending: ?Session.Pending = null,
-        pending_kind: enum { permit, open, commit } = .permit,
+        pending_kind: PendingKind = .permit,
+        failure_policy: enum { block_input, stop } = .block_input,
+        /// Owned confirmation of the most recent successful dispatch. A foreign
+        /// host must copy/record it before driving another dispatch.
+        confirmation: ?Confirmation = null,
         delivery: ?Session.Delivery = null,
         resource: ?Resource = null,
         view_id: ?u64 = null,
@@ -29,6 +33,8 @@ pub fn Type(comptime growing: bool) type {
 
         pub const Step = enum { idle, progress, committed, blocked };
         pub const Poll = enum { idle, progress, ready, committed, blocked };
+        pub const PendingKind = enum { permit, open, commit };
+        pub const Confirmation = struct { kind: PendingKind, input: u64, receipt: p.Receipt };
         pub const Handler = struct {
             context: ?*anyopaque = null,
             initialize: ?*const fn (?*anyopaque, *Turn) anyerror!void = null,
@@ -67,29 +73,17 @@ pub fn Type(comptime growing: bool) type {
         /// The same turn machine exposed to foreign hosts. Polling does not acknowledge
         /// an application input; finish explicitly freezes its private proposal.
         pub fn poll(self: *GenServer, read_deadline_ms: u64) !Poll {
+            if (self.pending != null) return self.dispatchPending();
+            return self.prepare(read_deadline_ms);
+        }
+
+        /// Advance reads/private preparation only. When pending is present the
+        /// host can persist its exact bytes before explicitly dispatching it.
+        /// This includes control requests and internal framework turns.
+        pub fn prepare(self: *GenServer, read_deadline_ms: u64) !Poll {
             if (self.ready != null) return .ready;
             if (self.blocked) return .blocked;
-            if (self.pending) |*pending| {
-                const receipt = try pending.submit(self.session.client);
-                // Retain the exact proposal on every error. The host must reconcile or
-                // acquire a new activation before abandoning an uncertain operation.
-                self.pending = null;
-                switch (self.pending_kind) {
-                    .permit => self.delivery = null,
-                    .open => self.view_id = receipt.position,
-                    .commit => {
-                        self.delivery = null;
-                        self.resource = null;
-                        self.view_id = null;
-                        if (self.handler_error != null) {
-                            self.blocked = true;
-                            return .blocked;
-                        }
-                        return .committed;
-                    },
-                }
-                return .progress;
-            }
+            if (self.pending != null) return .progress;
             if (self.delivery == null) {
                 self.delivery = (try self.session.receive()) orelse return .idle;
                 if (self.delivery.?.needs_permit) {
@@ -151,6 +145,40 @@ pub fn Type(comptime growing: bool) type {
             }
             return .ready;
         }
+
+        /// Exactly one attempt; any failure leaves the frozen mutation intact.
+        pub fn dispatchPending(self: *GenServer) !Poll {
+            const pending = if (self.pending) |*value| value else return error.NoPendingOperation;
+            self.confirmation = null;
+            const receipt = try pending.submit(self.session.client);
+            self.confirmation = .{ .kind = self.pending_kind, .input = self.delivery.?.input.position, .receipt = receipt };
+            self.pending = null;
+            switch (self.pending_kind) {
+                .permit => self.delivery = null,
+                .open => self.view_id = receipt.position,
+                .commit => {
+                    self.delivery = null;
+                    self.resource = null;
+                    self.view_id = null;
+                    if (self.handler_error != null) {
+                        self.blocked = true;
+                        return .blocked;
+                    }
+                    return .committed;
+                },
+            }
+            return .progress;
+        }
+
+        /// Discard only unsent private work. An unresolved signed mutation can
+        /// never be abandoned through this API, including control operations.
+        pub fn discard(self: *GenServer) !void {
+            if (self.pending != null) return error.PendingOperation;
+            if (self.ready == null) return error.NoPreparedTurn;
+            self.ready = null;
+            self.handler_error = null;
+        }
+
         pub fn finish(self: *GenServer, failure: ?anyerror) !void {
             const turn = if (self.ready) |*value| value else return error.NoPreparedTurn;
             if (turn.read_error) |err| {
@@ -162,6 +190,10 @@ pub fn Type(comptime growing: bool) type {
             self.handler_error = failure;
             if (self.handler_error == null) turn.validate() catch |err| {
                 self.handler_error = err;
+            };
+            if (self.handler_error) |err| if (self.failure_policy == .stop) {
+                try self.discard();
+                return err;
             };
             if (self.handler_error != null) turn.decision = .{ .views = .{ turn.view, null, null, null }, .failed = true };
             self.pending = if (growing) try self.session.prepareCommit(turn.delivery, turn.decision) else try self.session.prepareStateCommit(turn.delivery, turn.decision);

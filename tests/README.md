@@ -1007,6 +1007,15 @@ new handler views, finishes the same source in six pages total, and releases it
 with the final count. Retained reads automatically become proposal dependencies.
 This is an application-managed scan; it does not implement the Arrow result gate.
 
+The caller now drives M11's separate `prepare`/`dispatchPending` methods. It
+checks that repeated preparation preserves frozen work, discard rejects a pending
+mutation, and successful dispatch exposes the same input identity and a positive
+receipt. Native units cover permit/view/turn preparation with no usable I/O
+client, stop without a failure marker and read poisoning under stop policy.
+`just test::unit`, this disk recovery proof and the legacy `just test::station`
+service/recovery/lifetime proofs passed after the change. Foreign persistence
+callbacks and public SDK runner qualification are still separate work.
+
 The same service task runs growing maintenance on one CPU with owned proxy
 faults: kill after an accepted snapshot loses its reply, then restart from the
 recorded trim intent; loss of an accepted immutable-page reply before root

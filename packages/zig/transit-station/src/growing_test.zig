@@ -187,6 +187,57 @@ test "growing behavior finish distinguishes incomplete reads from application fa
     try t.expectEqual(@as(?anyerror, error.ApplicationFailed), host.handler_error);
 }
 
+test "gated preparation never dispatches or discards frozen control and turn requests" {
+    const Server = @import("GenServer.zig").Growing;
+    // An uninitialized client deliberately makes any accidental I/O invalid.
+    var wire: @import("transit_client").Client = undefined;
+    var host = try Server.init(.{ .client = &wire, .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
+    var store: Store = .{};
+    const turn = try store.turn(.{});
+    inline for ([_]Server.PendingKind{ .permit, .open, .commit }) |kind| {
+        var delivery = turn.delivery;
+        delivery.needs_permit = kind == .permit;
+        host.delivery = delivery;
+        host.pending_kind = kind;
+        host.pending = switch (kind) {
+            .permit => try host.session.prepareBegin(delivery),
+            .open => try host.session.prepareView(delivery, .{ .id = 7, .writer = 2, .owner = null, .revision = 0, .deadline_ms = null }, 100),
+            .commit => try host.session.prepareCommit(delivery, turn.decision),
+        };
+        const before = try std.json.Stringify.valueAlloc(t.allocator, host.pending.?.signed, .{});
+        defer t.allocator.free(before);
+        for (0..3) |_| try t.expectEqual(.progress, try host.prepare(100));
+        try t.expectError(error.PendingOperation, host.discard());
+        const after = try std.json.Stringify.valueAlloc(t.allocator, host.pending.?.signed, .{});
+        defer t.allocator.free(after);
+        try t.expectEqualStrings(before, after);
+        try t.expect(host.ready == null and host.confirmation == null);
+    }
+}
+
+test "stop policy and explicit discard drop private work without a failure mutation" {
+    const Server = @import("GenServer.zig").Growing;
+    var wire: @import("transit_client").Client = undefined;
+    var host = try Server.init(.{ .client = &wire, .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
+    var store: Store = .{};
+    host.failure_policy = .stop;
+    host.ready = try store.turn(.{});
+    try host.ready.?.put(try p.Value.init("local"), .{});
+    try host.ready.?.cast(8, .{});
+    try t.expectError(error.ApplicationFailed, host.finish(error.ApplicationFailed));
+    try t.expect(host.ready == null and host.pending == null and !host.blocked);
+    host.ready = try store.turn(.{});
+    try host.ready.?.put(try p.Value.init("local"), .{});
+    try host.discard();
+    try t.expect(host.ready == null and host.pending == null);
+    try t.expectError(error.NoPreparedTurn, host.finish(null));
+    host.ready = try store.turn(.{});
+    store.fail = true;
+    try t.expectError(error.Unavailable, host.ready.?.read(try p.Value.init("remote")));
+    try t.expectError(error.Unavailable, host.finish(error.ApplicationFailed));
+    try t.expect(host.pending == null and host.ready == null);
+}
+
 test "growing waits preserve wide observer identities and authenticate closure" {
     var store: Store = .{};
     var caller = try store.turn(.{});

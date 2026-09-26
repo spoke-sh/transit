@@ -244,8 +244,8 @@ General query ingress and a production query host remain M13 scope.
 | Shared prerequisite | Required implementation/proof before public release |
 | --- | --- |
 | Growing Station ABI | Explicit profile, full-width identities, bounded point/page reads, scoped turn handles and capability rejection |
-| Dispatch gate | Split prepare from every native mutation dispatch, including internal preprocessing; prove failed persistence means zero submissions |
-| Abort without failure | Native discard operation for `Stop`/cancel, separate from `finish(failure)`; retain earlier unresolved control operations |
+| Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; foreign persistence callbacks and their fault proofs remain |
+| Abort without failure | Native `discard`/stop policy now preserves earlier unresolved control operations and rejects dropping pending bytes; foreign scoped disposal remains |
 | Typed operation metadata | Native-validated kind/identity on import and owned structured receipts; host code never decodes opaque retry bytes |
 | Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
 | Application codecs | One versioned counter definition/fixtures before host implementations; strict, bounded validation in all three languages |

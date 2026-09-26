@@ -125,12 +125,39 @@ const Handler = struct {
 fn deadline(io: std.Io) u64 {
     return @as(u64, @intCast(std.Io.Clock.real.now(io).toMilliseconds())) + 30000;
 }
+fn gatedStep(server: *Server, handler: Server.Handler, read_deadline: u64) !Server.Poll {
+    if (server.pending != null) {
+        // A persistence callback can fail/retry here without sending anything.
+        // Native unit tests also exercise permit/open/commit with no I/O client.
+        const frozen = server.pending.?.signed;
+        try t.expectEqual(.progress, try server.prepare(read_deadline));
+        try t.expect(std.meta.eql(frozen, server.pending.?.signed));
+        try t.expectError(error.PendingOperation, server.discard());
+        const input = server.delivery.?.input.position;
+        const result = try server.dispatchPending();
+        try t.expect(server.pending == null and server.confirmation != null);
+        try t.expectEqual(input, server.confirmation.?.input);
+        try t.expect(server.confirmation.?.receipt.position > 0);
+        return result;
+    }
+    const result = try server.prepare(read_deadline);
+    if (result != .ready) return result;
+    var failure: ?anyerror = null;
+    if (server.initializing) if (handler.initialize) |initialize| initialize(handler.context, &server.ready.?) catch |err| {
+        failure = err;
+    };
+    if (failure == null) handler.handle(handler.context, &server.ready.?, try station.Frame.decode(server.ready.?.delivery.input.value)) catch |err| {
+        failure = err;
+    };
+    try server.finish(failure);
+    return .progress;
+}
 fn drive(io: std.Io, server: *Server, handler: *Handler, prepare_only: bool) !usize {
     var lost: usize = 0;
     for (0..24) |_| {
         if (prepare_only and server.pending != null and server.pending_kind == .commit) return lost;
         const before = handler.handled;
-        const result = server.step(handler.interface(), deadline(io)) catch |err| {
+        const result = gatedStep(server, handler.interface(), deadline(io)) catch |err| {
             if (err != error.InvalidAuthorityResponse) return err;
             if (server.pending) |pending| {
                 try t.expectEqual(.turn, std.meta.activeTag(pending.signed.request.command));
@@ -147,6 +174,7 @@ fn drive(io: std.Io, server: *Server, handler: *Handler, prepare_only: bool) !us
             .blocked => return error.BehaviorBlocked,
             .idle => return error.MissingInput,
             .progress => {},
+            .ready => unreachable,
         }
     }
     return error.StepBudgetExceeded;
