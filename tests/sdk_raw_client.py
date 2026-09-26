@@ -42,7 +42,9 @@ def run(node, cli, raw_library, install, label):
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 connection = HTTPConnection('127.0.0.1', system.port, timeout=10)
                 try:
-                    connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
+                    # Preserve the request target; self.path can normalize double slashes.
+                    target = self.raw_requestline.split()[1].decode('ascii')
+                    connection.request('POST', target, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     data = response.read()
                     if self.path == '/v3/command':

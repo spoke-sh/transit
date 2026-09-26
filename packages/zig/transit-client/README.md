@@ -41,6 +41,10 @@ loop, durable waiting, and supervision.
 | `Session.prepare*` / `Pending.submit` | Freeze activation-aware proposals; no hidden retry, persistence or background loop |
 | `bootstrap.awaitActivation` | Publish a fresh public key and pin the first controller-granted generation for a provider-bound worker |
 
+The shared client accepts authority base URLs with or without trailing slashes.
+It removes trailing separators before appending the operation route, preserving
+the base path and its escaping. Foreign SDKs use this same transport behavior.
+
 Each client is used by one operation at a time; sessions sharing a principal also
 share its mutation sequence. Delivered input includes position, opaque value and
 versioned authenticated origin. `Session.receive` rejects unsupported origin

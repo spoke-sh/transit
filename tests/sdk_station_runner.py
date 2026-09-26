@@ -58,7 +58,10 @@ def run(node, cli, raw_library, install, label):
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 conn = HTTPConnection('127.0.0.1', system.port, timeout=30)
                 try:
-                    conn.request('POST', self.path, body, {'Content-Type': 'application/json'})
+                    # BaseHTTPRequestHandler normalizes leading double slashes in self.path.
+                    # Preserve the original target so faults cannot hide malformed SDK URLs.
+                    target = self.raw_requestline.split()[1].decode('ascii')
+                    conn.request('POST', target, body, {'Content-Type': 'application/json'})
                     result = conn.getresponse()
                     data = result.read()
                     if self.path == '/v3/command':

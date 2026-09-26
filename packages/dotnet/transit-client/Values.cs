@@ -31,6 +31,7 @@ public enum Profile { GrowingV3 }
 public sealed record ClientConfig
 {
     public Uri Endpoint { get; }
+    internal string NativeEndpoint { get; }
     public Profile Profile { get; }
     public uint TimeoutMillis { get; }
     public string? NativeDirectory { get; }
@@ -40,7 +41,8 @@ public sealed record ClientConfig
         if (profile != Profile.GrowingV3 || !endpoint.IsAbsoluteUri || endpoint.Scheme is not ("http" or "https") ||
             endpoint.Host.Length == 0 || endpoint.UserInfo.Length != 0 || endpoint.Query.Length != 0 || endpoint.Fragment.Length != 0 ||
             timeoutMillis is < 1 or > 60000) throw new ArgumentException("Select GrowingV3, an HTTP endpoint and a bounded timeout");
-        Value.Text(endpoint.ToString(), 4096);
+        // Keep reserved path bytes escaped; shared native transport joins routes.
+        NativeEndpoint = Value.Text(endpoint.GetComponents(UriComponents.HttpRequestUrl, UriFormat.UriEscaped), 4096);
         Endpoint = endpoint; Profile = profile; TimeoutMillis = timeoutMillis;
         NativeDirectory = nativeDirectory is null ? null : Path.GetFullPath(nativeDirectory);
     }

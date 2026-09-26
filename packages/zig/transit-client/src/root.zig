@@ -25,7 +25,7 @@ pub const Client = struct {
     last_rejection: ?protocol.ErrorCode = null,
 
     pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8) Client {
-        return .{ .http = .{ .allocator = allocator, .io = io }, .url = url };
+        return .{ .http = .{ .allocator = allocator, .io = io }, .url = std.mem.trimEnd(u8, url, "/") };
     }
     pub fn deinit(self: *Client) void {
         self.http.deinit();

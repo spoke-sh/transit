@@ -15,3 +15,7 @@ The direct native dependency is a separate [NuGet package](../transit-native-cli
 Generated `Internal/NativeApi.cs` and `contract.json` come from
 `just bindings::generate`; `just bindings::check` rejects drift. Internal helpers
 are shared only with the version-matched Station assembly.
+
+Endpoint serialization preserves URI escaping. The shared native client removes
+trailing base-path slashes before appending an operation path. Direct
+authority connections use the same canonical route as proxied connections.

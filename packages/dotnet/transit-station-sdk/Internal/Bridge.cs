@@ -45,7 +45,7 @@ internal sealed class Bridge : IWorkerState<object?>
             var authority = bridge.raw.Capabilities(config.Activation.Credential);
             if (!authority.AssociationLookup || !authority.ScopedRetry || !authority.RetainedVersions) throw new TransitException(ErrorKind.UnsupportedCapability, "authority-capabilities");
             var activation = config.Activation;
-            byte[] endpoint = Value.Utf8.GetBytes(config.Client.Endpoint.ToString());
+            byte[] endpoint = Value.Utf8.GetBytes(config.Client.NativeEndpoint);
             byte[] document = Value.Json(Value.Obj(("profile", "growing_v3"), ("realm", activation.Process.Realm), ("principal", activation.Credential.Principal),
                 ("pid", activation.Process.Pid), ("generation", activation.Generation), ("association", config.Association), ("timeout_ms", config.Client.TimeoutMillis),
                 ("failure_policy", failure == FailurePolicy.Stop ? "stop" : "block_input"), ("query_results", config.QueryResults)));

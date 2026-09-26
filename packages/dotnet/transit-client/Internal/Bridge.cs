@@ -17,7 +17,7 @@ internal sealed class Bridge : IDisposable
             Api = new NativeApi(package.Library);
             if (Api.transit_client_abi_version() != NativeApi.Version || Api.transit_client_supports_kind(6) != 1 || Api.transit_client_supports_kind(7) != 1)
                 throw Value.Incompatible("native-client-version");
-            byte[] endpoint = Value.Utf8.GetBytes(config.Endpoint.ToString());
+            byte[] endpoint = Value.Utf8.GetBytes(config.NativeEndpoint);
             uint status = Api.transit_client_create(NativeApi.Version, endpoint, (nuint)endpoint.Length, config.TimeoutMillis, out client);
             if (status != 0) throw Value.NativeError(status, null, "client-create");
         } catch (Exception error) {
