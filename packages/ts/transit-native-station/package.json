@@ -1,0 +1,26 @@
+{
+  "name": "@transit/native-station",
+  "version": "0.2.0",
+  "type": "module",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "exports": {
+    "types": "./index.d.ts",
+    "default": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "bin"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "transit-station-host": "bin/transit-station-host"
+  }
+}

@@ -50,9 +50,15 @@ python-test: python-build
 node-build: build
     python3 -B bindings/build_node.py .cache/bindings/node
 
-# Qualify the public Node client through the shared real-authority schedule.
+# Qualify public Node clients/runners through the shared real-authority schedules.
 node-sdk-test: node-build
     cd packages/ts/transit-client && vp check
     vp exec --filter @transit/client tsc --noEmit
+    cd packages/ts/transit-station-sdk && vp check
+    vp exec --filter @transit/station tsc --noEmit
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts
+    cd examples/station-sdk/typescript && vp check
+    vp exec --filter @transit/sdk-examples tsc --noEmit
     zig build transit-node rey-cli
     python3 -B tests/node_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node
+    python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node

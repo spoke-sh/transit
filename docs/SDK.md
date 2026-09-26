@@ -3,7 +3,9 @@
 Status: M11 shared public API contracts. The [Python](sdk/PYTHON.md) design is
 implemented with typed raw/Station packages, executable counter/query examples,
 clean wheel installation and focused lifecycle/data proofs. The
-[TypeScript](sdk/TYPESCRIPT.md) and [Rust](sdk/RUST.md) designs remain proposed;
+[TypeScript](sdk/TYPESCRIPT.md) design now has corresponding public raw/Station
+packages, executable examples, clean tarballs and lifecycle/data proofs.
+The [Rust](sdk/RUST.md) design remains proposed;
 Ruby, C/C++, Java, .NET and BEAM adaptations remain to be implemented.
 [M11](roadmap/M11.md) owns delivery, including public interoperability. The
 [M9 adapters](../bindings/README.md) remain executable low-level interfaces.
@@ -46,7 +48,7 @@ operations, capability probing, native operation metadata and opaque retry;
 its standalone client port has no Station dependency. The explicit growing Station
 ABI now adds gated/scoped turns, bounded KV/Table/retained-source access and
 opted-in native query capture/delivery with complete manifests and owned segments;
-legacy foreign entry points retain v2. Python uses this boundary; the qualification
+legacy foreign entry points retain v2. Python and TypeScript use this boundary; the qualification
 table below distinguishes shared prerequisites from language-specific work.
 
 ## Types, codecs and input dispatch
@@ -248,12 +250,12 @@ General query ingress and a production query host remain M13 scope.
 | Shared prerequisite | Required implementation/proof before public release |
 | --- | --- |
 | Growing Station ABI | Explicit C/port profile, full-width identities, bounded point/page reads, scoped turns and capability rejection implemented; public language adapters remain |
-| Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; Python persistence/confirmation callbacks and their fault proofs pass; other hosts remain |
-| Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; Python runner cancellation/join is qualified; other hosts remain |
+| Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; Python and TypeScript persistence/confirmation callbacks and their fault proofs pass; other hosts remain |
+| Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; Python cancellation/join and TypeScript stop/join are qualified; other hosts remain |
 | Typed operation metadata | Implemented native classification and canonical identity through C/port, with owned buffers; public typed operations must use it without decoding retry bytes |
 | Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
-| Application codecs | Shared [counter/query definition](../examples/station-sdk/README.md) and [fixtures](../tests/verification/sdk-codecs-v1.json) defined; strict language implementations and cross-language execution remain |
-| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python public readers/PyArrow are qualified; other hosts remain |
+| Application codecs | Shared [counter/query definition](../examples/station-sdk/README.md) and [fixtures](../tests/verification/sdk-codecs-v1.json) defined; Python/TypeScript implementations pass; remaining languages and public cross-language execution remain |
+| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python/PyArrow and TypeScript/Arrow JavaScript readers are qualified; other hosts remain |
 
 The public declarations should first compile/type-check against real packages;
 then run the same service/requester against a disk-backed authority. Cover wide

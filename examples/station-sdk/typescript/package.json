@@ -1,0 +1,29 @@
+{
+  "name": "@transit/sdk-examples",
+  "version": "0.2.0",
+  "bin": {
+    "transit-node-counter": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@transit/client": "workspace:0.2.0",
+    "@transit/station": "workspace:0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.0.0",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

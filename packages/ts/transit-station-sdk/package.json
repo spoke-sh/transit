@@ -1,0 +1,41 @@
+{
+  "name": "@transit/station",
+  "version": "0.2.0",
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./arrow": {
+      "types": "./dist/arrow.d.ts",
+      "default": "./dist/arrow.js"
+    }
+  },
+  "dependencies": {
+    "@transit/client": "workspace:0.2.0",
+    "@transit/native-station": "workspace:0.2.0",
+    "ajv": "8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.0.0",
+    "apache-arrow": "21.2.0",
+    "typescript": "7.0.2"
+  },
+  "peerDependencies": {
+    "apache-arrow": "21.2.0"
+  },
+  "peerDependenciesMeta": {
+    "apache-arrow": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

@@ -80,7 +80,22 @@ manual native loader path is present. Python and Node run the same
 [raw-client schedule](sdk_raw_client.py): copied input/export buffers, native
 classification, a lost accepted response, seedless host restart, failed host
 response parsing/allocation, current revocation, bounded overlap and responsive
-close after a local await/abort. The Node runner remains separate work.
+close after a local await/abort. A second clean consumer installs Station and the
+executable counter/query examples. Python and Node share the
+[runner authority schedule](sdk_station_runner.py), including every mutation's
+persistence/confirmation hooks, dropped accepted commits, exact seedless recovery
+after host/node/store restart, stale/revoked/expired callers, poisoned reads,
+41-row retained Tables and six original IPC segments. Node additionally checks
+dropped, overlapping, escaped and foreign-context turn calls, callback reentry,
+and responsive stop/join during an accepted commit. Its runner unit proof injects
+a retained confirmation after host allocation failure; raw port-response failures
+and native allocation enumeration retain their separate real boundary proofs.
+The optional Apache Arrow JavaScript 21.2 adapter is installed only after the core
+proof and preserves int64/null values after disposal and mutation of input copies.
+The consumer selects the root manifest's pnpm version through `vp env exec` and
+uses normal package-cache fallback; a different filesystem may have its own cache.
+Strict checks compile both public examples. Linux x86_64/Nix-linked tarballs are
+qualified; public cross-language pairs and the other M11 SDKs remain open.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

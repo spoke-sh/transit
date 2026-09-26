@@ -32,9 +32,14 @@
           "task": "bindings::python-test",
           "source": "tests/sdk_station_runner.py",
           "anchor": "check('public-runner-lifecycle'"
+        },
+        {
+          "task": "bindings::node-sdk-test",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('public-runner-lifecycle'"
         }
       ],
-      "limits": "Python 3.13 public runner and clean Linux Nix-linked wheels; one worker, serialized synchronous handlers, bounded native I/O and query workspace. Other language adapters must add equivalent observations. Optional PyArrow 23 consumes owned segments separately."
+      "limits": "Python 3.13 wheels and Node 24 tarballs on Linux with Nix-linked native artifacts; one owned worker/port, serial handlers, bounded native I/O and query workspace. Python injects allocation loss at its real C response wrapper; Node separately injects a retained confirmation in the runner unit proof and loss at its real raw port response parser. Optional PyArrow 23 and Arrow JavaScript 21.2 consume owned segments separately. Other languages and public mixed-language pairs remain open."
     },
     {
       "id": "growing-query-abi",

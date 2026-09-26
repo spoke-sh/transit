@@ -13,7 +13,7 @@ def build(output: Path, packages: list[str]) -> None:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     for name in packages:
-        source = ROOT / 'packages/ts' / name
+        source = ROOT / name if '/' in name else ROOT / 'packages/ts' / name
         manifest = json.loads((source / 'package.json').read_bytes())
         if not name.startswith('transit-native-'):
             subprocess.run(['vp', 'exec', '--filter', manifest['name'], 'tsc'], cwd=ROOT, check=True)
@@ -34,8 +34,10 @@ def build(output: Path, packages: list[str]) -> None:
                 if not executable.is_file(): raise SystemExit('Run just bindings::build before packaging native artifacts')
                 (staging / 'bin').mkdir(exist_ok=True)
                 shutil.copy2(executable, staging / 'bin' / executable.name)
-            subprocess.run(['vp', 'pm', 'pack', '--pack-destination', str(output)], cwd=staging, check=True)
+            subprocess.run(['vp', 'env', 'exec', '--package-manager', manifest['packageManager'],
+                'pnpm', 'pack', '--pack-destination', str(output)], cwd=staging, check=True)
 
 
 if __name__ == '__main__':
-    build(Path(sys.argv[1]), sys.argv[2:] or ['transit-native-client', 'transit-client'])
+    build(Path(sys.argv[1]), sys.argv[2:] or ['transit-native-client', 'transit-client',
+        'transit-native-station', 'transit-station-sdk', 'examples/station-sdk/typescript'])

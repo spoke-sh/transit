@@ -18,7 +18,8 @@ def run(node, cli, library, artifacts):
         manifest['pnpm'] = {'overrides': dict(manifest['dependencies'])}
         (target / 'package.json').write_text(json.dumps(manifest))
         environment = {key: value for key, value in os.environ.items() if key not in ('NODE_PATH', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
-        installed = subprocess.run(['vp', 'install', '--offline', '--ignore-scripts'], cwd=target, env=environment, capture_output=True, text=True)
+        installed = subprocess.run(['vp', 'env', 'exec', '--package-manager', manifest['packageManager'],
+            'pnpm', 'install', '--prefer-offline', '--ignore-scripts'], cwd=target, env=environment, capture_output=True, text=True)
         assert installed.returncode == 0, installed.stdout + installed.stderr
         script = target / 'consumer.mjs'
         shutil.copyfile(root / 'tests/node_client_sdk.mjs', script)

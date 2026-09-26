@@ -1,16 +1,19 @@
 # TypeScript SDK API design
 
 Status: the [public raw client](../../packages/ts/transit-client/README.md) is
-implemented and qualified through a clean tarball consumer. The Station APIs
-below remain proposed M11 contracts. The [shared design](../SDK.md) owns authority,
+implemented and qualified through a clean tarball consumer. The
+[public Station package](../../packages/ts/transit-station-sdk/README.md) implements
+the contracts below, with strictly checked executable examples and the shared
+real-authority runner schedule. The [shared design](../SDK.md) owns authority,
 lifecycle and recovery rules. The existing `@rey/transit-station` M9 adapter
-remains compatible. `counter-contract` denotes the application types/codecs to
-implement from shared fixtures; configuration and durable stores belong to the
-application.
+remains compatible. The application types/codecs live in
+[@transit/sdk-examples](../../examples/station-sdk/typescript/README.md);
+configuration and durable stores belong to the application. Public mixed-language
+pairs remain a separate M11 exit gate.
 
 ## Packages and runtime types
 
-The proposed package names are `@transit/client` and `@transit/station`, with the
+The package names are `@transit/client` and `@transit/station`, with the
 latter depending on the former. These are artifact-design names, not a claim of
 registry availability. The current `@rey/transit-station` low-level package remains
 compatible during migration; give it an explicit raw entry point without silently
@@ -26,7 +29,7 @@ range. Correlations, application u64 and Arrow int64 use `bigint`. Never accept 
 input `Uint8Array`s before crossing an async boundary. Exported bytes are copies,
 so mutating one cannot change the frozen operation or native-owned buffers.
 
-Selected proposed declarations:
+Selected public declarations (opaque page cursors are currently strings):
 
 ```typescript
 interface Codec<T> {
@@ -41,7 +44,7 @@ interface State {
   require<T>(key: Key<T>): Promise<T>;
   put<T>(key: Key<T>, value: T): Promise<void>;
   delete<T>(key: Key<T>): Promise<void>;
-  page(cursor?: StateCursor): Promise<Page<KVEntry>>;
+  page(cursor?: string): Promise<Page<KVEntry>>;
 }
 interface Handler<M> {
   initialize(turn: Turn): Promise<void>;
@@ -68,7 +71,7 @@ Every helper validates its live turn scope and one-in-flight guard at runtime.
 
 ## Equivalent service and requester
 
-The proposed application module supplies `Key<bigint>` values `TOTAL`, `REQUEST`
+The executable application module supplies `Key<bigint>` values `TOTAL`, `REQUEST`
 and `OBSERVED`; `counterCodec` decodes `Add | Read`, `requesterCodec` decodes
 `Start | Total`. Both validate `counter`, version 1, and full-width values.
 
@@ -133,7 +136,7 @@ try {
     switch (event.kind) {
       case "committed": observeCommit(event.inputPosition, event.receipt.position); break;
       case "blocked": reportBlocked(event.inputPosition, event.receipt); break;
-      case "needs-recovery": reportPendingIdentity(event.identity); break;
+      case "needs-recovery": reportPendingIdentity(event.mutation.identity); break;
     }
   }
 } finally {

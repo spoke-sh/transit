@@ -11,6 +11,11 @@ and installable artifacts. The current manual turn/action APIs remain available;
 the [caller design](../docs/CLIENT.md#idiomatic-language-sdks) defines the planned
 layer above them.
 
+Public Python and TypeScript SDKs are now implemented separately from these
+low-level adapters. Their package guides and installation/recovery proofs are
+linked from [M11](../docs/roadmap/M11.md); other language SDKs and public
+cross-language qualification remain open.
+
 M11 also adds **Ruby** to the target list. Its proposed adapter uses the shared
 native port with Ruby value objects and block-scoped ownership. Ruby packages,
 and conformance evidence remain to be implemented; Ruby 3.4.9 / RubyGems 3.7.2
