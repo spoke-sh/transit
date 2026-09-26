@@ -3,7 +3,7 @@
 Status: experimental v2 Zig client and [M7 state-resource API](roadmap/M7.md)
 implemented. [M9](roadmap/M9.md) adds the shared C ABI, generated signatures and
 exact-request export/import, with [binding evidence](../packages/zig/transit-client/docs/bindings.md).
-[Station's adapters](../bindings/README.md) expose the framework to all target languages.
+[Station's adapters](../bindings/README.md) expose the framework to M9's target languages.
 [M11](roadmap/M11.md) plans idiomatic public SDKs over those qualified low-level
 bindings; their manual action/turn interfaces remain the current implementation.
 General payload references and migration helpers remain
@@ -189,8 +189,9 @@ does not execute application handlers.
 ## Idiomatic language SDKs
 
 Status: design and shared-boundary work started in [M11](roadmap/M11.md).
-The [SDK design](SDK.md) compares Python, TypeScript and Rust service/requester
-interfaces and records unresolved runner decisions; its examples are proposed.
+The [SDK design](SDK.md) links concrete Python, TypeScript and Rust API proposals
+for services/requesters, raw recovery, runner ownership and packaging. It records
+the required shared native changes; its declarations/examples are not implemented.
 M9 provides generated declarations and
 owned host adapters with real interoperability and recovery evidence. Its public
 surface still exposes JSON actions, raw status codes, hex values and manual

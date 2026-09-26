@@ -14,7 +14,7 @@ are experimental; their bounded implementation does not imply support for every 
 | [Glossary](GLOSSARY.md) | Official names and shared terminology |
 | [Transit](TRANSIT.md) | Processes, PIDs, legal sequences, ownership, and replay |
 | [Caller model](CLIENT.md) | Application computation, bindings and planned idiomatic language SDKs |
-| [Public SDK design](SDK.md) | Proposed language-native APIs, equivalent applications and the growing-profile binding handoff |
+| [Public SDK design](SDK.md) | Shared API decisions and proposed [Python](sdk/PYTHON.md), [TypeScript](sdk/TYPESCRIPT.md) and [Rust](sdk/RUST.md) contracts, applications and recovery |
 | [Security](SECURITY.md) | Identity, authorization, revocation, and trust boundaries |
 | [Streams](STREAMS.md) | Mailboxes, ordering, durable admission, and delivery |
 | [State](STATE.md) | Durable resources, process associations, KV/Table boundary, and state lifetimes |

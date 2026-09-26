@@ -1,242 +1,266 @@
 # Public SDK design
 
-Status: M11 implementation design. The examples below describe the intended
-Python, TypeScript and Rust interfaces; they are not runnable programs yet.
-[M11](roadmap/M11.md) owns delivery and qualification. The existing
+Status: proposed M11 public API contracts, ready to guide implementation. The
+[Python](sdk/PYTHON.md), [TypeScript](sdk/TYPESCRIPT.md) and [Rust](sdk/RUST.md)
+designs cover equivalent service/requester code, raw clients, recovery and host
+ownership. Their declarations and examples are **not implemented or executable
+evidence**. [M11](roadmap/M11.md) owns delivery; the existing
 [M9 adapters](../bindings/README.md) remain the executable low-level interfaces.
+Ruby joins the later adaptation group alongside C/C++, Java, .NET and BEAM.
+
 The [caller model](CLIENT.md#idiomatic-language-sdks) owns shared guarantees.
+This document owns cross-language API decisions; the language pages own native
+shapes. Wire layouts remain in `contracts/`, implementation guides beside their
+packages, and proof results in the [test guide](../tests/README.md).
 
-## Boundaries and first implementation
+## Packages and authority
 
-Raw Transit and Station have separate public packages. Raw Transit owns typed
-references, credentials, signed operations, receipts, paged reads and recovery.
-Station adds typed messages, private turns, Tables and handler runners. Loading
-either package performs no credential discovery, network I/O or worker startup.
+Raw Transit and Station have separate installable public packages. Raw Transit
+owns references, credentials, signed operations, receipts, bounded reads and
+recovery. Station adds messages, private turns, Tables and runners. Loading a
+package performs no credential discovery, network I/O or worker startup.
+Generated ABI/wire declarations stay internal or under an explicit raw interface.
 
-Generated ABI and wire declarations remain internal to each adapter or available
-through an explicitly named raw interface. Public host types are designed for
-their language. Signing, response validation, sequencing and framework decisions
-remain in Zig. A host codec only interprets application bytes; it cannot change
-authenticated origins, durable identity or current authorization.
+Zig owns canonical encoding, signatures, response validation, sequencing,
+framework state transitions, view dependencies and exact retry. Host SDKs own
+types, application codecs, handler dispatch, scheduling and packaging. Application
+codecs interpret payload bytes; they cannot supply authenticated origins or
+replace a recorded reply destination. No SDK is a native-code sandbox.
 
-The first implemented shared capability is the raw growing-profile ABI. Its additive
-operation kinds retain the existing v2 ABI and frozen requests, expose v3
-command/query preparation and exact recovery, and report supported kinds before
-dispatch. A local library capability is distinct from an authority's advertised
-capabilities. A subsequent explicit growing Station adapter must supply bounded
-reads and actions through `GrowingGenServer`; wrapping the legacy complete-state
-snapshot cannot satisfy the public SDK growth requirement.
-
-| Boundary | Decision |
+| Concern | Design decision |
 | --- | --- |
-| Profile | Explicit `growing_v3` or supported legacy profile; no automatic fallback or history conversion |
-| Identity | Realm-qualified process/resource references; protocol IDs retain their public 53-bit bound, application int64/u64 and correlations preserve all bits |
-| Bytes | Python `bytes`, TypeScript `Uint8Array`, Rust owned bytes; no common-path hex strings |
-| Application codecs | Explicit stable application type/version, strict decoding and bounded output; shared fixtures precede language implementations |
-| Native compatibility | Negotiate ABI plus required operation capabilities; reject missing support before preparing or dispatching work |
-| Raw recovery | An owned operation exports/imports opaque exact native retry bytes; host code never parses or reserializes those bytes |
-| Scheduling | One operation per handle, bounded admission and explicit native stack/worker budgets; overlap is an error, not an unbounded queue |
-| Arrow | Original owned IPC bytes and source/completeness metadata first; optional adapters have separate ownership and compatibility checks |
-| Packaging | Separate installable client/Station artifacts with explicit native dependency resolution; Linux x86_64 first, no public registry publication in M11 |
+| Profile | Require explicit `growing_v3` or a separately supported legacy profile; no fallback or history conversion |
+| Native compatibility | Check ABI and operation capabilities before preparing work; check authority capabilities through an explicit authorized read |
+| Credentials | Explicit source supplied at open/preparation; no ambient discovery, import-time reads or credentials in diagnostics |
+| References | Distinct realm-qualified process/resource types; a reference never grants access or ownership |
+| Integers | Validated protocol counters through `2^53 - 1`; application u64 and correlations retain 64 bits |
+| Bytes | Python `bytes`, TypeScript copied `Uint8Array`, Rust owned bytes; hex is confined to raw/generated boundaries |
+| Mutation identity | Raw preparation takes an explicit principal sequence; the application coordinates a shared principal across handles |
+| Backpressure | One active operation per handle and one handler per runner; overlap rejects, with no unbounded SDK queue |
+| State growth | Point reads and bounded pages; no complete-resource load before dispatch and no implicit retention policy |
 
-## Equivalent application
+Local native support does not establish a running authority capability. Likewise,
+raw v3 support does not establish a growing Station adapter. The implemented
+[raw ABI](../packages/zig/transit-client/docs/bindings.md) already supports v3
+operations, capability probing and opaque retry. Station's foreign behavior ABI
+still uses v2. Public runners require the shared changes listed below.
 
-The example service maintains a typed counter in its associated resource. It
-accepts `Add(u64)` and `Read`, and replies with `Total(u64)`. This is an integer
-counter, not a monetary model. Overflow fails explicitly; no host may round or
-wrap a value. Application contract `counter`, version 1, owns the message tags
-and value codec. It must be checked through the same shared fixtures in each
-language, including values beyond JavaScript's exact-number range.
+## Types, codecs and input dispatch
 
-The requester first receives a typed `Start` input and uses correlation 1 exactly
-once during its process lifetime. Initialization and consuming `Start` commit
-with that call's waiting record and output intent. A
-later invocation runs under a fresh activation for that same durable process.
-Its initialized descriptor and waiting record prevent a second initial call;
-the recorded reply resumes through a later handler. A general application must
-allocate a fresh durable correlation for each new call, not reuse this example's
-single-call constant. Deadline policy is explicit at configuration time.
+Each SDK provides `ProcessRef`, `ResourceRef`, `Activation`, `Sequence`,
+`Correlation`, typed `Key<T>`, `Codec<T>`, receipt types and owned retry bytes.
+`Activation` names the PID, principal and generation obtained by authorized
+bootstrap; constructing one does not acquire ownership. Cross-realm destinations
+are rejected before staging under the current single-realm profile.
 
-Python and Rust can run blocking handler bodies on bounded native workers;
-TypeScript awaits its local port operations. A handler can use bounded
-local/native reads through its turn; it cannot await another process while
-holding an open private proposal. Outer runners keep runtime schedulers
-responsive and expose commitment separately from handler return.
+A `Codec<T>` has a stable application type/version, an encoded size bound, and
+strict encode/decode operations. The application contract specifies how those
+identifiers are represented in its bytes; setting a host-side version property
+alone cannot detect a mismatched payload. Do not invent a second generic Station
+envelope. Shared application fixtures must precede executable language codecs.
+Encoding validates host values too, including Python booleans masquerading as
+integers, unsafe JavaScript numbers and overflow. Reject unsupported versions,
+unknown tags, trailing/truncated data and oversize payloads before handler use.
 
-### Python
+The current `STN1` payload budget is 243 bytes; state values have a 256-byte
+budget. Application keys contain 1–32 bytes and cannot start with zero. These are
+operation/layout limits, not total collection limits. Use native capability
+metadata and generated constants; do not maintain divergent wrapper constants.
+The application codec may choose a smaller bound. `Key<T>` binds its bytes and
+codec once. `find` returns an optional `Found<T>` wrapper, keeping a missing key
+distinct from a present nullable value; `require` reports `MissingValue`.
 
-Proposed service and requester bodies:
+The current growing proposal has four mutation and four output slots, shared
+with descriptors, waits and other framework bookkeeping. Page reads return at
+most eight entries. Expose remaining per-turn budgets without implying that the
+application owns all slots or that total retained state has the same bound.
 
-```python
-class Counter:
-    def initialize(self, turn: Turn) -> None:
-        turn.state.put(TOTAL, 0, codec=U64)
+`Incoming<T>` distinguishes cast, call and authenticated reply, retaining input
+position and origin separately from decoded application data. A message tag
+called `reply` cannot manufacture a framework reply. Native Station validates
+the recorded wait and peer before dispatch; duplicate/closed replies follow its
+disposition rules without invoking the handler again. Application code may add
+its own expected-peer/correlation check. Timeout, cancellation and query control
+frames use shared framework dispatch, not the application message codec.
 
-    def handle(self, turn: Turn, message: Add | Read) -> None:
-        if isinstance(message, Add):
-            value = U64.checked_add(turn.state.get(TOTAL, codec=U64), message.value)
-            turn.state.put(TOTAL, value, codec=U64)
-        else:
-            turn.reply(Total(turn.state.get(TOTAL, codec=U64)), codec=TOTAL_MESSAGE)
+## Equivalent application and durable calls
 
+All three designs use the same counter application: `Add(u64)`, `Read`,
+`Total(u64)` and requester `Start`, under the proposed application contract
+`counter`, version 1. `TOTAL`, `REQUEST` and `OBSERVED` are typed u64 keys.
+Counter initialization writes zero; addition checks overflow; a call carrying
+`Read` replies with the current total. The requester handles `Start`, stages a
+call, and stores its returned correlation in the same turn. A later authenticated
+`Total` reply writes `OBSERVED`. A second `Start` is an explicit application error
+for this single-request example. It must not silently issue another call.
 
-class Requester:
-    def initialize(self, turn: Turn) -> None:
-        turn.call(counter_ref, Read(), correlation=1, codec=COUNTER_MESSAGE)
+The correlation is **derived by Station from the consumed input position**, as
+specified by [Station v1](../contracts/STATION_V1.md#messages-and-origins) and
+shared by the [growing turn](../packages/zig/transit-station/docs/growing.md).
+`turn.call` returns it; no public convenience parameter selects a replacement
+correlation. There is one call per input. Call identity includes the calling
+process and correlation; the durable wait records the destination. The original
+constant-correlation sketches are superseded by these designs.
 
-    def handle(self, turn: Turn, message: Start | Reply[Total]) -> None:
-        if isinstance(message, Start):
-            return
-        turn.require_reply(message, peer=counter_ref, correlation=1)
-        turn.state.put(OBSERVED, message.value.value, codec=U64)
+Returning from `call`, or awaiting its local port request, only stages the wait
+and output. It returns no remote future. After commitment, lose every handler
+object and host, obtain fresh ownership, and resume the reply through a later
+input. Initialization runs only while the committed descriptor is absent;
+initialization and the first successful input share one proposal.
 
+Call options explicitly select untimed waiting or an absolute deadline and timer
+observer. Untimed calls require compatible unlimited lifetimes; native validation
+rejects waits beyond process/resource bounds. The examples assume unlimited
+lifetimes and select untimed waits. `cancel_call(correlation)` stages the native
+wait closure and advisory peer message in a new turn. It does not cancel external
+effects or retract accepted work. Waiting evidence remains retained by default.
 
-async with Runner.open(config, handler=Counter(), codec=COUNTER_MESSAGE,
-                       failure_policy=FailurePolicy.BLOCK_INPUT) as runner:
-    async for outcome in runner.run(stop=stop_signal):
-        if isinstance(outcome, Committed):
-            record_committed_position(outcome.receipt.position)
-```
+## Raw operations and exact recovery
 
-The synchronous runner has an ordinary context manager and iterator. Async
-operations use a bounded owned worker; cancellation abandons the local await
-while close joins native work. A returned `Turn` is invalid outside its handler.
-The requester codec accepts `Start` and `Total`; the runner exposes an
-authenticated reply as `Reply[Total]`, preserving its origin and correlation.
+The first typed raw slice provides capability/process reads, `prepare_send`,
+`recover_send`, and one-attempt dispatch. `PendingSend` owns the immutable native
+operation, exposes read-only identity and exports opaque bytes. Preparation
+validates/signs without submission; recovery validates that the frozen operation
+is a supported send before assigning this type. Recovered sends need no signing
+seed. A general `RecoveredMutation` is also needed for runner control/turn
+requests; it must preserve their kind rather than masquerading as a send.
 
-### TypeScript
+Other typed commands and paged reads follow the same boundary. Administrative
+commands belong to an explicitly selected administrative surface. A runner does
+not receive wider credentials just because its implementation shares a library.
+Raw Transit can send arbitrary bytes; Station's cast encoder calls the shared
+frame codec before passing bytes to that independent client.
 
-```typescript
-class Counter implements Handler<CounterMessage> {
-  async initialize(turn: Turn): Promise<void> {
-    await turn.state.put(TOTAL, 0n, u64);
-  }
-  async handle(turn: Turn, message: CounterMessage): Promise<void> {
-    switch (message.kind) {
-      case "add": {
-        const total = await turn.state.get(TOTAL, u64);
-        await turn.state.put(TOTAL, u64.checkedAdd(total, message.value), u64);
-        break;
-      }
-      case "read":
-        await turn.reply({ kind: "total", value: await turn.state.get(TOTAL, u64) }, totalCodec);
-    }
-  }
-}
-
-class Requester implements Handler<Start | Reply<Total>> {
-  async initialize(turn: Turn): Promise<void> {
-    await turn.call(counterRef, { kind: "read" }, { correlation: 1n, codec: counterCodec });
-  }
-  async handle(turn: Turn, reply: Start | Reply<Total>): Promise<void> {
-    if (reply.kind === "start") return;
-    turn.requireReply(reply, { peer: counterRef, correlation: 1n });
-    await turn.state.put(OBSERVED, reply.value.value, u64);
-  }
-}
-
-const runner = await Runner.open(config, new Counter(), counterCodec, { failure: "block-input" });
-try {
-  for await (const outcome of runner.run({ signal: stopSignal })) {
-    if (outcome.kind === "committed") recordCommittedPosition(outcome.receipt.position);
-  }
-} finally {
-  await runner.close();
-}
-```
-
-All full-width application values and correlations are `bigint`. Runtime codecs
-reject malformed values even when TypeScript types were bypassed. Awaiting
-`turn.call` stages the private intent through the local port; it does not await
-admission or a remote reply. The runner awaits one handler before freezing its
-proposal and invalidates the turn when that scope ends. Concurrent operations on
-the same turn reject; no helper loads the complete resource or extends its view.
-
-### Rust
-
-```rust
-impl Handler<CounterMessage> for Counter {
-    fn initialize(&mut self, turn: &mut Turn<'_>) -> Result<()> {
-        turn.state().put(TOTAL, &0_u64, &U64)
-    }
-    fn handle(&mut self, turn: &mut Turn<'_>, message: CounterMessage) -> Result<()> {
-        match message {
-            CounterMessage::Add(value) => {
-                let total = turn.state().get(TOTAL, &U64)?;
-                let updated = total.checked_add(value).ok_or(Error::ValueOverflow)?;
-                turn.state().put(TOTAL, &updated, &U64)
-            }
-            CounterMessage::Read => {
-                let total = turn.state().get(TOTAL, &U64)?;
-                turn.reply(&Total(total), &TOTAL_CODEC)
-            }
-        }
-    }
-}
-
-impl Handler<RequesterMessage> for Requester {
-    fn initialize(&mut self, turn: &mut Turn<'_>) -> Result<()> {
-        turn.call(self.counter, &CounterMessage::Read, Correlation::new(1), &COUNTER_CODEC)
-    }
-    fn handle(&mut self, turn: &mut Turn<'_>, message: RequesterMessage) -> Result<()> {
-        let RequesterMessage::TotalReply(reply) = message else { return Ok(()); };
-        turn.require_reply(&reply, self.counter, Correlation::new(1))?;
-        turn.state().put(OBSERVED, &reply.value.0, &U64)
-    }
-}
-
-let mut runner = Runner::open(config, Counter, COUNTER_CODEC, FailurePolicy::BlockInput)?;
-while let Some(outcome) = runner.next(&stop)? {
-    if let Outcome::Committed(receipt) = outcome {
-        record_committed_position(receipt.position);
-    }
-}
-```
-
-The scoped borrow prevents turn escape. Runtime workers still enforce one
-operation at a time and the generated native stack budget. The initial blocking
-runner can execute on one owned worker; an optional executor integration must
-retain that bound and join it during disposal.
-
-## Unknown outcomes and recovery
-
-Raw clients expose preparation separately from one dispatch. Equivalent usage
-in all languages is: prepare a typed operation, persist its opaque export when
-restart recovery is required, dispatch once, then handle a receipt, definite
-rejection or uncertainty. Retrying imports the original bytes; it never allocates
-a replacement sequence or reconstructs signed JSON from a public model.
-
-| Observation | Required application behavior |
+| Observation | Meaning and next action |
 | --- | --- |
-| Admission receipt | Input is accepted; this does not establish handler commitment or reply completion |
-| Handler returned | Private proposal exists; the runner must still freeze and reconcile its result |
-| Confirmed turn receipt | State, input progress and outputs committed under one authority decision |
-| Unknown mutation outcome | Preserve the same operation and stop dispatching new handlers until reconciled |
-| Lost retry material | Obtain fresh fenced ownership and inspect committed state before recomputing |
-| Local task cancellation | Join owned native work; no inferred rejection, durable cancellation or acknowledgement |
-| Decode/handler failure | Discard private work, then follow the configured explicit stop or block-input policy |
-| Read failure | Poison/discard that proposal; do not turn incomplete state into a committed application-failure marker |
-| Host loss after a call | Recover the recorded wait/reply under fresh ownership; do not recreate an in-memory future as durable state |
+| `AdmissionReceipt` | A send was admitted; no claim of processing or reply completion |
+| `Committed` runner event | This input's state, progress and outputs have a confirmed turn receipt |
+| Authenticated reply input | Recorded peer replied; its consumption still needs a turn commit |
+| Unknown mutation outcome | Keep exact operation bytes and stop issuing replacement work |
+| Definite rejection of an attempt | Preserve exact authority code; after earlier uncertainty, rejection does not prove the earlier attempt was never accepted |
+| Failed read | No mutation receipt; invalidate dependent private work without inventing a durable handler-failure marker |
+| Lost retry material | Fresh fenced ownership and committed-state reconciliation before recomputation |
 
-The runner needs an explicit pre-dispatch persistence hook for frozen mutations
-when local exact-retry recovery is selected. It may not send first and only then
-offer the caller a recoverable operation. An exception in that hook leaves the
-proposal unsent. A persistence hook is application-owned storage, not a second
-execution authority or an SDK background queue.
+For restart recovery: prepare, durably save the opaque export, then dispatch
+once. On uncertainty keep that entry. In a fresh host, import it and dispatch the
+same identity. Never rebuild signed JSON or allocate a new sequence to retry.
+Record a confirmed receipt before retiring the saved entry. Exports contain no
+signing seed but may contain payloads and need application data protections.
+They prove neither acceptance nor current authorization.
 
-## Review and qualification work
+Errors preserve phase, native status and exact authority code. Language mappings
+must distinguish unsupported capability/version, invalid input, busy/closed
+handles, authority rejection, stale ownership, retired process, unavailable
+history, failed reads and uncertain mutations. Allocation/decoding failure after
+possible acceptance remains uncertain. A rejection on a later revoked retry
+cannot clear an earlier unknown outcome. No generic `retryable` flag authorizes
+replacement operations.
 
-The sketches require explicit async turn methods for Node's local port and a
-native boundary that surfaces frozen work to a persistence hook before dispatch.
-Qualify those decisions in executable examples,
-then check the same service/requester and failure scenarios through Python,
-TypeScript and Rust before adapting the other target languages.
+## Runner lifecycle and persistence
 
-Initial proof obligations are explicit profile rejection, full-width IDs,
-canonical retry export/import, no fallback routes, rejected malformed ingress,
-uncertainty after accepted-response loss and allocation failure, and current
-revocation on retry. Later runner proofs add sequential dispatch, turn escape,
-durable continuation, failed persistence hooks, cancellation and clean installs.
-The [shared scenario catalog](../tests/verification/sdk.json) remains the common
-failure vocabulary. Passing low-level proofs alone does not qualify these public
-SDK examples, optional Arrow adapters or package installation.
+`RunnerConfig` explicitly supplies the client/native configuration, activation,
+association name, read-view deadline policy, finite transport deadline, idle poll
+interval, and optional query context. Required options select a failure policy
+and recovery mode; there is no implicit default that acknowledges bad input.
+
+The shared machine drives bounded reads, native framework preprocessing, optional
+initialization, one handler, proposal freeze and confirmed publication. Private
+state helpers, retained-source handles and Table handles expire when their turn
+ends. A handler cannot call `commit`, sign requests or extend a captured view.
+Concurrent turn operations reject. Saved handler fields and tasks are temporary.
+
+| Policy | Behavior |
+| --- | --- |
+| `Stop` | On decode/handler failure discard private work and stop; leave the input unconsumed without a failure marker |
+| `BlockInput` | Discard private work, then freeze only the native failure proposal; report `Blocked` only after its receipt is confirmed |
+| Read failure under either policy | Poison/discard the proposal and stop with the read error; never commit an application-failure marker from incomplete evidence |
+| `PersistBeforeDispatch(store)` | Call the application store with exact frozen bytes before every mutation attempt can first be sent |
+| `FenceOnRestart` | Keep exact bytes locally while alive; loss of the host requires fresh ownership and reconciliation |
+
+The persistence gate covers permits, opening/closing views, handler commits,
+failure proposals and internal framework/query turns. The callback runs outside
+native locks with no opportunity for reentrant runner operations. It must finish
+successfully before dispatch, and receives owned bytes plus native-validated
+identity/purpose. A callback failure leaves the operation unsent and pauses the
+runner. There is one unresolved mutation per runner; the store is application
+storage, not another execution authority or a queue of runnable handlers.
+
+After a confirmed receipt the store's confirmation callback may durably record
+it and retire pending material. If that callback fails, stop and surface both
+receipt and recovery material; do not turn a known commit into a rejection or
+rerun its handler. Keeping a confirmed operation for exact receipt recovery is
+safe. Recovery-store durability and protecting its contents are application
+responsibilities, not implied by an in-memory callback returning successfully.
+
+`run`/`next` exposes `Committed`, `Blocked` or `NeedsRecovery`. The last event
+ends that run and retains the pending operation; no new handler follows it.
+An explicit `reconcile` makes one attempt against those bytes. Native state
+decides whether the runner can resume; a lost native host requires recovery of
+saved mutations followed by fresh ownership, not reconstruction of private
+turn pointers. I/O errors and store failures retain structured phase/evidence.
+
+Local stop stops new dispatch. If observed before freeze, discard the active
+private proposal. Once frozen, preserve it; once sent, reconcile or expose its
+uncertainty. Close joins owned I/O and does not implicitly finish a handler or
+acknowledge an input. Native deadlines bound I/O, not arbitrary user code: a
+handler that never returns can prevent graceful shutdown. Document cooperative
+handler requirements; killing a bridge/worker invokes the host-loss contract.
+No timeout, future cancellation or destructor establishes remote cancellation.
+
+Close/disposal is idempotent, and later use reports `Closed`. Release paths for
+operations whose port has already exited must still release local ownership;
+they cannot overwrite a dispatch uncertainty with a secondary cleanup error.
+
+## Bounded state, Tables and Arrow
+
+`state.page` and `table.page` return owned bounded pages and explicit cursors.
+Only an absent cursor establishes completion; an empty page may still continue.
+Turn-view scans exclude private mutations and stay on the same captured source.
+They cannot silently renew an expired view or switch revisions. A typed Table
+uses the shared schema/key codec and single-resource commit boundary.
+
+`retain`, `open_version` and `release` stage or read through shared native rules.
+Only the retained ID and an exported matching cursor may cross handlers; reopen
+the source in each new turn. Persist application progress and a continuation
+with the same commit. Do not serialize a host iterator or borrowed pointer.
+
+Query integration is explicit. A verified `CompletedResult` carries peer/call
+identity, source revisions, schema and complete-manifest evidence. Reading one
+segment returns owned original IPC bytes and ordinal/digest metadata, under
+current authorization. A segment is not the whole result, and separate IPC
+streams cannot simply be concatenated. Expose bounded segment access rather
+than a mandatory whole-result allocation. Reopening a durable result reference
+revalidates access; local disposal neither acknowledges it nor releases sources.
+Manifest metadata and returned bytes are owned; the reader itself remains scoped
+to the authorized turn/source and must be reopened for later segment reads.
+
+Optional PyArrow, JavaScript Arrow and Rust Arrow adapters are separate extras or
+features. Their versions, integer precision, copy/borrow rules and release paths
+need qualification before support is claimed. Core APIs expose IPC without them.
+General query ingress and a production query host remain M13 scope.
+
+## Implementation handoff and qualification
+
+| Shared prerequisite | Required implementation/proof before public release |
+| --- | --- |
+| Growing Station ABI | Explicit profile, full-width identities, bounded point/page reads, scoped turn handles and capability rejection |
+| Dispatch gate | Split prepare from every native mutation dispatch, including internal preprocessing; prove failed persistence means zero submissions |
+| Abort without failure | Native discard operation for `Stop`/cancel, separate from `finish(failure)`; retain earlier unresolved control operations |
+| Typed operation metadata | Native-validated kind/identity on import and owned structured receipts; host code never decodes opaque retry bytes |
+| Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
+| Application codecs | One versioned counter definition/fixtures before host implementations; strict, bounded validation in all three languages |
+| Growing data adapters | Page/source/cursor validation and opt-in complete-result manifests/segments through the same native implementation |
+
+The public declarations should first compile/type-check against real packages;
+then run the same service/requester against a disk-backed authority. Cover wide
+integers, missing versus nullable values, malformed messages, duplicate `Start`,
+overflow, initialization and fresh-worker reply recovery. Extend the existing
+[shared scenario catalog](../tests/verification/sdk.json), reusing its admission,
+uncertainty, revocation, same-principal, cancellation and post-commit-allocation
+obligations rather than creating competing language catalogs.
+
+Add runner-specific failures: turn escape/overlap, failures at every persistence
+gate, confirmation-store failure after acceptance, read poisoning, cooperative
+shutdown and abrupt host loss. Finally install built artifacts and their explicit
+native dependencies into clean consumers outside the repository. Until these
+checks run, the designs do not qualify public SDKs, Arrow adapters or packaging.

@@ -5,6 +5,9 @@ An owned-handle `ctypes` adapter over the shared Zig libraries. It exposes raw
 Importing it opens no libraries, connections or credentials. Supply library
 paths and credentials explicitly during construction.
 
+The [M11 Python SDK design](../../../docs/sdk/PYTHON.md) proposes typed clients,
+handlers and runners above this adapter; those APIs are not implemented yet.
+
 The current qualification baseline is Nix-pinned CPython 3.13 on Linux x86_64.
 No Python runtime dependencies are needed. PyArrow is an independent test/example
 consumer; it is not needed to execute a Station handler or retrieve IPC bytes.

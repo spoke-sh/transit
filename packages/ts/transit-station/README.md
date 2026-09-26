@@ -7,6 +7,9 @@ The Node 24 baseline executes the TypeScript directly; Vite+ owns checks and
 dependency installation. This is a server-side execution client, separate from
 Board's browser inspection SDK.
 
+The [M11 TypeScript SDK design](../../../docs/sdk/TYPESCRIPT.md) proposes typed
+clients, handlers and runners above this adapter; those APIs are not implemented yet.
+
 ```sh
 just transit-board::install
 zig build transit-station-host
