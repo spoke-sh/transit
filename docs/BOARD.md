@@ -155,6 +155,22 @@ authorized resource cut. It omits routing fields, secret references, heads and
 bodies. Partial captures have no terminal summary; retired captures reject. This
 view does not claim to replay or verify the entire application transcript.
 
+## Proposed administration and data experience
+
+The [Board console design item](design/board-console/README.md) begins the first
+whole-product formalization beyond the atlas studies. Its
+[D1 proposal](design/board-console/D1.md) brings transport, connector and integration
+configuration/operations together with first-class Table, Document and KV
+exploration, visualization and querying. It carries forward the atlas's shared
+Canvas/Browse state and evidence rules, with a long-range capability inventory.
+
+This is an unaccepted design proposal. Attributable administration, versioned
+configuration changes, future protocol families and richer data workspaces are
+not implemented by this review. M2 inspection and M13's separately credentialed
+Table query profile retain their current access boundaries. Existing M15–M19
+handoffs and the new implementation scope required before enabling controls are
+identified in D1; review acceptance does not complete or expand those milestones.
+
 ## Boundary and packaging
 
 ```mermaid

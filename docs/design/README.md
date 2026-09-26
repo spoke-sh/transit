@@ -7,6 +7,7 @@ and links to supporting material. This index lists design items.
 | Design item | Focus |
 | --- | --- |
 | [board-atlas](board-atlas/README.md) | Board browser, relief atlas and resource workspace |
+| [board-console](board-console/README.md) | Board product formalization: transport, connector and integration administration alongside Table, Document and KV exploration |
 
 ## Maintaining the sequence
 
