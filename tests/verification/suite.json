@@ -43,6 +43,7 @@
       "bindings::python-test",
       "bindings::node-sdk-test",
       "bindings::rust-sdk-test",
+      "bindings::ruby-sdk-test",
       "test::model",
       "test::model-delivery"
     ],

@@ -80,3 +80,17 @@ rust-sdk-test: rust-build
     zig build transit-node rey-cli
     python3 -B tests/rust_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust
     python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust
+
+# Build independent Ruby gems; native executables remain separate dependencies.
+ruby-build: build
+    python3 -B bindings/build_ruby.py .cache/bindings/ruby
+
+# Syntax checks and installed public Ruby client/authority schedules.
+ruby-sdk-test: ruby-build
+    ruby -c packages/ruby/transit-client/lib/transit/client.rb
+    ruby -c packages/ruby/transit-client/lib/transit/client/values.rb
+    ruby -c packages/ruby/transit-client/lib/transit/client/worker.rb
+    ruby -c packages/ruby/transit-client/lib/transit/client/port.rb
+    ruby -c packages/ruby/transit-client/lib/transit/client/operations.rb
+    zig build transit-node rey-cli
+    python3 -B tests/ruby_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby

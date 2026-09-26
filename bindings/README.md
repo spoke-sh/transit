@@ -77,6 +77,12 @@ compile-fail checks enforce exclusive use and consumed-handle disposal. The
 the shared handler/recovery/Table/query schedule, with borrowed turn helpers,
 stop/block panic policies and optional Arrow Rust ownership checks.
 
+The [Ruby raw client](../packages/ruby/transit-client/README.md) installs independent
+client/native gems and shares the raw authority schedule. `just bindings::ruby-sdk-test`
+qualifies caller-thread interruption with owned native work, responsive close,
+malformed port responses and exact seedless recovery. Ruby's Station SDK remains
+in progress; Ruby was not an M9 binding target.
+
 ## Qualification tools
 
 `nix develop .#bindings` adds the locked foreign-language tools to the normal
@@ -88,6 +94,7 @@ shell. The current Linux x86_64 baselines are:
 | --- | --- |
 | Zig / C / C++ | 0.17.0-dev.2267+48abf1a34 |
 | Python | CPython 3.13.15; PyArrow 23.0.0 for independent IPC checks |
+| Ruby (M11 raw client) | 3.4.9; JSON 2.9.1, tmpdir 0.3.1, URI 1.0.4 |
 | Rust / Cargo | 1.95.0; optional Arrow array/IPC 59.1.0 with locked 59.x components |
 | Node.js | 24.21.0 from the existing frontend toolchain |
 | Java | OpenJDK 21.0.12.1+1; Gson 2.12.1, separately checksummed |
@@ -96,6 +103,7 @@ shell. The current Linux x86_64 baselines are:
 | Elixir | 1.18.5 built against OTP 28 |
 
 The Nix lock and [binding tools](../nix/bindings-tools.nix) own these versions.
-Every listed language runs both service and requester roles in the Linux matrix.
+Every M9 language runs both service and requester roles in the Linux matrix.
+Ruby currently has independent raw-client evidence only.
 Only Zig is the intended M9 reference worker; these checks do not qualify foreign
 runtimes as Substrate workers.

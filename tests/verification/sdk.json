@@ -6,8 +6,8 @@
       "id": "blocking-owner-disposal",
       "steps": ["Move a blocking client into an owned controller task", "Abandon the controller's receive while accepted native work remains in flight", "Join owned work and explicit close while keeping the controller responsive", "Recover the same receipt from a fresh client"],
       "expected": {"controller_wait_abandoned": true, "responsive_during_join": true, "owned_work_joined": true, "receipt_recovered": true},
-      "proofs": [{"task": "bindings::rust-sdk-test", "source": "tests/rust_client_sdk.rs", "anchor": "blocking-owner-disposal"}],
-      "limits": "Rust's initial public API is blocking. This qualifies ownership when an application's controller abandons a receive; it does not claim an executor adapter or interrupt native work. Compile-fail cases separately qualify exclusive access and consumed-handle rejection."
+      "proofs": [{"task": "bindings::rust-sdk-test", "source": "tests/rust_client_sdk.rs", "anchor": "blocking-owner-disposal"}, {"task": "bindings::ruby-sdk-test", "source": "tests/ruby_client_sdk.rb", "anchor": "blocking-owner-disposal"}],
+      "limits": "Rust and Ruby initial public APIs are blocking. Rust abandons an application's receive; Ruby kills its caller thread. Native work remains owned through close. Neither claims an executor adapter or interruption of native work. Rust compile-fail cases separately qualify exclusive access and consumed-handle rejection; Ruby rejects concurrent work at runtime."
     },
     {
       "id": "public-runner-lifecycle",
@@ -44,9 +44,14 @@
           "task": "bindings::node-sdk-test",
           "source": "tests/sdk_station_runner.py",
           "anchor": "check('public-runner-lifecycle'"
+        },
+        {
+          "task": "bindings::rust-sdk-test",
+          "source": "tests/sdk_station_runner.py",
+          "anchor": "check('public-runner-lifecycle'"
         }
       ],
-      "limits": "Python 3.13 wheels and Node 24 tarballs on Linux with Nix-linked native artifacts; one owned worker/port, serial handlers, bounded native I/O and query workspace. Python injects allocation loss at its real C response wrapper; Node separately injects a retained confirmation in the runner unit proof and loss at its real raw port response parser. Optional PyArrow 23 and Arrow JavaScript 21.2 consume owned segments separately. Other languages and public mixed-language pairs remain open."
+      "limits": "Python 3.13 wheels Node 24 tarballs and Rust 1.95 crates on Linux with Nix-linked native artifacts; one owned worker/port, serial handlers, bounded native I/O and query workspace. Python injects allocation loss at its real C response wrapper; Node separately injects a retained confirmation in the runner unit proof and loss at its real raw port response parser. Rust checks borrowed scopes, panics under both policies and stop/join. Optional PyArrow 23, Arrow JavaScript 21.2 and Arrow Rust 59 consume owned segments separately. Other languages and public mixed-language pairs remain open."
     },
     {
       "id": "growing-query-abi",

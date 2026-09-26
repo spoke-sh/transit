@@ -7,7 +7,8 @@ clean wheel installation and focused lifecycle/data proofs. The
 packages, executable examples, clean tarballs and lifecycle/data proofs.
 The [Rust](sdk/RUST.md) raw/Station APIs are implemented with clean crate
 consumers, borrowed turns, panic/recovery and optional Arrow ownership proofs.
-Ruby, C/C++, Java, .NET and BEAM adaptations remain to be implemented.
+Ruby's independent raw client now has clean gem and recovery/ownership proofs;
+its Station API and the C/C++, Java, .NET and BEAM adaptations remain open.
 [M11](roadmap/M11.md) owns delivery, including public interoperability. The
 [M9 adapters](../bindings/README.md) remain executable low-level interfaces.
 

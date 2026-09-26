@@ -125,6 +125,17 @@ Rust does not inject an allocator failure into its own FFI wrapper; native retai
 confirmation behavior is also covered by the shared ABI/Python proof. Public
 mixed-language pairs and the remaining M11 adaptations are still open.
 
+`nix develop .#bindings --command just bindings::ruby-sdk-test` builds and installs
+separate Ruby 3.4.9 client/native gems outside the checkout. Its raw schedule
+qualifies owned binary strings, full principal bounds, native canonical kind
+classification, lost receipts, seedless recovery and revoked historical retries.
+Killing the controller thread during an accepted send leaves native work owned;
+concurrent work rejects, close joins responsively and retains the known receipt.
+Missing/incompatible host overrides and oversized, invalid-UTF-8, malformed-status
+and truncated port replies fail with read/uncertainty distinctions. The client
+has no Station dependency. Ruby Station and public mixed-language pairs remain
+open; the bindings CI lane now includes this public raw proof.
+
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 
