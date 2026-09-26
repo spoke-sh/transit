@@ -138,6 +138,16 @@ module Transit
         table(schema)
       end
       def retain = Value.version(apply_native({ 'retain' => {} }).fetch('version'))
+      def stage_http(request)
+        http_request!(request)
+        apply_native({ 'http_stage' => { 'reference' => request.reference.unpack1('H*'),
+          'metadata' => request.metadata.unpack1('H*'), 'body' => request.body.unpack1('H*') } }).fetch('staged')
+      end
+      def call_http(peer, request)
+        pid = peer_id(peer)
+        http_request!(request)
+        Value.wide(apply_native({ 'http_call' => { 'pid' => pid, 'reference' => request.reference.unpack1('H*') } }).fetch('correlation'), min: 1)
+      end
       def open_version(identity)
         check!
         Value.version_wire(identity)
@@ -148,6 +158,11 @@ module Transit
         nil
       end
       private
+      def http_request!(request)
+        check!
+        raise ArgumentError, 'HTTP publication must use the current resource' unless request.is_a?(PreparedHttpRequest) && request.resource == resource
+        raise UnsupportedCapability, 'Native HTTP requests unavailable' unless caps['http_requests']
+      end
       attr_reader :scope, :poison
       def end_scope! = @active = false
       def caps = @bridge.caps

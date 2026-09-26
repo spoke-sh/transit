@@ -8,6 +8,8 @@ Read the [usage and recovery guide](docs/USAGE.md) and installed
 [counter/query examples](../../../examples/station-sdk/ruby/README.md). The public
 API uses value objects, `Integer`, binary `String` and named exceptions. Turn
 helpers belong to one callback thread/fiber and expire when that callback ends.
+The [HTTP guide](docs/HTTP.md) covers experimental request values, bounded upload
+turns, correlated outcomes and owned capture replay through the same worker.
 
 ```sh
 nix develop .#bindings

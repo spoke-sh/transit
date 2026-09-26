@@ -94,6 +94,11 @@ took **61.75 seconds** locally, including clean Rust/Arrow compilation. A compil
 rejection case proves a live HTTP reader's mutable borrow prevents another runner
 operation; a delayed read finishes before the owned blocking task is joined.
 The ordinary client/runner/Arrow regressions also passed.
+`just bindings::ruby-sdk-test` also passes the shared HTTP schedule through clean
+gems, with frozen owned strings, schema-validated port results and an interrupted
+controller wait whose native read is joined during runner disposal. Its local
+HTTP schedule took **31.15 seconds** including gem installation. The existing
+Ruby client and Station recovery/query schedule remained passing.
 
 The 2026-09-26 Linux x86_64 worker run took **242.31 seconds**, excluding compilation.
 This is local proof time, not a hosted CI or aggregate runner-minute measurement.

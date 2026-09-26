@@ -154,10 +154,143 @@ class Store
   end
 end
 
+class HttpBytes
+  def type_id = 'test.http-control'
+  def version = 1
+  def max_encoded_bytes = 243
+  def encode(value) = value.b.dup
+  def decode(value) = value.b.dup
+end
+class HttpHandler < S::Handler
+  attr_reader :result, :escaped
+  def initialize(peer, request)
+    @peer, @request = peer, request
+    @correlation = S::Key.new('http-correlation'.b, codec: E::U64)
+  end
+  def on_message(turn, input)
+    @escaped = turn
+    if input.is_a?(S::Cast)
+      if turn.state.find(@correlation)
+        @result = { called: true }
+      elsif turn.stage_http(@request)
+        correlation = turn.call_http(@peer, @request)
+        turn.state.put(@correlation, correlation)
+        @result = { called: true }
+      else @result = { called: false }
+      end
+    else
+      check input.is_a?(S::Reply) && input.value.is_a?(S::HttpOutcome)
+      turn.require_reply(input, peer: @peer, correlation: turn.state.require(@correlation))
+      check input.value.phase == :observed && input.value.status == 200
+      turn.state.put(S::Key.new('http-status'.b, codec: E::U64), 200)
+      @result = { observed: true }
+    end
+  end
+end
+def http_consumer(mode, cfg)
+  body = [cfg.fetch('body')].pack('H*')
+  request = S.prepare_http(ResourceRef.new(realm: 72, resource: cfg.fetch('resource')), (1 << 64) - 1,
+    S::HttpRequest.new(method: :post, target: [S::HttpLiteral.new(value: '/items/'), S::HttpVariable.new(name: 'id', value: 'λ /')], headers: [
+      S::HttpHeader.new(name: 'X-Tag', value: [S::HttpLiteral.new(value: 'one')]),
+      S::HttpHeader.new(name: 'X-Tag', value: [S::HttpLiteral.new(value: 'two')]),
+      S::HttpHeader.new(name: 'Authorization', value: [S::HttpLiteral.new(value: 'Bearer '), S::HttpSecretRef.new(binding: 'api', version: 7)])]),
+    body: body, endpoint_revision: 7, reconcile_before_ms: cfg.fetch('deadline'))
+  body.replace('changed')
+  check request.body.frozen? && request.metadata.frozen? && request.reference.frozen? && request.body.bytesize == 513
+  config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3),
+    activation: S::Activation.new(process: ProcessRef.new(realm: 72, pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
+      credential: Credential.new(realm: 72, principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))
+  handler = HttpHandler.new(ProcessRef.new(realm: 72, pid: cfg.fetch('peer')), request)
+  owned = ''.b
+  S::Runner.open(config, handler: handler, codec: S::HttpReplyCodec.new(HttpBytes.new, realm: 72), failure: :stop, recovery: :fence_on_restart) do |runner|
+    if mode == 'http-async'
+      outcome = S.decode_http_reply(72, [cfg.fetch('outcome')].pack('H*'))
+      reader = runner.open_http(outcome)
+      first = reader.read
+      check !first.data.empty? && !first.complete
+      File.write(cfg.fetch('ready'), '')
+      wait_file(cfg.fetch('continue'))
+      interrupted = false
+      controller = Thread.new do
+        begin
+          reader.read
+        rescue InjectedException
+          interrupted = true
+        end
+      end
+      controller.report_on_exception = false
+      wait_file(cfg.fetch('accepted'))
+      expect(Busy) { reader.read }
+      controller.raise(InjectedException)
+      controller.join
+      check interrupted
+      runner.stop
+      closing = Thread.new { runner.close }
+      beats = 0
+      until closing.join(0.01)
+        beats += 1
+      end
+      closing.value
+      check beats > 5 && !first.data.empty?
+      expect(Closed) { reader.read }
+      report(joined: true)
+      return
+    end
+    reader = outcome = nil
+    STDIN.each_line do |line|
+      case line.strip
+      when 'step'
+        committed = false
+        32.times do
+          if runner.next.is_a?(S::Committed)
+            committed = true
+            break
+          end
+        end
+        check committed
+        expect(TurnExpired) { handler.escaped.stage_http(request) }
+        report(handler.result)
+      when 'open'
+        outcome = S.decode_http_reply(72, [cfg.fetch('outcome')].pack('H*'))
+        reader = runner.open_http(outcome)
+        expect(Busy) { runner.open_http(outcome) }
+        first = reader.read
+        check !first.data.empty? && !first.complete
+        report(prefix: true)
+      when 'denied'
+        expect(AccessDenied) { reader.read }
+        report(denied: true)
+      when 'reopen'
+        begin
+          reader.read
+          raise 'Failed reader resumed'
+        rescue ReadFailed => error
+          check error.code == 'HttpReplayFailed'
+        end
+        reader.close
+        reader.close
+        reader = runner.open_http(outcome)
+        while (part = reader.read)
+          owned << part.data if part.kind == :response_body
+        end
+        check reader.complete
+        reader.close
+        report(complete: true, body: owned.unpack1('H*'))
+      when 'close' then break
+      else raise 'Unexpected HTTP consumer command'
+      end
+    end
+  end
+  report(closed: true, owned: owned.unpack1('H*'))
+end
 mode, config_file = ARGV
 cfg = JSON.parse(File.binread(config_file))
 check Gem.loaded_specs.fetch('transit-station').full_gem_path.start_with?(File.dirname(config_file))
 check cfg.fetch('profile') == 'growing_v3'
+if mode.start_with?('http-')
+  http_consumer(mode, cfg)
+  exit
+end
 if mode == 'codecs'
   codecs = { 'counter' => E::CounterCodec.new, 'query' => E::QueryCodec.new, 'u64' => E::U64 }
   fixtures = JSON.parse(File.read(cfg.fetch('fixtures')))
@@ -177,6 +310,20 @@ if mode == 'codecs'
   [true, -1, 1 << 64, 1.0].each { |value| expect(ArgumentError) { E::U64.encode(value) } }
   value = E::Add.new(value: (1 << 53) + 1)
   check S.encode_cast(value, codec: E::COUNTER) == "STN1\x01".b + [0].pack('Q<') + E::COUNTER.encode(value)
+  fixture = JSON.parse(File.read(cfg.fetch('http_fixtures')))
+  request = S::HttpRequest.new(method: :post, target: [S::HttpLiteral.new(value: '/write')])
+  prepared = S.prepare_http(ResourceRef.new(realm: 72, resource: 8), (1 << 64) - 1, request,
+    body: [fixture.fetch('body')].pack('H*'), endpoint_revision: 7, reconcile_before_ms: 9000, max_attempts: 2)
+  check prepared.reference.unpack1('H*') == fixture.fetch('reference') && prepared.metadata == fixture.fetch('metadata')
+  outcome = S.decode_http_reply(72, [fixture.fetch('outcome')].pack('H*'))
+  check outcome.exchange == (1 << 64) - 1 && outcome.status == 200 && outcome.phase == :observed && outcome.reference
+  check S.decode_http_reply(72, [fixture.fetch('rejection')].pack('H*')).reason == :denied
+  codec = S::HttpReplyCodec.new(E::U64, realm: 72)
+  check codec.decode([fixture.fetch('outcome')].pack('H*')) == outcome
+  check codec.decode(codec.encode((1 << 64) - 1)) == (1 << 64) - 1
+  expect(Error) { S.decode_http_reply(72, [fixture.fetch('outcome')].pack('H*').byteslice(0, 70)) }
+  expect(Error) { S.prepare_http(ResourceRef.new(realm: 72, resource: 8), 1,
+    S::HttpRequest.new(method: :get, target: [S::HttpLiteral.new(value: '//other/')]), endpoint_revision: 1, reconcile_before_ms: 9000) }
   exit
 end
 if mode == 'recover'

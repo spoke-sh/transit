@@ -54,6 +54,14 @@ module Transit
       def apply(scope, action)
         port.request({ 'growing_apply' => { 'scope' => scope, 'action' => action } }, phase: :apply, response: 'GrowingResult')
       end
+      def http_codec(action)
+        raise UnsupportedCapability, 'Native HTTP requests unavailable' unless caps['http_requests']
+        port.request({ 'http_codec' => action }, phase: :http_codec, response: 'HttpCodecResult')
+      end
+      def http_read(action)
+        raise UnsupportedCapability, 'Native HTTP replay unavailable' unless caps['http_replay']
+        port.request({ 'growing_http_read' => action }, phase: :http_read, response: 'HttpReadResult')
+      end
       def finish(scope, failed)
         port.request({ 'growing_finish_result' => { 'scope' => scope, 'failed' => failed } }, phase: :finish)
       end

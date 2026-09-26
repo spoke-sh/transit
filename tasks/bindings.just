@@ -94,6 +94,7 @@ ruby-sdk-test: ruby-build
     ruby -c packages/ruby/transit-client/lib/transit/client/operations.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/values.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/bridge.rb
+    ruby -c packages/ruby/transit-station/lib/transit/station/http.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/turn.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/table.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/query.rb
@@ -103,7 +104,8 @@ ruby-sdk-test: ruby-build
     ruby -c examples/station-sdk/ruby/bin/transit-ruby-counter
     zig build transit-node rey-cli
     python3 -B tests/ruby_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby
-    python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby
+    zig build transit-station-http-worker
+    python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby zig-out/bin/transit-station-http-worker
 
 # Build independent C/C++ prefixes with standard pkg-config metadata.
 c-build: build
