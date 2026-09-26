@@ -16,7 +16,10 @@ for file in files:
     content = file.read_text()
     if not content.endswith("\n") or len(re.findall(r"^```", content, re.M)) % 2:
         errors.append(f"{file.relative_to(root)}: missing newline or unbalanced code fence")
-    for target in re.findall(r"(?<!!)\[[^\]]*\]\(([^)]+)\)", content):
+    # Fenced examples can contain syntax such as Python's Codec[T](Protocol),
+    # which resembles a Markdown link but is literal code.
+    prose = re.sub(r"^```[^\n]*\n.*?^```[ \t]*$", "", content, flags=re.M | re.S)
+    for target in re.findall(r"(?<!!)\[[^\]]*\]\(([^)]+)\)", prose):
         if re.match(r"^[a-z][a-z0-9+.-]*:", target):
             continue
         path, _, anchor = target.partition("#")
