@@ -14,6 +14,8 @@ typedef struct transit_station_page transit_station_page;
 typedef struct transit_station_table transit_station_table;
 typedef struct transit_station_row transit_station_row;
 typedef struct transit_station_segment transit_station_segment;
+typedef struct transit_station_http_request transit_station_http_request;
+typedef struct transit_station_http_reader transit_station_http_reader;
 
 /* Codec callbacks construct/destroy one max_align_t-aligned application object.
  * On decode failure the callback must leave no constructed object or allocation.
@@ -202,6 +204,66 @@ transit_sdk_error transit_station_result_segment(transit_station_turn *turn, uin
 transit_sdk_error transit_station_segment_inspect(const transit_station_segment *segment, transit_station_segment_info *out);
 transit_sdk_error transit_station_segment_ipc(const transit_station_segment *segment, transit_sdk_buffer *out);
 void transit_station_segment_destroy(transit_station_segment *segment);
+
+/* HTTP inputs are borrowed through preparation; the prepared request owns its
+ * reference/metadata/body. Secret values never enter these structures. */
+typedef enum transit_station_http_method { TRANSIT_HTTP_GET, TRANSIT_HTTP_HEAD, TRANSIT_HTTP_POST, TRANSIT_HTTP_PUT, TRANSIT_HTTP_PATCH, TRANSIT_HTTP_DELETE, TRANSIT_HTTP_OPTIONS } transit_station_http_method;
+typedef enum transit_station_http_piece_kind { TRANSIT_HTTP_LITERAL, TRANSIT_HTTP_VARIABLE, TRANSIT_HTTP_SECRET } transit_station_http_piece_kind;
+typedef struct transit_station_http_piece {
+    transit_station_http_piece_kind kind;
+    transit_sdk_bytes name, value;
+    uint64_t version;
+} transit_station_http_piece;
+typedef struct transit_station_http_header { const char *name; const transit_station_http_piece *pieces; size_t count; } transit_station_http_header;
+typedef struct transit_station_http_template {
+    transit_station_http_method method;
+    const transit_station_http_piece *target;
+    size_t target_count;
+    const transit_station_http_header *headers;
+    size_t header_count;
+} transit_station_http_template;
+typedef struct transit_station_http_options {
+    transit_sdk_resource resource;
+    uint64_t namespace_id, endpoint_revision, reconcile_before_ms;
+    uint32_t max_attempts;
+} transit_station_http_options;
+typedef struct transit_station_http_request_view {
+    transit_sdk_resource resource;
+    uint64_t namespace_id;
+    transit_sdk_bytes reference, metadata, body;
+} transit_station_http_request_view;
+typedef enum transit_station_http_phase { TRANSIT_HTTP_OBSERVED, TRANSIT_HTTP_CLOSED_UNKNOWN, TRANSIT_HTTP_NOT_DISPATCHED } transit_station_http_phase;
+typedef enum transit_station_http_rejection { TRANSIT_HTTP_DENIED, TRANSIT_HTTP_INVALID_REQUEST, TRANSIT_HTTP_BUSY } transit_station_http_rejection;
+typedef struct transit_station_http_outcome {
+    bool rejected;
+    transit_station_http_rejection rejection;
+    transit_station_http_phase phase;
+    transit_sdk_resource resource;
+    uint64_t exchange, effect, attempt;
+    uint16_t status; /* Zero unless observed. HTTP status is not business success. */
+    size_t reference_size; /* Zero unless complete; not a bearer grant. */
+    uint8_t reference[256];
+} transit_station_http_outcome;
+typedef enum transit_station_http_replay_policy { TRANSIT_HTTP_CAPTURED, TRANSIT_HTTP_REQUIRE_UNREDACTED } transit_station_http_replay_policy;
+typedef enum transit_station_http_part_kind { TRANSIT_HTTP_REQUEST_TEMPLATE, TRANSIT_HTTP_REQUEST_HEAD, TRANSIT_HTTP_REQUEST_BODY, TRANSIT_HTTP_RESPONSE_HEAD, TRANSIT_HTTP_RESPONSE_BODY, TRANSIT_HTTP_RESPONSE_TRAILERS, TRANSIT_HTTP_TIMING, TRANSIT_HTTP_OMISSION, TRANSIT_HTTP_COMPLETION } transit_station_http_part_kind;
+typedef struct transit_station_http_part {
+    bool present, complete;
+    transit_station_http_part_kind kind;
+    size_t size;
+    uint8_t bytes[256]; /* Owned inline bytes; arbitrary HTTP record boundaries. */
+} transit_station_http_part;
+transit_sdk_error transit_station_http_prepare(const transit_station_http_template *request, transit_sdk_bytes body, const transit_station_http_options *options, const char *native_directory, transit_station_http_request **out);
+transit_sdk_error transit_station_http_request_inspect(const transit_station_http_request *request, transit_station_http_request_view *out);
+void transit_station_http_request_destroy(transit_station_http_request *request);
+transit_sdk_error transit_station_http_decode(uint64_t realm, transit_sdk_bytes bytes, const char *native_directory, transit_station_http_outcome *out);
+transit_sdk_error transit_station_turn_http_stage(transit_station_turn *turn, const transit_station_http_request *request, bool *ready);
+transit_sdk_error transit_station_turn_http_call(transit_station_turn *turn, transit_sdk_process peer, const transit_station_http_request *request, uint64_t *correlation);
+/* Reader retains local runner lifetime. Runner destroy/close joins native work;
+ * caller must join concurrent uses before destroying any public handle. */
+transit_sdk_error transit_station_http_open(transit_station_runner *runner, const transit_station_http_outcome *outcome, transit_station_http_replay_policy policy, transit_station_http_reader **out);
+transit_sdk_error transit_station_http_read(transit_station_http_reader *reader, transit_station_http_part *out);
+transit_sdk_error transit_station_http_close(transit_station_http_reader *reader);
+void transit_station_http_reader_destroy(transit_station_http_reader *reader);
 #ifdef __cplusplus
 }
 #endif

@@ -14,6 +14,8 @@ implementation uses C++17. It directly depends on the independent
 packages declared in `build.zig.zon`. Build from this package with `zig build`.
 Native artifact lookup and the 8 MiB bounded worker follow the client SDK.
 See [installation, ownership and recovery](docs/USAGE.md) for the public contract.
+M15 adds [HTTP request publication, correlated calls and owned replay](docs/HTTP.md)
+through the shared Zig bindings package.
 
 Callbacks borrow turns and decoded messages. Retaining a turn keeps its local
 handle safe to inspect after the handler turn, where operations fail with

@@ -99,6 +99,16 @@ gems, with frozen owned strings, schema-validated port results and an interrupte
 controller wait whose native read is joined during runner disposal. Its local
 HTTP schedule took **31.15 seconds** including gem installation. The existing
 Ruby client and Station recovery/query schedule remained passing.
+`just bindings::c-sdk-test` builds HTTP callbacks as C11 and a typed C++17
+consumer against installed archives. The C and C++ HTTP schedules passed locally
+in **36.18** and **40.11 seconds**, including clean consumer compilation, golden
+request/outcome fixtures, staged upload recovery, prefix revocation, sticky
+failure, copied parts and reader use after runner destruction. Both join a
+delayed read during stop/disposal. The ordinary raw client and Station schedules
+passed; after fixing a C++ fixture name collision and its header compilation
+command, the C++ portion was rerun directly through the shared harness. Host
+allocation poisoning is implemented; fault-injected host allocation coverage
+remains distinct from the native allocation proofs.
 
 The 2026-09-26 Linux x86_64 worker run took **242.31 seconds**, excluding compilation.
 This is local proof time, not a hosted CI or aggregate runner-minute measurement.

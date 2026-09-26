@@ -8,12 +8,12 @@
 
 namespace transit::sdk::station_detail {
 using namespace internal;
-struct Caps { size_t message, value, key, cell, name, page, segment; bool queries; };
+struct Caps { size_t message, value, key, cell, name, page, segment; bool queries, http_requests, http_replay; };
 #define TRANSIT_STATION_FUNCTIONS(X) \
     X(station_abi_version) X(station_growing_capabilities) X(station_growing_create) X(station_growing_destroy) \
     X(station_growing_prepare) X(station_growing_dispatch) X(station_growing_confirmation) X(station_growing_apply) \
     X(station_growing_finish_result) X(station_growing_discard) X(station_growing_pending) X(station_frame_encode) \
-    X(station_buffer_data) X(station_buffer_size) X(station_buffer_destroy)
+    X(station_buffer_data) X(station_buffer_size) X(station_buffer_destroy) X(station_http_codec) X(station_growing_http_read)
 struct Local {
     Raw raw;
     Library library;
@@ -32,6 +32,7 @@ struct Bridge {
     explicit Bridge(const transit_station_config &config, transit_station_failure_policy failure);
     Bytes prepare();
     Bytes apply(uint64_t scope, const std::string &action);
+    Bytes http_read(const std::string &action);
     void finish(uint64_t scope, bool failed);
     void discard(uint64_t scope);
     std::shared_ptr<const transit_station_mutation> pending(const Bytes &event);
@@ -135,6 +136,11 @@ struct transit_station_table {
     ~transit_station_table() { transit_station_turn_release(turn); }
 };
 struct transit_station_segment { transit_station_segment_info info{}; transit::sdk::internal::Bytes ipc; };
+struct transit_station_http_request {
+    transit_sdk_resource resource{};
+    uint64_t namespace_id{};
+    transit::sdk::internal::Bytes reference, metadata, body;
+};
 namespace transit::sdk::station_detail {
 template<class F> transit_sdk_error with_turn(transit_station_turn *turn, bool read, F &&work) {
     return boundary([&] {

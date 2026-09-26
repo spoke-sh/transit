@@ -132,6 +132,7 @@ struct WaitPolicy {
 class State;
 class Source;
 class ResultReader;
+class PreparedHttpRequest;
 template<class T> class Table;
 class Turn {
     std::shared_ptr<transit_station_turn> value_;
@@ -164,6 +165,8 @@ public:
     }
     void close_query(uint64_t result, transit_station_query_close_reason reason) const { check(transit_station_turn_close_query(native(), result, reason)); }
     ResultReader result(uint64_t correlation) const;
+    bool stage_http(const PreparedHttpRequest &request) const;
+    uint64_t call_http(ProcessRef peer, const PreparedHttpRequest &request) const;
 };
 class State {
     Turn turn_;
@@ -275,6 +278,135 @@ template<class T> Table<T> Turn::create_table(const TableSchema<T> &schema) cons
 }
 template<class T> Bytes encode_cast(const T &value, const Codec<T> &codec, const char *native_directory = nullptr) {
     const auto encoding = codec.native(); transit_sdk_buffer out{}; check(transit_station_encode_cast(&value, &encoding, native_directory, &out)); return Buffer(out).copy();
+}
+}
+namespace transit::sdk::station {
+enum class HttpMethod { Get = TRANSIT_HTTP_GET, Head = TRANSIT_HTTP_HEAD, Post = TRANSIT_HTTP_POST, Put = TRANSIT_HTTP_PUT, Patch = TRANSIT_HTTP_PATCH, Delete = TRANSIT_HTTP_DELETE, Options = TRANSIT_HTTP_OPTIONS };
+struct HttpLiteral { std::string value; };
+struct HttpVariable { std::string name, value; };
+struct HttpSecretRef { std::string binding; uint64_t version; };
+using HttpPiece = std::variant<HttpLiteral, HttpVariable, HttpSecretRef>;
+struct HttpHeader { std::string name; std::vector<HttpPiece> value; };
+struct HttpRequest { HttpMethod method; std::vector<HttpPiece> target; std::vector<HttpHeader> headers; };
+struct HttpRequestOptions { uint64_t endpoint_revision, reconcile_before_ms; uint32_t max_attempts = 1; };
+class PreparedHttpRequest {
+    std::shared_ptr<transit_station_http_request> value_;
+public:
+    explicit PreparedHttpRequest(transit_station_http_request *value) : value_(value, transit_station_http_request_destroy) {
+        if (!value) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "http-request");
+    }
+    const transit_station_http_request *native() const { return value_.get(); }
+    transit_station_http_request_view info() const { transit_station_http_request_view out{}; check(transit_station_http_request_inspect(native(), &out)); return out; }
+    Bytes reference() const { return copy_bytes(info().reference); }
+    Bytes metadata() const { return copy_bytes(info().metadata); }
+    Bytes body() const { return copy_bytes(info().body); }
+};
+inline std::vector<transit_station_http_piece> native_http_pieces(const std::vector<HttpPiece> &pieces) {
+    if (pieces.size() > 128) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "http-pieces");
+    const auto bytes = [](const std::string &value) { return transit_sdk_bytes{reinterpret_cast<const uint8_t *>(value.data()), value.size()}; };
+    std::vector<transit_station_http_piece> out; out.reserve(pieces.size());
+    for (const auto &piece : pieces) {
+        transit_station_http_piece value{};
+        std::visit([&](const auto &item) {
+            using T = std::decay_t<decltype(item)>;
+            if constexpr (std::is_same_v<T, HttpLiteral>) { value.kind = TRANSIT_HTTP_LITERAL; value.value = bytes(item.value); }
+            else if constexpr (std::is_same_v<T, HttpVariable>) { value.kind = TRANSIT_HTTP_VARIABLE; value.name = bytes(item.name); value.value = bytes(item.value); }
+            else { value.kind = TRANSIT_HTTP_SECRET; value.name = bytes(item.binding); value.version = item.version; }
+        }, piece);
+        out.push_back(value);
+    }
+    return out;
+}
+inline PreparedHttpRequest prepare_http(ResourceRef resource, uint64_t namespace_id, const HttpRequest &request,
+    const Bytes &body, HttpRequestOptions options, const char *native_directory = nullptr) {
+    if (request.headers.size() > 64) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "http-headers");
+    const auto target = native_http_pieces(request.target);
+    std::vector<std::vector<transit_station_http_piece>> fields; fields.reserve(request.headers.size());
+    std::vector<transit_station_http_header> headers; headers.reserve(request.headers.size());
+    for (const auto &header : request.headers) {
+        fields.push_back(native_http_pieces(header.value));
+        // Embedded NUL is never silently truncated by the C string boundary.
+        checked_string(header.name);
+        headers.push_back({header.name.c_str(), fields.back().data(), fields.back().size()});
+    }
+    const transit_station_http_template description{static_cast<transit_station_http_method>(request.method), target.data(), target.size(), headers.data(), headers.size()};
+    const transit_station_http_options settings{resource.native(), namespace_id, options.endpoint_revision, options.reconcile_before_ms, options.max_attempts};
+    transit_station_http_request *out = nullptr;
+    check(transit_station_http_prepare(&description, bytes_view(body), &settings, native_directory, &out));
+    return PreparedHttpRequest(out);
+}
+class HttpOutcome {
+    transit_station_http_outcome value_{};
+public:
+    explicit HttpOutcome(transit_station_http_outcome value) : value_(value) {}
+    const transit_station_http_outcome &native() const { return value_; }
+    bool rejected() const { return value_.rejected; }
+    transit_station_http_rejection rejection() const { if (!rejected()) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "http-not-rejected"); return value_.rejection; }
+    transit_station_http_phase phase() const { if (rejected()) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "http-rejected"); return value_.phase; }
+    uint64_t exchange() const { return value_.exchange; }
+    uint64_t effect() const { return value_.effect; }
+    uint64_t attempt() const { return value_.attempt; }
+    std::optional<uint16_t> status() const { return value_.status ? std::optional<uint16_t>(value_.status) : std::nullopt; }
+    std::optional<Bytes> reference() const {
+        if (value_.reference_size > sizeof(value_.reference)) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "http-reference");
+        return value_.reference_size ? std::optional<Bytes>(Bytes(value_.reference, value_.reference + value_.reference_size)) : std::nullopt;
+    }
+};
+inline HttpOutcome decode_http_reply(uint64_t realm, const Bytes &bytes, const char *native_directory = nullptr) {
+    transit_station_http_outcome out{}; check(transit_station_http_decode(realm, bytes_view(bytes), native_directory, &out)); return HttpOutcome(out);
+}
+template<class T> using HttpMessage = std::variant<T, HttpOutcome>;
+template<class T> class HttpReplyCodec : public Codec<HttpMessage<T>> {
+    std::shared_ptr<const Codec<T>> application_;
+    uint64_t realm_;
+    std::optional<std::string> directory_;
+    std::string type_;
+public:
+    HttpReplyCodec(std::shared_ptr<const Codec<T>> application, uint64_t realm, std::optional<std::string> native_directory = {})
+        : application_(std::move(application)), realm_(realm), directory_(std::move(native_directory)) {
+        if (!application_) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "http-application-codec");
+        type_ = "transit.http.reply+" + checked_string(application_->type_id());
+        if (directory_) checked_string(*directory_);
+    }
+    const char *type_id() const noexcept override { return type_.c_str(); }
+    uint32_t version() const noexcept override { return 1; }
+    size_t max_encoded_bytes() const noexcept override { return std::max<size_t>(71, application_->max_encoded_bytes()); }
+    Bytes encode(const HttpMessage<T> &message) const override {
+        if (!std::holds_alternative<T>(message)) throw failure(TRANSIT_SDK_CODEC_ERROR, "receive-only-http-outcome");
+        return application_->encode(std::get<T>(message));
+    }
+    HttpMessage<T> decode(const Bytes &bytes) const override {
+        if (bytes.size() >= 4 && (!std::memcmp(bytes.data(), "HTR1", 4) || !std::memcmp(bytes.data(), "HTF1", 4)))
+            return decode_http_reply(realm_, bytes, directory_ ? directory_->c_str() : nullptr);
+        return application_->decode(bytes);
+    }
+};
+enum class HttpReplayPolicy { Captured = TRANSIT_HTTP_CAPTURED, RequireUnredacted = TRANSIT_HTTP_REQUIRE_UNREDACTED };
+struct HttpPart { transit_station_http_part_kind kind; Bytes data; bool complete; };
+class HttpReader {
+    std::unique_ptr<transit_station_http_reader, decltype(&transit_station_http_reader_destroy)> value_;
+    bool complete_ = false, failed_ = false;
+public:
+    explicit HttpReader(transit_station_http_reader *value) : value_(value, transit_station_http_reader_destroy) {}
+    HttpReader(HttpReader &&) noexcept = default;
+    HttpReader &operator=(HttpReader &&) noexcept = default;
+    bool complete() const { return complete_; }
+    std::optional<HttpPart> read() {
+        if (failed_) throw failure(TRANSIT_SDK_READ_FAILED, "http-reader-failed");
+        transit_station_http_part out{}; check(transit_station_http_read(value_.get(), &out));
+        try {
+            std::optional<HttpPart> result;
+            if (out.present) result = HttpPart{out.kind, Bytes(out.bytes, out.bytes + out.size), out.complete};
+            complete_ = out.complete; return result;
+        } catch (...) { failed_ = true; throw; }
+    }
+    void close() { check(transit_station_http_close(value_.get())); }
+};
+inline bool Turn::stage_http(const PreparedHttpRequest &request) const {
+    bool ready = false; check(transit_station_turn_http_stage(native(), request.native(), &ready)); return ready;
+}
+inline uint64_t Turn::call_http(ProcessRef peer, const PreparedHttpRequest &request) const {
+    uint64_t correlation = 0; check(transit_station_turn_http_call(native(), peer.native(), request.native(), &correlation)); return correlation;
 }
 }
 #include <transit/station/runner.hpp>

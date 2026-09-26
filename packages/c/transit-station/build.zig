@@ -8,10 +8,10 @@ pub fn build(b: *std.Build) void {
     module.addIncludePath(b.path("include"));
     module.addIncludePath(client.path("include"));
     module.addIncludePath(b.dependency("transit_client", settings).path("include"));
-    module.addIncludePath(b.dependency("transit_station", settings).path("include"));
+    module.addIncludePath(b.dependency("transit_station_bindings", settings).path("include"));
     module.linkLibrary(client.artifact("transit_sdk_client"));
     module.addRPathSpecial("$ORIGIN");
-    for ([_][]const u8{ "src/bridge.cpp", "src/runner.cpp", "src/turn.cpp", "src/table.cpp", "src/query.cpp" }) |source| {
+    for ([_][]const u8{ "src/bridge.cpp", "src/runner.cpp", "src/turn.cpp", "src/table.cpp", "src/query.cpp", "src/http.cpp" }) |source| {
         module.addCSourceFile(.{ .file = b.path(source), .flags = &.{ "-std=c++17", "-Wall", "-Wextra", "-Werror" } });
     }
     module.linkSystemLibrary("dl", .{});

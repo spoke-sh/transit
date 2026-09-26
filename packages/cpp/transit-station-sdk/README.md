@@ -12,6 +12,8 @@ C++ client dependencies. Run `zig build check` in this package to instantiate
 supported Table types and runner ownership contracts. `just bindings::c-sdk-test`
 qualifies installed counter CLI roles, typed query handlers and the shared
 authority/recovery schedule. See [installation and usage](docs/USAGE.md).
+M15's [typed HTTP calls and replay](docs/HTTP.md) add immutable prepared requests,
+an explicit reply-codec union and move-only capture readers.
 
 A copied `Turn` retains its local scope token. All operations still reject
 expired scope, wrong-thread access and callback reentry. Associated state is

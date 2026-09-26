@@ -15,7 +15,7 @@ Local::Local(const char *directory) : raw(directory), library(directory, "libtra
         if (!raw.boolean(value, flag)) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "station-capabilities");
     caps = {raw.number(value, "message_bytes"), raw.number(value, "value_bytes"), raw.number(value, "key_bytes"),
         raw.number(value, "table_cell_bytes"), raw.number(value, "table_name_bytes"), raw.number(value, "page_entries"),
-        raw.number(value, "query_segment_bytes"), raw.boolean(value, "query_results")};
+        raw.number(value, "query_segment_bytes"), raw.boolean(value, "query_results"), raw.boolean(value, "http_requests"), raw.boolean(value, "http_replay")};
     for (auto bound : {caps.message, caps.value, caps.key, caps.cell, caps.name, caps.page, caps.segment})
         if (bound > TRANSIT_CLIENT_MAX_BODY) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-bound");
 }
@@ -72,6 +72,13 @@ Bytes Bridge::apply(uint64_t scope, const std::string &action) {
     station_buffer *buffer = nullptr;
     const auto status = local.station_growing_apply(server.get(), scope, reinterpret_cast<const uint8_t *>(action.data()), action.size(), &buffer);
     return local.result(status, buffer, "apply");
+}
+Bytes Bridge::http_read(const std::string &action) {
+    require(action.size() <= 2048, "http-read-bound");
+    if (!local.caps.http_replay) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "http-replay");
+    station_buffer *buffer = nullptr;
+    const auto status = local.station_growing_http_read(server.get(), reinterpret_cast<const uint8_t *>(action.data()), action.size(), &buffer);
+    return local.result(status, buffer, "http-read");
 }
 void Bridge::finish(uint64_t scope, bool failed) {
     station_buffer *buffer = nullptr; const auto status = local.station_growing_finish_result(server.get(), scope, failed ? 1 : 0, &buffer);
