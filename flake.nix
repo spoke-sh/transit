@@ -90,6 +90,11 @@
                 (pkgs.python3.withPackages (ps: [
                   ps.pyyaml
                   ps.pyarrow
+                  ps.build
+                  ps.setuptools
+                  ps.wheel
+                  ps.pip
+                  ps.mypy
                 ]))
                 pkgs.process-compose
                 zig

@@ -4,6 +4,7 @@
     rustc
     cargo
     rustfmt
+    ruby
     jdk
     tlaplus
     dotnet-sdk

@@ -40,6 +40,17 @@ so nix-direnv refreshes the packaged `kubectl transit` when either changes.
 After a checked-in `.envrc` change, review it and run `direnv allow` to reload.
 With plain `nix develop`, exit and reenter the shell to refresh packaged commands.
 
+## SDK qualification tools
+
+M11's Python packaging/type checks add `build`, setuptools, wheel, pip and mypy
+to the developer and bindings CI shells. The bindings shell also adds Ruby
+3.4.9 / RubyGems 3.7.2 for the new SDK target. These packages come from the
+existing `flake.lock` nixpkgs revision; no Zig, Ursula or lock revision changes
+are needed. `just doctor`, Ruby JSON/full-width integer loading and Python tool
+imports are checked separately from SDK conformance. Pinning a runtime alone
+does not qualify its language adapter. The selected Python tools are build 1.4.4,
+setuptools 80.10.1, wheel 0.46.1 and mypy 1.20.1.
+
 ## Vite+
 
 The shell includes a checksummed upstream `vp` binary and its matching JavaScript

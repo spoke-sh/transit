@@ -9,6 +9,11 @@ pkgs.mkShellNoCC {
     (pkgs.python3.withPackages (ps: [
       ps.pyyaml
       ps.pyarrow
+      ps.build
+      ps.setuptools
+      ps.wheel
+      ps.pip
+      ps.mypy
     ]))
   ];
   TRANSIT_GSON_JAR = "${tools.gson}";
