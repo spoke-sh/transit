@@ -54,6 +54,10 @@ v2 bindings retain their original profile.
 
 ## Calls and lifetimes
 
+M14 adds the opt-in Zig [immutable publication layout](STATION_PUBLICATION_V1.md)
+within growing KV. It keeps the same private-turn budgets, authority and retained
+source semantics. No query/legacy layout or foreign ABI changes implicitly.
+
 
 Message framing and authenticated reply rules remain `STN1`. Durable waits use
 the same `00 w <correlation:u64le>` keys with a version-2, 34-byte value:

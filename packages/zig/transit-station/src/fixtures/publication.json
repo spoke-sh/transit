@@ -1,0 +1,17 @@
+[
+  {
+    "format": 1,
+    "length": 0,
+    "digest": "aa73162fcfc98fecf60310f2f11080f4013fe2d356cb4df3127b2da34ba9e7d9"
+  },
+  {
+    "format": 7,
+    "length": 513,
+    "digest": "f8e701c80e6d4ea4049a67dd90017942c38876a21e8deed52115164594f98567"
+  },
+  {
+    "format": 7,
+    "length": 65536,
+    "digest": "88506a29ebac4564a3305f2cd4464d744414689723ec41ca0e92705d3ce9291d"
+  }
+]

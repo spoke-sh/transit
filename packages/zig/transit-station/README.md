@@ -6,6 +6,9 @@ behavior or runs its handler. The initial implementation provides a host-pumped
 GenServer, private KV mutations, durable calls and authenticated replies.
 Typed Tables and captured Arrow queries share the same private turn and state
 budget; see the [Table implementation guide](docs/tables.md).
+The growing Zig [publication interface](docs/publications.md) stages larger
+immutable records with explicit quotas, one final visibility decision and
+resumable cleanup. Document/CRDT APIs remain a separate milestone.
 The [services guide](docs/services.md) covers scoped names, timed waits and
 bounded supervision, including the separate controller trust boundary.
 The [binding guide](docs/bindings.md) covers the shared C ABI and detached

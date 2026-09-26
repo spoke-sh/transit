@@ -1,0 +1,102 @@
+# Larger immutable publications
+
+`Publication` is the explicit growing Zig primitive introduced by
+[M14](../../../../docs/roadmap/M14.md). It stores opaque application-versioned
+records over existing KV without changing the 256-byte value, four-mutation or
+single-resource turn limits. The [v1 layout](../../../../contracts/STATION_PUBLICATION_V1.md)
+owns exact encoding, commitment, lifecycle and capacity accounting.
+
+## Using a private turn
+
+Create a namespace once with explicit deployment limits:
+
+```zig
+const publications = try station.Publication.create(turn, 1, .{
+    .record_bytes = 65536,
+    .staging_bytes = 131072,
+    .staging_records = 2,
+});
+```
+
+Later handlers reconstruct `{ .resource = turn.view.resource, .namespace = 1 }`.
+Limits cannot silently change on restart. Resource grants and the fenced writer
+remain necessary. A namespace or record ID is not an authorization token.
+Application schemas/replica identity are outside this opaque storage layer.
+
+1. Prepare a `Spec` with nonzero application format, length and expected digest.
+   `Digest.initial`/`next` compute the canonical chain one chunk at a time;
+   `Digest.of` is convenient only when the caller already owns the finite body.
+2. `begin(turn, id, spec)` reserves the full length and one staging slot. Use a
+   stable nonzero ID, with an application-owned durable allocation policy.
+3. `append(turn, id, ordinal, bytes)` stages one canonical chunk (256 bytes except
+   the final chunk). Schedule later inputs/continuations explicitly. Accepted
+   staging is recoverable work, not publication or a Document acceptance result.
+4. `publish(turn, id)` verifies completeness and returns `changed` or `duplicate`.
+   On `changed`, update an application head and emit the acceptance reply in
+   this same turn. At most two mutations remain after publication. On duplicate,
+   return the recorded outcome without creating another business event.
+
+Every call builds a private proposal. Only the host's confirmed turn receipt
+establishes commitment. Helpers restore their own writes on error; applications
+must discard the whole proposal if subsequent composition fails. Configure the
+existing host failure policy deliberately. Native handler fields and files are
+not durable staging progress; `inspect` returns the recorded written count,
+chain, lifecycle and publication PID/input.
+
+## Reading and recovery
+
+`open(source, id)` accepts either a growing turn or its `Retained` reader. It
+returns an owned, exact-source cursor. Repeated `read(source, cursor)` returns
+at most 256 owned bytes. A non-null `next` is a provisional prefix; null verifies
+complete length and commitment. Do not expose a prefix as a complete document,
+checkpoint or result. Missing/corrupt data is an error, not end-of-input.
+
+No record-sized allocation occurs in these operations. Persist a continuation
+only with its exact source and application job. Across handlers, retain a
+committed source with `turn.retain()` and reopen its ID using `openVersion`;
+current grants still apply. Current-turn reads reject private writes. Historical
+reads exclude later publication, retirement or cleanup. Cursors are local owned
+state and must not be accepted as untrusted remote bearer tokens.
+
+A live host retains and retries the exact signed pending turn after an uncertain
+response. After host loss, acquire fresh ownership before recomputing from the
+recorded descriptor. Never discard an unresolved request and rerun its handler
+under the old activation. Stale owners cannot publish or clean up. Resource
+revocation, expiry, view expiry and retained-version release are explicit errors;
+no helper opens a fresh source automatically.
+
+## Disposition and cleanup
+
+Retention defaults to unlimited. There is no timer or automatic garbage collector.
+`abandon` permanently closes unpublished work; `retire` closes published content.
+Resolve or replace application heads/dependencies in that same turn. Both are
+explicit application decisions; capacity refusal cannot trigger either implicitly.
+
+`collect` removes at most two current chunks and commits its cursor. Repeat on
+later inputs until it returns true. An abandoned record retains its reservation
+until the last cleanup turn, including when no chunks were written. This prevents
+repeated abandonment from bypassing the staging quota. Final cleanup uses all
+four mutations for two chunks, descriptor and budget; allow a separate turn if
+additional application state must change. Outputs use their separate budget.
+
+Permanent descriptors reject delayed begin/append/publish attempts after cleanup.
+They remain subject to the enclosing resource's lifetime and capacity. Current
+KV deletion is not physical erasure: an older retained version may still own and
+read its published body. The authority/backend own protected roots and eventual
+physical cleanup. This API neither trims authority history nor claims a general
+reference graph or provider-space reclamation guarantee.
+
+## Qualification and integration limits
+
+Run `just test::publication` for real signed service, disk recovery, exact retry,
+current access, protected historical reads and cleanup. `just test::unit` covers
+strict codecs, independent digest fixtures, quota/identity refusal and rollback.
+The [test guide](../../../../tests/README.md) records executed evidence and limits.
+
+This is a Zig framework API. Public uploads, SDK ABI changes, automatic
+continuation scheduling, Document CRDTs and wider Fuze sources remain
+[M15](../../../../docs/roadmap/M15.md). M13 query result layouts and their 207-byte
+public plan limit are unchanged. The 64 KiB qualification is a useful operation
+size, not a whole-resource limit; total published records grow on disk under
+normal deployment quotas. Larger configured records require workload-specific
+qualification. Format IDs label application bytes; they do not validate them.

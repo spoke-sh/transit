@@ -7,6 +7,7 @@ pub const Turn = @import("Turn.zig").Legacy;
 pub const GenServer = @import("GenServer.zig").Legacy;
 pub const GrowingGenServer = @import("GenServer.zig").Growing;
 pub const Table = @import("Table.zig");
+pub const Publication = @import("Publication.zig");
 pub const Query = @import("Query.zig");
 pub const GrowingQuery = @import("GrowingQuery.zig");
 pub const Registry = @import("Registry.zig");
@@ -18,6 +19,7 @@ pub const fuze = @import("transit_fuze");
 test {
     _ = @import("growing_test.zig");
     _ = @import("query_growing_test.zig");
+    _ = @import("publication_test.zig");
     _ = Frame;
     _ = Turn;
     _ = GrowingTurn;
