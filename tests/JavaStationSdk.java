@@ -223,6 +223,108 @@ public final class JavaStationSdk {
         check(Arrays.equals(expected, Station.encodeCast(value, Codecs.COUNTER)));
         expect(TransitException.Kind.INCOMPATIBLE_NATIVE, () -> Station.encodeCast(value, Codecs.COUNTER, Path.of(cfg.get("fixtures").getAsString()).getParent().resolve("bad-station-version")));
         check(counter.typeId().equals("transit.examples.counter") && query.typeId().equals("transit.examples.query") && Codecs.U64.typeId().equals("transit.examples.u64"));
+        JsonObject http = read(Path.of(cfg.get("http_fixtures").getAsString()));
+        Http.Prepared request = Http.prepare(new ResourceRef(72, 8), Values.U64_MAX, new Http.Request(Http.Method.POST, List.of(new Http.Literal("/write")), List.of()),
+            HexFormat.of().parseHex(http.get("body").getAsString()), new Http.Options(BigInteger.valueOf(7), 9000, 2));
+        check(HexFormat.of().formatHex(request.reference().copy()).equals(http.get("reference").getAsString()));
+        check(Values.text(request.metadata().copy()).equals(http.get("metadata").getAsString()));
+        byte[] encoded = HexFormat.of().parseHex(http.get("outcome").getAsString());
+        Http.Outcome outcome = (Http.Outcome)Http.decodeReply(72, encoded);
+        check(outcome.exchange().equals(Values.U64_MAX) && outcome.status().orElseThrow() == 200 && outcome.phase() == Http.Phase.OBSERVED && outcome.reference().isPresent());
+        check(((Http.Rejected)Http.decodeReply(72, HexFormat.of().parseHex(http.get("rejection").getAsString()))).reason() == Http.Rejection.DENIED);
+        Http.ReplyCodec<BigInteger> codec = new Http.ReplyCodec<>(Codecs.U64, 72);
+        check(((Http.Application<BigInteger>)codec.decode(codec.encode(new Http.Application<>(Values.U64_MAX)))).value().equals(Values.U64_MAX));
+        check(((Http.Outcome)((Http.Received<BigInteger>)codec.decode(encoded)).value()).exchange().equals(Values.U64_MAX));
+        expect(TransitException.Kind.CODEC, () -> codec.encode(new Http.Received<>(outcome)));
+        try { Http.decodeReply(72, Arrays.copyOf(encoded, 70)); throw new AssertionError("Truncated HTTP outcome accepted"); } catch (TransitException expectedFailure) { }
+        try { Http.prepare(new ResourceRef(72, 8), BigInteger.ONE, new Http.Request(Http.Method.GET, List.of(new Http.Literal("//other/")), List.of()),
+            new byte[0], new Http.Options(BigInteger.ONE, 9000, 1)); throw new AssertionError("Invalid HTTP target accepted"); } catch (TransitException expectedFailure) { }
+    }
+    static final class HttpBytes implements Codec<Bytes> {
+        public String typeId() { return "test.http-control"; }
+        public long version() { return 1; }
+        public int maxEncodedBytes() { return 243; }
+        public byte[] encode(Bytes value) { return value.copy(); }
+        public Bytes decode(byte[] value) { return new Bytes(value); }
+    }
+    static final class HttpHandler implements Handler<Http.Message<Bytes>> {
+        final ProcessRef peer;
+        final Http.Prepared request;
+        final Key<BigInteger> correlation = new Key<>("http-correlation", Codecs.U64);
+        Turn escaped;
+        JsonObject result;
+        HttpHandler(ProcessRef peer, Http.Prepared request) { this.peer = peer; this.request = request; }
+        @Override public void onMessage(Turn turn, Incoming<Http.Message<Bytes>> input) {
+            escaped = turn;
+            if (input instanceof Cast<Http.Message<Bytes>>) {
+                if (turn.state().find(correlation).isPresent()) result = Values.obj("called", true);
+                else if (turn.stageHttp(request)) { BigInteger id = turn.callHttp(peer, request); turn.state().put(correlation, id); result = Values.obj("called", true); }
+                else result = Values.obj("called", false);
+            } else {
+                check(input instanceof Reply<Http.Message<Bytes>>);
+                turn.requireReply((Reply<?>)input, peer, turn.state().require(correlation));
+                Http.Outcome outcome = (Http.Outcome)((Http.Received<Bytes>)input.value()).value();
+                check(outcome.phase() == Http.Phase.OBSERVED && outcome.status().orElseThrow() == 200);
+                turn.state().put(new Key<>("http-status", Codecs.U64), BigInteger.valueOf(200)); result = Values.obj("observed", true);
+            }
+        }
+    }
+    static void http(String mode, JsonObject cfg) throws IOException {
+        byte[] body = HexFormat.of().parseHex(cfg.get("body").getAsString());
+        Http.Prepared request = Http.prepare(new ResourceRef(72, cfg.get("resource").getAsLong()), Values.U64_MAX,
+            new Http.Request(Http.Method.POST, List.of(new Http.Literal("/items/"), new Http.Variable("id", "λ /")), List.of(
+                new Http.Header("X-Tag", List.of(new Http.Literal("one"))), new Http.Header("X-Tag", List.of(new Http.Literal("two"))),
+                new Http.Header("Authorization", List.of(new Http.Literal("Bearer "), new Http.SecretRef("api", BigInteger.valueOf(7)))))),
+            body, new Http.Options(BigInteger.valueOf(7), cfg.get("deadline").getAsLong(), 1));
+        byte original = request.body().copy()[0]; body[0] ^= 127; byte[] copy = request.body().copy(); copy[0] ^= 1;
+        check(request.body().copy()[0] == original && request.body().size() == 513);
+        ServiceConfig config = new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.GROWING_V3),
+            new Activation(new ProcessRef(72, cfg.get("pid").getAsLong()), cfg.get("generation").getAsLong(),
+                new Credential(72, cfg.get("principal").getAsLong(), Path.of(cfg.get("seed_file").getAsString()))));
+        HttpHandler handler = new HttpHandler(new ProcessRef(72, cfg.get("peer").getAsLong()), request);
+        ByteArrayOutputStream owned = new ByteArrayOutputStream(); Http.Reader reader = null; Http.Outcome outcome = null;
+        try (Runner<Http.Message<Bytes>> runner = Runner.open(config, handler, new Http.ReplyCodec<>(new HttpBytes(), 72), FailurePolicy.STOP, new Recovery.FreshOwnership())) {
+            if (mode.equals("http-async")) {
+                Http.Reader active = await(runner.openHttp((Http.Outcome)Http.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString()))));
+                Http.Part first = await(active.read()).orElseThrow(); check(first.data().size() > 0 && !first.complete());
+                Files.writeString(Path.of(cfg.get("ready").getAsString()), ""); waitFile(Path.of(cfg.get("continue").getAsString()));
+                CompletableFuture<Optional<Http.Part>> pending = active.read(); waitFile(Path.of(cfg.get("accepted").getAsString()));
+                expect(TransitException.Kind.BUSY, () -> await(active.read())); check(pending.cancel(true));
+                runner.stop(); CompletableFuture<Shutdown> closing = runner.closeAsync(); int beats = 0;
+                while (!closing.isDone()) { beats++; sleep(10); } await(closing); check(beats > 5 && first.data().size() > 0);
+                expect(TransitException.Kind.CLOSED, () -> await(active.read())); report(Values.obj("joined", true)); return;
+            }
+            BufferedReader input = new BufferedReader(new InputStreamReader(System.in, java.nio.charset.StandardCharsets.UTF_8));
+            for (String line; (line = input.readLine()) != null;) {
+                switch (line) {
+                    case "step" -> {
+                        boolean committed = false;
+                        for (int n = 0; n < 32; n++) if (await(runner.next()) instanceof Committed) { committed = true; break; }
+                        check(committed); expect(TransitException.Kind.TURN_EXPIRED, () -> handler.escaped.stageHttp(request)); report(handler.result);
+                    }
+                    case "open" -> {
+                        outcome = (Http.Outcome)Http.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString()));
+                        reader = await(runner.openHttp(outcome)); Http.Outcome selected = outcome;
+                        expect(TransitException.Kind.BUSY, () -> await(runner.openHttp(selected)));
+                        Http.Part first = await(reader.read()).orElseThrow(); check(first.data().size() > 0 && !first.complete()); report(Values.obj("prefix", true));
+                    }
+                    case "denied" -> { Http.Reader active = reader; expect(TransitException.Kind.ACCESS_DENIED, () -> await(active.read())); report(Values.obj("denied", true)); }
+                    case "reopen" -> {
+                        try { await(reader.read()); throw new AssertionError("Poisoned HTTP reader resumed"); }
+                        catch (TransitException error) { check(error.kind() == TransitException.Kind.READ_FAILED && error.code().equals("HttpReplayFailed")); }
+                        reader.close(); reader.close(); reader = await(runner.openHttp(outcome));
+                        for (;;) { Optional<Http.Part> part = await(reader.read()); if (part.isEmpty()) break;
+                            if (part.orElseThrow().kind() == Http.PartKind.RESPONSE_BODY) owned.writeBytes(part.orElseThrow().data().copy()); }
+                        check(reader.complete()); reader.close(); report(Values.obj("complete", true, "body", HexFormat.of().formatHex(owned.toByteArray())));
+                    }
+                    case "close" -> {
+                        runner.closeSnapshot(); if (reader != null) { Http.Reader active = reader; expect(TransitException.Kind.CLOSED, () -> await(active.read())); }
+                        report(Values.obj("closed", true, "owned", HexFormat.of().formatHex(owned.toByteArray()))); return;
+                    }
+                    default -> throw new AssertionError("Unknown HTTP command");
+                }
+            }
+        }
     }
     static <T> void execute(String mode, JsonObject cfg, Handler<T> handler, Codec<T> codec) throws Exception {
         long realm = cfg.get("realm").getAsLong();
@@ -305,6 +407,7 @@ public final class JavaStationSdk {
         String mode = args[0]; Path path = Path.of(args[1]); JsonObject cfg = read(path);
         check(Path.of(Runner.class.getProtectionDomain().getCodeSource().getLocation().toURI()).startsWith(path.getParent()));
         check(cfg.get("profile").getAsString().equals("growing_v3"));
+        if (mode.startsWith("http-")) { http(mode, cfg); return; }
         if (mode.equals("codecs")) { codecs(cfg); return; }
         if (mode.equals("recover")) {
             try (Client client = Client.open(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.GROWING_V3));

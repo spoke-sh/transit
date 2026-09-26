@@ -97,6 +97,23 @@ public final class Turn {
     public boolean cancelCall(BigInteger correlation) {
         return access(false, () -> bool(raw(obj("cancel", positive(correlation).toString())).get("cancelled")));
     }
+    private void httpRequest(Http.Prepared request) {
+        Objects.requireNonNull(request);
+        if (!resource.equals(request.resource())) throw new IllegalArgumentException("HTTP request must use this writable resource");
+        bridge.httpCapability("http_requests");
+    }
+    public boolean stageHttp(Http.Prepared request) {
+        return access(false, () -> {
+            httpRequest(request);
+            return bool(raw(obj("http_stage", obj("reference", request.referenceHex(), "metadata", request.metadataHex(), "body", request.bodyHex()))).get("staged"));
+        });
+    }
+    public BigInteger callHttp(ProcessRef connector, Http.Prepared request) {
+        return access(false, () -> {
+            httpRequest(request);
+            return NativeValues.wide(raw(obj("http_call", obj("pid", peer(connector), "reference", request.referenceHex()))).get("correlation"), true);
+        });
+    }
     static BigInteger positive(BigInteger value) { u64(value); if (value.signum() == 0) throw new IllegalArgumentException("Correlation must be nonzero"); return value; }
     public <T> Table<T> table(Table.Schema<T> schema) { return access(true, () -> Table.open(this, schema, null)); }
     public <T> Table<T> createTable(Table.Schema<T> schema) {

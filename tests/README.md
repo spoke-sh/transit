@@ -109,6 +109,12 @@ passed; after fixing a C++ fixture name collision and its header compilation
 command, the C++ portion was rerun directly through the shared harness. Host
 allocation poisoning is implemented; fault-injected host allocation coverage
 remains distinct from the native allocation proofs.
+`just bindings::java-sdk-test` adds clean installed JAR HTTP callers to this
+schedule. It passed locally in **37.58 seconds**, with immutable bytes, the
+explicit application/outcome codec, prefix revocation and future cancellation
+followed by joined cleanup. The independent raw client and Station recovery/query
+regressions passed through their task commands as well. A cancelled read view
+invalidates its local reader; native execution remains owned until disposal.
 
 The 2026-09-26 Linux x86_64 worker run took **242.31 seconds**, excluding compilation.
 This is local proof time, not a hosted CI or aggregate runner-minute measurement.

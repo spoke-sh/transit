@@ -6,9 +6,10 @@ import subprocess
 import sys
 import zipfile
 from sdk_station_runner import Consumer, run as schedule
+from sdk_http_runner import run as http_schedule
 
 
-def run(node, cli, library, artifacts, *, execute=None):
+def run(node, cli, library, artifacts, http_worker, *, execute=None):
     root = Path(__file__).resolve().parents[1]
     def install(target):
         environment = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
@@ -66,6 +67,7 @@ public final class StationArtifactCheck {
             lambda config, role: ['java', '-cp', str(lib / '*'), 'io.transit.examples.CounterMain', str(config), role, '--commits', '1'],
             'thread-handler', extra_failures=('error-stop', 'error-block'), arrow_adapter=False)
     (execute or schedule)(node, cli, library, install, 'Java')
+    if execute is None: http_schedule(node, cli, library, http_worker, install, 'Java')
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

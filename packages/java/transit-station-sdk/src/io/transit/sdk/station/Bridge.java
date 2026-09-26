@@ -43,6 +43,17 @@ final class Bridge implements Worker.State<Void> {
         } catch (RuntimeException | Error error) { port.close(); throw error; }
     }
     int limit(String name) { return Math.toIntExact(number(caps.get(name), 1)); }
+    void httpCapability(String name) {
+        if (!bool(caps.get(name))) throw new TransitException(TransitException.Kind.UNSUPPORTED_CAPABILITY, name);
+    }
+    JsonObject httpCodec(JsonObject action) {
+        httpCapability("http_requests");
+        return object(port.request(obj("http_codec", action), "http-codec", false, "HttpCodecResult"));
+    }
+    JsonObject httpRead(JsonObject action) {
+        httpCapability("http_replay");
+        return object(port.request(obj("growing_http_read", action), "http-replay", false, "HttpReadResult"));
+    }
     JsonObject prepare() { return object(port.request(obj("growing_prepare", System.currentTimeMillis() + 30_000), "prepare-turn", false, "GrowingEvent")); }
     JsonObject apply(long scope, JsonObject action) {
         return object(port.request(obj("growing_apply", obj("scope", scope, "action", action)), "apply", false, "GrowingResult"));

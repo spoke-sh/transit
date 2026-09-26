@@ -11,6 +11,8 @@ Use `nix develop .#bindings` and `just bindings::java-sdk-test` to compile SDKs 
 JARs outside the checkout, and exercise the shared authority/failure schedule.
 The [usage guide](docs/USAGE.md) describes scoped handlers, recovery hooks,
 asynchronous scheduling, owned data and the migration from M9's low-level adapter.
+M15 adds [typed HTTP requests, durable calls and asynchronous capture readers](docs/HTTP.md)
+with immutable bytes, explicit outcome states and shared native semantics.
 
 The supported baseline is OpenJDK 21, Gson 2.12.1, Linux x86_64 and the Nix-linked
 native host. Original Arrow IPC is exposed without a selected optional Java

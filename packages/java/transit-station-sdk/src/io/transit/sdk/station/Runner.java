@@ -8,6 +8,7 @@ import io.transit.sdk.station.Types.*;
 import static io.transit.client.internal.Values.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 /** Sequential handlers over one shared Zig server; local tasks are not durable state. */
 public final class Runner<T> implements AutoCloseable {
@@ -149,6 +150,24 @@ public final class Runner<T> implements AutoCloseable {
     public CompletableFuture<Event> next() { return worker.submit(State::next); }
     public CompletableFuture<Event> reconcile() { return worker.submit(State::attempt); }
     public CompletableFuture<Shutdown> evidence() { return worker.submit(State::evidence); }
+    <R> CompletableFuture<R> httpAccess(Function<Bridge, R> action) {
+        return worker.submit(state -> {
+            if (state.pending != null) throw new TransitException(TransitException.Kind.BUSY, "pending-mutation");
+            return action.apply(state.bridge);
+        });
+    }
+    void httpBlockingClose() { worker.checkBlockingClose(); }
+    public CompletableFuture<Http.Reader> openHttp(Http.Outcome outcome) { return openHttp(outcome, Http.ReplayPolicy.CAPTURED); }
+    public CompletableFuture<Http.Reader> openHttp(Http.Outcome outcome, Http.ReplayPolicy policy) {
+        Objects.requireNonNull(outcome); Objects.requireNonNull(policy);
+        return worker.submit(state -> {
+            if (state.pending != null) throw new TransitException(TransitException.Kind.BUSY, "pending-mutation");
+            if (outcome.phase() != Http.Phase.OBSERVED || outcome.reference().isEmpty() || outcome.resource().realm() != state.process.realm())
+                throw new IllegalArgumentException("Expected an observed outcome in this realm");
+            JsonObject value = state.bridge.httpRead(obj("open", obj("reference", Http.hex(outcome.reference().orElseThrow()), "policy", policy.name().toLowerCase(Locale.ROOT))));
+            return new Http.Reader(this, number(value.get("opened"), 1));
+        });
+    }
     public StopToken stopToken() { return stop; }
     public void stop() { stop.stop(); }
     public CompletableFuture<Shutdown> closeAsync() { worker.checkClose(); stop(); return worker.closeAsync(); }
