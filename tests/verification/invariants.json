@@ -786,6 +786,29 @@
       ],
       "limits": "One configured Table/principal; eight-item catalog pages, no global metrics, default legacy inspection unchanged. No per-human delegation, KV/Document query, power-loss or production capacity claim.",
       "model": null
+    },
+    {
+      "id": "PUBLICATION-01",
+      "claim": "Large immutable records have one final visibility decision, bounded staging and resumable terminal cleanup",
+      "owner": "contracts/STATION_PUBLICATION_V1.md",
+      "implementation": [
+        "packages/zig/transit-station/src/Publication.zig"
+      ],
+      "profile": "transit-v3/station-publication-v1",
+      "tasks": [
+        "test::unit",
+        "test::publication"
+      ],
+      "scenarios": [
+        "Independent commitment fixtures and malformed descriptors",
+        "Quota reservation, conflicting identity and private rollback",
+        "Worker SIGKILL before and after publication; node/store restart with one resident page",
+        "Lost append/publication/cleanup receipts and exact retry",
+        "Stale ownership, read revocation after a prefix, expired view and released retained source",
+        "Interrupted cleanup resumes without reusing identities; historical source survives current deletion"
+      ],
+      "limits": "Single authority, disk Ursula, 64 KiB record and 41 additional 32-byte records. No host power-loss, production throughput, automatic jobs, physical erasure, CRDT, SDK or widened query claim.",
+      "model": null
     }
   ]
 }

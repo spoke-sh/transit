@@ -175,6 +175,14 @@ current single-record design.
 Splitting resource and process authority also requires an explicit coordination
 contract; independently successful stream appends are insufficient.
 
+[M14](roadmap/M14.md) implements a Station-level
+[immutable publication layout](../contracts/STATION_PUBLICATION_V1.md) inside one
+growing resource. Chunks are staged through ordinary bounded turns; the final
+descriptor, application head and outputs can publish in one turn. Explicit
+staging quotas, permanent identities and bounded cleanup preserve the resource
+boundary. This does not change kernel value/turn limits or supply Document CRDTs,
+cross-resource transactions or physical erasure of protected historical roots.
+
 | Failure point | Required outcome |
 | --- | --- |
 | Candidate prepared, turn not committed | No visible mutation, input completion, or output; discard the private candidate |

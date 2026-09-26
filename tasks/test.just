@@ -153,6 +153,10 @@ growing-service-release:
 growing-station *args:
     zig build test-growing-station -- "$@"
 
+# Qualify larger immutable records, current access and bounded cleanup over disk Ursula.
+publication:
+    zig build test-publication
+
 # Prove bounded diagnostics, independent metrics and cancelable log sinks.
 telemetry:
     zig build test-telemetry

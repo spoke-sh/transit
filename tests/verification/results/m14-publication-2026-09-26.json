@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "milestone": "M14",
+  "date": "2026-09-26",
+  "implementation_revision": "6bc5585",
+  "profile": "growing_v3/station-publication-v1",
+  "platform": "Linux x86_64",
+  "zig": "0.17.0-dev.2267+48abf1a34",
+  "topology": "One authority and owned disk Ursula; harness and children pinned to one logical CPU",
+  "status": "passed",
+  "command": "just test::publication",
+  "authority_history": "Checkpoint opt-in; no history trim requested",
+  "publication_retention": "Unlimited unless explicitly abandoned or retired",
+  "native_bytes": {
+    "descriptor": 104,
+    "cursor": 144,
+    "part": 416
+  },
+  "measurement": {
+    "exact_retries": [
+      "append",
+      "collect",
+      "publish"
+    ],
+    "killed_workers": 4,
+    "max_mutations": 4,
+    "max_value_bytes": 256,
+    "namespace_key_value_bytes": 55,
+    "phase_seconds": {
+      "cleanup": 21.203,
+      "finish": 91.551,
+      "publish": 18.878,
+      "seal": 4.781,
+      "stage": 34.566
+    },
+    "reads": 2447,
+    "record_bytes": 65536,
+    "record_key_value_bytes": 71551,
+    "recovery_resident_pages": 1,
+    "retained_records": 42,
+    "turns": 309
+  },
+  "phase_seconds_total": 170.979,
+  "proof_sha256": {
+    "tests/publication.py": "6f0d9b7c9c209137066358742bd987bd52bbfbfbbeb23e43f77990fd67b2956d",
+    "tests/publication.zig": "60d97ef0f20cd851b352577654f938197011268db20064c72312e0a66af95a54"
+  },
+  "limits": [
+    "Process SIGKILL and node/store restart, not host power loss",
+    "Logical current-KV deletion; no physical provider reclamation claim",
+    "64 KiB record and 41 additional 32-byte records; larger sizes and production throughput unqualified",
+    "Hosted CI cost not measured",
+    "An interrupted whole-write one-page stress attempt is not passing evidence"
+  ]
+}

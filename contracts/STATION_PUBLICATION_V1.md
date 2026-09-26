@@ -1,6 +1,6 @@
 # Station immutable publication v1
 
-Status: growing Zig implementation under M14 qualification. This is a Station
+Status: qualified growing Zig implementation; [M14 evidence](../tests/README.md#m14-immutable-publication). This is a Station
 KV layout, not a new Transit command or language ABI. See the
 [implementation guide](../packages/zig/transit-station/docs/publications.md).
 
@@ -110,6 +110,9 @@ values/cursors and stack SHA-256 state do not grow with record or retained count
 
 The u32 content length is an encoding ceiling, not a tested size guarantee.
 Deployments select explicit smaller record/staging limits and resource quotas.
+Staging limits are per namespace; a host must control namespace creation and
+selection at its own ingress. They are not a substitute for resource-wide
+capacity or a per-principal quota enforced by the authority.
 Retained published bodies/tombstones are governed by resource capacity and
 lifetime, separately from staging reservation. Logical key/value bytes for a
 nonempty record are `length + 23*ceil(length/256) + 127`; namespace overhead is

@@ -349,6 +349,20 @@ pub fn build(b: *std.Build) void {
     query_capture.has_side_effects = true;
     query_capture.stdio = .inherit;
     b.step("test-growing-query", "Prove bounded query capture and recovery through disk Ursula").dependOn(&query_capture.step);
+    const publication_proof = b.addExecutable(.{ .name = "transit-publication-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/publication.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+    }) });
+    build_test_step.dependOn(&publication_proof.step);
+    const publication_test = b.addSystemCommand(&.{ "python3", "-B" });
+    publication_test.addFileArg(b.path("tests/publication.py"));
+    publication_test.addArtifactArg(node_artifact);
+    publication_test.addArtifactArg(publication_proof);
+    publication_test.has_side_effects = true;
+    publication_test.stdio = .inherit;
+    b.step("test-publication", "Prove bounded immutable Station publication and crash recovery").dependOn(&publication_test.step);
     const c_proof = b.addExecutable(.{ .name = "transit-client-c-proof", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
     c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
     c_proof.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));

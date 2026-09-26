@@ -21,7 +21,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M11](M11.md) | Idiomatic language SDKs | Qualified raw/Station SDKs, installed examples and ten public language pairs on Linux x86_64 |
 | [M12](M12.md) | Declarative interface readiness | Qualified Table SQL compiler, three-parser corpus, pinned tools and four complete Lean theorems |
 | [M13](M13.md) | Board relief atlas and public query access | Complete: qualified Table query client/hosts, SQL shell and growing Board workspace |
-| [M14](M14.md) | Bounded publication for larger Station records | In progress; prerequisite for useful Document changes/checkpoints |
+| [M14](M14.md) | Bounded publication for larger Station records | Complete: growing immutable publication, bounded staging/cleanup and disk recovery |
 | [M15](M15.md) | Documents, collaborative text and unified querying | Planned |
 | [M16](M16.md) | HTTP connector and exchange transcripts | Planned |
 | [M17](M17.md) | gRPC connector and streaming calls | Planned |

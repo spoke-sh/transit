@@ -25,7 +25,8 @@
       "test::pages",
       "test::growing",
       "test::growing-service",
-      "test::public-query"
+      "test::public-query",
+      "test::publication"
     ],
     "experience": [
       "transit-board::check",

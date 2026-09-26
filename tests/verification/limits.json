@@ -372,6 +372,20 @@
       "expression": "q.station.Frame.max_payload - 36",
       "classification": "encoding",
       "meaning": "207-byte public plan within the existing 243-byte frame after the version tag and exact schema fingerprint; explicit rejection preserves the fence and native plan bounds."
+    },
+    {
+      "source": "packages/zig/transit-station/src/Publication.zig",
+      "symbol": "chunk_bytes",
+      "expression": "256",
+      "classification": "operation",
+      "meaning": "One immutable publication chunk fits one existing KV value; record size and retained count are independent."
+    },
+    {
+      "source": "packages/zig/transit-station/src/Publication.zig",
+      "symbol": "cleanup_chunks",
+      "expression": "2",
+      "classification": "operation",
+      "meaning": "At most two chunk deletions leave descriptor and final quota release within four mutations."
     }
   ],
   "identities": [

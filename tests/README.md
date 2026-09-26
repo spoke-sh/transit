@@ -1451,3 +1451,72 @@ has no latency guarantee over arbitrary retained history. It adds no automatic
 production provisioning, larger-population atlas proof, per-human delegation or
 reference-deployment query capacity guarantee. Complete-results-only row access
 is intentional; partial progress is visible without disclosing partial rows.
+
+## M14 immutable publication
+
+`just test::publication` runs [real Zig Station callers](publication.zig) against
+an isolated `growing_v3` authority and disk-backed Ursula. The
+[Python harness](publication.py) verifies an independent SHA-256 fixture,
+intercepts actual signed HTTP responses and SIGKILLs four workers at named
+boundaries. It also kills the authority and restarts the owned store at each
+boundary. Native memory and the harness manifest are not authoritative content.
+The proof belongs to CI's growth lane; the ordinary build compiles its caller.
+
+The schedule stages a 64 KiB binary record and an unpublished 513-byte record,
+reserving bytes/slots before append. It rejects quota/oversize work, resumes
+four remaining chunks with one resident authority page, and stops again with a
+fully staged record and an unsent publication turn. After fresh ownership the
+old signed turns are rejected. Publication, application head, acceptance marker
+and output commit together; a revoked write attempt publishes none of them.
+Lost append/publication/cleanup acknowledgements retry the exact signed bytes
+and receive the same receipt. A distinct duplicate application command creates
+no second acceptance output.
+
+Forty-one additional 32-byte records remain published without requiring cleanup
+or enlarging a snapshot. After another restart with one page, an actual returned
+prefix is followed by read revocation; the failed read poisons the whole proposal.
+An expired view cannot continue. Explicit retirement removes the current head;
+explicit abandonment retains its staging reservation until cleanup completes.
+Cleanup commits two chunk deletions at a time and is interrupted after progress.
+
+A retained source protects the original 64 KiB body while current chunks are
+removed. Its verification reader records the source identity and cursor progress
+in KV, reads eight chunks per handler and resumes after worker/node/store loss.
+Only the final verified chain sets the completion marker. Subsequent revocation
+and explicit release deny retained reads. Authority history checkpointing is explicitly opted in; publication lifetimes
+remain unlimited and no history trim is requested. A checkpoint is recorded
+before each of the last two recovery boundaries. Final inspection checks empty staging
+reservation, preserved acceptance evidence, retained smaller records and
+permanent descriptors rejecting old IDs. This is logical current-KV cleanup;
+it does not prove physical provider erasure or history trimming.
+
+The package's `publication_test.zig` separately exercises invalid encodings,
+full-width identities, empty bodies, identity/content conflicts, out-of-order
+chunks, missing/corrupt content, mixed-source cursors, private-write rejection,
+quota accounting, read-error poisoning and rollback when the four-mutation
+budget fills partway through a helper. It includes 64 KiB streaming and a
+historical-snapshot oracle. `just test::unit` runs these checks; the Station
+package also builds/tests them using its own dependency manifest.
+
+Capacity is explicit: chunks are 256 bytes, namespace values 32 bytes, descriptor
+values 104 bytes, keys 23 bytes and cleanup at most two chunks. A 64 KiB record
+uses 71,551 logical key/value bytes plus 55 bytes for its namespace; provider
+indexes, authority history and retained roots add separate overhead. Record and
+staging byte/count quotas are durable configuration. The u32 encoding ceiling
+is not a qualification of arbitrary multi-gigabyte records. Total retained
+record count does not size an array or whole-record buffer in the implementation.
+
+Local Linux x86_64 qualification passed: `just check`, standalone Station
+package tests, `just test::publication` and the existing `just test::growing-query`
+regression. The [retained report](verification/results/m14-publication-2026-09-26.json)
+records source hashes, sizes, workload and phase timings: staging 34.566s,
+one-page sealing 4.781s, publication 18.878s, one-page cleanup/recovery 21.203s,
+and completion 91.551s (170.979s total phase time, excluding build/provider startup).
+The native descriptor/cursor/returned part occupy 104/144/416 bytes; these are
+type sizes, not a process-RSS measurement. The one-page recovery phases are separated from ordinary
+64-page preparation/completion. A preliminary whole-write one-page stress run
+was interrupted for excessive repeated cache work; it is not passing evidence.
+These proofs concern one authority on Linux x86_64 and process/store restart,
+not host power loss, production throughput, CRDT convergence, language SDKs,
+remote uploads, physical reclamation or deployment-launcher support. Hosted CI
+feedback/cost for the additional task has not yet been measured.
