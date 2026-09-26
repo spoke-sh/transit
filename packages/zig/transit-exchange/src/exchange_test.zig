@@ -240,6 +240,36 @@ test "durable dependency tokens block release across turns and never reacquire a
     try t.expectError(error.ExchangeUnavailable, ex.retain(&turn, 999, 9));
     try t.expectEqual(.duplicate, try ex.release(&turn, 1, 70001));
 }
+test "terminal recovery after dispatch before bind preserves the original attempt identity" {
+    var store: Store = .{};
+    defer store.deinit();
+    const ex = try exchange(&store, 1);
+    try segment(&store, ex, 0, 1, "request");
+    var turn = try store.capture();
+    _ = try ex.commitIntent(&turn);
+    const intent = turn.decision.effect.?;
+    try store.commit(turn);
+    turn = try store.capture();
+    _ = try ex.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    const effect: p.Growth.Effect = .{ .id = 19, .pid = 2, .payload = intent, .phase = .closed_unknown, .attempt = 20, .executor = 7, .reconcile_before_ms = 10000 };
+    var bad = effect;
+    bad.reconcile_before_ms = 10001;
+    try t.expectError(error.InvalidExchangeAttempt, ex.settle(&turn, bad));
+    bad = effect;
+    bad.executor = null;
+    try t.expectError(error.InvalidExchangeAttempt, ex.settle(&turn, bad));
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    _ = try ex.settle(&turn, effect);
+    try store.commit(turn);
+    turn = try store.capture();
+    const d = try ex.inspect(&turn);
+    try t.expectEqual(@as(u64, 19), d.effect);
+    try t.expectEqual(@as(u64, 20), d.attempt);
+    try t.expectEqual(@as(u64, 7), d.executor);
+    try t.expectEqual(.duplicate, try ex.settle(&turn, effect));
+}
 test "gaps, conflicting duplicates, terminal races and atomic rollback preserve capture" {
     var store: Store = .{};
     defer store.deinit();

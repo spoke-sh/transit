@@ -204,7 +204,9 @@ pub fn releaseCaller(self: Self, turn: *Turn, caller: u64) !Pub.Outcome {
 /// Record a terminal kernel decision obtained through an authenticated read.
 /// Terminal capture by itself cannot discharge an outstanding effect obligation.
 pub fn settle(self: Self, turn: *Turn, effect: p.Growth.Effect) !Pub.Outcome {
-    const d = try self.writable(turn);
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    var d = try self.writable(turn);
     if (d.phase != .complete and d.phase != .unknown) return error.ExchangeStillOpen;
     if (effect.pid != d.owner or effect.id == 0 or !(try turn.read(key(self.id, 'i', 0)) orelse return error.UnsettledExchange).eql(effect.payload)) return error.InvalidExchangeAttempt;
     if (d.effect != 0 and (d.effect != effect.id or d.attempt != effect.attempt or d.executor != effect.executor)) return error.InvalidExchangeAttempt;
@@ -218,6 +220,17 @@ pub fn settle(self: Self, turn: *Turn, effect: p.Growth.Effect) !Pub.Outcome {
     if (c.disposition != .pending) {
         if (c.disposition != disposition or c.effect != effect.id) return error.ExchangeIdentityConflict;
         return .duplicate;
+    }
+    if (effect.phase != .cancelled) {
+        if (effect.attempt == null or effect.executor == null or effect.attempt.? == 0 or effect.executor.? == 0 or effect.reconcile_before_ms != d.reconcile_before_ms) return error.InvalidExchangeAttempt;
+        // A worker can disappear after dispatch but before binding capture.
+        // Preserve that recovered identity even when no response bytes exist.
+        if (d.effect == 0) {
+            d.effect = effect.id;
+            d.attempt = effect.attempt.?;
+            d.executor = effect.executor.?;
+            try self.save(turn, d);
+        }
     }
     c.disposition = disposition;
     c.effect = effect.id;

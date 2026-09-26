@@ -100,7 +100,11 @@ but complete replay rejects it. Replay APIs have no transport or secret resolver
 
 `settle` records a terminal authenticated kernel effect read, checking the frozen
 intent and bound effect/attempt/executor identity. Merely finishing capture cannot
-discharge an effect obligation. Caller replay remains held after settlement until
+discharge an effect obligation. If dispatch succeeded but the worker disappeared
+before binding capture, unknown settlement recovers that effect/attempt/executor
+from the authenticated terminal read, preserving the original deadline. It cannot
+invent a response or authorize another send. Missing identities or a changed
+deadline reject atomically. Caller replay remains held after settlement until
 an authenticated acknowledgement or an explicit authorized disposal invokes
 `releaseCaller`. Termination, quota pressure and elapsed time do not release it.
 
