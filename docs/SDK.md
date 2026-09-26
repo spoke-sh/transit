@@ -15,7 +15,9 @@ recovery/ownership/Table/query proofs. Java's independent raw/Station JARs now
 qualify bounded futures, typed scoped handlers, exact recovery, retained Tables
 and owned query IPC. .NET's independent raw/Station NuGet packages qualify typed
 handlers, exact recovery, cancelled awaits, joined native ownership, retained
-Tables and owned IPC. BEAM and public mixed-language pairs remain open.
+Tables and owned IPC. Erlang/Elixir raw clients now qualify independent OTP
+installation, tagged recovery and supervised caller-loss cleanup. BEAM Station
+and public mixed-language pairs remain open.
 [M11](roadmap/M11.md) owns delivery, including public interoperability. The
 [M9 adapters](../bindings/README.md) remain executable low-level interfaces.
 

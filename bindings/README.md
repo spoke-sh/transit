@@ -38,6 +38,12 @@ awaits, joined 8 MiB native workers and retained receipts through
 also qualifies typed scoped callbacks, all mutation hooks, retained Tables and
 original query IPC after disposal through installed examples.
 
+The independent [Erlang](../packages/beam/transit-client/README.md) and
+[Elixir](../packages/beam/transit-client-elixir/README.md) raw clients use separate
+OTP applications/native artifacts. `just bindings::beam-sdk-test` runs clean
+consumers through typed recovery, caller-loss/join, supervision and version proofs.
+Their public Station layer remains open.
+
 M11 adds **Ruby** through the shared native port, with value objects and
 block-scoped ownership. Ruby 3.4.9 / RubyGems 3.7.2 are pinned by the Nix lock;
 its raw/Station packages have separate public SDK proofs. The historical M9

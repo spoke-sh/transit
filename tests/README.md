@@ -240,6 +240,23 @@ independent PyArrow; no optional .NET Arrow adapter is selected. Generated-schem
 checks reject absent nullable fields, invalid cursors, fractions and oversized
 exponents. Native package/ABI checks precede use; SDKs require exact 0.2.0 peers.
 
+`nix develop .#bindings -c just bindings::beam-sdk-test` builds standard OTP
+applications with separate Erlang core, Elixir wrapper and native dependencies.
+External consumers install only these raw packages through `ERL_LIBS`; the Erlang
+consumer compiles with warnings as errors and no Elixir/Station dependency.
+Both languages pass the shared typed/raw schedule: native classification, exact
+seedless retry, rejected non-send/noncanonical material, caller/task death during
+accepted I/O, responsive joined cleanup with retained receipts, and revoked
+retry. The admission proof distinguishes a dead unpublished reservation from an
+active worker-owned job. Supervisor start/handle/close and parent termination
+join native cleanup. Missing artifacts, native/package/SDK version mismatches,
+malformed/duplicate/fractional/oversized/partial/invalid-UTF-8 responses and closed
+handles reject. Boundaries use generated schemas and binary JSON keys. Native
+shutdown acknowledgement precedes successful child exit; no cancellation is
+inferred from local task death. Rebar/Mix registry resolution, Hex publication,
+portable artifacts and BEAM allocation-failure injection are not qualified.
+The public BEAM Station schedule remains open.
+
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 

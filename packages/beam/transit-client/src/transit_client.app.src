@@ -1,0 +1,6 @@
+{application, transit_client, [
+ {description, "Independent typed Transit client with owned native work"},
+ {vsn, "0.2.0"}, {modules, []}, {registered, []},
+ {applications, [kernel, stdlib, crypto, transit_native_client]},
+ {env, []}
+]}.

@@ -194,8 +194,9 @@ for services/requesters, raw recovery, runner ownership and packaging. It record
 the required shared native changes. Python, TypeScript, Rust, Ruby, C/C++, Java
 and .NET now have qualified public raw and Station APIs with installed examples.
 Java's JARs and .NET's NuGet packages add bounded asynchronous operations, joined
-cleanup and typed scoped handlers. BEAM and public mixed-language qualification
-remain open.
+cleanup and typed scoped handlers. Erlang/Elixir also have independent raw OTP
+clients with tagged recovery, supervised ownership and caller-loss/join proofs.
+Their Station layer and public mixed-language qualification remain open.
 M9 provides generated declarations and
 owned host adapters with real interoperability and recovery evidence. Its public
 surface still exposes JSON actions, raw status codes, hex values and manual
