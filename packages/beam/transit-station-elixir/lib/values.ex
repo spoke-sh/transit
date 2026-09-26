@@ -1,0 +1,154 @@
+defmodule Transit.Station.Sdk.Activation do
+  @enforce_keys [:process, :generation, :credential]
+  defstruct [:process, :generation, :credential]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.ServiceConfig do
+  @enforce_keys [:client, :activation]
+  defstruct [:client, :activation, association: "data", query_results: false]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.Key do
+  @enforce_keys [:name, :codec]
+  defstruct [:name, :codec]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.Incoming do
+  @enforce_keys [:kind, :value, :position, :origin]
+  defstruct [:kind, :value, :position, :origin, correlation: nil]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.Control do
+  @enforce_keys [:kind, :position, :origin, :correlation]
+  defstruct [:kind, :position, :origin, :correlation]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.ResultComplete do
+  @enforce_keys [:position, :origin, :correlation]
+  defstruct [:position, :origin, :correlation]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.ReadVersion do
+  @enforce_keys [:pid, :input, :index]
+  defstruct [:pid, :input, :index]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.Basis do
+  @enforce_keys [:resource, :revision, :schema]
+  defstruct [:resource, :revision, :schema]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.Page do
+  @enforce_keys [:entries]
+  defstruct [:entries, cursor: nil, basis: nil]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.KVEntry do
+  @enforce_keys [:key, :value, :revision]
+  @derive {Inspect, only: [:revision]}
+  defstruct [:key, :value, :revision]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.TableSchema do
+  @enforce_keys [:id, :cell]
+  defstruct [:id, :cell, key_name: "id", value_name: "value"]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.Row do
+  @enforce_keys [:key]
+  defstruct [:key, value: nil]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.QueryPlan do
+  defstruct projection: :both, aggregate: :rows, limit: nil, predicate: :all
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.QueryJob do
+  @enforce_keys [:result, :correlation, :source]
+  defstruct [:result, :correlation, :source]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.Manifest do
+  @enforce_keys [
+    :result,
+    :source,
+    :destination,
+    :correlation,
+    :table,
+    :policy_revision,
+    :basis,
+    :plan,
+    :segments,
+    :byte_count,
+    :rows,
+    :chain,
+    :schema
+  ]
+  defstruct [
+    :result,
+    :source,
+    :destination,
+    :correlation,
+    :table,
+    :policy_revision,
+    :basis,
+    :plan,
+    :segments,
+    :byte_count,
+    :rows,
+    :chain,
+    :schema
+  ]
+
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.IpcSegment do
+  @enforce_keys [:manifest, :ordinal, :rows, :digest, :ipc]
+  @derive {Inspect, only: [:ordinal, :rows, :digest]}
+  defstruct [:manifest, :ordinal, :rows, :digest, :ipc]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.FrozenMutation do
+  @enforce_keys [:identity, :purpose, :input, :bytes]
+  @derive {Inspect, only: [:identity, :purpose, :input]}
+  defstruct [:identity, :purpose, :input, :bytes]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.Committed do
+  @enforce_keys [:input, :receipt]
+  defstruct [:input, :receipt]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.Blocked do
+  defstruct input: nil, receipt: nil
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.NeedsRecovery do
+  @enforce_keys [:mutation, :phase, :error]
+  defstruct [:mutation, :phase, :error, receipt: nil]
+  @type t :: %__MODULE__{}
+end
+
+defmodule Transit.Station.Sdk.Shutdown do
+  defstruct pending: nil, last_event: nil
+  @type t :: %__MODULE__{}
+end

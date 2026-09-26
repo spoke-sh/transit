@@ -35,6 +35,7 @@ end
 defmodule Transit.Client.Identity do
   @enforce_keys [:sha256]
   defstruct [:sha256]
+  @type t :: %__MODULE__{}
 end
 
 defmodule Transit.Client.AdmissionReceipt do
@@ -45,6 +46,7 @@ end
 defmodule Transit.Client.MutationReceipt do
   @enforce_keys [:position]
   defstruct [:position]
+  @type t :: %__MODULE__{}
 end
 
 defmodule Transit.Client.Pending do

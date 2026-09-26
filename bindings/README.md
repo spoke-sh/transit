@@ -40,9 +40,13 @@ original query IPC after disposal through installed examples.
 
 The independent [Erlang](../packages/beam/transit-client/README.md) and
 [Elixir](../packages/beam/transit-client-elixir/README.md) raw clients use separate
-OTP applications/native artifacts. `just bindings::beam-sdk-test` runs clean
+OTP applications/native artifacts. Their public Station counterparts are
+[Erlang](../packages/beam/transit-station-sdk/README.md) and
+[Elixir](../packages/beam/transit-station-elixir/README.md).
+`just bindings::beam-sdk-test` runs clean
 consumers through typed recovery, caller-loss/join, supervision and version proofs.
-Their public Station layer remains open.
+Their Station schedules also qualify all mutation gates, scoped handlers, exact
+recovery, retained Tables and owned query IPC.
 
 M11 adds **Ruby** through the shared native port, with value objects and
 block-scoped ownership. Ruby 3.4.9 / RubyGems 3.7.2 are pinned by the Nix lock;

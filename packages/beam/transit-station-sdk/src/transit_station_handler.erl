@@ -1,0 +1,7 @@
+-module(transit_station_handler).
+-include("transit_station_sdk.hrl").
+-callback initialize(transit_turn:turn(), term()) -> {ok, term()} | {error, term()}.
+-callback handle_message(transit_turn:turn(), #transit_incoming{}, term()) -> {ok, term()} | {error, term()}.
+-callback handle_control(transit_turn:turn(), #transit_control{}, term()) -> {ok, term()} | {error, term()}.
+-callback handle_result(transit_turn:turn(), #transit_result_complete{}, term()) -> {ok, term()} | {error, term()}.
+-optional_callbacks([initialize/2, handle_control/3, handle_result/3]).

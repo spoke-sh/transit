@@ -1,0 +1,6 @@
+-module(transit_station_codec).
+-callback type_id() -> binary().
+-callback version() -> pos_integer().
+-callback max_encoded_bytes() -> pos_integer().
+-callback encode(term()) -> {ok, binary()} | {error, term()}.
+-callback decode(binary()) -> {ok, term()} | {error, term()}.

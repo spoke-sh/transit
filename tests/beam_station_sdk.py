@@ -1,0 +1,75 @@
+"""Compile clean OTP consumers and run both public Station authority schedules."""
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tarfile
+from sdk_station_runner import Consumer, run as schedule
+
+
+def run(node, cli, library, artifacts, *, execute=None):
+    root = Path(__file__).resolve().parents[1]
+    for language in ('erlang', 'elixir'):
+        def install(target, language=language):
+            lib = target / 'lib'
+            lib.mkdir()
+            names = ['transit_native_client', 'transit_client', 'transit_native_station', 'transit_station_sdk']
+            if language == 'elixir': names += ['transit_client_elixir', 'transit_station_elixir']
+            names.append(f'transit_sdk_examples_{language}')
+            for name in names:
+                with tarfile.open(Path(artifacts).resolve() / f'{name}-0.2.0.tar.gz') as archive:
+                    archive.extractall(lib, filter='data')
+            env = dict(os.environ, ERL_LIBS=str(lib), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
+            classes = target / 'classes'
+            classes.mkdir()
+            sources = ['beam_station_controller.erl']
+            if language == 'erlang': sources += ['beam_station_adapter.erl', 'beam_station_reentrant.erl']
+            for name in sources:
+                source = target / name
+                shutil.copy2(root / 'tests' / name, source)
+                subprocess.run(['erlc', '-Werror', '-o', str(classes), str(source)], env=env, cwd=target, check=True)
+                source.unlink()
+            if language == 'elixir':
+                source = target / 'elixir_station_adapter.ex'
+                shutil.copy2(root / 'tests' / source.name, source)
+                subprocess.run(['elixirc', '--warnings-as-errors', '-pa', str(classes), '-o', str(classes), str(source)], env=env, cwd=target, check=True)
+                source.unlink()
+            fake = target / 'bad-station-version'
+            fake.write_text(f'#!{sys.executable}\nimport sys\nsys.stdin.readline()\nprint(\'{{"status":0,"value":{{"host_version":1,"station_version":99,"transit_version":1}}}}\')\n')
+            fake.chmod(0o700)
+            if language == 'erlang':
+                incompatible = ['erl', '-noshell', '-eval', 'case transit_station_sdk:encode_cast(read, transit_example_counter_codec) of {error, E} when element(2, E) =:= incompatible_native -> halt(0); _ -> halt(1) end.']
+            else:
+                incompatible = ['elixir', '-e', '{:error, %Transit.Client.Error{kind: :incompatible_native}} = Transit.Station.Sdk.encode_cast(%Transit.SdkExamples.Read{}, Transit.SdkExamples.CounterCodec)']
+            native = lib / 'transit_native_station-0.2.0'
+            hidden = target / 'native.saved'
+            native.rename(hidden)
+            try: subprocess.run(incompatible, env=env, cwd=target, check=True, timeout=20)
+            finally: hidden.rename(native)
+            for app in ('transit_native_station', 'transit_client'):
+                manifest = lib / f'{app}-0.2.0/ebin/{app}.app'
+                original = manifest.read_text()
+                manifest.write_text(original.replace('0.2.0', '99.0.0'))
+                try: subprocess.run(incompatible, env=env, cwd=target, check=True, timeout=20)
+                finally: manifest.write_text(original)
+            def command(mode, config):
+                import json
+                pending = Path(json.loads(config.read_text())['pending'])
+                if not pending.exists():
+                    with pending.open('xb') as file:
+                        pending.chmod(0o600)
+                        file.flush(); os.fsync(file.fileno())
+                    fd = os.open(pending.parent, os.O_RDONLY | os.O_DIRECTORY)
+                    try: os.fsync(fd)
+                    finally: os.close(fd)
+                if language == 'erlang': return ['erl', '-noshell', '-pa', str(classes), '-s', 'beam_station_controller', 'main', '-extra', mode, str(config)]
+                return ['elixir', '-pa', str(classes), '-e', ':beam_station_controller.main(ElixirStationAdapter, System.argv())', '--', mode, str(config)]
+            def example(config, role):
+                if language == 'erlang': return ['erl', '-noshell', '-s', 'transit_erlang_counter', 'main', '-extra', str(config), role, '--commits', '1']
+                return ['elixir', '-e', 'Transit.SdkExamples.CounterMain.main()', '--', str(config), role, '--commits', '1']
+            return Consumer(env, command, example, 'invalid-handler', extra_failures=('exit-stop', 'exit-block'), arrow_adapter=False)
+        (execute or schedule)(node, cli, library, install, language.capitalize())
+
+
+if __name__ == '__main__': run(*sys.argv[1:])

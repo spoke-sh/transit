@@ -255,7 +255,18 @@ handles reject. Boundaries use generated schemas and binary JSON keys. Native
 shutdown acknowledgement precedes successful child exit; no cancellation is
 inferred from local task death. Rebar/Mix registry resolution, Hex publication,
 portable artifacts and BEAM allocation-failure injection are not qualified.
-The public BEAM Station schedule remains open.
+The public Station schedule also installs independent Station/native/example
+applications and runs both language APIs through the shared authority schedule.
+A common Erlang test controller drives adapters using the public Erlang records
+and Elixir structs/behaviours; both real language counter CLIs run from installed
+artifacts. It covers full-width codecs, all three mutation gates, retained
+confirmation, callback throw/exit failures, scoped owner/reentry checks, sticky
+read failures, caller kill/stop/join, exact seedless disk recovery, stale/revoked/
+expired authority, retained Tables and six owned IPC segments after close.
+Original segments are independently decoded with PyArrow; no BEAM Arrow adapter
+is selected. Sources are removed after consumer compilation. The builder derives
+application metadata from each `.app.src` or Mix manifest. Public cross-language
+pairs remain separate qualification.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

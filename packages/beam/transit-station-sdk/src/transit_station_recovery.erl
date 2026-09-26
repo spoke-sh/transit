@@ -1,0 +1,4 @@
+-module(transit_station_recovery).
+-include("transit_station_sdk.hrl").
+-callback before_dispatch(#transit_frozen{}, term()) -> ok | {error, term()}.
+-callback confirmed(#transit_identity{}, #transit_receipt{}, term()) -> ok | {error, term()}.

@@ -9,9 +9,10 @@ example or proof of support.
 Executable installed examples are available in [Python](python/README.md),
 [TypeScript](typescript/README.md), [Rust](rust/README.md), [Ruby](ruby/README.md),
 [C](c/README.md), [C++](cpp/README.md), [Java](java/README.md) and
-[.NET](dotnet/README.md). Their clean-consumer proofs run the same
-counter, requester, retained Table and multi-segment query schedule. Other
-languages and public mixed-language pairs remain M11 work.
+[.NET](dotnet/README.md), [Erlang](erlang/README.md) and [Elixir](elixir/README.md).
+Their clean-consumer proofs run the same
+counter, requester, retained Table and multi-segment query schedule. Public
+mixed-language pairs remain M11 work.
 
 ## Counter messages v1
 

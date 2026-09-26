@@ -142,12 +142,13 @@ dotnet-sdk-test: dotnet-build
     python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet
     python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet
 
-# Build separate standard OTP client applications and native artifacts.
+# Build separate standard OTP client/Station applications, examples and native artifacts.
 beam-build: build
     python3 -B bindings/build_beam.py .cache/bindings/beam
 
 # Compile clean Erlang consumers and execute both public BEAM language schedules.
 beam-sdk-test: beam-build
-    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-client-elixir/lib/client.ex packages/beam/transit-client-elixir/mix.exs tests/elixir_client_sdk.exs
+    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-client-elixir/lib/client.ex packages/beam/transit-client-elixir/mix.exs packages/beam/transit-station-elixir/lib/*.ex packages/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/elixir_client_sdk.exs tests/elixir_station_adapter.ex
     zig build transit-node rey-cli
     python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam
+    python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam

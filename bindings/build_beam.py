@@ -10,6 +10,15 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = '0.2.0'
+MIX_MANIFEST = '''Mix.start()
+Code.require_file(hd(System.argv()))
+project = Mix.Project.config()
+application = Mix.Project.get!().application()
+deps = Enum.map(Keyword.get(project, :deps, []), &elem(&1, 0))
+apps = Enum.uniq([:kernel, :stdlib, :elixir] ++ Keyword.get(application, :extra_applications, []) ++ deps)
+term = {:application, project[:app], [description: ~c"Transit Elixir public API", vsn: String.to_charlist(project[:version]), modules: [], registered: [], applications: apps]}
+IO.write(:io_lib.format(~c"~tp.~n", [term]))
+'''
 
 
 def build(output, names):
@@ -21,7 +30,18 @@ def build(output, names):
         environment['ERL_LIBS'] = str(base)
         for name in names:
             source = ROOT / name if '/' in name else ROOT / 'packages/beam' / name
-            app = source.name.replace('-', '_')
+            erlang = sorted((source / 'src').glob('*.erl'))
+            elixir = sorted((source / 'lib').glob('*.ex'))
+            if elixir:
+                assert f'version: "{VERSION}"' in (source / 'mix.exs').read_text()
+                # Dependency ownership comes from the actual Mix project.
+                manifest = subprocess.check_output(['elixir', '-e', MIX_MANIFEST, str(source / 'mix.exs')], env=environment, cwd=base, text=True)
+                app = re.search(r'\{application,\s*([a-z0-9_]+),', manifest).group(1)
+            else:
+                source_manifest, = (source / 'src').glob('*.app.src')
+                app = source_manifest.name.removesuffix('.app.src')
+                manifest = source_manifest.read_text()
+                assert f'{{vsn, "{VERSION}"}}' in manifest
             target = base / f'{app}-{VERSION}'
             target.mkdir()
             ebin = target / 'ebin'
@@ -33,24 +53,16 @@ def build(output, names):
                 family = name.removeprefix('transit-native-')
                 (target / 'priv').mkdir(exist_ok=True)
                 shutil.copy2(ROOT / 'zig-out/bin' / f'transit-{family}-host', target / 'priv' / f'transit-{family}-host')
-            erlang = sorted((source / 'src').glob('*.erl'))
             if erlang:
-                subprocess.run(['erlc', '-Werror', '+debug_info', '-I', str(source / 'include'), '-o', str(ebin), *map(str, erlang)], env=environment, cwd=base, check=True)
-            elixir = sorted((source / 'lib').glob('*.ex'))
+                subprocess.run(['erlc', '-Werror', '+debug_info', '-pa', str(ebin), '-I', str(source / 'include'), '-o', str(ebin), *map(str, erlang)], env=environment, cwd=base, check=True)
             if elixir:
-                assert f'version: "{VERSION}"' in (source / 'mix.exs').read_text()
                 subprocess.run(['elixirc', '--warnings-as-errors', '-o', str(ebin), *map(str, elixir)], env=environment, cwd=base, check=True)
             modules = sorted(path.stem for path in ebin.glob('*.beam'))
             assert all(re.fullmatch(r'[A-Za-z0-9_.]+', module) for module in modules)
             module_list = '[' + ','.join("'" + module + "'" for module in modules) + ']'
-            if elixir:
-                dependencies = '[kernel,stdlib,elixir,transit_client]'
-                manifest = f'{{application,{app},[{{description,"Transit Elixir public API"}},{{vsn,"{VERSION}"}},{{modules,{module_list}}},{{registered,[]}},{{applications,{dependencies}}}]}}.\n'
-                shutil.copy2(source / 'mix.exs', target / 'mix.exs')
-            else:
-                manifest = (source / 'src' / f'{app}.app.src').read_text().replace('{modules, []}', '{modules, ' + module_list + '}')
-                assert f'{{vsn, "{VERSION}"}}' in manifest
-                shutil.copy2(source / 'rebar.config', target / 'rebar.config')
+            manifest = re.sub(r'\{modules,\s*\[\]\}', '{modules,' + module_list + '}', manifest)
+            for file in ('mix.exs', 'rebar.config'):
+                if (source / file).exists(): shutil.copy2(source / file, target / file)
             (ebin / f'{app}.app').write_text(manifest)
             artifact = output / f'{app}-{VERSION}.tar.gz'
             with tarfile.open(artifact, 'w:gz') as archive: archive.add(target, arcname=target.name)
@@ -58,4 +70,5 @@ def build(output, names):
 
 
 if __name__ == '__main__':
-    build(sys.argv[1], sys.argv[2:] or ['transit-native-client', 'transit-client', 'transit-client-elixir'])
+    build(sys.argv[1], sys.argv[2:] or ['transit-native-client', 'transit-client', 'transit-client-elixir', 'transit-native-station', 'transit-station-sdk', 'transit-station-elixir',
+                                      'examples/station-sdk/erlang', 'examples/station-sdk/elixir'])

@@ -1,0 +1,26 @@
+-ifndef(TRANSIT_STATION_SDK_HRL).
+-define(TRANSIT_STATION_SDK_HRL, true).
+-include_lib("transit_client/include/transit_client.hrl").
+-record(transit_activation, {process :: #transit_process{}, generation :: transit_counter(), credential :: #transit_credential{}}).
+-record(transit_service, {client :: #transit_config{}, activation :: #transit_activation{}, association = <<"data">> :: binary(), query_results = false :: boolean()}).
+-record(transit_key, {name :: binary(), codec :: module()}).
+-record(transit_incoming, {kind :: cast | call | reply, value :: term(), position :: transit_counter(), origin :: term(), correlation = undefined :: undefined | pos_integer()}).
+-record(transit_control, {kind :: cancel | timeout, position :: transit_counter(), origin :: term(), correlation :: pos_integer()}).
+-record(transit_result_complete, {position :: transit_counter(), origin :: term(), correlation :: pos_integer()}).
+-record(transit_read_version, {pid :: transit_counter(), input :: transit_counter(), index :: 0..255}).
+-record(transit_basis, {resource :: #transit_resource{}, revision :: non_neg_integer(), schema :: binary()}).
+-record(transit_page, {entries = [] :: list(), cursor = undefined :: undefined | binary(), basis = undefined :: undefined | #transit_basis{}}).
+-record(transit_kv_entry, {key :: binary(), value :: binary(), revision :: non_neg_integer()}).
+-record(transit_table_schema, {id :: pos_integer(), cell :: int64 | boolean | utf8 | binary, key_name = <<"id">> :: binary(), value_name = <<"value">> :: binary()}).
+-record(transit_row, {key :: integer(), value :: null | integer() | boolean() | binary()}).
+-record(transit_query_plan, {projection = both :: both | key | value, aggregate = rows :: rows | count | sum,
+                             limit = undefined :: undefined | non_neg_integer(), predicate = all :: term()}).
+-record(transit_query_job, {result :: transit_counter(), correlation :: pos_integer(), source :: #transit_read_version{}}).
+-record(transit_manifest, {result, source, destination, correlation, table, policy_revision, basis, plan, segments, byte_count, rows, chain, schema}).
+-record(transit_ipc_segment, {manifest :: #transit_manifest{}, ordinal :: non_neg_integer(), rows :: non_neg_integer(), digest :: binary(), ipc :: binary()}).
+-record(transit_frozen, {identity :: #transit_identity{}, purpose :: permit | open | commit, input :: transit_counter(), bytes :: binary()}).
+-record(transit_committed, {input :: transit_counter(), receipt :: #transit_receipt{}}).
+-record(transit_blocked, {input = undefined :: undefined | transit_counter(), receipt = undefined :: undefined | #transit_receipt{}}).
+-record(transit_needs_recovery, {mutation :: #transit_frozen{}, phase :: atom(), error :: #transit_error{}, receipt = undefined :: undefined | #transit_receipt{}}).
+-record(transit_runner_shutdown, {pending = undefined :: undefined | #transit_frozen{}, last_event = undefined :: term()}).
+-endif.
