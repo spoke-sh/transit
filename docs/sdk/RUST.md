@@ -1,6 +1,8 @@
 # Rust SDK API design
 
-Status: proposed M11 API, not an implemented package interface. Read the
+Status: the independent [raw client](../../packages/rust/transit-client/README.md)
+now has typed operations, owned workers, clean crate installation and shared
+authority/ownership proofs. Station contracts below remain proposed. Read the
 [shared design](../SDK.md) for authority, lifecycle and recovery rules. The
 [existing Rust adapter](../../packages/rust/transit-station/README.md) remains
 the executable M9 surface. These are design excerpts: the counter application
@@ -10,9 +12,10 @@ configuration and durable recovery storage are application inputs.
 ## Crates and ownership
 
 `transit-client` exposes `transit_client` with typed raw operations, references,
-receipts and errors. `transit-station` depends on it and exposes handler traits,
-scoped turns, Tables and runners. Retain the current low-level `Client`/`GenServer`
-entry points and expose an explicit `raw` module during migration. Generated FFI
+receipts and errors. The separate `transit-station-sdk` crate will depend on it
+and expose handler traits, scoped turns, Tables and runners. The M9
+`transit-station` crate retains its low-level `Client`/`GenServer` entry points
+and generated FFI without changing existing consumers. Generated FFI
 stays private/raw; new public types must not mirror JSON action unions. Keep
 Arrow integration behind an optional dependency/feature.
 
@@ -198,7 +201,7 @@ pub enum DispatchError {
 
 let mut client = Client::open(client_config)?;
 let mut pending = client.prepare_send(requester, &encoded_start, &credential, sequence)?;
-outbox.save(pending.identity(), &pending.export()?)?;
+outbox.save(pending.identity(), &pending.export())?;
 match client.dispatch(&mut pending) {
     Ok(receipt) => outbox.confirm(pending.identity(), &receipt)?,
     Err(error) => report_attempt(error), // Saved material remains for recovery.

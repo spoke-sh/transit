@@ -5,7 +5,8 @@ implemented with typed raw/Station packages, executable counter/query examples,
 clean wheel installation and focused lifecycle/data proofs. The
 [TypeScript](sdk/TYPESCRIPT.md) design now has corresponding public raw/Station
 packages, executable examples, clean tarballs and lifecycle/data proofs.
-The [Rust](sdk/RUST.md) design remains proposed;
+The [Rust](sdk/RUST.md) raw client is implemented and qualified through clean
+crate consumers; its Station design remains proposed.
 Ruby, C/C++, Java, .NET and BEAM adaptations remain to be implemented.
 [M11](roadmap/M11.md) owns delivery, including public interoperability. The
 [M9 adapters](../bindings/README.md) remain executable low-level interfaces.

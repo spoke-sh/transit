@@ -97,6 +97,18 @@ uses normal package-cache fallback; a different filesystem may have its own cach
 Strict checks compile both public examples. Linux x86_64/Nix-linked tarballs are
 qualified; public cross-language pairs and the other M11 SDKs remain open.
 
+`nix develop .#bindings --command just bindings::rust-sdk-test` builds the
+independent raw Rust client and matching native crate. The external consumer
+builds with the lockfile and ordinary Cargo patches for unpublished artifacts,
+then deletes extracted crates and build outputs before running its installed
+executable. The embedded library loads without a Cargo-cache or loader path.
+It runs the same raw authority schedule, plus compile-fail checks for overlapping
+mutable use, shared handles and use after consuming close. Its initial API is
+blocking: `blocking-owner-disposal` abandons an application's receive, keeps
+native work owned through explicit close, joins responsively and recovers the
+same receipt. It does not claim an async executor adapter. Rust Station and
+public mixed-language pairs remain open.
+
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 

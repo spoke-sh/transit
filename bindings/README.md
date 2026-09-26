@@ -67,6 +67,13 @@ its installed counter/query examples, owned async turns and optional Arrow reade
 The existing `@rey/transit-station` adapter remains compatible. The bindings CI
 lane installs both legacy and public Node workspace packages from the lockfile.
 
+The independent [Rust client](../packages/rust/transit-client/README.md) now has
+typed raw operations and embedded native artifacts. `just bindings::rust-sdk-test`
+in the bindings shell compiles an external locked consumer, removes its build
+and extracted source trees, and runs the shared authority/recovery schedule.
+Its blocking ownership proof is separate from Python/Node async cancellation;
+compile-fail checks enforce exclusive use and consumed-handle disposal.
+
 ## Qualification tools
 
 `nix develop .#bindings` adds the locked foreign-language tools to the normal

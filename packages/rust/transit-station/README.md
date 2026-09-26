@@ -6,8 +6,10 @@ stay in Zig. Rust owns JSON values, exceptions/panics and scheduling. Cargo.lock
 pins the sole direct Rust dependency, serde_json; arbitrary-precision JSON parsing
 and decimal string cells/correlations preserve the shared wire contract.
 
-The [M11 Rust SDK design](../../../docs/sdk/RUST.md) proposes typed clients,
-handlers and runners above this adapter; those APIs are not implemented yet.
+The independent [M11 raw client](../transit-client/README.md) now provides typed
+operations, owned workers and installable native artifacts. The
+[Rust SDK design](../../../docs/sdk/RUST.md) specifies the separate typed Station
+runner still being implemented. This M9 crate retains its existing entry points.
 
 ```sh
 nix develop .#bindings

@@ -1,0 +1,11 @@
+[package]
+name = "transit-client"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.95"
+include = ["src", "README.md", "docs"]
+
+[dependencies]
+libloading = "=0.8.9"
+serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
+transit-native-client = { version = "=0.2.0", path = "../transit-native-client" }

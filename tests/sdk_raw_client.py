@@ -76,7 +76,11 @@ def run(node, cli, raw_library, install, label):
             assert receipt['position'] > 0 and fault['bodies'][0] == fault['bodies'][1]
             key.write_bytes(original_seed)
             fault['delay'] = True
-            check('local-cancellation-disposal', json.loads(invoke('async')))
+            ownership = json.loads(invoke('async'))
+            if 'scenario' in ownership:
+                check(ownership['scenario'], ownership['observations'])
+            else:
+                check('local-cancellation-disposal', ownership)
             fault['delay'] = False
             command({'revoke': 65536})
             invoke('denied')
@@ -87,7 +91,7 @@ def run(node, cli, raw_library, install, label):
                 assert bytes.fromhex(state['input']['value']) == b'wide'
             finally:
                 native.lib.transit_operation_destroy(read)
-            print(f'{label} public client: clean independent artifacts, typed bounds, owned bytes, lost receipt, seedless restart, native classification, async overlap/cancellation/join and revoked retry passed.')
+            print(f'{label} public client: clean independent artifacts, typed bounds, owned bytes, lost receipt, seedless restart, native classification, owned I/O/disposal and revoked retry passed.')
         finally:
             native.lib.transit_client_destroy(admin)
             proxy.shutdown()

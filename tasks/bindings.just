@@ -62,3 +62,15 @@ node-sdk-test: node-build
     zig build transit-node rey-cli
     python3 -B tests/node_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node
     python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node
+
+# Build independent Rust source crates with their embedded native artifact.
+rust-build: build
+    cargo fetch --locked --manifest-path packages/rust/transit-client/Cargo.toml
+    python3 -B bindings/build_rust.py .cache/bindings/rust
+
+# Build clean Rust consumers; run from the bindings shell.
+rust-sdk-test: rust-build
+    cargo fmt --manifest-path packages/rust/transit-client/Cargo.toml --check
+    cargo fmt --manifest-path packages/rust/transit-native-client/Cargo.toml --check
+    zig build transit-node rey-cli
+    python3 -B tests/rust_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust
