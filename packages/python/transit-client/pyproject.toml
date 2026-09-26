@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transit-client"
+version = "0.2.0"
+requires-python = ">=3.13"
+dependencies = ["transit-native-client==0.2.0"]
+description = "Typed raw Transit client over the shared Zig implementation"
+
+[tool.setuptools.package-data]
+transit_client = ["*-abi.json", "py.typed"]
+
+[tool.mypy]
+strict = true

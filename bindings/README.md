@@ -13,7 +13,8 @@ layer above them.
 
 M11 also adds **Ruby** to the target list. Its proposed adapter uses the shared
 native port with Ruby value objects and block-scoped ownership. Ruby packages,
-runtime pins and conformance evidence remain to be implemented; the M9 adapters
+and conformance evidence remain to be implemented; Ruby 3.4.9 / RubyGems 3.7.2
+are now pinned by the existing Nix lock. The M9 adapters
 and qualified runtime table below do not include Ruby. See the
 [M11 language conventions](../docs/roadmap/M11.md#language-conventions).
 
@@ -42,6 +43,13 @@ define the M10-to-M11 handoff. The current matrix checks durable continuation
 through each language pair against the same observations; shared native proofs
 own sequencing contention, decode-failure policy, uncertain responses and host
 cleanup. M11 must repeat these obligations through its public APIs.
+
+The first implemented public raw SDK is [Python transit-client](../packages/python/transit-client/README.md).
+`just bindings::python-test` builds wheels and installs the client plus its
+independent native dependency in a clean consumer outside the checkout. It checks
+typed preparation, native-classified recovery, lost receipts, host restart,
+revocation and bounded async cancellation/disposal. This does not yet qualify a
+public Station runner. No Station wheel is installed in the raw-client proof.
 
 ## Qualification tools
 

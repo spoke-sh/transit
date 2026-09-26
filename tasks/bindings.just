@@ -33,3 +33,13 @@ node-check:
     cd packages/ts/transit-station && vp check
     vp exec --filter @rey/transit-station tsc --noEmit
     vp exec --filter @rey/transit-station node --test src/host.test.ts
+
+# Build version-matched Python wheels, including separate native dependencies.
+python-build: build
+    python3 -B bindings/build_python.py .cache/bindings/wheels
+
+# Type-check public APIs and run a clean wheel consumer outside the checkout.
+python-test: python-build
+    mypy --strict packages/python/transit-native-client/transit_native_client packages/python/transit-native-station/transit_native_station packages/python/transit-client/transit_client
+    zig build transit-node rey-cli
+    python3 -B tests/python_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels

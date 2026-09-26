@@ -8,6 +8,7 @@ contracts = {name: (root / f"packages/zig/transit-{name}/abi-v1.json").read_byte
              for name in ("client", "station")}
 outputs = {root / f"packages/python/transit-station/transit_station/{name}-abi.json": data
            for name, data in contracts.items()}
+outputs[root / "packages/python/transit-client/transit_client/client-abi.json"] = contracts["client"]
 types = {"void": "()", "uint32_t": "u32", "uint64_t": "u64", "size_t": "usize", "uint8_t": "u8"}
 def rust_type(value):
     if value.endswith("*"):

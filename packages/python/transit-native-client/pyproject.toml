@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transit-native-client"
+version = "0.2.0"
+requires-python = ">=3.13"
+description = "Version-matched Linux x86_64 Transit native SDK artifacts"
+
+[tool.setuptools.package-data]
+transit_native_client = ["lib/*.so", "bin/*", "py.typed"]

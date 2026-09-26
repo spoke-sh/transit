@@ -1,6 +1,8 @@
 # Python SDK API design
 
-Status: proposed M11 API, not an implemented package interface. Read the
+Status: the [typed raw client](../../packages/python/transit-client/README.md)
+is implemented and qualified on the initial Linux target. Station declarations
+below remain proposed M11 APIs. Read the
 [shared design](../SDK.md) for authority, lifecycle and recovery rules. The
 [current Python adapter](../../packages/python/transit-station/README.md) remains
 the executable M9 surface. Examples here are design excerpts: `counter_contract`
