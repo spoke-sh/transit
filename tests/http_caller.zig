@@ -6,13 +6,15 @@ const s = @import("transit_station");
 const p = s.protocol;
 const Pub = s.Publication;
 const Admin = @import("growing_support.zig").Admin(47);
-pub const Saved = struct { pid: u64, resource: u64, correlation: u64, deadline: u64, replacement: ?u64 = null, output_after: u64 };
+pub const Saved = struct { pid: u64, resource: u64, correlation: u64, deadline: u64, replacement: ?u64 = null, output_after: u64, release_call: ?struct { correlation: u64, output_after: u64 } = null };
 const Action = union(enum) {
     create,
     begin: struct { id: u64, spec: Pub.Spec },
     append: struct { id: u64, index: u32, bytes: []const u8 },
     publish: u64,
     call: struct { pid: u64, reference: http.RequestRecord.Reference },
+    release: struct { pid: u64, request: http.Service.Release },
+    receive_release: struct { pid: u64, correlation: u64 },
     receive,
 };
 const Caller = struct {
@@ -36,6 +38,14 @@ const Caller = struct {
                 _ = try publication.publish(turn, id);
             },
             .call => |call| self.correlation = try turn.call(call.pid, try call.reference.encode(), null),
+            .release => |call| self.correlation = try turn.call(call.pid, try call.request.encode(), null),
+            .receive_release => |call| {
+                try t.expectEqual(.reply, frame.kind);
+                try t.expectEqual(call.pid, try s.Frame.source(turn.delivery.input));
+                try t.expectEqual(call.correlation, frame.correlation);
+                _ = try http.Service.Released.decode(frame.payload);
+                try turn.put(try p.Value.init("http-release"), frame.payload);
+            },
             .receive => {
                 try t.expectEqual(.reply, frame.kind);
                 self.outcome = try http.Service.Outcome.decode(frame.payload);
@@ -133,4 +143,29 @@ pub fn receive(init: std.process.Init, admin: *Admin, saved: Saved, worker: u64)
         try t.expectEqualDeep(outcome, caller.outcome.?);
     }
     return outcome;
+}
+pub fn release(init: std.process.Init, admin: *Admin, saved: *Saved, worker: u64, capture: u64) !void {
+    var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
+    var caller: Caller = .{};
+    const before = try lastOutput(admin);
+    try apply(init, admin, &server, &caller, .{ .release = .{ .pid = worker, .request = .{ .resource = capture, .exchange = 1 } } });
+    const outgoing = try output(admin, before);
+    try t.expectEqual(saved.pid, outgoing.source);
+    try t.expectEqual(worker, outgoing.destination);
+    _ = try admin.submit(.{ .deliver = outgoing.id });
+    saved.release_call = .{ .correlation = caller.correlation, .output_after = outgoing.id };
+}
+pub fn receiveRelease(init: std.process.Init, admin: *Admin, saved: Saved, worker: u64) !http.Service.Released {
+    const call = saved.release_call orelse return error.MissingRelease;
+    const outgoing = try output(admin, call.output_after);
+    try t.expectEqual(worker, outgoing.source);
+    try t.expectEqual(saved.pid, outgoing.destination);
+    const frame = try s.Frame.decode(outgoing.value);
+    try t.expectEqual(call.correlation, frame.correlation);
+    const released = try http.Service.Released.decode(frame.payload);
+    _ = try admin.submit(.{ .deliver = outgoing.id });
+    var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
+    var caller: Caller = .{ .action = .{ .receive_release = .{ .pid = worker, .correlation = call.correlation } } };
+    try drive(init, &server, &caller);
+    return released;
 }

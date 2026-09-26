@@ -176,6 +176,92 @@ test "outcome publication waits for settlement and atomically records its origin
         try store.commit(turn);
         turn = try store.capture(9, 99, wire);
         try t.expect(!try Service.publish(&turn, ex));
+        try t.expectError(error.ExchangeHasDependents, ex.retire(&turn));
+        _ = try ex.retain(&turn, 123, 999);
+        try store.commit(turn);
+        const disposal = try (Service.Release{ .resource = ex.resource, .exchange = ex.id }).encode();
+        turn = try store.capture(9, 99, disposal);
+        // Reply capacity failure must roll back the durable caller release.
+        for (0..turn.decision.outputs.len) |_| try turn.send(8, .{ .kind = .cast, .payload = .{} });
+        const before = turn.decision;
+        try t.expectError(error.OutputBudgetExceeded, Service.release(&turn, ex, policy));
+        try t.expectEqualDeep(before, turn.decision);
+        turn = try store.capture(9, 99, disposal);
+        try Service.release(&turn, ex, policy);
+        const released = try Service.Released.decode((try reply(turn)).payload);
+        try t.expectEqual(ex.id, released.exchange);
+        try t.expectEqual(ex.resource, released.resource);
+        try store.commit(turn);
+        turn = try store.capture(9, 99, disposal);
+        try t.expectEqual(.released, (try ex.control(&turn)).caller);
+        try t.expectEqual(@as(u64, 1), (try ex.control(&turn)).dependents);
+        try t.expectError(error.ExchangeHasDependents, ex.retire(&turn));
+        _ = try ex.release(&turn, 123, 999);
+        _ = try ex.retire(&turn);
+        try store.commit(turn);
+        turn = try store.capture(9, 99, disposal);
+        try Service.release(&turn, ex, policy);
+        try t.expectEqualDeep(released, try Service.Released.decode((try reply(turn)).payload));
+        for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    }
+}
+test "caller release rejects unpublished routes wrong callers identities and current policies" {
+    var buffer: [8192]u8 = undefined;
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture(9, 99, try (try request(&buffer)).reference.encode());
+    _ = try Service.admit(&turn, 1, policy, limits);
+    try store.commit(turn);
+    const disposal = try (Service.Release{ .resource = 7, .exchange = 1 }).encode();
+    turn = try store.capture(9, 99, disposal);
+    try Service.release(&turn, ex, policy);
+    try t.expectEqual(.busy, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    turn = try store.capture(9, 99, disposal);
+    _ = try ex.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture(9, 99, disposal);
+    _ = try Service.publish(&turn, ex);
+    try store.commit(turn);
+    inline for (.{ "caller", "resource", "endpoint_revision", "reconcile_before_ms", "max_attempts" }) |field| {
+        var denied = policy;
+        @field(denied, field) = 1;
+        turn = try store.capture(9, 99, disposal);
+        try Service.release(&turn, ex, denied);
+        try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+        for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    }
+    for ([_]Service.Release{ .{ .resource = 8, .exchange = 1 }, .{ .resource = 7, .exchange = 2 } }) |wrong| {
+        turn = try store.capture(9, 99, try wrong.encode());
+        try Service.release(&turn, ex, policy);
+        try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+    }
+    turn = try store.capture(10, 99, disposal);
+    try Service.release(&turn, ex, policy);
+    try t.expectEqual(@as(u64, 10), turn.decision.outputs[0].?.pid);
+    try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try Frame.decode(turn.decision.outputs[0].?.value)).payload)).reason);
+    turn = try store.capture(9, 99, disposal);
+    turn.delivery.input.origin = .{ .external = .{ .principal = 9, .policy_revision = 1 } };
+    try t.expectError(error.ExpectedProcessOrigin, Service.release(&turn, ex, policy));
+    turn = try store.capture(9, 99, disposal);
+    try Service.release(&turn, ex, policy);
+    _ = try Service.Released.decode((try reply(turn)).payload);
+    // No intent means no durable caller hold to release.
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+}
+test "independent release fixtures preserve full width identity and reject truncated frames" {
+    const Fixture = struct { version: u32, request: p.Value, reply: p.Value };
+    const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("release-fixtures.json"), .{});
+    defer parsed.deinit();
+    try t.expectEqual(@as(u32, 1), parsed.value.version);
+    inline for (.{ .{ Service.Release, "request" }, .{ Service.Released, "reply" } }) |item| {
+        var wire = @field(parsed.value, item[1]);
+        const value = try item[0].decode(wire);
+        try t.expectEqual(std.math.maxInt(u64), value.exchange);
+        try t.expect(wire.eql(try value.encode()));
+        wire.len -= 1;
+        wire.data[wire.len] = 0;
+        try t.expectError(error.InvalidExchangeRecord, item[0].decode(wire));
     }
 }
 test "request scope matches the serialized method target and case insensitive header allowlist" {

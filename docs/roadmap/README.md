@@ -22,7 +22,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M12](M12.md) | Declarative interface readiness | Qualified Table SQL compiler, three-parser corpus, pinned tools and four complete Lean theorems |
 | [M13](M13.md) | Board relief atlas and public query access | Complete: qualified Table query client/hosts, SQL shell and growing Board workspace |
 | [M14](M14.md) | Bounded publication for larger Station records | Complete: growing immutable publication, bounded staging/cleanup and disk recovery |
-| [M15](M15.md) | HTTP connector and shared exchange lifecycle | In progress; shared capture contract over M14 publication |
+| [M15](M15.md) | HTTP connector and shared exchange lifecycle | In progress; finite HTTP recovery and ten caller SDKs qualified locally; lifecycle/deployment work continues |
 | [M16](M16.md) | gRPC connector and bounded streaming calls | Planned; reuse M15 common components and qualify streaming authority |
 | [M17](M17.md) | Documents and collaborative text | Planned; accepted-state/CRDT contracts over immutable publication |
 | [M18](M18.md) | Unified state querying and versioned source contracts | Planned; KV/Document adapters, wider schemas/requests and all SDKs |

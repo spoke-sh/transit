@@ -2,7 +2,8 @@
 
 Status: experimental M15 implementation profile. Finite public service admission
 and all ten public SDK request/call/replay APIs are implemented and locally
-qualified. Public followup/release and deployment qualification remain M15 work.
+qualified. Public followups, native release conveniences and deployment
+qualification remain M15 work.
 This protocol-specific layer uses the
 [exchange contract](STATION_EXCHANGE_V1.md); it adds no kernel authority.
 
@@ -79,6 +80,8 @@ Strict binary layouts use little-endian fields without padding:
 | HTA1 | caller:u64, input:u64, correlation:u64, phase:u8, request:112 bytes | 141 |
 | HTR1 | phase:u8, resource:u64, exchange:u64, effect:u64, attempt:u64, status:u16, chain:32 bytes | 71 |
 | HTF1 | reason:u8 | 5 |
+| HTD1 | resource:u64, exchange:u64 | 20 |
+| HTK1 | resource:u64, exchange:u64 | 20 |
 
 `HTA1` is private service state at exchange key `r/0`; phases are admitted=1 and
 published=2. Admission creates the exchange and route in three mutations, leaving
@@ -94,6 +97,25 @@ failure or cancellation. The service atomically publishes its reply and marks
 the route published only after terminal kernel settlement, or after preparation
 was explicitly abandoned before intent. It does not release the caller replay hold.
 
+`HTD1` is a separately correlated Station call explicitly disposing the original
+caller's durable replay hold. The configured service and immutable route must
+both name its authenticated process origin and the exact resource/exchange.
+Current admission policy still applies. An unpublished outcome returns busy;
+malformed requests return invalid_request and wrong identities/policy return
+denied. A published no-intent abandonment has no hold to release. Otherwise
+terminal settlement is required. Hold release and `HTK1` acknowledgement commit
+atomically; full output/mutation budgets roll both back. Duplicate disposal
+returns the same identity, including after explicit retirement and member cleanup.
+The permanent route remains tied to the original PID; a replacement PID cannot
+dispose its hold by reusing a name or reference. The caller authenticates the
+acknowledgement's source/correlation before accepting it.
+
+Disposal does not invoke HTTP, cancel external work, retire capture or expire
+history. Current grants still govern reads until separately authorized retirement;
+other consumer dependencies still prevent cleanup. Local SDK reader close has
+no durable disposal effect. The finite worker's `poll` mode drains its bounded
+control mailbox without preparing or dispatching an external request.
+
 Capture uses an independent resource with no owner or deadline. Its writer and
 effect owner are the connector PID, distinct from the caller. Fresh ownership of
 that PID can reconcile after caller termination; replies still target the old PID
@@ -104,8 +126,8 @@ the admitted route remains durable. A fresh authorized activation may resume, or
 the controller may explicitly abandon it in `release` mode and publish
 not_dispatched. There is no automatic deletion or implicit expiry on failure.
 
-Public followup submission, multi-exchange queue scheduling and caller release
-conveniences are not part of this initial admission surface. Explicit controller
+Public followup submission, multi-exchange queue scheduling and language-native
+release conveniences are not part of this initial admission surface. Explicit controller
 followups retain the policies below; the remaining M15 SDK/lifecycle obligations
 must be qualified before claiming a completed public connector.
 
@@ -198,3 +220,6 @@ fixtures and Zig behavior; native adapters own language types and scheduling.
 The [admission fixtures](../packages/zig/transit-station-http/src/admission-fixtures.json)
 independently fix caller metadata, binary body commitments, full-width namespaces,
 routes, outcomes and rejection encodings.
+The independently constructed [release fixtures](../packages/zig/transit-station-http/src/release-fixtures.json)
+fix full-width disposal and acknowledgement identity, independently of local
+reader handles.

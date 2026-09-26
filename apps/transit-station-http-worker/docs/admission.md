@@ -63,10 +63,23 @@ The connector PID survives caller termination and can close uncertainty after
 worker/node/store recovery. Its reply remains addressed to the original PID;
 delivery records a retired destination. Names and replacement PIDs cannot redirect
 that reply. Capture itself is independent of the caller resource's lifetime.
-The controller must explicitly dispose the caller hold before cleanup; caller
-termination, receipt acceptance and quota pressure are not disposal instructions.
+The caller can explicitly dispose its durable hold with a separately correlated
+`Service.Release{resource, exchange}.encode()` call to the connector. Run a fresh
+worker activation in `poll` mode with the same admission policy to process this
+call without another HTTP attempt. Accept `Service.Released` only from the
+recorded connector and correlation. The shared handler commits the release and
+acknowledgement atomically; repeated requests are safe after restart or cleanup.
+`poll` drains at most 64 pending inputs and retains the worker's usual endpoint
+configuration, but never resolves credentials or opens HTTP transport.
+
+Release requires a published terminal outcome. It does not retire availability;
+the controller still explicitly selects `release` mode for retirement and bounded
+cleanup. The controller can also dispose the hold on the caller's behalf under
+its administrative authority. Caller termination, receipt acceptance, local SDK
+reader close and quota pressure are not disposal instructions.
 
 This profile does not provide a general queue, public followup calls or managed
-credential providers. Controller followups and disposal remain explicit trusted
-operations. The real-binary proof is `just test::http-worker`; additional SDK and
+credential providers. Controller followups remain explicit trusted operations;
+language-native durable release helpers remain unfinished. The real-binary proof
+is `just test::http-worker`; additional SDK and
 deployment qualification remains tracked in M15.

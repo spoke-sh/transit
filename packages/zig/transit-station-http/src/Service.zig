@@ -69,6 +69,36 @@ pub const Rejection = struct {
     reason: enum(u8) { denied = 1, invalid_request = 2, busy = 3 },
     pub fn validate(_: Rejection) !void {}
 };
+/// Explicit durable disposal of the original caller's replay hold. This is not
+/// local reader disposal, remote cancellation or permission to delete history.
+pub const Release = struct {
+    pub const magic = "HTD1";
+    resource: u64,
+    exchange: u64,
+    pub fn validate(self: Release) !void {
+        if (self.resource == 0 or self.resource > x.p.max_counter or self.exchange == 0) return error.InvalidHttpRelease;
+    }
+    pub fn encode(self: Release) !x.p.Value {
+        return x.codec.encode(self);
+    }
+    pub fn decode(value: x.p.Value) !Release {
+        return x.codec.decode(Release, value);
+    }
+};
+pub const Released = struct {
+    pub const magic = "HTK1";
+    resource: u64,
+    exchange: u64,
+    pub fn validate(self: Released) !void {
+        try (Release{ .resource = self.resource, .exchange = self.exchange }).validate();
+    }
+    pub fn encode(self: Released) !x.p.Value {
+        return x.codec.encode(self);
+    }
+    pub fn decode(value: x.p.Value) !Released {
+        return x.codec.decode(Released, value);
+    }
+};
 pub fn route(exchange: x.Exchange, source: anytype) !?Route {
     return if (try source.read(x.Exchange.key(exchange.id, 'r', 0))) |value| try x.codec.decode(Route, value) else null;
 }
@@ -105,6 +135,26 @@ pub fn admit(turn: *Turn, id: u64, policy: Admission, limits: x.Limits) !enum { 
 pub fn allowed(record: Route, policy: Admission) bool {
     const reference = record.reference() catch return false;
     return record.caller == policy.caller and reference.resource == policy.resource and reference.endpoint_revision == policy.endpoint_revision and reference.max_attempts <= policy.max_attempts and reference.reconcile_before_ms <= policy.reconcile_before_ms;
+}
+/// Admit one authenticated disposal call against an already published route.
+/// Mutation and correlated acknowledgement share the same fenced turn. Duplicate
+/// disposal returns the same identity, including after explicit retirement.
+pub fn release(turn: *Turn, ex: x.Exchange, policy: Admission) !void {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const frame = try Frame.decode(turn.delivery.input.value);
+    if (frame.kind != .call) return error.ExpectedHttpCall;
+    const caller = try Frame.source(turn.delivery.input);
+    const request = Release.decode(frame.payload) catch return reject(turn, caller, frame, .invalid_request);
+    if (caller != policy.caller or request.resource != ex.resource or request.exchange != ex.id) return reject(turn, caller, frame, .denied);
+    const record = (try route(ex, turn)) orelse return reject(turn, caller, frame, .denied);
+    if (record.caller != caller or !allowed(record, policy)) return reject(turn, caller, frame, .denied);
+    if (record.phase != .published) return reject(turn, caller, frame, .busy);
+    const descriptor = try ex.inspect(turn);
+    if (descriptor.owner != turn.delivery.pid or descriptor.caller != record.caller or descriptor.input != record.input) return error.InvalidHttpRoute;
+    // Abandoned preparation never acquired a caller hold or dispatch obligation.
+    if ((try ex.control(turn)).disposition != .no_intent) _ = try ex.releaseCaller(turn, caller);
+    try turn.send(caller, .{ .kind = .reply, .correlation = frame.correlation, .payload = try (Released{ .resource = ex.resource, .exchange = ex.id }).encode() });
 }
 pub fn publish(turn: *Turn, ex: x.Exchange) !bool {
     const before = turn.decision;

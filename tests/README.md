@@ -56,6 +56,15 @@ These additions bring the full proof to **nine sends, five applications and one
 cancellation request**. Naming-service rebinding and public followup APIs remain
 separate qualification work.
 
+Public HTD1 disposal now releases only the authenticated original caller's hold.
+The real worker's `poll` mode passes disposal without its credential file,
+accepted-receipt loss with exact retry,
+node/store restart, repeated disposal before and after cleanup, and an actual
+replay prefix refusing continuation after retirement. Its HTK1 acknowledgement
+retains the call's source/correlation. Release alone leaves replay available;
+retirement and cleanup are separate controller operations. Package tests also
+prove output-budget rollback and preservation of another consumer's dependency.
+
 The same real capture exercises `station_growing_http_read`: one active reader,
 owned bounded chunks, actual prefix revocation, sticky failure, explicit close,
 stale reader IDs and reopening. Returned body bytes survive native destruction;
@@ -129,7 +138,7 @@ All ten SDKs now pass the HTTP fixtures and caller schedule. The existing public
 counter/query interoperability ring was rerun against these installed artifacts:
 all ten edges passed in **255.78 seconds**, including clean consumer installation.
 
-The 2026-09-26 Linux x86_64 worker run took **242.31 seconds**, excluding compilation.
+The 2026-09-26 Linux x86_64 worker run took **285.29 seconds**, excluding compilation.
 This is local proof time, not a hosted CI or aggregate runner-minute measurement.
 Machine output distinguishes sealed capture phase from the kernel outcome.
 

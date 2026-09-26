@@ -22,7 +22,7 @@ const Config = struct {
     exchange: u64,
     endpoint_revision: u64,
     endpoint: http.Transport.Endpoint,
-    mode: enum { prepare, accept, execute, release },
+    mode: enum { prepare, accept, execute, release, poll },
     admission: ?struct { caller: u64, resource: u64, scope: http.Service.Scope } = null,
     cleanup_steps: u32 = 64,
     request: ?http.Request = null,
@@ -157,7 +157,9 @@ const Driver = struct {
                 return;
             },
             .process => {
-                _ = try http.Service.admit(turn, ex.id, try self.admission(), .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 });
+                if (std.mem.startsWith(u8, frame.payload.slice(), http.Service.Release.magic)) {
+                    try http.Service.release(turn, ex, try self.admission());
+                } else _ = try http.Service.admit(turn, ex.id, try self.admission(), .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 });
                 return;
             },
         }
@@ -470,7 +472,7 @@ pub fn main(init: std.process.Init) !void {
             if (current.collected == @as(u64, current.segments) + @intFromBool(current.pending_kind != 0)) break;
             try driver.apply(.collect);
         }
-    } else {
+    } else if (config.mode == .execute) {
         var route_source = try driver.reader.reader(ex.resource);
         if (try http.Service.route(ex, &route_source)) |route| if (!http.Service.allowed(route, try driver.admission())) return error.HttpAdmissionDenied;
         var effect = try driver.effect();

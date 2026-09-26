@@ -50,6 +50,11 @@ pub fn main(init: std.process.Init) !void {
             const outcome = try Caller.receive(init, &admin, saved.caller.?, saved.pid);
             try std.json.Stringify.value(.{ .outcome = outcome, .wire = try outcome.encode() }, .{}, &output.interface);
             return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "release-call")) {
+            try Caller.release(init, &admin, &saved.caller.?, saved.pid, saved.resource);
+        } else if (std.mem.eql(u8, args[2], "receive-release")) {
+            try std.json.Stringify.value(try Caller.receiveRelease(init, &admin, saved.caller.?, saved.pid), .{}, &output.interface);
+            return output.interface.flush();
         } else if (std.mem.eql(u8, args[2], "revoke-capture") or std.mem.eql(u8, args[2], "restore-capture")) {
             _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 65537, .permissions = if (std.mem.eql(u8, args[2], "revoke-capture")) 0 else p.State.permission(.inspect) | p.State.permission(.read) } });
         } else if (std.mem.eql(u8, args[2], "revoke-request") or std.mem.eql(u8, args[2], "restore-request")) {

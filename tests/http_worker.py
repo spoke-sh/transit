@@ -101,6 +101,8 @@ def run(node, provision, worker, library):
                                 assert b"fixture-request-secret" not in bytes.fromhex(mutation["value"]), "Credential entered durable capture"
                         if any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b"EXM1") for m in turn.get("mutations", [])):
                             selected = "seal"
+                        if any(o and b"HTK1" in bytes.fromhex(o["value"]) for o in turn.get("outputs", [])):
+                            selected = "caller_release"
                         if request["principal"] == 65536:
                             if not prepared_prefix.is_set() and any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b'{"version":1,"endpoint_revision":') for m in turn.get("mutations", [])):
                                 prepared_prefix.set()
@@ -410,6 +412,45 @@ def run(node, provision, worker, library):
                 credential.write_text("fixture-request-secret")
             assert bytes(owned_body) == payload and requests.count("/public") == 1
 
+            # Public durable disposal is separate from local reader destruction.
+            # Lose its accepted receipt, restart node/store, then repeat the call.
+            credential.unlink()
+            saved = admin("release-call")
+            saved = admin("own")
+            admission(saved, "/public", "poll")
+            assert invoke()["phase"] == "complete"
+            disposed = admin("receive-release")
+            assert disposed == {"resource": saved["resource"], "exchange": 1}
+            assert "caller_release" in recovered
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start()
+            authority = start_node()
+            saved = admin("release-call")
+            saved = admin("own")
+            admission(saved, "/public", "poll")
+            assert invoke()["phase"] == "complete"
+            assert admin("receive-release") == disposed
+            # Only the separately explicit retirement removes replay availability.
+            reader = Native(libraries, url, caller_seed, {"profile": "growing_v3", "realm": 47, "principal": 65537, "pid": saved["caller"]["pid"], "generation": 3, "association": "state", "failure_policy": "stop"})
+            try:
+                held = native_read({"open": {"reference": reference}})["opened"]
+                assert native_read({"next": held})["part"]["bytes"]
+                saved = admin("own")
+                admission(saved, "/public", "release")
+                assert invoke()["phase"] == "retired"
+                failed = rejects(7, native_read, {"next": held})
+                assert failed["err"] == "ExchangeUnavailable", failed
+            finally:
+                reader.close()
+            # A lost application acknowledgement can be recovered even after GC.
+            saved = admin("release-call")
+            saved = admin("own")
+            admission(saved, "/public", "poll")
+            assert invoke()["phase"] == "retired"
+            assert admin("receive-release") == disposed
+            assert requests.count("/public") == 1
+            credential.write_text("fixture-request-secret")
+
             # Reconciliation belongs to the surviving connector PID. The caller
             # can terminate after application; its replacement receives nothing.
             saved = admin("provision-public")
@@ -437,7 +478,7 @@ def run(node, provision, worker, library):
             assert requests.count("/public-kill") == 1
             assert not failures, failures
             assert len(requests) == 9 and len(applied) == 5
-            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit retry/redirect/status/cancel, public admission and caller termination passed; nine sends, five applications, one cancellation request.")
+            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit retry/redirect/status/cancel, public admission/disposal and caller termination passed; nine sends, five applications, one cancellation request.")
             print(f"HTTP worker proof wall time: {time.monotonic() - started:.2f}s (excludes compilation).")
         finally:
             release.set()

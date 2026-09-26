@@ -60,6 +60,12 @@ separate worker checks. `Outcome.reference` refuses unknown/not-dispatched resul
 The [worker admission guide](../../../apps/transit-station-http-worker/docs/admission.md)
 describes the finite service profile and recovery limits.
 
+`Service.Release`/`Released` are the explicit caller disposal call and correlated
+acknowledgement. `Service.release` authenticates the original caller and current
+policy, then releases the terminal hold atomically with its reply. It never
+dispatches, retires capture or discards another consumer's dependency. Duplicate
+disposal remains valid after retirement; local replay close is separate.
+
 `RequestRecord.stage` reserves a namespace, freezes the full request identity and
 advances one bounded publication step per turn. Repeat with identical recoverable
 metadata/body until it returns true, then call in that turn. It rejects changed
