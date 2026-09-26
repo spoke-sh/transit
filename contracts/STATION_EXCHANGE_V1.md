@@ -36,6 +36,11 @@ intent in the same turn, retaining a copy of that intent and a caller replay
 hold (three mutations). It forbids more request segments and repeated effect
 creation. Binding checks the authorized effect's payload against that exact
 coverage before moving to capturing. No state grants permission to resend.
+In growing v3, the immutable intent entry's revision and the same-turn effect ID
+are the publishing journal position. A public point read followed by an effect
+page starting immediately before that position gives a bounded exact lookup;
+the worker verifies the returned ID and payload. No history scan or second
+effect index is needed, including after receipt loss or worker replacement.
 
 Each segment has a nonzero adapter-defined kind, canonical Publication content,
 and a monotonically increasing ordinal. At most one segment is staged at a time.

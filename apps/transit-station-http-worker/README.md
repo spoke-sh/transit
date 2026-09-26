@@ -27,7 +27,13 @@ effect results. Provisioning and ownership remain separate administrative work.
 In `prepare` mode, supply a typed `Request`, optional body file and finite
 `reconcile_before_ms`. Preparation captures the metadata, rendered head and body,
 then freezes exact coverage with one kernel effect. Request metadata is at most
-8 KiB and body at most 64 KiB. This initial executable owns a bounded 64 KiB
+8 KiB. A fresh activation can resume interrupted preparation with the same
+metadata/body. Sealed segment commitments and partial chunks reject changed
+bytes, and the original reconciliation deadline is retained. Repeating a ready
+preparation does not create another effect. A controller may explicitly release
+unfinished preparation that has not committed an intent; no remote cancellation
+is implied. The body is at most
+64 KiB. This initial executable owns a bounded 64 KiB
 request buffer; responses are captured in 4 KiB segments. At most 16 configured
 credential bindings identify a name, immutable version, allowed header and local
 file. References require TLS and an exact binding/header match. Values are read
@@ -70,7 +76,10 @@ unknown parent and get independent captured outcomes. A cancellation request doe
 not undo prior remote work, and status evidence does not reopen or rewrite the
 original kernel effect. Every followup consumes the original total budget/deadline.
 
-The worker emits only exchange identity, phase and byte/segment counts on stdout.
+The worker emits exchange identity, capture phase, kernel outcome and byte/segment
+counts on stdout. `phase: "complete"` describes sealed capture; `outcome` separately
+reports `pending`, `authorized`, `unknown`, `observed`, `cancelled`, `closed_unknown`
+or `not_committed`. Capture completion alone is not kernel outcome acceptance.
 It does not log bodies, request targets or credential material. HTTP status is
 captured evidence, not a claim of business success. Resource retention remains
 unlimited; group retirement and dependency-safe cleanup are explicit operations.

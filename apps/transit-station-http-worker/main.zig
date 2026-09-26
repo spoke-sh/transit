@@ -146,7 +146,10 @@ const Driver = struct {
                     const parent: x.Exchange = .{ .resource = turn.view.resource, .id = follow.parent };
                     const policy = c.policy orelse return error.HttpFollowupNotGranted;
                     _ = try parent.followup(turn, ex.id, follow.reason, policy.id, policy.revision, c.limits);
-                } else _ = try x.Exchange.create(turn, ex.id, .{ .caller = turn.delivery.pid, .input = turn.delivery.input.position, .protocol = http.protocol_format }, c.limits, c.deadline);
+                } else {
+                    const prior = if (try turn.read(x.Exchange.key(ex.id, 'd', 0))) |value| try x.Descriptor.decode(value) else null;
+                    _ = try x.Exchange.create(turn, ex.id, .{ .caller = if (prior) |d| d.caller else turn.delivery.pid, .input = if (prior) |d| d.input else turn.delivery.input.position, .protocol = http.protocol_format }, c.limits, c.deadline);
+                }
             },
             .begin => |b| {
                 _ = try ex.beginSegment(turn, b.ordinal, @backingInt(b.kind), b.spec);
@@ -209,7 +212,17 @@ const Driver = struct {
     fn stage(self: *Driver, kind: http.Kind, bytes: []const u8) !void {
         const ex = try self.exchange();
         const ordinal = (try self.reader.inspect(ex.resource, ex.id)).segments;
+        return self.stageAt(ordinal, kind, bytes);
+    }
+    fn stageAt(self: *Driver, ordinal: u32, kind: http.Kind, bytes: []const u8) !void {
+        const ex = try self.exchange();
         const spec = try x.Publication.Digest.of(http.protocol_format, bytes);
+        var source = try self.reader.reader(ex.resource);
+        if (ordinal < (try ex.inspect(&source)).segments) {
+            const member = try ex.member(&source, ordinal);
+            if (member.kind != @backingInt(kind) or !std.meta.eql(member.spec(), spec)) return error.ExchangeIdentityConflict;
+            return;
+        }
         try self.apply(.{ .begin = .{ .ordinal = ordinal, .kind = kind, .spec = spec } });
         for (0..spec.chunks()) |i| try self.apply(.{ .append = .{ .ordinal = ordinal, .chunk = @intCast(i), .bytes = try p.Value.init(bytes[i * 256 ..][0..try spec.size(@intCast(i))]) } });
         try self.apply(.{ .seal = ordinal });
@@ -223,18 +236,18 @@ const Driver = struct {
         return self.effectFor(ex);
     }
     fn effectFor(self: *Driver, ex: x.Exchange) !g.Effect {
-        var after: ?u64 = null;
-        var position: ?u64 = null;
-        while (true) {
-            const page = try self.reader.query(.{ .effects = .{ .pid = self.config.pid, .after = after, .position = position } });
-            for (page.body.effects.entries) |slot| if (slot) |effect_value| {
-                const intent = x.Intent.decode(effect_value.payload) catch continue;
-                if (intent.resource == ex.resource and intent.exchange == ex.id) return effect_value;
-            };
-            after = page.body.effects.next;
-            if (after == null) return error.UnknownEffect;
-            position = page.position;
-        }
+        const source = try self.reader.reader(ex.resource);
+        const page = try self.reader.query(.{ .entries = .{ .resource = ex.resource, .revision = source.view.revision, .key = x.Exchange.key(ex.id, 'i', 0) } });
+        const record = page.body.entries.page.entries[0] orelse return error.UnknownEffect;
+        // Growing v3 gives entries and the same-turn effect their publication
+        // position. The immutable intent is therefore a durable exact lookup
+        // anchor, avoiding a scan through all of this PID's earlier effects.
+        if (record.revision == 0) return error.InvalidExchangeAttempt;
+        const effect_value = (try self.reader.query(.{ .effects = .{ .pid = self.config.pid, .after = record.revision - 1, .position = page.position } })).body.effects.entries[0] orelse return error.UnknownEffect;
+        if (effect_value.id != record.revision or !effect_value.payload.eql(record.value)) return error.InvalidExchangeAttempt;
+        const intent = try x.Intent.decode(effect_value.payload);
+        if (intent.resource != ex.resource or intent.exchange != ex.id) return error.InvalidExchangeAttempt;
+        return effect_value;
     }
     fn load(self: *Driver, ordinal: u32, buffer: []u8) ![]const u8 {
         return self.loadFrom(try self.exchange(), ordinal, buffer);
@@ -357,7 +370,9 @@ pub fn main(init: std.process.Init) !void {
         const request = config.request orelse return error.MissingHttpRequest;
         if (request.body_bytes > 65536 or request.body_bytes > config.endpoint.request_bytes) return error.HttpRequestTooLarge;
         try Secrets.validate(config, request);
-        const deadline = config.reconcile_before_ms orelse return error.MissingReconciliationDeadline;
+        const prior = driver.reader.inspect(ex.resource, ex.id) catch |err| if (err == error.ExchangeNotFound) null else return err;
+        if (prior) |d| if (d.phase != .preparing and d.phase != .ready) return error.ExchangeClosed;
+        const deadline = if (prior) |d| d.reconcile_before_ms else config.reconcile_before_ms orelse return error.MissingReconciliationDeadline;
         if (deadline <= now(init.io)) return error.ExpiredReconciliation;
         var header: [http.Request.maximum_head_bytes]u8 = undefined;
         const rendered = try request.render(config.endpoint.host, config.endpoint.port, &header, null, false);
@@ -372,23 +387,31 @@ pub fn main(init: std.process.Init) !void {
         const followup_policy = try driver.validateFollowup(init.gpa, prepared, body);
         try driver.apply(.{ .create = .{ .deadline = deadline, .limits = .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 }, .policy = followup_policy } });
         if (config.followup == null) try driver.apply(.{ .attempts = config.max_attempts });
-        try driver.stage(.request_template, metadata);
-        try driver.stage(.request_head, rendered);
+        try driver.stageAt(0, .request_template, metadata);
+        try driver.stageAt(1, .request_head, rendered);
         var offset: usize = 0;
+        var ordinal: u32 = 2;
         while (offset < body.len) {
             const end = offset + @min(http.Transport.segment_bytes, body.len - offset);
-            try driver.stage(.request_body, body[offset..end]);
+            try driver.stageAt(ordinal, .request_body, body[offset..end]);
             offset = end;
+            ordinal += 1;
         }
-        if (body.len == 0) try driver.stage(.request_body, "");
+        if (body.len == 0) try driver.stageAt(2, .request_body, "");
         try driver.apply(.intent);
     } else if (config.mode == .release) {
         // Explicit trusted-controller disposal, never inferred from elapsed
         // time, quota pressure, observation acceptance or caller termination.
-        try driver.apply(.{ .release_caller = (try driver.reader.inspect(ex.resource, ex.id)).caller });
+        var current = try driver.reader.inspect(ex.resource, ex.id);
+        if (current.phase == .preparing) {
+            try driver.apply(.unknown);
+            current = try driver.reader.inspect(ex.resource, ex.id);
+        }
+        var source = try driver.reader.reader(ex.resource);
+        if ((try ex.control(&source)).disposition != .no_intent) try driver.apply(.{ .release_caller = current.caller });
         try driver.apply(.retire);
         for (0..config.cleanup_steps) |_| {
-            const current = try driver.reader.inspect(ex.resource, ex.id);
+            current = try driver.reader.inspect(ex.resource, ex.id);
             if (current.collected == @as(u64, current.segments) + @intFromBool(current.pending_kind != 0)) break;
             try driver.apply(.collect);
         }
@@ -445,8 +468,9 @@ pub fn main(init: std.process.Init) !void {
         if (effect.phase == .observed or effect.phase == .cancelled or effect.phase == .closed_unknown) try driver.apply(.{ .settle = effect });
     }
     const descriptor = try driver.reader.inspect(ex.resource, ex.id);
+    const effect = driver.effect() catch |err| if (err == error.UnknownEffect) null else return err;
     var output_buffer: [1024]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    try output.interface.print("{{\"exchange\":\"{d}\",\"phase\":\"{s}\",\"segments\":{d},\"bytes\":{d}}}\n", .{ ex.id, @tagName(descriptor.phase), descriptor.segments, descriptor.bytes });
+    try output.interface.print("{{\"exchange\":\"{d}\",\"phase\":\"{s}\",\"outcome\":\"{s}\",\"segments\":{d},\"bytes\":{d}}}\n", .{ ex.id, @tagName(descriptor.phase), if (effect) |value| @tagName(value.phase) else "not_committed", descriptor.segments, descriptor.bytes });
     try output.interface.flush();
 }

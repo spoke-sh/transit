@@ -28,6 +28,8 @@ def run(node, provision, worker):
         cancelled = set()
         blocked = threading.Event()
         release = threading.Event()
+        prepared_prefix = threading.Event()
+        release_preparation = threading.Event()
         dropped = {}
         recovered = set()
         failures = []
@@ -100,6 +102,9 @@ def run(node, provision, worker):
                         if any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b"EXM1") for m in turn.get("mutations", [])):
                             selected = "seal"
                         if request["principal"] == 65536:
+                            if not prepared_prefix.is_set() and any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b'{"version":1,"endpoint_revision":') for m in turn.get("mutations", [])):
+                                prepared_prefix.set()
+                                release_preparation.wait(timeout=30)
                             for name, (frozen, receipt) in dropped.items():
                                 if body == frozen:
                                     assert data == receipt
@@ -168,7 +173,18 @@ def run(node, provision, worker):
 
             saved = admin("provision")
             configure(saved, "/complete", "prepare")
-            assert invoke()["phase"] == "ready"
+            child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE)
+            assert prepared_prefix.wait(timeout=60), "Durable request prefix not reached"
+            child.kill(); child.wait(timeout=10); child = None
+            release_preparation.set()
+            assert requests == []
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start()
+            authority = start_node()
+            saved = admin("own")
+            configure(saved, "/complete", "prepare")
+            prepared = invoke()
+            assert prepared["phase"] == "ready" and prepared["outcome"] == "pending"
             saved = admin("own")
             configure(saved, "/complete", "execute")
             changed = json.loads(config.read_text())
@@ -205,7 +221,8 @@ def run(node, provision, worker):
                 assert requests == [] and admin("inspect")["effect"] == "pending"
             saved = admin("own")
             configure(saved, "/complete", "execute")
-            assert invoke()["phase"] == "complete"
+            completed = invoke()
+            assert completed["phase"] == "complete" and completed["outcome"] == "observed"
             assert admin("inspect")["effect"] == "observed"
             repeated = subprocess.run([worker, str(config)], capture_output=True, timeout=15)
             assert repeated.returncode != 0 and b"PathAlreadyExists" in repeated.stderr, repeated
@@ -261,7 +278,8 @@ def run(node, provision, worker):
             authority = start_node()
             saved = admin("own")
             configure(saved, "/kill", "execute")
-            assert invoke()["phase"] == "unknown"
+            unknown = invoke()
+            assert unknown["phase"] == "unknown" and unknown["outcome"] == "closed_unknown"
             assert admin("inspect")["effect"] == "closed_unknown"
             assert requests == ["/complete", "/kill"], requests
 
@@ -318,6 +336,7 @@ def run(node, provision, worker):
             print(f"HTTP worker proof wall time: {time.monotonic() - started:.2f}s (excludes compilation).")
         finally:
             release.set()
+            release_preparation.set()
             for process in (child, authority):
                 if process is not None:
                     process.kill(); process.wait(timeout=10)

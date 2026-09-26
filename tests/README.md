@@ -17,6 +17,8 @@ because the pinned transport relies on HTTP framing to detect truncation.
 
 `just test::http-worker` runs the actual finite worker over disk Ursula. It loses
 accepted segment-seal, dispatch and observation replies and checks exact retries;
+SIGKILLs a preparing worker after a committed request chunk, restarts node/store,
+and resumes under fresh ownership with matching bytes and the original deadline;
 restarts node/store; replays a 1,027-byte response without another send; and kills
 the worker after remote application. Fresh ownership closes that attempt unknown
 without resending. Reusing an entered activation fails. Public body reads recheck
@@ -42,6 +44,9 @@ strict replay reports a gap when requested data was redacted.
 Explicit release retires availability before cleanup. The proof rejects replay
 while uncollected bytes remain, restarts node/store during reclamation, and resumes
 bounded cleanup to its durable end without another network attempt.
+The 2026-09-26 Linux x86_64 run took **174.66 seconds**, excluding compilation.
+This is local proof time, not a hosted CI or aggregate runner-minute measurement.
+Machine output distinguishes sealed capture phase from the kernel outcome.
 
 These checks passed locally on Linux x86_64 with the pinned compiler. They do not
 yet qualify public caller admission, managed secret providers, surviving cross-service reconciliation,
