@@ -20,18 +20,8 @@ pub fn main(init: std.process.Init) !void {
     };
     diagnostics.event(.{ .name = "service.stopped", .level = .info });
 }
-fn readSeed(init: std.process.Init, path: []const u8) ![32]u8 {
-    const text = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(128));
-    defer {
-        std.crypto.secureZero(u8, text);
-        init.gpa.free(text);
-    }
-    const trimmed = std.mem.trim(u8, text, " \r\n\t");
-    if (trimmed.len != 64) return error.InvalidSeed;
-    var seed: [32]u8 = undefined;
-    _ = try std.fmt.hexToBytes(&seed, trimmed);
-    return seed;
-}
+const readSeed = raw.host.readSeed;
+const respond = raw.host.respond;
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 2) return error.ExpectedHostConfiguration;
@@ -83,12 +73,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         };
     }
 }
-fn respond(out: *std.Io.Writer, status: u32, value: []const u8) !void {
-    try out.print("{{\"status\":{d},\"value\":", .{status});
-    try out.writeAll(value);
-    try out.writeAll("}\n");
-    try out.flush();
-}
 fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.Server, client: *raw.Client, request: host.Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     var buffer: ?*abi.Buffer = null;
     defer abi.Api.station_buffer_destroy(buffer);
@@ -118,27 +102,10 @@ fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.
             break :blk abi.Api.station_arrow_cell(decoded.ptr, decoded.len, arrow.row, arrow.column, &buffer);
         },
         .frame => |frame| abi.Api.station_frame_encode(frame.kind, try std.fmt.parseInt(u64, frame.correlation, 10), frame.payload.slice().ptr, frame.payload.len, &buffer),
-        .prepare => |prepare| {
-            var seed = try readSeed(init, prepare.seed_file);
-            defer std.crypto.secureZero(u8, &seed);
-            var operation: ?*raw.Operation = null;
-            defer raw.Api.transit_operation_destroy(operation);
-            var result = raw.Api.transit_operation_prepare(prepare.kind, &seed, prepare.document.ptr, prepare.document.len, &operation);
-            var frozen: ?*raw.Buffer = null;
-            defer raw.Api.transit_buffer_destroy(frozen);
-            if (result == .ok) result = raw.Api.transit_operation_export(operation.?, &frozen);
-            const value = if (frozen) |ptr| try std.json.Stringify.valueAlloc(allocator, raw.Api.transit_buffer_data(ptr)[0..raw.Api.transit_buffer_size(ptr)], .{}) else "null";
-            return respond(out, @backingInt(result), value);
-        },
-        .call => |frozen| {
-            var operation: ?*raw.Operation = null;
-            defer raw.Api.transit_operation_destroy(operation);
-            var result = raw.Api.transit_operation_import(frozen.ptr, frozen.len, &operation);
-            var response: ?*raw.Buffer = null;
-            defer raw.Api.transit_buffer_destroy(response);
-            if (result == .ok) result = raw.Api.transit_client_call(client, operation.?, &response);
-            return respond(out, @backingInt(result), if (response) |ptr| raw.Api.transit_buffer_data(ptr)[0..raw.Api.transit_buffer_size(ptr)] else "null");
-        },
+        .prepare => |prepare| return raw.host.process(init, client, .{ .prepare = prepare }, allocator, out),
+        .call => |frozen| return raw.host.process(init, client, .{ .call = frozen }, allocator, out),
+        .metadata => |frozen| return raw.host.process(init, client, .{ .metadata = frozen }, allocator, out),
+        .client_capabilities => return raw.host.process(init, client, .{ .capabilities = {} }, allocator, out),
     };
     if ((request == .pending or request == .growing_pending) and buffer != null) {
         const value = try std.json.Stringify.valueAlloc(allocator, abi.Api.station_buffer_data(buffer.?)[0..abi.Api.station_buffer_size(buffer.?)], .{});

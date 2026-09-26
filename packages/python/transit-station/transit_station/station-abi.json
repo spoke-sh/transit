@@ -4828,6 +4828,32 @@
               "maxLength": 524288
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "metadata"
+          ],
+          "properties": {
+            "metadata": {
+              "type": "string",
+              "maxLength": 524288
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "client_capabilities"
+          ],
+          "properties": {
+            "client_capabilities": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
         }
       ]
     },

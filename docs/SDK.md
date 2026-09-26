@@ -42,7 +42,8 @@ replace a recorded reply destination. No SDK is a native-code sandbox.
 Local native support does not establish a running authority capability. Likewise,
 raw v3 support does not establish a growing Station adapter. The implemented
 [raw ABI](../packages/zig/transit-client/docs/bindings.md) already supports v3
-operations, capability probing and opaque retry. The explicit growing Station
+operations, capability probing, native operation metadata and opaque retry;
+its standalone client port has no Station dependency. The explicit growing Station
 ABI now adds gated/scoped turns and bounded KV/Table/retained-source access;
 legacy foreign entry points retain v2. Public runners require the remaining
 shared changes listed below.
@@ -247,8 +248,8 @@ General query ingress and a production query host remain M13 scope.
 | --- | --- |
 | Growing Station ABI | Explicit C/port profile, full-width identities, bounded point/page reads, scoped turns and capability rejection implemented; public language adapters remain |
 | Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; foreign persistence callbacks and their fault proofs remain |
-| Abort without failure | Native `discard`/stop policy now preserves earlier unresolved control operations and rejects dropping pending bytes; foreign scoped disposal remains |
-| Typed operation metadata | Native-validated kind/identity on import and owned structured receipts; host code never decodes opaque retry bytes |
+| Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; public runner cancellation remains |
+| Typed operation metadata | Implemented native classification and canonical identity through C/port, with owned buffers; public typed operations must use it without decoding retry bytes |
 | Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
 | Application codecs | One versioned counter definition/fixtures before host implementations; strict, bounded validation in all three languages |
 | Growing data adapters | Page/source/cursor validation and opt-in complete-result manifests/segments through the same native implementation |

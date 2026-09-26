@@ -32,6 +32,10 @@ node/provider restart, opaque retry in a fresh process, lost/malformed accepted
 replies and revoked reads/receipt recovery. Allocation enumeration covers both
 mutation profiles. `just check` and the complete `just bindings::test` matrix
 passed after this extension.
+The same raw-client task now also runs the independent
+[client port](../apps/transit-client-host/README.md), including metadata identity,
+profile/command classification, malformed canonical recovery and seedless retry
+from a fresh process. Its executable imports no Station implementation.
 
 `just bindings::test` also runs the [growing Station ABI proof](station_growing_abi.py)
 against disk-backed Ursula. It checks every mutation's preparation/dispatch gate,

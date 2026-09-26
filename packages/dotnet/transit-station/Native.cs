@@ -18,6 +18,8 @@ internal static class Native {
     [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint transit_operation_export(IntPtr arg0, out IntPtr arg1);
     [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint transit_operation_metadata(IntPtr arg0, out IntPtr arg1);
+    [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint transit_operation_import([In] byte[] arg0, nuint arg1, out IntPtr arg2);
     [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
     internal static extern void transit_operation_destroy(IntPtr arg0);

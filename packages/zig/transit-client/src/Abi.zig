@@ -5,6 +5,8 @@ const wire = @import("transit_client");
 const p = wire.protocol;
 const allocator = std.heap.page_allocator;
 pub const version: u32 = 1;
+pub const minimum_stack_bytes = 8 * 1024 * 1024;
+pub const host = @import("Host.zig");
 
 pub const Status = enum(u32) {
     ok = 0,
@@ -49,6 +51,18 @@ const Signed = union(Kind) {
 };
 const OperationImpl = struct { signed: Signed };
 const Frozen = struct { version: u32 = version, operation: Signed };
+/// Descriptive local metadata, not evidence of authenticity or admission.
+pub const Metadata = struct {
+    version: u32 = 1,
+    identity: []const u8,
+    kind: Kind,
+    profile: enum { legacy_v2, growing_v3 },
+    realm: u64,
+    principal: u64,
+    sequence: ?[]const u8 = null,
+    command: ?[]const u8 = null,
+    destination: ?u64 = null,
+};
 const BufferImpl = struct { bytes: []u8 };
 pub fn observe(pointer: *Client, observer: *wire.observability.telemetry.Runtime) void {
     cast(ClientImpl, pointer).client.observer = observer;
@@ -163,6 +177,36 @@ pub const Api = struct {
         out.* = null;
         const handle: *const OperationImpl = @ptrCast(@alignCast(operation));
         buffer(Frozen{ .operation = handle.signed }, out) catch |err| return fail(err);
+        return .ok;
+    }
+    /// The shared implementation classifies imported requests. Identity is the
+    /// SHA-256 of exact canonical exported bytes, not an authority capability.
+    pub fn transit_operation_metadata(operation: *const Operation, out: *?*Buffer) callconv(.c) Status {
+        out.* = null;
+        const handle: *const OperationImpl = @ptrCast(@alignCast(operation));
+        const bytes = std.json.Stringify.valueAlloc(allocator, Frozen{ .operation = handle.signed }, .{}) catch return .out_of_memory;
+        defer allocator.free(bytes);
+        var digest: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+        const identity = std.fmt.bytesToHex(digest, .lower);
+        var sequence: [20]u8 = undefined;
+        var info: Metadata = .{ .identity = &identity, .kind = handle.signed, .profile = .legacy_v2, .realm = 0, .principal = 0 };
+        switch (handle.signed) {
+            inline .command, .view, .growing_command => |signed| {
+                const request = signed.request;
+                info.realm = request.realm;
+                info.principal = request.principal;
+                info.sequence = std.fmt.bufPrint(&sequence, "{d}", .{request.sequence}) catch unreachable;
+                info.command = @tagName(request.command);
+                if (request.command == .send) info.destination = request.command.send.pid;
+            },
+            inline else => |signed| {
+                info.realm = signed.query.realm;
+                info.principal = signed.query.principal;
+            },
+        }
+        if (handle.signed == .growing_command or handle.signed == .growing_query) info.profile = .growing_v3;
+        buffer(info, out) catch |err| return fail(err);
         return .ok;
     }
     /// Import validates shape and canonical encoding. The authority verifies the

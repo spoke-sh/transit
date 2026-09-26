@@ -1,6 +1,7 @@
 //! Reflect exported signatures; the generated header cannot diverge from Zig.
 const std = @import("std");
 const abi = @import("Abi.zig");
+const p = @import("transit_client").protocol;
 
 fn cType(comptime T: type) []const u8 {
     if (T == void) return "void";
@@ -25,6 +26,7 @@ pub fn main(init: std.process.Init) !void {
     try json.beginObject();
     try json.objectField("version");
     try json.write(abi.version);
+    try p.Schema.field(&json, "minimum_stack_bytes", abi.minimum_stack_bytes);
     inline for (.{ "statuses", "kinds" }, .{ abi.Status, abi.Kind }) |name, T| {
         try json.objectField(name);
         try json.beginObject();
@@ -50,6 +52,13 @@ pub fn main(init: std.process.Init) !void {
         try json.endObject();
     }
     try json.endArray();
+    try json.objectField("schemas");
+    try json.beginObject();
+    inline for (.{ "OperationMetadata", "ClientHostConfig", "ClientHostRequest", "ClientCapabilities" }, .{ abi.Metadata, abi.host.Config, abi.host.Request, abi.host.Capabilities }) |name, T| {
+        try json.objectField(name);
+        try p.Schema.write(T, &json, .{ .safe_integers = true, .text_max_length = p.max_body * 2, .output = T == abi.Metadata or T == abi.host.Capabilities });
+    }
+    try json.endObject();
     try json.endObject();
     try output.interface.writeByte('\n');
     try output.interface.flush();

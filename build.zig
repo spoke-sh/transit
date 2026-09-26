@@ -171,7 +171,8 @@ pub fn build(b: *std.Build) void {
     services.addFileArg(b.path("tests/service.py"));
     var station_controller: *std.Build.Step.Compile = undefined;
     var station_host: *std.Build.Step.Compile = undefined;
-    for ([_][]const u8{ "transit-node", "rey-cli", "transit-runtime-controller", "transit-delivery", "transit-station-controller", "transit-station-host" }) |name| {
+    var client_host: *std.Build.Step.Compile = undefined;
+    for ([_][]const u8{ "transit-node", "rey-cli", "transit-runtime-controller", "transit-delivery", "transit-station-controller", "transit-station-host", "transit-client-host" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
@@ -201,6 +202,10 @@ pub fn build(b: *std.Build) void {
             station_host = app;
             app.root_module.addImport("transit_station", station.module("transit_station"));
             app.root_module.addImport("station_abi", station.module("station_abi"));
+            app.root_module.addImport("client_abi", client.module("client_abi"));
+        }
+        if (std.mem.eql(u8, name, "transit-client-host")) {
+            client_host = app;
             app.root_module.addImport("client_abi", client.module("client_abi"));
         }
         if (std.mem.eql(u8, name, "transit-node") and target.result.os.tag == .linux) {
@@ -304,7 +309,16 @@ pub fn build(b: *std.Build) void {
     abi_tests.addArtifactArg(c_proof);
     abi_tests.has_side_effects = true;
     abi_tests.stdio = .inherit;
-    b.step("test-client-abi", "Prove the C ABI against real authority and host loss").dependOn(&abi_tests.step);
+    const abi_test_step = b.step("test-client-abi", "Prove the C ABI against real authority and host loss");
+    abi_test_step.dependOn(&abi_tests.step);
+    const client_host_tests = b.addSystemCommand(&.{ "python3", "-B" });
+    client_host_tests.addFileArg(b.path("tests/client_host.py"));
+    client_host_tests.addArtifactArg(client_host);
+    client_host_tests.addArtifactArg(node_artifact);
+    client_host_tests.addArtifactArg(cli_artifact);
+    client_host_tests.has_side_effects = true;
+    client_host_tests.stdio = .inherit;
+    abi_test_step.dependOn(&client_host_tests.step);
     const binding_tests = b.addSystemCommand(&.{ "python3", "-B" });
     binding_tests.addFileArg(b.path("tests/bindings.py"));
     binding_tests.addArtifactArg(node_artifact);

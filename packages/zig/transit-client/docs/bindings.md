@@ -79,6 +79,20 @@ shape or noncanonical representation. It grants no permission and does not
 authenticate an imported signature locally; the authority checks both signature
 and current grants during execution.
 
+`transit_operation_metadata` returns native-classified kind/profile, realm,
+principal, decimal sequence, command tag and send destination. Its identity is
+the SHA-256 of the exact exported envelope. Public send helpers must validate
+the recovered kind, profile and command before exposing a pending send; they
+need not parse signed retry bytes in the host language. Metadata contains no
+payload or signature and does not authenticate the operation or prove admission.
+Like other buffers, its bytes belong to the caller until explicitly destroyed.
+
+The standalone [client port](../../../../apps/transit-client-host/README.md)
+exposes the same operations without a Station dependency. Its generated schemas
+and capability response include the native 8 MiB stack requirement and bounded
+line budget. Station's existing port delegates raw requests to the same owner;
+its original hello stays compatible.
+
 Persist retry material before sending if the host requires recovery of uncertain
 submissions. Such material is a pending request, never authoritative evidence of
 acceptance. The ABI supplies no hidden filesystem store or background queue.
@@ -125,5 +139,8 @@ current revocation before historical retry. The shared
 [operation fixtures](../../../../tests/verification/sdk-operations-v1.json)
 include IDs at the public maximum and reject legacy versions and overflow.
 Allocation enumeration covers both legacy and growing mutations.
+The same task also runs the standalone client port against disk-backed Ursula,
+checking native metadata identities, canonical import, profile classification,
+absence of Station requests and fresh-process retry after removing the seed file.
 M9's separate Station handler/Table matrix remains available; these raw proofs
-do not qualify the proposed M11 public SDKs or a growing Station foreign ABI.
+do not qualify the proposed M11 public SDKs.

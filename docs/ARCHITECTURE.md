@@ -222,6 +222,7 @@ follow a second concrete implementation, not a speculative plugin system.
 | [transit-runtime-controller](../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
 | [transit-station-controller](../apps/transit-station-controller/README.md) | Observes Station timers/children or applies separately scoped lifecycle intent |
 | [transit-station-host](../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
+| [transit-client-host](../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
 | [transit-board](../apps/transit-board/README.md) | Inspection-only API host with embedded [TanStack Router frontend](../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
 | [rey-cli](../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |

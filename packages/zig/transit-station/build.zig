@@ -21,7 +21,7 @@ pub fn build(b: *std.Build) void {
     const check_step = b.step("check", "Compile standalone package tests without executing them");
     test_step.dependOn(&b.addRunArtifact(tests).step);
     check_step.dependOn(&tests.step);
-    const abi = b.addModule("station_abi", .{ .root_source_file = b.path("src/Abi.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station", .module = module }} });
+    const abi = b.addModule("station_abi", .{ .root_source_file = b.path("src/Abi.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station", .module = module }, .{ .name = "client_abi", .module = client.module("client_abi") } } });
     const abi_tests = b.addTest(.{ .root_module = abi });
     test_step.dependOn(&b.addRunArtifact(abi_tests).step);
     check_step.dependOn(&abi_tests.step);

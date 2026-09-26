@@ -1,6 +1,7 @@
 //! Line-framed transport for runtimes using an isolated native host process.
 const abi = @import("Abi.zig");
 const p = @import("transit_station").protocol;
+const raw = @import("client_abi").host;
 pub const version = 1;
 pub const Config = struct { url: []const u8, seed_file: ?[]const u8 = null, server: ?abi.Config = null, growing_server: ?abi.growing.Config = null, timeout_ms: u32 = 5000 };
 pub const Request = union(enum) {
@@ -18,6 +19,8 @@ pub const Request = union(enum) {
     growing_pending: void,
     arrow_cell: struct { ipc: []const u8, row: u32, column: u32 },
     frame: struct { kind: u32, correlation: []const u8, payload: p.Value },
-    prepare: struct { kind: u32, seed_file: []const u8, document: []const u8 },
+    prepare: raw.Prepare,
     call: []const u8,
+    metadata: []const u8,
+    client_capabilities: void,
 };

@@ -17,8 +17,8 @@ re-exported as `protocol`, and optional runtime instrumentation through
 adds activation-aware receive/prepare/submit operations. The default is the
 experimental v2 API; explicit `submitGrowing` and `queryGrowing` methods expose
 the [M10 v3 development boundary](docs/growing.md). The raw C ABI also exposes
-explicit growing command/query kinds; existing Session and Station foreign
-behavior APIs still use v2;
+explicit growing command/query kinds; existing Session and legacy Station foreign
+behavior APIs retain v2;
 `GrowingSession` is an explicit activation helper for the new profile. For the architectural boundary, read [the caller model](../../../docs/CLIENT.md).
 
 ## Caller guide
@@ -86,6 +86,8 @@ The [C ABI](docs/bindings.md) exposes the shared client, generated signatures an
 exact-request export/import for explicit v2/v3 operations. M9's Station adapters
 have separate behavior/Table conformance evidence. M11's public SDK and growing
 Station foreign surfaces remain in progress.
+The standalone [native client port](../../../apps/transit-client-host/README.md)
+also exposes canonical recovery and native operation metadata without Station.
 General payload references remain separately scoped future work.
 
 ## Build and verification

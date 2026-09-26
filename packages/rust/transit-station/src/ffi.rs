@@ -14,6 +14,7 @@ unsafe extern "C" {
     pub fn transit_client_destroy(arg0: *mut transit_client) -> ();
     pub fn transit_operation_prepare(arg0: u32, arg1: *const u8, arg2: *const u8, arg3: usize, arg4: *mut *mut transit_operation) -> u32;
     pub fn transit_operation_export(arg0: *const transit_operation, arg1: *mut *mut transit_buffer) -> u32;
+    pub fn transit_operation_metadata(arg0: *const transit_operation, arg1: *mut *mut transit_buffer) -> u32;
     pub fn transit_operation_import(arg0: *const u8, arg1: usize, arg2: *mut *mut transit_operation) -> u32;
     pub fn transit_operation_destroy(arg0: *mut transit_operation) -> ();
     pub fn transit_client_call(arg0: *mut transit_client, arg1: *const transit_operation, arg2: *mut *mut transit_buffer) -> u32;

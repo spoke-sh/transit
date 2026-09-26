@@ -7,7 +7,7 @@ _default:
 
 # Install shared libraries, the native port and the C/C++ example executables.
 build:
-    zig build client-abi station-abi transit-station-host bindings-examples
+    zig build client-abi station-abi transit-client-host transit-station-host bindings-examples
 
 # Regenerate declarations and shared schemas from the reviewed Zig ABI exports.
 generate:

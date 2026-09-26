@@ -50,6 +50,17 @@ def vectors(native):
         try:
             exported = native.export(operation)
             frozen = json.loads(exported)
+            metadata = c.c_void_p()
+            assert native.lib.transit_operation_metadata(operation, c.byref(metadata)) == 0
+            info = json.loads(native.take(metadata))
+            assert info["identity"] == hashlib.sha256(exported).hexdigest()
+            assert info["kind"] == case["tag"] and info["profile"] == "growing_v3"
+            assert (info["realm"], info["principal"]) == (document["realm"], document["principal"])
+            if case["kind"] == 6:
+                assert info["command"] == "send" and info["sequence"] == str(document["sequence"])
+                assert info["destination"] == document["command"]["send"]["pid"]
+            else:
+                assert info["sequence"] is info["command"] is info["destination"] is None
             assert frozen["version"] == 1
             signed = frozen["operation"][case["tag"]]
             assert json.dumps(signed[case["body"]], separators=(",", ":")) == case["canonical"]

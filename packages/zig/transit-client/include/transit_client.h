@@ -34,6 +34,7 @@ uint32_t transit_client_create(uint32_t arg0, const uint8_t * arg1, size_t arg2,
 void transit_client_destroy(transit_client * arg0);
 uint32_t transit_operation_prepare(uint32_t arg0, const uint8_t * arg1, const uint8_t * arg2, size_t arg3, transit_operation ** arg4);
 uint32_t transit_operation_export(const transit_operation * arg0, transit_buffer ** arg1);
+uint32_t transit_operation_metadata(const transit_operation * arg0, transit_buffer ** arg1);
 uint32_t transit_operation_import(const uint8_t * arg0, size_t arg1, transit_operation ** arg2);
 void transit_operation_destroy(transit_operation * arg0);
 uint32_t transit_client_call(transit_client * arg0, const transit_operation * arg1, transit_buffer ** arg2);

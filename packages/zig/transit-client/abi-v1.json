@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "minimum_stack_bytes": 8388608,
   "statuses": {
     "ok": 0,
     "invalid_argument": 1,
@@ -73,6 +74,14 @@
       ]
     },
     {
+      "name": "transit_operation_metadata",
+      "result": "uint32_t",
+      "parameters": [
+        "const transit_operation *",
+        "transit_buffer **"
+      ]
+    },
+    {
       "name": "transit_operation_import",
       "result": "uint32_t",
       "parameters": [
@@ -118,5 +127,305 @@
         "transit_buffer *"
       ]
     }
-  ]
+  ],
+  "schemas": {
+    "OperationMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "version",
+        "identity",
+        "kind",
+        "profile",
+        "realm",
+        "principal",
+        "sequence",
+        "command",
+        "destination"
+      ],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "identity": {
+          "type": "string",
+          "maxLength": 524288
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "command",
+            "view",
+            "state",
+            "inspection",
+            "delivery",
+            "growing_command",
+            "growing_query"
+          ]
+        },
+        "profile": {
+          "type": "string",
+          "enum": [
+            "legacy_v2",
+            "growing_v3"
+          ]
+        },
+        "realm": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "principal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-transit-bits": 64,
+          "x-transit-signed": false
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 524288
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "command": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 524288
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "destination": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "x-transit-bits": 64,
+              "x-transit-signed": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "identity",
+        "kind",
+        "profile",
+        "realm",
+        "principal",
+        "sequence",
+        "command",
+        "destination"
+      ],
+      "x-transit-defaults": {
+        "version": 1,
+        "sequence": null,
+        "command": null,
+        "destination": null
+      }
+    },
+    "ClientHostConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "url",
+        "timeout_ms"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 524288
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "x-transit-defaults": {
+        "timeout_ms": 5000
+      }
+    },
+    "ClientHostRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "hello"
+          ],
+          "properties": {
+            "hello": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "capabilities"
+          ],
+          "properties": {
+            "capabilities": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "prepare"
+          ],
+          "properties": {
+            "prepare": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "kind",
+                "seed_file",
+                "document"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "seed_file": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "document": {
+                  "type": "string",
+                  "maxLength": 524288
+                }
+              },
+              "required": [
+                "kind",
+                "seed_file",
+                "document"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "metadata"
+          ],
+          "properties": {
+            "metadata": {
+              "type": "string",
+              "maxLength": 524288
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "call"
+          ],
+          "properties": {
+            "call": {
+              "type": "string",
+              "maxLength": 524288
+            }
+          }
+        }
+      ]
+    },
+    "ClientCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-transit-field-order": [
+        "version",
+        "operation_metadata",
+        "opaque_retry",
+        "growing_v3",
+        "minimum_stack_bytes",
+        "max_line_bytes"
+      ],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "operation_metadata": {
+          "type": "boolean"
+        },
+        "opaque_retry": {
+          "type": "boolean"
+        },
+        "growing_v3": {
+          "type": "boolean"
+        },
+        "minimum_stack_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "max_line_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        }
+      },
+      "required": [
+        "version",
+        "operation_metadata",
+        "opaque_retry",
+        "growing_v3",
+        "minimum_stack_bytes",
+        "max_line_bytes"
+      ],
+      "x-transit-defaults": {
+        "version": 1,
+        "operation_metadata": true,
+        "opaque_retry": true,
+        "growing_v3": true,
+        "minimum_stack_bytes": 8388608,
+        "max_line_bytes": 540672
+      }
+    }
+  }
 }
