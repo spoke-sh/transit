@@ -11,7 +11,9 @@ Ruby's independent raw/Station gems now have clean installation, scoped handlers
 recovery/ownership and original query IPC proofs. Independent
 [C](../packages/c/transit-client/README.md)/[C++](../packages/cpp/transit-client/README.md)
 raw clients and Station handlers now have installed artifacts and shared
-recovery/ownership/Table/query proofs. Java, .NET and BEAM adaptations remain open.
+recovery/ownership/Table/query proofs. Java's independent raw client now has
+installed JARs, bounded futures and exact recovery/cleanup proofs; Java Station,
+.NET and BEAM adaptations remain open.
 [M11](roadmap/M11.md) owns delivery, including public interoperability. The
 [M9 adapters](../bindings/README.md) remain executable low-level interfaces.
 

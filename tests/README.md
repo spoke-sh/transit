@@ -183,6 +183,19 @@ reject before codec/frame use. Allocation enumeration remains the shared native
 proof; this C/C++ consumer does not inject a host allocator failure. Public mixed
 language pairs and the remaining managed SDK targets are still open.
 
+`nix develop .#bindings -c just bindings::java-sdk-test` builds independent Java
+client/native JARs with POM dependency manifests and installs only those JARs plus
+pinned Gson into an external consumer. Strict Java 21 compilation precedes the
+shared raw authority schedule. The proof covers typed bounds, copied buffers,
+native metadata, lost accepted responses, exact seedless recovery and revoked
+retry. Cancelling both dispatch and a close-future view preserves owned work;
+joined cleanup retains the accepted receipt while the controller remains
+responsive. Missing/mismatched native JARs, ABI-version overrides, malformed
+status, duplicate JSON members, invalid UTF-8, oversized lines and partial output
+are rejected. No Station JAR is installed. The public Station proof remains open.
+The Java artifacts require the Nix runtime closure; Maven resolution/publication,
+portable Linux artifacts and JVM allocation-failure injection are not qualified.
+
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 

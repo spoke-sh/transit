@@ -23,6 +23,12 @@ prefixes, typed retry objects and shared authority/worker ownership proofs throu
 and [C++ Station](../packages/cpp/transit-station-sdk/README.md) packages also pass
 the shared handler/recovery/Table/query schedule and both installed CLI roles.
 
+The independent [Java client](../packages/java/transit-client/README.md) now has
+typed records, opaque retry and bounded `CompletableFuture` operations.
+`just bindings::java-sdk-test` installs separate client/native JARs outside the
+checkout and qualifies cancellation, joined cleanup, retained receipts and exact
+seedless recovery. Java's public Station layer remains in progress.
+
 M11 adds **Ruby** through the shared native port, with value objects and
 block-scoped ownership. Ruby 3.4.9 / RubyGems 3.7.2 are pinned by the Nix lock;
 its raw/Station packages have separate public SDK proofs. The historical M9

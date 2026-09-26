@@ -81,6 +81,9 @@ for name, value in station["statuses"].items():
 java += ["}", ""]
 outputs[root / "packages/java/transit-station/src/io/transit/station/Contract.java"] = "\n".join(java).encode()
 outputs[root / "packages/java/transit-station/resources/station-abi.json"] = contracts["station"]
+target = root / 'packages/java/transit-client/resources/io/transit/sdk/client'
+outputs[target / 'contract.json'] = contracts['client']
+outputs[target / 'schemas.json'] = (json.dumps(clean(json.loads(contracts['client'])['schemas']), separators=(',', ':')) + '\n').encode()
 def cs_type(value, result=False):
     if value == "void": return "void"
     if value == "uint32_t": return "uint"

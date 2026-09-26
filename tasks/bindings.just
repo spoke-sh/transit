@@ -121,3 +121,12 @@ c-sdk-test: c-build
     zig build transit-node rey-cli
     python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c
     python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c
+
+# Build independent Java JARs and POM manifests with the pinned JDK/Gson.
+java-build: build
+    python3 -B bindings/build_java.py .cache/bindings/java
+
+# Compile installed public Java consumers outside the checkout.
+java-sdk-test: java-build
+    zig build transit-node rey-cli
+    python3 -B tests/java_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/java

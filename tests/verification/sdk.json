@@ -111,7 +111,7 @@
       "id": "local-cancellation-disposal",
       "steps": ["Hold a native request in flight", "Cancel only its host await", "Dispose the handle while native work is owned", "Keep the event loop responsive until cleanup joins", "Reject use of the disposed handle"],
       "expected": {"await_cancelled": true, "overlap_rejected": true, "responsive_during_join": true, "disposed_handle_rejected": true},
-      "proofs": [{"task": "bindings::test", "source": "tests/station_abi.py", "anchor": "check(\"local-cancellation-disposal\""}, {"task": "bindings::python-test", "source": "tests/sdk_raw_client.py", "anchor": "check('local-cancellation-disposal'"}, {"task": "bindings::node-sdk-test", "source": "tests/sdk_raw_client.py", "anchor": "check('local-cancellation-disposal'"}],
+      "proofs": [{"task": "bindings::test", "source": "tests/station_abi.py", "anchor": "check(\"local-cancellation-disposal\""}, {"task": "bindings::python-test", "source": "tests/sdk_raw_client.py", "anchor": "check('local-cancellation-disposal'"}, {"task": "bindings::node-sdk-test", "source": "tests/sdk_raw_client.py", "anchor": "check('local-cancellation-disposal'"}, {"task": "bindings::java-sdk-test", "source": "tests/sdk_raw_client.py", "anchor": "check('local-cancellation-disposal'"}],
       "limits": "The stalled transport does not establish a durable outcome; cancellation of a local await does not cancel authority work. Exact accepted-response loss is covered separately."
     },
     {
