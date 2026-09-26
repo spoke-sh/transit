@@ -22,6 +22,7 @@ pub const Capabilities = struct {
     version: u32 = 1,
     profile: []const u8 = "growing_v3",
     gated_dispatch: bool = true,
+    retained_confirmation: bool = true,
     scoped_turns: bool = true,
     paged_state: bool = true,
     tables: bool = true,
@@ -33,6 +34,8 @@ pub const Capabilities = struct {
     value_bytes: u32 = p.Value.max_bytes,
     message_bytes: u32 = s.Frame.max_payload,
     key_bytes: u32 = p.Growth.key_bytes,
+    table_cell_bytes: u32 = s.fuze.model.max_cell_bytes,
+    table_name_bytes: u32 = @typeInfo(@FieldType(s.fuze.model.Name, "bytes")).array.len,
     page_entries: u32 = p.Growth.page_size,
     turn_mutations: u32 = p.Growth.turn_mutations,
     turn_outputs: u32 = p.Growth.turn_outputs,
@@ -48,6 +51,7 @@ pub const Event = struct {
     resource: ?u64 = null,
     resource_revision: ?u64 = null,
     pending_kind: ?s.GrowingGenServer.PendingKind = null,
+    pending_input: ?u64 = null,
     confirmation: ?s.GrowingGenServer.Confirmation = null,
 };
 const Impl = struct {
@@ -142,7 +146,10 @@ fn eventWithAllocator(alloc: std.mem.Allocator, server: *Impl, out: *?*base.Buff
         .committed => .committed,
         .blocked => .blocked,
     }, .pid = server.behavior.session.pid, .generation = server.behavior.session.generation };
-    if (server.behavior.pending != null) result.pending_kind = server.behavior.pending_kind;
+    if (server.behavior.pending != null) {
+        result.pending_kind = server.behavior.pending_kind;
+        result.pending_input = server.behavior.delivery.?.input.position;
+    }
     if (server.cached_dispatch) result.confirmation = server.behavior.confirmation;
     var correlation: [20]u8 = undefined;
     if (server.behavior.ready) |turn| {
@@ -187,6 +194,24 @@ pub fn dispatch(pointer: *Server, out: *?*base.Buffer) callconv(.c) base.Status 
     } else if (!server.cached_dispatch) return .not_ready;
     return event(server, out);
 }
+/// Re-observe native acceptance after foreign response decoding/allocation fails.
+/// The host must match purpose/input to its saved operation before advancing.
+pub fn confirmation(pointer: *Server, out: *?*base.Buffer) callconv(.c) base.Status {
+    out.* = null;
+    const server = cast(pointer);
+    if (!lock(server)) return .busy;
+    defer server.busy.store(false, .release);
+    const confirmed = server.behavior.confirmation orelse return .not_ready;
+    if (server.cached_dispatch) return event(server, out);
+    const result: Event = .{
+        .event = if (confirmed.kind == .commit) (if (server.behavior.blocked) .blocked else .committed) else .progress,
+        .pid = server.behavior.session.pid,
+        .generation = server.behavior.session.generation,
+        .confirmation = confirmed,
+    };
+    base.output(result, out) catch |err| return base.status(err);
+    return .ok;
+}
 pub fn apply(pointer: *Server, scope: u64, json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
     out.* = null;
     if (len == 0 or len > p.max_body) return .invalid_argument;
@@ -222,7 +247,11 @@ pub fn finish(pointer: *Server, scope: u64, failed: u32) callconv(.c) base.Statu
         server.scope = null;
         server.cached = null;
     };
-    server.behavior.finish(if (failed == 1) error.ForeignHandlerFailure else null) catch |err| return base.status(err);
+    const poisoned = if (server.behavior.ready) |turn| turn.read_error != null else false;
+    server.behavior.finish(if (failed == 1) error.ForeignHandlerFailure else null) catch |err| {
+        const result = base.status(err);
+        return if (poisoned and result == .invalid_argument) .unavailable else result;
+    };
     return .ok;
 }
 pub fn discard(pointer: *Server, scope: u64) callconv(.c) base.Status {

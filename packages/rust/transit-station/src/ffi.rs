@@ -26,6 +26,7 @@ unsafe extern "C" {
     pub fn station_growing_destroy(arg0: *mut station_growing_server) -> ();
     pub fn station_growing_prepare(arg0: *mut station_growing_server, arg1: u64, arg2: *mut *mut station_buffer) -> u32;
     pub fn station_growing_dispatch(arg0: *mut station_growing_server, arg1: *mut *mut station_buffer) -> u32;
+    pub fn station_growing_confirmation(arg0: *mut station_growing_server, arg1: *mut *mut station_buffer) -> u32;
     pub fn station_growing_apply(arg0: *mut station_growing_server, arg1: u64, arg2: *const u8, arg3: usize, arg4: *mut *mut station_buffer) -> u32;
     pub fn station_growing_finish(arg0: *mut station_growing_server, arg1: u64, arg2: u32) -> u32;
     pub fn station_growing_discard(arg0: *mut station_growing_server, arg1: u64) -> u32;

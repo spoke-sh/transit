@@ -88,6 +88,7 @@ fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.
         .growing_capabilities => abi.Api.station_growing_capabilities(&buffer),
         .growing_prepare => |deadline| if (growing) |pointer| abi.Api.station_growing_prepare(pointer, deadline, &buffer) else .not_ready,
         .growing_dispatch => if (growing) |pointer| abi.Api.station_growing_dispatch(pointer, &buffer) else .not_ready,
+        .growing_confirmation => if (growing) |pointer| abi.Api.station_growing_confirmation(pointer, &buffer) else .not_ready,
         .growing_apply => |action| blk: {
             const json = try std.json.Stringify.valueAlloc(allocator, action.action, .{});
             break :blk if (growing) |pointer| abi.Api.station_growing_apply(pointer, action.scope, json.ptr, json.len, &buffer) else .not_ready;

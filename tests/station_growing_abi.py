@@ -169,12 +169,17 @@ def run(node, cli, library, raw_library, host):
                 event = server.prepare()
                 assert event['event'] == 'pending'
                 observed_kinds.add(event['pending_kind'])
+                assert event['pending_input'] > 0
                 assert server.pending() == frozen
             assert len(fault['commands']) == count, 'Preparation submitted before persistence'
             saved.write_bytes(frozen)
             saved.chmod(0o600)
             result = server.dispatch()
             assert result['confirmation']['receipt']['position'] > 0
+            assert result['confirmation']['input'] == event['pending_input']
+            for _ in range(2):
+                observed = server.api.call('station_growing_confirmation', server.pointer)
+                assert observed['confirmation'] == result['confirmation']
             assert len(fault['commands']) == count + 1
             return result
 
@@ -209,7 +214,9 @@ def run(node, cli, library, raw_library, host):
             initial = ready(server)
             assert initial['initializing'] and initial['scope'] > 0
             scope = initial['scope']
+            assert server.apply(scope, {'budgets': {}})['budgets']['mutations'] == 3
             server.apply(scope, {'put': {'key': b'local'.hex(), 'value': b'private'.hex()}})
+            assert server.apply(scope, {'budgets': {}})['budgets']['mutations'] == 2
             rejects(1, server.finish, scope, True)
             assert query({'process': pid})['process']['process']['failure'] is None
             event = ready(server)
@@ -277,6 +284,12 @@ def run(node, cli, library, raw_library, host):
             rejects(1, server.apply, event['scope'], {'table_page': {'id': 1}})
             retained = server.apply(event['scope'], {'table_page': {'id': 1, 'version': version}})['rows']
             assert len([row for row in retained['rows'] if row is not None]) == 8
+            schema = server.apply(event['scope'], {'table_schema': {'id': 1, 'version': version}})['schema']
+            assert (schema['id'], schema['key_name'], schema['value_name'], schema['value_type']) == (1, 'id', 'value', 'int64')
+            assert schema['basis'] == retained['basis']
+            point = server.apply(event['scope'], {'version_table_get': {'version': version, 'id': 1, 'key': str(-(2**63))}})
+            assert point == {'row': rows[0]}
+            assert server.apply(event['scope'], {'version_table_get': {'version': version, 'id': 1, 'key': str(2**63-1)}}) == {'row': None}
             finish(server, event['scope'])
             command({'send': {'pid': pid, 'value': frame(b'poison')}})
             event = ready(server)

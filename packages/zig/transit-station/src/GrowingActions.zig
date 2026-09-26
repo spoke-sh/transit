@@ -31,6 +31,7 @@ pub const Manifest = struct {
     schema: [32]u8,
 };
 pub const Action = union(enum) {
+    budgets: void,
     get: p.Value,
     put: @FieldType(a.Action, "put"),
     delete: p.Value,
@@ -45,10 +46,12 @@ pub const Action = union(enum) {
     table_delete: @FieldType(a.Action, "table_delete"),
     page: ?[]const u8,
     table_page: struct { id: u32, cursor: ?[]const u8 = null, version: ?p.Growth.ReadVersionId = null },
+    table_schema: struct { id: u32, version: ?p.Growth.ReadVersionId = null },
     retain: void,
     release: p.Growth.ReadVersionId,
     version_get: struct { id: p.Growth.ReadVersionId, key: p.Value },
     version_page: struct { id: p.Growth.ReadVersionId, cursor: ?[]const u8 = null },
+    version_table_get: struct { version: p.Growth.ReadVersionId, id: u32, key: []const u8 },
     query_policy: @FieldType(a.Action, "query_policy"),
     query_start: struct { id: u32, plan: Plan = .{} },
     query_close: struct { result: u64, reason: enum { cancelled, denied } },
@@ -63,11 +66,13 @@ pub const Action = union(enum) {
     }
 };
 pub const Result = union(enum) {
+    budgets: struct { mutations: u32, outputs: u32, views: u32, retained_reads: u32, retains: u32, releases: u32 },
     none,
     value: ?p.Value,
     correlation: []const u8,
     cancelled: bool,
     row: ?a.Row,
+    schema: struct { id: u32, key_name: []const u8, value_name: []const u8, value_type: s.fuze.model.Type, basis: s.fuze.model.Basis },
     page: struct { entries: [p.Growth.page_size]?p.Growth.Entry, next: ?[]const u8 },
     rows: struct { basis: s.fuze.model.Basis, rows: [p.Growth.page_size]?a.Row, next: ?[]const u8 },
     version: p.Growth.ReadVersionId,
@@ -101,9 +106,20 @@ fn tablePage(allocator: std.mem.Allocator, source: anytype, id: u32, encoded: ?[
     for (rows[0..batch.len], batch.rows[0..batch.len]) |*out, row| out.* = .{ .key = try a.decimal(allocator, row.key), .value = try a.foreignCell(allocator, row.value) };
     return .{ .rows = .{ .basis = batch.basis, .rows = rows, .next = if (batch.next) |next| try std.json.Stringify.valueAlloc(allocator, next, .{}) else null } };
 }
+fn tableSchema(allocator: std.mem.Allocator, source: anytype, id: u32) !Result {
+    const table = try s.Table.open(source, id);
+    return .{ .schema = .{
+        .id = table.id,
+        .key_name = try allocator.dupe(u8, table.schema.names[0].slice()),
+        .value_name = try allocator.dupe(u8, table.schema.names[1].slice()),
+        .value_type = table.schema.value_type,
+        .basis = .{ .resource = source.view.resource, .revision = source.view.revision, .schema = try table.schema.fingerprint() },
+    } };
+}
 pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action) !Result {
     if (try a.basic(Result, allocator, turn, action)) |result| return result;
     switch (action) {
+        .budgets => return .{ .budgets = .{ .mutations = remaining(turn.decision.mutations), .outputs = remaining(turn.decision.outputs), .views = remaining(turn.decision.views), .retained_reads = remaining(turn.decision.read_versions), .retains = remaining(turn.decision.retain), .releases = remaining(turn.decision.release) } },
         .page => |cursor| return page(allocator, turn, cursor),
         .table_page => |request| {
             if (request.version) |id| {
@@ -111,6 +127,13 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action)
                 return tablePage(allocator, &source, request.id, request.cursor);
             }
             return tablePage(allocator, turn, request.id, request.cursor);
+        },
+        .table_schema => |request| {
+            if (request.version) |id| {
+                var source = try turn.openVersion(id);
+                return tableSchema(allocator, &source, request.id);
+            }
+            return tableSchema(allocator, turn, request.id);
         },
         .retain => return .{ .version = try turn.retain() },
         .release => |id| try turn.release(id),
@@ -121,6 +144,12 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action)
         .version_page => |request| {
             var source = try turn.openVersion(request.id);
             return page(allocator, &source, request.cursor);
+        },
+        .version_table_get => |request| {
+            var source = try turn.openVersion(request.version);
+            const table = try s.Table.open(&source, request.id);
+            const row = (try table.get(&source, try std.fmt.parseInt(i64, request.key, 10))) orelse return .{ .row = null };
+            return .{ .row = .{ .key = try a.decimal(allocator, row.key), .value = try a.foreignCell(allocator, row.value) } };
         },
         .query_policy => |grant| try q.setPolicy(turn, grant.peer, grant.table, grant.expected_revision, grant.allow),
         .query_start => |request| {
@@ -159,4 +188,12 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action)
     }
     try turn.validate();
     return .none;
+}
+
+fn remaining(slots: anytype) u32 {
+    var count: u32 = 0;
+    for (slots) |slot| if (slot == null) {
+        count += 1;
+    };
+    return count;
 }

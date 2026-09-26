@@ -115,14 +115,19 @@ there is no fallback or resource migration. Handles require the same native
 stack, bounded I/O pool, serialized access and joined destruction as legacy ones.
 
 1. `station_growing_prepare` advances reads/private framework work only. A
-   `pending` event identifies a permit, view-open or turn mutation. Repeated
+   `pending` event identifies a permit, view-open or turn mutation and its
+   `pending_input` position. Repeated
    preparation preserves it without sending. Export its exact bytes with
    `station_growing_pending` and persist them before calling dispatch.
 2. `station_growing_dispatch` makes one attempt. On success, its event includes
    the purpose, input position and receipt in `confirmation`. Unknown outcomes
    retain pending bytes. If response allocation fails after success, the native
    handle retains the confirmed event for a later read; the error remains
-   `uncertain`. Record confirmation before advancing another mutation.
+   `uncertain`. `station_growing_confirmation` also re-observes acceptance after
+   a foreign host fails to copy or decode an already returned buffer. Match its
+   purpose/input against the saved mutation: an older confirmation can remain
+   while the next operation is prepared. It never dispatches. Record confirmation
+   before advancing another mutation.
 3. A `ready` event supplies a local `scope` token plus authenticated input data.
    Pass that token to `apply`, `finish` and `discard`. Finished/discarded/rebuilt
    turns reject stale tokens; the token is tied to its owning handle and grants
@@ -142,6 +147,10 @@ Cursor parsing is canonical, and resuming checks the original source, resource,
 revision and Table/schema. Only null continuation means complete. Captured-view
 pages exclude private mutations; retained-source pages can accompany private
 progress writes, with read dependencies registered by native Station.
+`table_schema` returns the captured schema and basis for live or retained Tables;
+`version_table_get` reads a point from the retained basis. `budgets` reports the
+remaining native decision slots, including framework work already reserved.
+Local capabilities publish Table cell/name byte bounds for host-side validation.
 
 Query support requires `query_results: true` in the growing configuration. An
 enabled handle owns a bounded 1 MiB Fuze workspace until joined destruction;
@@ -179,7 +188,8 @@ means it was already closed, and neither outcome retracts work accepted by a pee
 
 `tests/station_growing_abi.py`, included in the binding proof, uses one resident
 backend page and disk Ursula. It checks 41 Table rows in six pages, stale scopes
-and cursors, full-width values/principals, private stop/read poisoning, control
+and cursors, retained schemas/point reads, remaining mutation budgets, repeated
+confirmation observation, full-width values/principals, private stop/read poisoning, control
 gates, accepted-response loss and exact recovery from a fresh process after
 caller/node/store loss, current revocation and the growing port route. Native
 allocation enumeration additionally checks retained confirmation on every failed

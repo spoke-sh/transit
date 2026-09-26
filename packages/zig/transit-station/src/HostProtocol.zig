@@ -13,6 +13,7 @@ pub const Request = union(enum) {
     growing_capabilities: void,
     growing_prepare: u64,
     growing_dispatch: void,
+    growing_confirmation: void,
     growing_apply: struct { scope: u64, action: abi.growing.actions.Action },
     growing_finish: struct { scope: u64, failed: bool },
     growing_discard: u64,

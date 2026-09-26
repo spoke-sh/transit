@@ -73,6 +73,7 @@ pub const Api = struct {
     pub const station_growing_destroy = growing.destroy;
     pub const station_growing_prepare = growing.prepare;
     pub const station_growing_dispatch = growing.dispatch;
+    pub const station_growing_confirmation = growing.confirmation;
     pub const station_growing_apply = growing.apply;
     pub const station_growing_finish = growing.finish;
     pub const station_growing_discard = growing.discard;
