@@ -74,3 +74,12 @@ test("native result validation fails closed for a private operation too", async 
     await cleanup();
   }
 });
+
+test("explicit growing dispatch retains uncertainty if the native port exits", async () => {
+  const { host, cleanup } = await fixture("exit");
+  try {
+    await assert.rejects(host.request({ growing_dispatch: {} }), { status: 6 });
+  } finally {
+    await cleanup();
+  }
+});

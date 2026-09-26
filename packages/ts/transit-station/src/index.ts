@@ -143,7 +143,7 @@ export class NativeHost {
     if (Buffer.byteLength(line) > maximum)
       return Promise.reject(new TransitError(1, "Oversized host request"));
     return new Promise((resolve, reject) => {
-      const uncertain = "next" in input || "call" in input;
+      const uncertain = "next" in input || "call" in input || "growing_dispatch" in input;
       const abort = () =>
         this.fail(
           new TransitError(uncertain ? 6 : 7, "Local wait abandoned; native host terminated"),
