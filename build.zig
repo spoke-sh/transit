@@ -26,6 +26,7 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run Zig unit and protocol tests");
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("station_abi") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
     test_step.dependOn(&b.addRunArtifact(tests).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = telemetry.module("telemetry") })).step);

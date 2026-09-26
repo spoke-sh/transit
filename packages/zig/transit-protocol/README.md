@@ -4,7 +4,7 @@ The [v3 growing-profile contract](../../../contracts/TRANSIT_V3.md) is under M10
 development and exported separately as `Growth`. Its generated schema is checked
 alongside v2. The [explicit node profile](../../../apps/transit-node/docs/growing.md)
 and Zig client now support its bounded command/query surface; launcher defaults,
-default Station interfaces and foreign behavior ABIs retain v2. The raw
+default Station interfaces and legacy foreign behavior ABIs retain v2. The raw
 [client ABI](../transit-client/docs/bindings.md) also exposes explicit v3
 operations. Schema presence alone does
 not advertise a running capability or migrate signing/checkpoint formats.

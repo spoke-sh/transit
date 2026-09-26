@@ -92,6 +92,8 @@ def run(node, cli, courier, library, raw_library, host, c, cpp, *extra):
         if affinity:
             os.sched_setaffinity(0, {min(affinity)})
         abi_proof(node, cli, library, raw_library, host)
+        from station_growing_abi import run as growing_abi_proof
+        growing_abi_proof(node, cli, library, raw_library, host)
     finally:
         if affinity:
             os.sched_setaffinity(0, affinity)

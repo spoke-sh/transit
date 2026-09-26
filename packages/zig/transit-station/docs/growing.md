@@ -2,8 +2,10 @@
 
 This explicit Zig interface targets [Transit v3](../../../../contracts/TRANSIT_V3.md).
 The [development contract](../../../../contracts/STATION_GROWING.md) records
-compatibility and the behavior loop. The existing `Turn`, `GenServer`,
-foreign ABIs and launchers still use Station v1.
+compatibility and the behavior loop. The existing `Turn`, `GenServer`, legacy
+foreign ABIs and launchers still use Station v1. M11's explicit
+[growing ABI](bindings.md#explicit-growing-turns) adds gated foreign turns and
+bounded state/Table access separately.
 
 ## Behavior loop
 
@@ -15,7 +17,8 @@ Concurrent calls on the same host/client are unsupported.
 
 `poll` resolves the named association, opens a view and returns a `GrowingTurn`.
 It reads only the behavior descriptor before calling application code. `step`
-adds Zig handler dispatch; foreign bindings do not yet expose this profile.
+adds Zig handler dispatch; the growing ABI exposes the explicit preparation and
+dispatch phases for foreign hosts.
 Provide a read deadline within the authority window; finite settlement and
 resource deadlines bound it further. A missing/hidden association, stale owner,
 revocation or expired view cannot be bypassed by reopening data in a handler.
@@ -60,8 +63,8 @@ is pending. It neither consumes the input nor records a failure. Selecting
 `failure_policy = .stop` applies that behavior to handler/preprocessing errors;
 the default `.block_input` retains the existing failure-proposal policy. Read
 failures poison/discard the private turn under both policies. These are native
-Zig capabilities; the foreign SDK dispatch/persistence adapters remain separate
-implementation work.
+Zig capabilities and now have explicit growing C/port exports; public SDK
+dispatch/persistence adapters remain separate implementation work.
 
 The real growing Station recovery proof now uses the explicit phases and checks
 confirmation identity; native units exercise frozen permit/open/commit requests

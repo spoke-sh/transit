@@ -31,8 +31,17 @@ signatures and full-width IDs. The real disk proof checks principal 65,536,
 node/provider restart, opaque retry in a fresh process, lost/malformed accepted
 replies and revoked reads/receipt recovery. Allocation enumeration covers both
 mutation profiles. `just check` and the complete `just bindings::test` matrix
-passed after this extension. Public SDK handlers, growing Station foreign turns
-and clean package installation are still M11 work.
+passed after this extension.
+
+`just bindings::test` also runs the [growing Station ABI proof](station_growing_abi.py)
+against disk-backed Ursula. It checks every mutation's preparation/dispatch gate,
+41 Table rows through bounded pages, retained sources, stale scopes/cursors,
+poisoned reads, explicit stop behavior, revocation, native port parity and exact
+retry from a fresh process after caller/node/store loss. Native allocation-failure
+enumeration preserves accepted receipts until the host can receive them. Both
+`just check` and the complete existing language matrix pass with this boundary.
+Public SDK handlers, foreign query adapters and clean package installation remain
+M11 work.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

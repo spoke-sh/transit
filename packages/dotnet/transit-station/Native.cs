@@ -30,6 +30,24 @@ internal static class Native {
     [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
     internal static extern void transit_buffer_destroy(IntPtr arg0);
     [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_growing_capabilities(out IntPtr arg0);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_growing_create(uint arg0, [In] byte[] arg1, nuint arg2, [In] byte[] arg3, [In] byte[] arg4, nuint arg5, out IntPtr arg6);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void station_growing_destroy(IntPtr arg0);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_growing_prepare(IntPtr arg0, ulong arg1, out IntPtr arg2);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_growing_dispatch(IntPtr arg0, out IntPtr arg1);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_growing_apply(IntPtr arg0, ulong arg1, [In] byte[] arg2, nuint arg3, out IntPtr arg4);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_growing_finish(IntPtr arg0, ulong arg1, uint arg2);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_growing_discard(IntPtr arg0, ulong arg1);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_growing_pending(IntPtr arg0, out IntPtr arg1);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint station_abi_version();
     [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint station_json_extract([In] byte[] arg0, nuint arg1, [In] byte[] arg2, nuint arg3, uint arg4, out IntPtr arg5);

@@ -53,10 +53,10 @@ pub const Action = union(enum) {
     supervisor_observe: void,
 };
 pub const Result = union(enum) { none, value: ?p.Value, correlation: []const u8, row: ?Row, arrow: []const u8, manifest: struct { result: u64, correlation: []const u8, bytes: u16, rows: u8 } };
-fn decimal(allocator: std.mem.Allocator, value: anytype) ![]const u8 {
+pub fn decimal(allocator: std.mem.Allocator, value: anytype) ![]const u8 {
     return std.fmt.allocPrint(allocator, "{d}", .{value});
 }
-fn nativeCell(cell: Cell) !m.Cell {
+pub fn nativeCell(cell: Cell) !m.Cell {
     return switch (cell) {
         .null => .null,
         .int64 => |value| .{ .int64 = try std.fmt.parseInt(i64, value, 10) },
@@ -65,7 +65,7 @@ fn nativeCell(cell: Cell) !m.Cell {
         .binary => |value| .{ .binary = try m.Bytes.init(value.slice()) },
     };
 }
-fn foreignCell(allocator: std.mem.Allocator, cell: m.Cell) !Cell {
+pub fn foreignCell(allocator: std.mem.Allocator, cell: m.Cell) !Cell {
     return switch (cell) {
         .null => .null,
         .int64 => |value| .{ .int64 = try decimal(allocator, value) },
@@ -111,9 +111,9 @@ pub fn hex(allocator: std.mem.Allocator, bytes: []const u8) ![]const u8 {
 }
 /// The result borrows the supplied arena; serialize/copy before releasing it.
 /// All actions mutate only the private turn. The host explicitly finishes it.
-pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Result {
+pub fn basic(comptime R: type, allocator: std.mem.Allocator, turn: anytype, action: anytype) !?R {
     switch (action) {
-        .get => |key| return .{ .value = turn.get(key) },
+        .get => |key| return .{ .value = try turn.read(key) },
         .put => |put| try turn.put(put.key, put.value),
         .delete => |key| try turn.delete(key),
         .cast => |cast| try turn.cast(cast.pid, cast.value),
@@ -145,6 +145,14 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Resul
             }
         },
         .table_delete => |request| try (try s.Table.open(turn, request.id)).delete(turn, try std.fmt.parseInt(i64, request.key, 10)),
+        else => return null,
+    }
+    try turn.validate();
+    return .none;
+}
+pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Result {
+    if (try basic(Result, allocator, turn, action)) |result| return result;
+    switch (action) {
         .query, .query_reply => |request| {
             const table = try s.Table.open(turn, request.id);
             var workspace: [s.fuze.execution.working_bytes]u8 = undefined;
@@ -171,6 +179,7 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Resul
         },
         .supervisor_register => |child| try s.Supervisor.register(turn, child),
         .supervisor_observe => try s.Supervisor.observe(turn, try s.Supervisor.Observation.decode(try s.Frame.decode(turn.delivery.input.value))),
+        else => unreachable,
     }
     try turn.validate();
     return .none;

@@ -3,7 +3,7 @@
 Status: M10 development contract. An explicitly selected node profile and Zig
 client implement the bounded command/query boundary; M11 adds the same operations
 to the [raw C ABI](../packages/zig/transit-client/docs/bindings.md). Launcher defaults,
-Session, the default Station interface and foreign behavior bindings remain v2/state-v1. See the
+Session, the default Station interface and legacy foreign behavior bindings remain v2/state-v1. See the
 [node guide](../apps/transit-node/docs/growing.md) for exact partial capabilities;
 this does not authorize interpreting old history as a new profile. [M10](../docs/roadmap/M10.md)
 records its growth, integration and recovery qualification limits.

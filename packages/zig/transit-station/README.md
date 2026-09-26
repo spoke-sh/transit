@@ -22,6 +22,11 @@ Its [incremental query capture](docs/queries.md) stages and seals growing Arrow
 results over retained sources. Explicit query-enabled hosts publish and verify
 segments with receiver credit and a complete-result manifest; capture alone does
 not complete a remote call. Existing launchers and foreign ABIs do not opt in.
+The separate growing C ABI and native port now expose scoped turns, bounded
+KV/Table pages and retained sources with explicit preparation and dispatch.
+The [binding guide](docs/bindings.md#explicit-growing-turns) describes ownership,
+receipt recovery and capabilities; public SDK runners and foreign query adapters
+remain M11 work.
 The [lifetime guide](docs/lifetimes.md) explains retention, suspension and
 permanent retirement without hiding the kernel's contracts.
 

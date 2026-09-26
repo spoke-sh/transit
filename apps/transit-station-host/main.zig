@@ -40,8 +40,19 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const parsed = try std.json.parseFromSlice(host.Config, init.gpa, config_bytes, .{});
     defer parsed.deinit();
     const config = parsed.value;
+    if (config.server != null and config.growing_server != null) return error.ConflictingHostProfiles;
     var server: ?*abi.Server = null;
     defer abi.Api.station_server_destroy(server);
+    var growing: ?*abi.growing.Server = null;
+    defer abi.Api.station_growing_destroy(growing);
+    if (config.growing_server) |options| {
+        var seed = try readSeed(init, config.seed_file orelse return error.MissingSeedFile);
+        defer std.crypto.secureZero(u8, &seed);
+        const json = try std.json.Stringify.valueAlloc(init.gpa, options, .{});
+        defer init.gpa.free(json);
+        if (abi.Api.station_growing_create(1, config.url.ptr, config.url.len, &seed, json.ptr, json.len, &growing) != .ok) return error.InvalidHostConfiguration;
+        abi.growing.observe(growing.?, diagnostics);
+    }
     if (config.server) |options| {
         var seed = try readSeed(init, config.seed_file orelse return error.MissingSeedFile);
         defer std.crypto.secureZero(u8, &seed);
@@ -67,7 +78,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             continue;
         };
         defer request.deinit();
-        process(init, server, client.?, request.value, arena.allocator(), &output.interface) catch |err| {
+        process(init, server, growing, client.?, request.value, arena.allocator(), &output.interface) catch |err| {
             try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
         };
     }
@@ -78,7 +89,7 @@ fn respond(out: *std.Io.Writer, status: u32, value: []const u8) !void {
     try out.writeAll("}\n");
     try out.flush();
 }
-fn process(init: std.process.Init, server: ?*abi.Server, client: *raw.Client, request: host.Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
+fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.Server, client: *raw.Client, request: host.Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     var buffer: ?*abi.Buffer = null;
     defer abi.Api.station_buffer_destroy(buffer);
     const status: abi.Status = switch (request) {
@@ -90,6 +101,16 @@ fn process(init: std.process.Init, server: ?*abi.Server, client: *raw.Client, re
         },
         .finish => |failed| if (server) |pointer| abi.Api.station_server_finish(pointer, @intFromBool(failed)) else .not_ready,
         .pending => if (server) |pointer| abi.Api.station_server_pending(pointer, &buffer) else .not_ready,
+        .growing_capabilities => abi.Api.station_growing_capabilities(&buffer),
+        .growing_prepare => |deadline| if (growing) |pointer| abi.Api.station_growing_prepare(pointer, deadline, &buffer) else .not_ready,
+        .growing_dispatch => if (growing) |pointer| abi.Api.station_growing_dispatch(pointer, &buffer) else .not_ready,
+        .growing_apply => |action| blk: {
+            const json = try std.json.Stringify.valueAlloc(allocator, action.action, .{});
+            break :blk if (growing) |pointer| abi.Api.station_growing_apply(pointer, action.scope, json.ptr, json.len, &buffer) else .not_ready;
+        },
+        .growing_finish => |action| if (growing) |pointer| abi.Api.station_growing_finish(pointer, action.scope, @intFromBool(action.failed)) else .not_ready,
+        .growing_discard => |scope| if (growing) |pointer| abi.Api.station_growing_discard(pointer, scope) else .not_ready,
+        .growing_pending => if (growing) |pointer| abi.Api.station_growing_pending(pointer, &buffer) else .not_ready,
         .arrow_cell => |arrow| blk: {
             if (arrow.ipc.len > s.Query.max_bytes * 2) return error.InvalidArrowResult;
             var bytes: [s.Query.max_bytes]u8 = undefined;
@@ -119,7 +140,7 @@ fn process(init: std.process.Init, server: ?*abi.Server, client: *raw.Client, re
             return respond(out, @backingInt(result), if (response) |ptr| raw.Api.transit_buffer_data(ptr)[0..raw.Api.transit_buffer_size(ptr)] else "null");
         },
     };
-    if (request == .pending and buffer != null) {
+    if ((request == .pending or request == .growing_pending) and buffer != null) {
         const value = try std.json.Stringify.valueAlloc(allocator, abi.Api.station_buffer_data(buffer.?)[0..abi.Api.station_buffer_size(buffer.?)], .{});
         return respond(out, @backingInt(status), value);
     }

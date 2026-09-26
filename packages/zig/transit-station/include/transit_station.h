@@ -9,6 +9,7 @@ extern "C" {
 #define STATION_ABI_VERSION 1u
 #define STATION_MINIMUM_STACK_BYTES 8388608u
 typedef struct station_server station_server;
+typedef struct station_growing_server station_growing_server;
 typedef struct station_buffer station_buffer;
 #define STATION_STATUS_OK 0u
 #define STATION_STATUS_INVALID_ARGUMENT 1u
@@ -25,6 +26,15 @@ typedef struct station_buffer station_buffer;
 #define STATION_STATUS_BLOCKED 12u
 #define STATION_STATUS_NOT_READY 13u
 #define STATION_STATUS_BUDGET_EXCEEDED 14u
+uint32_t station_growing_capabilities(station_buffer ** arg0);
+uint32_t station_growing_create(uint32_t arg0, const uint8_t * arg1, size_t arg2, const uint8_t * arg3, const uint8_t * arg4, size_t arg5, station_growing_server ** arg6);
+void station_growing_destroy(station_growing_server * arg0);
+uint32_t station_growing_prepare(station_growing_server * arg0, uint64_t arg1, station_buffer ** arg2);
+uint32_t station_growing_dispatch(station_growing_server * arg0, station_buffer ** arg1);
+uint32_t station_growing_apply(station_growing_server * arg0, uint64_t arg1, const uint8_t * arg2, size_t arg3, station_buffer ** arg4);
+uint32_t station_growing_finish(station_growing_server * arg0, uint64_t arg1, uint32_t arg2);
+uint32_t station_growing_discard(station_growing_server * arg0, uint64_t arg1);
+uint32_t station_growing_pending(station_growing_server * arg0, station_buffer ** arg1);
 uint32_t station_abi_version(void);
 uint32_t station_json_extract(const uint8_t * arg0, size_t arg1, const uint8_t * arg2, size_t arg3, uint32_t arg4, station_buffer ** arg5);
 uint32_t station_frame_encode(uint32_t arg0, uint64_t arg1, const uint8_t * arg2, size_t arg3, station_buffer ** arg4);

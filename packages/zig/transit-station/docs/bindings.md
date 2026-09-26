@@ -14,6 +14,9 @@ exposes this implementation to runtimes without an in-process native adapter.
 
 ## A private turn
 
+The following `station_server_*` interface retains the M9 legacy profile.
+The additive [growing interface](#explicit-growing-turns) is selected separately.
+
 1. Create a server with an explicit endpoint, 32-byte seed, realm, principal,
    PID, activation generation and required association. Creation does no I/O.
 2. `station_server_next` drives bounded protocol work. `progress` means more
@@ -99,3 +102,56 @@ qualifies Rust, Node, Java, .NET, Erlang and Elixir through cross-language
 service/requester pairs. Node checks its schemas/transport independently. Java
 and BEAM exercise malformed/oversized/lost ports and cancellation; .NET proves
 bounded admission, await cancellation, asynchronous close and GC cleanup.
+
+## Explicit growing turns
+
+M11 adds the `station_growing_*` family without changing the legacy entry points.
+`station_growing_capabilities` reports local library support; it does not grant
+access or advertise authority capability. Create a separate opaque growing handle
+with `profile: "growing_v3"`, realm/principal/PID/generation, association, finite
+transport timeout and explicit `failure_policy: "stop" | "block_input"`.
+Principals preserve the public 53-bit range. Missing/legacy profiles reject;
+there is no fallback or resource migration. Handles require the same native
+stack, bounded I/O pool, serialized access and joined destruction as legacy ones.
+
+1. `station_growing_prepare` advances reads/private framework work only. A
+   `pending` event identifies a permit, view-open or turn mutation. Repeated
+   preparation preserves it without sending. Export its exact bytes with
+   `station_growing_pending` and persist them before calling dispatch.
+2. `station_growing_dispatch` makes one attempt. On success, its event includes
+   the purpose, input position and receipt in `confirmation`. Unknown outcomes
+   retain pending bytes. If response allocation fails after success, the native
+   handle retains the confirmed event for a later read; the error remains
+   `uncertain`. Record confirmation before advancing another mutation.
+3. A `ready` event supplies a local `scope` token plus authenticated input data.
+   Pass that token to `apply`, `finish` and `discard`. Finished/discarded/rebuilt
+   turns reject stale tokens; the token is tied to its owning handle and grants
+   no authority. The host still owns sequential handler dispatch.
+4. `finish` freezes success/failure without submission. `discard` drops unsent
+   private work without acknowledging or blocking the input. A stop-policy
+   failure discards; a block-input failure freezes the native failure proposal.
+   Read poisoning survives action rollback and prevents either success or a
+   fabricated durable application failure.
+
+`GrowingAction`/`GrowingResult` are generated from the Zig boundary types. They
+share basic KV/Table/message implementations with the legacy adapter, add bounded
+KV/Table pages and retained source operations, and accept full-width timer
+observers. Each page has at most eight entries and an opaque native cursor.
+Table row keys/int64 values and correlations cross JSON as decimal strings.
+Cursor parsing is canonical, and resuming checks the original source, resource,
+revision and Table/schema. Only null continuation means complete. Captured-view
+pages exclude private mutations; retained-source pages can accompany private
+progress writes, with read dependencies registered by native Station.
+
+The initial growing ABI does **not** expose query capture/results, registries,
+supervision or runtime bindings. Capabilities report query support false. Its
+native port uses the same exports; language-native public runners and their
+persistence callbacks are separate M11 work.
+
+`tests/station_growing_abi.py`, included in the binding proof, uses one resident
+backend page and disk Ursula. It checks 41 Table rows in six pages, stale scopes
+and cursors, full-width values/principals, private stop/read poisoning, control
+gates, accepted-response loss and exact recovery from a fresh process after
+caller/node/store loss, current revocation and the growing port route. Native
+allocation enumeration additionally checks retained confirmation on every failed
+response allocation. These proofs qualify this low-level slice, not public SDKs.

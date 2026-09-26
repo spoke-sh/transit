@@ -4,6 +4,7 @@ const s = @import("transit_station");
 const p = s.protocol;
 pub const actions = @import("Actions.zig");
 pub const host = @import("HostProtocol.zig");
+pub const growing = @import("GrowingAbi.zig");
 pub const version: u32 = 1;
 pub const minimum_stack_bytes: usize = 8 * 1024 * 1024;
 pub const Status = enum(u32) { ok = 0, invalid_argument = 1, out_of_memory = 2, rejected = 3, denied = 4, conflict = 5, uncertain = 6, unavailable = 7, invalid_response = 8, busy = 9, incompatible_version = 10, stale_activation = 11, blocked = 12, not_ready = 13, budget_exceeded = 14 };
@@ -25,13 +26,21 @@ const BufferImpl = struct { bytes: []u8 };
 fn cast(comptime T: type, pointer: anytype) *T {
     return @ptrCast(@alignCast(@constCast(pointer)));
 }
-fn output(value: anytype, out: *?*Buffer) !void {
-    const buffer = try allocator.create(BufferImpl);
-    errdefer allocator.destroy(buffer);
-    buffer.bytes = try std.json.Stringify.valueAlloc(allocator, value, .{});
+pub fn output(value: anytype, out: *?*Buffer) !void {
+    return outputWithAllocator(allocator, value, out);
+}
+pub fn outputWithAllocator(alloc: std.mem.Allocator, value: anytype, out: *?*Buffer) !void {
+    const buffer = try alloc.create(BufferImpl);
+    errdefer alloc.destroy(buffer);
+    buffer.bytes = try std.json.Stringify.valueAlloc(alloc, value, .{});
     out.* = @ptrCast(buffer);
 }
-fn status(err: anyerror) Status {
+pub fn destroyBufferWithAllocator(alloc: std.mem.Allocator, pointer: ?*Buffer) void {
+    const buffer = cast(BufferImpl, pointer orelse return);
+    alloc.free(buffer.bytes);
+    alloc.destroy(buffer);
+}
+pub fn status(err: anyerror) Status {
     return switch (err) {
         error.OutOfMemory => .out_of_memory,
         error.AccessDenied => .denied,
@@ -40,13 +49,14 @@ fn status(err: anyerror) Status {
         error.StaleActivation => .stale_activation,
         error.ProcessExpired, error.ProcessTerminated => .rejected,
         error.BlockedProcess => .blocked,
-        error.NoPreparedTurn => .not_ready,
+        error.NoPreparedTurn, error.NoPendingOperation => .not_ready,
+        error.PendingOperation => .busy,
         error.InvalidAuthorityResponse => .invalid_response,
         error.MutationBudgetExceeded, error.OutputBudgetExceeded, error.StateCapacityExceeded, error.ChildBudgetExceeded, error.QueryBudgetExceeded, error.WriteFailed => .budget_exceeded,
         else => .invalid_argument,
     };
 }
-fn failure(err: anyerror, out: *?*Buffer) Status {
+pub fn failure(err: anyerror, out: *?*Buffer) Status {
     output(.{ .err = @errorName(err) }, out) catch {};
     return status(err);
 }
@@ -58,6 +68,15 @@ pub fn observe(pointer: *Server, observer: *s.client.observability.telemetry.Run
 }
 
 pub const Api = struct {
+    pub const station_growing_capabilities = growing.capabilities;
+    pub const station_growing_create = growing.create;
+    pub const station_growing_destroy = growing.destroy;
+    pub const station_growing_prepare = growing.prepare;
+    pub const station_growing_dispatch = growing.dispatch;
+    pub const station_growing_apply = growing.apply;
+    pub const station_growing_finish = growing.finish;
+    pub const station_growing_discard = growing.discard;
+    pub const station_growing_pending = growing.pending;
     pub fn station_abi_version() callconv(.c) u32 {
         return version;
     }
@@ -229,8 +248,10 @@ pub const Api = struct {
         return cast(BufferImpl, pointer).bytes.len;
     }
     pub fn station_buffer_destroy(pointer: ?*Buffer) callconv(.c) void {
-        const buffer = cast(BufferImpl, pointer orelse return);
-        allocator.free(buffer.bytes);
-        allocator.destroy(buffer);
+        destroyBufferWithAllocator(allocator, pointer);
     }
 };
+
+test {
+    _ = growing;
+}

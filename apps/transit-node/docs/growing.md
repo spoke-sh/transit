@@ -4,7 +4,7 @@
 configuration. Omitting `profile`, or choosing `"v2"`, keeps the existing protocol.
 This development profile has [bounded M10 qualification](../../../tests/README.md#m10-verification-and-scale-foundations),
 including repeated disk/S3 growth and recovery. Launchers, Board, default Station,
-provider controllers and foreign behavior bindings still use v2; they do not silently
+provider controllers and legacy foreign behavior bindings still use v2; they do not silently
 negotiate or convert to v3.
 
 ## Configuration

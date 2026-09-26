@@ -2,7 +2,7 @@
 
 Status: M10 development behavior/point-state slice over the explicit
 [Transit v3 profile](TRANSIT_V3.md). Existing launchers, Station v1, Board lenses
-and foreign ABIs continue to use [Station v1](STATION_V1.md). There is no implicit
+and legacy foreign ABIs continue to use [Station v1](STATION_V1.md). There is no implicit
 upgrade, mixed-profile resource or claim that all M9 services are available here.
 
 ## State and turns
@@ -49,7 +49,8 @@ across handlers. A later handler reopens the durable ID and may resume a matchin
 Table cursor. The application must persist its job/cursor/progress and send durable
 continuations in the same turn decision. Station does not infer a restartable job
 from a native iterator, and no general query scheduler or Arrow result protocol
-is implied by these helpers. V2/foreign bindings do not expose them yet.
+is implied by these helpers. M11's explicit growing C/port ABI exposes these bounded operations; legacy
+v2 bindings retain their original profile.
 
 ## Calls and lifetimes
 
@@ -68,7 +69,7 @@ Association, current grants, activation, view deadlines and one authoritative
 state/input/output decision retain their kernel meanings.
 
 This profile does not advertise growing registries, supervision, runtime bindings,
-foreign bindings or complete Station capability. Result frames require explicit
+complete foreign SDKs or complete Station capability. Result frames require explicit
 host query configuration; otherwise they fail with `UnsupportedGrowingQuery`.
 The configured capture/publication/receipt slice has real disk/node/caller
 recovery and independent Arrow evidence in the [test guide](../tests/README.md#m10-verification-and-scale-foundations).

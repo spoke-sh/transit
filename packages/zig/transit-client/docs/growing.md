@@ -8,7 +8,7 @@ identity, view or cursor. Select a node configured for the
 its capabilities before using an extension. `GrowingSession` supplies explicit
 v3 activation/turn helpers, used by Station's explicit
 [growing behavior](../../transit-station/docs/growing.md). The existing `Session`,
-default Station interface and foreign behavior bindings remain v2. The
+default Station interface and legacy foreign behavior bindings remain v2. The
 [raw C ABI](bindings.md) adds explicit growing command/query preparation,
 capability probing and opaque exact retry without enabling a Station runner.
 

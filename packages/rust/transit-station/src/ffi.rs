@@ -2,6 +2,7 @@
 #![allow(non_camel_case_types)]
 pub const MINIMUM_STACK_BYTES: usize = 8388608;
 #[repr(C)] pub struct station_server { _private: [u8; 0] }
+#[repr(C)] pub struct station_growing_server { _private: [u8; 0] }
 #[repr(C)] pub struct station_buffer { _private: [u8; 0] }
 #[repr(C)] pub struct transit_client { _private: [u8; 0] }
 #[repr(C)] pub struct transit_operation { _private: [u8; 0] }
@@ -19,6 +20,15 @@ unsafe extern "C" {
     pub fn transit_buffer_data(arg0: *const transit_buffer) -> *const u8;
     pub fn transit_buffer_size(arg0: *const transit_buffer) -> usize;
     pub fn transit_buffer_destroy(arg0: *mut transit_buffer) -> ();
+    pub fn station_growing_capabilities(arg0: *mut *mut station_buffer) -> u32;
+    pub fn station_growing_create(arg0: u32, arg1: *const u8, arg2: usize, arg3: *const u8, arg4: *const u8, arg5: usize, arg6: *mut *mut station_growing_server) -> u32;
+    pub fn station_growing_destroy(arg0: *mut station_growing_server) -> ();
+    pub fn station_growing_prepare(arg0: *mut station_growing_server, arg1: u64, arg2: *mut *mut station_buffer) -> u32;
+    pub fn station_growing_dispatch(arg0: *mut station_growing_server, arg1: *mut *mut station_buffer) -> u32;
+    pub fn station_growing_apply(arg0: *mut station_growing_server, arg1: u64, arg2: *const u8, arg3: usize, arg4: *mut *mut station_buffer) -> u32;
+    pub fn station_growing_finish(arg0: *mut station_growing_server, arg1: u64, arg2: u32) -> u32;
+    pub fn station_growing_discard(arg0: *mut station_growing_server, arg1: u64) -> u32;
+    pub fn station_growing_pending(arg0: *mut station_growing_server, arg1: *mut *mut station_buffer) -> u32;
     pub fn station_abi_version() -> u32;
     pub fn station_json_extract(arg0: *const u8, arg1: usize, arg2: *const u8, arg3: usize, arg4: u32, arg5: *mut *mut station_buffer) -> u32;
     pub fn station_frame_encode(arg0: u32, arg1: u64, arg2: *const u8, arg3: usize, arg4: *mut *mut station_buffer) -> u32;

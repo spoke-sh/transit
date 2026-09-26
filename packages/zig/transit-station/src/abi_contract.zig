@@ -9,6 +9,8 @@ fn cType(comptime T: type) []const u8 {
     if (T == [*]const u8 or T == *const [32]u8) return "const uint8_t *";
     if (T == *abi.Server or T == ?*abi.Server) return "station_server *";
     if (T == *?*abi.Server) return "station_server **";
+    if (T == *abi.growing.Server or T == ?*abi.growing.Server) return "station_growing_server *";
+    if (T == *?*abi.growing.Server) return "station_growing_server **";
     if (T == *const abi.Buffer) return "const station_buffer *";
     if (T == ?*abi.Buffer) return "station_buffer *";
     if (T == *?*abi.Buffer) return "station_buffer **";
@@ -41,12 +43,12 @@ pub fn main(init: std.process.Init) !void {
     try out.endArray();
     try out.objectField("schemas");
     try out.beginObject();
-    inline for (.{ "Config", "Action", "Result", "Event", "ArrowCell", "HostConfig", "HostRequest" }, .{ abi.Config, abi.actions.Action, abi.actions.Result, abi.Event, abi.actions.ArrowCell, abi.host.Config, abi.host.Request }) |name, T| {
+    inline for (.{ "Config", "Action", "Result", "Event", "ArrowCell", "HostConfig", "HostRequest", "GrowingConfig", "GrowingAction", "GrowingResult", "GrowingEvent", "GrowingCapabilities" }, .{ abi.Config, abi.actions.Action, abi.actions.Result, abi.Event, abi.actions.ArrowCell, abi.host.Config, abi.host.Request, abi.growing.Config, abi.growing.actions.Action, abi.growing.actions.Result, abi.growing.Event, abi.growing.Capabilities }) |name, T| {
         try out.objectField(name);
         // Foreign text includes whole frozen requests and IPC encoded as hex.
         // It is not the kernel's 256-byte opaque Value. Domain helpers impose
         // their narrower field budgets, and the host bounds the complete line.
-        try s.protocol.Schema.write(T, &out, .{ .safe_integers = true, .text_max_length = s.protocol.max_body * 2, .output = T == abi.Event or T == abi.actions.Result or T == abi.actions.ArrowCell });
+        try s.protocol.Schema.write(T, &out, .{ .safe_integers = true, .text_max_length = s.protocol.max_body * 2, .output = T == abi.Event or T == abi.actions.Result or T == abi.actions.ArrowCell or T == abi.growing.Event or T == abi.growing.actions.Result or T == abi.growing.Capabilities });
     }
     try out.endObject();
     try out.endObject();
