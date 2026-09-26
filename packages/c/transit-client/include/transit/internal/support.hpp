@@ -84,10 +84,14 @@ public:
         if (status) fail(TRANSIT_SDK_READ_FAILED, "worker-create");
     }
     Worker(const Worker &) = delete;
+    void check_close() {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (!closed && pthread_equal(pthread_self(), thread)) fail(TRANSIT_SDK_BUSY, "worker-reentry");
+    }
     void run(std::function<void()> work) {
-        if (pthread_equal(pthread_self(), thread)) fail(TRANSIT_SDK_BUSY, "worker-reentry");
         std::unique_lock<std::mutex> lock(mutex);
         if (closing || closed) fail(TRANSIT_SDK_CLOSED, "worker");
+        if (pthread_equal(pthread_self(), thread)) fail(TRANSIT_SDK_BUSY, "worker-reentry");
         if (busy) fail(TRANSIT_SDK_BUSY, "worker");
         busy = true; done = false; failure = nullptr; job = &work; changed.notify_all();
         changed.wait(lock, [&] { return done; });
@@ -95,8 +99,9 @@ public:
         lock.unlock(); if (problem) std::rethrow_exception(problem);
     }
     void close(std::function<void()> cleanup) {
-        if (pthread_equal(pthread_self(), thread)) fail(TRANSIT_SDK_BUSY, "worker-reentry");
         std::unique_lock<std::mutex> lock(mutex);
+        if (closed) return;
+        if (pthread_equal(pthread_self(), thread)) fail(TRANSIT_SDK_BUSY, "worker-reentry");
         if (closing) { changed.wait(lock, [&] { return closed; }); return; }
         closing = true; changed.wait(lock, [&] { return !busy; });
         failure = nullptr; done = false; job = &cleanup; changed.notify_all();

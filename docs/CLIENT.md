@@ -191,7 +191,9 @@ does not execute application handlers.
 Status: design and shared-boundary work started in [M11](roadmap/M11.md).
 The [SDK design](SDK.md) links concrete Python, TypeScript and Rust API proposals
 for services/requesters, raw recovery, runner ownership and packaging. It records
-the required shared native changes; its declarations/examples are not implemented.
+the required shared native changes. Python, TypeScript, Rust, Ruby and C/C++ now
+have qualified public raw and Station APIs with installed examples; Java, .NET,
+BEAM and public mixed-language qualification remain open.
 M9 provides generated declarations and
 owned host adapters with real interoperability and recovery evidence. Its public
 surface still exposes JSON actions, raw status codes, hex values and manual

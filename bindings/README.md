@@ -19,7 +19,9 @@ cross-language qualification remain open.
 Independent public [C](../packages/c/transit-client/README.md) and
 [C++](../packages/cpp/transit-client/README.md) raw clients now have installed
 prefixes, typed retry objects and shared authority/worker ownership proofs through
-`just bindings::c-sdk-test`. Their Station APIs remain in progress.
+`just bindings::c-sdk-test`. Public [C Station](../packages/c/transit-station/README.md)
+and [C++ Station](../packages/cpp/transit-station-sdk/README.md) packages also pass
+the shared handler/recovery/Table/query schedule and both installed CLI roles.
 
 M11 adds **Ruby** through the shared native port, with value objects and
 block-scoped ownership. Ruby 3.4.9 / RubyGems 3.7.2 are pinned by the Nix lock;

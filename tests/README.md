@@ -164,8 +164,24 @@ distinct process/resource references. Missing libraries, incompatible native
 versions and C SDK version mismatches fail explicitly. The implementation owns
 one admitted job and an 8 MiB worker stack. Asynchronous POSIX thread cancellation
 is not supported; the controller's local wait is the cancellation boundary.
-This qualifies raw clients on pinned Zig/Linux x86_64 with the Nix runtime closure;
-C/C++ Station runners and public mixed-language pairs still require their proofs.
+This qualifies raw clients on pinned Zig/Linux x86_64 with the Nix runtime closure.
+
+The same task installs C/C++ Station SDKs and the actual counter CLI/application
+artifacts. A shared C++ conformance controller selects the direct C runner with
+compiled C11 callbacks, then the public C++ runner with typed C++ handlers. Both
+execute the full `sdk_station_runner.py` schedule: golden codec names/bytes and
+u64/i64 extremes, persistence/confirmation failures for each mutation purpose,
+callback reentry, exceptions and malformed input under stop/block policy, retained
+scope rejection, responsive stop/join through an accepted commit, poisoned reads,
+fencing/retirement/current access, and exact seedless recovery after host/node/disk
+loss. Six-page Tables exercise retained point/page reads after mutation. Six
+original IPC segments survive runner destruction and mutation of copies before
+independent PyArrow decoding; no optional C/C++ Arrow adapter is selected. Installed
+counter roles run as their actual C11/C++17 binaries. Compile failures reject copied
+C++ runners and a boolean passed to a typed u64 state key. Native-version overrides
+reject before codec/frame use. Allocation enumeration remains the shared native
+proof; this C/C++ consumer does not inject a host allocator failure. Public mixed
+language pairs and the remaining managed SDK targets are still open.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

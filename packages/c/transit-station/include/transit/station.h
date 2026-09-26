@@ -1,0 +1,208 @@
+#ifndef TRANSIT_SDK_STATION_H
+#define TRANSIT_SDK_STATION_H
+#include <transit/client.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct transit_station_runner transit_station_runner;
+typedef struct transit_station_turn transit_station_turn;
+typedef struct transit_station_value transit_station_value;
+typedef struct transit_station_event transit_station_event;
+typedef struct transit_station_mutation transit_station_mutation;
+typedef struct transit_station_cursor transit_station_cursor;
+typedef struct transit_station_page transit_station_page;
+typedef struct transit_station_table transit_station_table;
+typedef struct transit_station_row transit_station_row;
+typedef struct transit_station_segment transit_station_segment;
+
+/* Codec callbacks construct/destroy one max_align_t-aligned application object.
+ * On decode failure the callback must leave no constructed object or allocation.
+ * encode writes at most capacity bytes and returns the actual byte count. */
+typedef struct transit_station_codec {
+    const char *type_id;
+    uint32_t version;
+    size_t max_encoded_bytes, object_bytes;
+    void *context;
+    transit_sdk_error (*encode)(void *context, const void *value, uint8_t *out, size_t capacity, size_t *written);
+    transit_sdk_error (*decode)(void *context, transit_sdk_bytes bytes, void *out);
+    void (*destroy)(void *context, void *value);
+} transit_station_codec;
+typedef struct transit_station_key { transit_sdk_bytes name; transit_station_codec codec; } transit_station_key;
+typedef enum transit_station_origin_kind { TRANSIT_ORIGIN_EXTERNAL, TRANSIT_ORIGIN_PROCESS, TRANSIT_ORIGIN_EFFECT } transit_station_origin_kind;
+typedef struct transit_station_origin {
+    transit_station_origin_kind kind;
+    uint64_t principal, policy_revision;
+    transit_sdk_process process;
+    uint64_t turn, output, effect, attempt, executor;
+} transit_station_origin;
+typedef enum transit_station_input_kind { TRANSIT_INPUT_CAST, TRANSIT_INPUT_CALL, TRANSIT_INPUT_REPLY, TRANSIT_INPUT_CANCEL, TRANSIT_INPUT_TIMEOUT, TRANSIT_INPUT_RESULT_COMPLETE } transit_station_input_kind;
+typedef struct transit_station_incoming {
+    transit_station_input_kind kind;
+    uint64_t position, correlation;
+    transit_station_origin origin;
+    const void *value; /* Borrowed decoded application object; NULL for controls/results. */
+} transit_station_incoming;
+typedef struct transit_station_handler {
+    void *context;
+    transit_sdk_error (*initialize)(void *context, transit_station_turn *turn);
+    transit_sdk_error (*message)(void *context, transit_station_turn *turn, const transit_station_incoming *input);
+    transit_sdk_error (*control)(void *context, transit_station_turn *turn, const transit_station_incoming *input);
+    transit_sdk_error (*result)(void *context, transit_station_turn *turn, const transit_station_incoming *input);
+} transit_station_handler;
+typedef enum transit_station_failure_policy { TRANSIT_FAILURE_STOP, TRANSIT_FAILURE_BLOCK_INPUT } transit_station_failure_policy;
+typedef enum transit_station_recovery_policy { TRANSIT_RECOVERY_FRESH_OWNERSHIP, TRANSIT_RECOVERY_PERSIST_BEFORE_DISPATCH } transit_station_recovery_policy;
+typedef struct transit_station_options {
+    transit_station_failure_policy failure;
+    transit_station_recovery_policy recovery;
+    void *context;
+    transit_sdk_error (*before_dispatch)(void *context, const transit_station_mutation *mutation);
+    transit_sdk_error (*confirmed)(void *context, const char *identity, transit_sdk_confirmation receipt);
+} transit_station_options;
+typedef struct transit_station_config {
+    transit_sdk_config client;
+    transit_sdk_process process;
+    transit_sdk_credential credential;
+    uint64_t generation;
+    const char *association;
+    bool query_results;
+} transit_station_config;
+typedef enum transit_station_purpose { TRANSIT_MUTATION_PERMIT, TRANSIT_MUTATION_OPEN, TRANSIT_MUTATION_COMMIT } transit_station_purpose;
+typedef struct transit_station_mutation_info {
+    transit_sdk_mutation_info operation;
+    transit_station_purpose purpose;
+    uint64_t input;
+} transit_station_mutation_info;
+typedef enum transit_station_event_kind { TRANSIT_EVENT_STOPPED, TRANSIT_EVENT_IDLE, TRANSIT_EVENT_PROGRESS, TRANSIT_EVENT_COMMITTED, TRANSIT_EVENT_BLOCKED, TRANSIT_EVENT_NEEDS_RECOVERY } transit_station_event_kind;
+typedef struct transit_station_event_info {
+    transit_station_event_kind kind;
+    uint64_t input;
+    bool has_receipt;
+    transit_sdk_confirmation receipt;
+    transit_sdk_error error;
+    char phase[64];
+} transit_station_event_info;
+typedef struct transit_station_turn_info {
+    transit_sdk_process process;
+    transit_sdk_resource resource;
+    uint64_t revision;
+    bool initializing;
+} transit_station_turn_info;
+typedef struct transit_station_budgets { size_t mutations, outputs, views, retained_reads, retains, releases; } transit_station_budgets;
+typedef struct transit_station_wait { bool timed; uint64_t deadline_ms, observer; } transit_station_wait;
+typedef struct transit_station_read_version { uint64_t pid, input; uint8_t index; } transit_station_read_version;
+typedef struct transit_station_basis { transit_sdk_resource resource; uint64_t revision; uint8_t schema[32]; } transit_station_basis;
+typedef struct transit_station_kv_entry { transit_sdk_bytes key, value; uint64_t revision; } transit_station_kv_entry;
+
+transit_sdk_error transit_station_runner_open(const transit_station_config *config, const transit_station_handler *handler, const transit_station_codec *codec, const transit_station_options *options, transit_station_runner **out);
+transit_sdk_error transit_station_runner_next(transit_station_runner *runner, transit_station_event **out);
+transit_sdk_error transit_station_runner_reconcile(transit_station_runner *runner, transit_station_event **out);
+void transit_station_runner_stop(transit_station_runner *runner);
+transit_sdk_error transit_station_runner_evidence(transit_station_runner *runner, transit_station_event **out);
+transit_sdk_error transit_station_runner_close(transit_station_runner *runner, transit_station_event **out);
+void transit_station_runner_destroy(transit_station_runner *runner);
+transit_sdk_error transit_station_event_inspect(const transit_station_event *event, transit_station_event_info *out);
+transit_sdk_error transit_station_event_pending(const transit_station_event *event, transit_station_mutation **out); /* NULL if none. */
+void transit_station_event_destroy(transit_station_event *event);
+transit_sdk_error transit_station_mutation_inspect(const transit_station_mutation *mutation, transit_station_mutation_info *out);
+transit_sdk_error transit_station_mutation_export(const transit_station_mutation *mutation, transit_sdk_buffer *out);
+void transit_station_mutation_destroy(transit_station_mutation *mutation);
+
+/* Callbacks borrow a turn. Retain before keeping it; retained handles reject
+ * use after the handler turn or from another thread and remain safe after close. */
+void transit_station_turn_retain(transit_station_turn *turn);
+void transit_station_turn_release(transit_station_turn *turn);
+transit_sdk_error transit_station_turn_inspect(transit_station_turn *turn, transit_station_turn_info *out);
+transit_sdk_error transit_station_turn_budgets(transit_station_turn *turn, transit_station_budgets *out);
+transit_sdk_error transit_station_turn_cast(transit_station_turn *turn, transit_sdk_process peer, const void *value, const transit_station_codec *codec);
+transit_sdk_error transit_station_turn_call(transit_station_turn *turn, transit_sdk_process peer, const void *value, const transit_station_codec *codec, transit_station_wait wait, uint64_t *correlation);
+transit_sdk_error transit_station_turn_reply(transit_station_turn *turn, const void *value, const transit_station_codec *codec);
+transit_sdk_error transit_station_turn_require_reply(transit_station_turn *turn, transit_sdk_process peer, uint64_t correlation);
+transit_sdk_error transit_station_turn_cancel(transit_station_turn *turn, uint64_t correlation, bool *cancelled);
+transit_sdk_error transit_station_encode_cast(const void *value, const transit_station_codec *codec, const char *native_directory, transit_sdk_buffer *out);
+
+/* A NULL version selects this turn's mutable associated resource. Retained
+ * versions are read-only and each access rechecks native authority. */
+transit_sdk_error transit_station_state_find(transit_station_turn *turn, const transit_station_read_version *version, const transit_station_key *key, transit_station_value **out); /* NULL means missing. */
+transit_sdk_error transit_station_state_put(transit_station_turn *turn, const transit_station_key *key, const void *value);
+transit_sdk_error transit_station_state_delete(transit_station_turn *turn, const transit_station_key *key);
+transit_sdk_error transit_station_state_page(transit_station_turn *turn, const transit_station_read_version *version, const transit_station_cursor *after, transit_station_page **out);
+const void *transit_station_value_data(const transit_station_value *value);
+void transit_station_value_destroy(transit_station_value *value);
+transit_sdk_error transit_station_turn_retain_source(transit_station_turn *turn, transit_station_read_version *out);
+transit_sdk_error transit_station_turn_release_source(transit_station_turn *turn, transit_station_read_version version);
+transit_sdk_error transit_station_cursor_import(transit_sdk_bytes bytes, transit_station_cursor **out);
+transit_sdk_error transit_station_cursor_export(const transit_station_cursor *cursor, transit_sdk_buffer *out);
+void transit_station_cursor_destroy(transit_station_cursor *cursor);
+size_t transit_station_page_size(const transit_station_page *page);
+transit_sdk_error transit_station_page_next(const transit_station_page *page, transit_station_cursor **out);
+transit_sdk_error transit_station_page_kv(const transit_station_page *page, size_t index, transit_station_kv_entry *out);
+transit_sdk_error transit_station_page_basis(const transit_station_page *page, transit_station_basis *out);
+void transit_station_page_destroy(transit_station_page *page);
+
+typedef enum transit_station_cell_kind { TRANSIT_CELL_NULL, TRANSIT_CELL_INT64, TRANSIT_CELL_BOOLEAN, TRANSIT_CELL_UTF8, TRANSIT_CELL_BINARY } transit_station_cell_kind;
+typedef struct transit_station_cell {
+    transit_station_cell_kind kind;
+    int64_t integer;
+    bool boolean;
+    transit_sdk_bytes bytes;
+} transit_station_cell;
+typedef struct transit_station_row_view { int64_t key; transit_station_cell value; } transit_station_row_view;
+typedef struct transit_station_table_schema {
+    uint32_t id;
+    transit_station_cell_kind value_type;
+    const char *key_name, *value_name;
+} transit_station_table_schema;
+typedef enum transit_station_write_mode { TRANSIT_WRITE_INSERT, TRANSIT_WRITE_UPDATE, TRANSIT_WRITE_UPSERT } transit_station_write_mode;
+transit_sdk_error transit_station_table_open(transit_station_turn *turn, const transit_station_table_schema *schema, const transit_station_read_version *version, transit_station_table **out);
+transit_sdk_error transit_station_table_create(transit_station_turn *turn, const transit_station_table_schema *schema, transit_station_table **out);
+transit_sdk_error transit_station_table_basis(transit_station_table *table, transit_station_basis *out);
+transit_sdk_error transit_station_table_get(transit_station_table *table, int64_t key, transit_station_row **out); /* NULL means missing. */
+transit_sdk_error transit_station_table_write(transit_station_table *table, transit_station_write_mode mode, transit_station_row_view row);
+transit_sdk_error transit_station_table_delete(transit_station_table *table, int64_t key);
+transit_sdk_error transit_station_table_page(transit_station_table *table, const transit_station_cursor *after, transit_station_page **out);
+transit_sdk_error transit_station_page_row(const transit_station_page *page, size_t index, transit_station_row_view *out);
+transit_sdk_error transit_station_row_inspect(const transit_station_row *row, transit_station_row_view *out);
+void transit_station_row_destroy(transit_station_row *row);
+void transit_station_table_destroy(transit_station_table *table);
+
+typedef enum transit_station_projection { TRANSIT_PROJECT_BOTH, TRANSIT_PROJECT_KEY, TRANSIT_PROJECT_VALUE } transit_station_projection;
+typedef enum transit_station_aggregate { TRANSIT_AGGREGATE_ROWS, TRANSIT_AGGREGATE_COUNT, TRANSIT_AGGREGATE_SUM } transit_station_aggregate;
+typedef enum transit_station_column { TRANSIT_COLUMN_KEY, TRANSIT_COLUMN_VALUE } transit_station_column;
+typedef enum transit_station_comparison { TRANSIT_COMPARE_EQ, TRANSIT_COMPARE_NE, TRANSIT_COMPARE_LT, TRANSIT_COMPARE_LE, TRANSIT_COMPARE_GT, TRANSIT_COMPARE_GE } transit_station_comparison;
+typedef enum transit_station_predicate_kind { TRANSIT_PREDICATE_ALL, TRANSIT_PREDICATE_NULL, TRANSIT_PREDICATE_COMPARE } transit_station_predicate_kind;
+typedef struct transit_station_query_plan {
+    transit_station_projection projection;
+    transit_station_aggregate aggregate;
+    bool has_limit;
+    uint64_t limit;
+    transit_station_predicate_kind predicate;
+    transit_station_column column;
+    transit_station_comparison comparison;
+    transit_station_cell value;
+} transit_station_query_plan;
+typedef struct transit_station_query_job { uint64_t result, correlation; transit_station_read_version source; } transit_station_query_job;
+typedef struct transit_station_manifest {
+    uint64_t result;
+    transit_sdk_process source, destination;
+    uint64_t correlation;
+    uint32_t table;
+    uint64_t policy_revision;
+    transit_station_basis basis;
+    uint8_t plan[32];
+    uint64_t segments, bytes, rows;
+    uint8_t chain[32], schema[32];
+} transit_station_manifest;
+typedef struct transit_station_segment_info { transit_station_manifest manifest; uint64_t ordinal, rows; uint8_t digest[32]; } transit_station_segment_info;
+typedef enum transit_station_query_close_reason { TRANSIT_QUERY_CANCELLED, TRANSIT_QUERY_DENIED } transit_station_query_close_reason;
+transit_sdk_error transit_station_turn_allow_query(transit_station_turn *turn, transit_sdk_process peer, uint32_t table, uint64_t expected_revision, bool allow);
+transit_sdk_error transit_station_table_start_query(transit_station_table *table, const transit_station_query_plan *plan, transit_station_query_job *out);
+transit_sdk_error transit_station_turn_close_query(transit_station_turn *turn, uint64_t result, transit_station_query_close_reason reason);
+transit_sdk_error transit_station_result_manifest(transit_station_turn *turn, uint64_t correlation, transit_station_manifest *out);
+transit_sdk_error transit_station_result_segment(transit_station_turn *turn, uint64_t correlation, uint64_t ordinal, transit_station_segment **out);
+transit_sdk_error transit_station_segment_inspect(const transit_station_segment *segment, transit_station_segment_info *out);
+transit_sdk_error transit_station_segment_ipc(const transit_station_segment *segment, transit_sdk_buffer *out);
+void transit_station_segment_destroy(transit_station_segment *segment);
+#ifdef __cplusplus
+}
+#endif
+#endif

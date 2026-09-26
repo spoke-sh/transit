@@ -1,6 +1,7 @@
 """Package relocatable C/C++ SDK prefixes with standard pkg-config discovery."""
 import io
 from pathlib import Path
+import re
 import sys
 import tarfile
 
@@ -20,28 +21,47 @@ def build(output):
             'include/transit_client.h': (ROOT / 'packages/zig/transit-client/include/transit_client.h').read_bytes()},
         'transit-client-c': {'lib/libtransit_sdk_client.so': sdk.read_bytes()},
         'transit-client-cpp': {},
+        'transit-native-station-c': {'lib/libtransit_station.so': (ROOT / 'zig-out/lib/libtransit_station.so').read_bytes(),
+            'include/transit_station.h': (ROOT / 'packages/zig/transit-station/include/transit_station.h').read_bytes()},
+        'transit-station-c': {'lib/libtransit_sdk_station.so': (ROOT / 'packages/c/transit-station/zig-out/lib/libtransit_sdk_station.so').read_bytes()},
+        'transit-station-cpp': {},
+        'transit-sdk-examples-c': {'lib/libtransit_sdk_examples_c.a': (ROOT / 'examples/station-sdk/c/zig-out/lib/libtransit_sdk_examples_c.a').read_bytes(),
+            'bin/transit-c-counter': (ROOT / 'examples/station-sdk/c/zig-out/bin/transit-c-counter').read_bytes()},
+        'transit-sdk-examples-cpp': {'bin/transit-cpp-counter': (ROOT / 'examples/station-sdk/cpp/zig-out/bin/transit-cpp-counter').read_bytes()},
     }
-    for name, language in [('transit-client-c', 'c'), ('transit-client-cpp', 'cpp')]:
-        package = ROOT / 'packages' / language / 'transit-client'
+    specifications = [
+        ('transit-client-c', 'packages/c/transit-client', 'transit_sdk_client', ['transit-native-client-c']),
+        ('transit-client-cpp', 'packages/cpp/transit-client', '', ['transit-client-c']),
+        ('transit-station-c', 'packages/c/transit-station', 'transit_sdk_station', ['transit-client-c', 'transit-native-station-c']),
+        ('transit-station-cpp', 'packages/cpp/transit-station-sdk', '', ['transit-station-c', 'transit-client-cpp']),
+        ('transit-sdk-examples-c', 'examples/station-sdk/c', 'transit_sdk_examples_c', ['transit-station-c']),
+        ('transit-sdk-examples-cpp', 'examples/station-sdk/cpp', '', ['transit-sdk-examples-c', 'transit-station-cpp']),
+    ]
+    for name, source, library, dependencies in specifications:
+        package = ROOT / source
+        version = re.search(r'\.version = "([^"]+)"', (package / 'build.zig.zon').read_text())
+        if not version or version[1] != VERSION: raise SystemExit(f'Artifact version drift: {source}')
         for path in sorted((package / 'include').rglob('*')):
             if path.is_file(): packages[name][str(path.relative_to(package))] = path.read_bytes()
         for path in [package / 'README.md', *sorted((package / 'docs').glob('*.md'))]:
             packages[name][f'share/doc/{name}/{path.name}'] = path.read_bytes()
-        libraries = '-L${libdir} -Wl,-rpath,${libdir} -ltransit_sdk_client' if language == 'c' else ''
-        requires = 'transit-client-c = 0.2.0' if language == 'cpp' else 'transit-native-client-c = 0.2.0'
+        libraries = '-L${libdir} -Wl,-rpath,${libdir} -l' + library if library else ''
+        requires = ', '.join(f'{dependency} = {VERSION}' for dependency in dependencies)
         packages[name][f'lib/pkgconfig/{name}.pc'] = (
             'prefix=${pcfiledir}/../..\nlibdir=${prefix}/lib\nincludedir=${prefix}/include\n'
-            f'Name: {name}\nDescription: Typed Transit {language} SDK\nVersion: {VERSION}\n'
+            f'Name: {name}\nDescription: Typed Transit SDK\nVersion: {VERSION}\n'
             f'Requires: {requires}\nCflags: -I${{includedir}}\nLibs: {libraries}\n').encode()
-    packages['transit-native-client-c']['lib/pkgconfig/transit-native-client-c.pc'] = (
-        f'Name: transit-native-client-c\nDescription: Transit native ABI dependency\nVersion: {VERSION}\n').encode()
+    for family in ('client', 'station'):
+        name = f'transit-native-{family}-c'
+        packages[name][f'lib/pkgconfig/{name}.pc'] = (
+            f'Name: {name}\nDescription: Transit native ABI dependency\nVersion: {VERSION}\n').encode()
     for name, files in packages.items():
-        platform = '-linux-x86_64' if name != 'transit-client-cpp' else ''
+        platform = '' if name in ('transit-client-cpp', 'transit-station-cpp') else '-linux-x86_64'
         artifact = output / f'{name}-{VERSION}{platform}.tar.gz'
         with tarfile.open(artifact, 'w:gz') as archive:
             for relative, data in sorted(files.items()):
                 entry = tarfile.TarInfo(relative)
-                entry.size, entry.mode = len(data), 0o755 if relative.endswith('.so') else 0o644
+                entry.size, entry.mode = len(data), 0o755 if relative.endswith('.so') or relative.startswith('bin/') else 0o644
                 archive.addfile(entry, io.BytesIO(data))
         print(f'Built {artifact.name}')
 

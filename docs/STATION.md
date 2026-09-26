@@ -59,6 +59,9 @@ that leaves each language to build its own SDK.
 [M11](roadmap/M11.md) adds idiomatic public SDKs above the implemented adapters.
 It also adds qualified Ruby public SDKs over the shared native port;
 Ruby is outside the M9-qualified binding matrix.
+The public [C](../packages/c/transit-station/README.md) and
+[C++](../packages/cpp/transit-station-sdk/README.md) runners now qualify the same
+handler/recovery/Table/query schedule with installed example binaries.
 Handlers use typed inputs and associated KV/Table helpers; a runner owns local
 dispatch and drives the shared Zig poll/finish machine. A handler return supplies
 a proposal, including any reply, and is not evidence of a committed turn. The

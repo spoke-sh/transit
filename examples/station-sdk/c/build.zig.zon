@@ -1,0 +1,11 @@
+.{
+    .name = .transit_sdk_examples_c,
+    .fingerprint = 0x2ae74a38a4b6a3c,
+    .version = "0.2.0",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{
+        .transit_sdk_client = .{ .path = "../../../packages/c/transit-client" },
+        .transit_sdk_station = .{ .path = "../../../packages/c/transit-station" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "include", "src", "README.md" },
+}
