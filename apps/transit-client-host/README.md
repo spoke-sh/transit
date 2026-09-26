@@ -36,3 +36,10 @@ the current native operation before releasing handles. A killed port can leave a
 mutation uncertain; retry saved bytes or reconcile under fresh ownership.
 `just test::client-abi` exercises this executable against disk-backed Ursula,
 including fresh-process recovery without the original seed file.
+
+`shutdown` is an explicit local lifecycle request. After the preceding operation
+finishes, the owner destroys its client, responds with `{"closed":true}` and
+exits successfully without waiting for stdin EOF. An adapter can await the
+acknowledgement and child exit to join cleanup. This does not cancel accepted
+work or replace its receipt/recovery evidence. A missing acknowledgement is a
+cleanup failure, never proof that a mutation was rejected.

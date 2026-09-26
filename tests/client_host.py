@@ -82,6 +82,9 @@ def run(executable, node, cli):
             assert port.request({"call": frozen}) == receipt
             current = port.request({"call": query})
             assert current["body"]["process"]["process"]["pid"] == pid
+            assert port.request({"shutdown": {}}) == {"closed": True}
+            # The native owner exits after cleanup without waiting for stdin EOF.
+            assert port.child.wait(timeout=5) == 0
         print("Client port: standalone metadata, wide identities, malformed input and fresh-host seedless retry passed.")
 
 

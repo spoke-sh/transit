@@ -39,6 +39,12 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             continue;
         };
         defer request.deinit();
+        if (request.value == .shutdown) {
+            abi.Api.transit_client_destroy(client);
+            client = null;
+            try host.respond(&output.interface, 0, "{\"closed\":true}");
+            return;
+        }
         host.process(init, client.?, request.value, arena.allocator(), &output.interface) catch |err| {
             try host.respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
         };

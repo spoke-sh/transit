@@ -2472,6 +2472,19 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "shutdown"
+          ],
+          "properties": {
+            "shutdown": {
+              "type": "object",
+              "maxProperties": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
             "next"
           ],
           "properties": {

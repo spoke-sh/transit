@@ -77,3 +77,12 @@ This slice supplies bounded KV/Table pages and retained-source access. Set
 `query_results: true` to enable native capture/delivery and complete manifest/IPC
 segment actions with one bounded 1 MiB workspace. Result completion is a framework
 event, not an application-codec payload. Public language runners remain separate work.
+
+## Joined shutdown
+
+`shutdown` explicitly destroys all legacy/growing Station and raw-client handles,
+then responds with `{"closed":true}` and exits without waiting for stdin EOF.
+This works in authority and local-codec modes. Await the acknowledgement and
+successful child exit when joining cleanup; loss of either is a cleanup failure.
+Shutdown neither commits private handler work nor cancels previously accepted
+mutations. Retain pending material and known receipts independently.

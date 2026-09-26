@@ -6,6 +6,7 @@ pub const version = 1;
 pub const Config = struct { url: ?[]const u8 = null, local_codec: bool = false, seed_file: ?[]const u8 = null, server: ?abi.Config = null, growing_server: ?abi.growing.Config = null, timeout_ms: u32 = 5000 };
 pub const Request = union(enum) {
     hello: void,
+    shutdown: void,
     next: u64,
     apply: abi.actions.Action,
     finish: bool,

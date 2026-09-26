@@ -35,7 +35,11 @@ passed after this extension.
 The same raw-client task now also runs the independent
 [client port](../apps/transit-client-host/README.md), including metadata identity,
 profile/command classification, malformed canonical recovery and seedless retry
-from a fresh process. Its executable imports no Station implementation.
+from a fresh process. Its executable imports no Station implementation. The raw
+port and `station_codec_host.py` also verify explicit shutdown acknowledgements
+and successful exit while stdin remains open. Station covers local-codec, raw,
+legacy and query-enabled growing handles. Native cleanup precedes the response;
+this lifecycle acknowledgement does not replace mutation receipts.
 
 `just bindings::test` also runs the [growing Station ABI proof](station_growing_abi.py)
 against disk-backed Ursula. It checks every mutation's preparation/dispatch gate,

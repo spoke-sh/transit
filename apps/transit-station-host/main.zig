@@ -75,6 +75,16 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             continue;
         };
         defer request.deinit();
+        if (request.value == .shutdown) {
+            abi.Api.station_server_destroy(server);
+            server = null;
+            abi.Api.station_growing_destroy(growing);
+            growing = null;
+            raw.Api.transit_client_destroy(client);
+            client = null;
+            try respond(&output.interface, 0, "{\"closed\":true}");
+            return;
+        }
         process(init, server, growing, client, request.value, arena.allocator(), &output.interface) catch |err| {
             try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
         };
@@ -84,6 +94,7 @@ fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.
     var buffer: ?*abi.Buffer = null;
     defer abi.Api.station_buffer_destroy(buffer);
     const status: abi.Status = switch (request) {
+        .shutdown => return error.ShutdownRequiresOwner,
         .hello => return respond(out, 0, "{\"host_version\":1,\"station_version\":1,\"transit_version\":1}"),
         .next => |deadline| if (server) |pointer| abi.Api.station_server_next(pointer, deadline, &buffer) else .not_ready,
         .apply => |action| blk: {
