@@ -76,6 +76,11 @@ Growing native actions reject unpublished or mismatched request references,
 preserve duplicate chunks and publish the ordinary durable call through the
 existing preparation/dispatch gate. `just bindings::native` includes these
 checks alongside the existing Table/query and C/C++/Python interoperability proofs.
+The shared native/port disposal codecs also consume the independent HTD1/HTK1
+fixtures, preserving full-width exchange IDs and rejecting wrong/truncated frames.
+The `http_release` scoped action rejects invalid identities without consuming
+turn capacity, then emits the exact durable call without requiring a capture
+read grant. The service retains holder authentication and current-policy checks.
 The shared `http_stage` helper freezes namespace ownership and advances one
 publication step per turn. Its disk/native proof replaces the host and owner
 after a committed metadata prefix, rejects a changed endpoint revision without

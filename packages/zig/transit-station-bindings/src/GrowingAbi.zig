@@ -29,6 +29,7 @@ pub const Capabilities = struct {
     retained_sources: bool = true,
     publications: bool = true,
     http_requests: bool = true,
+    http_release: bool = true,
     http_replay: bool = true,
     http_active_readers: u32 = 1,
     http_request_bytes: u32 = @import("HttpCodec.zig").http.RequestRecord.maximum_body_bytes,

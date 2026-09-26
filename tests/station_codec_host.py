@@ -25,12 +25,18 @@ def run(host, library=None):
         assert responses[2] == {'status': 0, 'value': (b'STN1\x01' + bytes(8) + b'TSC\x01\x02').hex()}
         assert all(response == {'status': 13, 'value': None} for response in responses[3:])
         fixture = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-http/src/admission-fixtures.json').read_text())
+        release = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-http/src/release-fixtures.json').read_text())
         request = {key: value for key, value in fixture['request'].items() if key != 'body_bytes'}
         actions = [
             {'prepare': {'resource': 8, 'namespace': str(2**64-1), 'request': request,
                 'body': fixture['body'], 'endpoint_revision': '7', 'reconcile_before_ms': 9000, 'max_attempts': 2}},
             {'outcome': fixture['outcome']}, {'outcome': fixture['rejection']},
+            {'release': {'resource': 7, 'exchange': str(2**64-1)}},
+            {'released': release['reply']},
             {'outcome': fixture['outcome'][:-2]},
+            {'released': release['reply'][:-2]},
+            {'released': release['request']},
+            {'release': {'resource': 7, 'exchange': '0'}},
             {'prepare': {'resource': 8, 'namespace': str(2**64), 'request': request,
                 'body': '', 'endpoint_revision': '7', 'reconcile_before_ms': 9000}},
         ]
@@ -44,7 +50,9 @@ def run(host, library=None):
         assert responses[1]['value']['outcome']['exchange'] == str(2**64-1)
         assert responses[1]['value']['outcome']['status'] == 200
         assert responses[2] == {'status': 0, 'value': {'rejected': 'denied'}}
-        assert all(r['status'] == 1 for r in responses[3:])
+        assert responses[3] == {'status': 0, 'value': {'release': release['request']}}
+        assert responses[4] == {'status': 0, 'value': {'released': {'resource': 7, 'exchange': str(2**64-1)}}}
+        assert all(r['status'] == 1 for r in responses[5:])
         if library:
             # The generated ABI declares the exact same implementation as the port.
             from transit_station import _Library, TransitError

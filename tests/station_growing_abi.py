@@ -349,7 +349,7 @@ def run(node, cli, library, raw_library, host):
             caller, resource, caller_seed = provision(65538)
             destination = command({'spawn': {}})
             server = Native(libraries, url, caller_seed, {**config, 'principal': 65538, 'pid': caller, 'generation': 2})
-            assert caps['publications'] and caps['http_requests'] and caps['publication_chunk_bytes'] == 256
+            assert caps['publications'] and caps['http_requests'] and caps['http_release'] and caps['publication_chunk_bytes'] == 256
             document = _json({'prepare': {'resource': resource, 'namespace': str(2**64-1),
                 'request': {'method': 'POST', 'target': [{'literal': '/write'}]}, 'body': '00ff01',
                 'endpoint_revision': '7', 'reconcile_before_ms': now + 120000}})
@@ -385,6 +385,25 @@ def run(node, cli, library, raw_library, host):
             outgoing = next(item for item in query({'outputs': {}})['outputs']['entries'] if item and item['source'] == caller)
             assert outgoing['destination'] == destination
             assert bytes.fromhex(outgoing['value'])[13:] == bytes.fromhex(prepared['reference'])
+            # Disposal is an ordinary durable call even without transcript read
+            # access. The service, not the caller's foreign-resource read scope,
+            # authenticates the recorded holder and current admission policy.
+            command({'send': {'pid': caller, 'value': frame(b'http-release')}})
+            scope = ready(server)['scope']
+            before = server.apply(scope, {'budgets': {}})
+            assert rejects(1, server.apply, scope, {'http_release': {'pid': destination,
+                'resource': 7, 'exchange': '0'}})['err'] == 'InvalidHttpRelease'
+            assert server.apply(scope, {'budgets': {}}) == before
+            released = server.apply(scope, {'http_release': {'pid': destination,
+                'resource': 7, 'exchange': str(2**64-1)}})['correlation']
+            assert int(released) > int(correlation)
+            finish(server, scope)
+            position = root_client.call(root_client.prepare(7, system.seed, {
+                'version': 3, 'realm': 72, 'principal': 0, 'kind': {'capabilities': {}}}))['position']
+            disposal = next(item for item in query({'outputs': {'after': outgoing['id'], 'position': position}})['outputs']['entries'] if item and item['source'] == caller)
+            release_fixture = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-http/src/release-fixtures.json').read_text())
+            assert disposal['destination'] == destination
+            assert bytes.fromhex(disposal['value'])[13:] == bytes.fromhex(release_fixture['request'])
             operation({'publication_retire': {'namespace': namespace, 'id': '1'}})
             assert operation({'publication_collect': {'namespace': namespace, 'id': '1'}}) == {'collected': True}
 

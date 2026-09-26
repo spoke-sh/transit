@@ -39,6 +39,17 @@ pub fn unsigned(text: []const u8) !u64 {
 pub const Action = union(enum) {
     prepare: struct { resource: u64, namespace: []const u8, request: Request, body: []const u8, endpoint_revision: []const u8, reconcile_before_ms: u64, max_attempts: u32 = 1 },
     outcome: p.Value,
+    release: Identity,
+    released: p.Value,
+};
+pub const Identity = struct {
+    resource: u64,
+    exchange: []const u8,
+    pub fn native(self: Identity) !http.Service.Release {
+        const value: http.Service.Release = .{ .resource = self.resource, .exchange = try unsigned(self.exchange) };
+        try value.validate();
+        return value;
+    }
 };
 pub const Outcome = struct {
     phase: @FieldType(http.Service.Outcome, "phase"),
@@ -53,6 +64,8 @@ pub const Result = union(enum) {
     prepared: struct { reference: p.Value, metadata: []const u8, metadata_spec: http.exchange.Publication.Spec, body_spec: http.exchange.Publication.Spec },
     outcome: Outcome,
     rejected: @FieldType(http.Service.Rejection, "reason"),
+    release: p.Value,
+    released: Identity,
 };
 pub const ReadAction = union(enum) {
     open: struct { reference: p.Value, policy: http.Replay.Policy = .captured },
@@ -78,6 +91,11 @@ pub fn apply(alloc: std.mem.Allocator, action: Action) !Result {
             if (std.mem.startsWith(u8, wire.slice(), http.Service.Rejection.magic)) return .{ .rejected = (try http.exchange.codec.decode(http.Service.Rejection, wire)).reason };
             const value = try http.Service.Outcome.decode(wire);
             return .{ .outcome = .{ .phase = value.phase, .resource = value.resource, .exchange = try a.decimal(alloc, value.exchange), .effect = value.effect, .attempt = value.attempt, .status = if (value.phase == .observed) value.status else null, .reference = if (value.phase == .observed) try (try value.reference()).encode() else null } };
+        },
+        .release => |identity| return .{ .release = try (try identity.native()).encode() },
+        .released => |wire| {
+            const value = try http.Service.Released.decode(wire);
+            return .{ .released = .{ .resource = value.resource, .exchange = try a.decimal(alloc, value.exchange) } };
         },
     }
 }

@@ -215,7 +215,7 @@ returns its HTQ1 reference, owned metadata bytes and both Publication specs.
 states without inventing a complete reference. Preparation and decoding need no
 authority endpoint or credentials and never perform network effects.
 
-Growing capabilities advertise `publications`, `http_requests`, `http_replay`,
+Growing capabilities advertise `publications`, `http_requests`, `http_replay`, `http_release`,
 the 65,536-byte finite request profile and 256-byte publication chunks.
 `publication_create/begin/append/publish/abandon/retire/collect` delegate to Station
 Publication inside the active scoped turn. Host adapters schedule bounded steps;
@@ -233,6 +233,15 @@ identity, and returns `staged:false` after at most one durable upload step.
 in the same turn. Fresh owners resume with identical recoverable bytes; changed
 identity or retired records reject without consuming a mutation budget. Hosts own
 source recovery and continuation scheduling, never a second upload state machine.
+
+`http_release` takes a connector `pid`, capture `resource` and canonical full-width
+`exchange` string. It validates and records an HTD1 call under the same scoped
+turn, returning its durable correlation. Capture read access is not required to
+request disposal of one's hold; the service authenticates the original holder
+and current policy. The local codec's `release` emits HTD1 and `released` decodes
+HTK1 into resource/exchange identity. Decoding alone authenticates no sender:
+the handler must check the reply origin and correlation. HTF1 rejections retain
+the existing `outcome` decoder. Replay-reader close does not submit this action.
 
 `station_growing_http_read` (port `growing_http_read`) is separate from scoped
 handler actions. `open` accepts a complete reference and replay policy; `next`

@@ -68,6 +68,7 @@ pub const Action = union(enum) {
     publication_collect: struct { namespace: []const u8, id: []const u8 },
     http_call: struct { pid: u64, reference: p.Value },
     http_stage: struct { reference: p.Value, metadata: []const u8, body: []const u8 },
+    http_release: struct { pid: u64, resource: u64, exchange: []const u8 },
 
     pub fn requiresQuery(self: Action) bool {
         return switch (self) {
@@ -160,6 +161,10 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action)
             _ = try std.fmt.hexToBytes(metadata, v.metadata);
             _ = try std.fmt.hexToBytes(body, v.body);
             return .{ .staged = try http.RequestRecord.stage(turn, reference, metadata, body) };
+        },
+        .http_release => |v| {
+            const request: http.Service.Release = .{ .resource = v.resource, .exchange = try unsigned(v.exchange) };
+            return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, try request.encode(), null)) };
         },
         .page => |cursor| return page(allocator, turn, cursor),
         .table_page => |request| {

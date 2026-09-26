@@ -13,8 +13,10 @@ artifact, function signatures and wire schemas are preserved by this extraction.
 Additive M15 exports prepare HTTP request commitments, decode outcomes and expose
 one bounded replay reader. Scoped publication actions and validated HTTP calls
 reuse the same native turn and dispatch gate. These are native composition APIs;
-the [Python SDK](../../python/transit-station/docs/http.md) now provides typed
-HTTP conveniences. The remaining language APIs and full matrix remain M15 work.
+all [ten public SDKs](../../../docs/CLIENT.md#http-connector-callers) provide typed
+request/call/replay conveniences with local qualification. Explicit durable
+release is also available through shared codecs and scoped `http_release` calls;
+language-native release helpers and broader lifecycle work remain in M15.
 
 See the [binding guide](docs/bindings.md) for ownership, scoped turns, explicit
 dispatch, exact pending retry and query buffers. Native foreign pointers never
