@@ -54,6 +54,12 @@ handlers, recovery callbacks, scoped state, full-width values and optional PyArr
 The [Python guide](../packages/python/transit-station/README.md) distinguishes the
 public API from its preserved M9 raw adapter.
 
+The [public Node client](../packages/ts/transit-client/README.md) is independent
+of Station too. `just bindings::node-sdk-test` builds its native dependency and
+SDK tarballs, installs a clean consumer and runs the same raw-client schedule as
+Python. Public TypeScript Station handlers are still in progress; the existing
+`@rey/transit-station` adapter remains compatible.
+
 ## Qualification tools
 
 `nix develop .#bindings` adds the locked foreign-language tools to the normal

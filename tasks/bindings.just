@@ -45,3 +45,14 @@ python-test: python-build
     zig build transit-node rey-cli
     python3 -B tests/python_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels
     python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels
+
+# Build installed Node SDK tarballs with independent native artifacts.
+node-build: build
+    python3 -B bindings/build_node.py .cache/bindings/node
+
+# Qualify the public Node client through the shared real-authority schedule.
+node-sdk-test: node-build
+    cd packages/ts/transit-client && vp check
+    vp exec --filter @transit/client tsc --noEmit
+    zig build transit-node rey-cli
+    python3 -B tests/node_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node

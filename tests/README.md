@@ -73,6 +73,15 @@ The shared `public-runner-lifecycle` scenario records comparable observations fo
 later languages. Qualification is Linux x86_64 with Nix-linked native wheels;
 other language public APIs and the final M11 interoperability matrix remain open.
 
+`just bindings::node-sdk-test` builds the independent Node client/native tarballs,
+checks the strict public API and installs them outside the checkout using ordinary
+package-manager overrides for unpublished local artifacts. No Station package or
+manual native loader path is present. Python and Node run the same
+[raw-client schedule](sdk_raw_client.py): copied input/export buffers, native
+classification, a lost accepted response, seedless host restart, failed host
+response parsing/allocation, current revocation, bounded overlap and responsive
+close after a local await/abort. The Node runner remains separate work.
+
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 

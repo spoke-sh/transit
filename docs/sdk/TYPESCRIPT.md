@@ -1,11 +1,12 @@
 # TypeScript SDK API design
 
-Status: proposed M11 API, not an implemented package interface. The
-[shared design](../SDK.md) owns authority, lifecycle and recovery rules. The
-[existing Node adapter](../../packages/ts/transit-station/README.md) remains the
-executable M9 surface. These are design excerpts; `counter-contract` represents
-application types, codecs and keys to implement from shared fixtures. Bootstrap
-configuration, credentials and durable recovery storage are application inputs.
+Status: the [public raw client](../../packages/ts/transit-client/README.md) is
+implemented and qualified through a clean tarball consumer. The Station APIs
+below remain proposed M11 contracts. The [shared design](../SDK.md) owns authority,
+lifecycle and recovery rules. The existing `@rey/transit-station` M9 adapter
+remains compatible. `counter-contract` denotes the application types/codecs to
+implement from shared fixtures; configuration and durable stores belong to the
+application.
 
 ## Packages and runtime types
 

@@ -41,6 +41,7 @@
       "bindings::check",
       "bindings::test",
       "bindings::python-test",
+      "bindings::node-sdk-test",
       "test::model",
       "test::model-delivery"
     ],

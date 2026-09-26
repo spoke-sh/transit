@@ -55,6 +55,24 @@ importers:
         specifier: 8.20.0
         version: 8.20.0
 
+  packages/ts/transit-client:
+    dependencies:
+      '@transit/native-client':
+        specifier: workspace:0.2.0
+        version: link:../transit-native-client
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  packages/ts/transit-native-client: {}
+
   packages/ts/transit-station:
     dependencies:
       ajv:
