@@ -194,10 +194,11 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 | [transit-core](../packages/zig/transit-core/README.md) / `transit_core` | Protocol state, validation, conditional authority, recovery | transit-protocol |
 | [transit-client](../packages/zig/transit-client/README.md) / `transit_client` | Signed HTTP calls, activation sessions, retry material | transit-protocol, transit-observability |
 | [transit-backend-ursula](../packages/zig/transit-backend-ursula/README.md) / `transit_backend_ursula` | Storage/transport, checkpoint, trim, deletion | transit-core, transit-observability, upstream ursula-zig |
-| [transit-board-api](../packages/zig/transit-board-api/README.md) / `transit_board_api` | Board response types, OpenAPI generation and evidence projections | transit-protocol, transit-station (framework metadata) |
+| [transit-board-api](../packages/zig/transit-board-api/README.md) / `transit_board_api` | Board response types, OpenAPI generation and evidence projections | transit-protocol, transit-station (framework metadata), transit-query |
 | [transit-board-client](../packages/ts/transit-board-client/README.md) (TypeScript) | Generated Board models/runtime validators and bounded browser transport | AJV runtime helper |
 | [transit-runtime-substrate](../packages/zig/transit-runtime-substrate/README.md) / `transit_runtime_substrate` | Provider identity, template validation, sandbox lifecycle operations | transit-observability; invokes pinned external CLI |
 | [transit-station](../packages/zig/transit-station/README.md) / `transit_station` | GenServer, durable calls, scoped names, supervision, Tables and captured queries | transit-client, transit-fuze |
+| [transit-query](../packages/zig/transit-query/README.md) / `transit_query` | Signed public Table queries, admission behaviors and verified typed pages | transit-station |
 | [transit-fuze](../packages/zig/transit-fuze/README.md) / `transit_fuze` | Source/plan contracts, Table SQL compilation and bounded Zig-native Arrow execution | pinned zarrow, zarrow-compute |
 
 The [binding packages](../bindings/README.md) expose the shared Zig client and
@@ -223,7 +224,9 @@ follow a second concrete implementation, not a speculative plugin system.
 | [transit-station-controller](../apps/transit-station-controller/README.md) | Observes Station timers/children or applies separately scoped lifecycle intent |
 | [transit-station-host](../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
 | [transit-client-host](../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
-| [transit-board](../apps/transit-board/README.md) | Inspection-only API host with embedded [TanStack Router frontend](../apps/transit-board-web/README.md); public client and transit-board-api composition |
+| [transit-query-host](../apps/transit-query-host/README.md) | Runnable growing Table source/requester workers and scoped courier |
+| [transit-cli](../apps/transit-cli/README.md) (`transit`) | Interactive signed Table SQL shell through transit-query |
+| [transit-board](../apps/transit-board/README.md) | Inspection API plus optional separate Table query capability with embedded [TanStack Router frontend](../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
 | [rey-cli](../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |
 | [example-counter](../examples/counter/README.md) | Complete caller, also the reference deployment workload |

@@ -20,7 +20,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M10](M10.md) | Verification and scale foundations | Explicit growing profile, verification harness and measured CI budgets qualified; v2 remains the default |
 | [M11](M11.md) | Idiomatic language SDKs | Qualified raw/Station SDKs, installed examples and ten public language pairs on Linux x86_64 |
 | [M12](M12.md) | Declarative interface readiness | Qualified Table SQL compiler, three-parser corpus, pinned tools and four complete Lean theorems |
-| [M13](M13.md) | Board relief atlas and public query access | In progress: shared signed query client, SQL shell and Board workspace |
+| [M13](M13.md) | Board relief atlas and public query access | Complete: qualified Table query client/hosts, SQL shell and growing Board workspace |
 | [M14](M14.md) | Documents, collaborative text and unified querying | Planned |
 | [M15](M15.md) | HTTP connector and exchange transcripts | Planned |
 | [M16](M16.md) | gRPC connector and streaming calls | Planned |

@@ -23,7 +23,7 @@ are experimental; their bounded implementation does not imply support for every 
 | [Query language](QUERY_LANGUAGE.md) | Relational and dataframe surfaces over Fuze's one plan; DDL/DML mapping and the connector/transport namespace idea |
 | [Arrow](ARROW.md) | IPC/C interfaces, Flight/Flight SQL and ADBC integration with Fuze |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
-| [Board](BOARD.md) | Inspection UI/API, observation semantics, and planned framework lenses |
+| [Board](BOARD.md) | Inspection UI/API, growing atlas, optional Table workspace and observation semantics |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |
 | [Station](STATION.md) | Behaviors, language bindings, planned SDK runners, Tables, supervision, and registries |
 | [Connectors](CONNECTORS.md) | Shared effect/attempt/reconciliation contract, transport/connector/integration tiers and planned HTTP capture |

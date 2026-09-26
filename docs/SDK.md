@@ -259,7 +259,9 @@ to the authorized turn/source and must be reopened for later segment reads.
 Optional PyArrow, JavaScript Arrow and Rust Arrow adapters are separate extras or
 features. Their versions, integer precision, copy/borrow rules and release paths
 need qualification before support is claimed. Core APIs expose IPC without them.
-General query ingress and a production query host remain M13 scope.
+M13 adds a [public Table query client](../packages/zig/transit-query/README.md)
+and runnable growing host for Board and the shell. Its qualified development
+profile does not establish production capacity or deployment automation.
 
 ## Implementation handoff and qualification
 

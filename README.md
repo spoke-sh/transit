@@ -26,6 +26,8 @@ explicit growing profile and measured CI budgets.
 installed examples and public interoperability across all target languages on Linux x86_64.
 [M12](docs/roadmap/M12.md) adds a qualified Table SQL compiler over Fuze's existing
 plan, with independent parser/result checks and scoped Lean rewrite proofs.
+[M13](docs/roadmap/M13.md) adds a signed Table query shell, runnable query hosts
+and Board's growing atlas/workspace with a separate query capability.
 The [roadmap](docs/roadmap/README.md) records supported profiles and qualification limits.
 
 ## Get started

@@ -1407,7 +1407,8 @@ unsupported SQL without admission; a malformed/lost admission receipt and
 byte-identical signed retry; worker SIGKILL after accepted staging followed by
 fresh recorded ownership; rejection of reuse of the old activation; explicit
 busy admission; schema mismatch rejection; incomplete result refusal; explicit
-cancellation; and read revocation before completion and after complete disclosure.
+cancellation; source retirement clearing; and read revocation during incomplete
+capture, after an actually received partial segment, and after complete disclosure.
 An inspection-only principal cannot use another principal's requester binding.
 Re-authorized reads select the original result without rerunning SQL.
 
@@ -1417,8 +1418,36 @@ execution or regenerates an uncertain mutation. Package tests also verify owned
 schema-fenced request encoding, full-width cancellation identity and rejection
 of a predicate that exceeds the existing frame budget.
 
+`just transit-board::query-test` runs the actual growing Board binary and the
+same real hosts against a separate disk-backed realm. It proves default query
+disablement, distinct inspection/query principals, unsupported/malformed ingress
+refusal before admission, exact frozen start/cancellation retries, incomplete
+page refusal, current result authorization, source retirement and stable atlas
+cuts. Widening the inspection grant is refused. Restoring it requires explicit
+resource reauthorization because coarse grant replacement changes incarnation.
+Actual source/plan/page responses pass the generated JavaScript validator; typed
+int64 cells retain values beyond JavaScript's exact numeric range.
+
+`just transit-board::query-browser` includes that API proof and drives Chromium
+against the actual embedded UI. It selects a resource, changes emphasis/detail,
+enters the workspace, switches Canvas/Browse before and after a single explicit
+submission, and preserves an edited draft alongside the identified old result.
+An externally recorded revocation clears schema, draft and result in the open
+workspace; restoring access does not rerun SQL or recover an offline copy.
+Source retirement clears it again with a distinct unavailable/expired message.
+The proof checks no cookies/local/session storage and captures the atlas and
+workspace screenshots. Frontend unit tests reject int64 overflow, wrong cell
+types, row gaps, invented continuation and invalid Unicode.
+
+Local Linux x86_64 qualification passed: `just check`, both real query proofs,
+Board's legacy API proof and all five legacy browser scenarios, plus independent
+`transit-board-api` package tests. CI owns the API and browser tasks in the
+experience/browser lanes. These new lanes have not been remeasured on hosted
+runners; M10's earlier cost evidence is not a claim about the expanded suite.
+
 This is one Table, one query principal, one requester and one authority. It
 qualifies process SIGKILL, not host power loss; the courier's bounded restart scan
-has no latency guarantee over arbitrary retained history. It does not yet qualify
-the M13 Board workspace or browser revocation behavior. Those remain separate
-required milestone evidence.
+has no latency guarantee over arbitrary retained history. It adds no automatic
+production provisioning, larger-population atlas proof, per-human delegation or
+reference-deployment query capacity guarantee. Complete-results-only row access
+is intentional; partial progress is visible without disclosing partial rows.
