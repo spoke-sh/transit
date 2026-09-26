@@ -11,6 +11,10 @@ against Transit; no example is required to run the authority.
 | [Station ledger](station-ledger/README.md) | `example-station-ledger` | Three behaviors with Tables, durable calls, Arrow queries, registry and supervision |
 | [Language callers](station-bindings/README.md) | Per-language examples | Shared Station behavior/Table API across C/C++, Rust, Python, Node, Java, .NET and BEAM |
 
+M11's [public SDK examples](station-sdk/README.md) define shared counter/query
+payload formats and fixtures first. Their language implementations and clean
+consumer qualification are being added separately.
+
 The [Station running guide](station-ledger/docs/running.md) starts a persistent
 installation with Board in local, Compose or reference mode. The smaller examples
 below expose the raw Transit caller loop without Station.

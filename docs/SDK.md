@@ -252,7 +252,7 @@ General query ingress and a production query host remain M13 scope.
 | Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; public runner cancellation remains |
 | Typed operation metadata | Implemented native classification and canonical identity through C/port, with owned buffers; public typed operations must use it without decoding retry bytes |
 | Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
-| Application codecs | One versioned counter definition/fixtures before host implementations; strict, bounded validation in all three languages |
+| Application codecs | Shared [counter/query definition](../examples/station-sdk/README.md) and [fixtures](../tests/verification/sdk-codecs-v1.json) defined; strict language implementations and cross-language execution remain |
 | Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; public readers and optional Arrow adapters remain |
 
 The public declarations should first compile/type-check against real packages;

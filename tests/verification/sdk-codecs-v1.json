@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "owner": "examples/station-sdk/README.md",
+  "valid": [
+    {
+      "codec": "counter",
+      "variant": "Add",
+      "hex": "54534301010000000000000000",
+      "value": "0"
+    },
+    {
+      "codec": "counter",
+      "variant": "Add",
+      "hex": "54534301010100000000002000",
+      "value": "9007199254740993"
+    },
+    {
+      "codec": "counter",
+      "variant": "Add",
+      "hex": "5453430101ffffffffffffffff",
+      "value": "18446744073709551615"
+    },
+    {
+      "codec": "counter",
+      "variant": "Total",
+      "hex": "54534301040000000000000000",
+      "value": "0"
+    },
+    {
+      "codec": "counter",
+      "variant": "Total",
+      "hex": "54534301040100000000002000",
+      "value": "9007199254740993"
+    },
+    {
+      "codec": "counter",
+      "variant": "Total",
+      "hex": "5453430104ffffffffffffffff",
+      "value": "18446744073709551615"
+    },
+    {
+      "codec": "counter",
+      "variant": "Read",
+      "hex": "5453430102"
+    },
+    {
+      "codec": "counter",
+      "variant": "Start",
+      "hex": "5453430103"
+    },
+    {
+      "codec": "u64",
+      "variant": "U64",
+      "hex": "545355010000000000000000",
+      "value": "0"
+    },
+    {
+      "codec": "u64",
+      "variant": "U64",
+      "hex": "545355010100000000002000",
+      "value": "9007199254740993"
+    },
+    {
+      "codec": "u64",
+      "variant": "U64",
+      "hex": "54535501ffffffffffffffff",
+      "value": "18446744073709551615"
+    },
+    {
+      "codec": "query",
+      "variant": "Initialize",
+      "hex": "5453510101"
+    },
+    {
+      "codec": "query",
+      "variant": "Rows",
+      "hex": "5453510103"
+    },
+    {
+      "codec": "query",
+      "variant": "Start",
+      "hex": "5453510104"
+    },
+    {
+      "codec": "query",
+      "variant": "Insert",
+      "hex": "5453510102000000000000008000",
+      "key": "-9223372036854775808"
+    },
+    {
+      "codec": "query",
+      "variant": "Insert",
+      "hex": "54535101020000000000000000010100000000002000",
+      "value": "9007199254740993",
+      "key": "0"
+    },
+    {
+      "codec": "query",
+      "variant": "Insert",
+      "hex": "5453510102ffffffffffffff7f010000000000000080",
+      "value": "-9223372036854775808",
+      "key": "9223372036854775807"
+    }
+  ],
+  "invalid": [
+    {
+      "codec": "counter",
+      "reason": "empty",
+      "hex": ""
+    },
+    {
+      "codec": "counter",
+      "reason": "truncated",
+      "hex": "54534301"
+    },
+    {
+      "codec": "counter",
+      "reason": "trailing",
+      "hex": "545343010200"
+    },
+    {
+      "codec": "counter",
+      "reason": "version",
+      "hex": "5453430202"
+    },
+    {
+      "codec": "counter",
+      "reason": "magic",
+      "hex": "4241440102"
+    },
+    {
+      "codec": "u64",
+      "reason": "empty",
+      "hex": ""
+    },
+    {
+      "codec": "u64",
+      "reason": "truncated",
+      "hex": "5453550100000000000000"
+    },
+    {
+      "codec": "u64",
+      "reason": "trailing",
+      "hex": "54535501000000000000000000"
+    },
+    {
+      "codec": "u64",
+      "reason": "version",
+      "hex": "545355020000000000000000"
+    },
+    {
+      "codec": "u64",
+      "reason": "magic",
+      "hex": "424144010000000000000000"
+    },
+    {
+      "codec": "query",
+      "reason": "empty",
+      "hex": ""
+    },
+    {
+      "codec": "query",
+      "reason": "truncated",
+      "hex": "54535101"
+    },
+    {
+      "codec": "query",
+      "reason": "trailing",
+      "hex": "545351010300"
+    },
+    {
+      "codec": "query",
+      "reason": "version",
+      "hex": "5453510203"
+    },
+    {
+      "codec": "query",
+      "reason": "magic",
+      "hex": "4241440103"
+    },
+    {
+      "codec": "counter",
+      "reason": "unknown_tag",
+      "hex": "54534301ff"
+    },
+    {
+      "codec": "query",
+      "reason": "unknown_tag",
+      "hex": "54535101ff"
+    },
+    {
+      "codec": "query",
+      "reason": "nullable_marker",
+      "hex": "5453510102000000000000000002"
+    }
+  ]
+}
