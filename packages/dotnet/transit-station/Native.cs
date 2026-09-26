@@ -8,6 +8,8 @@ internal static class Native {
     [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint transit_client_abi_version();
     [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint transit_client_supports_kind(uint arg0);
+    [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint transit_client_create(uint arg0, [In] byte[] arg1, nuint arg2, uint arg3, out IntPtr arg4);
     [DllImport("transit_client", CallingConvention = CallingConvention.Cdecl)]
     internal static extern void transit_client_destroy(IntPtr arg0);

@@ -18,13 +18,22 @@
     "view": 2,
     "state": 3,
     "inspection": 4,
-    "delivery": 5
+    "delivery": 5,
+    "growing_command": 6,
+    "growing_query": 7
   },
   "functions": [
     {
       "name": "transit_client_abi_version",
       "result": "uint32_t",
       "parameters": []
+    },
+    {
+      "name": "transit_client_supports_kind",
+      "result": "uint32_t",
+      "parameters": [
+        "uint32_t"
+      ]
     },
     {
       "name": "transit_client_create",

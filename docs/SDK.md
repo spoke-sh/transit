@@ -19,8 +19,8 @@ their language. Signing, response validation, sequencing and framework decisions
 remain in Zig. A host codec only interprets application bytes; it cannot change
 authenticated origins, durable identity or current authorization.
 
-The first missing shared capability is the raw growing-profile ABI. Its additive
-operation kinds must retain the existing v2 ABI and frozen requests, expose v3
+The first implemented shared capability is the raw growing-profile ABI. Its additive
+operation kinds retain the existing v2 ABI and frozen requests, expose v3
 command/query preparation and exact recovery, and report supported kinds before
 dispatch. A local library capability is distinct from an authority's advertised
 capabilities. A subsequent explicit growing Station adapter must supply bounded

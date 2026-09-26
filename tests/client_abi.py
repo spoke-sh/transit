@@ -171,6 +171,8 @@ def retry(library, url, path):
 def run(library, node, cli, c_proof):
     subprocess.run([c_proof], check=True, timeout=10)
     native = Native(library)
+    from client_abi_growing import run as growing
+    growing(native, library, node, cli)
     contention(native, node, cli)
     with System(node, cli) as system:
         seed = bytes.fromhex(system.seed.read_text().strip())

@@ -285,6 +285,14 @@ retain responsibility for network and scheduler assumptions.
 
 ## Shared SDK conformance
 
+M11's first native-boundary slice adds the `growing-profile-abi` scenario to
+[sdk.json](sdk.json). The [operation fixtures](sdk-operations-v1.json) pin
+canonical v3 bodies, full-width IDs, signature domains and exact signatures.
+`just test::client-abi` checks them and the real one-page-cache node/provider
+restart, lost/invalid responses, fresh-process retry and current revocation.
+The public Python/TypeScript/Rust API sketches and growing Station foreign
+handler runner remain unqualified; this proof only extends the raw ABI.
+
 [sdk.json](sdk.json) is the version-1 behavioral scenario contract for M11. Each
 scenario defines a sequence, required observations and executable proof owners;
 the catalog checker rejects missing implementations or task ownership. These

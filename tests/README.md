@@ -25,6 +25,15 @@ timers, poison-input blocking and opted-in lifetime expiry/reclamation.
 The [M9 evidence](#m9-station-bindings-and-tables) below distinguishes native
 language qualification from reference worker qualification.
 
+M11 extends `just test::client-abi` with the explicit growing raw-client boundary.
+Its [shared fixtures](verification/sdk-operations-v1.json) pin v3 canonical bytes,
+signatures and full-width IDs. The real disk proof checks principal 65,536,
+node/provider restart, opaque retry in a fresh process, lost/malformed accepted
+replies and revoked reads/receipt recovery. Allocation enumeration covers both
+mutation profiles. `just check` and the complete `just bindings::test` matrix
+passed after this extension. Public SDK handlers, growing Station foreign turns
+and clean package installation are still M11 work.
+
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 

@@ -8,7 +8,9 @@ identity, view or cursor. Select a node configured for the
 its capabilities before using an extension. `GrowingSession` supplies explicit
 v3 activation/turn helpers, used by Station's explicit
 [growing behavior](../../transit-station/docs/growing.md). The existing `Session`,
-default Station interface and foreign bindings remain v2.
+default Station interface and foreign behavior bindings remain v2. The
+[raw C ABI](bindings.md) adds explicit growing command/query preparation,
+capability probing and opaque exact retry without enabling a Station runner.
 
 ## Caller responsibilities
 
@@ -115,6 +117,6 @@ package without a kernel or provider dependency. It demonstrates bounded handler
 reads and exact retry across loss, not a complete Station runner or an idiomatic
 SDK. The explicit Station paging/call/result and finite capacity profiles have
 separate proofs. M11 must preserve capability and compatibility distinctions;
-growing lifecycle/provider bindings, legacy migration and foreign ABIs are not
-provided by this client. Fresh v3 realms and explicit rejection preserve the
+growing lifecycle/provider bindings, legacy migration and the Station foreign
+behavior ABI are not provided by this client. Fresh v3 realms and explicit rejection preserve the
 compatibility boundary.

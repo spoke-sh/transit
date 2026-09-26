@@ -12,6 +12,15 @@ Station SDK or the qualification of every planned language. It reuses the same
 Zig signing, parsing and HTTP implementation as native callers. There are no
 language-specific authority routes.
 
+M11 adds `growing_command` (6) and `growing_query` (7) without changing existing
+ABI v1 calls, operation tags or frozen v2 bytes. The optional additive
+`transit_client_supports_kind(kind)` export returns 1 for a supported operation
+kind and 0 otherwise, without allocation or I/O. It describes the local library,
+not the configured authority. A caller requiring growing support must reject a
+library without that export or those kinds; it must not fall back to v2. Existing
+clients remain compatible with the extended library. New generated bindings
+require the matching native library exports.
+
 ## Calls and ownership
 
 1. `transit_client_create(version, url, url_length, timeout_ms, &client)` creates
@@ -34,6 +43,15 @@ protocol's lowercase hex. The header's `TRANSIT_KIND_*` values select the route.
 Use explicit lengths: buffers are not NUL-terminated. Native buffers may be freed
 on another thread after the operation completes; handles must never be freed or
 used concurrently with their destruction. There are no callbacks into the host.
+
+The growing kinds accept the public `Growth.Request` and `Growth.Query` from
+the [v3 contract](../../../../contracts/TRANSIT_V3.md). Zig validates and signs
+them under the v3 domains and sends only `/v3/command` or `/v3/query`. IDs retain
+the full public range. Query results use the shared growing response validation,
+including realm, identity, revision and page coverage. Growing mutations preserve
+`uncertain` after a lost or malformed accepted response or response-allocation
+failure. Station's foreign behavior ABI remains v2; raw v3 operations do not
+advertise a growing handler runner.
 
 One operation may execute per client at a time; another call returns `busy`.
 Sharing a principal across clients still requires application-level sequencing.
@@ -100,5 +118,12 @@ identical bodies return the same receipt. The application still owns shared
 principal sequencing. These checks use the
 [shared SDK scenarios](../../../../tests/verification/sdk.json), including
 distinct admission, processing, reply delivery and reply consumption boundaries.
-This is entry-gate evidence; full handler/Table examples, runtime adapters and
-the complete adversarial language matrix remain M9 work.
+The same task exercises the growing kinds against a one-page-cache node and
+disk Ursula: principal 65,536, opaque retry from a fresh process after node/store
+restart, byte-identical retransmission, rejected malformed reads/receipts and
+current revocation before historical retry. The shared
+[operation fixtures](../../../../tests/verification/sdk-operations-v1.json)
+include IDs at the public maximum and reject legacy versions and overflow.
+Allocation enumeration covers both legacy and growing mutations.
+M9's separate Station handler/Table matrix remains available; these raw proofs
+do not qualify the proposed M11 public SDKs or a growing Station foreign ABI.

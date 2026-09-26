@@ -16,7 +16,9 @@ re-exported as `protocol`, and optional runtime instrumentation through
 [Client](src/root.zig) owns bounded HTTP exchange; [Session](src/Session.zig)
 adds activation-aware receive/prepare/submit operations. The default is the
 experimental v2 API; explicit `submitGrowing` and `queryGrowing` methods expose
-the [M10 v3 development boundary](docs/growing.md). The existing Session, Station and foreign binding APIs still use v2;
+the [M10 v3 development boundary](docs/growing.md). The raw C ABI also exposes
+explicit growing command/query kinds; existing Session and Station foreign
+behavior APIs still use v2;
 `GrowingSession` is an explicit activation helper for the new profile. For the architectural boundary, read [the caller model](../../../docs/CLIENT.md).
 
 ## Caller guide
@@ -79,11 +81,11 @@ Instrumentation finishes after cancellation joins, before call state is reused.
 
 The [public contract package](../transit-protocol/README.md) owns the generated
 schema, canonical signing rules, and shared vectors for future language bindings.
-v2 rejects v1 histories and requests; start a fresh development realm. Station
-behaviors and the complete [language-binding surface](../../../docs/CLIENT.md#language-neutral-boundary)
-remain M9 work. The first [C ABI](docs/bindings.md) exposes the shared client,
-generated signatures and exact-request export/import. Host adapters and their
-complete behavior/Table conformance matrix remain in progress.
+v2 rejects v1 histories and requests; start a fresh development realm.
+The [C ABI](docs/bindings.md) exposes the shared client, generated signatures and
+exact-request export/import for explicit v2/v3 operations. M9's Station adapters
+have separate behavior/Table conformance evidence. M11's public SDK and growing
+Station foreign surfaces remain in progress.
 General payload references remain separately scoped future work.
 
 ## Build and verification

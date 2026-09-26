@@ -3,6 +3,13 @@
   "profile": "shared behavioral scenarios; current Linux low-level bindings, M11 public SDK adapters pending",
   "scenarios": [
     {
+      "id": "growing-profile-abi",
+      "steps": ["Probe native operation support and prepare explicit v3 operations", "Admit a full-width principal's request and lose the response", "Restart the node/provider and retry opaque bytes from a fresh host without its seed", "Reject malformed read/receipt responses without inventing a mutation rejection", "Revoke access before both reads and historical receipt recovery"],
+      "expected": {"protocol_version": 3, "authenticated_principal": 65536, "identical_retry": true, "uncertain_status": 6, "invalid_receipt_status": 6, "invalid_read_status": 8, "admitted_inputs": 1, "revoked_read_status": 4, "revoked_retry_status": 4},
+      "proofs": [{"task": "test::client-abi", "source": "tests/client_abi_growing.py", "anchor": "check(\"growing-profile-abi\""}],
+      "limits": "Qualifies the explicit raw ABI and shared signature/operation fixtures, not a public SDK handler runner or a growing Station foreign ABI."
+    },
+    {
       "id": "admission-commit-reply",
       "steps": ["Admit an input without running its handler", "Commit state and a reply intent", "Deliver the reply", "Consume the reply in its destination"],
       "expected": {"consumed_after_admission": 0, "consumed_after_commit": 1, "reply_admitted_before_delivery": 0, "reply_consumed_after_delivery": 0, "reply_consumed_after_handler": 1, "reply_value_preserved": true},
