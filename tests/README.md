@@ -881,7 +881,8 @@ through every existing language pair. Malformed framework input becomes durably
 blocked without being consumed. Public M11 SDKs must reuse these scenarios
 through their own interfaces; the current matrix qualifies low-level bindings.
 
-M10 is in progress. The first CI changes separate library unit tests from
+M10 is qualified within the [recorded limits](verification/README.md).
+CI separates library unit tests from
 application/probe builds, avoid duplicate feature-push/PR runs, and select
 runtime checks conservatively. Standalone package manifests are compile-checked
 with `test::packages-build`; root unit tests own their shared runtime suites, and
@@ -894,8 +895,8 @@ prose-only PRs omit runtime lanes. Main, release tags and merge queues run full.
 `just ci::complete` includes Chromium, and `just ci-clean --complete` uses that
 inventory on committed HEAD. Each lane records required tasks, completion and
 revision beside task timings; successful clean runs preserve these outside the
-disposable checkout. These improvements do not establish a hosted speed target,
-complete the growing-state implementation or qualify massive scale.
+disposable checkout. Hosted CI budgets and growing-state qualification have
+separate measured evidence below; local timings do not qualify massive scale.
 
 The initial M10 model also passed 30,140 states with a four-transition journal
 bound and replayed all four removed-guard counterexamples against Zig. The first
@@ -909,8 +910,8 @@ cold bounded caches, old roots, unpublished staging and root-only checkpoint/tri
 with owned Docker MinIO and measures both provider processes. The ordinary WAL
 fixture disables that tier; it cannot establish bounded provider memory.
 The [adapter guide](../packages/zig/transit-backend-ursula/docs/pages.md) describes
-measurement fields and their limits. These roots do not yet replace the running
-authority's bounded catalogs. Unit checks also compare randomly ordered updates
+measurement fields and their limits. The launcher-default v2 authority retains
+bounded catalogs; the explicit v3 authority uses these paged roots. Unit checks also compare randomly ordered updates
 and deletion against an independent map and preserve old roots after lost staging
 acknowledgements.
 

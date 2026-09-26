@@ -1,0 +1,1724 @@
+{
+  "version": 1,
+  "status": "qualified_with_recorded_limits",
+  "date": "2026-09-25",
+  "environment": "Five GitHub-hosted ubuntu-24.04 Linux x86_64 lanes, two logical CPUs per lane.",
+  "budgets": {
+    "version": 1,
+    "status": "qualified on three warm samples and one explicit cold baseline; no percentile or cold-variance claim",
+    "feedback_seconds": 900,
+    "stretch_feedback_seconds": 300,
+    "aggregate_runner_seconds": 3600,
+    "restored_cache_bytes": 12884901888,
+    "notes": [
+      "User accepted the measured 12m37s feedback as close enough to the ten-minute preference to stop further optimization. Fifteen-minute feedback and sixty aggregate runner-minute qualification budgets allow measured-run headroom; under ten minutes remains an improvement target and under five a stretch.",
+      "Sixty aggregate runner minutes derive from the 53m27s five-lane warm run; twelve GiB restore derives from its 10.69 GiB transfer.",
+      "Feedback includes queue/selection time from workflow creation through required lane completion; aggregate cost sums job wall time, not billable price.",
+      "Cold means GitHub dependency restores disabled, not an empty upstream Nix substitute cache. Restored bytes exclude upstream Nix substitute traffic.",
+      "Incomplete, failed or cancelled runs and missing cache evidence cannot qualify a budget.",
+      "A larger runner needs a measured comparison and explicit selection; no paid runner is chosen by these targets.",
+      "Three ordinary warm samples qualify normal feedback. One explicit dependency-cache-miss baseline calibrates exceptional rebuild cost; it does not establish cold-run variance.",
+      "The separate cold budget allows 35 minutes and 135 aggregate runner minutes, with no GitHub dependency-cache restore. The complete baseline took 31m09s / 111m51s. The earlier 30m31s / 120m43s deadline-limited run remains inconclusive and does not count toward qualification."
+    ],
+    "improvement_feedback_seconds": 600,
+    "minimum_warm_samples": 3,
+    "minimum_cold_samples": 1,
+    "cold": {
+      "feedback_seconds": 2100,
+      "aggregate_runner_seconds": 8100,
+      "restored_cache_bytes": 0
+    }
+  },
+  "warm_samples": 3,
+  "cold_samples": 1,
+  "limits": [
+    "Three warm samples calibrate observed variation, not a percentile or future latency guarantee.",
+    "One cold baseline does not qualify cold-run variance; upstream Nix substitutes remain enabled.",
+    "Restored bytes measure GitHub dependency-cache archives; upstream Nix substitute traffic is not included.",
+    "Aggregate job wall time is runner cost evidence, not a monetary billing estimate.",
+    "Revisions differ as recorded; the M10 implementation separately passed all 33 clean-checkout tasks at 082ea76. Later M11 changes have separate evidence."
+  ],
+  "runs": [
+    {
+      "version": 1,
+      "run_id": 36194234944,
+      "revision": "97f3b7e488f4f37837865daa53aceeafe09f4c53",
+      "url": "https://github.com/rupurt/rey/actions/runs/36194234944",
+      "run_attempt": 1,
+      "cache_profile": "warm",
+      "budget": {
+        "feedback_seconds": 900,
+        "aggregate_runner_seconds": 3600,
+        "restored_cache_bytes": 12884901888
+      },
+      "conclusion": "success",
+      "status": "measured",
+      "feedback_seconds": 757.0,
+      "aggregate_runner_seconds": 3207.0,
+      "restored_cache_bytes": 11475097164,
+      "lanes": [
+        {
+          "name": "bindings",
+          "conclusion": "success",
+          "seconds": 540.0,
+          "phases": {
+            "setup": 43.0,
+            "cache_restore": 74.0,
+            "checks_including_builds": 420.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 3516139918,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "growth",
+          "conclusion": "success",
+          "seconds": 626.0,
+          "phases": {
+            "setup": 30.0,
+            "cache_restore": 49.0,
+            "checks_including_builds": 543.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 2265853357,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "core",
+          "conclusion": "success",
+          "seconds": 622.0,
+          "phases": {
+            "setup": 30.0,
+            "cache_restore": 47.0,
+            "checks_including_builds": 541.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 2265853357,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "experience",
+          "conclusion": "success",
+          "seconds": 696.0,
+          "phases": {
+            "setup": 64.0,
+            "cache_restore": 64.0,
+            "checks_including_builds": 564.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 1713625266,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "launchers",
+          "conclusion": "success",
+          "seconds": 712.0,
+          "phases": {
+            "setup": 48.0,
+            "cache_restore": 48.0,
+            "checks_including_builds": 610.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 1713625266,
+            "mode": "warm"
+          }
+        }
+      ],
+      "budget_met": true,
+      "cost_artifact_sha256": "ec0518d8931224663014f4f3eb7d2df932c1d197884b8d189308cbdc25429691",
+      "counts_toward_qualification": true,
+      "task_evidence": [
+        {
+          "tier": "bindings",
+          "seconds": 419.88,
+          "tasks": [
+            {
+              "lane": "bindings",
+              "task": "bindings::check",
+              "seconds": 117.4,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "bindings::test",
+              "seconds": 291.15,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "test::model",
+              "seconds": 10.34,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "test::model-delivery",
+              "seconds": 0.99,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "2a8b409878e7c79b1169a279bffff360e847e852ffa428c6256c309e4342258d"
+        },
+        {
+          "tier": "core",
+          "seconds": 533.98,
+          "tasks": [
+            {
+              "lane": "core",
+              "task": "check-core",
+              "seconds": 185.51,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::properties",
+              "seconds": 15.47,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::codecs",
+              "seconds": 5.81,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::dev-environment",
+              "seconds": 0.08,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::kubectl-transit",
+              "seconds": 3.87,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::deployments",
+              "seconds": 1.32,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::telemetry",
+              "seconds": 2.11,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::packages-build",
+              "seconds": 61.23,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::compute",
+              "seconds": 0.38,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::client-abi",
+              "seconds": 66.58,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::station",
+              "seconds": 70.42,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::storage",
+              "seconds": 59.01,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::service",
+              "seconds": 33.94,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::runtime-upgrade",
+              "seconds": 5.63,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::callers",
+              "seconds": 14.9,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::inspection",
+              "seconds": 2.44,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::state",
+              "seconds": 5.28,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "cd1b42005789b447832a19181bcb9c52629cdf49bf965d3190015b0e6db69d1a"
+        },
+        {
+          "tier": "browser",
+          "seconds": 27.34,
+          "tasks": [
+            {
+              "lane": "browser",
+              "task": "transit-board::browser",
+              "seconds": 27.34,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "ee617a42ed78cdcc2430ab77a863bb22fe2431cdbfc4da8de49f74a1ef5fc2ac"
+        },
+        {
+          "tier": "experience",
+          "seconds": 535.87,
+          "tasks": [
+            {
+              "lane": "experience",
+              "task": "transit-board::check",
+              "seconds": 95.81,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "bindings::node-check",
+              "seconds": 2.19,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "test::observability",
+              "seconds": 53.94,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "transit-board::test",
+              "seconds": 15.05,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "launchers::local::test-station",
+              "seconds": 368.86,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "735014e374db1ea912eeda8272e2c0b8ed0b9f38912debe64eaf8440d210732b"
+        },
+        {
+          "tier": "growth",
+          "seconds": 536.68,
+          "tasks": [
+            {
+              "lane": "growth",
+              "task": "test::arrow",
+              "seconds": 114.84,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::pages",
+              "seconds": 7.46,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::growing",
+              "seconds": 89.47,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::growing-service",
+              "seconds": 324.9,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "c8f47702e584814fa4968d07023d2e45758f3c009cc8e3a0a4b5cd679981db9e"
+        },
+        {
+          "tier": "launchers",
+          "seconds": 609.24,
+          "tasks": [
+            {
+              "lane": "launchers",
+              "task": "test::build",
+              "seconds": 205.6,
+              "exit_code": 0
+            },
+            {
+              "lane": "launchers",
+              "task": "launchers::local::test",
+              "seconds": 403.64,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "f621d41beffb985cdfe3b62d3d05fb386c4d11ab1054b3b81da35398af847909"
+        }
+      ]
+    },
+    {
+      "version": 1,
+      "run_id": 36197767974,
+      "revision": "22aa6f0b1ca1d9fdb102b1e05b6e92a292e39e97",
+      "url": "https://github.com/rupurt/rey/actions/runs/36197767974",
+      "run_attempt": 1,
+      "cache_profile": "warm",
+      "budget": {
+        "feedback_seconds": 900,
+        "aggregate_runner_seconds": 3600,
+        "restored_cache_bytes": 12884901888
+      },
+      "conclusion": "success",
+      "status": "measured",
+      "feedback_seconds": 875.0,
+      "aggregate_runner_seconds": 3488.0,
+      "restored_cache_bytes": 11475097164,
+      "lanes": [
+        {
+          "name": "core",
+          "conclusion": "success",
+          "seconds": 643.0,
+          "phases": {
+            "setup": 29.0,
+            "cache_restore": 46.0,
+            "checks_including_builds": 563.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 2265853357,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "growth",
+          "conclusion": "success",
+          "seconds": 855.0,
+          "phases": {
+            "setup": 37.0,
+            "cache_restore": 101.0,
+            "checks_including_builds": 712.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 2265853357,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "launchers",
+          "conclusion": "success",
+          "seconds": 701.0,
+          "phases": {
+            "setup": 43.0,
+            "cache_restore": 40.0,
+            "checks_including_builds": 613.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 1713625266,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "bindings",
+          "conclusion": "success",
+          "seconds": 517.0,
+          "phases": {
+            "setup": 50.0,
+            "cache_restore": 144.0,
+            "checks_including_builds": 318.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 3516139918,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "experience",
+          "conclusion": "success",
+          "seconds": 760.0,
+          "phases": {
+            "setup": 66.0,
+            "cache_restore": 36.0,
+            "checks_including_builds": 654.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 1713625266,
+            "mode": "warm"
+          }
+        }
+      ],
+      "budget_met": true,
+      "cost_artifact_sha256": "089ae5b58a0522fc27e4313647ae3c10a80fd755805ae6d3cc4039a72d95e797",
+      "counts_toward_qualification": true,
+      "task_evidence": [
+        {
+          "tier": "bindings",
+          "seconds": 317.86,
+          "tasks": [
+            {
+              "lane": "bindings",
+              "task": "bindings::check",
+              "seconds": 90.97,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "bindings::test",
+              "seconds": 217.59,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "test::model",
+              "seconds": 8.42,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "test::model-delivery",
+              "seconds": 0.87,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "e760485d77494b1e61dc120d7f86bb57c8fbb8aa82e51e7630a2a87624651d97"
+        },
+        {
+          "tier": "core",
+          "seconds": 556.21,
+          "tasks": [
+            {
+              "lane": "core",
+              "task": "check-core",
+              "seconds": 193.88,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::properties",
+              "seconds": 15.26,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::codecs",
+              "seconds": 9.99,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::dev-environment",
+              "seconds": 0.08,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::kubectl-transit",
+              "seconds": 4.01,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::deployments",
+              "seconds": 1.36,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::telemetry",
+              "seconds": 2.14,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::packages-build",
+              "seconds": 63.7,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::compute",
+              "seconds": 0.38,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::client-abi",
+              "seconds": 68.28,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::station",
+              "seconds": 71.65,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::storage",
+              "seconds": 62.4,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::service",
+              "seconds": 34.42,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::runtime-upgrade",
+              "seconds": 5.86,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::callers",
+              "seconds": 14.98,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::inspection",
+              "seconds": 2.46,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::state",
+              "seconds": 5.36,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "63e7e57341d4a2974be31f0ba5f2bd936c9199ccee1e591f08d42fb3bdb5bb76"
+        },
+        {
+          "tier": "browser",
+          "seconds": 28.52,
+          "tasks": [
+            {
+              "lane": "browser",
+              "task": "transit-board::browser",
+              "seconds": 28.51,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "ff73923a9e98483f7f5575c73afdfdb55f1b796e844eb34ac5f1dfc3b8c7c2ef"
+        },
+        {
+          "tier": "experience",
+          "seconds": 624.6,
+          "tasks": [
+            {
+              "lane": "experience",
+              "task": "transit-board::check",
+              "seconds": 115.86,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "bindings::node-check",
+              "seconds": 2.57,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "test::observability",
+              "seconds": 59.73,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "transit-board::test",
+              "seconds": 17.97,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "launchers::local::test-station",
+              "seconds": 428.48,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "52f6629aaef3bb2bf39d9668c0e07e9b19ac32be43faf056f4d9b9c48adc596e"
+        },
+        {
+          "tier": "growth",
+          "seconds": 708.79,
+          "tasks": [
+            {
+              "lane": "growth",
+              "task": "test::arrow",
+              "seconds": 81.77,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::pages",
+              "seconds": 11.1,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::growing",
+              "seconds": 132.96,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::growing-service",
+              "seconds": 482.95,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "84cd295eeaba6aa859896cdb5a38ac6ae369294e9c74c6ffca344737b8461484"
+        },
+        {
+          "tier": "launchers",
+          "seconds": 612.92,
+          "tasks": [
+            {
+              "lane": "launchers",
+              "task": "test::build",
+              "seconds": 213.04,
+              "exit_code": 0
+            },
+            {
+              "lane": "launchers",
+              "task": "launchers::local::test",
+              "seconds": 399.87,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "aea37951e28b8b42c75556ff24d1875020566bd5f7b40181acee303eadea428e"
+        }
+      ]
+    },
+    {
+      "version": 1,
+      "run_id": 36199109839,
+      "revision": "22aa6f0b1ca1d9fdb102b1e05b6e92a292e39e97",
+      "url": "https://github.com/rupurt/rey/actions/runs/36199109839",
+      "run_attempt": 1,
+      "cache_profile": "warm",
+      "budget": {
+        "feedback_seconds": 900,
+        "aggregate_runner_seconds": 3600,
+        "restored_cache_bytes": 12884901888
+      },
+      "conclusion": "success",
+      "status": "measured",
+      "feedback_seconds": 811.0,
+      "aggregate_runner_seconds": 3113.0,
+      "restored_cache_bytes": 11475097164,
+      "lanes": [
+        {
+          "name": "core",
+          "conclusion": "success",
+          "seconds": 667.0,
+          "phases": {
+            "setup": 33.0,
+            "cache_restore": 59.0,
+            "checks_including_builds": 570.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 2265853357,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "growth",
+          "conclusion": "success",
+          "seconds": 648.0,
+          "phases": {
+            "setup": 32.0,
+            "cache_restore": 48.0,
+            "checks_including_builds": 565.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 2265853357,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "launchers",
+          "conclusion": "success",
+          "seconds": 485.0,
+          "phases": {
+            "setup": 39.0,
+            "cache_restore": 61.0,
+            "checks_including_builds": 381.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 1713625266,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "experience",
+          "conclusion": "success",
+          "seconds": 793.0,
+          "phases": {
+            "setup": 66.0,
+            "cache_restore": 33.0,
+            "checks_including_builds": 691.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 1713625266,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "bindings",
+          "conclusion": "success",
+          "seconds": 510.0,
+          "phases": {
+            "setup": 43.0,
+            "cache_restore": 72.0,
+            "checks_including_builds": 392.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 3516139918,
+            "mode": "warm"
+          }
+        }
+      ],
+      "budget_met": true,
+      "cost_artifact_sha256": "50b5b99cc97038000882cc381c3bacf943eb836cb52198546cb46385c7d02852",
+      "counts_toward_qualification": true,
+      "task_evidence": [
+        {
+          "tier": "bindings",
+          "seconds": 391.05,
+          "tasks": [
+            {
+              "lane": "bindings",
+              "task": "bindings::check",
+              "seconds": 114.63,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "bindings::test",
+              "seconds": 265.29,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "test::model",
+              "seconds": 10.12,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "test::model-delivery",
+              "seconds": 1.0,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "15e8ddfcaede9929699bfcefa9695b20255ade33ef0e68cd6c4170973abd856e"
+        },
+        {
+          "tier": "core",
+          "seconds": 563.07,
+          "tasks": [
+            {
+              "lane": "core",
+              "task": "check-core",
+              "seconds": 191.22,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::properties",
+              "seconds": 15.12,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::codecs",
+              "seconds": 9.69,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::dev-environment",
+              "seconds": 0.08,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::kubectl-transit",
+              "seconds": 3.98,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::deployments",
+              "seconds": 1.36,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::telemetry",
+              "seconds": 2.12,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::packages-build",
+              "seconds": 63.24,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::compute",
+              "seconds": 0.36,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::client-abi",
+              "seconds": 76.58,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::station",
+              "seconds": 73.4,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::storage",
+              "seconds": 61.65,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::service",
+              "seconds": 34.64,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::runtime-upgrade",
+              "seconds": 5.88,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::callers",
+              "seconds": 15.85,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::inspection",
+              "seconds": 2.49,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::state",
+              "seconds": 5.41,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "f0f15dd4e3dde405db13adb0683bcd679e1c9e1304d49133c893b7e1e729114f"
+        },
+        {
+          "tier": "browser",
+          "seconds": 28.99,
+          "tasks": [
+            {
+              "lane": "browser",
+              "task": "transit-board::browser",
+              "seconds": 28.99,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "680d101dc1112656b03722e12937419dc1d576a4de1331b9adfcd51e88fc733a"
+        },
+        {
+          "tier": "experience",
+          "seconds": 661.2,
+          "tasks": [
+            {
+              "lane": "experience",
+              "task": "transit-board::check",
+              "seconds": 125.24,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "bindings::node-check",
+              "seconds": 2.68,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "test::observability",
+              "seconds": 70.55,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "transit-board::test",
+              "seconds": 13.22,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "launchers::local::test-station",
+              "seconds": 449.5,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "1723c0450ba1b07fe7be24d14414a84d3b42b669f8ddea2235ab204ed52947e5"
+        },
+        {
+          "tier": "growth",
+          "seconds": 557.67,
+          "tasks": [
+            {
+              "lane": "growth",
+              "task": "test::arrow",
+              "seconds": 121.91,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::pages",
+              "seconds": 7.68,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::growing",
+              "seconds": 106.1,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::growing-service",
+              "seconds": 321.97,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "9ba597fad53deaac4e4a9b1898e9802bc4a29989236943a781c0ee7961bbd0d2"
+        },
+        {
+          "tier": "launchers",
+          "seconds": 380.73,
+          "tasks": [
+            {
+              "lane": "launchers",
+              "task": "test::build",
+              "seconds": 120.13,
+              "exit_code": 0
+            },
+            {
+              "lane": "launchers",
+              "task": "launchers::local::test",
+              "seconds": 260.6,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "6036a225656a8b1d8dcf7d958006f88daf04af5ecc5243cff4617a2a69c21a5e"
+        }
+      ]
+    },
+    {
+      "version": 1,
+      "run_id": 36200208768,
+      "revision": "082ea767f27889f4f07d9f80bd90d5e2c2ee98fc",
+      "url": "https://github.com/rupurt/rey/actions/runs/36200208768",
+      "run_attempt": 1,
+      "cache_profile": "cold",
+      "budget": {
+        "feedback_seconds": 2100,
+        "aggregate_runner_seconds": 8100,
+        "restored_cache_bytes": 0
+      },
+      "conclusion": "success",
+      "status": "measured",
+      "feedback_seconds": 1869.0,
+      "aggregate_runner_seconds": 6711.0,
+      "restored_cache_bytes": 0,
+      "lanes": [
+        {
+          "name": "experience",
+          "conclusion": "success",
+          "seconds": 1488.0,
+          "phases": {
+            "setup": 781.0,
+            "checks_including_builds": 703.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "core",
+          "conclusion": "success",
+          "seconds": 1198.0,
+          "phases": {
+            "setup": 861.0,
+            "checks_including_builds": 333.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "bindings",
+          "conclusion": "success",
+          "seconds": 820.0,
+          "phases": {
+            "setup": 584.0,
+            "checks_including_builds": 232.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "launchers",
+          "conclusion": "success",
+          "seconds": 1345.0,
+          "phases": {
+            "setup": 733.0,
+            "checks_including_builds": 605.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "growth",
+          "conclusion": "success",
+          "seconds": 1848.0,
+          "phases": {
+            "setup": 1295.0,
+            "checks_including_builds": 548.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        }
+      ],
+      "budget_met": true,
+      "cost_artifact_sha256": "ffb087859a1fda83c0663ba793d2479ed54e35226e66cfed173a85ba8e697317",
+      "counts_toward_qualification": true,
+      "task_evidence": [
+        {
+          "tier": "bindings",
+          "seconds": 231.07,
+          "tasks": [
+            {
+              "lane": "bindings",
+              "task": "bindings::check",
+              "seconds": 68.95,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "bindings::test",
+              "seconds": 155.18,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "test::model",
+              "seconds": 6.21,
+              "exit_code": 0
+            },
+            {
+              "lane": "bindings",
+              "task": "test::model-delivery",
+              "seconds": 0.71,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "ac29a6c6b657219c141a37ef1e05fd3ac5254b97f16eaf8c41dcaaa3482c1cd8"
+        },
+        {
+          "tier": "core",
+          "seconds": 328.67,
+          "tasks": [
+            {
+              "lane": "core",
+              "task": "check-core",
+              "seconds": 105.81,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::properties",
+              "seconds": 7.09,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::codecs",
+              "seconds": 5.25,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::dev-environment",
+              "seconds": 0.05,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::kubectl-transit",
+              "seconds": 2.7,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::deployments",
+              "seconds": 0.79,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::telemetry",
+              "seconds": 1.51,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::packages-build",
+              "seconds": 31.46,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::compute",
+              "seconds": 0.22,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::client-abi",
+              "seconds": 41.49,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::station",
+              "seconds": 50.7,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::storage",
+              "seconds": 33.02,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::service",
+              "seconds": 28.98,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::runtime-upgrade",
+              "seconds": 3.61,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::callers",
+              "seconds": 11.66,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::inspection",
+              "seconds": 1.38,
+              "exit_code": 0
+            },
+            {
+              "lane": "core",
+              "task": "test::state",
+              "seconds": 2.96,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "142a76bbc4a0ef9e0e548c16674cc8069f7ac97e13bff2a1c4e3bc04d265335b"
+        },
+        {
+          "tier": "browser",
+          "seconds": 29.7,
+          "tasks": [
+            {
+              "lane": "browser",
+              "task": "transit-board::browser",
+              "seconds": 29.7,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "6643cb0db1300c50c98f189ef9eafa88fcb7cdcdba333ef097eb7b67181c942e"
+        },
+        {
+          "tier": "experience",
+          "seconds": 672.61,
+          "tasks": [
+            {
+              "lane": "experience",
+              "task": "transit-board::check",
+              "seconds": 125.95,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "bindings::node-check",
+              "seconds": 2.68,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "test::observability",
+              "seconds": 65.21,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "transit-board::test",
+              "seconds": 19.19,
+              "exit_code": 0
+            },
+            {
+              "lane": "experience",
+              "task": "launchers::local::test-station",
+              "seconds": 459.57,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "fbf97bad0d1f66f401f0c29a771a1249c3781664e59e451a11a81a54038d9b79"
+        },
+        {
+          "tier": "growth",
+          "seconds": 541.04,
+          "tasks": [
+            {
+              "lane": "growth",
+              "task": "test::arrow",
+              "seconds": 112.12,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::pages",
+              "seconds": 7.45,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::growing",
+              "seconds": 105.1,
+              "exit_code": 0
+            },
+            {
+              "lane": "growth",
+              "task": "test::growing-service",
+              "seconds": 316.36,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "60a32c79a64626e3eefd59566562b99fb32fc8a65aafed5e580708d9d031b65a"
+        },
+        {
+          "tier": "launchers",
+          "seconds": 604.69,
+          "tasks": [
+            {
+              "lane": "launchers",
+              "task": "test::build",
+              "seconds": 203.7,
+              "exit_code": 0
+            },
+            {
+              "lane": "launchers",
+              "task": "launchers::local::test",
+              "seconds": 400.99,
+              "exit_code": 0
+            }
+          ],
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+          "logical_cpus": 2,
+          "metadata_sha256": "6d393a32fce3a038b4413665a8c14956fd74eddb2860bdfc4228e11aafdb3443"
+        }
+      ]
+    },
+    {
+      "version": 1,
+      "run_id": 36197683518,
+      "revision": "72552a3d2af69c52fc34b4290e0d51608131fafa",
+      "url": "https://github.com/rupurt/rey/actions/runs/36197683518",
+      "run_attempt": 1,
+      "cache_profile": "warm",
+      "budget": {
+        "feedback_seconds": 900,
+        "aggregate_runner_seconds": 3600,
+        "restored_cache_bytes": 12884901888
+      },
+      "conclusion": "success",
+      "status": "measured",
+      "feedback_seconds": 889.0,
+      "aggregate_runner_seconds": 3725.0,
+      "restored_cache_bytes": 11475097164,
+      "lanes": [
+        {
+          "name": "launchers",
+          "conclusion": "success",
+          "seconds": 741.0,
+          "phases": {
+            "setup": 187.0,
+            "cache_restore": 63.0,
+            "checks_including_builds": 487.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 1713625266,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "experience",
+          "conclusion": "success",
+          "seconds": 871.0,
+          "phases": {
+            "setup": 160.0,
+            "cache_restore": 39.0,
+            "checks_including_builds": 667.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 1713625266,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "core",
+          "conclusion": "success",
+          "seconds": 760.0,
+          "phases": {
+            "setup": 137.0,
+            "cache_restore": 53.0,
+            "checks_including_builds": 565.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 2265853357,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "bindings",
+          "conclusion": "success",
+          "seconds": 586.0,
+          "phases": {
+            "setup": 95.0,
+            "cache_restore": 90.0,
+            "checks_including_builds": 397.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 3516139918,
+            "mode": "warm"
+          }
+        },
+        {
+          "name": "growth",
+          "conclusion": "success",
+          "seconds": 757.0,
+          "phases": {
+            "setup": 145.0,
+            "cache_restore": 94.0,
+            "checks_including_builds": 514.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 2265853357,
+            "mode": "warm"
+          }
+        }
+      ],
+      "budget_met": false,
+      "cost_artifact_sha256": "0ee9e1158f4125e1f892981ef3653a69b15ee47ca7715dbbaf6b49b32307b1ee",
+      "counts_toward_qualification": false,
+      "exclusion_reason": "Tests passed, but unnecessary SDK cleanup on warm cache hits exceeded aggregate cost; cleanup is now limited to misses."
+    },
+    {
+      "version": 1,
+      "run_id": 36196325993,
+      "revision": "d5e56e987c9ecd0e2074ef9834a3a439a5dd32d2",
+      "url": "https://github.com/rupurt/rey/actions/runs/36196325993",
+      "run_attempt": 1,
+      "cache_profile": "cold",
+      "budget": null,
+      "conclusion": "failure",
+      "status": "inconclusive",
+      "feedback_seconds": 1769.0,
+      "aggregate_runner_seconds": 5739.0,
+      "restored_cache_bytes": 0,
+      "lanes": [
+        {
+          "name": "launchers",
+          "conclusion": "failure",
+          "seconds": 1171.0,
+          "phases": {
+            "setup": 625.0,
+            "checks_including_builds": 539.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "growth",
+          "conclusion": "success",
+          "seconds": 1195.0,
+          "phases": {
+            "setup": 862.0,
+            "checks_including_builds": 329.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "core",
+          "conclusion": "success",
+          "seconds": 1725.0,
+          "phases": {
+            "setup": 1186.0,
+            "checks_including_builds": 535.0,
+            "cleanup": 1.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "bindings",
+          "conclusion": "failure",
+          "seconds": 558.0,
+          "phases": {
+            "setup": 555.0,
+            "cleanup": 0.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "experience",
+          "conclusion": "success",
+          "seconds": 1078.0,
+          "phases": {
+            "setup": 593.0,
+            "checks_including_builds": 481.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        }
+      ],
+      "budget_met": false,
+      "cost_artifact_sha256": "6860552d5f072473771a0e9157c7c2d4406d8d5b4cfde2d03b12ab773bc6ff83",
+      "counts_toward_qualification": false,
+      "exclusion_reason": "Cold bindings setup exhausted disk and the launcher exposed the confirmed-exit restart race; incomplete qualification."
+    },
+    {
+      "version": 1,
+      "run_id": 36197837630,
+      "revision": "72552a3d2af69c52fc34b4290e0d51608131fafa",
+      "url": "https://github.com/rupurt/rey/actions/runs/36197837630",
+      "run_attempt": 1,
+      "cache_profile": "cold",
+      "budget": null,
+      "conclusion": "cancelled",
+      "status": "inconclusive",
+      "feedback_seconds": 1831.0,
+      "aggregate_runner_seconds": 7243.0,
+      "restored_cache_bytes": 0,
+      "lanes": [
+        {
+          "name": "bindings",
+          "conclusion": "success",
+          "seconds": 1196.0,
+          "phases": {
+            "setup": 785.0,
+            "checks_including_builds": 405.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "experience",
+          "conclusion": "success",
+          "seconds": 1347.0,
+          "phases": {
+            "setup": 723.0,
+            "checks_including_builds": 620.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "growth",
+          "conclusion": "success",
+          "seconds": 1626.0,
+          "phases": {
+            "setup": 1129.0,
+            "checks_including_builds": 492.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "launchers",
+          "conclusion": "success",
+          "seconds": 1251.0,
+          "phases": {
+            "setup": 693.0,
+            "checks_including_builds": 553.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        },
+        {
+          "name": "core",
+          "conclusion": "cancelled",
+          "seconds": 1809.0,
+          "phases": {
+            "setup": 1311.0,
+            "checks_including_builds": 493.0,
+            "cleanup": 2.0
+          },
+          "cache": {
+            "restored_bytes": 0,
+            "mode": "cold"
+          }
+        }
+      ],
+      "budget_met": false,
+      "cost_artifact_sha256": "6afc81dea22dd43c8949d63ec46780771194efbea0414bc2681d2ddb960e41e3",
+      "counts_toward_qualification": false,
+      "exclusion_reason": "Four cold lanes passed, but core reached the old 30-minute job deadline; cancelled qualification does not count."
+    }
+  ]
+}

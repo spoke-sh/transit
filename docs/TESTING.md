@@ -1,10 +1,10 @@
 # Testing and verification strategy
 
-Status: [M10](roadmap/M10.md) in progress. Conservative workflow selection,
-separate unit/build checks and retained clean-run timings are implemented;
-an authority/retry transition harness and reviewed bound inventory are implemented.
-A finite TLA+ model and concrete negative-control replay are implemented;
-broader generated scenarios and scale qualification remain in progress. The
+Status: [M10](roadmap/M10.md) is qualified within its recorded profile and workload
+limits. Conservative workflow selection, separate unit/build checks, clean-run
+timings, generated transitions, reviewed bounds, finite TLA+ models and concrete
+negative controls are implemented. Repeated disk/S3 growth and hosted CI budgets
+have measured evidence. The
 [test guide](../tests/README.md) records what actually runs and what has passed.
 [Conformance](CONFORMANCE.md) owns required adversarial guarantees; this document
 owns how we obtain and maintain their evidence without making every edit run
@@ -185,7 +185,12 @@ SLOs; [ci-budgets.json](../tests/verification/ci-budgets.json) records their
 measurement rules. Require three complete warm samples for ordinary feedback
 and one explicit cache-miss baseline for exceptional rebuild cost. The latter
 is a calibration, not a cold-run variance claim. Failed, cancelled or incomplete
-runs do not count.
+runs do not count. The calibrated cold budget is **under 35 minutes** and
+**135 aggregate runner minutes**, with GitHub dependency restores disabled.
+Its complete baseline took 31m09s and 111m51s. Restored-byte measurements cover
+GitHub cache archives, not upstream Nix substitute traffic. The
+[measurement record](../tests/verification/results/m10-ci-2026-09-25.json)
+preserves all qualifying samples and the excluded failures/regression.
 
 `just ci::cost RUN_ID` reads GitHub's completed job/step timestamps and cache
 byte counts into a small JSON artifact. It requires authenticated `gh` with read

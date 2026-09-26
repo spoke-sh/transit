@@ -30,7 +30,7 @@ their unsupported status is part of the SDK handoff.
 
 `python3 -B tests/verification/check.py` validates owners, links, classifications
 and drift; `just check` includes it. Missing tasks and unreviewed limit changes
-are negative controls. The growing profile's partial qualification is recorded
+are negative controls. The growing profile's bounded qualification is recorded
 in the [test guide](../README.md#m10-verification-and-scale-foundations);
 inventory coverage does not imply all M10 gates have passed.
 
@@ -68,6 +68,21 @@ took 14m49s and 62m05s of aggregate runner time, exceeding the cost budget.
 That revision unnecessarily removed unused SDKs even on warm cache hits; cleanup
 is now limited to cache misses. The over-budget result remains evidence of that
 regression and does not count toward the three qualifying warm samples.
+
+The complete cold run
+[36200208768](https://github.com/rupurt/rey/actions/runs/36200208768) at `082ea76`
+passed all 33 tasks in 31m09s, with 111m51s aggregate runner time and no GitHub
+dependency-cache restore. It fits the separate 35-minute / 135-runner-minute
+budget. This is one cache-miss baseline, not a cold-variance guarantee; upstream
+Nix substitutes remain available and their transfer is outside the archive-byte
+measurement. The [retained report](results/m10-ci-2026-09-25.json) includes all
+four qualifying runs, task timings, revisions, artifact hashes and excluded runs.
+
+Cold run `36196325993` failed during bindings setup with exhausted disk and in
+the launcher restart race. Run `36197837630` passed four lanes but hit core's
+old 30-minute deadline. Both remain inconclusive and do not qualify a budget.
+The final run includes cache-miss-only SDK cleanup, the 45-minute cold job
+deadline and the confirmed-exit launcher fix. No larger runner was provisioned.
 
 The final implementation clean run at `082ea76` passed all 33 tasks in 1,018.18s
 (sequential local task time), including the Process Compose restart regression,

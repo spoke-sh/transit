@@ -17,7 +17,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M7](M7.md) | Durable state resources and process associations | Bounded KV profile, generic Board inspection and three-launcher recovery/upgrades implemented and verified |
 | [M8](M8.md) | Transit runtime readiness | Bounded origins, automatic delivery, catalog reclamation and lifecycle controls implemented and verified |
 | [M9](M9.md) | Station behaviors, language bindings, and Arrow Tables | Bounded profile implemented and qualified on Linux x86_64 across all target languages; Zig reference workers |
-| [M10](M10.md) | Verification and scale foundations | In progress; growing-state correctness and repeated scale qualified, CI budget qualification pending |
+| [M10](M10.md) | Verification and scale foundations | Explicit growing profile, verification harness and measured CI budgets qualified; v2 remains the default |
 | [M11](M11.md) | Idiomatic language SDKs | In progress; public API design and shared growing-profile binding foundation |
 | [M12](M12.md) | Declarative interface readiness | Planned |
 | [M13](M13.md) | Board relief atlas and public query access | Planned |
@@ -34,10 +34,10 @@ not implied by either bounded profile.
 
 Station establishes Table and language-binding contracts with the first bounded
 [Fuze](../FUZE.md) query profile. The [post-M9 review](../reviews/PRE_M10.md)
-leads to [M10](M10.md): implement the [testing strategy](../TESTING.md), improve
-CI feedback/cost and decouple durable collection growth from fixed resident
-catalogs before SDKs stabilize. The current hard limits are qualification
-constraints to replace, not the intended programming model.
+led to [M10](M10.md): the [testing strategy](../TESTING.md), measured CI budgets
+and an explicit growing profile that separates durable collection growth from
+resident caches. Legacy catalog ceilings remain compatibility constraints;
+SDKs must preserve the qualified profile and its capability boundaries.
 [M11](M11.md) then builds language-native public SDKs
 over those bindings, including typed handlers/state, recoverable operations,
 runtime integration and installable artifacts. [M12](M12.md) makes the
