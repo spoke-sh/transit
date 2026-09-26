@@ -131,7 +131,8 @@
             in
             pkgs.mkShell {
               inputsFrom = [ default ];
-              packages = tools.packages ++ [ toolchains.${system}.sql-tools ];
+              packages = tools.packages;
+              TRANSIT_SQL_TOOLS = "${toolchains.${system}.sql-tools}";
               TRANSIT_GSON_JAR = "${tools.gson}";
               DOTNET_CLI_TELEMETRY_OPTOUT = "1";
               DOTNET_SKIP_FIRST_TIME_EXPERIENCE = "1";

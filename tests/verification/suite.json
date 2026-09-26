@@ -51,8 +51,8 @@
       "bindings::sdk-interop",
       "test::model",
       "test::model-delivery",
-      "test::sql-grammar",
-      "test::sql-rewrites"
+      "test::sql-rewrites",
+      "test::sql"
     ],
     "browser": [
       "transit-board::browser"
@@ -96,7 +96,8 @@
       "test::growing-station",
       "test::growing-quota",
       "test::growing-query",
-      "test::growing-load"
+      "test::growing-load",
+      "test::sql-grammar"
     ]
   },
   "nested_tasks": {

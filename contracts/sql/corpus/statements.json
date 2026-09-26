@@ -1356,76 +1356,129 @@
         "type": "binary"
       },
       "compile_error": "InvalidBinaryLiteral"
+    },
+    {
+      "id": "nested-comments",
+      "sql": "/* outer /* inner */ end */ SELECT * FROM items; -- tail",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "string-punctuation",
+      "sql": "SELECT * FROM items WHERE value = '; -- /* */ '' SELECT'",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "minimum-integer",
+      "sql": "SELECT * FROM items WHERE id = -9223372036854775808",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
     }
   ],
   "reject": [
     {
       "id": "excluded-0",
-      "sql": "SELECT"
+      "sql": "SELECT",
+      "postgres": true
     },
     {
       "id": "excluded-1",
-      "sql": "SELECT * FROM"
+      "sql": "SELECT * FROM",
+      "postgres": false
     },
     {
       "id": "excluded-2",
-      "sql": "SELECT * FROM items; SELECT * FROM items"
+      "sql": "SELECT * FROM items; SELECT * FROM items",
+      "postgres": true
     },
     {
       "id": "excluded-3",
-      "sql": "SELECT id, value, id FROM items"
+      "sql": "SELECT id, value, id FROM items",
+      "postgres": true
     },
     {
       "id": "excluded-4",
-      "sql": "SELECT count(value) FROM items"
+      "sql": "SELECT count(value) FROM items",
+      "postgres": true
     },
     {
       "id": "excluded-5",
-      "sql": "SELECT * FROM items WHERE id = 1 AND value = 2"
+      "sql": "SELECT * FROM items WHERE id = 1 AND value = 2",
+      "postgres": true
     },
     {
       "id": "excluded-6",
-      "sql": "SELECT * FROM items ORDER BY id"
+      "sql": "SELECT * FROM items ORDER BY id",
+      "postgres": true
     },
     {
       "id": "excluded-7",
-      "sql": "SELECT * FROM items WHERE 1 = id"
+      "sql": "SELECT * FROM items WHERE 1 = id",
+      "postgres": true
     },
     {
       "id": "excluded-8",
-      "sql": "SELECT * FROM items WHERE value IS NOT NULL"
+      "sql": "SELECT * FROM items WHERE value IS NOT NULL",
+      "postgres": true
     },
     {
       "id": "excluded-9",
-      "sql": "SELECT * FROM items WHERE id IN (1,2)"
+      "sql": "SELECT * FROM items WHERE id IN (1,2)",
+      "postgres": true
     },
     {
       "id": "excluded-10",
-      "sql": "SELECT * FROM items WHERE value = E'a'"
+      "sql": "SELECT * FROM items WHERE value = E'a'",
+      "postgres": true
     },
     {
       "id": "excluded-11",
-      "sql": "SELECT * FROM items LIMIT -1"
+      "sql": "SELECT * FROM items LIMIT -1",
+      "postgres": true
     },
     {
       "id": "excluded-12",
-      "sql": "SELECT * FROM items JOIN other ON id = id"
+      "sql": "SELECT * FROM items JOIN other ON id = id",
+      "postgres": true
     },
     {
       "id": "excluded-13",
-      "sql": "SELECT * FROM items FOR SYSTEM_TIME AS OF 1"
+      "sql": "SELECT * FROM items FOR SYSTEM_TIME AS OF 1",
+      "postgres": false
     },
     {
       "id": "excluded-14",
-      "sql": "SELECT * FROM items WHERE value = 'unclosed"
+      "sql": "SELECT * FROM items WHERE value = 'unclosed",
+      "postgres": false
     },
     {
       "id": "excluded-15",
-      "sql": "CREATE TABLE broken (id);"
+      "sql": "CREATE TABLE broken (id);",
+      "postgres": false
     },
     {
       "id": "excluded-16",
-      "sql": "SELECT *; FROM items"
+      "sql": "SELECT *; FROM items",
+      "postgres": false
     }
   ],
   "extensions": [

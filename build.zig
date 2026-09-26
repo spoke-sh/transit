@@ -19,6 +19,18 @@ pub fn build(b: *std.Build) void {
     arrow_test.has_side_effects = true;
     arrow_test.stdio = .inherit;
     b.step("test-arrow", "Qualify finite IPC with an independent Arrow implementation").dependOn(&arrow_test.step);
+    const sql_driver = b.addExecutable(.{ .name = "transit-sql-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_driver.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    const sql_test = b.addSystemCommand(&.{ "python3", "-B" });
+    sql_test.addFileArg(b.path("tests/sql/compiler.py"));
+    sql_test.addArtifactArg(sql_driver);
+    sql_test.has_side_effects = true;
+    sql_test.stdio = .inherit;
+    b.step("test-sql", "Qualify SQL parser, plans and Arrow execution against independent references").dependOn(&sql_test.step);
     const observations = b.dependency("transit_observability", .{ .target = target, .optimize = optimize });
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });

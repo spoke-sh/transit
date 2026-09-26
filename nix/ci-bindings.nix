@@ -9,7 +9,6 @@ in
 pkgs.mkShellNoCC {
   inputsFrom = [ base ];
   packages = tools.packages ++ [
-    sql-tools
     pkgs.stdenv.cc
     (pkgs.python3.withPackages (ps: [
       ps.pyyaml
@@ -21,6 +20,7 @@ pkgs.mkShellNoCC {
       ps.mypy
     ]))
   ];
+  TRANSIT_SQL_TOOLS = "${sql-tools}";
   TRANSIT_GSON_JAR = "${tools.gson}";
   DOTNET_CLI_TELEMETRY_OPTOUT = "1";
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE = "1";

@@ -3,15 +3,17 @@
 M12's reference grammar covers read-only single-Table `SELECT` and the existing
 administrative extension syntax. `TransitExtensions.g4` is the checked reference;
 generated Python/ANTLR files stay in `.cache/verification/sql`, outside production.
-The Zig compiler and its execution qualification are tracked in
-[M12](../../docs/roadmap/M12.md).
+The implemented [Zig compiler](../../packages/zig/transit-fuze/docs/sql.md)
+lowers this SELECT profile to the existing `Stream.Plan`/`PlanCodec`.
+[M12](../../docs/roadmap/M12.md) tracks its qualification and limits.
 
 ## Reproducible reference checks
 
 From the pinned development shell:
 
 ```sh
-just test::sql-grammar
+just test::sql             # includes grammar + Zig AST/plan + Arrow checks
+just test::sql-grammar     # reference-only focused check
 just test::sql-rewrites
 ```
 

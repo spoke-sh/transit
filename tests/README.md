@@ -1349,3 +1349,40 @@ retains its exact signed proposal. Caller/node/provider replacement preserves
 still receives `AdmissionClosed`; authorized revocations exhaust the reserve,
 after which a new control operation receives `ControlCapacity`. Current rights
 still govern retry disclosure. Reads confirm the same retained data and backlog.
+
+## M12 declarative interface readiness
+
+`just test::sql` regenerates the ANTLR reference parser and runs the pinned
+pglast/libpg_query differential corpus, then invokes the actual Zig public-package
+consumer in [sql_driver.zig](sql_driver.zig). All 103 admitted SELECT statements
+must have identical normalized ASTs across the three parsers. Fourteen are
+unchanged PostgreSQL REL_17_5 regression statements; source provenance, hashes,
+license and exact exclusions live in [the grammar contract](../contracts/sql/README.md).
+Seventeen syntax exclusions and thirteen grammar-only administrative forms must
+be rejected by the production parser. Twelve admitted SELECTs deliberately fail
+schema/type/limit compilation; the other 91 compile to independently checked
+`FZP1` bytes and execute through `Stream.step` over 70 rows in seven-row pages.
+Plan and progress round trips precede continued execution. PyArrow independently
+checks original result segments, column order, nulls and exact values against a
+Python result oracle. Omitted limits must not truncate at 32 rows.
+
+The SQL unit suite (ordinary `just check`, or standalone `zig build test` in
+`packages/zig/transit-fuze`) covers manually constructed plan equivalence,
+AST ownership after text destruction, invalid encodings/names, statement/literal/
+comment bounds, integer extrema, trailing input, and 2,000 seeded arbitrary or
+mutated statements. Actual compiled sum plans retain cross-page overflow,
+source-revision fencing and cancellation; a limited input excludes later
+row overflow. Tests do not claim unbounded fuzz coverage.
+
+`just test::sql-grammar` is the focused reference-only check. Ordinary bindings CI
+owns `test::sql` and `test::sql-rewrites`; generation always reruns, and a cache
+hit cannot substitute old trees. The optional tools come from existing Nix pins.
+No PostgreSQL server or ANTLR/Lean runtime enters Fuze. These local proof commands
+are executable evidence; a hosted timing measurement for the expanded lane is
+still deferred, as it was for M11.
+
+This qualifies parsing → typed plan → bounded paged Arrow execution, not a
+network query service or SQL DDL/writes. Current authorization, durable Station
+publication, recovery and foreign SDK behavior retain their existing owners and
+proofs. The parser does not change those boundaries. The Lean model's separate
+assumptions and evidence are recorded in the grammar contract.

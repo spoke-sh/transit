@@ -688,6 +688,30 @@
       ],
       "limits": "Finite loopback samples with 48 offered operations, bounded producer workers and disk/S3 storage. No production SLO, horizontal capacity, power-loss or object-store-crash guarantee.",
       "model": null
+    },
+    {
+      "id": "SQL-01",
+      "claim": "Complete single-Table SQL lowers to the existing typed plan without silently dropping clauses or truncating unbounded selection",
+      "owner": "contracts/sql/README.md",
+      "implementation": [
+        "packages/zig/transit-fuze/src/Sql.zig",
+        "tests/sql_driver.zig",
+        "tests/sql/reference.py",
+        "tests/sql/compiler.py"
+      ],
+      "profile": "M12 Table SELECT / fuze-stream-v1",
+      "tasks": [
+        "test::unit",
+        "test::sql"
+      ],
+      "scenarios": [
+        "Three-parser normalized AST agreement including pinned PostgreSQL regression excerpts",
+        "Exact plan codec and independent PyArrow results over 70-row sources",
+        "Owned bounded parsing, trailing statements, schema/type/limit exclusions",
+        "Compiled aggregates retain ordered overflow, cancellation and source fencing"
+      ],
+      "limits": "Declared syntax subset only; no PostgreSQL execution-equivalence claim, SQL endpoint, catalog access, writes or optimizer rewrite.",
+      "model": null
     }
   ]
 }

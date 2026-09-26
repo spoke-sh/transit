@@ -344,6 +344,27 @@
       "expression": "Frame.max_payload - 22",
       "classification": "encoding",
       "meaning": "221 raw bytes per stored/result-message fragment after framing; fragments stage across bounded turns."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Sql.zig",
+      "symbol": "max_statement_bytes",
+      "expression": "4096",
+      "classification": "operation",
+      "meaning": "One SQL statement; no bound on source cardinality."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Sql.zig",
+      "symbol": "max_comment_depth",
+      "expression": "16",
+      "classification": "operation",
+      "meaning": "Iterative SQL comment nesting; no recursive parser stack."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Sql.zig",
+      "symbol": "max_literal_bytes",
+      "expression": "2 + 2 * m.max_cell_bytes",
+      "classification": "working-set",
+      "meaning": "Owned literal scratch supports full hex representation of one bounded cell."
     }
   ],
   "identities": [

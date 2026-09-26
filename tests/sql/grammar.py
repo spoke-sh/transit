@@ -19,6 +19,9 @@ def corpus():
 
 
 def check():
+    import pglast
+    from pglast.parser import get_postgresql_version
+    assert pglast.__version__ == 'v7.13' and get_postgresql_version() == (17, 7)
     generate()
     data = corpus()
     for case in data['select']:
@@ -31,9 +34,13 @@ def check():
             pass
         else:
             raise AssertionError(f"invalid/out-of-profile syntax accepted: {case['id']}")
-        if case.get('postgres'):
-            from pglast.parser import parse_sql_json
+        from pglast.parser import parse_sql_json, ParseError
+        try:
             parse_sql_json(case['sql'])
+            accepted = True
+        except ParseError:
+            accepted = False
+        assert accepted == case['postgres'], case['id']
     for sql in data['extensions']:
         tree(sql)
     tree('FOR SYSTEM_TIME AS OF 240', 'asOfFragment')

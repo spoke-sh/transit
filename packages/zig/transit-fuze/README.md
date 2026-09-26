@@ -7,6 +7,11 @@ M9 implements a bounded source/logical/physical plan boundary, typed filter,
 projection, limit, row count and checked integer sum. All four admitted types
 produce finite Arrow IPC. The [v1 contract](../../../contracts/FUZE_V1.md) fixes
 the schema, operator and allocation limits. No optimizer rewrites are enabled.
+M12's `Sql` frontend parses bounded Table `SELECT` statements and compiles them
+to the same `Stream.Plan`/`PlanCodec`. It owns its AST, performs no I/O, and
+requires an explicit source name/schema. See the [SQL guide](docs/sql.md) for
+syntax, aggregate limits, errors and qualification.
+
 Station owns authorized Table adapters and durable result publication; the
 [Fuze design](../../../docs/FUZE.md) describes the broader direction.
 

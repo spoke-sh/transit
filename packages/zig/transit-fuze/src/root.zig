@@ -6,9 +6,11 @@ pub const model = @import("model.zig");
 pub const Plan = @import("Plan.zig");
 pub const execution = @import("execute.zig");
 pub const Stream = @import("Stream.zig");
+pub const Sql = @import("Sql.zig");
 pub const Inspect = @import("Inspect.zig");
 test {
     _ = @import("tests.zig");
+    _ = @import("sql_test.zig");
     _ = @import("stream_test.zig");
     _ = @import("inspect_test.zig");
 }
