@@ -455,7 +455,9 @@ def http_consumer(mode, cfg):
     print(json.dumps({'closed': True, 'owned': owned.hex()}), flush=True)
 
 
-def run(node, cli, raw_library, wheels, http_worker, *, execute=None):
+def run(node, cli, raw_library, wheels, http_worker=None, *, execute=None):
+    if execute is None and http_worker is None:
+        raise ValueError("The full Station SDK schedule requires the HTTP worker binary")
     from sdk_station_runner import Consumer, run as schedule
     def install(target):
         env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'PYTHONHOME', 'TRANSIT_LIBRARY_DIR')}

@@ -9,7 +9,9 @@ from sdk_station_runner import Consumer, run as schedule
 from sdk_http_runner import run as http_schedule
 
 
-def run(node, cli, library, artifacts, http_worker, *, execute=None):
+def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
+    if execute is None and http_worker is None:
+        raise ValueError("The full Station SDK schedule requires the HTTP worker binary")
     root = Path(__file__).resolve().parents[1]
     def install(target):
         environment = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
