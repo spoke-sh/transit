@@ -74,8 +74,7 @@ point reads after mutation, six original IPC segments after disposal, current
 access revocation during a result read and process expiry. The optional PyArrow
 23 adapter uses the pinned Nix consumer after the independent clean core install.
 The shared `public-runner-lifecycle` scenario records comparable observations for
-later languages. Qualification is Linux x86_64 with Nix-linked native wheels;
-other language public APIs and the final M11 interoperability matrix remain open.
+all targets. Qualification is Linux x86_64 with Nix-linked native wheels.
 
 `just bindings::node-sdk-test` builds the independent Node client/native tarballs,
 checks the strict public API and installs them outside the checkout using ordinary
@@ -99,7 +98,7 @@ proof and preserves int64/null values after disposal and mutation of input copie
 The consumer selects the root manifest's pnpm version through `vp env exec` and
 uses normal package-cache fallback; a different filesystem may have its own cache.
 Strict checks compile both public examples. Linux x86_64/Nix-linked tarballs are
-qualified; public cross-language pairs and the other M11 SDKs remain open.
+qualified.
 
 `nix develop .#bindings --command just bindings::rust-sdk-test` builds the
 independent raw Rust client and matching native crate. The external consumer
@@ -126,8 +125,7 @@ six owned IPC streams preserve i64 extremes/nulls and complete source metadata.
 The optional Arrow Rust 59 adapter decodes after runner disposal and its batches
 survive mutating the SDK bytes; independent PyArrow verifies the same streams.
 Rust does not inject an allocator failure into its own FFI wrapper; native retained
-confirmation behavior is also covered by the shared ABI/Python proof. Public
-mixed-language pairs and the remaining M11 adaptations are still open.
+confirmation behavior is also covered by the shared ABI/Python proof.
 
 `nix develop .#bindings --command just bindings::ruby-sdk-test` builds and installs
 separate Ruby 3.4.9 client/native gems outside the checkout. Its raw schedule
@@ -153,8 +151,9 @@ meaning. Retained Tables span six pages, and original IPC buffers survive runner
 close and mutation of returned copies. Independent PyArrow decodes all six
 segments, including i64 extremes and nulls. Ruby has no selected native Arrow
 adapter; the optional-adapter step is explicitly disabled for it, while the full
-IPC/metadata/independent-consumer proof runs. Public mixed-language pairs and the
-remaining target SDKs are still open.
+IPC/metadata/independent-consumer proof runs. Codec reentry is rejected, and a
+caught state decoder failure aborts without committing or blocking the head even
+under `block_input`.
 
 `just bindings::c-sdk-test` builds versioned C SDK/native archives and C++ headers,
 installs them into external prefixes and compiles separate C11 and C++17 callers
@@ -184,8 +183,7 @@ independent PyArrow decoding; no optional C/C++ Arrow adapter is selected. Insta
 counter roles run as their actual C11/C++17 binaries. Compile failures reject copied
 C++ runners and a boolean passed to a typed u64 state key. Native-version overrides
 reject before codec/frame use. Allocation enumeration remains the shared native
-proof; this C/C++ consumer does not inject a host allocator failure. Public mixed
-language pairs and the remaining managed SDK targets are still open.
+proof; this C/C++ consumer does not inject a host allocator failure.
 
 `nix develop .#bindings -c just bindings::java-sdk-test` builds independent Java
 client/native JARs with POM dependency manifests and installs only those JARs plus
@@ -265,8 +263,62 @@ read failures, caller kill/stop/join, exact seedless disk recovery, stale/revoke
 expired authority, retained Tables and six owned IPC segments after close.
 Original segments are independently decoded with PyArrow; no BEAM Arrow adapter
 is selected. Sources are removed after consumer compilation. The builder derives
-application metadata from each `.app.src` or Mix manifest. Public cross-language
-pairs remain separate qualification.
+application metadata from each `.app.src` or Mix manifest.
+
+### Public SDK interoperability
+
+`nix develop .#bindings -c just bindings::sdk-interop` builds all public artifacts,
+installs clean external consumers and runs ten counter/query pairs. Every target
+is both service and requester in this ring:
+
+`Python → Node/TypeScript → Rust → Ruby → C → C++ → Java → .NET → Erlang → Elixir → Python`.
+
+Each counter path uses the installed documented CLI and a direct authority base
+URL with a trailing slash. Fault proxies also preserve the original HTTP request
+target, so they cannot mask an incorrectly joined route. The requester exits after
+recording its call, reacquires ownership and resumes through a recorded reply of
+`18446744073709551615`. Table/query paths use the same public proof adapters around
+installed example handlers, restart the requester, and expose original complete
+IPC after closing both runners. Independent PyArrow checks three rows containing
+null, `i64::MIN`, `i64::MAX` and `9007199254740993`, plus source/destination,
+resource and byte-count metadata. The ring does not select optional host Arrow
+adapters; those remain in the separate six-segment per-SDK schedules. It covers
+ten edges, not all 100 ordered pairs, and does not repeat each fault for each pair.
+`public-language-ring` in the [SDK catalog](verification/sdk.json) owns the exact
+observations. M9's separate low-level matrix remains executable and passed again.
+
+All artifacts below are version 0.2.0 on Linux x86_64 with their pinned Nix native
+closure; the [runtime table](../bindings/README.md#qualification-tools) owns exact
+compiler/runtime versions.
+
+| Public target | Installed artifact | Optional host Arrow adapter |
+| --- | --- | --- |
+| Python | Separate client/Station/native wheels and examples wheel | PyArrow 23 |
+| Node.js/TypeScript | Separate public/native npm tarballs and examples package | Arrow JavaScript 21.2 |
+| Rust | Versioned crates with separate embedded-native crates and examples | Arrow Rust 59 |
+| Ruby | Separate client/Station/native gems and examples gem | None |
+| C/C++ | Independent pkg-config prefixes, headers/libraries and C11/C++17 binaries | None |
+| Java | Independent client/Station/native/example JARs and POM manifests | None |
+| .NET | Independent client/Station/native/example NuGet packages | None |
+| Erlang/Elixir | Separate compiled OTP core/wrapper/native/example applications | None |
+
+Public registry publication, Java Maven resolution, BEAM Hex/Rebar/Mix registry
+resolution, portable native distributions and foreign Substrate workers are
+not qualified. Package guides document current low-level escape hatches and
+migration. These tests do not qualify arbitrary callback honesty or I/O isolation.
+
+The [2026-09-26 local record](verification/results/m11-sdk-2026-09-26.json) measured
+**3m58.7s** for clean consumer installation and the complete ring,
+including 56.8s of installation/consumer compilation.
+The authority ran on one CPU; provisioning used the same five-second deadline
+as the authority and SDK defaults. The record includes per-pair timing, machine scope,
+SDK source revision and proof-source hashes. It excludes artifact builds, other
+SDK failure suites, setup and cache transfer, so it is not a full CI measurement.
+The `bindings` lane now owns the per-SDK tasks and this public ring. M10's hosted
+budgets remain unchanged; their old passing samples do not qualify M11's larger
+inventory. New hosted cost measurement and runner optimization remain deferred.
+
+### Local and clean verification
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

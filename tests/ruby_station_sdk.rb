@@ -214,7 +214,7 @@ config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), pr
   activation: S::Activation.new(process: ProcessRef.new(realm: cfg.fetch('realm'), pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
     credential: Credential.new(realm: cfg.fetch('realm'), principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))
 store = Store.new(mode, cfg.fetch('pending'))
-options = { handler: handler, codec: codec, failure: mode.end_with?('-block') ? :block_input : :stop, recovery: store }
+options = { handler: handler, codec: codec, failure: mode.end_with?('-block') || mode == 'codec-poison' ? :block_input : :stop, recovery: store }
 if mode == 'denied'
   expect(AccessDenied) { S::Runner.open(config, **options) }
   exit

@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 from sdk_station_runner import Consumer, run as schedule
 
 
-def run(node, cli, library, artifacts):
+def run(node, cli, library, artifacts, *, execute=None):
     root = Path(__file__).resolve().parents[1]
     def install(target):
         source = target / 'source'
@@ -66,7 +66,7 @@ def run(node, cli, library, artifacts):
         return Consumer(environment, command,
             lambda config, role: ['dotnet', 'exec', '--depsfile', str(output / 'Consumer.deps.json'), '--runtimeconfig', str(output / 'Consumer.runtimeconfig.json'),
                                   str(output / 'Transit.Sdk.Examples.dll'), str(config), role, '--commits', '1'], 'async-handler', arrow_adapter=False)
-    schedule(node, cli, library, install, '.NET')
+    (execute or schedule)(node, cli, library, install, '.NET')
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

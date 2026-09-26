@@ -48,6 +48,7 @@
       "bindings::java-sdk-test",
       "bindings::dotnet-sdk-test",
       "bindings::beam-sdk-test",
+      "bindings::sdk-interop",
       "test::model",
       "test::model-delivery"
     ],

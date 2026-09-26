@@ -152,3 +152,8 @@ beam-sdk-test: beam-build
     zig build transit-node rey-cli
     python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam
     python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam
+
+# Every public language serves and requests a foreign peer through installed APIs.
+sdk-interop: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
+    zig build transit-node rey-cli
+    python3 -B tests/sdk_public_interop.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings .cache/verification/m11-public-interop.json

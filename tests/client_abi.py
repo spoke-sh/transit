@@ -43,10 +43,10 @@ class Native:
         finally:
             self.lib.transit_buffer_destroy(buffer)
 
-    def client(self, url):
+    def client(self, url, timeout_ms=1000):
         result = c.c_void_p()
         data = url.encode()
-        assert self.lib.transit_client_create(1, data, len(data), 1000, c.byref(result)) == 0
+        assert self.lib.transit_client_create(1, data, len(data), timeout_ms, c.byref(result)) == 0
         return result
 
     def prepare(self, kind, seed, request):

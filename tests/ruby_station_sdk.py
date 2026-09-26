@@ -7,7 +7,7 @@ import sys
 from sdk_station_runner import Consumer, run as schedule
 
 
-def run(node, cli, library, artifacts):
+def run(node, cli, library, artifacts, *, execute=None):
     root = Path(__file__).resolve().parents[1]
     def install(target):
         default = subprocess.check_output(['ruby', '-rrubygems', '-e', 'puts Gem.default_dir'], text=True).strip()
@@ -22,7 +22,7 @@ def run(node, cli, library, artifacts):
         return Consumer(environment, lambda mode, config: ['ruby', script, mode, config],
             lambda config, role: [target / 'gems/bin/transit-ruby-counter', config, role, '--commits', '1'],
             'fiber-handler', extra_failures=('exception-stop', 'exception-block', 'codec-poison'), arrow_adapter=False)
-    schedule(node, cli, library, install, 'Ruby')
+    (execute or schedule)(node, cli, library, install, 'Ruby')
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

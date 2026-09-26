@@ -10,10 +10,10 @@ import tarfile
 from sdk_station_runner import Consumer, run as schedule
 
 
-def run(node, cli, library, artifacts):
+def run(node, cli, library, artifacts, *, execute=None):
     root = Path(__file__).resolve().parents[1]
     for language in ('C', 'C++'):
-        def install(target):
+        def install(target, language=language):
             prefix = target / 'installed'
             for artifact in sorted(Path(artifacts).resolve().glob('*.tar.gz')):
                 with tarfile.open(artifact) as archive: archive.extractall(prefix, filter='data')
@@ -57,7 +57,7 @@ def run(node, cli, library, artifacts):
                 return [prefix / 'bin' / ('transit-c-counter' if language == 'C' else 'transit-cpp-counter'), cfg['url'], role, str(cfg['realm']), str(cfg['principal']), str(cfg['pid']),
                         str(cfg['generation']), cfg['seed_file'], str(cfg['peer']), '1', cfg['pending']]
             return Consumer(environment, command, installed_cli, 'invalid-thread', ('exception-stop', 'exception-block'), arrow_adapter=False)
-        schedule(node, cli, library, install, language)
+        (execute or schedule)(node, cli, library, install, language)
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

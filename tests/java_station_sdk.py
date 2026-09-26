@@ -8,7 +8,7 @@ import zipfile
 from sdk_station_runner import Consumer, run as schedule
 
 
-def run(node, cli, library, artifacts):
+def run(node, cli, library, artifacts, *, execute=None):
     root = Path(__file__).resolve().parents[1]
     def install(target):
         environment = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
@@ -65,7 +65,7 @@ public final class StationArtifactCheck {
         return Consumer(environment, lambda mode, config: ['java', '-cp', classpath, 'JavaStationSdk', mode, str(config)],
             lambda config, role: ['java', '-cp', str(lib / '*'), 'io.transit.examples.CounterMain', str(config), role, '--commits', '1'],
             'thread-handler', extra_failures=('error-stop', 'error-block'), arrow_adapter=False)
-    schedule(node, cli, library, install, 'Java')
+    (execute or schedule)(node, cli, library, install, 'Java')
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

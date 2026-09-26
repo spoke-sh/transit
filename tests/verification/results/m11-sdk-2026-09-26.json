@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "status": "passed",
+  "recorded_at": "2026-09-26T09:38:54.663495+00:00",
+  "environment": {
+    "platform": "Linux",
+    "architecture": "x86_64",
+    "available_cpus": 48,
+    "authority_cpus": 1,
+    "admin_timeout_ms": 5000
+  },
+  "source_revision": "34154c9cffcbc9d6673ce42df3ab337fede8a1f5",
+  "proof_sha256": {
+    "tests/sdk_public_interop.py": "b2500fb8f1e36560009db4edced5f01e2eebf87674a2cab29a884cfdcc2f12ca",
+    "tests/python_station_sdk.py": "018f352615c1c8bfb447d3ebfcf12c67d44ed5bf014c48adb8a985ab9d48d748",
+    "tests/node_station_sdk.py": "fe5a9879bb4d8bea73acfe59247c11556a7707571339b48ab6e1a268e43502b0",
+    "tests/rust_station_sdk.py": "edbfc16430029aab42b43f6429f9ce1e3d31a24b3e337b1cd49d405f0ecabff0",
+    "tests/ruby_station_sdk.py": "a8bd6b41c37feb7831e6df96af04a9d861f42f65f4f66e794de5c16b490479d5",
+    "tests/c_station_sdk.py": "ed50c73924efaa9a45eebb59dd4b9c8fc5b8768bcdc9b07277d79e1cae7c1f87",
+    "tests/java_station_sdk.py": "d249dc867278af4829ccfc16655b461a59a0c4be1b8b40d1eef8131ea9cf6148",
+    "tests/dotnet_station_sdk.py": "9ff4d6bae29068c2ef5bb54601bd3456d6f0e881d863284c19dc68b561d6f1ed",
+    "tests/beam_station_sdk.py": "4fdd41253f2f1bfed345b4e8bb9c1ed1bcaff6bc4022bc45086e9a6500e5cab5"
+  },
+  "elapsed_seconds": 238.656,
+  "consumer_install_seconds": 56.763,
+  "pairs": [
+    {
+      "pair": "Python -> Node",
+      "elapsed_seconds": 12.61
+    },
+    {
+      "pair": "Node -> Rust",
+      "elapsed_seconds": 15.006
+    },
+    {
+      "pair": "Rust -> Ruby",
+      "elapsed_seconds": 16.734
+    },
+    {
+      "pair": "Ruby -> C",
+      "elapsed_seconds": 17.386
+    },
+    {
+      "pair": "C -> C++",
+      "elapsed_seconds": 16.739
+    },
+    {
+      "pair": "C++ -> Java",
+      "elapsed_seconds": 18.945
+    },
+    {
+      "pair": "Java -> .NET",
+      "elapsed_seconds": 18.649
+    },
+    {
+      "pair": ".NET -> Erlang",
+      "elapsed_seconds": 20.824
+    },
+    {
+      "pair": "Erlang -> Elixir",
+      "elapsed_seconds": 22.444
+    },
+    {
+      "pair": "Elixir -> Python",
+      "elapsed_seconds": 22.555
+    }
+  ],
+  "limits": "Local consumer installation and ten counter/query pairs. Excludes artifact builds, CI setup/cache transfer, and other SDK failure suites. Not a hosted CI budget measurement."
+}

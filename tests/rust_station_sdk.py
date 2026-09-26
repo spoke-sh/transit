@@ -10,7 +10,7 @@ import tomllib
 from sdk_station_runner import Consumer, run as schedule
 
 
-def run(node, cli, library, artifacts):
+def run(node, cli, library, artifacts, *, execute=None):
     root = Path(__file__).resolve().parents[1]
     def install(target):
         names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station', 'transit-sdk-examples-rust')
@@ -69,11 +69,12 @@ arrow-array = { version = "=59.1.0", optional = true, default-features = false }
         def command(mode, config):
             # The query handler retains original SDK segments; its optional Arrow
             # consumer decodes them only after closing the runner.
-            selected = arrow if json.loads(config.read_text())['role'] == 'query' else core
+            cfg = json.loads(config.read_text())
+            selected = arrow if cfg['role'] == 'query' and cfg.get('arrow_adapter', True) else core
             return [selected, mode, config]
         return Consumer(environment, command,
             lambda config, role: [executable_cli, config, role, '--commits', '1'], 'panic-handler', ('panic-block',))
-    schedule(node, cli, library, install, 'Rust')
+    (execute or schedule)(node, cli, library, install, 'Rust')
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

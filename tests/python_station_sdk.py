@@ -291,7 +291,7 @@ def consumer(mode, config_path):
             print(json.dumps(response), flush=True)
 
 
-def run(node, cli, raw_library, wheels):
+def run(node, cli, raw_library, wheels, *, execute=None):
     from sdk_station_runner import Consumer, run as schedule
     def install(target):
         env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'PYTHONHOME', 'TRANSIT_LIBRARY_DIR')}
@@ -305,7 +305,7 @@ def run(node, cli, raw_library, wheels):
             lambda mode, config: [python, '-B', script, '--consumer', mode, config],
             lambda config, role: [venv / 'bin/transit-python-counter', config, role, '--commits', '1'],
             'coroutine-handler')
-    schedule(node, cli, raw_library, install, 'Python')
+    (execute or schedule)(node, cli, raw_library, install, 'Python')
 
 if __name__ == '__main__':
     if sys.argv[1] == '--consumer': consumer(*sys.argv[2:])
