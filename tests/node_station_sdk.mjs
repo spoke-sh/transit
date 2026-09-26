@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile, chmod } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { setTimeout as delay } from 'node:timers/promises';
-import { Client, ProcessRef, Busy, CodecError, TurnExpired, ReadFailed, StaleOwnership, AccessDenied, ProcessRetired, HandlerError } from '@transit/client';
-import { Activation, Runner, ReadVersion, IpcSegment, encodeCast } from '@transit/station';
+import { Client, ProcessRef, ResourceRef, Busy, Closed, CodecError, TurnExpired, ReadFailed, StaleOwnership, AccessDenied, ProcessRetired, HandlerError } from '@transit/client';
+import { Activation, Runner, ReadVersion, IpcSegment, encodeCast, Key, prepareHttp, decodeHttpReply, HttpOutcome } from '@transit/station';
 import { Counter, Requester, TableService, QueryRequester, TABLE, TOTAL, counter, query, u64Codec,
   counterCodec, requesterCodec, queryServiceCodec, queryRequesterCodec } from '@transit/sdk-examples';
 
@@ -19,6 +19,7 @@ const tagged = (_key, value) => typeof value === 'bigint' ? { bigint: value.toSt
 const revived = (_key, value) => value && typeof value === 'object' && Object.keys(value).join() === 'bigint' ? BigInt(value.bigint) : value;
 
 async function main() {
+  if (mode.startsWith('http-')) return httpConsumer();
   if (mode === 'arrow') {
     const { toArrow } = await import('@transit/station/arrow');
     const rows = [];
@@ -54,6 +55,23 @@ async function main() {
     for (const invalid of [true, -1n, 1n << 64n, 1]) assert.throws(() => u64Codec.encode(invalid));
     const value = { kind: 'add', value: (1n << 53n) + 1n };
     assert.deepEqual(await encodeCast(value, counterCodec), new Uint8Array(Buffer.concat([Buffer.from('STN1'), Buffer.from([1]), Buffer.alloc(8), counter.encode(value)])));
+    const fixture = JSON.parse(await readFile(cfg.http_fixtures, 'utf8'));
+    const prepared = await prepareHttp(new ResourceRef(72, 8), (1n << 64n) - 1n,
+      { method: 'POST', target: [{ kind: 'literal', value: '/write' }] },
+      new Uint8Array(Buffer.from(fixture.body, 'hex')), { endpointRevision: 7n, reconcileBeforeMs: 9000, maxAttempts: 2 });
+    assert.equal(Buffer.from(prepared.reference).toString('hex'), fixture.reference);
+    assert.equal(Buffer.from(prepared.metadata).toString(), fixture.metadata);
+    const reply = await decodeHttpReply(72, new Uint8Array(Buffer.from(fixture.outcome, 'hex')));
+    assert.ok(reply instanceof HttpOutcome); assert.equal(reply.exchange, (1n << 64n) - 1n);
+    assert.equal(reply.phase, 'observed'); assert.equal(reply.status, 200);
+    assert.deepEqual(await decodeHttpReply(72, new Uint8Array(Buffer.from(fixture.rejection, 'hex'))), { kind: 'http-rejected', reason: 'denied' });
+    prepared.reference.fill(0); prepared.body.fill(0);
+    assert.equal(Buffer.from(prepared.reference).toString('hex'), fixture.reference);
+    assert.equal(Buffer.from(prepared.body).toString('hex'), fixture.body);
+    for (const target of [[{ kind: 'literal', value: '//other/' }], [{ kind: 'literal', value: '/' }, { kind: 'secret', binding: 'api', version: 1n }]])
+      await assert.rejects(prepareHttp(new ResourceRef(72, 8), 1n, { method: 'GET', target }, new Uint8Array(), { endpointRevision: 1n, reconcileBeforeMs: 9000 }));
+    for (const bytes of [Buffer.alloc(0), Buffer.from(fixture.outcome, 'hex').subarray(0, -1)])
+      await assert.rejects(decodeHttpReply(72, new Uint8Array(bytes)));
     return;
   }
   class CounterProof extends Counter {
@@ -222,6 +240,94 @@ async function main() {
       for (let i = 0; i < 32; i++) { event = await runner.next(); if (['committed', 'needs-recovery', 'blocked', 'idle'].includes(event.kind)) break; }
       if (event.kind === 'needs-recovery') assert.deepEqual(event.mutation.export(), new Uint8Array(await readFile(cfg.pending)));
       report({ event: { committed: 'Committed', 'needs-recovery': 'NeedsRecovery', blocked: 'Blocked', idle: 'Idle' }[event.kind], phase: event.phase, code: event.error?.code });
+    }
+  } finally { await runner.close(); }
+}
+async function httpConsumer() {
+  const body = new Uint8Array(Buffer.from(cfg.body, 'hex'));
+  const request = await prepareHttp(new ResourceRef(72, cfg.resource), (1n << 64n) - 1n, {
+    method: 'POST', target: [{ kind: 'literal', value: '/items/' }, { kind: 'variable', name: 'id', value: 'λ /' }],
+    headers: [{ name: 'X-Tag', value: [{ kind: 'literal', value: 'one' }] },
+      { name: 'X-Tag', value: [{ kind: 'literal', value: 'two' }] },
+      { name: 'Authorization', value: [{ kind: 'literal', value: 'Bearer ' }, { kind: 'secret', binding: 'api', version: 7n }] }],
+  }, body, { endpointRevision: 7n, reconcileBeforeMs: cfg.deadline });
+  body.fill(0);
+  const correlation = new Key(new TextEncoder().encode('http-correlation'), u64Codec);
+  const status = new Key(new TextEncoder().encode('http-status'), u64Codec);
+  const codec = { typeId: 'test.http-control', version: 1, maxEncodedBytes: 243, encode: value => new Uint8Array(value), decode: value => new Uint8Array(value) };
+  const handler = {
+    result: undefined, escaped: undefined,
+    async initialize() {},
+    async handle(turn, input) {
+      assert.equal(input.kind, 'cast'); this.escaped = turn;
+      if (await turn.state.find(correlation)) this.result = { called: true };
+      else if (await turn.stageHttp(request)) {
+        const call = await turn.callHttp(peer, request);
+        await turn.state.put(correlation, call);
+        this.result = { called: true };
+      } else this.result = { called: false };
+    },
+    async handleHttpReply(turn, input) {
+      this.escaped = turn;
+      turn.requireReply(input, { peer, correlation: await turn.state.require(correlation) });
+      assert.ok(input.value instanceof HttpOutcome);
+      assert.equal(input.value.phase, 'observed'); assert.equal(input.value.status, 200);
+      await turn.state.put(status, BigInt(input.value.status));
+      this.result = { observed: true };
+    },
+  };
+  const runner = await Runner.open(config, handler, codec, { failure: 'stop', recovery: { kind: 'fence-on-restart' } });
+  let reader, outcome, owned = Buffer.alloc(0);
+  try {
+    if (mode === 'http-async') {
+      outcome = await decodeHttpReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+      reader = await runner.openHttp(outcome);
+      const first = await reader.read(); assert.ok(first.data.length); assert.ok(!first.complete);
+      await writeFile(cfg.ready, '');
+      while (!existsSync(cfg.continue)) await delay(10);
+      const active = reader.read();
+      const deadline = Date.now() + 15000;
+      while (!existsSync(cfg.accepted)) { assert.ok(Date.now() < deadline); await delay(10); }
+      await assert.rejects(reader.read(), Busy);
+      runner.stop();
+      let finished = false, beats = 0;
+      const close = runner.close().then(() => { finished = true; });
+      while (!finished) { beats++; await delay(10); }
+      await close; await active;
+      assert.ok(beats > 5); assert.ok(first.data.length);
+      await assert.rejects(reader.read(), Closed);
+      report({ joined: true }); return;
+    }
+    const input = createInterface({ input: process.stdin });
+    for await (const action of input) {
+      let result;
+      if (action === 'step') {
+        let committed = false;
+        for (let i = 0; i < 32; i++) if ((await runner.next()).kind === 'committed') { committed = true; break; }
+        assert.ok(committed); assert.throws(() => handler.escaped.stageHttp(request), TurnExpired);
+        result = handler.result;
+      } else if (action === 'open') {
+        outcome = await decodeHttpReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        reader = await runner.openHttp(outcome);
+        await assert.rejects(runner.openHttp(outcome), Busy);
+        const first = await reader.read(); assert.ok(first.data.length); assert.ok(!first.complete);
+        result = { prefix: true };
+      } else if (action === 'denied') {
+        await assert.rejects(reader.read(), AccessDenied); result = { denied: true };
+      } else if (action === 'reopen') {
+        await assert.rejects(reader.read(), error => error instanceof ReadFailed && error.code === 'HttpReplayFailed');
+        await reader.close(); await reader.close();
+        reader = await runner.openHttp(outcome);
+        for (;;) {
+          const part = await reader.read(); if (!part) break;
+          if (part.kind === 'response_body') owned = Buffer.concat([owned, part.data]);
+        }
+        assert.ok(reader.complete); await reader.close();
+        result = { complete: true, body: owned.toString('hex') };
+      } else if (action === 'close') {
+        await runner.close(); report({ closed: true, owned: owned.toString('hex') }); return;
+      } else throw new Error('Unexpected HTTP consumer command');
+      report(result);
     }
   } finally { await runner.close(); }
 }

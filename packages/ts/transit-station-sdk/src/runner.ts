@@ -17,6 +17,13 @@ import { unhex } from "./framing.ts";
 import { createTurn, type Turn } from "./turn.ts";
 import { ResultReader } from "./query.ts";
 import {
+  decodeHttpWithBridge,
+  HttpOutcome,
+  HttpReader,
+  type HttpReply,
+  type HttpReplayPolicy,
+} from "./http.ts";
+import {
   decode,
   nativeWide,
   serviceConfiguration,
@@ -27,16 +34,18 @@ import {
   type Incoming,
   type Origin,
   type Recovery,
+  type Reply,
   type RunnerEvent,
   type ServiceConfig,
 } from "./values.ts";
-import type { GrowingEvent } from "./wire.ts";
+import type { GrowingEvent, HttpReadAction, HttpReadResult } from "./wire.ts";
 
 export interface Handler<M> {
   initialize(turn: Turn): Promise<void>;
   handle(turn: Turn, incoming: Incoming<M>): Promise<void>;
   handleControl?(turn: Turn, input: Control): Promise<void>;
   handleResult?(turn: Turn, result: ResultReader): Promise<void>;
+  handleHttpReply?(turn: Turn, input: Reply<HttpReply>): Promise<void>;
 }
 export interface RunnerOptions {
   readonly failure: FailurePolicy;
@@ -251,13 +260,25 @@ export class Runner<M> implements AsyncDisposable {
         const provenance = origin(turn.process.realm, input.origin),
           correlation = nativeWide(input.correlation);
         let dispatch: () => Promise<void>;
-        if (input.kind === "cast" || input.kind === "call" || input.kind === "reply") {
+        const payload = unhex(input.payload, this.#bridge.caps.message_bytes);
+        const httpMagic = Buffer.from(payload.subarray(0, 4)).toString("hex");
+        if (
+          input.kind === "reply" &&
+          typeof this.#handler.handleHttpReply === "function" &&
+          (httpMagic === "48545231" || httpMagic === "48544631")
+        ) {
+          const value = await decodeHttpWithBridge(this.#bridge, turn.process.realm, payload);
+          const reply: Reply<HttpReply> = Object.freeze({
+            kind: "reply",
+            value,
+            position: input.position,
+            origin: provenance,
+            correlation,
+          });
+          dispatch = () => this.#handler.handleHttpReply!(turn, reply);
+        } else if (input.kind === "cast" || input.kind === "call" || input.kind === "reply") {
           // Decode before initialization can stage application changes.
-          const value = decode(
-            this.#codec,
-            unhex(input.payload, this.#bridge.caps.message_bytes),
-            this.#bridge.caps.message_bytes,
-          );
+          const value = decode(this.#codec, payload, this.#bridge.caps.message_bytes);
           const incoming: Incoming<M> = Object.freeze({
             kind: input.kind,
             value,
@@ -341,6 +362,33 @@ export class Runner<M> implements AsyncDisposable {
   reconcile(): Promise<RunnerEvent> {
     this.#admit();
     return this.#serial.run(() => this.#attempt());
+  }
+  #httpRead(action: HttpReadAction): Promise<HttpReadResult> {
+    this.#admit();
+    return this.#serial.run(async () => {
+      if (this.#pending) throw new Busy("Resolve the saved mutation before reading HTTP capture");
+      return await this.#bridge.httpRead(action);
+    });
+  }
+  async openHttp(outcome: HttpOutcome, policy: HttpReplayPolicy = "captured"): Promise<HttpReader> {
+    if (
+      !(outcome instanceof HttpOutcome) ||
+      outcome.phase !== "observed" ||
+      outcome.resource.realm !== this.#config.activation.process.realm
+    )
+      throw new TypeError("Expected a completed HTTP outcome in this realm");
+    const reference = outcome.reference;
+    if (!reference) throw new TypeError("HTTP outcome has no complete reference");
+    if (policy !== "captured" && policy !== "require-unredacted")
+      throw new TypeError("Select an HTTP replay policy");
+    const result = await this.#httpRead({
+      open: {
+        reference: Buffer.from(reference).toString("hex"),
+        policy: policy === "captured" ? policy : "require_unredacted",
+      },
+    });
+    if (!("opened" in result)) throw new IncompatibleNative("Expected an HTTP reader");
+    return new HttpReader(result.opened, (action) => this.#httpRead(action));
   }
   async *run(options: { signal?: AbortSignal } = {}): AsyncGenerator<RunnerEvent, void> {
     this.#admit();

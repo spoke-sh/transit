@@ -34,3 +34,23 @@ export type {
   Predicate,
 } from "./query.ts";
 export { encodeCast } from "./framing.ts";
+export {
+  prepareHttp,
+  decodeHttpReply,
+  PreparedHttpRequest,
+  HttpOutcome,
+  HttpReader,
+} from "./http.ts";
+export type {
+  HttpMethod,
+  HttpPiece,
+  HttpHeader,
+  HttpRequest,
+  HttpPhase,
+  HttpRejection,
+  HttpRejected,
+  HttpReply,
+  HttpReplayPolicy,
+  HttpPartKind,
+  HttpPart,
+} from "./http.ts";

@@ -4,6 +4,7 @@ import {
   HandlerError,
   MissingValue,
   IncompatibleNative,
+  UnsupportedCapability,
   limits,
 } from "@transit/client";
 import { integer, text } from "@transit/client/internal";
@@ -28,6 +29,7 @@ import { hex, unhex } from "./framing.ts";
 import { Table, TableSchema, type Cell } from "./table.ts";
 import { QueryPlan, ResultReader, type QueryJob } from "./query.ts";
 import type { GrowingAction, GrowingEvent } from "./wire.ts";
+import { PreparedHttpRequest } from "./http.ts";
 
 function cursor(value?: string): string | null {
   return value === undefined ? null : text(value, limits.max_body);
@@ -172,6 +174,48 @@ export class Turn {
     if (!(peer instanceof ProcessRef) || peer.realm !== this.process.realm)
       throw new TypeError("Destination must be a ProcessRef in this realm");
     return peer.pid;
+  }
+  #http(request: PreparedHttpRequest, bridge: Bridge): void {
+    if (
+      !(request instanceof PreparedHttpRequest) ||
+      request.resource.realm !== this.resource.realm ||
+      request.resource.resource !== this.resource.resource
+    )
+      throw new TypeError("HTTP publication must use the current associated resource");
+    if (!bridge.caps.http_requests)
+      throw new UnsupportedCapability("Native HTTP requests are unavailable");
+  }
+  stageHttp(request: PreparedHttpRequest): Promise<boolean> {
+    return operation(this, async ({ bridge, token }) => {
+      this.#http(request, bridge);
+      return result(
+        await bridge.apply(token, {
+          http_stage: {
+            reference: hex(request.reference, 112),
+            metadata: hex(request.metadata, 8192),
+            body: hex(request.body, 65536),
+          },
+        }),
+        "staged",
+      );
+    });
+  }
+  callHttp(peer: ProcessRef, request: PreparedHttpRequest): Promise<bigint> {
+    return operation(this, async ({ bridge, token }) => {
+      const pid = this.#peer(peer);
+      this.#http(request, bridge);
+      return nativeWide(
+        result(
+          await bridge.apply(token, {
+            http_call: {
+              pid,
+              reference: hex(request.reference, 112),
+            },
+          }),
+          "correlation",
+        ),
+      );
+    });
   }
   cast<T>(peer: ProcessRef, value: T, codec: Codec<T>): Promise<void> {
     return operation(this, async ({ bridge, token }) => {

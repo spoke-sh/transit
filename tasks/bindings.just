@@ -59,9 +59,9 @@ node-sdk-test: node-build
     vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts
     cd examples/station-sdk/typescript && vp check
     vp exec --filter @transit/sdk-examples tsc --noEmit
-    zig build transit-node rey-cli
+    zig build transit-node rey-cli transit-station-http-worker
     python3 -B tests/node_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node
-    python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node
+    python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
 
 # Build independent Rust source crates with their embedded native artifact.
 rust-build: build

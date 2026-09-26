@@ -13,7 +13,16 @@ import {
   frozenBytes,
 } from "@transit/client/internal";
 import schemas from "./schemas.json" with { type: "json" };
-import type { GrowingAction, GrowingResult, GrowingEvent, GrowingCapabilities } from "./wire.ts";
+import type {
+  GrowingAction,
+  GrowingResult,
+  GrowingEvent,
+  GrowingCapabilities,
+  HttpCodecAction,
+  HttpCodecResult,
+  HttpReadAction,
+  HttpReadResult,
+} from "./wire.ts";
 import {
   FrozenMutation,
   serviceConfiguration,
@@ -140,6 +149,28 @@ export class Bridge {
       { growing_apply: { scope, action } },
       { phase: "apply", validator: validation.GrowingResult },
     )) as GrowingResult;
+  }
+  async httpCodec(action: HttpCodecAction): Promise<HttpCodecResult> {
+    if (!this.caps.http_requests)
+      throw new UnsupportedCapability("Native HTTP requests are unavailable");
+    return (await this.port.request(
+      { http_codec: action },
+      {
+        phase: "http-codec",
+        validator: validation.HttpCodecResult,
+      },
+    )) as HttpCodecResult;
+  }
+  async httpRead(action: HttpReadAction): Promise<HttpReadResult> {
+    if (!this.caps.http_replay)
+      throw new UnsupportedCapability("Native HTTP replay is unavailable");
+    return (await this.port.request(
+      { growing_http_read: action },
+      {
+        phase: "http-read",
+        validator: validation.HttpReadResult,
+      },
+    )) as HttpReadResult;
   }
   async finish(scope: number, failed: boolean): Promise<void> {
     await this.port.request({ growing_finish_result: { scope, failed } }, { phase: "finish" });

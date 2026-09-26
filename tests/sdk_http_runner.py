@@ -146,7 +146,7 @@ def run(node, cli, raw_library, worker, install, label):
                 cfg['generation'] += 1
                 own(cfg)
             deadline = time.time_ns() // 1_000_000 + 600000
-            caller.update(url=url, peer=service['pid'], body=body.hex(), deadline=deadline)
+            caller.update(url=url, realm=72, profile='growing_v3', peer=service['pid'], body=body.hex(), deadline=deadline)
             child = start('http-caller', caller)
             for _ in range(3):
                 command({'send': {'pid': caller['pid'], 'value': frame(b'upload')}})
@@ -209,7 +209,7 @@ def run(node, cli, raw_library, worker, install, label):
             children.remove(child)
             assert not failures, failures
             assert requests == ['/items/%CE%BB%20%2F'], requests
-            print(f'{label} HTTP SDK: installed caller, staged host recovery, wide identity, binary TLS, correlated outcome, revoked prefix, owned replay without credentials and joined async cancellation passed ({time.monotonic()-started:.2f}s).')
+            print(f'{label} HTTP SDK: installed caller, staged host recovery, wide identity, binary TLS, correlated outcome, revoked prefix, owned replay without credentials and joined local stop/disposal passed ({time.monotonic()-started:.2f}s).')
         finally:
             for child in children:
                 child.kill(); child.wait(timeout=10)

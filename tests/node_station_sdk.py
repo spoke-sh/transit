@@ -8,7 +8,7 @@ import sys
 from sdk_station_runner import Consumer, run as schedule
 
 
-def run(node, cli, library, artifacts, *, execute=None):
+def run(node, cli, library, artifacts, http_worker, *, execute=None):
     root = Path(__file__).resolve().parents[1]
     packages = Path(artifacts).resolve()
     def install(target):
@@ -34,6 +34,9 @@ def run(node, cli, library, artifacts, *, execute=None):
             lambda config, role: [target / 'node_modules/.bin/transit-node-counter', config, role, '--commits', '1'],
             'dropped-operation')
     (execute or schedule)(node, cli, library, install, 'Node')
+    if execute is None:
+        from sdk_http_runner import run as http_schedule
+        http_schedule(node, cli, library, http_worker, install, 'Node')
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

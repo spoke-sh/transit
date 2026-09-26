@@ -36,6 +36,7 @@ installed executable discovery. Both host versions and authority capabilities
 are checked. No implicit legacy fallback exists.
 
 See [runtime and recovery](docs/runtime.md), the
+[HTTP call and replay guide](docs/http.md), the
 [executable examples](../../../examples/station-sdk/typescript/README.md) and
 [proof guide](../../../tests/README.md). Public types own application contracts;
 generated wire schemas remain internal. Existing M9 low-level usage retains its

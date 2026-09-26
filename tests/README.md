@@ -82,6 +82,12 @@ cancellation. Only one request reaches the independent TLS peer. The local
 and excluding compilation. The ordinary raw client, runner recovery and Arrow
 consumer regressions also passed. Sticky replay errors report the current local
 failure instead of inheriting a previous authority rejection.
+`just bindings::node-sdk-test` runs the same HTTP schedule through clean Node
+tarballs, including runtime schema validation, owned request/getter bytes, native
+HTTP reply dispatch and joining a delayed replay read during local stop/disposal.
+The 2026-09-26 local HTTP schedule took **33.26 seconds**, with the existing client,
+runner and Arrow regressions also passing. TypeScript handlers opt into the async
+shared decoder through `handleHttpReply`; application codecs stay synchronous.
 
 The 2026-09-26 Linux x86_64 worker run took **242.31 seconds**, excluding compilation.
 This is local proof time, not a hosted CI or aggregate runner-minute measurement.
