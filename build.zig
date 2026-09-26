@@ -3,6 +3,8 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const exchange = b.dependency("transit_exchange", .{ .target = target, .optimize = optimize });
+    const station_http = b.dependency("transit_station_http", .{ .target = target, .optimize = optimize });
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
@@ -37,8 +39,18 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = exchange.module("transit_exchange") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_http.module("transit_station_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
+    const http_transport_proof = b.addExecutable(.{ .name = "transit-http-transport-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/http_transport.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }} }) });
+    build_test_step.dependOn(&http_transport_proof.step);
+    const http_transport_test = b.addSystemCommand(&.{ "python3", "-B" });
+    http_transport_test.addFileArg(b.path("tests/http_transport.py"));
+    http_transport_test.addArtifactArg(http_transport_proof);
+    http_transport_test.has_side_effects = true;
+    http_transport_test.stdio = .inherit;
+    b.step("test-http-transport", "Qualify single-send HTTP/TLS against independent peers").dependOn(&http_transport_test.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("station_abi") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
@@ -230,6 +242,22 @@ pub fn build(b: *std.Build) void {
         build_test_step.dependOn(&app.step);
     }
     var query_host: *std.Build.Step.Compile = undefined;
+    const http_worker = b.addExecutable(.{ .name = "transit-station-http-worker", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-station-http-worker/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }} }) });
+    const install_http_worker = b.addInstallArtifact(http_worker, .{});
+    b.getInstallStep().dependOn(&install_http_worker.step);
+    apps_step.dependOn(&install_http_worker.step);
+    build_test_step.dependOn(&http_worker.step);
+    b.step("transit-station-http-worker", "Install the finite growing HTTP worker").dependOn(&install_http_worker.step);
+    const http_provision = b.addExecutable(.{ .name = "transit-http-worker-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/http_worker.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }, .{ .name = "transit_station", .module = station.module("transit_station") } } }) });
+    build_test_step.dependOn(&http_provision.step);
+    const http_worker_test = b.addSystemCommand(&.{ "python3", "-B" });
+    http_worker_test.addFileArg(b.path("tests/http_worker.py"));
+    http_worker_test.addArtifactArg(node_artifact);
+    http_worker_test.addArtifactArg(http_provision);
+    http_worker_test.addArtifactArg(http_worker);
+    http_worker_test.has_side_effects = true;
+    http_worker_test.stdio = .inherit;
+    b.step("test-http-worker", "Prove durable HTTP capture and unknown-outcome recovery").dependOn(&http_worker_test.step);
     var query_shell: *std.Build.Step.Compile = undefined;
     inline for (.{ .{ "transit-query-host", "transit-query-host" }, .{ "transit", "transit-cli" } }) |entry| {
         const app = b.addExecutable(.{ .name = entry[0], .root_module = b.createModule(.{

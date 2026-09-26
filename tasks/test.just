@@ -10,6 +10,14 @@ _default:
 unit:
     zig build test
 
+# Independent HTTP/TLS peers; exact single sends, bounded capture and failure.
+http-transport:
+    zig build test-http-transport
+
+# Actual finite worker with disk capture, lost receipts and killed executor.
+http-worker:
+    zig build test-http-worker
+
 # Compile application/probe entry points independently of fast library tests.
 build:
     zig build test-build
@@ -59,6 +67,8 @@ station:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-exchange && zig build test
+    cd packages/zig/transit-station-http && zig build test
     cd packages/zig/transit-query && zig build test
     cd packages/zig/transit-station && zig build test
     cd packages/zig/transit-fuze && zig build test
@@ -73,6 +83,8 @@ packages:
 
 # Compile each library independently; root unit checks own shared test execution.
 packages-build:
+    cd packages/zig/transit-exchange && zig build check
+    cd packages/zig/transit-station-http && zig build check
     cd packages/zig/transit-query && zig build check
     cd packages/zig/transit-station && zig build check
     cd packages/zig/transit-fuze && zig build check

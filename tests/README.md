@@ -1,5 +1,38 @@
 # Validation and milestone evidence
 
+## M15 connector work in progress
+
+`just test::unit` includes exchange segment/coverage, frozen effect intents,
+identity conflicts, quota/rollback, terminal cleanup and old-source availability
+checks. `just test::http-transport` runs the real Zig transport against independent
+Python HTTP/TLS peers: 20 single-send requests cover 16,387-byte binary chunked
+bodies, trailers, header omissions, redirects, ambiguous framing, truncation,
+capacity refusal, capture failure, lost responses and timeouts. TLS authenticates
+the configured hostname while dialing its explicitly pinned IPv4 address.
+Ambient proxy settings are ignored. Close-delimited TLS bodies are rejected
+because the pinned transport relies on HTTP framing to detect truncation.
+
+`just test::http-worker` runs the actual finite worker over disk Ursula. It loses
+accepted segment-seal, dispatch and observation replies and checks exact retries;
+restarts node/store; replays a 1,027-byte response without another send; and kills
+the worker after remote application. Fresh ownership closes that attempt unknown
+without resending. Reusing an entered activation fails. Public body reads recheck
+resource permission after an actual prefix. Exactly two remote requests occur
+across both scenarios.
+The worker proof uses TLS and a versioned credential file. Changed numeric
+destinations, wrong credential versions and header scopes reject before dispatch;
+resolved credentials are absent from all durable mutations. Replay works after
+removing the credential file.
+
+These checks passed locally on Linux x86_64 with the pinned compiler. They do not
+yet qualify public caller admission, managed secret providers, endpoint-specific retry,
+SDKs, all launchers or hosted CI cost. Those remain explicit
+[M15](../docs/roadmap/M15.md) exit obligations. The shared capture
+[contract](../contracts/STATION_EXCHANGE_V1.md) distinguishes library coverage
+from protocol completeness and effect-result acceptance.
+
+## Test ownership
+
 This directory owns conformance harnesses, fault injection, test-only executors,
 and proof results. Application examples live under [examples](../examples/README.md);
 tests launch those real binaries rather than a separate implementation of their

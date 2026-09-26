@@ -386,6 +386,34 @@
       "expression": "2",
       "classification": "operation",
       "meaning": "At most two chunk deletions leave descriptor and final quota release within four mutations."
+    },
+    {
+      "source": "packages/zig/transit-station-http/src/Request.zig",
+      "symbol": "maximum_head_bytes",
+      "expression": "8192",
+      "classification": "operation",
+      "meaning": "Bounded request/response head buffer; not total durable exchange size."
+    },
+    {
+      "source": "packages/zig/transit-station-http/src/Request.zig",
+      "symbol": "maximum_headers",
+      "expression": "64",
+      "classification": "operation",
+      "meaning": "Maximum header fields per HTTP head."
+    },
+    {
+      "source": "packages/zig/transit-station-http/src/Request.zig",
+      "symbol": "maximum_pieces",
+      "expression": "128",
+      "classification": "operation",
+      "meaning": "Maximum typed interpolation pieces per field."
+    },
+    {
+      "source": "packages/zig/transit-station-http/src/Transport.zig",
+      "symbol": "segment_bytes",
+      "expression": "4096",
+      "classification": "working-set",
+      "meaning": "One network capture buffer, durably sealed through Publication before reuse."
     }
   ],
   "identities": [

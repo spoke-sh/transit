@@ -26,7 +26,9 @@
       "test::growing",
       "test::growing-service",
       "test::public-query",
-      "test::publication"
+      "test::publication",
+      "test::http-transport",
+      "test::http-worker"
     ],
     "experience": [
       "transit-board::check",

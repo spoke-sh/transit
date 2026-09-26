@@ -1,6 +1,6 @@
 # Connectors and external exchanges
 
-Status: [HTTP M15](roadmap/M15.md) is the first planned connector;
+Status: [HTTP M15](roadmap/M15.md) is the first connector, under implementation;
 [gRPC M16](roadmap/M16.md) is the second. Stream groups, interpolation,
 and connector attempt policy below remain design work. Transit already has
 opaque intents, dispatch authorization, observations, and bounded closure in its
@@ -8,6 +8,13 @@ opaque intents, dispatch authorization, observations, and bounded closure in its
 The [synthetic executor proof](../tests/README.md#authority-effects-and-outbox-evidence)
 exercises real loopback I/O and its external limits; it is not a general HTTP
 connector implementation.
+
+The initial [exchange library](../packages/zig/transit-exchange/README.md) and
+[HTTP package](../packages/zig/transit-station-http/README.md) now implement bounded
+capture/coverage and a separately tested single-send HTTP/TLS transport. The
+[exchange contract](../contracts/STATION_EXCHANGE_V1.md) fixes intent publication
+and terminal availability. End-to-end connector recovery, SDK and deployment
+qualification remain open; the design below is not a claim of their completion.
 
 The connector milestones will add [Board](BOARD.md) enrichment for exchanges and
 attempts, respecting transcript permissions, secret omissions, retained-body
@@ -21,7 +28,8 @@ bounded cleanup. Its 64 KiB proof includes real worker/node/store recovery and
 source-bound reads. [M15](roadmap/M15.md) is now the first consumer for external
 exchanges; Documents are scheduled separately in [M17](roadmap/M17.md).
 
-The following decomposition is proposed, not a set of implemented libraries:
+The following table is the target decomposition. The initial libraries above
+implement a subset; the remaining gates belong to M15/M16:
 
 | Owner | Reusable responsibility | Remains outside it |
 | --- | --- | --- |

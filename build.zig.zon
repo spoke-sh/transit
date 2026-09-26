@@ -4,6 +4,8 @@
     .version = "0.0.0",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
+        .transit_exchange = .{ .path = "packages/zig/transit-exchange" },
+        .transit_station_http = .{ .path = "packages/zig/transit-station-http" },
         .transit_query = .{ .path = "packages/zig/transit-query" },
         .transit_fuze = .{ .path = "packages/zig/transit-fuze" },
         .transit_station = .{ .path = "packages/zig/transit-station" },

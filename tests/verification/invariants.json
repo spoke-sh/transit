@@ -809,6 +809,33 @@
       ],
       "limits": "Single authority, disk Ursula, 64 KiB record and 41 additional 32-byte records. No host power-loss, production throughput, automatic jobs, physical erasure, CRDT, SDK or widened query claim.",
       "model": null
+    },
+    {
+      "id": "EXCHANGE-01",
+      "claim": "Immutable segments, exact request intent coverage and terminal availability compose without exceeding a turn budget",
+      "owner": "contracts/STATION_EXCHANGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-exchange/src/Exchange.zig",
+        "packages/zig/transit-station-http/src/Transport.zig",
+        "apps/transit-station-http-worker/main.zig"
+      ],
+      "profile": "station-exchange-v1; first HTTP transport profile",
+      "tasks": [
+        "test::unit",
+        "test::http-transport",
+        "test::http-worker"
+      ],
+      "scenarios": [
+        "Four-mutation segment publication, conflicting identities, quota refusal and rollback",
+        "Retirement rejects a cursor after a returned prefix even with an old source",
+        "Ready request coverage creates one effect intent; binding rejects different coverage",
+        "Independent HTTP/TLS peers, binary chunking and trailers, omissions and current hostname verification",
+        "Dropped, truncated, ambiguous, oversized and stalled responses; no hidden redirects, retries or ambient proxies",
+        "Actual worker disk recovery, lost seal/dispatch/observation replies, current read revocation, entered-generation refusal and SIGKILL after remote application",
+        "TLS worker binds credential versions/header scope, rejects changed numeric destinations and replays after credential removal"
+      ],
+      "limits": "Initial library units, independent transport peers and finite worker over disk Ursula. 1,027-byte worker response; 16,387-byte independent transport response. Public caller admission, managed secret providers, explicit retry/reconciliation, SDK, launcher and hosted cost qualification remain M15 work. Numeric IPv4 endpoint and HTTP/1.1 identity encoding; TLS close-delimited bodies rejected.",
+      "model": null
     }
   ]
 }

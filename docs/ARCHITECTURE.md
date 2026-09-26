@@ -188,6 +188,8 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 
 | Package / module | Owns | Direct package dependencies |
 | --- | --- | --- |
+| [transit-exchange](../packages/zig/transit-exchange/README.md) / `transit_exchange` | M15 shared segment capture, frozen intent coverage and explicit cleanup; qualification in progress | transit-station |
+| [transit-station-http](../packages/zig/transit-station-http/README.md) / `transit_station_http` | M15 HTTP request construction and strict framing; connector implementation in progress | transit-exchange |
 | [transit-observability](../packages/zig/transit-observability/README.md) / `transit_observability` | Transit diagnostic vocabulary and optional instrumentation | transit-protocol, telemetry |
 | [telemetry](../packages/zig/telemetry/README.md) / `telemetry` | Bounded diagnostic sinks, local metrics and trace context | None |
 | [transit-protocol](../packages/zig/transit-protocol/README.md) / `transit_protocol` | Public types, signatures, opaque values, schema, shared fixtures | None |
@@ -218,6 +220,7 @@ follow a second concrete implementation, not a speculative plugin system.
 
 | Entry point | Role |
 | --- | --- |
+| [transit-station-http-worker](../apps/transit-station-http-worker/README.md) | Initial finite M15 HTTP preparation/dispatch/capture worker; broader caller/SDK/deployment qualification remains open |
 | [transit-node](../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
 | [transit-delivery](../apps/transit-delivery/README.md) | Public-client courier for ordered committed outboxes; no storage or handler authority |
 | [transit-runtime-controller](../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
