@@ -165,8 +165,10 @@ pub const Query = struct {
         read_version: ReadVersionId,
         version_entries: struct { id: ReadVersionId, generation: u64, key: ?p.Value = null, after: ?p.Value = null },
         read_versions: struct { pid: Id, after: ?ReadVersionId = null, position: ?Id = null },
+        identity: void,
     },
 };
+pub const Identity = struct { principal: Id, permissions: u16, pid: ?Id, policy_revision: u64 };
 pub const SignedQuery = struct { query: Query, signature: [64]u8 };
 pub fn Batch(comptime T: type, comptime Cursor: type) type {
     return struct { entries: [page_size]?T = @splat(null), next: ?Cursor = null };
@@ -217,6 +219,7 @@ pub const Response = struct {
         read_version: ReadVersion,
         version_entries: struct { version: ReadVersion, generation: u64, resource: Resource, page: Batch(Entry, p.Value) },
         read_versions: Batch(ReadVersion, ReadVersionId),
+        identity: Identity,
     },
 };
 
@@ -318,6 +321,11 @@ pub fn validateResponse(response: Response, query: Query) !void {
     if (response.version != version or response.realm != query.realm or response.position == 0 or
         !std.mem.eql(u8, @tagName(response.body), @tagName(query.kind))) return error.InvalidRead;
     switch (query.kind) {
+        .identity => {
+            const identity = response.body.identity;
+            if (identity.principal != query.principal or identity.permissions & ~p.all_permissions != 0 or
+                identity.permissions & p.permission(.inspect) == 0 or identity.pid == 0 or identity.policy_revision >= response.position) return error.InvalidRead;
+        },
         .capabilities => {
             const caps = response.body.capabilities;
             if (caps.version != version or caps.identity_maximum != p.max_counter or
@@ -600,4 +608,15 @@ test "retained version proposals and responses reject foreign duplicate and forg
     response.body.version_entries.page.next = null;
     response.body.version_entries.version.created_at = 7;
     try t.expectError(error.InvalidRead, validateResponse(response, query));
+}
+
+test "growing identity response is scoped and cannot claim an unobserved policy" {
+    const query: Query = .{ .realm = 1, .principal = 65536, .kind = .{ .identity = {} } };
+    var response: Response = .{ .realm = 1, .position = 9, .principal_sequence = 0, .body = .{ .identity = .{ .principal = 65536, .permissions = p.permission(.inspect), .pid = null, .policy_revision = 8 } } };
+    try validateResponse(response, query);
+    response.body.identity.principal = 2;
+    try std.testing.expectError(error.InvalidRead, validateResponse(response, query));
+    response.body.identity.principal = 65536;
+    response.body.identity.policy_revision = 9;
+    try std.testing.expectError(error.InvalidRead, validateResponse(response, query));
 }

@@ -8,6 +8,8 @@ default Station interfaces and legacy foreign behavior ABIs retain v2. The raw
 [client ABI](../transit-client/docs/bindings.md) also exposes explicit v3
 operations. Schema presence alone does
 not advertise a running capability or migrate signing/checkpoint formats.
+The additive growing `identity` query reports current coarse rights and scope
+at an authority position; it is not a bearer grant for subsequent reads.
 
 Public, language-neutral Transit contract types, exported as `transit_protocol`.
 This library depends only on Zig's standard library. It contains no authority,

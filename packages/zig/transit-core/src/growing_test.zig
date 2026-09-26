@@ -1138,3 +1138,18 @@ test "growing capacity backpressure blocks new admission but drains and closes e
     var recovered = try Engine.open(&f.journal, &f.pages, f.genesis);
     try t.expectError(error.ControlCapacity, recovered.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .revoke = 65536 } }, f.root_key)));
 }
+
+test "growing identity observes current grants and expires a prior inspection cut" {
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.init();
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
+    const identity = try fixture.query(65536, .{ .identity = {} });
+    try t.expectEqual(core.permission(.inspect), identity.body.identity.permissions);
+    _ = try fixture.query(65536, .{ .processes = .{ .position = identity.position } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions } });
+    try t.expectError(error.QueryExpired, fixture.query(65536, .{ .processes = .{ .position = identity.position } }));
+    try t.expectEqual(core.all_permissions, (try fixture.query(65536, .{ .identity = {} })).body.identity.permissions);
+    _ = try fixture.root(.{ .revoke = 65536 });
+    try t.expectError(error.Forbidden, fixture.query(65536, .{ .identity = {} }));
+}

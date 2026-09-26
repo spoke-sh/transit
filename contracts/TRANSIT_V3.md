@@ -35,6 +35,23 @@ mixed-profile writers and rollback into an older format are forbidden. Migration
 is unimplemented; use a fresh realm for v3. Existing v2 histories and their
 qualified code path remain available with their documented limits.
 
+## Current identity observation
+
+The additive `identity` read returns the authenticated principal, current coarse
+permission bits, optional PID scope and policy revision, at the enclosing
+response's authority position. It requires current `inspect` permission and
+uses the normal v3 signed-query domain. It exposes no signing key or resource
+grant and does not authorize a later operation by itself.
+
+Inspection clients can require exactly read-only permissions, then request
+bounded catalog pages at that same position. A grant change expires that cut;
+clients must not join the old identity observation to a newer page. Current
+resource grants continue to filter resource discovery independently. Earlier
+query/signature encodings are unchanged; older nodes need not support this
+new variant. Core unit tests cover grant expansion, stale-cut rejection and
+revocation. Board integration must also qualify this through real signed HTTP
+before M13 completes.
+
 ## Bounded operations over growing collections
 
 A turn proposes up to four mutations in one writable associated resource, four
