@@ -137,6 +137,10 @@ stack, bounded I/O pool, serialized access and joined destruction as legacy ones
    failure discards; a block-input failure freezes the native failure proposal.
    Read poisoning survives action rollback and prevents either success or a
    fabricated durable application failure.
+   The additive `station_growing_finish_result` form returns an error body with
+   the native cause and available authority code; public runners use it to
+   distinguish handler failure from a poisoned read. The original status-only
+   `finish` remains compatible.
 
 `GrowingAction`/`GrowingResult` are generated from the Zig boundary types. They
 share basic KV/Table/message implementations with the legacy adapter, add bounded

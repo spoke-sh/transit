@@ -34,6 +34,7 @@ uint32_t station_growing_dispatch(station_growing_server * arg0, station_buffer 
 uint32_t station_growing_confirmation(station_growing_server * arg0, station_buffer ** arg1);
 uint32_t station_growing_apply(station_growing_server * arg0, uint64_t arg1, const uint8_t * arg2, size_t arg3, station_buffer ** arg4);
 uint32_t station_growing_finish(station_growing_server * arg0, uint64_t arg1, uint32_t arg2);
+uint32_t station_growing_finish_result(station_growing_server * arg0, uint64_t arg1, uint32_t arg2, station_buffer ** arg3);
 uint32_t station_growing_discard(station_growing_server * arg0, uint64_t arg1);
 uint32_t station_growing_pending(station_growing_server * arg0, station_buffer ** arg1);
 uint32_t station_abi_version(void);

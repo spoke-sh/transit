@@ -92,6 +92,16 @@
       ]
     },
     {
+      "name": "station_growing_finish_result",
+      "result": "uint32_t",
+      "parameters": [
+        "station_growing_server *",
+        "uint64_t",
+        "uint32_t",
+        "station_buffer **"
+      ]
+    },
+    {
       "name": "station_growing_discard",
       "result": "uint32_t",
       "parameters": [
@@ -5204,6 +5214,40 @@
           ],
           "properties": {
             "growing_finish": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "scope",
+                "failed"
+              ],
+              "properties": {
+                "scope": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "failed": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "scope",
+                "failed"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "growing_finish_result"
+          ],
+          "properties": {
+            "growing_finish_result": {
               "type": "object",
               "additionalProperties": false,
               "x-transit-field-order": [

@@ -94,6 +94,7 @@ fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.
             break :blk if (growing) |pointer| abi.Api.station_growing_apply(pointer, action.scope, json.ptr, json.len, &buffer) else .not_ready;
         },
         .growing_finish => |action| if (growing) |pointer| abi.Api.station_growing_finish(pointer, action.scope, @intFromBool(action.failed)) else .not_ready,
+        .growing_finish_result => |action| if (growing) |pointer| abi.Api.station_growing_finish_result(pointer, action.scope, @intFromBool(action.failed), &buffer) else .not_ready,
         .growing_discard => |scope| if (growing) |pointer| abi.Api.station_growing_discard(pointer, scope) else .not_ready,
         .growing_pending => if (growing) |pointer| abi.Api.station_growing_pending(pointer, &buffer) else .not_ready,
         .arrow_cell => |arrow| blk: {

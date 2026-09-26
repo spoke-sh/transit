@@ -45,9 +45,7 @@ class Native:
         return self.api.call('station_growing_apply', self.pointer, scope, data, len(data))
 
     def finish(self, scope, failed=False):
-        status = self.api.lib.station_growing_finish(self.pointer, scope, int(failed))
-        if status:
-            raise TransitError(status)
+        return self.api.call('station_growing_finish_result', self.pointer, scope, int(failed))
 
     def discard(self, scope):
         status = self.api.lib.station_growing_discard(self.pointer, scope)
@@ -217,7 +215,7 @@ def run(node, cli, library, raw_library, host):
             assert server.apply(scope, {'budgets': {}})['budgets']['mutations'] == 3
             server.apply(scope, {'put': {'key': b'local'.hex(), 'value': b'private'.hex()}})
             assert server.apply(scope, {'budgets': {}})['budgets']['mutations'] == 2
-            rejects(1, server.finish, scope, True)
+            assert rejects(1, server.finish, scope, True)['err'] == 'ForeignHandlerFailure'
             assert query({'process': pid})['process']['process']['failure'] is None
             event = ready(server)
             assert event['scope'] != scope and event['initializing']
@@ -296,7 +294,7 @@ def run(node, cli, library, raw_library, host):
             fault['bad_read'] = True
             rejects(8, server.apply, event['scope'], {'get': b'remote'.hex()})
             rejects(8, server.apply, event['scope'], {'put': {'key': b'local'.hex(), 'value': '01'}})
-            rejects(8, server.finish, event['scope'])
+            assert rejects(8, server.finish, event['scope'])['err'] == 'InvalidAuthorityResponse'
             assert query({'process': pid})['process']['process']['failure'] is None
             server.close()
             server = None

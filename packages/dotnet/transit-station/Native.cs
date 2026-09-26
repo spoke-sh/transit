@@ -48,6 +48,8 @@ internal static class Native {
     [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint station_growing_finish(IntPtr arg0, ulong arg1, uint arg2);
     [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern uint station_growing_finish_result(IntPtr arg0, ulong arg1, uint arg2, out IntPtr arg3);
+    [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint station_growing_discard(IntPtr arg0, ulong arg1);
     [DllImport("transit_station", CallingConvention = CallingConvention.Cdecl)]
     internal static extern uint station_growing_pending(IntPtr arg0, out IntPtr arg1);

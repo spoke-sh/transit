@@ -238,6 +238,14 @@ pub fn apply(pointer: *Server, scope: u64, json: [*]const u8, len: usize, out: *
     return .ok;
 }
 pub fn finish(pointer: *Server, scope: u64, failed: u32) callconv(.c) base.Status {
+    return finishInner(pointer, scope, failed, null);
+}
+/// The additive detailed form preserves read/validation causes at freeze time.
+pub fn finishResult(pointer: *Server, scope: u64, failed: u32, out: *?*base.Buffer) callconv(.c) base.Status {
+    out.* = null;
+    return finishInner(pointer, scope, failed, out);
+}
+fn finishInner(pointer: *Server, scope: u64, failed: u32, out: ?*?*base.Buffer) base.Status {
     if (failed > 1) return .invalid_argument;
     const server = cast(pointer);
     if (!lock(server)) return .busy;
@@ -249,6 +257,7 @@ pub fn finish(pointer: *Server, scope: u64, failed: u32) callconv(.c) base.Statu
     };
     const poisoned = if (server.behavior.ready) |turn| turn.read_error != null else false;
     server.behavior.finish(if (failed == 1) error.ForeignHandlerFailure else null) catch |err| {
+        if (out) |output| base.output(.{ .err = @errorName(err), .protocol_error = server.client.last_rejection }, output) catch {};
         const result = base.status(err);
         return if (poisoned and result == .invalid_argument) .unavailable else result;
     };

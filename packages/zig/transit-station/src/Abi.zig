@@ -76,6 +76,7 @@ pub const Api = struct {
     pub const station_growing_confirmation = growing.confirmation;
     pub const station_growing_apply = growing.apply;
     pub const station_growing_finish = growing.finish;
+    pub const station_growing_finish_result = growing.finishResult;
     pub const station_growing_discard = growing.discard;
     pub const station_growing_pending = growing.pending;
     pub fn station_abi_version() callconv(.c) u32 {
