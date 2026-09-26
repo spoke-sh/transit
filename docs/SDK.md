@@ -7,8 +7,9 @@ clean wheel installation and focused lifecycle/data proofs. The
 packages, executable examples, clean tarballs and lifecycle/data proofs.
 The [Rust](sdk/RUST.md) raw/Station APIs are implemented with clean crate
 consumers, borrowed turns, panic/recovery and optional Arrow ownership proofs.
-Ruby's independent raw client now has clean gem and recovery/ownership proofs;
-its Station API and the C/C++, Java, .NET and BEAM adaptations remain open.
+Ruby's independent raw/Station gems now have clean installation, scoped handlers,
+recovery/ownership and original query IPC proofs. C/C++, Java, .NET and BEAM
+adaptations remain open.
 [M11](roadmap/M11.md) owns delivery, including public interoperability. The
 [M9 adapters](../bindings/README.md) remain executable low-level interfaces.
 
@@ -252,12 +253,12 @@ General query ingress and a production query host remain M13 scope.
 | Shared prerequisite | Required implementation/proof before public release |
 | --- | --- |
 | Growing Station ABI | Explicit C/port profile, full-width identities, bounded point/page reads, scoped turns and capability rejection implemented; public language adapters remain |
-| Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; Python and TypeScript persistence/confirmation callbacks and their fault proofs pass; other hosts remain |
-| Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; Python cancellation/join and TypeScript stop/join are qualified; other hosts remain |
+| Dispatch gate | Native `prepare`/`dispatchPending` now separates every mutation, with owned confirmation and growing/legacy recovery evidence; Python, TypeScript, Rust and Ruby persistence/confirmation callbacks and their fault proofs pass; other hosts remain |
+| Abort without failure | Native and foreign scoped `discard`/stop policy preserves earlier unresolved control operations and rejects dropping pending bytes; Python cancellation/join and TypeScript/Rust/Ruby stop/join are qualified; other hosts remain |
 | Typed operation metadata | Implemented native classification and canonical identity through C/port, with owned buffers; public typed operations must use it without decoding retry bytes |
 | Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
-| Application codecs | Shared [counter/query definition](../examples/station-sdk/README.md) and [fixtures](../tests/verification/sdk-codecs-v1.json) defined; Python/TypeScript implementations pass; remaining languages and public cross-language execution remain |
-| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python/PyArrow, TypeScript/Arrow JavaScript and Rust/Arrow Rust readers are qualified; other hosts remain |
+| Application codecs | Shared [counter/query definition](../examples/station-sdk/README.md) and [fixtures](../tests/verification/sdk-codecs-v1.json) defined; Python/TypeScript/Rust/Ruby implementations pass; remaining languages and public cross-language execution remain |
+| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; Python/PyArrow, TypeScript/Arrow JavaScript and Rust/Arrow Rust readers are qualified; Ruby owns IPC independently decoded by PyArrow; other hosts remain |
 
 The public declarations should first compile/type-check against real packages;
 then run the same service/requester against a disk-backed authority. Cover wide

@@ -43,6 +43,21 @@ when 'first'
       end
     end
   end
+  # Block acquisition defers interruption until its ensure owns the new client.
+  # Interrupt while a real native host is starting, then prove both owners join.
+  require 'transit/native_client'
+  marker = File.join(File.dirname(config_file), 'opening-native-pid')
+  File.write(fake, "#!#{RbConfig.ruby}\nFile.write(#{marker.inspect}, Process.pid.to_s)\nsleep 0.3\nexec(#{Transit::NativeClient::HOST.inspect}, ARGV.fetch(0))\n")
+  before = Thread.list.length
+  opening = Thread.new { Transit::Client.open(config.with(native_host: fake)) { raise 'Interrupted open must not yield' } }
+  deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10
+  until File.exist?(marker)
+    check Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+    sleep 0.005
+  end
+  opening.kill.join
+  check Thread.list.length == before
+  expect(Errno::ESRCH) { Process.kill(0, Integer(File.read(marker), 10)) }
   File.unlink(fake)
   Transit::Client.open(config) do |client|
     caps = client.capabilities(credential)

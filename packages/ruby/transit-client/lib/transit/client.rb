@@ -17,7 +17,7 @@ module Transit
           raise IncompatibleNative, 'Native gem version mismatch' unless NativeClient::VERSION == VERSION
           executable = NativeClient::HOST
         end
-        schemas = JSON.parse(File.binread(File.join(__dir__, 'client/schemas.json')))
+        schemas = Internal::SCHEMAS
         @port = Internal::Port.new(executable, { 'url' => config.url, 'timeout_ms' => config.timeout_ms }, schemas, 'ClientHostRequest')
         begin
           hello = port.request({ 'hello' => {} }, phase: :hello)
@@ -43,12 +43,14 @@ module Transit
     private_constant :State
 
     def self.open(config)
-      client = new(config)
-      return client unless block_given?
-      begin
-        yield client
-      ensure
-        client.close
+      return new(config) unless block_given?
+      Thread.handle_interrupt(Object => :never) do
+        client = new(config)
+        begin
+          Thread.handle_interrupt(Object => :immediate) { yield client }
+        ensure
+          client.close
+        end
       end
     end
     def initialize(config)

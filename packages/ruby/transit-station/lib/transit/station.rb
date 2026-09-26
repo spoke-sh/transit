@@ -1,0 +1,8 @@
+# frozen_string_literal: true
+require 'transit/client'
+require_relative 'station/values'
+require_relative 'station/bridge'
+require_relative 'station/turn'
+require_relative 'station/table'
+require_relative 'station/query'
+require_relative 'station/runner'

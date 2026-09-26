@@ -22,4 +22,4 @@ Registry publication, other Ruby versions and other platforms remain unqualified
 `nix develop .#bindings --command just bindings::ruby-sdk-test` installs both gems
 outside the checkout and runs the shared raw authority schedule, malformed port
 responses, bounded admission and caller interruption/cleanup. See the
-[test guide](../../../tests/README.md). Ruby Station is separate M11 work.
+[test guide](../../../tests/README.md). The separate [Station gem](../transit-station/README.md) adds scoped handlers and state.

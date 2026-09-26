@@ -20,6 +20,7 @@ class Consumer:
     cli: Callable[[Path, str], list]
     invalid_handler: str
     extra_failures: tuple[str, ...] = ()
+    arrow_adapter: bool = True
 
 
 def run(node, cli, raw_library, install, label):
@@ -266,7 +267,8 @@ def run(node, cli, raw_library, install, label):
             assert reader_child.returncode == 0
             children.remove(reader_child)
             query_cfg['arrow_site'] = str(Path(pa.__file__).parent.parent)
-            invoke('arrow', query_cfg)
+            if consumer.arrow_adapter:
+                invoke('arrow', query_cfg)
             # Expiry remains retirement, distinct from stale activation or access.
             while time.time_ns() // 1_000_000 <= expired['work_before_ms'] + 10000:
                 time.sleep(0.05)

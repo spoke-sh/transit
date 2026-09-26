@@ -35,6 +35,7 @@ module Transit
 
   module Internal
     CONTRACT = JSON.parse(File.binread(File.join(__dir__, 'contract.json'))).freeze
+    SCHEMAS = JSON.parse(File.binread(File.join(__dir__, 'schemas.json'))).freeze
     LIMITS = CONTRACT.fetch('limits').freeze
     module_function
     def integer(value, min: 1, max: LIMITS.fetch('max_counter'))

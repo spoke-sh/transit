@@ -1,0 +1,35 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+require 'json'
+require 'transit/sdk_examples'
+
+config_file, role, option, count = ARGV
+raise ArgumentError, 'CONFIG service|requester [--commits COUNT]' unless [2, 4].include?(ARGV.length) && (option.nil? || option == '--commits')
+remaining = count.nil? ? 1 : Integer(count, 10)
+raise ArgumentError, 'Commit count must be positive' unless remaining.positive?
+cfg = JSON.parse(File.binread(config_file))
+raise ArgumentError, 'Select growing_v3' unless cfg.fetch('profile') == 'growing_v3'
+peer = Transit::ProcessRef.new(realm: cfg.fetch('realm'), pid: cfg.fetch('peer'))
+config = Transit::Station::ServiceConfig.new(
+  client: Transit::ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3),
+  activation: Transit::Station::Activation.new(
+    process: Transit::ProcessRef.new(realm: cfg.fetch('realm'), pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
+    credential: Transit::Credential.new(realm: cfg.fetch('realm'), principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))
+handler, codec = case role
+                 when 'service' then [Transit::Examples::Counter.new, Transit::Examples::COUNTER]
+                 when 'requester' then [Transit::Examples::Requester.new(peer), Transit::Examples::REQUESTER]
+                 else raise ArgumentError, 'Select service or requester'
+                 end
+Transit::Station::Runner.open(config, handler: handler, codec: codec, recovery: :fence_on_restart) do |runner|
+  runner.each do |event|
+    case event
+    when Transit::Station::Committed
+      puts JSON.generate(input: event.input, committed: event.receipt.position)
+      remaining -= 1
+      break if remaining.zero?
+    when Transit::Station::Idle then sleep 0.02
+    when Transit::Station::Progress then next
+    else raise Transit::HandlerError, 'Runner stopped before requested commitment'
+    end
+  end
+end

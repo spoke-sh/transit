@@ -25,7 +25,7 @@ module Transit
         @mutex, @queue = Mutex.new, SizedQueue.new(1)
         @busy, @closed = false, false
         ready = Ticket.new
-        Thread.handle_interrupt(Exception => :never) do
+        Thread.handle_interrupt(Object => :never) do
           @thread = Thread.new do
             Thread.current.report_on_exception = false
             state = nil
@@ -72,7 +72,7 @@ module Transit
       end
       def call(&work)
         ticket = nil
-        Thread.handle_interrupt(Exception => :never) do
+        Thread.handle_interrupt(Object => :never) do
           @mutex.synchronize do
             raise Closed, 'Client or runner is closed' if @closed
             raise Busy, 'One admitted operation per client or runner' if @busy || Thread.current == @thread
@@ -84,14 +84,17 @@ module Transit
         ticket.value
       end
       def close
-        raise Busy, 'A callback cannot join its own worker' if Thread.current == @thread
-        Thread.handle_interrupt(Exception => :never) do
+        check_close!
+        Thread.handle_interrupt(Object => :never) do
           first = @mutex.synchronize { previous = @closed; @closed = true; !previous }
           @queue.push(nil) if first
           @thread.join
           raise CleanupError.new(@evidence), cause: @cleanup_error if @cleanup_error
           @evidence
         end
+      end
+      def check_close!
+        raise Busy, 'A callback cannot join its own worker' if Thread.current == @thread
       end
     end
   end

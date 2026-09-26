@@ -200,8 +200,8 @@ use while making normal application code express domain operations directly.
 
 The M11 public SDK targets are **C/C++, Rust, Python, Ruby, Node.js/TypeScript,
 Java, .NET and Elixir/Erlang**. Python, TypeScript and Rust establish the first
-equivalent API designs. Ruby is an additional planned target using the shared
-native port; it has no qualified adapter or pinned runtime yet. The historical
+equivalent API designs. Ruby uses the shared native port with pinned Ruby 3.4.9,
+independent client/Station gems and qualified public handler/recovery/data proofs. The historical
 [M9 target table](#m9-language-targets) and binding evidence retain their original
 scope. [M11's language conventions](roadmap/M11.md#language-conventions) own the
 public interface direction for the complete target list.

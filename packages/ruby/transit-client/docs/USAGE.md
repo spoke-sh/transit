@@ -62,7 +62,9 @@ known receipts after close. Cleanup failure raises `CleanupError` with any captu
 shutdown evidence. Closing from a callback cannot join its own worker.
 
 Prefer `Client.open(config) { |client| ... }`, whose ensure clause joins on normal
-return or exceptions. Explicit `open` without a block requires explicit `close`.
+return or exceptions. Acquisition is protected from all Ruby interrupts until
+the ensure clause owns the client, including caller thread termination during
+native startup. Explicit `open` without a block requires explicit `close`.
 There is no finalizer that acknowledges or safely recovers work. Process death
 requires persisted retry bytes or fresh-ownership reconciliation. Neither local
 thread interruption nor closing the native port performs durable cancellation.

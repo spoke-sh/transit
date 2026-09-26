@@ -11,16 +11,15 @@ and installable artifacts. The current manual turn/action APIs remain available;
 the [caller design](../docs/CLIENT.md#idiomatic-language-sdks) defines the planned
 layer above them.
 
-Public Python and TypeScript SDKs are now implemented separately from these
+Public Python, TypeScript, Rust and Ruby SDKs are now implemented separately from these
 low-level adapters. Their package guides and installation/recovery proofs are
 linked from [M11](../docs/roadmap/M11.md); other language SDKs and public
 cross-language qualification remain open.
 
-M11 also adds **Ruby** to the target list. Its proposed adapter uses the shared
-native port with Ruby value objects and block-scoped ownership. Ruby packages,
-and conformance evidence remain to be implemented; Ruby 3.4.9 / RubyGems 3.7.2
-are now pinned by the existing Nix lock. The M9 adapters
-and qualified runtime table below do not include Ruby. See the
+M11 adds **Ruby** through the shared native port, with value objects and
+block-scoped ownership. Ruby 3.4.9 / RubyGems 3.7.2 are pinned by the Nix lock;
+its raw/Station packages have separate public SDK proofs. The historical M9
+matrix retains its original scope. See the
 [M11 language conventions](../docs/roadmap/M11.md#language-conventions).
 
 `just bindings::generate` reflects the native exports and updates adapter
@@ -80,8 +79,10 @@ stop/block panic policies and optional Arrow Rust ownership checks.
 The [Ruby raw client](../packages/ruby/transit-client/README.md) installs independent
 client/native gems and shares the raw authority schedule. `just bindings::ruby-sdk-test`
 qualifies caller-thread interruption with owned native work, responsive close,
-malformed port responses and exact seedless recovery. Ruby's Station SDK remains
-in progress; Ruby was not an M9 binding target.
+malformed port responses and exact seedless recovery. The
+[Station gem](../packages/ruby/transit-station/README.md) also runs the shared
+handler/recovery/Table/query schedule, including thread/fiber scope rejection,
+non-StandardError callbacks and owned original IPC. Ruby was not an M9 target.
 
 ## Qualification tools
 
@@ -94,7 +95,7 @@ shell. The current Linux x86_64 baselines are:
 | --- | --- |
 | Zig / C / C++ | 0.17.0-dev.2267+48abf1a34 |
 | Python | CPython 3.13.15; PyArrow 23.0.0 for independent IPC checks |
-| Ruby (M11 raw client) | 3.4.9; JSON 2.9.1, tmpdir 0.3.1, URI 1.0.4 |
+| Ruby (M11 public SDK) | 3.4.9; JSON 2.9.1, tmpdir 0.3.1, URI 1.0.4 |
 | Rust / Cargo | 1.95.0; optional Arrow array/IPC 59.1.0 with locked 59.x components |
 | Node.js | 24.21.0 from the existing frontend toolchain |
 | Java | OpenJDK 21.0.12.1+1; Gson 2.12.1, separately checksummed |
@@ -104,6 +105,6 @@ shell. The current Linux x86_64 baselines are:
 
 The Nix lock and [binding tools](../nix/bindings-tools.nix) own these versions.
 Every M9 language runs both service and requester roles in the Linux matrix.
-Ruby currently has independent raw-client evidence only.
+Ruby runs both roles through its M11 public SDK schedule.
 Only Zig is the intended M9 reference worker; these checks do not qualify foreign
 runtimes as Substrate workers.

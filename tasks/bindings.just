@@ -92,5 +92,15 @@ ruby-sdk-test: ruby-build
     ruby -c packages/ruby/transit-client/lib/transit/client/worker.rb
     ruby -c packages/ruby/transit-client/lib/transit/client/port.rb
     ruby -c packages/ruby/transit-client/lib/transit/client/operations.rb
+    ruby -c packages/ruby/transit-station/lib/transit/station/values.rb
+    ruby -c packages/ruby/transit-station/lib/transit/station/bridge.rb
+    ruby -c packages/ruby/transit-station/lib/transit/station/turn.rb
+    ruby -c packages/ruby/transit-station/lib/transit/station/table.rb
+    ruby -c packages/ruby/transit-station/lib/transit/station/query.rb
+    ruby -c packages/ruby/transit-station/lib/transit/station/runner.rb
+    ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples.rb
+    ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples/codecs.rb
+    ruby -c examples/station-sdk/ruby/bin/transit-ruby-counter
     zig build transit-node rey-cli
     python3 -B tests/ruby_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby
+    python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby

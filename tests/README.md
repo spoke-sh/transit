@@ -133,8 +133,24 @@ Killing the controller thread during an accepted send leaves native work owned;
 concurrent work rejects, close joins responsively and retains the known receipt.
 Missing/incompatible host overrides and oversized, invalid-UTF-8, malformed-status
 and truncated port replies fail with read/uncertainty distinctions. The client
-has no Station dependency. Ruby Station and public mixed-language pairs remain
-open; the bindings CI lane now includes this public raw proof.
+has no Station dependency. Interrupted block acquisition waits for startup and
+then joins both the Ruby worker and native child. The bindings CI lane includes
+these public proofs.
+
+The Ruby Station consumer installs five gems and invokes both documented counter
+CLI roles. It runs the shared `sdk_station_runner.py` schedule with full-width
+codec fixtures, all persistence/confirmation gates, reentrant-call rejection,
+normal and non-StandardError handler failures under stop/block policy, expired
+helpers and cross-thread/fiber access. Killing a waiting caller retains owned
+native work through responsive close, including an accepted commit. Exact retry
+survives host/node/disk loss without a seed, and fresh owners resume durable calls.
+Poisoned reads, retirement, stale ownership and revoked result access retain their
+meaning. Retained Tables span six pages, and original IPC buffers survive runner
+close and mutation of returned copies. Independent PyArrow decodes all six
+segments, including i64 extremes and nulls. Ruby has no selected native Arrow
+adapter; the optional-adapter step is explicitly disabled for it, while the full
+IPC/metadata/independent-consumer proof runs. Public mixed-language pairs and the
+remaining target SDKs are still open.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

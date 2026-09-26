@@ -240,8 +240,9 @@ and protocol assertions belong under [tests/](../tests/README.md).
 ### Planned components
 
 - Add typed public APIs, handler runners and installable artifacts to the existing
-  language packages in [M11](roadmap/M11.md), and add Ruby through the shared
-  native port. Ruby's adapter and runtime qualification remain planned.
+  language packages in [M11](roadmap/M11.md). Python, TypeScript, Rust and Ruby
+  have public handler/recovery/data proofs; remaining targets and public mixed
+  language pairs are still open. Ruby uses the shared native port.
   Generated/raw bindings remain a
   separate interface over the shared Zig client/framework; the
   [caller design](CLIENT.md#idiomatic-language-sdks) owns that boundary.
