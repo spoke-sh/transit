@@ -210,6 +210,19 @@ reject before handler work. Status validation uses each generated ABI's range,
 including Station's stale/not-ready/budget statuses. Full-width values are exact
 `BigInteger`/`long`, with no floating-point conversion at the public boundary.
 
+`nix develop .#bindings -c just bindings::dotnet-sdk-test` packs independent
+`Transit.Client` and `Transit.Native.Client` NuGet artifacts, restores them from
+an isolated local feed into an external .NET 8 consumer, and deletes build source
+and package caches before execution. No Station package is installed. The shared
+raw schedule checks typed bounds, copied payload/export bytes, native metadata,
+lost accepted responses, exact seedless recovery and revoked retry. Cancelled
+dispatch/close awaits preserve owned native work and the accepted receipt while
+the caller stays responsive. Missing artifacts, ABI mismatches and closed handles
+reject explicitly; credential-read errors omit private paths. Native calls and
+destruction use one owned 8 MiB thread. The public .NET Station proof remains open;
+portable Linux packages, NuGet.org publication and CLR allocation-failure injection
+are not qualified.
+
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.
 

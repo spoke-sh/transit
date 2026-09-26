@@ -46,6 +46,7 @@
       "bindings::ruby-sdk-test",
       "bindings::c-sdk-test",
       "bindings::java-sdk-test",
+      "bindings::dotnet-sdk-test",
       "test::model",
       "test::model-delivery"
     ],

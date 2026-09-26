@@ -13,7 +13,8 @@ recovery/ownership and original query IPC proofs. Independent
 raw clients and Station handlers now have installed artifacts and shared
 recovery/ownership/Table/query proofs. Java's independent raw/Station JARs now
 qualify bounded futures, typed scoped handlers, exact recovery, retained Tables
-and owned query IPC. .NET and BEAM adaptations remain open.
+and owned query IPC. .NET's independent raw NuGet client qualifies typed recovery,
+cancelled awaits and joined native ownership; .NET Station and BEAM remain open.
 [M11](roadmap/M11.md) owns delivery, including public interoperability. The
 [M9 adapters](../bindings/README.md) remain executable low-level interfaces.
 

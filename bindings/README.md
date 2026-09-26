@@ -31,6 +31,11 @@ seedless recovery. The [Java Station SDK](../packages/java/transit-station-sdk/R
 also qualifies typed handlers, all mutation gates, scoped state, retained Tables,
 query IPC ownership and both installed counter roles through the shared schedule.
 
+The independent [.NET client](../packages/dotnet/transit-client/README.md) now
+restores separate SDK/native NuGet artifacts and qualifies typed retry, cancelled
+awaits, joined 8 MiB native workers and retained receipts through
+`just bindings::dotnet-sdk-test`. Its public Station layer remains in progress.
+
 M11 adds **Ruby** through the shared native port, with value objects and
 block-scoped ownership. Ruby 3.4.9 / RubyGems 3.7.2 are pinned by the Nix lock;
 its raw/Station packages have separate public SDK proofs. The historical M9

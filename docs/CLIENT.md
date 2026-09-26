@@ -193,8 +193,9 @@ The [SDK design](SDK.md) links concrete Python, TypeScript and Rust API proposal
 for services/requesters, raw recovery, runner ownership and packaging. It records
 the required shared native changes. Python, TypeScript, Rust, Ruby, C/C++ and Java
 now have qualified public raw and Station APIs with installed examples. Java's
-JARs add bounded futures, joined cleanup and typed scoped handlers. .NET, BEAM
-and public mixed-language qualification remain open.
+JARs add bounded futures, joined cleanup and typed scoped handlers. .NET's
+independent raw NuGet client also has cancellation/ownership and exact recovery
+proofs; its Station layer, BEAM and public mixed-language qualification remain open.
 M9 provides generated declarations and
 owned host adapters with real interoperability and recovery evidence. Its public
 surface still exposes JSON actions, raw status codes, hex values and manual
