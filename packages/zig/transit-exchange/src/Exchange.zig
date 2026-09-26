@@ -121,6 +121,109 @@ fn writable(self: Self, turn: *Turn) !root.Descriptor {
 fn save(self: Self, turn: *Turn, d: root.Descriptor) !void {
     try turn.write(key(self.id, 'd', 0), try d.encode());
 }
+pub const Control = struct {
+    pub const magic = "EXC1";
+    dependents: u64 = 0,
+    disposition: enum(u8) { no_intent = 1, pending = 2, observed = 3, cancelled = 4, closed_unknown = 5 } = .no_intent,
+    caller: enum(u8) { none = 1, held = 2, released = 3 } = .none,
+    effect: u64 = 0,
+    pub fn validate(self: Control) !void {
+        if ((self.disposition == .no_intent or self.disposition == .pending) != (self.effect == 0)) return error.InvalidExchangeRecord;
+        if ((self.disposition == .no_intent) != (self.caller == .none)) return error.InvalidExchangeRecord;
+    }
+};
+pub const Dependency = struct {
+    pub const magic = "EXH1";
+    holder: u64,
+    phase: enum(u8) { held = 1, released = 2 } = .held,
+    pub fn validate(self: Dependency) !void {
+        if (self.holder == 0) return error.InvalidExchangeRecord;
+    }
+};
+pub fn dependencyKey(id: u64, token: u64) p.Value {
+    var bytes: [19]u8 = undefined;
+    bytes[0..2].* = "\x00E".*;
+    std.mem.writeInt(u64, bytes[2..10], id, .big);
+    bytes[10] = 'h';
+    std.mem.writeInt(u64, bytes[11..19], token, .big);
+    return p.Value.init(&bytes) catch unreachable;
+}
+pub fn control(self: Self, source: anytype) !Control {
+    return if (try source.read(key(self.id, 'c', 0))) |value| try root.codec.decode(Control, value) else .{};
+}
+/// A trusted admission handler validates the holder's resource/lifetime grant
+/// first. Tokens are permanent identities, not bearer grants or expiring leases.
+pub fn retain(self: Self, turn: *Turn, token: u64, holder: u64) !Pub.Outcome {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const d = try self.writable(turn);
+    if (d.phase == .retired) return error.ExchangeUnavailable;
+    if (token == 0 or holder == 0) return error.InvalidExchangeIdentity;
+    const k = dependencyKey(self.id, token);
+    if (try turn.read(k)) |value| {
+        const previous = try root.codec.decode(Dependency, value);
+        if (previous.holder != holder) return error.ExchangeIdentityConflict;
+        if (previous.phase == .released) return error.ExchangeDependencyReleased;
+        return .duplicate;
+    }
+    var c = try self.control(turn);
+    c.dependents = try std.math.add(u64, c.dependents, 1);
+    try turn.write(k, try root.codec.encode(Dependency{ .holder = holder }));
+    try turn.write(key(self.id, 'c', 0), try root.codec.encode(c));
+    return .changed;
+}
+/// Invoke only for an authenticated holder acknowledgement or explicit authorized
+/// disposal of that dependency; caller termination alone is not acknowledgement.
+pub fn release(self: Self, turn: *Turn, token: u64, holder: u64) !Pub.Outcome {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    _ = try self.writable(turn);
+    if (token == 0) return error.InvalidExchangeIdentity;
+    const k = dependencyKey(self.id, token);
+    var dependency = try root.codec.decode(Dependency, (try turn.read(k)) orelse return error.UnknownExchangeDependency);
+    if (dependency.holder != holder) return error.WrongExchangeHolder;
+    if (dependency.phase == .released) return .duplicate;
+    var c = try self.control(turn);
+    if (c.dependents == 0) return error.InvalidExchangeRecord;
+    c.dependents -= 1;
+    dependency.phase = .released;
+    try turn.write(k, try root.codec.encode(dependency));
+    try turn.write(key(self.id, 'c', 0), try root.codec.encode(c));
+    return .changed;
+}
+pub fn releaseCaller(self: Self, turn: *Turn, caller: u64) !Pub.Outcome {
+    const d = try self.writable(turn);
+    if (d.caller != caller) return error.WrongExchangeHolder;
+    var c = try self.control(turn);
+    if (c.disposition == .no_intent or c.disposition == .pending) return error.UnsettledExchange;
+    if (c.caller == .released) return .duplicate;
+    c.caller = .released;
+    try turn.write(key(self.id, 'c', 0), try root.codec.encode(c));
+    return .changed;
+}
+/// Record a terminal kernel decision obtained through an authenticated read.
+/// Terminal capture by itself cannot discharge an outstanding effect obligation.
+pub fn settle(self: Self, turn: *Turn, effect: p.Growth.Effect) !Pub.Outcome {
+    const d = try self.writable(turn);
+    if (d.phase != .complete and d.phase != .unknown) return error.ExchangeStillOpen;
+    if (effect.pid != d.owner or effect.id == 0 or !(try turn.read(key(self.id, 'i', 0)) orelse return error.UnsettledExchange).eql(effect.payload)) return error.InvalidExchangeAttempt;
+    if (d.effect != 0 and (d.effect != effect.id or d.attempt != effect.attempt or d.executor != effect.executor)) return error.InvalidExchangeAttempt;
+    var c = try self.control(turn);
+    const disposition: @FieldType(Control, "disposition") = switch (effect.phase) {
+        .observed => if (d.phase == .complete and effect.result != null) .observed else return error.InvalidExchangeAttempt,
+        .cancelled => .cancelled,
+        .closed_unknown => .closed_unknown,
+        else => return error.UnsettledExchange,
+    };
+    if (c.disposition != .pending) {
+        if (c.disposition != disposition or c.effect != effect.id) return error.ExchangeIdentityConflict;
+        return .duplicate;
+    }
+    c.disposition = disposition;
+    c.effect = effect.id;
+    try turn.write(key(self.id, 'c', 0), try root.codec.encode(c));
+    return .changed;
+}
 /// Freeze exact request coverage and its effect intent in the same turn. The
 /// ready state prevents recovery from creating a second effect for this group.
 pub fn commitIntent(self: Self, turn: *Turn) !Pub.Outcome {
@@ -132,6 +235,12 @@ pub fn commitIntent(self: Self, turn: *Turn) !Pub.Outcome {
     if (d.pending_kind != 0 or d.segments == 0) return error.ExchangeNotPrepared;
     if (turn.decision.effect != null) return error.EffectBudgetExceeded;
     turn.decision.effect = try (root.Intent{ .resource = self.resource, .exchange = self.id, .segments = d.segments, .bytes = d.bytes, .chain = d.chain }).encode();
+    var c = try self.control(turn);
+    if (c.disposition != .no_intent) return error.ExchangeIdentityConflict;
+    c.disposition = .pending;
+    c.caller = .held;
+    try turn.write(key(self.id, 'i', 0), turn.decision.effect.?);
+    try turn.write(key(self.id, 'c', 0), try root.codec.encode(c));
     d.phase = .ready;
     try self.save(turn, d);
     return .changed;
@@ -238,11 +347,14 @@ pub fn closeUnknown(self: Self, turn: *Turn) !Pub.Outcome {
     try self.save(turn, d);
     return .changed;
 }
-/// Caller must discharge replay dependencies before explicit retirement.
+/// Retirement is serialized with dependency admission in the writer's turn.
 pub fn retire(self: Self, turn: *Turn) !Pub.Outcome {
     var d = try self.writable(turn);
     if (d.phase == .retired) return .duplicate;
     if (d.phase != .complete and d.phase != .unknown) return error.ExchangeStillOpen;
+    const c = try self.control(turn);
+    if (c.disposition == .pending or (d.effect != 0 and c.disposition == .no_intent)) return error.UnsettledExchange;
+    if (c.caller == .held or c.dependents != 0) return error.ExchangeHasDependents;
     d.phase = .retired;
     try self.save(turn, d);
     return .changed;

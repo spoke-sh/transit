@@ -128,6 +128,10 @@ test "finite segment coverage grows on disk shape, replay validates and retireme
     const prefix = try ex.read(&turn, &source, opened);
     try t.expect(prefix.next != null);
     turn = try store.capture();
+    try t.expectError(error.UnsettledExchange, ex.retire(&turn));
+    _ = try ex.settle(&turn, .{ .id = 19, .pid = 2, .payload = (try turn.read(Exchange.key(ex.id, 'i', 0))).?, .phase = .observed, .attempt = 20, .executor = 7, .reconcile_before_ms = 10000, .result = try (try ex.reference(&turn)).encode() });
+    try t.expectError(error.ExchangeHasDependents, ex.retire(&turn));
+    _ = try ex.releaseCaller(&turn, 9);
     _ = try ex.retire(&turn);
     try store.commit(turn);
     turn = try store.capture();
@@ -145,6 +149,54 @@ test "finite segment coverage grows on disk shape, replay validates and retireme
     try t.expectEqual(@as(u32, 42), (try ex.inspect(&turn)).collected);
     try t.expectError(error.ExchangeUnavailable, ex.open(&turn, &source));
     try t.expectError(error.ExchangeUnavailable, Exchange.create(&turn, ex.id, .{ .caller = 9, .input = 8, .protocol = 1 }, limits, 10000));
+}
+
+test "durable dependency tokens block release across turns and never reacquire after disposal" {
+    var store: Store = .{};
+    defer store.deinit();
+    const ex = try exchange(&store, 1);
+    for (1..97) |i| {
+        var turn = try store.capture();
+        _ = try ex.retain(&turn, i, 70000 + i);
+        try t.expectEqual(.duplicate, try ex.retain(&turn, i, 70000 + i));
+        try t.expectError(error.ExchangeIdentityConflict, ex.retain(&turn, i, 1));
+        try store.commit(turn);
+    }
+    try bind(&store, ex);
+    var turn = try store.capture();
+    _ = try ex.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    const effect: p.Growth.Effect = .{ .id = 19, .pid = 2, .payload = (try turn.read(Exchange.key(ex.id, 'i', 0))).?, .phase = .closed_unknown, .attempt = 20, .executor = 7, .reconcile_before_ms = 10000 };
+    var forged = effect;
+    forged.phase = .authorized;
+    try t.expectError(error.UnsettledExchange, ex.settle(&turn, forged));
+    try t.expectError(error.UnsettledExchange, ex.releaseCaller(&turn, 9));
+    forged = effect;
+    forged.payload.data[forged.payload.len - 1] ^= 1;
+    try t.expectError(error.InvalidExchangeAttempt, ex.settle(&turn, forged));
+    _ = try ex.settle(&turn, effect);
+    try t.expectEqual(.duplicate, try ex.settle(&turn, effect));
+    try t.expectError(error.WrongExchangeHolder, ex.releaseCaller(&turn, 10));
+    _ = try ex.releaseCaller(&turn, 9);
+    try t.expectError(error.ExchangeHasDependents, ex.retire(&turn));
+    try store.commit(turn);
+    for (1..97) |i| {
+        turn = try store.capture();
+        try t.expectError(error.WrongExchangeHolder, ex.release(&turn, i, 1));
+        _ = try ex.release(&turn, i, 70000 + i);
+        try t.expectEqual(.duplicate, try ex.release(&turn, i, 70000 + i));
+        try t.expectError(error.ExchangeDependencyReleased, ex.retain(&turn, i, 70000 + i));
+        if (i < 96) try t.expectError(error.ExchangeHasDependents, ex.retire(&turn));
+        try store.commit(turn);
+    }
+    turn = try store.capture();
+    try t.expectEqual(@as(u64, 0), (try ex.control(&turn)).dependents);
+    _ = try ex.retire(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.ExchangeUnavailable, ex.retain(&turn, 999, 9));
+    try t.expectEqual(.duplicate, try ex.release(&turn, 1, 70001));
 }
 test "gaps, conflicting duplicates, terminal races and atomic rollback preserve capture" {
     var store: Store = .{};

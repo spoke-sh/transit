@@ -56,5 +56,12 @@ The worker emits only exchange identity, phase and byte/segment counts on stdout
 It does not log bodies, request targets or credential material. HTTP status is
 captured evidence, not a claim of business success. Resource retention remains
 unlimited; group retirement and dependency-safe cleanup are explicit operations.
+`release` mode is the trusted controller's explicit disposal of this private
+worker's caller replay hold. It requires a recorded terminal kernel decision,
+retires group availability, then performs at most `cleanup_steps` bounded steps
+(default 64, maximum 128). Invoke again with fresh ownership to resume. It never
+resolves an unsettled effect or releases other consumer dependencies. The disk
+proof restarts after retirement and partial reclamation, rejects replay while
+bytes remain, and finishes cleanup without another remote request.
 TLS authenticates the virtual host while dialing a provisioned numeric address;
 no proxy environment or implicit DNS selection changes that destination.

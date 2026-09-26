@@ -172,6 +172,28 @@ def run(node, provision, worker):
             assert requests == ["/complete"]
             assert set(dropped) == recovered == {"seal", "dispatch", "observe"}, (dropped.keys(), recovered)
 
+            # Explicit disposal closes availability before bounded reclamation.
+            # Restart disk authority partway through cleanup and resume it.
+            saved = admin("own")
+            configure(saved, "/complete", "release")
+            changed = json.loads(config.read_text())
+            changed["cleanup_steps"] = 2
+            config.write_text(json.dumps(changed))
+            assert invoke()["phase"] == "retired"
+            state_after_release = admin("inspect")
+            assert state_after_release["collected"] < state_after_release["segments"]
+            refused = subprocess.run([provision, url, "replay", str(state)], capture_output=True, timeout=30)
+            assert refused.returncode != 0 and b"ExchangeUnavailable" in refused.stderr, refused
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start()
+            authority = start_node()
+            saved = admin("own")
+            configure(saved, "/complete", "release")
+            assert invoke()["phase"] == "retired"
+            state_after_release = admin("inspect")
+            assert state_after_release["collected"] == state_after_release["segments"]
+            assert requests == ["/complete"]
+
             credential.write_text("fixture-request-secret")
             saved = admin("provision")
             configure(saved, "/kill", "prepare")

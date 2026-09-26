@@ -67,7 +67,7 @@ pub fn main(init: std.process.Init) !void {
             } else {
                 const effects = (try admin.query(.{ .effects = .{ .pid = saved.pid } })).body.effects;
                 const effect = effects.entries[0] orelse return error.UnknownEffect;
-                try output.interface.print("{{\"phase\":\"{s}\",\"effect\":\"{s}\",\"segments\":{d}}}\n", .{ @tagName(descriptor.phase), @tagName(effect.phase), descriptor.segments });
+                try output.interface.print("{{\"phase\":\"{s}\",\"effect\":\"{s}\",\"segments\":{d},\"collected\":{d}}}\n", .{ @tagName(descriptor.phase), @tagName(effect.phase), descriptor.segments, descriptor.collected });
             }
             return output.interface.flush();
         } else return error.UnknownOperation;

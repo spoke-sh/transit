@@ -32,7 +32,8 @@ retirement closes reads before member reclamation. No transition resets budgets
 or reuses an ID. Captured prefixes do not imply a complete response.
 
 The ready transition freezes exact request coverage and commits its kernel effect
-intent in the same turn. It forbids more request segments and repeated effect
+intent in the same turn, retaining a copy of that intent and a caller replay
+hold (three mutations). It forbids more request segments and repeated effect
 creation. Binding checks the authorized effect's payload against that exact
 coverage before moving to capturing. No state grants permission to resend.
 
@@ -92,12 +93,38 @@ Publication digest; only the last verified member and final coverage commitment
 establish complete replay. Unknown capture is inspectable as partial evidence,
 but complete replay rejects it. Replay APIs have no transport or secret resolver.
 
-Retirement preserves the final descriptor. Cleanup visits one publication at a
+`settle` records a terminal authenticated kernel effect read, checking the frozen
+intent and bound effect/attempt/executor identity. Merely finishing capture cannot
+discharge an effect obligation. Caller replay remains held after settlement until
+an authenticated acknowledgement or an explicit authorized disposal invokes
+`releaseCaller`. Termination, quota pressure and elapsed time do not release it.
+
+Additional consumers use permanent dependency tokens with an immutable holder
+PID. Admission and release update one token and one count in the fenced writer's
+turn; no operation loads all dependencies. Matching duplicates are inert, a
+released token cannot be reacquired, and another holder cannot release it. The
+adapter must authorize holders and compatible resource lifetimes before admission.
+Tokens neither grant reads nor expire automatically. A service admitting a
+reference must register its dependency before exposing it; opaque bytes do not
+discover dependencies. Child exchanges with independent copied bodies need their
+own holds; retaining parent evidence for later use requires an explicit token.
+
+Retirement rejects outstanding effect obligations or caller/consumer holds, then
+preserves the final descriptor. Cleanup visits one publication at a
 time and deletes at most two chunks per turn, preserving descriptors and terminal
 IDs. A staging record is abandoned before cleanup. Historical protected roots
 remain subject to resource rights and their own release; this is logical cleanup,
 not physical erasure. Unlimited retention is the default; neither capacity nor
 worker restart authorizes retirement.
+
+Additive control values use key tag `c`, ordinal zero: `EXC1` contains dependents:u64,
+disposition:u8 (no_intent=1, pending=2, observed=3, cancelled=4, closed_unknown=5),
+caller:u8 (none=1, held=2, released=3), effect:u64. The frozen `EXI1` is retained at
+tag `i`, ordinal zero. Dependency keys are `00 45` + exchange:u64 big endian +
+`h` + token:u64 big endian; `EXH1` values contain holder:u64 and phase:u8
+(held=1, released=2). Absent control means no published intent and no holds;
+bound captures lacking control cannot retire. These are additive experimental
+records, not a migration promise for prequalification snapshots.
 
 ## Encoding and proof boundary
 

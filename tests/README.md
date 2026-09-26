@@ -4,7 +4,10 @@
 
 `just test::unit` includes exchange segment/coverage, frozen effect intents,
 identity conflicts, quota/rollback, terminal cleanup and old-source availability
-checks. `just test::http-transport` runs the real Zig transport against independent
+checks. Ninety-six durable dependency tokens exercise admission, wrong-holder
+release, duplicate disposal and permanent token retirement across turns. Capture
+cannot retire before kernel settlement and explicit caller/consumer disposal.
+`just test::http-transport` runs the real Zig transport against independent
 Python HTTP/TLS peers: 20 single-send requests cover 16,387-byte binary chunked
 bodies, trailers, header omissions, redirects, ambiguous framing, truncation,
 capacity refusal, capture failure, lost responses and timeouts. TLS authenticates
@@ -25,6 +28,9 @@ The worker proof uses TLS and a versioned credential file. Changed numeric
 destinations, wrong credential versions and header scopes reject before dispatch;
 resolved credentials are absent from all durable mutations. Replay works after
 removing the credential file.
+Explicit release retires availability before cleanup. The proof rejects replay
+while uncollected bytes remain, restarts node/store during reclamation, and resumes
+bounded cleanup to its durable end without another network attempt.
 
 These checks passed locally on Linux x86_64 with the pinned compiler. They do not
 yet qualify public caller admission, managed secret providers, redirects/reconciliation,

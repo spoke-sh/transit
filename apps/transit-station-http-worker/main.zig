@@ -22,7 +22,8 @@ const Config = struct {
     exchange: u64,
     endpoint_revision: u64,
     endpoint: http.Transport.Endpoint,
-    mode: enum { prepare, execute },
+    mode: enum { prepare, execute, release },
+    cleanup_steps: u32 = 64,
     request: ?http.Request = null,
     body_file: ?[]const u8 = null,
     reconcile_before_ms: ?u64 = null,
@@ -78,6 +79,10 @@ const Operation = union(enum) {
     intent,
     attempts: u32,
     bind: g.Effect,
+    settle: g.Effect,
+    release_caller: u64,
+    retire,
+    collect,
     finish: u32,
     unknown,
 };
@@ -145,6 +150,18 @@ const Driver = struct {
             .attempts => |limit| try ex.configureAttempts(turn, limit),
             .bind => |authorized| {
                 _ = try ex.bind(turn, authorized);
+            },
+            .settle => |terminal| {
+                _ = try ex.settle(turn, terminal);
+            },
+            .release_caller => |caller| {
+                _ = try ex.releaseCaller(turn, caller);
+            },
+            .retire => {
+                _ = try ex.retire(turn);
+            },
+            .collect => {
+                _ = try ex.collect(turn);
             },
             .finish => |code| {
                 _ = try ex.finish(turn, code);
@@ -268,7 +285,7 @@ pub fn main(init: std.process.Init) !void {
     const parsed = try std.json.parseFromSlice(Config, init.gpa, data, .{});
     defer parsed.deinit();
     const config = parsed.value;
-    if (config.principal == 0 or config.pid == 0 or config.generation == 0 or config.exchange == 0 or config.endpoint_revision == 0) return error.InvalidConfiguration;
+    if (config.principal == 0 or config.pid == 0 or config.generation == 0 or config.exchange == 0 or config.endpoint_revision == 0 or config.cleanup_steps == 0 or config.cleanup_steps > 128) return error.InvalidConfiguration;
     try config.endpoint.validate();
     const key = try s.client.readKey(init.gpa, init.io, config.seed_file);
     var wire = s.client.Client.init(init.gpa, init.io, config.url);
@@ -315,6 +332,16 @@ pub fn main(init: std.process.Init) !void {
         }
         if (body.len == 0) try driver.stage(.request_body, "");
         try driver.apply(.intent);
+    } else if (config.mode == .release) {
+        // Explicit trusted-controller disposal, never inferred from elapsed
+        // time, quota pressure, observation acceptance or caller termination.
+        try driver.apply(.{ .release_caller = (try driver.reader.inspect(ex.resource, ex.id)).caller });
+        try driver.apply(.retire);
+        for (0..config.cleanup_steps) |_| {
+            const current = try driver.reader.inspect(ex.resource, ex.id);
+            if (current.collected == @as(u64, current.segments) + @intFromBool(current.pending_kind != 0)) break;
+            try driver.apply(.collect);
+        }
     } else {
         var effect = try driver.effect();
         var descriptor = try driver.reader.inspect(ex.resource, ex.id);
@@ -359,6 +386,8 @@ pub fn main(init: std.process.Init) !void {
                 try driver.drive();
             } else _ = try driver.command(.{ .close_effect = .{ .pid = config.pid, .effect = effect.id, .attempt = effect.attempt.?, .reason = .abandoned } });
         }
+        effect = try driver.effect();
+        if (effect.phase == .observed or effect.phase == .cancelled or effect.phase == .closed_unknown) try driver.apply(.{ .settle = effect });
     }
     const descriptor = try driver.reader.inspect(ex.resource, ex.id);
     var output_buffer: [1024]u8 = undefined;

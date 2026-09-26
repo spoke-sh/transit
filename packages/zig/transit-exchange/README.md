@@ -16,7 +16,9 @@ resulting ready state prevents duplicate effect creation. `bind` checks the
 authorized effect's identity, exact request coverage and deadline before response
 capture. Neither method performs or authorizes socket I/O itself. `finish` seals
 protocol completion; `closeUnknown` preserves uncertainty and partial evidence.
-Kernel observation/closure is a separate authority decision.
+Kernel observation/closure is a separate authority decision. `settle` records
+that terminal decision against the preserved frozen intent; incomplete or
+possibly-in-flight effects cannot be retired by claiming capture is terminal.
 
 Roots default to one attempt. `configureAttempts` fixes a finite total budget
 before intent publication; `followup` atomically allocates a linked child under
@@ -36,7 +38,14 @@ before resuming a chunk cursor across otherwise unrelated resource changes.
 This does not expose owner-only retained execution versions or grant execution
 rights to a reader. Partial bytes remain provisional until coverage verifies.
 
-Retirement requires the owning application to discharge dependent replay needs.
+`commitIntent` automatically holds caller replay. Release it explicitly with
+`releaseCaller` after terminal settlement and acknowledgement or authorized
+disposal. `retain`/`release` track additional consumers using permanent token/holder
+identities, two mutations per operation and a durable count. Authenticate holders
+and validate resource lifetimes in the admitting handler. These records confer no
+read rights and never expire implicitly. Released tokens cannot be reacquired.
+
+Retirement enforces settlement and the absence of caller/consumer holds.
 It closes current availability before `collect` visits member publications with
 at most two chunk deletions per call. Permanent descriptors prevent ID reuse.
 Historical roots remain protected until explicitly released. Resource quotas,
