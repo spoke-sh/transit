@@ -22,11 +22,12 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M12](M12.md) | Declarative interface readiness | Qualified Table SQL compiler, three-parser corpus, pinned tools and four complete Lean theorems |
 | [M13](M13.md) | Board relief atlas and public query access | Complete: qualified Table query client/hosts, SQL shell and growing Board workspace |
 | [M14](M14.md) | Bounded publication for larger Station records | Complete: growing immutable publication, bounded staging/cleanup and disk recovery |
-| [M15](M15.md) | Documents, collaborative text and unified querying | Planned |
-| [M16](M16.md) | HTTP connector and exchange transcripts | Planned |
-| [M17](M17.md) | gRPC connector and streaming calls | Planned |
-| [M18](M18.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned |
-| [M19](M19.md) | Clustered execution and portability | Planned |
+| [M15](M15.md) | HTTP connector and shared exchange lifecycle | Planned; first connector, consuming M14 publication |
+| [M16](M16.md) | gRPC connector and bounded streaming calls | Planned; reuse M15 common components and qualify streaming authority |
+| [M17](M17.md) | Documents and collaborative text | Planned; accepted-state/CRDT contracts over immutable publication |
+| [M18](M18.md) | Unified state querying and versioned source contracts | Planned; KV/Document adapters, wider schemas/requests and all SDKs |
+| [M19](M19.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned; compose qualified transport and query components |
+| [M20](M20.md) | Clustered execution and portability | Planned; extend component proofs across authority/runtime topologies |
 
 The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -53,14 +54,23 @@ M12's compiled `SELECT`, without duplicating execution semantics.
 M13's chunked results expose a prerequisite for useful atomic Document changes:
 [M14](M14.md) qualifies bounded immutable publication over growing KV without
 raising kernel value/turn limits. [Documents](../DOCUMENTS.md) records the handoff.
-Fuze's shared source model targets KV, Table and Document;
-[M15](M15.md) adds Document/CRDT storage, structured and collaborative text
-editing, and the KV/Document query adapters with their own acceptance
-criteria, reusing M13's query capability rather than replacing it.
-HTTP proves shared effect capture; gRPC extends it to bidirectional calls; Arrow
-interoperability then adds a remote query surface over the same Tables. Clustering
-qualifies those boundaries across broader topologies. Fuze
-remains Zig throughout; SQL or RPC transport never replaces durable authority.
+[M15](M15.md) now consumes that storage foundation for HTTP and the shared
+exchange lifecycle. [M16](M16.md) applies it to gRPC and proves bounded streaming
+authority. These are the first two connectors; they do not depend on Documents.
+
+Later work composes the qualified lower-level components in separate steps:
+[M17](M17.md) supplies Document/CRDT storage and structured/plain-text editing;
+[M18](M18.md) supplies KV/Document query adapters and versioned schema/request
+extensions while preserving the M13 Table path. [M19](M19.md) adds Flight/ADBC
+transport and client compatibility over those queries; [M20](M20.md) qualifies
+all these boundaries across broader authority/runtime topologies. Fuze remains
+Zig throughout; SQL or RPC transport never replaces durable authority.
+
+The M15/M16 plans are reviewed from current M14 evidence. M17 onward has a
+composition plan now, with a further entry review after the connectors have
+actually passed their proofs. A planned transport, capture API or shared contract
+is not an implemented dependency. Provider-specific integrations later compose
+connectors without a new durability model or application policy in the kernel.
 
 Each milestone owns its scope, acceptance criteria, and completion status.
 Preserve the [M1 design gates](M1.md#design-gates-before-expanding-the-slice)

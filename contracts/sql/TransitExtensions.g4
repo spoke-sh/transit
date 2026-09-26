@@ -110,7 +110,7 @@ dataType
     | BINARY
     ;
 
-// CREATE DOCUMENT profile; — M15's Document model, DDL form.
+// Proposed DDL over M17's Document model; M17 does not implement SQL DDL.
 createDocument
     : CREATE DOCUMENT identifier
     ;

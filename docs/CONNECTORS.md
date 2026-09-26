@@ -1,7 +1,7 @@
 # Connectors and external exchanges
 
-Status: [HTTP M16](roadmap/M16.md) is the first planned connector;
-[gRPC M17](roadmap/M17.md) is the second. Stream groups, interpolation,
+Status: [HTTP M15](roadmap/M15.md) is the first planned connector;
+[gRPC M16](roadmap/M16.md) is the second. Stream groups, interpolation,
 and connector attempt policy below remain design work. Transit already has
 opaque intents, dispatch authorization, observations, and bounded closure in its
 [effect contract](../contracts/TRANSIT_V2.md#effect-intents-and-observations).
@@ -12,6 +12,61 @@ connector implementation.
 The connector milestones will add [Board](BOARD.md) enrichment for exchanges and
 attempts, respecting transcript permissions, secret omissions, retained-body
 gaps, and the distinction between authorization and observed remote outcomes.
+
+## Foundation and shared implementation plan
+
+[M14](roadmap/M14.md) qualifies growing immutable publication: 256-byte chunks,
+explicit staging quotas, a final publication marker, permanent terminal IDs and
+bounded cleanup. Its 64 KiB proof includes real worker/node/store recovery and
+source-bound reads. [M15](roadmap/M15.md) is now the first consumer for external
+exchanges; Documents are scheduled separately in [M17](roadmap/M17.md).
+
+The following decomposition is proposed, not a set of implemented libraries:
+
+| Owner | Reusable responsibility | Remains outside it |
+| --- | --- | --- |
+| Transit/client | Generic committed intent, dispatch/observation/closure, grants, fencing and exact signed retry | HTTP methods, RPC status, endpoint policy and honest computation |
+| Station publication | Immutable segments, bounded staging/read/cleanup, captured sources | Unknown-length body framing, member dependencies or complete exchange semantics |
+| Shared exchange library above Station | Versioned references/coverage, capture budgets, attempt lineage, availability, bounded reconciliation and replay | Protocol parsing, sockets and provider-specific business meaning |
+| Protocol adapters | HTTP redirect/text/framing or gRPC message/direction/status semantics | Separate retry databases, independent capture lifecycles or authority |
+| Transports | Qualified HTTP/TLS/HTTP2/protobuf bytes, connection bounds and flow control | Durable remote admission or effect permission |
+| Provider integrations | Provider schemas, pagination, auth conventions and explicit rate/retry policy | New durability or implicit remote execution |
+
+HTTP must first exercise the common layer with a concrete consumer. gRPC then
+runs its unchanged corpus and extends only demonstrated shared needs. Create real
+packages with direct manifests when implemented; this plan does not justify empty
+directories, a plugin host or a universal protocol abstraction in advance.
+
+Two gaps matter before promising connector support. Publication requires the
+length and commitment before staging; receive an unknown-length network body in
+bounded segments, seal each, then publish exact ordered coverage at completion.
+Keep buffered-but-uncommitted bytes explicitly incomplete after loss. Bodies,
+headers and manifests need independent per-operation and total live-work budgets;
+the tested record size is neither a whole-exchange maximum nor an unlimited call.
+
+The implemented [growing effect contract](../contracts/TRANSIT_V3.md#integration-obligations)
+authorizes one attempt per effect. `observe(null)` records uncertainty, not a new
+send permit; a terminal observation closes that attempt. Logical exchange retries
+and redirects therefore need linked new committed effects with explicit policy,
+or a separately proved generic extension. M16 must additionally map exact future
+message/half-close send units to authority; a call's initial permit cannot cover
+arbitrary later bytes. Reconciliation after caller termination needs its own
+recorded surviving owner and does not revive the caller's ability to dispatch.
+
+M14's opaque references neither grant read rights nor retain other records
+automatically. A retained old source can still contain a published body after
+current logical retirement. Connector read adapters must separately recheck the
+current exchange availability and policy, then read the exact retained content;
+old cursors or caches cannot bypass transcript expiry. Dependency admission,
+manifest-first retirement, protected roots and member cleanup are M15 proof
+obligations. Body publication and generic effect-result acceptance are distinct
+decisions unless a qualified contract explicitly composes them.
+
+Use the [M11 shared SDK boundary](CLIENT.md#language-neutral-boundary) and
+M13's established current-policy/result-reference patterns. Keep domain APIs
+native to each language while Zig owns capture, attempt sequencing and replay.
+HTTP and gRPC plans remain unchecked until real independent-peer, deployment,
+security and failure proofs run; M14 byte integrity is not that evidence.
 
 ## Transport, connector and integration
 
@@ -31,7 +86,7 @@ exactly one ordered byte stream per connection), and wire-level flow control.
 evidence of durable application admission on its own; see GRPC.md's
 [streaming authority and backpressure](GRPC.md#streaming-authority-and-backpressure)
 for what a connector must check in addition.
-[M17](roadmap/M17.md)'s entry gates already treat HTTP/2 this way — an
+[M16](roadmap/M16.md)'s entry gates already treat HTTP/2 this way — an
 immutable, Zig-compatible dependency selected and proved once (generation,
 trailers, framing, compression bounds, flow control, cancellation),
 independently of the gRPC connector built on it — without naming the tier;
@@ -43,8 +98,8 @@ proposed here.
 **Connector** is this document's subject: something that executes a committed
 effect intent, with attempt identity, dispatch authorization, idempotency,
 retry/redirect handling, and a reconciliation policy distinguishing a
-confirmed outcome from closed-with-outcome-unknown. HTTP ([M16](roadmap/M16.md))
-and gRPC ([M17](roadmap/M17.md)) are the two planned connectors. FTP/SFTP/FTPS,
+confirmed outcome from closed-with-outcome-unknown. HTTP ([M15](roadmap/M15.md))
+and gRPC ([M16](roadmap/M16.md)) are the two planned connectors. FTP/SFTP/FTPS,
 filesystem, S3, GCS and SSH effects fit the same shape — each has a natural
 per-operation attempt/outcome boundary (put, get, list, delete) — and belong
 here when they are built, reusing this document's attempt/reconciliation

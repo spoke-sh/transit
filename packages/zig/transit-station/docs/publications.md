@@ -93,9 +93,11 @@ current access, protected historical reads and cleanup. `just test::unit` covers
 strict codecs, independent digest fixtures, quota/identity refusal and rollback.
 The [test guide](../../../../tests/README.md) records executed evidence and limits.
 
-This is a Zig framework API. Public uploads, SDK ABI changes, automatic
-continuation scheduling, Document CRDTs and wider Fuze sources remain
-[M15](../../../../docs/roadmap/M15.md). M13 query result layouts and their 207-byte
+This is a Zig framework API. Connector capture is scoped in
+[M15](../../../../docs/roadmap/M15.md)/[M16](../../../../docs/roadmap/M16.md), Document CRDT/SDK interfaces in
+[M17](../../../../docs/roadmap/M17.md), and wider Fuze sources/query interfaces in
+[M18](../../../../docs/roadmap/M18.md). None is implicit in this primitive.
+M13 query result layouts and their 207-byte
 public plan limit are unchanged. The 64 KiB qualification is a useful operation
 size, not a whole-resource limit; total published records grow on disk under
 normal deployment quotas. Larger configured records require workload-specific

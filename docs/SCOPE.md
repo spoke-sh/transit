@@ -84,10 +84,10 @@ The same primitives must support ordinary stateful distributed programs.
 - [Fuze](FUZE.md) is the Zig-native query and compute engine, inspired by Apache
   DataFusion and Acero. It targets one query model across KV, Table and Document,
   while Station owns their distinct mutation and merge semantics. Documents target
-  both structured state and collaborative text in [M15](roadmap/M15.md), together
-  with unified KV/Table/Document queries. [Arrow](ARROW.md) owns interchange and remote access.
+  both structured state and collaborative text in [M17](roadmap/M17.md);
+  [M18](roadmap/M18.md) adds unified KV/Table/Document queries. [Arrow](ARROW.md) owns interchange and remote access.
   M12 implements the bounded read-only Table SQL compiler. M13 exposes it through
-  a separately authorized Board workspace and `transit` query shell; M18 reuses
+  a separately authorized Board workspace and `transit` query shell; M19 reuses
   it for Flight SQL. Continuous queries and
   separate-resource transactions remain later work. No foreign query engine
   runs behind the interface or inside Transit authority.
@@ -137,15 +137,17 @@ respecting those contracts. [M10](roadmap/M10.md) establishes comprehensive
 verification, growing state and measured scale boundaries. [M11](roadmap/M11.md)
 makes those capabilities natural
 to use through typed language SDKs, with explicit lifetime and recovery behavior.
-[Documents M15](roadmap/M15.md) adds structured and collaborative text
-state, CRDT/recovery/retention proofs and the remaining Fuze source adapters.
-An HTTP connector follows. A caller
-records a request; a fetch worker executes an authorized attempt; response data and timing are recorded;
-the caller resumes from a correlated mailbox message. Replay uses the transcript.
-Station and connectors add versioned Board lenses as their own primitives land.
-Next, [gRPC](roadmap/M17.md) proves bounded streaming calls, then
-[Arrow interoperability](roadmap/M18.md) exposes the same Tables through Flight,
-Flight SQL and tested ADBC clients. These precede the broader clustering milestone.
+[M14](roadmap/M14.md) qualifies bounded immutable publication.
+[HTTP M15](roadmap/M15.md) consumes it for shared exchange capture: a caller
+records an intent, a fetch worker executes an authorized attempt, and the caller
+resumes from a correlated durable outcome. Replay reads captures without I/O.
+[gRPC M16](roadmap/M16.md) reuses that common lifecycle for bounded streaming
+calls. These first connectors precede [Documents M17](roadmap/M17.md) and
+[unified queries M18](roadmap/M18.md), which reuse the storage/read foundations
+without depending on live network protocols. [Arrow interoperability M19](roadmap/M19.md)
+then composes transport and queries for Flight SQL/ADBC. [M20](roadmap/M20.md)
+extends their authority and recovery proofs across cluster topologies. Station,
+connectors and query services add authorized Board metadata as their primitives land.
 These outcomes define the [roadmap](roadmap/README.md).
 
 ## Boundaries

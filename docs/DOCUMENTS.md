@@ -1,8 +1,10 @@
 # Documents and collaborative text
 
-Status: proposed Station abstraction, selected for [M15](roadmap/M15.md).
-[M14](roadmap/M14.md) first qualifies bounded immutable publication over growing
-KV. No Document change format or CRDT API is implemented by that prerequisite.
+Status: proposed Station abstraction, selected for [M17](roadmap/M17.md).
+[M14](roadmap/M14.md) has qualified bounded immutable publication over growing
+KV. HTTP and gRPC are scheduled first in M15/M16; Document semantics remain
+independent of their transports. No Document change format or CRDT API is
+implemented by that prerequisite.
 
 ## Authority and identity
 
@@ -28,14 +30,14 @@ Unpublished work is recoverable or explicitly abandoned; no timeout or quota
 pressure silently discards it. Byte publication verifies content completeness,
 not CRDT validity or honest computation.
 
-M15 must define how change records, causal metadata, materialized indexes and
+M17 must define how change records, causal metadata, materialized indexes and
 checkpoint roots share that decision. An index update spanning many turns must
 remain invisible until its validated root commits. Checkpoints must preserve
 deletion and causal evidence; publication by itself grants no trim permission.
 Readers use an exact source and bounded chunks. An interrupted or unverified
 prefix is never a complete change or checkpoint.
 
-## Model and merge decisions still required in M15
+## Model and merge decisions still required in M17
 
 The model includes nested maps, lists, scalar values and collaborative plain
 text. Replacing a string and inserting/deleting sequence elements are distinct
@@ -60,7 +62,8 @@ resource or process lifetime implicitly.
 
 M13's public request contains at most 207 encoded plan bytes. Its Fuze schema
 contains an int64 key and one nullable scalar value. A larger immutable record
-does not silently change either contract. M15 must define a versioned source,
+does not silently change either contract. M17 supplies bounded accepted-state
+reads and [M18](roadmap/M18.md) defines a versioned query source,
 schema and request extension for KV decoders and Document projections, retaining
 missing/null/type-error/conflict distinctions and bounded list/text operations.
 Reuse exact source revisions, current read authorization and verified result
@@ -70,4 +73,6 @@ All M11 SDK targets must eventually expose the shared Zig operations with exact
 change identities, scoped ownership and explicit accepted/tentative outcomes.
 The M14 Zig primitive is a storage prerequisite, not public Document support in
 those SDKs. The complete collaborative example, Board metadata and deployment
-proofs remain explicit [M15 exit criteria](roadmap/M15.md#exit-criteria).
+proofs remain explicit [M17 exit criteria](roadmap/M17.md#exit-criteria).
+Unified query APIs, Arrow ownership/fixtures and all-language query conformance
+remain [M18](roadmap/M18.md) obligations, separate from Document mutation APIs.

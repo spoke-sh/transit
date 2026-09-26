@@ -7,7 +7,7 @@ It produces the existing `Stream.Plan`/`PlanCodec` and runs through Fuze's
 bounded Arrow engine. It introduces no public query endpoint or CLI.
 The DDL/DML-write, broader dataframe and connector/transport namespace designs
 below remain direction, not implemented SQL capabilities. [M13](roadmap/M13.md)
-owns public typed query access; [M18](roadmap/M18.md) owns Flight SQL ingress
+owns public typed query access; [M19](roadmap/M19.md) owns Flight SQL ingress
 and should reuse this compiler. Neither milestone acquires new authority from
 accepting query text.
 
@@ -31,17 +31,18 @@ executed identically to every other durable mutation. A relational DDL surface
 is a text encoding of that same typed command, checked by the same
 authorization before it ever reaches durable state; it does not bypass
 anything or add a second creation path. `CREATE DOCUMENT` and `CREATE KV`
-follow the same shape once [M15](roadmap/M15.md#entry-gates)'s Document model
-and its KV adapter are specified — DDL surfaces what those milestones already
-commit to build, it does not itself decide their schema/merge semantics.
+follow the same shape once [M17](roadmap/M17.md#entry-gates)'s Document model
+and [M18](roadmap/M18.md)'s KV decoder/source model are specified. Those
+milestones do not themselves select SQL DDL; a later DDL frontend would expose
+their supported operations without deciding new schema/merge semantics.
 
 The real prerequisite this exposes: today's Table schema is fixed at exactly
 two columns (`id: int64`, one typed value column) — a KV-shaped table, not a
 general relational one. `CREATE TABLE orders (id INT, sym TEXT, qty INT, px
 FLOAT, ...)` with an arbitrary multi-column schema needs the Table model
 itself to grow first. That is real scope, not a parser detail, and belongs
-with whichever milestone owns schema evolution — plausibly M15's unified-query
-work, plausibly its own. Naming DDL now should not be read as claiming
+with a separately scoped schema-evolution milestone informed by M18's
+unified-query work. Naming DDL now should not be read as claiming
 multi-column tables already exist.
 
 ## DML: SELECT is the qualified path, writes reuse what Table already has
@@ -59,12 +60,12 @@ limit. Omitted limits remain unlimited under `Stream.Plan`; explicit limits
 are 0–32 in this SQL profile. Joins, grouping, general subqueries and window
 functions require separate qualification. Unsupported constructs fail explicitly.
 
-[M18](roadmap/M18.md) already commits to exactly this SELECT-only slice,
+[M19](roadmap/M19.md) already commits to exactly this SELECT-only slice,
 narrower and further out: *"a bounded read-only SQL subset... translating
 into Fuze's M9 plans; no separate engine."* A full DDL/DML relational
 surface — this document's scope — is bigger than that existing commitment in
-two ways: it writes, and M18 ties its SQL specifically to the Flight SQL
-ingress path. M12 now supplies the local read compiler; M18 supplies remote Flight SQL
+two ways: it writes, and M19 ties its SQL specifically to the Flight SQL
+ingress path. M12 now supplies the local read compiler; M19 supplies remote Flight SQL
 ingress over it. Neither delivers the full relational surface; a general DDL/DML surface
 (`transit query`'s shell, a future direct SQL endpoint) is separate,
 unscoped work this document intentionally does not turn into a milestone
@@ -109,7 +110,7 @@ without pretending the two have the same freshness or transaction semantics.
 write — is a further step again: it would use DML syntax to trigger work at
 an external boundary, not to durably store a row. That is worth having named
 here so it is not lost, but it stays speculative until connectors
-([M16](roadmap/M16.md)) exist to dispatch through at all; do not treat this
+([M15](roadmap/M15.md)) exist to dispatch through at all; do not treat this
 section as scoping that milestone's design.
 
 ## CONNECTION, SOURCE and SINK: naming the DDL for external data
@@ -254,7 +255,7 @@ position on these, unlike the excluded items below:
 
 **Already named and deliberately excluded**, not missing from the analysis,
 just missing from scope right now: continuous/materialized/subscribed
-queries (M13, M15 both exclude them explicitly), cross-source joins
+queries (M13, M17 and M18 exclude them explicitly), cross-source joins
 (`FUZE.md`), multi-resource/cross-table transactions (M10), UDFs and
 dynamic plugins (`FUZE.md`'s extensibility section).
 
@@ -373,6 +374,6 @@ described here.
 The linked M12 contract fixes the implemented Table read grammar and parser;
 this document also records broader design direction. It does not move SQL writes
 or DDL execution into M13's public query scope or qualify Document queries before
-M15. The connector/transport namespace remains unassigned. Later builder and
+M18. The connector/transport namespace remains unassigned. Later builder and
 catalog proposals should preserve the same boundary: surfaces compile to Fuze's
 plan, and system inspection is a different source kind from versioned data.

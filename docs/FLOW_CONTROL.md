@@ -97,7 +97,7 @@ Connector capture admission is scoped in prose only:
 HTTP bodies, and [GRPC.md](GRPC.md#streaming-authority-and-backpressure)
 requires bounding live calls, queues, bytes and capture work independently in
 each direction of a bidirectional stream. Neither yet names a credit unit or a
-grant frame; when [M17](roadmap/M17.md) specifies gRPC's streaming authority,
+grant frame; when [M16](roadmap/M16.md) specifies gRPC's streaming authority,
 it should instantiate this pattern (the captured message/attempt as the unit)
 rather than inventing a separate scheme. Multiplexing several effects or
 several growing-query destinations over one connection raises the same

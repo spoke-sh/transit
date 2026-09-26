@@ -99,7 +99,7 @@ No launcher or foreign binding switches profiles implicitly.
 
 Massive-scale deployment also requires an explicit authority-partition and routing
 design, including grant/revocation and cross-partition delivery semantics. Measure
-the single-realm serialization bottleneck in M10; [M19](roadmap/M19.md) qualifies
+the single-realm serialization bottleneck in M10; [M20](roadmap/M20.md) qualifies
 broader clustered execution. Additional node replicas do not by themselves create
 independent write capacity or a cross-partition transaction guarantee.
 
@@ -251,9 +251,14 @@ and protocol assertions belong under [tests/](../tests/README.md).
   [caller design](CLIENT.md#idiomatic-language-sdks) owns that boundary.
 - Extend `kubectl-transit` with authorized logical inspection and, later, operator
   controls as scoped in the [full plugin plan](roadmap/M5.md).
-- [M15](roadmap/M15.md) adds Document
-  changes/CRDTs and KV/Document query adapters. Add further entity adapters only
+- [M17](roadmap/M17.md) adds Document changes/CRDTs over M14 publication;
+  [M18](roadmap/M18.md) adds KV/Document query adapters and wider source contracts. Add further entity adapters only
   with their implementation and qualification; no standalone engine service is required.
+- M15 introduces only the shared exchange/capture/reference library needed by
+  HTTP, above Station. M16 qualifies reuse for gRPC. Keep generally reusable
+  publication/read primitives below the adapters; Station Documents cannot
+  import a higher-layer exchange or transport package. Add real packages with
+  manifests when their implementation and consumers exist.
 - `packages/zig/transit-station-http`, module `transit_station_http`: exchange contracts, capture,
   caller helpers, and trusted dispatch over Station/Transit.
 - `packages/zig/transit-station-grpc`, module `transit_station_grpc`: typed call
@@ -262,7 +267,7 @@ and protocol assertions belong under [tests/](../tests/README.md).
 - `packages/zig/transit-station-flight` and `apps/transit-station-flight`: Flight/
   Flight SQL query ingress and gateway composition over Station/public client,
   with an explicit identity boundary and no direct storage access. Existing ADBC
-  clients connect through Flight SQL; [ARROW.md](ARROW.md) owns this M18 profile.
+  clients connect through Flight SQL; [ARROW.md](ARROW.md) owns this M19 profile.
 - `apps/transit-station-worker`, `apps/transit-station-http-worker` and
   `apps/transit-station-grpc-worker`: compose behaviors or connector execution
   with explicitly supplied runtime capabilities.

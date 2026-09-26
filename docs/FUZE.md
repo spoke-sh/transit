@@ -6,9 +6,10 @@ dependency integration and finite IPC encoding. Broader capabilities below
 remain design direction. [M9](roadmap/M9.md) introduces Fuze's
 bounded Table execution profile alongside Station. The shared query model targets
 KV, Table and Document sources; Document storage, collaborative editing and CRDT
-qualification belong to [M15](roadmap/M15.md). [M12](roadmap/M12.md) adds the
+qualification belong to [M17](roadmap/M17.md); KV/Document query adapters and
+wider schema/request contracts belong to [M18](roadmap/M18.md). [M12](roadmap/M12.md) adds the
 implemented [Table SQL compiler](../packages/zig/transit-fuze/docs/sql.md);
-[M18](roadmap/M18.md) adds remote Flight SQL ingress. Those bounded profiles
+[M19](roadmap/M19.md) adds remote Flight SQL ingress. Those bounded profiles
 do not imply the whole target design.
 [QUERY_LANGUAGE.md](QUERY_LANGUAGE.md) elaborates the "structured query API /
 Table SQL frontend" line below into relational DDL/DML and a dataframe surface,
@@ -179,9 +180,10 @@ contracts. These capabilities need their own storage, retention and recovery
 proofs; a batch engine or RPC stream alone cannot provide them.
 
 M9 fixes the source/plan/operator contract and proves the bounded Table path.
-[M15](roadmap/M15.md) adds KV and Document query adapters, structured documents,
-collaborative text and the required CRDT/storage/retention qualification.
-The existing 256-byte KV values and bounded mutation batches do not imply a
-usable large-document storage profile. [M18](roadmap/M18.md) remains the first
+[M14](roadmap/M14.md) provides immutable publication and [M17](roadmap/M17.md)
+adds structured/text Documents with CRDT/storage/retention qualification.
+[M18](roadmap/M18.md) adds KV/Document query adapters, nested Arrow types and
+versioned schema/request contracts. Publication alone does not supply those
+semantics or widen the existing 256-byte KV/four-mutation boundary. [M19](roadmap/M19.md) remains the first
 bounded remote Flight SQL frontend over qualified Table sources; broadening
 its source matrix requires explicit source and interoperability qualification.
