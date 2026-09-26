@@ -18,6 +18,10 @@ pub fn publication(self: Self) Pub {
     return .{ .resource = self.resource, .namespace = self.id };
 }
 pub fn create(turn: *Turn, id: u64, origin: root.Origin, limits: root.Limits, reconcile_before_ms: u64) !Self {
+    if (origin.parent != 0) return error.UseExchangeFollowup;
+    return createRecord(turn, id, origin, limits, reconcile_before_ms);
+}
+fn createRecord(turn: *Turn, id: u64, origin: root.Origin, limits: root.Limits, reconcile_before_ms: u64) !Self {
     const before = turn.decision;
     errdefer turn.decision = before;
     if (id == 0 or origin.parent == id) return error.InvalidExchangeIdentity;
@@ -35,6 +39,75 @@ pub fn create(turn: *Turn, id: u64, origin: root.Origin, limits: root.Limits, re
     _ = try Pub.create(turn, id, .{ .record_bytes = limits.segment_bytes, .staging_bytes = limits.segment_bytes, .staging_records = 1 });
     try turn.write(key(id, 'd', 0), try initial.encode());
     return self;
+}
+pub const FollowupReason = enum(u8) { retry = 1, redirect = 2, reconcile = 3, cancel = 4 };
+pub const AttemptBudget = struct {
+    pub const magic = "EXB1";
+    limit: u32,
+    used: u32 = 1,
+    pub fn validate(self: AttemptBudget) !void {
+        if (self.limit == 0 or self.used == 0 or self.used > self.limit) return error.InvalidExchangeBudget;
+    }
+};
+pub const Lineage = struct {
+    pub const magic = "EXL1";
+    root: u64,
+    parent: u64,
+    ordinal: u32,
+    reason: FollowupReason,
+    /// Opaque versioned adapter policy decision, not kernel authority.
+    policy: u64,
+    policy_revision: u64,
+    pub fn validate(self: Lineage) !void {
+        if (self.root == 0 or self.parent == 0 or self.ordinal < 2 or self.policy == 0 or self.policy_revision == 0) return error.InvalidExchangeLineage;
+    }
+};
+/// Root policy is fixed before its effect intent. No policy means one attempt.
+pub fn configureAttempts(self: Self, turn: *Turn, limit: u32) !void {
+    const d = try self.writable(turn);
+    if (d.parent != 0) return error.NotRootExchange;
+    const budget: AttemptBudget = .{ .limit = limit };
+    try budget.validate();
+    if (try turn.read(key(self.id, 'b', 0))) |value| {
+        if ((try root.codec.decode(AttemptBudget, value)).limit != limit) return error.ExchangePolicyChanged;
+        return;
+    }
+    if (d.phase != .preparing) return error.ExchangePolicyChanged;
+    try turn.write(key(self.id, 'b', 0), try root.codec.encode(budget));
+}
+/// One explicit new effect/capture under the original lineage and deadline.
+/// The adapter must validate its endpoint-specific retry/redirect policy first.
+pub fn followup(self: Self, turn: *Turn, id: u64, reason: FollowupReason, policy: u64, policy_revision: u64, limits: root.Limits) !Self {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const parent = try self.writable(turn);
+    if (parent.phase != .complete and parent.phase != .unknown) return error.ExchangeStillOpen;
+    var root_id = self.id;
+    if (parent.parent != 0) {
+        const ancestor = try root.codec.decode(Lineage, (try turn.read(key(self.id, 'l', 0))) orelse return error.InvalidExchangeLineage);
+        root_id = ancestor.root;
+    }
+    const root_exchange: Self = .{ .resource = self.resource, .id = root_id };
+    const origin = try root_exchange.writable(turn);
+    if (origin.parent != 0 or origin.caller != parent.caller or origin.input != parent.input or origin.reconcile_before_ms != parent.reconcile_before_ms) return error.InvalidExchangeLineage;
+    if (origin.phase == .retired) return error.ExchangeUnavailable;
+    const budget_key = key(root_id, 'b', 0);
+    var budget = try root.codec.decode(AttemptBudget, (try turn.read(budget_key)) orelse return error.ExchangeAttemptBudgetExceeded);
+    if (try turn.read(key(id, 'l', 0))) |value| {
+        const existing = try root.codec.decode(Lineage, value);
+        if (existing.root != root_id or existing.parent != self.id or existing.reason != reason or existing.policy != policy or existing.policy_revision != policy_revision) return error.ExchangeIdentityConflict;
+        return createRecord(turn, id, .{ .caller = parent.caller, .input = parent.input, .parent = self.id, .protocol = parent.protocol }, limits, parent.reconcile_before_ms);
+    }
+    if (budget.used == budget.limit) return error.ExchangeAttemptBudgetExceeded;
+    // A pre-existing unrelated ID cannot be adopted as an attempted child.
+    if (try turn.read(key(id, 'd', 0)) != null) return error.ExchangeIdentityConflict;
+    budget.used += 1;
+    const lineage: Lineage = .{ .root = root_id, .parent = self.id, .ordinal = budget.used, .reason = reason, .policy = policy, .policy_revision = policy_revision };
+    try lineage.validate();
+    const child = try createRecord(turn, id, .{ .caller = parent.caller, .input = parent.input, .parent = self.id, .protocol = parent.protocol }, limits, parent.reconcile_before_ms);
+    try turn.write(key(id, 'l', 0), try root.codec.encode(lineage));
+    try turn.write(budget_key, try root.codec.encode(budget));
+    return child;
 }
 pub fn inspect(self: Self, source: anytype) !root.Descriptor {
     if (self.id == 0 or self.resource != source.view.resource) return error.InvalidExchangeIdentity;

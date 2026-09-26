@@ -23,6 +23,7 @@ def run(node, provision, worker):
         node_config = fixture.root / "node.json"
         node_config.write_text(json.dumps({"profile": "growing_v3", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "http-worker", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         requests = []
+        applied = set()
         blocked = threading.Event()
         release = threading.Event()
         dropped = {}
@@ -36,7 +37,11 @@ def run(node, provision, worker):
                 assert self.rfile.read(int(self.headers["Content-Length"])) == b"body"
                 assert self.headers["Authorization"] == "Bearer fixture-request-secret"
                 requests.append(self.path)
-                if self.path == "/kill":
+                key = self.headers["Idempotency-Key"]
+                assert key == self.path
+                first_application = key not in applied
+                applied.add(key)
+                if self.path == "/kill" and first_application:
                     blocked.set()
                     release.wait(timeout=30)
                 try:
@@ -115,6 +120,13 @@ def run(node, provision, worker):
                 return json.loads(subprocess.check_output([provision, url, operation, str(state)], timeout=30))
             def configure(saved, path, mode):
                 configuration = {"url": proxy_url, "realm": 47, "principal": 65536, "seed_file": str(seed), "pid": saved["pid"], "generation": saved["generation"], "activation_directory": str(fixture.root), "exchange": 1, "endpoint_revision": 1, "endpoint": {"host": "localhost", "address": "127.0.0.1", "port": peer.server_port, "tls": True, "ca_file": str(tls_cert), "timeout_ms": 120000}, "mode": mode, "request": {"method": "POST", "target": [{"literal": path}], "body_bytes": 4, "headers": [{"name": "Authorization", "value": [{"literal": "Bearer "}, {"secret": {"binding": "api", "version": 7}}]}]}, "credentials": [{"binding": "api", "version": 7, "header": "Authorization", "file": str(credential)}], "body_file": str(body_file), "reconcile_before_ms": int(time.time() * 1000) + 240000}
+                configuration.update(max_attempts=2, retry_policy={"id": 77, "revision": 1, "key_header": "Idempotency-Key"})
+                configuration["request"]["headers"].append({"name": "Idempotency-Key", "value": [{"literal": path}]})
+                config.write_text(json.dumps(configuration))
+            def followup(saved, exchange, mode):
+                configure(saved, "/kill", mode)
+                configuration = json.loads(config.read_text())
+                configuration.update(exchange=exchange, retry_parent=1)
                 config.write_text(json.dumps(configuration))
             def invoke():
                 return json.loads(subprocess.check_output([worker, str(config)], timeout=120))
@@ -178,8 +190,30 @@ def run(node, provision, worker):
             assert invoke()["phase"] == "unknown"
             assert admin("inspect")["effect"] == "closed_unknown"
             assert requests == ["/complete", "/kill"], requests
+
+            # An explicit policy-authorized retry gets another effect identity;
+            # it cannot change the request or replenish the original budget.
+            saved = admin("own")
+            followup(saved, 2, "prepare")
+            body_file.write_bytes(b"evil")
+            refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
+            assert refused.returncode != 0 and b"HttpRetryChanged" in refused.stderr, refused
+            body_file.write_bytes(b"body")
+            saved = admin("own")
+            followup(saved, 2, "prepare")
+            assert invoke()["phase"] == "ready"
+            saved = admin("own")
+            followup(saved, 2, "execute")
+            assert invoke()["phase"] == "complete"
+            assert requests == ["/complete", "/kill", "/kill"], requests
+            assert applied == {"/complete", "/kill"}
+            saved = admin("own")
+            followup(saved, 3, "prepare")
+            refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
+            assert refused.returncode != 0 and b"ExchangeAttemptBudgetExceeded" in refused.stderr, refused
+            assert requests == ["/complete", "/kill", "/kill"], requests
             assert not failures, failures
-            print("HTTP worker: disk recovery, exact seal/dispatch/observation retry, complete replay and killed-executor unknown closure passed; two remote sends.")
+            print("HTTP worker: disk recovery, exact Transit retry, replay, killed-executor unknown closure and explicit bounded idempotent retry passed; three sends, two applications.")
         finally:
             release.set()
             for process in (child, authority):

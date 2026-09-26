@@ -9,6 +9,7 @@ const g = p.Growth;
 const Server = s.GrowingGenServer;
 const Turn = s.GrowingTurn;
 const Credential = struct { binding: []const u8, version: u64, header: []const u8, file: []const u8 };
+const RetryPolicy = struct { id: u64, revision: u64, key_header: []const u8 };
 const Config = struct {
     url: []const u8,
     realm: u64,
@@ -26,6 +27,9 @@ const Config = struct {
     body_file: ?[]const u8 = null,
     reconcile_before_ms: ?u64 = null,
     credentials: []const Credential = &.{},
+    max_attempts: u32 = 1,
+    retry_policy: ?RetryPolicy = null,
+    retry_parent: ?u64 = null,
 };
 const Secrets = struct {
     gpa: std.mem.Allocator,
@@ -64,7 +68,7 @@ const Secrets = struct {
         return error.HttpCredentialNotGranted;
     }
 };
-const Prepared = struct { version: u32 = 1, endpoint_revision: u64, host: []const u8, address: []const u8, port: u16, tls: bool, request: http.Request };
+const Prepared = struct { version: u32 = 1, endpoint_revision: u64, host: []const u8, address: []const u8, port: u16, tls: bool, retry_policy: ?RetryPolicy = null, request: http.Request };
 const Operation = union(enum) {
     idle,
     create: struct { deadline: u64, limits: x.Limits },
@@ -72,6 +76,7 @@ const Operation = union(enum) {
     append: struct { ordinal: u32, chunk: u32, bytes: p.Value },
     seal: u32,
     intent,
+    attempts: u32,
     bind: g.Effect,
     finish: u32,
     unknown,
@@ -119,7 +124,11 @@ const Driver = struct {
         switch (self.operation) {
             .idle => {},
             .create => |c| {
-                _ = try x.Exchange.create(turn, ex.id, .{ .caller = turn.delivery.pid, .input = turn.delivery.input.position, .protocol = http.protocol_format }, c.limits, c.deadline);
+                if (self.config.retry_parent) |parent_id| {
+                    const parent: x.Exchange = .{ .resource = turn.view.resource, .id = parent_id };
+                    const policy = self.config.retry_policy orelse return error.HttpRetryNotGranted;
+                    _ = try parent.followup(turn, ex.id, .retry, policy.id, policy.revision, c.limits);
+                } else _ = try x.Exchange.create(turn, ex.id, .{ .caller = turn.delivery.pid, .input = turn.delivery.input.position, .protocol = http.protocol_format }, c.limits, c.deadline);
             },
             .begin => |b| {
                 _ = try ex.beginSegment(turn, b.ordinal, @backingInt(b.kind), b.spec);
@@ -133,6 +142,7 @@ const Driver = struct {
             .intent => {
                 _ = try ex.commitIntent(turn);
             },
+            .attempts => |limit| try ex.configureAttempts(turn, limit),
             .bind => |authorized| {
                 _ = try ex.bind(turn, authorized);
             },
@@ -194,7 +204,9 @@ const Driver = struct {
         }
     }
     fn load(self: *Driver, ordinal: u32, buffer: []u8) ![]const u8 {
-        const ex = try self.exchange();
+        return self.loadFrom(try self.exchange(), ordinal, buffer);
+    }
+    fn loadFrom(self: *Driver, ex: x.Exchange, ordinal: u32, buffer: []u8) ![]const u8 {
         var source = try self.reader.reader(ex.resource);
         const member = try ex.member(&source, ordinal);
         if (member.length > buffer.len) return error.HttpRequestTooLarge;
@@ -208,6 +220,41 @@ const Driver = struct {
             cursor = part.next orelse break;
         }
         return buffer[0..count];
+    }
+    fn validateRetry(self: *Driver, metadata: []const u8, body: []const u8, request: http.Request) !void {
+        const parent_id = self.config.retry_parent orelse return;
+        const policy = self.config.retry_policy orelse return error.HttpRetryNotGranted;
+        if (policy.id == 0 or policy.revision == 0) return error.HttpRetryNotGranted;
+        const key = for (request.headers) |header| {
+            if (std.ascii.eqlIgnoreCase(header.name, policy.key_header)) break header;
+        } else return error.MissingHttpIdempotencyKey;
+        var keys: usize = 0;
+        for (request.headers) |header| if (std.ascii.eqlIgnoreCase(header.name, policy.key_header)) {
+            keys += 1;
+        };
+        if (keys != 1) return error.InvalidHttpIdempotencyKey;
+        if (key.value.len != 1 or key.value[0] != .literal or key.value[0].literal.len == 0 or key.value[0].literal.len > 128) return error.InvalidHttpIdempotencyKey;
+        const ex = try self.exchange();
+        const parent: x.Exchange = .{ .resource = ex.resource, .id = parent_id };
+        const descriptor = try self.reader.inspect(parent.resource, parent.id);
+        if (descriptor.phase != .unknown) return error.HttpRetryNotUnknown;
+        var previous: [8192]u8 = undefined;
+        // Exact canonical metadata preserves endpoint, method, credential
+        // versions, idempotency key and original policy. A retry is not a way
+        // to silently change the remote operation or forward credentials.
+        if (!std.mem.eql(u8, try self.loadFrom(parent, 0, &previous), metadata)) return error.HttpRetryChanged;
+        var offset: usize = 0;
+        var ordinal: u32 = 2;
+        while (true) : (ordinal += 1) {
+            var source = try self.reader.reader(ex.resource);
+            if ((try parent.member(&source, ordinal)).kind != @backingInt(http.Kind.request_body)) return error.HttpRetryChanged;
+            const bytes = try self.loadFrom(parent, ordinal, &previous);
+            if (bytes.len > body.len - offset or !std.mem.eql(u8, bytes, body[offset..][0..bytes.len])) return error.HttpRetryChanged;
+            offset += bytes.len;
+            if (offset == body.len) break;
+            if (bytes.len == 0) return error.HttpRetryChanged;
+        }
+        if (now(self.io) >= descriptor.reconcile_before_ms) return error.ExpiredReconciliation;
     }
 };
 fn now(io: std.Io) u64 {
@@ -249,13 +296,15 @@ pub fn main(init: std.process.Init) !void {
         var header: [http.Request.maximum_head_bytes]u8 = undefined;
         const rendered = try request.render(config.endpoint.host, config.endpoint.port, &header, null, false);
         // Prepare metadata before creating any durable obligation.
-        const metadata = try std.json.Stringify.valueAlloc(init.gpa, Prepared{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .request = request }, .{});
+        const metadata = try std.json.Stringify.valueAlloc(init.gpa, Prepared{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .retry_policy = config.retry_policy, .request = request }, .{});
         defer init.gpa.free(metadata);
         if (metadata.len > 8192) return error.HttpRequestTooLarge;
         const body = if (config.body_file) |path| try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(65536)) else try init.gpa.dupe(u8, "");
         defer init.gpa.free(body);
         if (body.len != request.body_bytes) return error.InvalidHttpBodyLength;
+        try driver.validateRetry(metadata, body, request);
         try driver.apply(.{ .create = .{ .deadline = deadline, .limits = .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 } } });
+        if (config.retry_parent == null) try driver.apply(.{ .attempts = config.max_attempts });
         try driver.stage(.request_template, metadata);
         try driver.stage(.request_head, rendered);
         var offset: usize = 0;

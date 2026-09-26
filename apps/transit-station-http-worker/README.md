@@ -12,6 +12,8 @@ revocation and worker SIGKILL after remote application. Recovery closes unknown
 without resending; sealed results replay through the public read adapter.
 The TLS proof includes versioned credential/header scope, private secret
 resolution, capture omission and replay after the credential file is removed.
+An explicit idempotent retry uses a new linked effect after unknown closure;
+the independent peer records three attempts but only two applications.
 
 `zig build transit-station-http-worker` installs the binary. Supply one JSON
 configuration file containing authority URL, realm/principal/seed-file, PID and
@@ -40,6 +42,15 @@ worker closes unknown without resending. A complete sealed capture can resume
 its kernel observation after restart. Exact Transit retries reuse signed bytes;
 they are separate from external execution. Each OS invocation requires a fresh
 generation; the activation marker prevents reusing a previously entered generation.
+
+An endpoint's trusted `retry_policy` names an immutable policy ID/revision and
+one `key_header`. Set the root's finite `max_attempts` before preparation (default
+one). An explicit new `prepare` with `retry_parent` and a fresh exchange ID can
+retry an unknown parent only with identical canonical metadata and body, including
+one nonempty literal idempotency key. The endpoint must implement that versioned
+idempotency contract; the worker cannot infer it from an HTTP method. Followups
+share the original deadline and total attempt budget. There is no automatic
+retry, renewed budget, or reuse of an already-authorized kernel effect.
 
 The worker emits only exchange identity, phase and byte/segment counts on stdout.
 It does not log bodies, request targets or credential material. HTTP status is

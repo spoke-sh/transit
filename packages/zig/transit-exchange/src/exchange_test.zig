@@ -226,3 +226,48 @@ test "strict codecs reject unknown tags, trailing bytes and inconsistent counts"
     try t.expect(root.codec.size(root.Descriptor) <= 256);
     try t.expect(root.codec.size(root.Member) <= 256);
 }
+
+test "linked followups share a finite original budget and never renew lineage or deadline" {
+    var store: Store = .{};
+    defer store.deinit();
+    const parent = try exchange(&store, 1);
+    var turn = try store.capture();
+    try parent.configureAttempts(&turn, 3);
+    try store.commit(turn);
+    try bind(&store, parent);
+    turn = try store.capture();
+    try t.expectError(error.ExchangePolicyChanged, parent.configureAttempts(&turn, 4));
+    try t.expectError(error.ExchangeStillOpen, parent.followup(&turn, 2, .retry, 7, 1, limits));
+    _ = try parent.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    const before = turn.decision;
+    try turn.put(try p.Value.init("unrelated"), .{});
+    const private = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, parent.followup(&turn, 2, .retry, 7, 1, limits));
+    try t.expectEqualDeep(private, turn.decision);
+    turn.decision = before;
+    const child = try parent.followup(&turn, 2, .retry, 7, 1, limits);
+    try store.commit(turn);
+    turn = try store.capture();
+    _ = try parent.followup(&turn, 2, .retry, 7, 1, limits);
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    try t.expectError(error.ExchangeIdentityConflict, parent.followup(&turn, 2, .cancel, 7, 1, limits));
+    const original = try parent.inspect(&turn);
+    const next = try child.inspect(&turn);
+    try t.expectEqual(original.caller, next.caller);
+    try t.expectEqual(original.input, next.input);
+    try t.expectEqual(original.reconcile_before_ms, next.reconcile_before_ms);
+    _ = try child.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    const last = try child.followup(&turn, 3, .reconcile, 7, 1, limits);
+    try store.commit(turn);
+    turn = try store.capture();
+    _ = try last.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.ExchangeAttemptBudgetExceeded, last.followup(&turn, 4, .cancel, 7, 1, limits));
+    try t.expectError(error.ExchangeAttemptBudgetExceeded, parent.followup(&turn, 4, .retry, 7, 1, limits));
+    try t.expectEqual(@as(u32, 3), (try root.codec.decode(Exchange.AttemptBudget, (try turn.read(Exchange.key(1, 'b', 0))).?)).used);
+}

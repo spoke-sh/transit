@@ -17,15 +17,17 @@ accepted segment-seal, dispatch and observation replies and checks exact retries
 restarts node/store; replays a 1,027-byte response without another send; and kills
 the worker after remote application. Fresh ownership closes that attempt unknown
 without resending. Reusing an entered activation fails. Public body reads recheck
-resource permission after an actual prefix. Exactly two remote requests occur
-across both scenarios.
+resource permission after an actual prefix. A separately requested idempotent
+retry uses a new linked effect with the original key and request bytes. Changed
+bodies and exhausted attempt budgets reject. The independent peer records three
+remote requests but only two applications across these scenarios.
 The worker proof uses TLS and a versioned credential file. Changed numeric
 destinations, wrong credential versions and header scopes reject before dispatch;
 resolved credentials are absent from all durable mutations. Replay works after
 removing the credential file.
 
 These checks passed locally on Linux x86_64 with the pinned compiler. They do not
-yet qualify public caller admission, managed secret providers, endpoint-specific retry,
+yet qualify public caller admission, managed secret providers, redirects/reconciliation,
 SDKs, all launchers or hosted CI cost. Those remain explicit
 [M15](../docs/roadmap/M15.md) exit obligations. The shared capture
 [contract](../contracts/STATION_EXCHANGE_V1.md) distinguishes library coverage

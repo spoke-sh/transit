@@ -18,6 +18,13 @@ capture. Neither method performs or authorizes socket I/O itself. `finish` seals
 protocol completion; `closeUnknown` preserves uncertainty and partial evidence.
 Kernel observation/closure is a separate authority decision.
 
+Roots default to one attempt. `configureAttempts` fixes a finite total budget
+before intent publication; `followup` atomically allocates a linked child under
+the original caller/input/deadline and records a versioned adapter-policy
+decision. Retries, redirects, reconciliation and cancellation all consume this
+budget. The adapter must prove remote safety and scope first; the common API
+does not choose or dispatch a retry.
+
 `open`/`read` stream complete coverage with digest checks. Supply fresh current
 authority separately from the retained source on every bounded read. Cursors
 are trusted native continuation state. They cannot be exposed as bearer tokens.

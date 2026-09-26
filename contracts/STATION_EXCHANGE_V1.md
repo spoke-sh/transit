@@ -59,6 +59,29 @@ recovers the original decision. A reference accepted by the kernel points to
 already sealed capture. Cleanup first retires current exchange availability and
 requires the owning application to discharge replay dependencies.
 
+## Explicit followups
+
+Root exchanges default to one attempt. `configureAttempts` can set an immutable
+finite total budget while the root is still preparing. Every retry, redirect,
+status query or remote cancellation consumes one slot; closure and restart never
+refund it. `followup` requires a terminal captured or unknown parent and records
+the original root/caller/input/deadline, parent, ordinal, reason and opaque
+versioned adapter-policy decision. Policy references convey no authority.
+
+Creating a child consumes four mutations: publication namespace, descriptor,
+lineage and root budget. The child then stages its exact request and commits its
+own effect intent. Matching duplicate creation consumes no slot; conflicting
+identity, exhausted budget or partial private mutation fails atomically. The
+common library cannot decide remote retry safety. HTTP/gRPC must validate the
+actual endpoint contract, destinations, credentials and explicit decision before
+calling this API. No automatic external retry is added.
+
+Budget keys use tag `b`, ordinal zero; `EXB1` values contain limit/used:u32.
+Child lineage keys use tag `l`, ordinal zero; `EXL1` values contain root:u64,
+parent:u64, ordinal:u32, reason:u8 (retry=1, redirect=2, reconcile=3, cancel=4),
+policy:u64 and policy_revision:u64. These additive records preserve existing
+descriptor, member and frozen intent encodings.
+
 ## Reads and cleanup
 
 Reads resolve current availability before reading a captured source. A retained
