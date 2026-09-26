@@ -57,6 +57,8 @@ or acknowledge a turn. Bindings are part of M9's deliverable, not just a schema
 that leaves each language to build its own SDK.
 
 [M11](roadmap/M11.md) adds idiomatic public SDKs above the implemented adapters.
+It also adds Ruby as a planned language target over the shared native port;
+Ruby is outside the M9-qualified binding matrix.
 Handlers use typed inputs and associated KV/Table helpers; a runner owns local
 dispatch and drives the shared Zig poll/finish machine. A handler return supplies
 a proposal, including any reply, and is not evidence of a committed turn. The

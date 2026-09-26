@@ -239,7 +239,9 @@ and protocol assertions belong under [tests/](../tests/README.md).
 ### Planned components
 
 - Add typed public APIs, handler runners and installable artifacts to the existing
-  language packages in [M11](roadmap/M11.md). Generated/raw bindings remain a
+  language packages in [M11](roadmap/M11.md), and add Ruby through the shared
+  native port. Ruby's adapter and runtime qualification remain planned.
+  Generated/raw bindings remain a
   separate interface over the shared Zig client/framework; the
   [caller design](CLIENT.md#idiomatic-language-sdks) owns that boundary.
 - Extend `kubectl-transit` with authorized logical inspection and, later, operator

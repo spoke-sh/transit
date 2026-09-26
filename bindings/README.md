@@ -11,6 +11,12 @@ and installable artifacts. The current manual turn/action APIs remain available;
 the [caller design](../docs/CLIENT.md#idiomatic-language-sdks) defines the planned
 layer above them.
 
+M11 also adds **Ruby** to the target list. Its proposed adapter uses the shared
+native port with Ruby value objects and block-scoped ownership. Ruby packages,
+runtime pins and conformance evidence remain to be implemented; the M9 adapters
+and qualified runtime table below do not include Ruby. See the
+[M11 language conventions](../docs/roadmap/M11.md#language-conventions).
+
 `just bindings::generate` reflects the native exports and updates adapter
 resources. `just bindings::check` rejects drift. The
 [shared ABI guide](../packages/zig/transit-station/docs/bindings.md) owns the

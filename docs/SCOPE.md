@@ -35,7 +35,8 @@ The same primitives must support ordinary stateful distributed programs.
   Rust, Python, Node.js, Java, .NET and Elixir/Erlang without changing kernel
   execution semantics. Host-language binding glue, examples and conformance tests
   are in scope; the shared client/framework and service implementations remain Zig.
-  M11 adds language-native typed APIs, handler runners and installable artifacts;
+  M11 adds language-native typed APIs, handler runners and installable artifacts,
+  and extends the language targets with Ruby;
   generated wire/ABI declarations and shared protocol semantics retain their owners.
 - Board is the first operator/agent inspection surface, before Station. Its
   TanStack Router frontend uses Vite+ and is embedded in the Zig `transit-board` API

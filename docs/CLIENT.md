@@ -197,6 +197,14 @@ surface still exposes JSON actions, raw status codes, hex values and manual
 turn pumping. Preserve those low-level interfaces for conformance and advanced
 use while making normal application code express domain operations directly.
 
+The M11 public SDK targets are **C/C++, Rust, Python, Ruby, Node.js/TypeScript,
+Java, .NET and Elixir/Erlang**. Python, TypeScript and Rust establish the first
+equivalent API designs. Ruby is an additional planned target using the shared
+native port; it has no qualified adapter or pinned runtime yet. The historical
+[M9 target table](#m9-language-targets) and binding evidence retain their original
+scope. [M11's language conventions](roadmap/M11.md#language-conventions) own the
+public interface direction for the complete target list.
+
 [M10](roadmap/M10.md) first qualifies the growing-state and verification foundation.
 Public SDKs must distinguish working-set and operation budgets from explicit
 deployment quotas. They must not encode the legacy total-key/catalog array sizes
