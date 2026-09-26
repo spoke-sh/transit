@@ -12,8 +12,8 @@ revocation and worker SIGKILL after remote application. Recovery closes unknown
 without resending; sealed results replay through the public read adapter.
 The TLS proof includes versioned credential/header scope, private secret
 resolution, capture omission and replay after the credential file is removed.
-An explicit idempotent retry uses a new linked effect after unknown closure;
-the independent peer records three attempts but only two applications.
+Explicit idempotent retries, redirects, status queries and cancellation requests
+use new linked effects under frozen endpoint policies.
 
 `zig build transit-station-http-worker` installs the binary. Supply one JSON
 configuration file containing authority URL, realm/principal/seed-file, PID and
@@ -49,12 +49,26 @@ generation; the activation marker prevents reusing a previously entered generati
 
 An endpoint's trusted `retry_policy` names an immutable policy ID/revision and
 one `key_header`. Set the root's finite `max_attempts` before preparation (default
-one). An explicit new `prepare` with `retry_parent` and a fresh exchange ID can
+one). An explicit new `prepare` with `followup: {parent, reason: "retry"}` and a fresh exchange ID can
 retry an unknown parent only with identical canonical metadata and body, including
 one nonempty literal idempotency key. The endpoint must implement that versioned
 idempotency contract; the worker cannot infer it from an HTTP method. Followups
 share the original deadline and total attempt budget. There is no automatic
 retry, renewed budget, or reuse of an already-authorized kernel effect.
+
+`redirect_policy` declares an ID/revision for explicit redirects. A `redirect`
+followup requires an observed complete 301/302/303/307/308 response and one captured,
+allowlisted Location. Only an exact origin-form target at the same authority is
+accepted; credentials, method and body remain unchanged. POST and other methods
+besides GET/HEAD require 307/308; the worker does not guess method rewrites.
+
+`reconcile_policy` and `cancel_policy` each fix an ID/revision, method and literal
+target before the root intent. Reconciliation permits GET/HEAD; cancellation
+permits POST/DELETE, both with empty bodies and unchanged credential/header scope.
+Their `followup.reason` values are `reconcile` and `cancel`. They require a closed
+unknown parent and get independent captured outcomes. A cancellation request does
+not undo prior remote work, and status evidence does not reopen or rewrite the
+original kernel effect. Every followup consumes the original total budget/deadline.
 
 The worker emits only exchange identity, phase and byte/segment counts on stdout.
 It does not log bodies, request targets or credential material. HTTP status is

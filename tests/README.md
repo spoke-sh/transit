@@ -23,7 +23,12 @@ without resending. Reusing an entered activation fails. Public body reads rechec
 resource permission after an actual prefix. A separately requested idempotent
 retry uses a new linked effect with the original key and request bytes. Changed
 bodies and exhausted attempt budgets reject. The independent peer records three
-remote requests but only two applications across these scenarios.
+remote requests but only two applications across those retry scenarios. Additional
+explicit status, cancellation and captured same-authority redirect followups each
+have separate effects, giving seven sends, three applications and one cancellation
+request in the full proof. Status/cancellation evidence leaves the original effect
+closed unknown. Pure policy cases reject metadata/admin address changes,
+cross-authority/changed redirects, undeclared action targets and policy changes.
 The worker proof uses TLS and a versioned credential file. Changed numeric
 destinations, wrong credential versions and header scopes reject before dispatch;
 resolved credentials are absent from all durable mutations. Replay works after
@@ -39,7 +44,7 @@ while uncollected bytes remain, restarts node/store during reclamation, and resu
 bounded cleanup to its durable end without another network attempt.
 
 These checks passed locally on Linux x86_64 with the pinned compiler. They do not
-yet qualify public caller admission, managed secret providers, redirects/reconciliation,
+yet qualify public caller admission, managed secret providers, surviving cross-service reconciliation,
 SDKs, all launchers or hosted CI cost. Those remain explicit
 [M15](../docs/roadmap/M15.md) exit obligations. The shared capture
 [contract](../contracts/STATION_EXCHANGE_V1.md) distinguishes library coverage

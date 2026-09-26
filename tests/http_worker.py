@@ -14,6 +14,7 @@ from storage import Fixture, free_port, wait_ready
 
 
 def run(node, provision, worker):
+    started = time.monotonic()
     node, provision, worker = map(lambda value: str(Path(value).resolve()), (node, provision, worker))
     payload = bytes((i * 29 + 5) % 256 for i in range(1027))
     with Fixture() as fixture:
@@ -24,6 +25,7 @@ def run(node, provision, worker):
         node_config.write_text(json.dumps({"profile": "growing_v3", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "http-worker", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         requests = []
         applied = set()
+        cancelled = set()
         blocked = threading.Event()
         release = threading.Event()
         dropped = {}
@@ -38,7 +40,13 @@ def run(node, provision, worker):
                 assert self.headers["Authorization"] == "Bearer fixture-request-secret"
                 requests.append(self.path)
                 key = self.headers["Idempotency-Key"]
-                assert key == self.path
+                assert key == ("/redirect" if self.path == "/redirected" else self.path)
+                if self.path == "/redirect":
+                    self.send_response(307)
+                    self.send_header("Location", "/redirected")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
                 first_application = key not in applied
                 applied.add(key)
                 if self.path == "/kill" and first_application:
@@ -51,6 +59,26 @@ def run(node, provision, worker):
                     self.end_headers()
                     self.wfile.write(payload)
                 except (BrokenPipeError, ConnectionResetError): pass
+            def do_GET(self):
+                assert self.path == "/status/kill"
+                assert self.headers["Idempotency-Key"] == "/kill"
+                assert self.headers["Authorization"] == "Bearer fixture-request-secret"
+                assert int(self.headers["Content-Length"]) == 0
+                requests.append(self.path)
+                result = b"applied" if "/kill" in applied else b"unknown"
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(result)))
+                self.end_headers()
+                self.wfile.write(result)
+            def do_DELETE(self):
+                assert self.path == "/operations/kill"
+                assert self.headers["Idempotency-Key"] == "/kill"
+                assert self.headers["Authorization"] == "Bearer fixture-request-secret"
+                assert int(self.headers["Content-Length"]) == 0
+                requests.append(self.path)
+                cancelled.add("/kill")
+                self.send_response(204)
+                self.end_headers()
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
@@ -120,13 +148,20 @@ def run(node, provision, worker):
                 return json.loads(subprocess.check_output([provision, url, operation, str(state)], timeout=30))
             def configure(saved, path, mode):
                 configuration = {"url": proxy_url, "realm": 47, "principal": 65536, "seed_file": str(seed), "pid": saved["pid"], "generation": saved["generation"], "activation_directory": str(fixture.root), "exchange": 1, "endpoint_revision": 1, "endpoint": {"host": "localhost", "address": "127.0.0.1", "port": peer.server_port, "tls": True, "ca_file": str(tls_cert), "timeout_ms": 120000}, "mode": mode, "request": {"method": "POST", "target": [{"literal": path}], "body_bytes": 4, "headers": [{"name": "Authorization", "value": [{"literal": "Bearer "}, {"secret": {"binding": "api", "version": 7}}]}]}, "credentials": [{"binding": "api", "version": 7, "header": "Authorization", "file": str(credential)}], "body_file": str(body_file), "reconcile_before_ms": int(time.time() * 1000) + 240000}
-                configuration.update(max_attempts=2, retry_policy={"id": 77, "revision": 1, "key_header": "Idempotency-Key"})
+                configuration.update(max_attempts=4, retry_policy={"id": 77, "revision": 1, "key_header": "Idempotency-Key"}, redirect_policy={"id": 78, "revision": 1}, reconcile_policy={"id": 79, "revision": 1, "method": "GET", "target": "/status/kill"}, cancel_policy={"id": 80, "revision": 1, "method": "DELETE", "target": "/operations/kill"})
+                configuration["endpoint"]["response_headers"] = ["content-type", "content-length", "transfer-encoding", "trailer", "location"]
                 configuration["request"]["headers"].append({"name": "Idempotency-Key", "value": [{"literal": path}]})
                 config.write_text(json.dumps(configuration))
-            def followup(saved, exchange, mode):
-                configure(saved, "/kill", mode)
+            def followup(saved, exchange, mode, reason="retry", path="/kill"):
+                configure(saved, path, mode)
                 configuration = json.loads(config.read_text())
-                configuration.update(exchange=exchange, retry_parent=1)
+                configuration.update(exchange=exchange, followup={"parent": 1, "reason": reason})
+                if reason in ("reconcile", "cancel"):
+                    action = configuration[reason + "_policy"]
+                    configuration["request"].update(method=action["method"], target=[{"literal": action["target"]}], body_bytes=0)
+                    configuration["body_file"] = None
+                if reason == "redirect":
+                    configuration["request"]["target"] = [{"literal": "/redirected"}]
                 config.write_text(json.dumps(configuration))
             def invoke():
                 return json.loads(subprocess.check_output([worker, str(config)], timeout=120))
@@ -246,13 +281,41 @@ def run(node, provision, worker):
             assert invoke()["phase"] == "complete"
             assert requests == ["/complete", "/kill", "/kill"], requests
             assert applied == {"/complete", "/kill"}
+            for exchange, reason in ((3, "reconcile"), (4, "cancel")):
+                saved = admin("own")
+                followup(saved, exchange, "prepare", reason)
+                assert invoke()["phase"] == "ready"
+                saved = admin("own")
+                followup(saved, exchange, "execute", reason)
+                assert invoke()["phase"] == "complete"
+                # Independent followup evidence never rewrites the original
+                # unknown effect or pretends to undo its remote application.
+                assert admin("inspect")["effect"] == "closed_unknown"
+            assert cancelled == {"/kill"} and applied == {"/complete", "/kill"}
             saved = admin("own")
-            followup(saved, 3, "prepare")
+            followup(saved, 5, "prepare")
             refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
             assert refused.returncode != 0 and b"ExchangeAttemptBudgetExceeded" in refused.stderr, refused
-            assert requests == ["/complete", "/kill", "/kill"], requests
+            assert requests == ["/complete", "/kill", "/kill", "/status/kill", "/operations/kill"], requests
+
+            saved = admin("provision")
+            configure(saved, "/redirect", "prepare")
+            assert invoke()["phase"] == "ready"
+            saved = admin("own")
+            configure(saved, "/redirect", "execute")
+            assert invoke()["phase"] == "complete"
+            assert requests[-1] == "/redirect" and "/redirected" not in requests
+            saved = admin("own")
+            followup(saved, 2, "prepare", "redirect", "/redirect")
+            assert invoke()["phase"] == "ready"
+            saved = admin("own")
+            followup(saved, 2, "execute", "redirect", "/redirect")
+            assert invoke()["phase"] == "complete"
+            assert requests[-2:] == ["/redirect", "/redirected"]
+            assert applied == {"/complete", "/kill", "/redirect"}
             assert not failures, failures
-            print("HTTP worker: disk recovery, exact Transit retry, replay, killed-executor unknown closure and explicit bounded idempotent retry passed; three sends, two applications.")
+            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup and explicit idempotent retry/redirect/status/cancel passed; seven sends, three applications, one cancellation request.")
+            print(f"HTTP worker proof wall time: {time.monotonic() - started:.2f}s (excludes compilation).")
         finally:
             release.set()
             for process in (child, authority):

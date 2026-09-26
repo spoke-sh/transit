@@ -9,7 +9,7 @@ const g = p.Growth;
 const Server = s.GrowingGenServer;
 const Turn = s.GrowingTurn;
 const Credential = struct { binding: []const u8, version: u64, header: []const u8, file: []const u8 };
-const RetryPolicy = struct { id: u64, revision: u64, key_header: []const u8 };
+const RetryPolicy = http.Policy.Retry;
 const Config = struct {
     url: []const u8,
     realm: u64,
@@ -30,7 +30,10 @@ const Config = struct {
     credentials: []const Credential = &.{},
     max_attempts: u32 = 1,
     retry_policy: ?RetryPolicy = null,
-    retry_parent: ?u64 = null,
+    redirect_policy: ?http.Policy.Reference = null,
+    reconcile_policy: ?http.Policy.Action = null,
+    cancel_policy: ?http.Policy.Action = null,
+    followup: ?struct { parent: u64, reason: http.Policy.Reason } = null,
 };
 const Secrets = struct {
     gpa: std.mem.Allocator,
@@ -69,7 +72,7 @@ const Secrets = struct {
         return error.HttpCredentialNotGranted;
     }
 };
-const Prepared = struct { version: u32 = 1, endpoint_revision: u64, host: []const u8, address: []const u8, port: u16, tls: bool, timeout_ms: u32, request_bytes: u64, response_bytes: u64, response_headers: []const []const u8, trust_digest: ?[32]u8, retry_policy: ?RetryPolicy = null, request: http.Request };
+const Prepared = http.Policy.Prepared;
 fn trustDigest(gpa: std.mem.Allocator, io: std.Io, endpoint: http.Transport.Endpoint) !?[32]u8 {
     if (!endpoint.tls) return null;
     // Freeze the explicit CA bundle, not a machine-local path or ambient roots.
@@ -82,7 +85,7 @@ fn trustDigest(gpa: std.mem.Allocator, io: std.Io, endpoint: http.Transport.Endp
 }
 const Operation = union(enum) {
     idle,
-    create: struct { deadline: u64, limits: x.Limits },
+    create: struct { deadline: u64, limits: x.Limits, policy: ?http.Policy.Reference = null },
     begin: struct { ordinal: u32, kind: http.Kind, spec: x.Publication.Spec },
     append: struct { ordinal: u32, chunk: u32, bytes: p.Value },
     seal: u32,
@@ -139,10 +142,10 @@ const Driver = struct {
         switch (self.operation) {
             .idle => {},
             .create => |c| {
-                if (self.config.retry_parent) |parent_id| {
-                    const parent: x.Exchange = .{ .resource = turn.view.resource, .id = parent_id };
-                    const policy = self.config.retry_policy orelse return error.HttpRetryNotGranted;
-                    _ = try parent.followup(turn, ex.id, .retry, policy.id, policy.revision, c.limits);
+                if (self.config.followup) |follow| {
+                    const parent: x.Exchange = .{ .resource = turn.view.resource, .id = follow.parent };
+                    const policy = c.policy orelse return error.HttpFollowupNotGranted;
+                    _ = try parent.followup(turn, ex.id, follow.reason, policy.id, policy.revision, c.limits);
                 } else _ = try x.Exchange.create(turn, ex.id, .{ .caller = turn.delivery.pid, .input = turn.delivery.input.position, .protocol = http.protocol_format }, c.limits, c.deadline);
             },
             .begin => |b| {
@@ -217,6 +220,9 @@ const Driver = struct {
     }
     fn effect(self: *Driver) !g.Effect {
         const ex = try self.exchange();
+        return self.effectFor(ex);
+    }
+    fn effectFor(self: *Driver, ex: x.Exchange) !g.Effect {
         var after: ?u64 = null;
         var position: ?u64 = null;
         while (true) {
@@ -248,28 +254,61 @@ const Driver = struct {
         }
         return buffer[0..count];
     }
-    fn validateRetry(self: *Driver, metadata: []const u8, body: []const u8, request: http.Request) !void {
-        const parent_id = self.config.retry_parent orelse return;
-        const policy = self.config.retry_policy orelse return error.HttpRetryNotGranted;
-        if (policy.id == 0 or policy.revision == 0) return error.HttpRetryNotGranted;
-        const key = for (request.headers) |header| {
-            if (std.ascii.eqlIgnoreCase(header.name, policy.key_header)) break header;
-        } else return error.MissingHttpIdempotencyKey;
-        var keys: usize = 0;
-        for (request.headers) |header| if (std.ascii.eqlIgnoreCase(header.name, policy.key_header)) {
-            keys += 1;
-        };
-        if (keys != 1) return error.InvalidHttpIdempotencyKey;
-        if (key.value.len != 1 or key.value[0] != .literal or key.value[0].literal.len == 0 or key.value[0].literal.len > 128) return error.InvalidHttpIdempotencyKey;
+    fn capturedLocation(self: *Driver, parent: x.Exchange, descriptor: x.Descriptor, buffer: []u8) !?[]const u8 {
+        var used: usize = 0;
+        var segment_buffer: [8192]u8 = undefined;
+        for (0..descriptor.segments) |ordinal| {
+            var source = try self.reader.reader(parent.resource);
+            if ((try parent.member(&source, @intCast(ordinal))).kind != @backingInt(http.Kind.response_head)) continue;
+            const bytes = try self.loadFrom(parent, @intCast(ordinal), &segment_buffer);
+            for (bytes) |byte| {
+                if (used == buffer.len) return error.HttpHeadersOversize;
+                buffer[used] = byte;
+                used += 1;
+                if (!std.mem.endsWith(u8, buffer[0..used], "\r\n\r\n")) continue;
+                if (used < 17 or !std.mem.startsWith(u8, buffer[0..used], "HTTP/1.1 ")) return error.InvalidHttpCapture;
+                const status = try std.fmt.parseInt(u16, buffer[9..12], 10);
+                if (status < 200) {
+                    used = 0;
+                    continue;
+                }
+                if (status != descriptor.terminal_code) return error.InvalidHttpCapture;
+                var location: ?[]const u8 = null;
+                var lines = std.mem.splitSequence(u8, buffer[0..used], "\r\n");
+                _ = lines.next();
+                while (lines.next()) |line| {
+                    if (line.len == 0) break;
+                    const colon = std.mem.indexOfScalar(u8, line, ':') orelse return error.InvalidHttpCapture;
+                    if (!std.ascii.eqlIgnoreCase(line[0..colon], "location")) continue;
+                    if (location != null) return error.AmbiguousHttpRedirect;
+                    location = std.mem.trim(u8, line[colon + 1 ..], " \t");
+                }
+                if (location) |target| if (std.mem.eql(u8, target, "{{omitted}}")) return error.HttpReplayGap;
+                return location;
+            }
+        }
+        return error.HttpReplayGap;
+    }
+    fn validateFollowup(self: *Driver, gpa: std.mem.Allocator, prepared: Prepared, body: []const u8) !?http.Policy.Reference {
+        const follow = self.config.followup orelse return null;
         const ex = try self.exchange();
-        const parent: x.Exchange = .{ .resource = ex.resource, .id = parent_id };
+        const parent: x.Exchange = .{ .resource = ex.resource, .id = follow.parent };
         const descriptor = try self.reader.inspect(parent.resource, parent.id);
-        if (descriptor.phase != .unknown) return error.HttpRetryNotUnknown;
+        const parent_effect = try self.effectFor(parent);
+        if (follow.reason == .redirect) {
+            if (descriptor.phase != .complete or parent_effect.phase != .observed) return error.HttpRedirectNotCaptured;
+        } else if (descriptor.phase != .unknown or parent_effect.phase != .closed_unknown) return error.HttpFollowupNotSettled;
+        if (now(self.io) >= descriptor.reconcile_before_ms) return error.ExpiredReconciliation;
         var previous: [8192]u8 = undefined;
-        // Exact canonical metadata preserves endpoint, method, credential
-        // versions, idempotency key and original policy. A retry is not a way
-        // to silently change the remote operation or forward credentials.
-        if (!std.mem.eql(u8, try self.loadFrom(parent, 0, &previous), metadata)) return error.HttpRetryChanged;
+        const parsed = try std.json.parseFromSlice(Prepared, gpa, try self.loadFrom(parent, 0, &previous), .{});
+        defer parsed.deinit();
+        var head_buffer: [8192]u8 = undefined;
+        const location = if (follow.reason == .redirect) try self.capturedLocation(parent, descriptor, &head_buffer) else null;
+        const policy = try http.Policy.followup(gpa, follow.reason, parsed.value, prepared, if (follow.reason == .redirect) @intCast(descriptor.terminal_code) else null, location);
+        if (follow.reason == .reconcile or follow.reason == .cancel) {
+            if (body.len != 0) return error.HttpFollowupChanged;
+            return policy;
+        }
         var offset: usize = 0;
         var ordinal: u32 = 2;
         while (true) : (ordinal += 1) {
@@ -281,7 +320,7 @@ const Driver = struct {
             if (offset == body.len) break;
             if (bytes.len == 0) return error.HttpRetryChanged;
         }
-        if (now(self.io) >= descriptor.reconcile_before_ms) return error.ExpiredReconciliation;
+        return policy;
     }
 };
 fn now(io: std.Io) u64 {
@@ -323,15 +362,16 @@ pub fn main(init: std.process.Init) !void {
         var header: [http.Request.maximum_head_bytes]u8 = undefined;
         const rendered = try request.render(config.endpoint.host, config.endpoint.port, &header, null, false);
         // Prepare metadata before creating any durable obligation.
-        const metadata = try std.json.Stringify.valueAlloc(init.gpa, Prepared{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .timeout_ms = config.endpoint.timeout_ms, .request_bytes = config.endpoint.request_bytes, .response_bytes = config.endpoint.response_bytes, .response_headers = config.endpoint.response_headers, .trust_digest = try trustDigest(init.gpa, init.io, config.endpoint), .retry_policy = config.retry_policy, .request = request }, .{});
+        const prepared: Prepared = .{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .timeout_ms = config.endpoint.timeout_ms, .request_bytes = config.endpoint.request_bytes, .response_bytes = config.endpoint.response_bytes, .response_headers = config.endpoint.response_headers, .trust_digest = try trustDigest(init.gpa, init.io, config.endpoint), .retry_policy = config.retry_policy, .redirect_policy = config.redirect_policy, .reconcile_policy = config.reconcile_policy, .cancel_policy = config.cancel_policy, .request = request };
+        const metadata = try std.json.Stringify.valueAlloc(init.gpa, prepared, .{});
         defer init.gpa.free(metadata);
         if (metadata.len > 8192) return error.HttpRequestTooLarge;
         const body = if (config.body_file) |path| try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(65536)) else try init.gpa.dupe(u8, "");
         defer init.gpa.free(body);
         if (body.len != request.body_bytes) return error.InvalidHttpBodyLength;
-        try driver.validateRetry(metadata, body, request);
-        try driver.apply(.{ .create = .{ .deadline = deadline, .limits = .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 } } });
-        if (config.retry_parent == null) try driver.apply(.{ .attempts = config.max_attempts });
+        const followup_policy = try driver.validateFollowup(init.gpa, prepared, body);
+        try driver.apply(.{ .create = .{ .deadline = deadline, .limits = .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 }, .policy = followup_policy } });
+        if (config.followup == null) try driver.apply(.{ .attempts = config.max_attempts });
         try driver.stage(.request_template, metadata);
         try driver.stage(.request_head, rendered);
         var offset: usize = 0;

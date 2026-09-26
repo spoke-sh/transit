@@ -34,6 +34,28 @@ address. No ambient proxy, DNS choice, redirect or transparent retry changes sco
 The worker clamps its live timeout to the remaining original reconciliation budget.
 An already-authorized send may still be in flight after policy changes or closure.
 
+## Explicit followup policies
+
+`Policy.Prepared` owns the frozen metadata shape. It contains the typed request,
+endpoint/capture/trust scope and optional versioned retry, redirect, reconciliation
+and cancellation policies. The trusted worker checks current grants and requires
+the parent's terminal kernel disposition before making another effect. Policy
+references record decisions; they confer no dispatch authority.
+
+Retry requires a closed unknown parent, identical request metadata/body and one
+literal nonempty idempotency key under the declared endpoint contract. Redirect
+requires an observed complete redirect and one captured Location. The finite
+profile supports only an exact origin-form target at the same authority, preserving
+credentials/method/body; methods besides GET/HEAD require 307/308. Missing, omitted,
+duplicate, cross-authority or changed destinations reject before a new effect.
+
+Status/cancellation actions freeze the exact literal target and method at root
+preparation. A status query uses GET/HEAD; cancellation uses POST/DELETE. Both have
+empty bodies and preserve credential/header scope. They require a closed unknown
+parent; each is an independently authorized and captured effect. They neither
+rewrite the original unknown outcome nor prove remote cancellation succeeded.
+Every followup shares the original lineage, total attempt budget and deadline.
+
 ## Captured records
 
 All records are immutable exchange members in protocol format 1. Kinds are:

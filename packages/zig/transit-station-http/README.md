@@ -40,6 +40,12 @@ verification and bounded HTTP record validation. Prefixes remain provisional unt
 the final `complete` part. `require_unredacted` reports `HttpReplayGap` when required
 secret-bearing fields were omitted; neither replay mode can invoke transport or
 credentials. See the [HTTP wire contract and fixtures](../../../contracts/STATION_HTTP_V1.md).
+
+`Policy.followup` is the pure versioned request-change validator. It permits exact
+idempotent retries, captured same-authority redirects and declared status/cancel
+actions. It rejects destination, credential, policy and method/body changes outside
+that explicit decision. The worker still owns current dispatch authority and the
+shared exchange layer owns lineage/budgets; this helper performs no I/O.
 The [connector design](../../../docs/CONNECTORS.md) and
 [exchange contract](../../../contracts/STATION_EXCHANGE_V1.md) own authority,
 lifetime, unknown-outcome and replay requirements.

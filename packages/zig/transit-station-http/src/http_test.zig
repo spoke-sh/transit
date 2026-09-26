@@ -90,6 +90,34 @@ test "HTTP replay checks complete ordered protocol coverage and explicit redacti
     try v.push(.request_body, "cut");
     try t.expectError(error.HttpReplayGap, v.push(.response_head, "HTTP/1.1 200 OK\r\n\r\n"));
 }
+test "explicit followup policies preserve destination credentials and permitted method changes" {
+    const parent: http.Policy.Prepared = .{ .endpoint_revision = 7, .host = "example.test", .address = "127.0.0.1", .port = 443, .tls = true, .timeout_ms = 1000, .request_bytes = 64, .response_bytes = 64, .response_headers = &.{"location"}, .trust_digest = @splat(1), .request = .{ .method = .POST, .target = &.{.{ .literal = "/operation" }}, .body_bytes = 4, .headers = &.{.{ .name = "Idempotency-Key", .value = &.{.{ .literal = "stable" }} }} }, .retry_policy = .{ .id = 1, .revision = 1, .key_header = "Idempotency-Key" }, .redirect_policy = .{ .id = 2, .revision = 1 }, .reconcile_policy = .{ .id = 3, .revision = 1, .method = .GET, .target = "/status/stable" }, .cancel_policy = .{ .id = 4, .revision = 1, .method = .DELETE, .target = "/operations/stable" } };
+    _ = try http.Policy.followup(t.allocator, .retry, parent, parent, null, null);
+    var next = parent;
+    next.address = "169.254.169.254";
+    try t.expectError(error.HttpFollowupChanged, http.Policy.followup(t.allocator, .retry, parent, next, null, null));
+    next = parent;
+    next.request.target = &.{.{ .literal = "/redirected" }};
+    _ = try http.Policy.followup(t.allocator, .redirect, parent, next, 307, "/redirected");
+    try t.expectError(error.UnsupportedHttpRedirect, http.Policy.followup(t.allocator, .redirect, parent, next, 302, "/redirected"));
+    try t.expectError(error.HttpRedirectScope, http.Policy.followup(t.allocator, .redirect, parent, next, 307, "https://other.test/redirected"));
+    try t.expectError(error.HttpRedirectScope, http.Policy.followup(t.allocator, .redirect, parent, next, 307, "//other.test/redirected"));
+    try t.expectError(error.HttpRedirectChanged, http.Policy.followup(t.allocator, .redirect, parent, next, 307, "/unapproved"));
+    next.host = "other.test";
+    try t.expectError(error.HttpFollowupChanged, http.Policy.followup(t.allocator, .redirect, parent, next, 307, "/redirected"));
+    next = parent;
+    next.request.method = .GET;
+    next.request.target = &.{.{ .literal = "/status/stable" }};
+    next.request.body_bytes = 0;
+    _ = try http.Policy.followup(t.allocator, .reconcile, parent, next, null, null);
+    next.request.method = .POST;
+    try t.expectError(error.HttpFollowupChanged, http.Policy.followup(t.allocator, .reconcile, parent, next, null, null));
+    next.request.method = .DELETE;
+    next.request.target = &.{.{ .literal = "/operations/stable" }};
+    _ = try http.Policy.followup(t.allocator, .cancel, parent, next, null, null);
+    next.cancel_policy.?.revision += 1;
+    try t.expectError(error.HttpFollowupChanged, http.Policy.followup(t.allocator, .cancel, parent, next, null, null));
+}
 test "response framing rejects ambiguous lengths and unqualified decompression" {
     try t.expectError(error.InvalidHttpFraming, http.validateResponse("HTTP/1.1 xyz Invalid\r\n\r\n"));
     _ = try http.validateResponse("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nX-A: one\r\nX-A: two\r\n\r\n");
