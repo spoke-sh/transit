@@ -44,8 +44,13 @@ poisoned reads, explicit stop behavior, revocation, native port parity and exact
 retry from a fresh process after caller/node/store loss. Native allocation-failure
 enumeration preserves accepted receipts until the host can receive them. Both
 `just check` and the complete existing language matrix pass with this boundary.
-Public SDK handlers, foreign query adapters and clean package installation remain
-M11 work.
+The companion [query ABI proof](station_query_abi.py) uses the native query
+profile's bounded 64-page cache. It captures and delivers 41 rows in six IPC
+segments, retries lost staging receipts, restarts workers/node/provider after a
+seal, checks complete source metadata and decodes owned IPC with PyArrow after
+native disposal. Port parity, disabled query access, stale scope and revocation
+are covered by the shared `growing-query-abi` scenario. Public SDK handlers,
+optional Arrow adapters and clean package installation remain M11 work.
 
 Enter `nix develop` and run `just transit-board::install` at the repository root. `just ci` runs the ordinary local
 suite. Capacity and reference proofs have extra prerequisites and are separate.

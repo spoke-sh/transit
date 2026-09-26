@@ -3,8 +3,10 @@
 The explicit Zig `GrowingQuery` API captures incremental Fuze results across
 ordinary growing turns. `QueryDelivery` publishes the captured segments, validates
 receiver completion and retains acknowledgements through the same turn boundary.
-This explicit M10 Zig profile requires a host-supplied query context. Legacy `Query` and foreign ABI
-result limits remain unchanged. The [v2 design and layout](../../../../contracts/STATION_QUERY_V2.md)
+This explicit M10 Zig profile requires a host-supplied query context. The M11
+[growing ABI](bindings.md#explicit-growing-turns) can own that context when
+explicitly enabled; legacy `Query` and foreign ABI result limits remain unchanged.
+The [v2 design and layout](../../../../contracts/STATION_QUERY_V2.md)
 owns the capture, delivery and credit contracts.
 
 Set a revisioned peer/Table policy with `GrowingQuery.setPolicy`. A handler for
@@ -67,7 +69,9 @@ proposal for reconciliation. No cancellation flag can undo a committed turn.
 The real-service proof explicitly opts in and drives both peers through public
 delivery operations. A production query host and general public query ingress
 remain [M13](../../../../docs/roadmap/M13.md) work; existing launchers and foreign
-bindings continue to use their declared legacy profile.
+legacy bindings continue to use their declared profile. Growing foreign handles
+opt in through `query_results: true`, with bounded per-handle workspace and copied
+manifest/IPC buffers; public SDK adapters remain separate qualification.
 
 Read failures poison the private turn; catching one cannot authorize publishing
 partial work. `close(turn, result_id, .cancelled)` is an explicit owner decision

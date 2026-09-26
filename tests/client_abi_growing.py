@@ -14,6 +14,7 @@ from storage import free_port, wait_ready
 
 
 class GrowingSystem(System):
+    resident_pages = 1
     def __enter__(self):
         self.store.__enter__()
         try:
@@ -25,7 +26,7 @@ class GrowingSystem(System):
             self.config.write_text(json.dumps({
                 "profile": "growing_v3", "genesis": {"realm": 72, "root_key": public, "max_clock_error_ms": 10000},
                 "ursula_url": self.store.url, "bucket": "growing-abi", "journal": "authority",
-                "port": self.port, "resident_pages": 1, "request_timeout_ms": 5000,
+                "port": self.port, "resident_pages": self.resident_pages, "request_timeout_ms": 5000,
             }))
             initialized = self.start(self.node, self.config, "--initialize")
             assert initialized.wait(timeout=20) == 0

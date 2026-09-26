@@ -3,6 +3,13 @@
   "profile": "shared behavioral scenarios; current Linux low-level bindings, M11 public SDK adapters pending",
   "scenarios": [
     {
+      "id": "growing-query-abi",
+      "steps": ["Require explicit query opt-in and start a typed native plan from an authenticated call", "Persist every control/capture/receive proposal before dispatch", "Lose an accepted staging response and retry the exact signed bytes", "Restart both workers, authority and disk provider after a segment seal", "Verify complete provenance and decode copied IPC after native disposal", "Read the same result through the native port and reject stale scope and revoked access"],
+      "expected": {"rows": 41, "segments": 6, "exact_retry": true, "restarted_after_seal": true, "service_initializations": 1, "requester_initializations": 1, "owned_ipc_after_close": true, "port_bytes_equal": true, "stale_scope_status": 13, "revoked_result_status": 4},
+      "proofs": [{"task": "bindings::test", "source": "tests/station_query_abi.py", "anchor": "check('growing-query-abi'"}],
+      "limits": "Explicit growing C/port handles on disk Ursula with 64 resident pages, one 1 MiB workspace per query-enabled handle and 8192-byte segment bounds. Public SDK runners and optional Arrow adapters have separate qualification."
+    },
+    {
       "id": "growing-profile-abi",
       "steps": ["Probe native operation support and prepare explicit v3 operations", "Admit a full-width principal's request and lose the response", "Restart the node/provider and retry opaque bytes from a fresh host without its seed", "Reject malformed read/receipt responses without inventing a mutation rejection", "Revoke access before both reads and historical receipt recovery"],
       "expected": {"protocol_version": 3, "authenticated_principal": 65536, "identical_retry": true, "uncertain_status": 6, "invalid_receipt_status": 6, "invalid_read_status": 8, "admitted_inputs": 1, "revoked_read_status": 4, "revoked_retry_status": 4},

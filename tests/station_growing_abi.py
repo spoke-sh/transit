@@ -205,7 +205,7 @@ def run(node, cli, library, raw_library, host):
             command({'send': {'pid': pid, 'value': frame(b'init')}})
             server = Native(libraries, url, seed, config)
             caps = server.api.call('station_growing_capabilities')
-            assert caps['gated_dispatch'] and caps['paged_state'] and not caps['query_results']
+            assert caps['gated_dispatch'] and caps['paged_state'] and caps['query_results']
             initial = ready(server)
             assert initial['initializing'] and initial['scope'] > 0
             scope = initial['scope']

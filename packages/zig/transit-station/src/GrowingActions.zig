@@ -4,6 +4,32 @@ const std = @import("std");
 const s = @import("transit_station");
 const p = s.protocol;
 const a = @import("Actions.zig");
+const q = s.GrowingQuery;
+pub const Plan = struct {
+    projection: @FieldType(a.Plan, "projection") = .both,
+    limit: ?[]const u8 = null,
+    aggregate: @FieldType(a.Plan, "aggregate") = .rows,
+    predicate: @FieldType(a.Plan, "predicate") = .all,
+    fn native(self: Plan) !s.fuze.Stream.Plan {
+        const shared = try (a.Plan{ .projection = self.projection, .aggregate = self.aggregate, .predicate = self.predicate }).native();
+        return .{ .projection = shared.projection, .aggregate = shared.aggregate, .predicate = shared.predicate, .limit = if (self.limit) |limit| try std.fmt.parseInt(u64, limit, 10) else null };
+    }
+};
+pub const Manifest = struct {
+    result: u64,
+    source: u64,
+    destination: u64,
+    correlation: []const u8,
+    table: u32,
+    policy_revision: []const u8,
+    basis: s.fuze.model.Basis,
+    plan: [32]u8,
+    segments: []const u8,
+    bytes: []const u8,
+    rows: []const u8,
+    chain: [32]u8,
+    schema: [32]u8,
+};
 pub const Action = union(enum) {
     get: p.Value,
     put: @FieldType(a.Action, "put"),
@@ -23,6 +49,18 @@ pub const Action = union(enum) {
     release: p.Growth.ReadVersionId,
     version_get: struct { id: p.Growth.ReadVersionId, key: p.Value },
     version_page: struct { id: p.Growth.ReadVersionId, cursor: ?[]const u8 = null },
+    query_policy: @FieldType(a.Action, "query_policy"),
+    query_start: struct { id: u32, plan: Plan = .{} },
+    query_close: struct { result: u64, reason: enum { cancelled, denied } },
+    query_completed: []const u8,
+    query_segment: struct { correlation: []const u8, ordinal: []const u8 },
+
+    pub fn requiresQuery(self: Action) bool {
+        return switch (self) {
+            .query_policy, .query_start, .query_close, .query_completed, .query_segment => true,
+            else => false,
+        };
+    }
 };
 pub const Result = union(enum) {
     none,
@@ -32,6 +70,9 @@ pub const Result = union(enum) {
     page: struct { entries: [p.Growth.page_size]?p.Growth.Entry, next: ?[]const u8 },
     rows: struct { basis: s.fuze.model.Basis, rows: [p.Growth.page_size]?a.Row, next: ?[]const u8 },
     version: p.Growth.ReadVersionId,
+    query: struct { result: u64, correlation: []const u8, source: p.Growth.ReadVersionId },
+    manifest: Manifest,
+    segment: struct { result: u64, ordinal: []const u8, rows: u8, bytes: u16, digest: [32]u8, ipc: []const u8 },
 };
 const Cursor = struct { source: @FieldType(s.Table.Cursor, "source"), resource: u64, revision: u64, after: p.Value };
 
@@ -79,6 +120,39 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action)
         .version_page => |request| {
             var source = try turn.openVersion(request.id);
             return page(allocator, &source, request.cursor);
+        },
+        .query_policy => |grant| try q.setPolicy(turn, grant.peer, grant.table, grant.expected_revision, grant.allow),
+        .query_start => |request| {
+            const job = try q.start(turn, try s.Table.open(turn, request.id), try request.plan.native());
+            return .{ .query = .{ .result = job.result, .correlation = try a.decimal(allocator, job.correlation), .source = job.source } };
+        },
+        .query_close => |request| switch (request.reason) {
+            .cancelled => try q.close(turn, request.result, .cancelled),
+            .denied => try q.close(turn, request.result, .denied),
+        },
+        .query_completed => |text| {
+            const correlation = try std.fmt.parseInt(u64, text, 10);
+            const complete = try q.completed(turn, correlation);
+            return .{ .manifest = .{
+                .result = complete.result,
+                .source = (try turn.waiting(correlation)).?.target,
+                .destination = complete.destination,
+                .correlation = try a.decimal(allocator, complete.correlation),
+                .table = complete.table,
+                .policy_revision = try a.decimal(allocator, complete.policy_revision),
+                .basis = complete.basis,
+                .plan = complete.plan,
+                .segments = try a.decimal(allocator, complete.segments),
+                .bytes = try a.decimal(allocator, complete.bytes),
+                .rows = try a.decimal(allocator, complete.rows),
+                .chain = complete.chain,
+                .schema = complete.schema,
+            } };
+        },
+        .query_segment => |request| {
+            var bytes: [q.records.segment_bytes]u8 = undefined;
+            const segment = try q.completedSegment(turn, try std.fmt.parseInt(u64, request.correlation, 10), try std.fmt.parseInt(u64, request.ordinal, 10), &bytes);
+            return .{ .segment = .{ .result = segment.manifest.result, .ordinal = try a.decimal(allocator, segment.manifest.ordinal), .rows = segment.manifest.rows, .bytes = segment.manifest.bytes, .digest = segment.manifest.digest, .ipc = try a.hex(allocator, segment.bytes) } };
         },
         else => unreachable,
     }

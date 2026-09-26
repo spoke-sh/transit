@@ -11,7 +11,7 @@ pub const Plan = struct {
     limit: u8 = m.max_rows,
     aggregate: enum { rows, count, sum } = .rows,
     predicate: union(enum) { all, is_null: u8, compare: struct { column: u8, op: s.fuze.Plan.Comparison, value: Cell } } = .all,
-    fn native(self: Plan) !s.fuze.Plan {
+    pub fn native(self: Plan) !s.fuze.Plan {
         return .{ .projection = switch (self.projection) {
             .both => .{ 0, 1 },
             .key => .{ 0, null },

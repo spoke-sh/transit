@@ -16,6 +16,7 @@ pub const Config = struct {
     association: []const u8 = "data",
     timeout_ms: u32 = 5000,
     failure_policy: @FieldType(s.GrowingGenServer, "failure_policy"),
+    query_results: bool = false,
 };
 pub const Capabilities = struct {
     version: u32 = 1,
@@ -25,7 +26,16 @@ pub const Capabilities = struct {
     paged_state: bool = true,
     tables: bool = true,
     retained_sources: bool = true,
-    query_results: bool = false,
+    query_results: bool = true,
+    query_segment_bytes: u32 = s.GrowingQuery.records.segment_bytes,
+    query_workspace_bytes: u32 = s.fuze.execution.working_bytes,
+    value_bytes: u32 = p.Value.max_bytes,
+    message_bytes: u32 = s.Frame.max_payload,
+    key_bytes: u32 = p.Growth.key_bytes,
+    page_entries: u32 = p.Growth.page_size,
+    turn_mutations: u32 = p.Growth.turn_mutations,
+    turn_outputs: u32 = p.Growth.turn_outputs,
+    max_counter: u64 = p.max_counter,
 };
 pub const Event = struct {
     event: enum { idle, progress, ready, pending, committed, blocked },
@@ -49,6 +59,8 @@ const Impl = struct {
     cached_dispatch: bool = false,
     scope: ?u64 = null,
     scope_counter: u64 = 0,
+    workspace: ?[]u8 = null,
+    cancellation: s.fuze.execution.Cancellation = .init(false),
 };
 fn cast(pointer: *Server) *Impl {
     return @ptrCast(@alignCast(pointer));
@@ -92,6 +104,13 @@ pub fn create(abi_version: u32, url: [*]const u8, url_len: usize, seed: *const [
         return base.status(err);
     };
     server.behavior.failure_policy = c.failure_policy;
+    if (c.query_results) {
+        server.workspace = allocator.alloc(u8, s.fuze.execution.working_bytes) catch {
+            destroy(@ptrCast(server));
+            return .out_of_memory;
+        };
+        server.behavior.query = .{ .workspace = server.workspace.?, .cancellation = &server.cancellation };
+    }
     out.* = @ptrCast(server);
     return .ok;
 }
@@ -101,6 +120,7 @@ pub fn destroy(pointer: ?*Server) callconv(.c) void {
     server.client.deinit();
     server.threaded.deinit();
     allocator.free(server.url);
+    if (server.workspace) |workspace| allocator.free(workspace);
     allocator.destroy(server);
 }
 fn failure(server: *Impl, err: anyerror, dispatching: bool, out: *?*base.Buffer) base.Status {
@@ -176,6 +196,7 @@ pub fn apply(pointer: *Server, scope: u64, json: [*]const u8, len: usize, out: *
     const turn = if (server.behavior.ready) |*value| value else return .not_ready;
     const parsed = std.json.parseFromSlice(actions.Action, allocator, json[0..len], .{}) catch |err| return base.failure(err, out);
     defer parsed.deinit();
+    if (parsed.value.requiresQuery() and server.behavior.query == null) return base.failure(error.UnsupportedGrowingQuery, out);
     server.client.last_rejection = null;
     const before = turn.decision;
     var arena = std.heap.ArenaAllocator.init(allocator);

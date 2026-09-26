@@ -44,7 +44,8 @@ raw v3 support does not establish a growing Station adapter. The implemented
 [raw ABI](../packages/zig/transit-client/docs/bindings.md) already supports v3
 operations, capability probing, native operation metadata and opaque retry;
 its standalone client port has no Station dependency. The explicit growing Station
-ABI now adds gated/scoped turns and bounded KV/Table/retained-source access;
+ABI now adds gated/scoped turns, bounded KV/Table/retained-source access and
+opted-in native query capture/delivery with complete manifests and owned segments;
 legacy foreign entry points retain v2. Public runners require the remaining
 shared changes listed below.
 
@@ -252,7 +253,7 @@ General query ingress and a production query host remain M13 scope.
 | Typed operation metadata | Implemented native classification and canonical identity through C/port, with owned buffers; public typed operations must use it without decoding retry bytes |
 | Reply and input metadata | Preserve authenticated origin, frame kind and native wait validation without application-supplied provenance |
 | Application codecs | One versioned counter definition/fixtures before host implementations; strict, bounded validation in all three languages |
-| Growing data adapters | Page/source/cursor validation and opt-in complete-result manifests/segments through the same native implementation |
+| Growing data adapters | Native page/source/cursor validation and opt-in complete-result manifests/segments implemented; public readers and optional Arrow adapters remain |
 
 The public declarations should first compile/type-check against real packages;
 then run the same service/requester against a disk-backed authority. Cover wide

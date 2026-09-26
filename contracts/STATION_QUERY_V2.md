@@ -7,12 +7,13 @@ default end-to-end growing-query capability is advertised. A growing `GenServer`
 still rejects `result_chunk`/`result_complete`/`result_ack` frames with
 `error.UnsupportedGrowingQuery` unless a host explicitly supplies a
 `QueryDelivery.Context` (bounded workspace and cancellation flag) — this is a
-deliberate opt-in, not an oversight; only the `test::growing-query` proof
-harness does so today, to qualify publication/receipt under real disk
-Ursula/node restart. It builds
+deliberate opt-in. The M11 growing C/port ABI can own that bounded context when
+configured with `query_results: true`; its focused proof and
+`test::growing-query` qualify publication/receipt under real disk
+Ursula/node restart. Public language runners remain M11 work. It builds
 on [growing Station](STATION_GROWING.md), [retained read versions](READ_VERSIONS_V1.md)
 and [incremental Fuze](FUZE_STREAM_V1.md). It does not reinterpret the finite
-Station v1 result layout or enable growing results in foreign ABIs.
+Station v1 result layout or enable growing results in legacy foreign ABIs.
 
 ## Identity and source
 

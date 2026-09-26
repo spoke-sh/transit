@@ -62,5 +62,7 @@ profile fallback occurs. The original hello response stays unchanged for M9.
 `growing_discard` call the [growing ABI](../../packages/zig/transit-station/docs/bindings.md#explicit-growing-turns).
 Export/persist the exact `growing_pending` string before dispatch, including
 control mutations. Growing actions require the ready event's scope token.
-This slice supplies bounded KV/Table pages and retained-source access; query
-results and public language runners remain separate work.
+This slice supplies bounded KV/Table pages and retained-source access. Set
+`query_results: true` to enable native capture/delivery and complete manifest/IPC
+segment actions with one bounded 1 MiB workspace. Result completion is a framework
+event, not an application-codec payload. Public language runners remain separate work.

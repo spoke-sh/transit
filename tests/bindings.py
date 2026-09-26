@@ -94,6 +94,8 @@ def run(node, cli, courier, library, raw_library, host, c, cpp, *extra):
         abi_proof(node, cli, library, raw_library, host)
         from station_growing_abi import run as growing_abi_proof
         growing_abi_proof(node, cli, library, raw_library, host)
+        from station_query_abi import run as query_abi_proof
+        query_abi_proof(node, cli, library, raw_library, host)
     finally:
         if affinity:
             os.sched_setaffinity(0, affinity)

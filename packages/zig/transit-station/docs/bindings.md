@@ -143,10 +143,31 @@ revision and Table/schema. Only null continuation means complete. Captured-view
 pages exclude private mutations; retained-source pages can accompany private
 progress writes, with read dependencies registered by native Station.
 
-The initial growing ABI does **not** expose query capture/results, registries,
-supervision or runtime bindings. Capabilities report query support false. Its
-native port uses the same exports; language-native public runners and their
-persistence callbacks are separate M11 work.
+Query support requires `query_results: true` in the growing configuration. An
+enabled handle owns a bounded 1 MiB Fuze workspace until joined destruction;
+disabled handles allocate none. Generated capabilities expose this budget,
+8192-byte segments and state/message/operation bounds. Query actions on a disabled
+handle reject even if the library advertises support. Registries, supervision
+and runtime bindings are not part of this growing foreign slice.
+
+`query_policy` and `query_start` delegate to native `GrowingQuery`. Starting a
+query requires an authenticated call and uses the whole four-mutation proposal;
+it cannot share initialization or an earlier private mutation. The native state
+machine handles capture/publication continuations, receiver credit, fragments
+and acknowledgement. Every control turn still passes through the dispatch gate.
+Only a verified first `result_complete` reaches the host handler; public adapters
+must route it separately from their application payload codec.
+
+`query_completed` returns the verified complete manifest, source/destination,
+Table and captured basis, ordered chain and schema. `query_segment` rechecks
+completion/current access and returns one owned IPC stream plus ordinal, digest,
+row and byte counts. It rejects missing/incomplete evidence and invalid ordinals.
+Full-width correlations, query limits and aggregate counts use decimal strings.
+IPC bytes remain valid after scope/handle disposal; readers remain scoped and
+must reauthorize each access. A local read does not extend retention or confirm
+the containing turn's commitment. Consumers decode each IPC stream separately;
+concatenation is not the result format. The native port uses the same exports;
+public runners and persistence callbacks remain separate M11 work.
 
 `tests/station_growing_abi.py`, included in the binding proof, uses one resident
 backend page and disk Ursula. It checks 41 Table rows in six pages, stale scopes
@@ -155,3 +176,7 @@ gates, accepted-response loss and exact recovery from a fresh process after
 caller/node/store loss, current revocation and the growing port route. Native
 allocation enumeration additionally checks retained confirmation on every failed
 response allocation. These proofs qualify this low-level slice, not public SDKs.
+The companion `tests/station_query_abi.py` proves six segments/41 rows through
+capture, loss/retry and caller/node/store restart, original IPC ownership and
+independent PyArrow decoding, complete metadata, native-port parity, disabled
+queries, stale scope and revoked result access.
