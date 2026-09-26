@@ -36,7 +36,14 @@ class Reference:
 
     @property
     def state(self):
+        if not infrastructure.STATE.exists():
+            raise self.history_unavailable("Reference infrastructure state is missing")
         state = infrastructure.state()
+        identity = self.path / "reference.json"
+        if identity.exists():
+            expected = json.loads(identity.read_text())["cluster"]
+            if state["cluster"] != expected:
+                raise self.history_unavailable(f"Installation belongs to cluster {expected}, but the selected cluster is {state['cluster']}")
         current = infrastructure.run(["docker", "ps", "-aq", "--no-trunc", "--filter", "label=io.x-k8s.kind.cluster=" + state["cluster"]], capture=True).split()
         if not state["node_ids"] or set(current) != set(state["node_ids"]):
             raise RuntimeError("Reference cluster identity changed or incomplete; refusing to adopt it")
@@ -44,6 +51,24 @@ class Reference:
         if registry != state.get("registry_id"):
             raise RuntimeError("Reference registry incarnation changed")
         return state
+
+    def history_unavailable(self, reason):
+        return RuntimeError(
+            f"{reason}. Saved installation files remain at {self.path}. "
+            "They cannot recreate the original cluster's durable history. "
+            "Recover the original infrastructure, or start a separate installation with "
+            "just launchers::reference::up --name NEW_NAME (choose an unused name). "
+            "To discard this installation after its cluster was deleted, use "
+            f"just launchers::reference::reset --name {self.installation.name} --missing-cluster. "
+            "Do not delete the saved identity to reuse its realm or PID.")
+
+    def prepare_infrastructure(self):
+        if not infrastructure.STATE.exists():
+            if (self.path / "reference.json").exists():
+                raise self.history_unavailable("The saved installation's reference infrastructure is missing")
+            infrastructure.up()
+        # Verify the selected cluster before querying or creating a namespace.
+        self.ownership(create=True)
 
     @property
     def namespace(self):
@@ -66,7 +91,7 @@ class Reference:
         identity = self.path / "reference.json"
         if result is None:
             if not create or identity.exists():
-                raise RuntimeError("Owned namespace disappeared; refusing to recreate its history")
+                raise self.history_unavailable(f"Owned namespace {self.namespace} disappeared; refusing to recreate its history")
             result = json.loads(self.kube("create", "-f", "-", "-o", "json", input=json.dumps({
                 "apiVersion": "v1", "kind": "Namespace", "metadata": {"name": self.namespace,
                 "labels": {"transit.dev/installation": self.installation.load()["project"]}}}), capture=True))
@@ -222,9 +247,7 @@ class Reference:
     def up(self, detached=True):
         if sys.platform != "linux" or os.uname().machine != "x86_64":
             raise RuntimeError("The pinned reference runtime currently requires Linux x86_64")
-        if not infrastructure.STATE.exists():
-            infrastructure.up()
-        self.ownership(create=True)
+        self.prepare_infrastructure()
         if (self.path / "ready.json").exists() and self.services():
             raise RuntimeError("Reference application is running; use update, restart or down")
         self.installation.artifacts.initialize()
@@ -441,6 +464,26 @@ class Reference:
 
     def attach(self):
         self.forwarder.attach()
+
+    def reset_missing_cluster(self):
+        """Explicitly discard local retry/identity files for a deleted cluster."""
+        identity = self.path / "reference.json"
+        if not identity.exists():
+            raise RuntimeError("No saved reference cluster identity; use the ordinary reset path")
+        cluster = json.loads(identity.read_text())["cluster"]
+        if not cluster.startswith("rey-m1-"):
+            raise RuntimeError("Invalid saved reference cluster identity")
+        if (self.path / "pc.sock").exists():
+            raise RuntimeError("A forwarding manager socket remains; stop the owned manager before discarding its files")
+        # Query the original cluster, never the currently selected replacement.
+        # Docker errors propagate; unavailable infrastructure is not absence.
+        nodes = infrastructure.run(["docker", "ps", "-aq", "--no-trunc", "--filter", "label=io.x-k8s.kind.cluster=" + cluster], capture=True).split()
+        if nodes:
+            raise RuntimeError("The saved cluster still exists; use down and ordinary reset")
+        # The next installation should build the current checkout, including
+        # services absent from an obsolete selection. Immutable build caches stay.
+        (self.installation.artifacts.path / "selected.json").unlink(missing_ok=True)
+        shutil.rmtree(self.path)
 
     def reset(self):
         if self.services():

@@ -259,6 +259,25 @@ separate `images`/`test` commands build and run the destructive M1 proof. See th
 Kind, Ursula or Substrate. The pinned Substrate worker runtime image is built and
 cached once per owned registry/pin.
 
+If `infra-down` deleted an installation's cluster, its local files no longer
+have a live history to recover. `up` detects missing or changed infrastructure
+before creating another cluster or touching a replacement namespace. Use a new
+`--name` to retain the old files, or explicitly discard the old installation:
+
+```sh
+just launchers::reference::reset --name default --missing-cluster
+just launchers::reference::up
+```
+
+`--missing-cluster` checks Docker for the **original** cluster and refuses if
+any of its nodes remain, Docker is unavailable, or a local forwarding manager
+socket remains. It removes that installation's local state and clears its build
+selection, preserving reusable build caches; it does not delete or adopt a
+replacement cluster. The next `up` builds current code and creates a new realm, keys,
+PID and namespace. Ordinary stop/start preserves identity. Startup can recover a
+namespace created before an interrupted acknowledgement by matching its saved
+installation label; an established namespace UID must still match.
+
 Provider credentials belong to the in-cluster controller. It has its own
 PID-scoped Transit principal, rotating projected provider tokens, namespace-local
 worker-log reads and access to public trust roots. It does not mount a personal

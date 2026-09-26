@@ -42,8 +42,7 @@ class StationReference(Reference):
     def up(self, detached=True):
         if sys.platform != "linux" or os.uname().machine != "x86_64":
             raise RuntimeError("The reference runtime requires Linux x86_64")
-        if not infrastructure.STATE.exists(): infrastructure.up()
-        self.ownership(create=True)
+        self.prepare_infrastructure()
         if (self.path / "ready.json").exists() and self.services():
             raise RuntimeError("Reference application is running; use update, restart or down")
         i = self.installation

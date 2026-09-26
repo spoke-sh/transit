@@ -48,8 +48,9 @@ attach:
     python3 -B launchers/main.py reference attach
 
 # Delete this stopped application's Kubernetes namespace and local credentials.
-reset:
-    python3 -B launchers/main.py reference reset
+[positional-arguments]
+reset *args:
+    python3 -B launchers/main.py reference reset "$@"
 
 # Create only provider infrastructure (used by isolated recovery proofs).
 infra-up:

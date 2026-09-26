@@ -23,6 +23,7 @@ def main():
     parser.add_argument("arguments", nargs="*")
     parser.add_argument("--no-build", action="store_true", help="Update using the saved candidate artifacts")
     parser.add_argument("--replace-pending", action="store_true", help="Replace a failed deployment plan when no recorded template switch is unresolved")
+    parser.add_argument("--missing-cluster", action="store_true", help="Reference reset only: discard local installation files after verifying its original cluster was deleted")
     parser.add_argument("--name", default=os.environ.get("REY_LAUNCHER_NAME", "default"))
     parser.add_argument("--example", choices=("counter", "station"), help="Select a new installation's example; persisted thereafter")
     parser.add_argument("--base-port", type=int, default=os.environ.get("REY_LAUNCHER_BASE_PORT"))
@@ -30,6 +31,8 @@ def main():
     parser.add_argument("-d", "--detach", action="store_true", help="Start services in the background")
     args = parser.parse_intermixed_args()
     args.argument = args.arguments[0] if args.arguments else None
+    if args.missing_cluster and (args.action != "reset" or args.profile != "reference"):
+        parser.error("--missing-cluster is only supported by reference reset")
     if (args.no_build or args.replace_pending) and args.action != "update":
         parser.error("--no-build and --replace-pending are only supported by update")
     if args.action not in ("build", "update") and len(args.arguments) > 1:
@@ -109,6 +112,10 @@ def main():
                 position = installation.command(identity, body)
                 print(json.dumps({"request_id": identity.removeprefix("send-"), "admitted_at": position}))
             elif args.action == "reset":
+                if args.missing_cluster:
+                    launcher.reset_missing_cluster()
+                    print("Discarded local installation files for the deleted cluster; a later up creates fresh identity and history.")
+                    return
                 if launcher.services():
                     raise RuntimeError("Run down before reset; reset never stops or adopts live resources")
                 if args.profile == "reference":

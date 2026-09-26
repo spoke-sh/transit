@@ -152,6 +152,17 @@ a claim that all commands are rerun on every documentation change.
 
 ## Running checks
 
+`just check` includes `tests/reference_launcher_state.py`: isolated launcher
+regressions cover missing infrastructure, replaced clusters/namespaces, original
+identity recovery, interrupted namespace creation and explicit local cleanup
+after cluster deletion. Docker failure cannot count as absence. These mocked
+boundary checks supplement the real reference launcher proof; they do not claim
+Kubernetes recovery or isolation by themselves.
+The 2026-09-26 local repair also exercised fresh counter provisioning and a real
+reference stop/start cycle: state remained 12, realm/PID/namespace/Actor stayed
+fixed, and ownership advanced from generation 4 to 7 with a different worker.
+That focused recovery check did not rerun the full reference isolation corpus.
+
 M7 evidence is recorded in [the state proof](#m7-state-resources). The ordinary
 suite includes the public state API and real resource-backed Zig caller.
 

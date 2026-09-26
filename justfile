@@ -57,6 +57,7 @@ check-core:
     nixfmt --check flake.nix nix/*.nix
     actionlint .github/workflows/*.yml
     python3 -B tests/ci_runner.py
+    python3 -B tests/reference_launcher_state.py
     python3 -B tests/verification/check.py
     nix flake check
     zig fmt --check build.zig packages/zig apps examples tests/*.zig
