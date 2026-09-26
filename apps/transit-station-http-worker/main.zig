@@ -69,7 +69,17 @@ const Secrets = struct {
         return error.HttpCredentialNotGranted;
     }
 };
-const Prepared = struct { version: u32 = 1, endpoint_revision: u64, host: []const u8, address: []const u8, port: u16, tls: bool, retry_policy: ?RetryPolicy = null, request: http.Request };
+const Prepared = struct { version: u32 = 1, endpoint_revision: u64, host: []const u8, address: []const u8, port: u16, tls: bool, timeout_ms: u32, request_bytes: u64, response_bytes: u64, response_headers: []const []const u8, trust_digest: ?[32]u8, retry_policy: ?RetryPolicy = null, request: http.Request };
+fn trustDigest(gpa: std.mem.Allocator, io: std.Io, endpoint: http.Transport.Endpoint) !?[32]u8 {
+    if (!endpoint.tls) return null;
+    // Freeze the explicit CA bundle, not a machine-local path or ambient roots.
+    const path = endpoint.ca_file orelse return error.HttpExplicitTrustRequired;
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(io, path, gpa, .limited(1048576));
+    defer gpa.free(bytes);
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    return digest;
+}
 const Operation = union(enum) {
     idle,
     create: struct { deadline: u64, limits: x.Limits },
@@ -313,7 +323,7 @@ pub fn main(init: std.process.Init) !void {
         var header: [http.Request.maximum_head_bytes]u8 = undefined;
         const rendered = try request.render(config.endpoint.host, config.endpoint.port, &header, null, false);
         // Prepare metadata before creating any durable obligation.
-        const metadata = try std.json.Stringify.valueAlloc(init.gpa, Prepared{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .retry_policy = config.retry_policy, .request = request }, .{});
+        const metadata = try std.json.Stringify.valueAlloc(init.gpa, Prepared{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .timeout_ms = config.endpoint.timeout_ms, .request_bytes = config.endpoint.request_bytes, .response_bytes = config.endpoint.response_bytes, .response_headers = config.endpoint.response_headers, .trust_digest = try trustDigest(init.gpa, init.io, config.endpoint), .retry_policy = config.retry_policy, .request = request }, .{});
         defer init.gpa.free(metadata);
         if (metadata.len > 8192) return error.HttpRequestTooLarge;
         const body = if (config.body_file) |path| try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(65536)) else try init.gpa.dupe(u8, "");
@@ -351,6 +361,8 @@ pub fn main(init: std.process.Init) !void {
             defer metadata.deinit();
             const prepared = metadata.value;
             if (prepared.version != 1 or prepared.endpoint_revision != config.endpoint_revision or prepared.port != config.endpoint.port or prepared.tls != config.endpoint.tls or !std.mem.eql(u8, prepared.host, config.endpoint.host) or !std.mem.eql(u8, prepared.address, config.endpoint.address)) return error.HttpEndpointChanged;
+            if (prepared.timeout_ms != config.endpoint.timeout_ms or prepared.request_bytes != config.endpoint.request_bytes or prepared.response_bytes != config.endpoint.response_bytes or prepared.response_headers.len != config.endpoint.response_headers.len or !std.meta.eql(prepared.trust_digest, try trustDigest(init.gpa, init.io, config.endpoint))) return error.HttpEndpointChanged;
+            for (prepared.response_headers, config.endpoint.response_headers) |frozen, current| if (!std.mem.eql(u8, frozen, current)) return error.HttpEndpointChanged;
             // Explicit finite request buffer in this first executable profile;
             // neither response buffering nor durable group count scales with it.
             if (prepared.request.body_bytes > 65536) return error.HttpRequestTooLarge;
@@ -369,7 +381,10 @@ pub fn main(init: std.process.Init) !void {
             var body: std.Io.Reader = .fixed(body_buffer[0..count]);
             var secrets: Secrets = .{ .gpa = init.gpa, .io = init.io, .config = config };
             defer secrets.deinit();
-            const result = http.Transport.execute(init.gpa, init.io, config.endpoint, prepared.request, &body, .{ .context = &secrets, .resolve = Secrets.resolve }, .{ .context = &driver, .segment = Driver.capture });
+            var endpoint = config.endpoint;
+            const remaining = descriptor.reconcile_before_ms -| now(init.io);
+            endpoint.timeout_ms = @intCast(@min(endpoint.timeout_ms, remaining));
+            const result = if (remaining == 0) @as(anyerror!http.Transport.Result, error.ExpiredReconciliation) else http.Transport.execute(init.gpa, init.io, endpoint, prepared.request, &body, .{ .context = &secrets, .resolve = Secrets.resolve }, .{ .context = &driver, .segment = Driver.capture });
             if (result) |response| try driver.apply(.{ .finish = response.status }) else |_| try driver.apply(.unknown);
             descriptor = try driver.reader.inspect(ex.resource, ex.id);
         } else if (descriptor.phase == .ready or descriptor.phase == .capturing) {

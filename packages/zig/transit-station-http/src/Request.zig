@@ -72,8 +72,10 @@ pub fn render(self: Self, host: []const u8, port: u16, buffer: []u8, resolver: ?
     var out: std.Io.Writer = .fixed(buffer);
     try out.print("{s} ", .{@tagName(self.method)});
     try parts(&out, self.target, true, null, template);
+    if (std.mem.startsWith(u8, out.buffered()[@tagName(self.method).len + 1 ..], "//")) return error.InvalidHttpTarget;
     try out.print(" HTTP/1.1\r\nHost: {s}:{d}\r\nConnection: close\r\nAccept-Encoding: identity\r\nContent-Length: {d}\r\n", .{ host, port, self.body_bytes });
     var value_buffer: [maximum_head_bytes]u8 = undefined;
+    defer std.crypto.secureZero(u8, &value_buffer);
     for (self.headers) |header| {
         if (reserved(header.name)) return error.ReservedHttpHeader;
         var value: std.Io.Writer = .fixed(&value_buffer);

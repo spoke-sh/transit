@@ -56,6 +56,48 @@ const Store = struct {
     }
 };
 const limits: root.Limits = .{ .segment_bytes = 1024, .capture_bytes = 8192, .segments = 64 };
+test "independent shared fixtures fix full-width identities and publication coverage bytes" {
+    const Fixture = struct {
+        version: u32,
+        resource: []const u8,
+        exchange: []const u8,
+        segments: []const struct { ordinal: u32, kind: u32, body: []const u8, publication_digest: []const u8, chain: []const u8, member: p.Value },
+        reference: p.Value,
+        intent: p.Value,
+    };
+    const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures.json"), .{});
+    defer parsed.deinit();
+    const fixture = parsed.value;
+    try t.expectEqual(@as(u32, 1), fixture.version);
+    const resource = try std.fmt.parseInt(u64, fixture.resource, 10);
+    const id = try std.fmt.parseInt(u64, fixture.exchange, 10);
+    var chain = root.Coverage.initial;
+    for (fixture.segments) |item| {
+        var bytes: [513]u8 = undefined;
+        const body = try std.fmt.hexToBytes(&bytes, item.body);
+        const spec = try Pub.Digest.of(1, body);
+        var expected: [32]u8 = undefined;
+        _ = try std.fmt.hexToBytes(&expected, item.publication_digest);
+        try t.expectEqual(expected, spec.digest);
+        chain = root.Coverage.next(chain, item.ordinal, item.kind, spec);
+        _ = try std.fmt.hexToBytes(&expected, item.chain);
+        try t.expectEqual(expected, chain);
+        const member = try root.Member.decode(item.member);
+        try t.expectEqual(spec, member.spec());
+        try t.expectEqual(chain, member.chain);
+        try t.expect((try member.encode()).eql(item.member));
+    }
+    const reference = try root.Client.Reference.decode(fixture.reference);
+    try t.expectEqual(resource, reference.resource);
+    try t.expectEqual(id, reference.exchange);
+    try t.expectEqual(std.math.maxInt(u64), reference.exchange);
+    try t.expectEqual(chain, reference.chain);
+    try t.expect((try reference.encode()).eql(fixture.reference));
+    const intent = try root.Intent.decode(fixture.intent);
+    try t.expectEqual(@as(u64, 513), intent.bytes);
+    try t.expectEqual(@as(u32, 2), intent.segments);
+    try t.expect((try intent.encode()).eql(fixture.intent));
+}
 fn exchange(store: *Store, id: u64) !Exchange {
     var turn = try store.capture();
     const result = try Exchange.create(&turn, id, .{ .caller = 9, .input = 8, .protocol = 1 }, limits, 10000);

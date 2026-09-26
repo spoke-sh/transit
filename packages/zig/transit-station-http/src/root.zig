@@ -3,8 +3,36 @@ const std = @import("std");
 pub const exchange = @import("transit_exchange");
 pub const Request = @import("Request.zig");
 pub const Transport = @import("Transport.zig");
+pub const Replay = @import("Replay.zig");
 pub const protocol_format: u32 = 1;
-pub const Kind = enum(u32) { request_template = 1, request_head = 2, request_body = 3, response_head = 4, response_body = 5, response_trailers = 6, timing = 7, omission = 8 };
+pub const Kind = enum(u32) { request_template = 1, request_head = 2, request_body = 3, response_head = 4, response_body = 5, response_trailers = 6, timing = 7, omission = 8, completion = 9 };
+pub const Timing = struct {
+    pub const magic = "HTT1";
+    started_ms: u64,
+    elapsed_ns: u64,
+    pub fn validate(self: Timing) !void {
+        if (self.started_ms == 0) return error.InvalidHttpCapture;
+    }
+};
+pub const Omission = struct {
+    pub const magic = "HTO1";
+    response_headers: u32,
+    request_secrets: u32,
+    pub fn validate(self: Omission) !void {
+        if (self.response_headers > Request.maximum_headers * 6 or self.request_secrets > Request.maximum_headers * Request.maximum_pieces) return error.InvalidHttpCapture;
+    }
+};
+pub const Completion = struct {
+    pub const magic = "HTC1";
+    status: u16,
+    request_bytes: u64,
+    response_bytes: u64,
+    heads: u8,
+    framing: enum(u8) { none = 1, length = 2, chunked = 3, close = 4 },
+    pub fn validate(self: Completion) !void {
+        if (self.status < 200 or self.status > 599 or self.heads == 0 or self.heads > 5 or (self.framing == .none and self.response_bytes != 0)) return error.InvalidHttpCapture;
+    }
+};
 
 /// Request and body text use the common segment publication/coverage lifecycle.
 /// Each call is private until its enclosing fenced turn commits.

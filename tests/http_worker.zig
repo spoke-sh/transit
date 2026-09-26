@@ -44,25 +44,31 @@ pub fn main(init: std.process.Init) !void {
             const descriptor = try reader.inspect(saved.resource, 1);
             if (std.mem.eql(u8, args[2], "replay")) {
                 const reference: x.Client.Reference = .{ .resource = saved.resource, .exchange = 1, .chain = descriptor.chain };
-                var cursor = try reader.open(reference);
+                var replay = try http.Replay.open(&reader, reference, .captured);
                 var hash = std.crypto.hash.sha2.Sha256.init(.{});
                 var count: usize = 0;
                 var checked_revoke = false;
                 while (true) {
-                    const part = try reader.read(reference, cursor);
-                    if (part.kind == @backingInt(http.Kind.response_body)) {
+                    const part = (try replay.read()) orelse break;
+                    if (part.kind == .response_body) {
                         hash.update(part.bytes.slice());
                         count += part.bytes.len;
                     }
-                    cursor = part.next orelse break;
+                    if (part.complete) break;
                     if (!checked_revoke) {
                         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 65536, .permissions = 0 } });
-                        try std.testing.expectError(error.AccessDenied, reader.read(reference, cursor));
+                        try std.testing.expectError(error.AccessDenied, replay.read());
                         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 65536, .permissions = p.State.all_permissions } });
                         checked_revoke = true;
+                        try std.testing.expectError(error.HttpReplayFailed, replay.read());
+                        replay = try http.Replay.open(&reader, reference, .captured);
+                        hash = .init(.{});
+                        count = 0;
                     }
                 }
                 try std.testing.expect(checked_revoke);
+                try std.testing.expect(replay.done);
+                try std.testing.expectEqual(@as(u32, 1), replay.validator.omission.?.request_secrets);
                 try output.interface.print("{{\"bytes\":{d},\"sha256\":\"{x}\"}}\n", .{ count, hash.finalResult() });
             } else {
                 const effects = (try admin.query(.{ .effects = .{ .pid = saved.pid } })).body.effects;

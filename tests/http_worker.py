@@ -142,6 +142,23 @@ def run(node, provision, worker):
             refused = subprocess.run([worker, str(config)], capture_output=True, timeout=15)
             assert refused.returncode != 0 and b"HttpEndpointChanged" in refused.stderr, refused
             assert requests == [] and admin("inspect")["effect"] == "pending"
+            for override in ({"response_bytes": 1}, {"response_headers": []}):
+                saved = admin("own")
+                configure(saved, "/complete", "execute")
+                changed = json.loads(config.read_text())
+                changed["endpoint"].update(override)
+                config.write_text(json.dumps(changed))
+                refused = subprocess.run([worker, str(config)], capture_output=True, timeout=15)
+                assert refused.returncode != 0 and b"HttpEndpointChanged" in refused.stderr, refused
+                assert requests == [] and admin("inspect")["effect"] == "pending"
+            frozen_trust = tls_cert.read_bytes()
+            tls_cert.write_bytes(frozen_trust + b"\n")
+            saved = admin("own")
+            configure(saved, "/complete", "execute")
+            refused = subprocess.run([worker, str(config)], capture_output=True, timeout=15)
+            assert refused.returncode != 0 and b"HttpEndpointChanged" in refused.stderr, refused
+            tls_cert.write_bytes(frozen_trust)
+            assert requests == [] and admin("inspect")["effect"] == "pending"
             for override in ({"version": 8}, {"header": "X-Other"}):
                 saved = admin("own")
                 configure(saved, "/complete", "execute")

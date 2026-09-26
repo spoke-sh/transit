@@ -28,6 +28,12 @@ The worker proof uses TLS and a versioned credential file. Changed numeric
 destinations, wrong credential versions and header scopes reject before dispatch;
 resolved credentials are absent from all durable mutations. Replay works after
 removing the credential file.
+Changed byte budgets, capture allowlists and CA bundle bytes also reject before
+dispatch. Replay now uses the HTTP validator: required record order, complete
+heads, original body counts, status and terminal timing/omission evidence must
+agree with the verified exchange coverage. Shared binary fixtures independently
+fix full-width identities, empty/binary member commitments and Unicode escaping;
+strict replay reports a gap when requested data was redacted.
 Explicit release retires availability before cleanup. The proof rejects replay
 while uncollected bytes remain, restarts node/store during reclamation, and resumes
 bounded cleanup to its durable end without another network attempt.

@@ -38,12 +38,15 @@ pub fn captureHeaders(endpoint: Endpoint, bytes: []const u8, trailers: bool, buf
     var out: std.Io.Writer = .fixed(buffer);
     var lines = std.mem.splitSequence(u8, bytes, "\r\n");
     var omissions: u32 = 0;
+    var count: usize = 0;
     if (!trailers) {
         try out.writeAll(lines.next() orelse return error.InvalidHttpFraming);
         try out.writeAll("\r\n");
     }
     while (lines.next()) |line| {
         if (line.len == 0) break;
+        count += 1;
+        if (count > http.Request.maximum_headers) return error.HttpHeadersOversize;
         const colon = std.mem.indexOfScalar(u8, line, ':') orelse return error.InvalidHttpHeader;
         const name = line[0..colon];
         try http.validateHeader(name, line[colon + 1 ..]);
@@ -72,10 +75,12 @@ fn emit(capture: Capture, kind: http.Kind, bytes: []const u8) !void {
     }
 }
 fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Request, body: *std.Io.Reader, secrets: ?http.Request.Resolver, capture: Capture) !Result {
+    const started = std.Io.Clock.awake.now(io);
+    const started_ms: u64 = @intCast(std.Io.Clock.real.now(io).toMilliseconds());
     try endpoint.validate();
     if (request.body_bytes > endpoint.request_bytes) return error.HttpRequestTooLarge;
     var head_buffer: [http.Request.maximum_head_bytes]u8 = undefined;
-    // This is the only secret-bearing request buffer and is never captured.
+    // This rendering buffer contains resolved secrets and is never captured.
     defer std.crypto.secureZero(u8, &head_buffer);
     const head = try request.render(endpoint.host, endpoint.port, &head_buffer, secrets, false);
     // A missing resolver must not send placeholder text as a real credential.
@@ -104,6 +109,7 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
     try connection.flush();
     var reader: std.http.Reader = .{ .in = connection.reader(), .interface = undefined, .state = .ready, .max_head_len = http.Request.maximum_head_bytes };
     var interim: u8 = 0;
+    var omitted: u32 = 0;
     const response = while (true) {
         const bytes = try reader.receiveHead();
         const parsed = try http.validateResponse(bytes);
@@ -112,6 +118,7 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
         interim += 1;
         // Preserve informational evidence under the same bounded header policy.
         const safe = try captureHeaders(endpoint, bytes, false, &head_buffer);
+        omitted += safe.omitted;
         try emit(capture, .response_head, safe.bytes);
     };
     const status: u16 = @intCast(@backingInt(response.status));
@@ -121,7 +128,7 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
     // framing detects truncation. Reject close-delimited TLS bodies accordingly.
     if (!no_body and endpoint.tls and response.content_length == null and response.transfer_encoding == .none) return error.UnframedTlsResponse;
     const safe = try captureHeaders(endpoint, response.bytes, false, &head_buffer);
-    var omitted = safe.omitted;
+    omitted += safe.omitted;
     try emit(capture, .response_head, safe.bytes);
     var total: u64 = 0;
     if (!no_body) {
@@ -141,6 +148,16 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
         omitted += trailers.omitted;
         try emit(capture, .response_trailers, trailers.bytes);
     }
+    const timing = try http.exchange.codec.encode(http.Timing{ .started_ms = started_ms, .elapsed_ns = @intCast(started.durationTo(std.Io.Clock.awake.now(io)).toNanoseconds()) });
+    try emit(capture, .timing, timing.slice());
+    var secret_count: u32 = 0;
+    for (request.headers) |field| for (field.value) |piece| if (piece == .secret) {
+        secret_count += 1;
+    };
+    const omissions = try http.exchange.codec.encode(http.Omission{ .response_headers = omitted, .request_secrets = secret_count });
+    try emit(capture, .omission, omissions.slice());
+    const completion = try http.exchange.codec.encode(http.Completion{ .status = status, .request_bytes = request.body_bytes, .response_bytes = total, .heads = interim + 1, .framing = if (no_body) .none else if (response.transfer_encoding != .none) .chunked else if (response.content_length != null) .length else .close });
+    try emit(capture, .completion, completion.slice());
     return .{ .status = status, .bytes = total, .omitted_headers = omitted };
 }
 fn timeout(io: std.Io, milliseconds: u32) !void {

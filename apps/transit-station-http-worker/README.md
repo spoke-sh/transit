@@ -37,7 +37,11 @@ secret-provider integrations and online registry mutation are not implemented.
 
 In `execute` mode, the worker loads the committed request and checks the configured
 endpoint revision/authority. Only a still-pending effect can receive a fresh
-dispatch authorization and one network send. Already-authorized work from a lost
+dispatch authorization. The timeout/byte bounds, header allowlist and explicit
+CA bundle digest must also match the prepared policy. HTTPS requires `ca_file`,
+bounded to 1 MiB and immutable during an activation. The network timeout is capped
+by the remaining original reconciliation budget. Only that authorization permits
+one network send. Already-authorized work from a lost
 worker closes unknown without resending. A complete sealed capture can resume
 its kernel observation after restart. Exact Transit retries reuse signed bytes;
 they are separate from external execution. Each OS invocation requires a fresh

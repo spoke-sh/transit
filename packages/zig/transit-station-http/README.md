@@ -33,6 +33,13 @@ compression and unframed TLS bodies fail explicitly. Request/response byte and
 deadline budgets are explicit endpoint configuration. A callback seals each
 bounded capture segment before its buffer is reused. Capture failure or timeout
 does not prove the remote operation failed.
+
+The final capture includes timing, omission counts and protocol coverage with
+status/body counts. `Replay.open`/`read` composes current-grant reads, shared digest
+verification and bounded HTTP record validation. Prefixes remain provisional until
+the final `complete` part. `require_unredacted` reports `HttpReplayGap` when required
+secret-bearing fields were omitted; neither replay mode can invoke transport or
+credentials. See the [HTTP wire contract and fixtures](../../../contracts/STATION_HTTP_V1.md).
 The [connector design](../../../docs/CONNECTORS.md) and
 [exchange contract](../../../contracts/STATION_EXCHANGE_V1.md) own authority,
 lifetime, unknown-outcome and replay requirements.
