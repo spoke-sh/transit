@@ -26,10 +26,15 @@ origin can resolve a waiting caller; capture alone does not resolve an effect.
 
 The immutable descriptor records caller/input, protocol format, lineage, finite
 capture budgets, a finite reconciliation deadline, attempt/executor, segment
-count, byte count and a coverage commitment. States are preparing, capturing,
+count, byte count and a coverage commitment. States are preparing, ready, capturing,
 complete, unknown and retired. Completion and unknown are terminal for capture;
 retirement closes reads before member reclamation. No transition resets budgets
 or reuses an ID. Captured prefixes do not imply a complete response.
+
+The ready transition freezes exact request coverage and commits its kernel effect
+intent in the same turn. It forbids more request segments and repeated effect
+creation. Binding checks the authorized effect's payload against that exact
+coverage before moving to capturing. No state grants permission to resend.
 
 Each segment has a nonzero adapter-defined kind, canonical Publication content,
 and a monotonically increasing ordinal. At most one segment is staged at a time.
@@ -72,6 +77,13 @@ not physical erasure. Unlimited retention is the default; neither capacity nor
 worker restart authorizes retirement.
 
 ## Encoding and proof boundary
+
+The public `Client` uses ordinary current resource reads, not owner-only retained
+execution versions. Each step obtains a fresh cut, checks complete current group
+availability and the unchanged member commitment, then resumes verified chunk
+progress. This permits unrelated resource growth without changing the result.
+Mixed or missing immutable content fails its digest/coverage check; the cursor
+cannot turn an expired grant or retired group into an accessible one.
 
 All integers in values are little endian; keys use big endian identity/ordinal.
 Values have magic/version prefixes, reject unknown tags, trailing bytes and
