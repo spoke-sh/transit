@@ -62,8 +62,10 @@ public API from its preserved M9 raw adapter.
 The [public Node client](../packages/ts/transit-client/README.md) is independent
 of Station too. `just bindings::node-sdk-test` builds its native dependency and
 SDK tarballs, installs a clean consumer and runs the same raw-client schedule as
-Python. Public TypeScript Station handlers are still in progress; the existing
-`@rey/transit-station` adapter remains compatible.
+Python. A second consumer qualifies the [typed Station SDK](../packages/ts/transit-station-sdk/README.md),
+its installed counter/query examples, owned async turns and optional Arrow reader.
+The existing `@rey/transit-station` adapter remains compatible. The bindings CI
+lane installs both legacy and public Node workspace packages from the lockfile.
 
 ## Qualification tools
 

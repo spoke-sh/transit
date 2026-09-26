@@ -135,7 +135,7 @@ jobs:
         run: nix develop .#${{ matrix.shell }} --command just transit-board::install
       - name: Install locked Node binding dependencies
         if: matrix.lane == 'bindings'
-        run: nix develop .#${{ matrix.shell }} --command vp install --frozen-lockfile --filter @rey/transit-station
+        run: nix develop .#${{ matrix.shell }} --command vp install --frozen-lockfile --filter @rey/transit-station --filter '@transit/*'
       - name: Run ${{ matrix.lane }} checks
         run: nix develop .#${{ matrix.shell }} --command just ci::${{ matrix.lane }}
       - name: Weekly discovery budget
