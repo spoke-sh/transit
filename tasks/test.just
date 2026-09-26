@@ -174,3 +174,11 @@ kubectl-transit:
 # Prove fenced workload changes and recovery after a lost provider response.
 runtime-upgrade:
     zig build test-runtime-upgrade
+
+# Generate/check the reference grammar and compare its covered AST with Postgres.
+sql-grammar:
+    nix shell .#sql-tools --command python3 -B tests/sql/grammar.py
+
+# Type-check the named rewrite theorems and reject incomplete proofs.
+sql-rewrites:
+    nix shell .#sql-tools --command python3 -B tests/sql/rewrites.py

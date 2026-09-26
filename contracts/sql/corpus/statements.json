@@ -1,0 +1,1446 @@
+{
+  "version": 1,
+  "upstream": [
+    {
+      "path": "postgres-int8.sql",
+      "sha256": "432471f835927996a35b694c8daee46e104de7243edf074799296fde54ddf085",
+      "url": "https://raw.githubusercontent.com/postgres/postgres/REL_17_5/src/test/regress/sql/int8.sql",
+      "source_sha256": "58b758f1acb22358cd53f1eb59e662159fe4f79345ed43dac6d95f2ab785b1cf",
+      "source_lines": [
+        [
+          17,
+          17
+        ],
+        [
+          26,
+          26
+        ],
+        [
+          27,
+          27
+        ],
+        [
+          28,
+          28
+        ],
+        [
+          29,
+          29
+        ],
+        [
+          30,
+          30
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          34,
+          34
+        ],
+        [
+          35,
+          35
+        ],
+        [
+          36,
+          36
+        ],
+        [
+          37,
+          37
+        ],
+        [
+          38,
+          38
+        ],
+        [
+          39,
+          39
+        ]
+      ]
+    },
+    {
+      "path": "postgres-select.sql",
+      "sha256": "ed1589706ce05a6fefb8afee569047632f06c9089ff6d9001d8237cd8c5f2c73",
+      "url": "https://raw.githubusercontent.com/postgres/postgres/REL_17_5/src/test/regress/sql/select.sql",
+      "source_sha256": "76a06a847e20ca5ad6e53b29c6825784b0b992aff0ac691fcb9c9ff12d0db6a5",
+      "source_lines": [
+        [
+          85,
+          86
+        ]
+      ]
+    }
+  ],
+  "select": [
+    {
+      "id": "postgres-int8.sql-17",
+      "sql": "SELECT * FROM INT8_TBL;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 1,
+        "last_line": 1
+      }
+    },
+    {
+      "id": "postgres-int8.sql-26",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 = 4567890123456789;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 2,
+        "last_line": 2
+      }
+    },
+    {
+      "id": "postgres-int8.sql-27",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 <> 4567890123456789;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 3,
+        "last_line": 3
+      }
+    },
+    {
+      "id": "postgres-int8.sql-28",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 < 4567890123456789;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 4,
+        "last_line": 4
+      }
+    },
+    {
+      "id": "postgres-int8.sql-29",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 > 4567890123456789;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 5,
+        "last_line": 5
+      }
+    },
+    {
+      "id": "postgres-int8.sql-30",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 <= 4567890123456789;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 6,
+        "last_line": 6
+      }
+    },
+    {
+      "id": "postgres-int8.sql-31",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 >= 4567890123456789;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 7,
+        "last_line": 7
+      }
+    },
+    {
+      "id": "postgres-int8.sql-34",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 = 456;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 8,
+        "last_line": 8
+      }
+    },
+    {
+      "id": "postgres-int8.sql-35",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 <> 456;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 9,
+        "last_line": 9
+      }
+    },
+    {
+      "id": "postgres-int8.sql-36",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 < 456;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 10,
+        "last_line": 10
+      }
+    },
+    {
+      "id": "postgres-int8.sql-37",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 > 456;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 11,
+        "last_line": 11
+      }
+    },
+    {
+      "id": "postgres-int8.sql-38",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 <= 456;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 12,
+        "last_line": 12
+      }
+    },
+    {
+      "id": "postgres-int8.sql-39",
+      "sql": "SELECT * FROM INT8_TBL WHERE q2 >= 456;",
+      "schema": {
+        "name": "int8_tbl",
+        "columns": [
+          "q1",
+          "q2"
+        ],
+        "type": "int64"
+      },
+      "upstream": {
+        "path": "postgres-int8.sql",
+        "first_line": 13,
+        "last_line": 13
+      }
+    },
+    {
+      "id": "postgres-select.sql-85",
+      "sql": "--\nSELECT onek2.unique1, onek2.stringu1 FROM onek2",
+      "schema": {
+        "name": "onek2",
+        "columns": [
+          "unique1",
+          "stringu1"
+        ],
+        "type": "utf8"
+      },
+      "upstream": {
+        "path": "postgres-select.sql",
+        "first_line": 1,
+        "last_line": 2
+      }
+    },
+    {
+      "id": "projection-*",
+      "sql": "SELECT * FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "projection-id",
+      "sql": "SELECT id FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "projection-value",
+      "sql": "SELECT value FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "projection-id, value",
+      "sql": "SELECT id, value FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "projection-value, id",
+      "sql": "SELECT value, id FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-=-9223372036854775808",
+      "sql": "SELECT value FROM items WHERE id = -9223372036854775808 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-=+0",
+      "sql": "SELECT value FROM items WHERE id = +0 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-=9223372036854775807",
+      "sql": "SELECT value FROM items WHERE id = 9223372036854775807 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-=NULL",
+      "sql": "SELECT value FROM items WHERE id = NULL LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<>-9223372036854775808",
+      "sql": "SELECT value FROM items WHERE id <> -9223372036854775808 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<>+0",
+      "sql": "SELECT value FROM items WHERE id <> +0 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<>9223372036854775807",
+      "sql": "SELECT value FROM items WHERE id <> 9223372036854775807 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<>NULL",
+      "sql": "SELECT value FROM items WHERE id <> NULL LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-!=-9223372036854775808",
+      "sql": "SELECT value FROM items WHERE id != -9223372036854775808 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-!=+0",
+      "sql": "SELECT value FROM items WHERE id != +0 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-!=9223372036854775807",
+      "sql": "SELECT value FROM items WHERE id != 9223372036854775807 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-!=NULL",
+      "sql": "SELECT value FROM items WHERE id != NULL LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<-9223372036854775808",
+      "sql": "SELECT value FROM items WHERE id < -9223372036854775808 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<+0",
+      "sql": "SELECT value FROM items WHERE id < +0 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<9223372036854775807",
+      "sql": "SELECT value FROM items WHERE id < 9223372036854775807 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<NULL",
+      "sql": "SELECT value FROM items WHERE id < NULL LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<=-9223372036854775808",
+      "sql": "SELECT value FROM items WHERE id <= -9223372036854775808 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<=+0",
+      "sql": "SELECT value FROM items WHERE id <= +0 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<=9223372036854775807",
+      "sql": "SELECT value FROM items WHERE id <= 9223372036854775807 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-<=NULL",
+      "sql": "SELECT value FROM items WHERE id <= NULL LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int->-9223372036854775808",
+      "sql": "SELECT value FROM items WHERE id > -9223372036854775808 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int->+0",
+      "sql": "SELECT value FROM items WHERE id > +0 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int->9223372036854775807",
+      "sql": "SELECT value FROM items WHERE id > 9223372036854775807 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int->NULL",
+      "sql": "SELECT value FROM items WHERE id > NULL LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int->=-9223372036854775808",
+      "sql": "SELECT value FROM items WHERE id >= -9223372036854775808 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int->=+0",
+      "sql": "SELECT value FROM items WHERE id >= +0 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int->=9223372036854775807",
+      "sql": "SELECT value FROM items WHERE id >= 9223372036854775807 LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int->=NULL",
+      "sql": "SELECT value FROM items WHERE id >= NULL LIMIT 32;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "boolean=TRUE",
+      "sql": "SELECT * FROM items WHERE value = TRUE",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "boolean"
+      }
+    },
+    {
+      "id": "boolean=false",
+      "sql": "SELECT * FROM items WHERE value = false",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "boolean"
+      }
+    },
+    {
+      "id": "boolean<>TRUE",
+      "sql": "SELECT * FROM items WHERE value <> TRUE",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "boolean"
+      }
+    },
+    {
+      "id": "boolean<>false",
+      "sql": "SELECT * FROM items WHERE value <> false",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "boolean"
+      }
+    },
+    {
+      "id": "utf8='it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "utf8=''",
+      "sql": "SELECT * FROM items WHERE value = ''",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "utf8='a\\b'",
+      "sql": "SELECT * FROM items WHERE value = 'a\\b'",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "utf8<>'it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value <> 'it''s 東京'",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "utf8<>''",
+      "sql": "SELECT * FROM items WHERE value <> ''",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "utf8<>'a\\b'",
+      "sql": "SELECT * FROM items WHERE value <> 'a\\b'",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "binary='\\x00ff'::bytea",
+      "sql": "SELECT * FROM items WHERE value = '\\x00ff'::bytea",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      }
+    },
+    {
+      "id": "binary='\\x'::BYTEA",
+      "sql": "SELECT * FROM items WHERE value = '\\x'::BYTEA",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      }
+    },
+    {
+      "id": "binary<>'\\x00ff'::bytea",
+      "sql": "SELECT * FROM items WHERE value <> '\\x00ff'::bytea",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      }
+    },
+    {
+      "id": "binary<>'\\x'::BYTEA",
+      "sql": "SELECT * FROM items WHERE value <> '\\x'::BYTEA",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      }
+    },
+    {
+      "id": "limit-0",
+      "sql": "SELECT * FROM items LIMIT 0",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count(*)-input-limit-0",
+      "sql": "SELECT count(*) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 0) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(value)-input-limit-0",
+      "sql": "SELECT sum(value) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 0) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(id)-input-limit-0",
+      "sql": "SELECT sum(id) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 0) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "limit-1",
+      "sql": "SELECT * FROM items LIMIT 1",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count(*)-input-limit-1",
+      "sql": "SELECT count(*) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 1) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(value)-input-limit-1",
+      "sql": "SELECT sum(value) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 1) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(id)-input-limit-1",
+      "sql": "SELECT sum(id) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 1) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "limit-2",
+      "sql": "SELECT * FROM items LIMIT 2",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count(*)-input-limit-2",
+      "sql": "SELECT count(*) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 2) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(value)-input-limit-2",
+      "sql": "SELECT sum(value) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 2) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(id)-input-limit-2",
+      "sql": "SELECT sum(id) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 2) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "limit-31",
+      "sql": "SELECT * FROM items LIMIT 31",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count(*)-input-limit-31",
+      "sql": "SELECT count(*) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 31) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(value)-input-limit-31",
+      "sql": "SELECT sum(value) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 31) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(id)-input-limit-31",
+      "sql": "SELECT sum(id) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 31) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "limit-32",
+      "sql": "SELECT * FROM items LIMIT 32",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count(*)-input-limit-32",
+      "sql": "SELECT count(*) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 32) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(value)-input-limit-32",
+      "sql": "SELECT sum(value) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 32) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(id)-input-limit-32",
+      "sql": "SELECT sum(id) FROM (SELECT * FROM items WHERE value >= 0 LIMIT 32) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count(*)",
+      "sql": "SELECT count(*) FROM items WHERE value IS NULL;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(value)",
+      "sql": "SELECT sum(value) FROM items WHERE value IS NULL;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "sum(id)",
+      "sql": "SELECT sum(id) FROM items WHERE value IS NULL;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "case-comments",
+      "sql": "sElEcT \"value\", ID /* gap */ FROM items -- predicate\n WHERE value IS NULL;",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "qualified",
+      "sql": "SELECT items.id, items.value FROM items WHERE items.id > 2",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "derived-projection",
+      "sql": "SELECT sum(chosen.value) FROM (SELECT value FROM items LIMIT 2) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "string-220",
+      "sql": "SELECT * FROM items WHERE value = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "limit-33",
+      "sql": "SELECT * FROM items LIMIT 33",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "UnsupportedLimit"
+    },
+    {
+      "id": "outer-aggregate-limit",
+      "sql": "SELECT count(*) FROM items LIMIT 2",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "UnsupportedAggregateLimit"
+    },
+    {
+      "id": "outer-derived-limit",
+      "sql": "SELECT sum(value) FROM (SELECT * FROM items LIMIT 2) AS chosen LIMIT 0",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "UnsupportedAggregateLimit"
+    },
+    {
+      "id": "unknown-source",
+      "sql": "SELECT * FROM hidden",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "UnknownSource"
+    },
+    {
+      "id": "unknown-column",
+      "sql": "SELECT missing FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "UnknownColumn"
+    },
+    {
+      "id": "wrong-qualifier",
+      "sql": "SELECT wrong.id FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "UnknownQualifier"
+    },
+    {
+      "id": "duplicate-projection",
+      "sql": "SELECT id, id FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "DuplicateProjection"
+    },
+    {
+      "id": "missing-derived-column",
+      "sql": "SELECT sum(id) FROM (SELECT value FROM items) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "UnknownColumn"
+    },
+    {
+      "id": "string-order",
+      "sql": "SELECT * FROM items WHERE value < 'x'",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      },
+      "compile_error": "UnsupportedComparison"
+    },
+    {
+      "id": "bool-sum",
+      "sql": "SELECT sum(value) FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "boolean"
+      },
+      "compile_error": "UnsupportedAggregate"
+    },
+    {
+      "id": "mismatch",
+      "sql": "SELECT * FROM items WHERE value = TRUE",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "TypeMismatch"
+    },
+    {
+      "id": "binary-bad-hex",
+      "sql": "SELECT * FROM items WHERE value = '\\xgg'::bytea",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      },
+      "compile_error": "InvalidBinaryLiteral"
+    }
+  ],
+  "reject": [
+    {
+      "id": "excluded-0",
+      "sql": "SELECT"
+    },
+    {
+      "id": "excluded-1",
+      "sql": "SELECT * FROM"
+    },
+    {
+      "id": "excluded-2",
+      "sql": "SELECT * FROM items; SELECT * FROM items"
+    },
+    {
+      "id": "excluded-3",
+      "sql": "SELECT id, value, id FROM items"
+    },
+    {
+      "id": "excluded-4",
+      "sql": "SELECT count(value) FROM items"
+    },
+    {
+      "id": "excluded-5",
+      "sql": "SELECT * FROM items WHERE id = 1 AND value = 2"
+    },
+    {
+      "id": "excluded-6",
+      "sql": "SELECT * FROM items ORDER BY id"
+    },
+    {
+      "id": "excluded-7",
+      "sql": "SELECT * FROM items WHERE 1 = id"
+    },
+    {
+      "id": "excluded-8",
+      "sql": "SELECT * FROM items WHERE value IS NOT NULL"
+    },
+    {
+      "id": "excluded-9",
+      "sql": "SELECT * FROM items WHERE id IN (1,2)"
+    },
+    {
+      "id": "excluded-10",
+      "sql": "SELECT * FROM items WHERE value = E'a'"
+    },
+    {
+      "id": "excluded-11",
+      "sql": "SELECT * FROM items LIMIT -1"
+    },
+    {
+      "id": "excluded-12",
+      "sql": "SELECT * FROM items JOIN other ON id = id"
+    },
+    {
+      "id": "excluded-13",
+      "sql": "SELECT * FROM items FOR SYSTEM_TIME AS OF 1"
+    },
+    {
+      "id": "excluded-14",
+      "sql": "SELECT * FROM items WHERE value = 'unclosed"
+    },
+    {
+      "id": "excluded-15",
+      "sql": "CREATE TABLE broken (id);"
+    },
+    {
+      "id": "excluded-16",
+      "sql": "SELECT *; FROM items"
+    }
+  ],
+  "extensions": [
+    "CREATE CONNECTION market TO HTTP (endpoint = 'https://example.test', token = SECRET('market'));",
+    "CREATE SOURCE trades FROM HTTP CONNECTION market WITH (poll_ms = '1000');",
+    "CREATE SINK fills INTO HTTP CONNECTION market (path = '/orders');",
+    "CREATE TABLE orders (id INT64 NOT NULL, sym UTF8);",
+    "CREATE DOCUMENT profile;",
+    "CREATE KV settings (UTF8);",
+    "GRANT read, send ON orders TO analyst;",
+    "REVOKE read ON orders FROM analyst;",
+    "SHOW TABLES;",
+    "SHOW SOURCES;",
+    "SHOW SINKS;",
+    "SHOW CONNECTIONS;",
+    "DESCRIBE orders;"
+  ]
+}

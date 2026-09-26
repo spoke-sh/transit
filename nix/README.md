@@ -291,3 +291,12 @@ or frontend shell. The small model runs in ordinary bindings qualification.
 Weekly CI expands model/property exploration and runs actual guard mutations.
 The separate dedicated reference workflow runs weekly and on demand; absent
 runner capacity is outstanding evidence, not a passing deployment proof.
+
+M12 adds optional `sql-tools`, exported from `flake.nix` and selected by
+`just test::sql-grammar` / `just test::sql-rewrites`. ANTLR 4.13.2, Lean 4.29.1
+and pglast 7.13 (`libpg_query`, PostgreSQL 17.7) use the existing nixpkgs lock;
+no unrelated lock entries or Zig pins change. Version assertions make upgrades
+explicit. The bindings CI shell roots these tools; the ordinary shell and Fuze
+runtime do not include them. The checked corpus and limits live in
+[contracts/sql](../contracts/sql/README.md). This expands the bindings closure;
+M10's old hosted timing samples do not qualify its current cost.

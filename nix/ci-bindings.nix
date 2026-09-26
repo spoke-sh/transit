@@ -1,10 +1,15 @@
-{ pkgs, base }:
+{
+  pkgs,
+  base,
+  sql-tools,
+}:
 let
   tools = import ./bindings-tools.nix { inherit pkgs; };
 in
 pkgs.mkShellNoCC {
   inputsFrom = [ base ];
   packages = tools.packages ++ [
+    sql-tools
     pkgs.stdenv.cc
     (pkgs.python3.withPackages (ps: [
       ps.pyyaml

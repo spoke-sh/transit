@@ -1,13 +1,31 @@
-// Transit's SQL extension grammar: the statement forms Postgres has no
-// opinion on (CONNECTION/SOURCE/SINK, AS OF time travel, SHOW/DESCRIBE),
-// plus the DDL forms that are relational spellings of typed commands Station
-// already implements (CREATE TABLE/DOCUMENT/KV, GRANT/REVOKE). See
-// docs/QUERY_LANGUAGE.md. This is NOT a complete SQL grammar: it does not
-// define SELECT/expression syntax, and it is meant to compose with (import
-// into) a full Postgres-compatible base grammar later, not replace one.
-// Keywords are fixed-case here for a first, checkable draft; the full
-// grammar needs SQL's usual case-insensitive keyword matching.
+// Read-only Table SQL plus grammar-only administrative extensions.
+// See README.md for exact lexical, compilation and compatibility boundaries.
 grammar TransitExtensions;
+options { caseInsensitive = true; }
+
+statement: (selectStatement | extensionStatement) SEMI? EOF;
+asOfFragment: asOfClause EOF;
+
+// A single predicate and at most two columns, matching Fuze's existing model.
+// The one derived-table form spells filter -> limit -> aggregate without
+// misinterpreting SQL's outer LIMIT as an aggregate input limit.
+selectStatement
+    : SELECT selection FROM identifier whereClause? limitClause?
+    | SELECT aggregateSelection FROM LPAREN
+        SELECT projection FROM identifier whereClause? limitClause?
+      RPAREN AS identifier limitClause?
+    ;
+selection: projection | aggregateSelection;
+aggregateSelection: COUNT LPAREN STAR RPAREN | SUM LPAREN columnReference RPAREN;
+projection: STAR | columnReference (COMMA columnReference)?;
+columnReference: identifier (DOT identifier)?;
+whereClause: WHERE predicate;
+predicate: columnReference (IS NULL_ | comparison literal);
+comparison: EQ | NE | LT | LE | GT | GE;
+literal: signedInteger | TRUE | FALSE | NULL_ | STRING (TYPECAST BYTEA)?;
+signedInteger: (PLUS | MINUS)? INTEGER;
+limitClause: LIMIT INTEGER;
+
 
 // ---- Parser rules -----------------------------------------------------
 
@@ -33,14 +51,14 @@ createConnection
 // A new Fuze source adapter (docs/GLOSSARY.md's "Query source adapter")
 // backed by a connector's captured observations, not durable state.
 createSource
-    : CREATE SOURCE identifier FROM connectorKind CONNECTION identifier connectionOptions?
+    : CREATE SOURCE identifier FROM connectorKind CONNECTION identifier (WITH? connectionOptions)?
     ;
 
 // CREATE SINK fills INTO HTTP CONNECTION kafka_conn WITH (path = '/orders');
 // A write target that dispatches a connector effect attempt
 // (contracts/../docs/CONNECTORS.md#effect-boundary), not a durable row store.
 createSink
-    : CREATE SINK identifier INTO connectorKind CONNECTION identifier connectionOptions?
+    : CREATE SINK identifier INTO connectorKind CONNECTION identifier (WITH? connectionOptions)?
     ;
 
 connectorKind
@@ -92,7 +110,7 @@ dataType
     | BINARY
     ;
 
-// CREATE DOCUMENT profile; — M13's Document model, DDL form.
+// CREATE DOCUMENT profile; — M14's Document model, DDL form.
 createDocument
     : CREATE DOCUMENT identifier
     ;
@@ -119,7 +137,7 @@ privilege
 
 // SHOW TABLES; SHOW SOURCES; SHOW SINKS; SHOW CONNECTIONS;
 // The relational-surface answer to `transit-cli`'s planned `/tables`-style
-// meta-commands (docs/roadmap/M12.md) — same catalog, two frontends.
+// meta-commands (docs/roadmap/M13.md) — same catalog, two frontends.
 showStatement
     : SHOW catalogKind
     ;
@@ -149,11 +167,20 @@ asOfClause
     ;
 
 identifier
-    : IDENTIFIER
+    : IDENTIFIER | QUOTED_IDENTIFIER
     ;
 
 // ---- Lexer rules --------------------------------------------------------
 
+SELECT: 'SELECT';
+WHERE: 'WHERE';
+LIMIT: 'LIMIT';
+COUNT: 'COUNT';
+SUM: 'SUM';
+IS: 'IS';
+TRUE: 'TRUE';
+FALSE: 'FALSE';
+BYTEA: 'BYTEA';
 CREATE: 'CREATE';
 CONNECTION: 'CONNECTION';
 CONNECTIONS: 'CONNECTIONS';
@@ -189,11 +216,26 @@ BINARY: 'BINARY';
 LPAREN: '(';
 RPAREN: ')';
 COMMA: ',';
+DOT: '.';
+STAR: '*';
+TYPECAST: '::';
+PLUS: '+';
+MINUS: '-';
 EQ: '=';
+NE: '<>' | '!=';
+LE: '<=';
+LT: '<';
+GE: '>=';
+GT: '>';
+SEMI: ';';
 
-IDENTIFIER: [a-zA-Z_][a-zA-Z0-9_]*;
+IDENTIFIER: [a-z_][a-z0-9_]*;
+QUOTED_IDENTIFIER: '"' ('""' | ~["\u0000])+ '"';
 INTEGER: [0-9]+;
-STRING: '\'' (~['\\] | '\\' .)* '\'';
-
+// standard_conforming_strings=on: doubled quotes escape a quote; backslashes
+// are literal. E strings, dollar quoting and adjacent string concatenation
+// are outside this profile.
+STRING: '\'' ('\'\'' | ~['\u0000])* '\'';
+LINE_COMMENT: '--' ~[\r\n]* -> skip;
+BLOCK_COMMENT: '/*' (BLOCK_COMMENT | .)*? '*/' -> skip;
 WS: [ \t\r\n]+ -> skip;
-SEMI: ';' -> skip; // Statement termination; a full grammar owns statement lists.

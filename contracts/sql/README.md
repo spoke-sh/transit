@@ -1,77 +1,84 @@
-# SQL extension grammar and rewrite-safety proof
+# SQL grammar and rewrite proofs
 
-Status: design artifacts, not implemented. [`TransitExtensions.g4`](TransitExtensions.g4)
-and [`FuzeRewrite.lean`](FuzeRewrite.lean) are the first checked instances of
-the toolchain [`docs/QUERY_LANGUAGE.md`](../../docs/QUERY_LANGUAGE.md) proposes,
-not a production parser or a proof about `transit-fuze`'s Zig code.
-[`M12` — Declarative interface readiness](../../docs/roadmap/M12.md) owns
-turning this into exactly that: `SELECT`/expression grammar, a real
-`parse -> Fuze plan` compiler, pinned tooling and a `libpg_query` compatibility
-corpus. Nothing here is wired into a build step or `M12`'s exit criteria yet —
-these are pre-milestone artifacts it starts from, not partial delivery
-against it.
+M12's reference grammar covers read-only single-Table `SELECT` and the existing
+administrative extension syntax. `TransitExtensions.g4` is the checked reference;
+generated Python/ANTLR files stay in `.cache/verification/sql`, outside production.
+The Zig compiler and its execution qualification are tracked in
+[M12](../../docs/roadmap/M12.md).
 
-## `TransitExtensions.g4`
+## Reproducible reference checks
 
-The statement forms Postgres has no opinion on
-(`CREATE CONNECTION`/`SOURCE`/`SINK`, an `AS OF` fragment), plus the DDL forms
-that are relational spellings of typed commands Station already implements
-(`CREATE TABLE`/`DOCUMENT`/`KV`, `GRANT`/`REVOKE`, `SHOW`/`DESCRIBE`). It does
-not define `SELECT`/expression syntax and is meant to compose with (import
-into) a full Postgres-compatible base grammar later — see
-[QUERY_LANGUAGE.md](../../docs/QUERY_LANGUAGE.md#defining-and-verifying-the-grammar)
-for why that base grammar should come from differential testing against
-`libpg_query`, not a hand-derived reimplementation.
-
-Verified with ANTLR 4.13.2 (`nix shell nixpkgs#antlr4`):
+From the pinned development shell:
 
 ```sh
-antlr4 -visitor TransitExtensions.g4   # generates cleanly: no ambiguity,
-                                        # left-recursion or conflict warnings
-antlr4-parse TransitExtensions.g4 extensionStatement -tree sample.sql
+just test::sql-grammar
+just test::sql-rewrites
 ```
 
-Nine representative statements (one per rule — `createConnection` with a
-secret reference, `createSource`/`createSink` with connection options,
-`createTable` with typed/nullable columns, `createKv`, `grantStatement`/
-`revokeStatement`, `showStatement`, `describeStatement`, and the `asOfClause`
-fragment) parse to the expected tree with zero errors; a deliberately
-malformed `CREATE TABLE` correctly produces syntax errors rather than being
-silently accepted. This is real tool output, not asserted; reproduce it with
-the commands above.
+[sql-tools.nix](../../nix/sql-tools.nix), exported by `flake.nix`, selects ANTLR
+4.13.2, Lean 4.29.1 and pglast 7.13 from the existing `flake.lock`. The latter
+packages `libpg_query`'s PostgreSQL 17.7 parser. These are verification tools;
+none is a Fuze runtime dependency. No lock update or compiler upgrade is needed.
+The bindings shell roots this optional closure for CI caching.
 
-## `FuzeRewrite.lean`
+The grammar recipe regenerates with `-Werror`, requires empty diagnostics,
+and parses the shared corpus with exact ambiguity detection enabled. This
+establishes no reported generation conflicts or ambiguities on those inputs;
+it is not a proof of global grammar unambiguity.
 
-A complete, `sorry`-free Lean 4 proof (checked with Lean 4.30.0,
-`nix shell nixpkgs#lean4`; `#print axioms` reports only `propext`, never
-`sorryAx`) that reordering two sequential row-selecting predicates never
-changes which rows are selected or their order — the safety condition a real
-predicate-pushdown rewrite needs, stated at the abstraction FUZE.md's
-planning section already commits to ("every rewrite must preserve the
-specified result schema... and ordering").
+## Compatibility corpus
 
-This formalizes the *specification* in `FUZE_V1.md`, not the Zig
-implementation — model/implementation correspondence is a separate, stated
-assumption here, exactly as `Authority.tla`'s relationship to the real engine
-is. It is the first concrete instance of the theorem class
-[`docs/TESTING.md`](../../docs/TESTING.md#formal-models) already scoped Lean
-for ("a Fuze rewrite with exact error semantics") — chosen because it is the
-smallest real instance of that class, not because it is the most valuable one
-to prove next.
+[statements.json](corpus/statements.json) includes 14 unchanged statements from
+PostgreSQL **REL_17_5** `int8.sql` and `select.sql`. Vendored excerpts preserve
+original text; the manifest records original URLs, line ranges and SHA-256 hashes
+of both complete upstream files and excerpts. The [upstream license](corpus/POSTGRES-COPYRIGHT)
+applies to those excerpts. Qualification verifies excerpt hashes and each
+statement's exact correspondence to the vendored lines without a network fetch.
 
-```sh
-lean FuzeRewrite.lean
-```
+The remaining Transit-authored cases cover operators, signed integer boundaries,
+nulls, boolean/text/binary literals, projections, comments, input limits,
+aggregates and compilation exclusions. ANTLR and `libpg_query` must produce the
+same normalized AST for every positive case, including statements deliberately
+rejected later for schema, type or limit reasons. Negative cases require complete
+input rejection; prefixes and additional statements cannot pass as one query.
 
-## What would make either of these real
+“Compatible” here means acceptance and AST agreement for this declared subset,
+under `standard_conforming_strings=on`. It does **not** mean all PostgreSQL SQL
+is accepted, full execution equivalence, or a formal superset theorem. In
+particular, Fuze's checked int64 sum differs from PostgreSQL's widened numeric
+sum, and Fuze supplies deterministic primary-key order without a SQL `ORDER BY`.
+DDL and connector extensions are additive syntax, not PostgreSQL compatibility
+cases. Broader regression suites, fuzz discovery and server execution comparison
+remain outside this evidence.
 
-Neither is wired into `just check` or a CI lane yet; `M12`'s entry gates
-list exactly what would change that: pinning `antlr4`/`lean4` in `flake.nix`
-the way `nixpkgs#tlaplus` is already pinned for `just test::model`; a
-`libpg_query`-based differential corpus and comparison harness; deciding
-whether the Zig production parser is hand-written or generated from a Zig
-target ANTLR does not natively support; and, for Lean, picking which
-*additional* rewrite rules justify formalizing next — a single reordering
-lemma does not cover projection, aggregation or limit interactions, each of
-which needs its own stated theorem. See [`M12`](../../docs/roadmap/M12.md)
-for the scoped version of this list with exit criteria attached.
+## Grammar coverage
+
+The read grammar permits one Table, one optional typed comparison or `IS NULL`,
+one/two columns or star, row output, `COUNT(*)`, and `SUM(column)`. Identifiers
+fold to lowercase unless quoted. Column qualification is optional; table aliases
+are admitted only on the single restricted aggregate input subquery. Strings
+escape quotes by doubling them; bytea literals use `'\x00ff'::bytea`. Keywords
+are case-insensitive. Line/block comments and one optional terminator are admitted.
+The production profile additionally bounds names, literals, statement size and
+comment nesting; grammar acceptance alone does not validate those budgets.
+
+`SELECT count(*) FROM (SELECT * FROM items WHERE id > 0 LIMIT 2) AS chosen`
+spells Fuze's filter → limit → aggregate order. A direct aggregate's outer
+`LIMIT` is syntactically recognized but cannot be lowered as an input limit.
+No optimizer rewrite is implied. General subqueries, joins, grouping, sorting,
+compound predicates, expression arithmetic, writes, casts other than bytea,
+`COUNT(column)`, aliases on output columns and adjacent-string concatenation
+are outside the grammar. `AS OF` remains a separately checked fragment.
+
+`CREATE TABLE`/`DOCUMENT`/`KV`/`CONNECTION`/`SOURCE`/`SINK`, `GRANT`, `REVOKE`,
+`SHOW` and `DESCRIBE` are grammar-only. They do not execute typed commands,
+resolve catalogs or authorize effects. SQL writes are not grammar-checked here.
+
+## Lean scope
+
+[FuzeRewrite.lean](FuzeRewrite.lean) proves row-selection properties at the
+specification level. The recipe rejects Lean errors, warnings and `sorryAx`,
+and requires printed axiom evidence for named theorems. It does not prove the
+Zig implementation, enable optimizer rewrites, or discharge authorization,
+allocation, cancellation and retained-source assumptions. M12 tracks extension
+of the initial filter-reordering lemma to projection and pushdown.

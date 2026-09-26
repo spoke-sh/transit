@@ -50,7 +50,9 @@
       "bindings::beam-sdk-test",
       "bindings::sdk-interop",
       "test::model",
-      "test::model-delivery"
+      "test::model-delivery",
+      "test::sql-grammar",
+      "test::sql-rewrites"
     ],
     "browser": [
       "transit-board::browser"
