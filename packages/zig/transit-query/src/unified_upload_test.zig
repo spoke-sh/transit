@@ -234,3 +234,45 @@ test "independent upload frames preserve full-width namespace and strict status 
     try t.expectEqual(@as(u16, 83), encoded.len);
     try t.expect((try decoded.encode()).eql(encoded));
 }
+
+test "finite query waits bind the earliest lifetime and authenticated timeout releases admission" {
+    for ([_][2]?u64{ .{ null, 150 }, .{ 100, 150 }, .{ 150, 100 }, .{ 100, null } }) |limits| {
+        var store: Store = .{ .resource = 8, .pid = 9 };
+        defer store.deinit();
+        var bundle = fixture();
+        bundle.plan.predicate = .all;
+        var bytes: [q.Bundle.max_bytes]u8 = undefined;
+        const encoded = try bundle.encode(&bytes);
+        const ref = try bundle.reference(8, 1);
+        var turn = try store.capture();
+        try upload.begin(&turn, ref);
+        try store.commit(turn);
+        try stage(&store, ref, encoded);
+        turn = try store.capture();
+        try upload.seal(&turn, 1);
+        try store.commit(turn);
+        turn = try store.capture();
+        turn.delivery.work_before_ms = limits[0];
+        turn.resource_deadline_ms = limits[1];
+        const before = turn.decision;
+        try t.expectError(error.InvalidTimerObserver, upload.submit(&turn, 1, 3));
+        try t.expectEqualDeep(before, turn.decision);
+        const correlation = try upload.submitWithObserver(&turn, 1, 3, 42);
+        const wait = (try turn.waiting(correlation)).?;
+        try t.expectEqual(@as(?u64, if (limits[0] == null) 150 else 100), wait.deadline_ms);
+        try t.expectEqual(@as(?u64, 42), wait.observer);
+        try store.commit(turn);
+        turn = try store.capture();
+        const frame = try s.Waiting.observation(correlation, wait.deadline_ms.?);
+        try t.expectError(error.UnexpectedTimerObserver, s.Waiting.dispatch(&turn, frame));
+        turn.delivery.input.origin = .{ .external = .{ .principal = 42, .policy_revision = 1 } };
+        try t.expect(!try s.Waiting.dispatch(&turn, frame));
+        try t.expectEqual(@as(u64, 1), try upload.timeout(&turn, correlation));
+        try store.commit(turn);
+        turn = try store.capture();
+        try t.expectEqual(.cancelled, (try upload.status(&turn, 1)).?.phase);
+        turn.delivery.input.origin = .{ .external = .{ .principal = 42, .policy_revision = 1 } };
+        try t.expect(try s.Waiting.dispatch(&turn, frame));
+        try cleanup(&store, ref);
+    }
+}

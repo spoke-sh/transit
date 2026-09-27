@@ -51,6 +51,7 @@ pub const Requester = struct {
         const self: *Requester = @ptrCast(@alignCast(raw.?));
         try initialized(turn, 'w', try configuration(self.principal, self.source));
         if (frame.kind == .reply) return upload.reply(turn, frame, self.source);
+        if (frame.kind == .timeout) return collectLater(turn, try upload.timeout(turn, frame.correlation));
         if (frame.kind != .cast) return rejected(turn, "UnsupportedQueryFrame");
         const command = wire.Command.decode(&frame.payload) catch return rejected(turn, "InvalidQueryUpload");
         if (!external(turn, self.principal)) {
@@ -72,7 +73,7 @@ pub const Requester = struct {
             .part => |part| try upload.part(turn, part),
             .seal => |namespace| try upload.seal(turn, namespace),
             .submit => |namespace| {
-                _ = try upload.submit(turn, namespace, self.source);
+                _ = try upload.submitWithObserver(turn, namespace, self.source, self.principal);
             },
             .cancel => |namespace| {
                 try upload.cancel(turn, namespace);

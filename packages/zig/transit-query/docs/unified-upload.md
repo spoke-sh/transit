@@ -52,3 +52,13 @@ requires fresh fenced ownership. The shared client must keep each prepared
 signed upload command across uncertainty. It may choose its successor only after
 the preceding input has been observed as committed. No local timeout grants
 permission to invent a replacement call.
+
+Finite process/resource lifetimes bound the requester wait to their earliest
+recorded deadline. The configured query principal is also the authenticated
+Station timer observer; it already has explicit cancellation authority. An
+accepted timer observation closes the local wait, records cancellation and
+schedules bounded publication cleanup. Hard resource/process expiry is enforced
+by Transit even when no observer runs; neither timer delivery nor cleanup can
+extend it. The daemon does not supply a timer service. Unlimited lifetimes retain
+an unlimited wait. `UnifiedUpload.submitWithObserver` exposes this composition;
+low-level `submit` without an observer rejects finite waits before any mutation.

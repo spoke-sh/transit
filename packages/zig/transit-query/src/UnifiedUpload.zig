@@ -93,6 +93,12 @@ pub fn seal(turn: *Turn, namespace: u64) !void {
     try store(turn, current);
 }
 pub fn submit(turn: *Turn, namespace: u64, destination: u64) !u64 {
+    return submitWithObserver(turn, namespace, destination, null);
+}
+/// A finite process/resource lifetime also bounds its durable wait. The query
+/// principal may report that deadline; it already owns explicit cancellation.
+/// Hard lifetime enforcement does not depend on a timer being delivered.
+pub fn submitWithObserver(turn: *Turn, namespace: u64, destination: u64, observer: ?u64) !u64 {
     const before = turn.decision;
     errdefer turn.decision = before;
     try r.identity(destination);
@@ -100,11 +106,25 @@ pub fn submit(turn: *Turn, namespace: u64, destination: u64) !u64 {
     if (current.correlation != 0) return current.correlation;
     if (current.phase != .sealed) return error.QueryUploadClosed;
     try checkActive(turn, namespace);
-    current.correlation = try turn.call(destination, try current.reference.encode(), null);
+    var deadline = turn.delivery.work_before_ms;
+    if (turn.resource_deadline_ms) |limit| deadline = if (deadline) |bound| @min(bound, limit) else limit;
+    current.correlation = try turn.callWithTimer(destination, try current.reference.encode(), deadline, if (deadline != null) observer else null);
     current.phase = .admitted;
     try store(turn, current);
     try turn.write(r.key('i', current.correlation, 0), q.Request.identity(namespace));
     return current.correlation;
+}
+/// Station authenticates and closes the wait before invoking the handler.
+pub fn timeout(turn: *Turn, correlation: u64) !u64 {
+    const wait = (try turn.waiting(correlation)) orelse return error.UnknownCorrelation;
+    if (wait.phase != .timed_out) return error.UnexpectedQueryTimeout;
+    const index = (try turn.read(r.key('i', correlation, 0))) orelse return error.UnknownCorrelation;
+    if (index.len != 8) return error.InvalidQueryUpload;
+    const namespace = std.mem.readInt(u64, index.data[0..8], .little);
+    const current = try required(turn, namespace);
+    if (current.correlation != correlation) return error.UnexpectedQueryTimeout;
+    try cancel(turn, namespace);
+    return namespace;
 }
 /// The host's Waiting preprocessing authenticates/accepts this reply before the
 /// application callback. The result reader separately verifies its full content.
