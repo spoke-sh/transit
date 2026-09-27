@@ -1,18 +1,21 @@
-# Design items
+# UI/UX design items
 
-Each design item has its own directory and one linear, D-numbered review
+This directory is for UI/UX design reviews: visual structure, interaction,
+workflows and styling. Document system architecture in its owning topic documents
+and implementation scope, decisions and qualification in the [roadmap milestones](../roadmap/README.md).
+
+Each UI/UX design item has its own directory and one linear, D-numbered review
 sequence. Its README owns the single review summary table, current review
-and links to supporting material. This index lists design items.
+and links to supporting material.
 
 | Design item | Focus |
 | --- | --- |
 | [board-atlas](board-atlas/README.md) | Board browser, relief atlas and resource workspace |
 | [board-console](board-console/README.md) | Declarative Board interface, monochrome structure, Workspace objects and exploration, operator authentication/secrets/trust and SQL mapping |
-| [serving](serving/README.md) | Inbound service contracts, HTTP application/Board APIs, SSE/WebSocket API contracts, reactive views and the Flight handoff |
 
 ## Maintaining the sequence
 
-For a new design item, create a named directory here, add its README and
+For a new UI/UX design item, create a named directory here, add its README and
 register it in the table above. Start its review sequence at `D1.md`.
 
 Use one `D<number>.md` file per review inside that item’s directory. Append

@@ -76,11 +76,9 @@ interoperability over the qualified serving contracts. [M23](M23.md) qualifies
 these boundaries across broader authority/runtime topologies. Fuze remains Zig throughout; SQL or RPC transport
 never replaces durable authority.
 
-The serving review inserts M19–M21 and moves the previously planned Arrow
-interoperability and clustering work to M22/M23. HTTP first proves serving with
-two consumers; reactive API hosting then establishes the contracts that live
-interfaces consume. Flight subsequently qualifies its specialized protocol
-adapter. Completed milestone scope and proof remain unchanged, and every new milestone still requires its entry gates.
+M19–M21 separately qualify the serving foundation, reactive API contracts and
+their interface consumers. Completed milestone scope and proof remain unchanged;
+each new milestone requires its own entry gates and qualification evidence.
 
 The M15/M16 plans are reviewed from current M14 evidence. M17 onward has a
 composition plan now, with a further entry review after the connectors have
