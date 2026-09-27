@@ -18,7 +18,7 @@ lookup or mutate names.
 UTF-8 name of 1–24 bytes, expected revision and destination. Mutations serialize
 in the registry's mailbox. Stale revisions fail, unregister retains a tombstone,
 and recovery preserves both bindings and revision evidence. Default unlimited
-retention can exhaust the 32-key resource; no automatic tombstone eviction occurs.
+retention can exhaust the legacy 32-key resource; no automatic tombstone eviction occurs.
 `Registry.route` consumes an authenticated lookup reply, records the registry
 PID/binding revision/resolved PID and commits delivery to that fixed PID. A
 later rebind never redirects the committed output or retry. A retired destination
@@ -28,6 +28,13 @@ Scope descriptors use `00 s <scope:u32le>`/`RGS1`; bindings use
 `00 n <scope:u32le> <name>`/`RGR1`. Grants use a distinct subject-kind and ID.
 These records and schemas are explicit framework declarations, not authority
 inferred from application names. `Registry` owns the bounded binary codecs.
+
+M15 also qualifies these helpers on growing Zig turns. Authorization and lookup
+use three fallible point reads, independent of retained name count; each mutation
+updates one binding. Principal IDs use the existing eight-byte grant-key field,
+including IDs above 255. Read and reply failures roll back the private proposal.
+The same encodings and revision rules apply to both profiles. This does not add
+growing supervision, runtime bindings or a foreign registry capability.
 
 ## Waiting and time
 

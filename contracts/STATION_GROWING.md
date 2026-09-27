@@ -72,7 +72,12 @@ waits or Table rows than fit the legacy snapshot do not require deletion.
 Association, current grants, activation, view deadlines and one authoritative
 state/input/output decision retain their kernel meanings.
 
-This profile does not advertise growing registries, supervision, runtime bindings,
+M15 supports the shared Zig registry operations with existing scope, binding and
+grant encodings, full-width principal IDs and bounded point reads. Name rebinding
+does not redirect previously committed outputs. This is not a foreign registry
+capability or a growing runtime binding.
+
+This profile does not advertise growing supervision, runtime bindings,
 complete foreign SDKs or complete Station capability. Result frames require explicit
 host query configuration; otherwise they fail with `UnsupportedGrowingQuery`.
 The configured capture/publication/receipt slice has real disk/node/caller

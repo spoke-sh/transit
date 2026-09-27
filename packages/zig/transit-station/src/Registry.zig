@@ -4,7 +4,7 @@ const std = @import("std");
 const p = @import("transit_client").protocol;
 const Turn = @import("Turn.zig").Legacy;
 const Frame = @import("Frame.zig");
-pub const Subject = union(enum) { principal: u8, process: u64 };
+pub const Subject = union(enum) { principal: u64, process: u64 };
 pub const Rights = packed struct(u8) { lookup: bool = false, mutate: bool = false, _reserved: u6 = 0 };
 pub const Name = struct {
     data: [24]u8 = @splat(0),
@@ -94,37 +94,42 @@ fn grantKey(scope: u32, subject: Subject) p.Value {
 }
 /// Provisioning is a trusted local operation; registry request handling never
 /// exposes create/grant implicitly to an authenticated but unprivileged caller.
-pub fn create(turn: *Turn, scope: u32) !void {
+pub fn create(turn: anytype, scope: u32) !void {
     if (scope == 0) return error.InvalidRegistryScope;
-    if (turn.get(scopeKey(scope)) != null) return error.RegistryScopeExists;
+    if (try turn.read(scopeKey(scope)) != null) return error.RegistryScopeExists;
     var bytes: [20]u8 = undefined;
     bytes[0..4].* = "RGS1".*;
     std.mem.writeInt(u64, bytes[4..12], turn.delivery.pid, .little);
     std.mem.writeInt(u64, bytes[12..20], turn.view.resource, .little);
     try turn.write(scopeKey(scope), try p.Value.init(&bytes));
 }
-pub fn grant(turn: *Turn, scope: u32, subject: Subject, rights: Rights) !void {
-    _ = turn.get(scopeKey(scope)) orelse return error.RegistryScopeNotFound;
+pub fn grant(turn: anytype, scope: u32, subject: Subject, rights: Rights) !void {
+    _ = (try turn.read(scopeKey(scope))) orelse return error.RegistryScopeNotFound;
     if (rights._reserved != 0) return error.InvalidRegistryGrant;
+    switch (subject) {
+        .principal => |id| if (id > p.max_counter) return error.InvalidRegistryGrant,
+        .process => |id| if (id == 0 or id > p.max_counter) return error.InvalidRegistryGrant,
+    }
     try turn.write(grantKey(scope, subject), try p.Value.init(&.{ 1, @bitCast(rights) }));
 }
-fn authorize(turn: *const Turn, scope: u32, mutation: bool) !void {
-    const descriptor = turn.get(scopeKey(scope)) orelse return error.RegistryScopeNotFound;
+fn authorize(turn: anytype, scope: u32, mutation: bool) !void {
+    const descriptor = (try turn.read(scopeKey(scope))) orelse return error.RegistryScopeNotFound;
     if (descriptor.len != 20 or !std.mem.eql(u8, descriptor.data[0..4], "RGS1") or std.mem.readInt(u64, descriptor.data[4..12], .little) != turn.delivery.pid or std.mem.readInt(u64, descriptor.data[12..20], .little) != turn.view.resource) return error.InvalidRegistryScope;
-    const subject: Subject = switch (turn.delivery.input.origin.source) {
+    const source = if (@hasField(@TypeOf(turn.delivery.input.origin), "source")) turn.delivery.input.origin.source else turn.delivery.input.origin;
+    const subject: Subject = switch (source) {
         .external => |origin| .{ .principal = origin.principal },
         .process => |origin| .{ .process = origin.pid },
         else => return error.RegistryDenied,
     };
-    const permission = turn.get(grantKey(scope, subject)) orelse return error.RegistryDenied;
+    const permission = (try turn.read(grantKey(scope, subject))) orelse return error.RegistryDenied;
     if (permission.len != 2 or permission.data[0] != 1 or permission.data[1] & 0xfc != 0) return error.InvalidRegistryGrant;
     const rights: Rights = @bitCast(permission.data[1]);
     if (if (mutation) !rights.mutate else !rights.lookup) return error.RegistryDenied;
 }
-pub fn apply(turn: *Turn, request: Request) !Binding {
+pub fn apply(turn: anytype, request: Request) !Binding {
     try authorize(turn, request.scope, request.operation != .lookup);
     const key = try nameKey(request.scope, request.name);
-    const current = if (turn.get(key)) |value| try Binding.decode(value) else Binding{ .scope = request.scope, .revision = 0, .destination = null };
+    const current = if (try turn.read(key)) |value| try Binding.decode(value) else Binding{ .scope = request.scope, .revision = 0, .destination = null };
     if (current.scope != request.scope) return error.InvalidRegistryBinding;
     if (request.operation == .lookup) return current;
     if (current.revision != request.expected_revision) return error.RegistryRevisionConflict;
@@ -135,14 +140,16 @@ pub fn apply(turn: *Turn, request: Request) !Binding {
     try turn.write(key, next.encode());
     return next;
 }
-pub fn handle(turn: *Turn, frame: Frame) !void {
+pub fn handle(turn: anytype, frame: Frame) !void {
+    const before = turn.decision;
+    errdefer turn.decision = before;
     if (frame.kind != .call) return error.ExpectedCall;
     const binding = try apply(turn, try Request.decode(frame.payload));
     try turn.reply(binding.encode());
 }
 /// Record the resolution and send to its fixed PID in the same private turn.
 /// A retry never consults a later binding. Requires the GenServer's verified reply.
-pub fn route(turn: *Turn, registry_pid: u64, frame: Frame, payload: p.Value) !u64 {
+pub fn route(turn: anytype, registry_pid: u64, frame: Frame, payload: p.Value) !u64 {
     if (frame.kind != .reply or try Frame.source(turn.delivery.input) != registry_pid) return error.UnexpectedReplySource;
     const waiting = (try turn.waiting(frame.correlation)) orelse return error.UnknownCorrelation;
     if (waiting.target != registry_pid or waiting.phase != .replied or waiting.resolution_input != turn.delivery.input.position) return error.UnverifiedRegistryReply;

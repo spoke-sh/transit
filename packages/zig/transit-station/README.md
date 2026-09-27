@@ -22,6 +22,9 @@ intended maximum size of application state.
 The explicit [growing interface](docs/growing.md) adds bounded captured reads,
 shared private-turn/Table operations and full-width durable wait identities;
 it has bounded M10 qualification and does not change the default profile.
+M15 extends growing Zig turns with the existing scoped [registry](docs/services.md)
+operations and bounded point reads; supervision and runtime bindings remain outside
+that profile.
 Its [incremental query capture](docs/queries.md) stages and seals growing Arrow
 results over retained sources. Explicit query-enabled hosts publish and verify
 segments with receiver credit and a complete-result manifest; capture alone does

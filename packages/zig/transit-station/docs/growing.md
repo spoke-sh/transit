@@ -41,8 +41,9 @@ Result fragment/completion/acknowledgement frames require an explicit host
 `query` context; otherwise they fail with `UnsupportedGrowingQuery`. The
 [query guide](queries.md) covers implemented capture, publication, receiver
 verification, bounded credit and acknowledgement. Complete Station capability
-remains unadvertised because registries, supervision and runtime bindings are
-outside this growing slice.
+remains unadvertised because supervision and runtime bindings are outside this
+growing slice. M15 qualifies the shared Zig `Registry` helpers with bounded point
+reads and the existing name/revision encodings; see [services](services.md).
 
 ## Private turns
 

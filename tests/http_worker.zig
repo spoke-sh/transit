@@ -6,7 +6,8 @@ const s = @import("transit_station");
 const p = s.protocol;
 const Admin = @import("growing_support.zig").Admin(47);
 const Caller = @import("http_caller.zig");
-const Saved = struct { pid: u64, resource: u64, generation: u64 = 2, caller: ?Caller.Saved = null };
+const Registry = @import("http_registry.zig");
+const Saved = struct { pid: u64, resource: u64, generation: u64 = 2, caller: ?Caller.Saved = null, registry: ?Registry.Saved = null };
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const root = try p.Ed25519.KeyPair.generateDeterministic(@splat(71));
@@ -51,9 +52,21 @@ pub fn main(init: std.process.Init) !void {
             if (args.len != 5) return error.MissingRequestConfiguration;
             saved.caller = try Caller.publish(init, &admin, saved.pid, saved.resource, args[4]);
             saved.generation = 3;
+        } else if (std.mem.eql(u8, args[2], "name-caller")) {
+            const binding = try Registry.apply(init, &admin, &saved.registry, .register, saved.caller.?.pid, 0);
+            try std.testing.expectEqual(@as(u64, 1), binding.revision);
+            try std.testing.expectEqual(saved.caller.?.pid, binding.destination.?);
+        } else if (std.mem.eql(u8, args[2], "check-caller-name")) {
+            const binding = try Registry.apply(init, &admin, &saved.registry, .lookup, 0, 0);
+            try std.testing.expectEqual(@as(u64, 2), binding.revision);
+            try std.testing.expectEqual(saved.caller.?.replacement.?, binding.destination.?);
         } else if (std.mem.eql(u8, args[2], "terminate-caller")) {
             _ = try admin.submit(.{ .terminate = saved.caller.?.pid });
             saved.caller.?.replacement = try admin.submit(.{ .spawn = .{} });
+            if (saved.registry != null) {
+                const binding = try Registry.apply(init, &admin, &saved.registry, .rebind, saved.caller.?.replacement.?, 1);
+                try std.testing.expectEqual(@as(u64, 2), binding.revision);
+            }
         } else if (std.mem.eql(u8, args[2], "receive")) {
             const outcome = try Caller.receive(init, &admin, saved.caller.?, saved.pid);
             try std.json.Stringify.value(.{ .outcome = outcome, .wire = try outcome.encode() }, .{}, &output.interface);

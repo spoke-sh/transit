@@ -656,6 +656,7 @@ def run(node, provision, worker, library, board=None, browser=False):
             saved = admin("provision-public")
             configure(saved, "/public-kill", "accept")
             saved = admin("call")
+            saved = admin("name-caller")
             admission(saved, "/public-kill", "accept")
             assert invoke()["phase"] == "ready"
             saved = admin("own")
@@ -669,6 +670,7 @@ def run(node, provision, worker, library, board=None, browser=False):
             authority.kill(); authority.wait(timeout=10); authority = None
             fixture.stop(); fixture.start()
             authority = start_node()
+            saved = admin("check-caller-name")
             saved = admin("own")
             admission(saved, "/public-kill", "execute")
             unknown = invoke()
@@ -680,7 +682,7 @@ def run(node, provision, worker, library, board=None, browser=False):
             assert {'http.worker.operation', 'http.transport.completed', 'service.ready'} <= signal_names
             assert len(requests) == 15 and len(applied) == 7
             assert cold.data_objects() > 0, "Exchange history never spilled to durable cold storage"
-            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit and public retry/redirect/status/cancel, public admission/disposal and caller termination passed; fifteen sends, seven applications, two cancellation requests.")
+            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit and public retry/redirect/status/cancel, public admission/disposal, caller termination and name rebinding passed; fifteen sends, seven applications, two cancellation requests.")
             print(f"HTTP capture storage: 8 MiB hot limit, {cold.data_objects()} persisted cold objects, {cold.file_bytes()} object-store bytes.")
             print(f"HTTP worker proof wall time: {time.monotonic() - started:.2f}s (excludes compilation).")
         finally:

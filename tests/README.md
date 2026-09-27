@@ -90,7 +90,14 @@ The expanded proof passes in **458.34 seconds** excluding compilation, with
 hit the default hot-only 64 MiB store limit; the proof now uses M10's existing
 8 MiB hot/S3 profile. This run persisted 967 cold objects and 103,195,312
 object-store bytes without enabling retention or raising memory limits.
-Naming-service rebinding and broader deployment qualification remain separate work.
+The combined 477.68-second worker/Board schedule also uses an independently owned
+growing Registry service to bind the caller name, retire that caller and rebind
+to its replacement. After node/store restart the new binding persists, but the
+original HTTP outcome still has the retired destination and the replacement has
+no input. Growing units retain 96 names while each operation uses three point
+reads, exercise a principal above 255, tombstones, stale revisions and rollback.
+`just test::station` and `just bindings::native` pass their legacy regressions.
+Broader deployment qualification remains open.
 
 `just transit-board::http-test` adds the real Board API to that disk/S3 worker
 schedule; `just transit-board::http-browser` additionally exercises its embedded

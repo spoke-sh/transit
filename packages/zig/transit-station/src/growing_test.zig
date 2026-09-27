@@ -5,6 +5,7 @@ const Turn = @import("Turn.zig").Growing;
 const Table = @import("Table.zig");
 const Frame = @import("Frame.zig");
 const Waiting = @import("Waiting.zig");
+const Registry = @import("Registry.zig");
 const Store = struct {
     entries: [128]?p.State.Entry = @splat(null),
     reads: usize = 0,
@@ -52,6 +53,64 @@ const Store = struct {
         return result;
     }
 };
+
+test "growing registry reads stay bounded across names with full-width scoped principals" {
+    var store: Store = .{};
+    var turn = try store.turn(.{});
+    try Registry.create(&turn, 1);
+    try Registry.grant(&turn, 1, .{ .principal = 65536 }, .{ .lookup = true, .mutate = true });
+    for (turn.decision.mutations, 0..) |slot, index| if (slot) |mutation| {
+        store.entries[index] = .{ .key = mutation.key, .value = mutation.value.?, .revision = 1 };
+    };
+    for (0..96) |index| {
+        turn = try store.turn(.{});
+        turn.delivery.input.origin = .{ .external = .{ .principal = 65536, .policy_revision = 1 } };
+        var buffer: [24]u8 = undefined;
+        const name = try Registry.Name.init(try std.fmt.bufPrint(&buffer, "name-{d}", .{index}));
+        store.reads = 0;
+        const binding = try Registry.apply(&turn, .{ .scope = 1, .name = name, .operation = .register, .destination = 1000 + index });
+        try t.expectEqual(@as(u64, 1), binding.revision);
+        try t.expectEqual(@as(usize, 3), store.reads);
+        try t.expectEqual(null, turn.decision.mutations[1]);
+        const mutation = turn.decision.mutations[0].?;
+        store.entries[index + 2] = .{ .key = mutation.key, .value = mutation.value.?, .revision = 2 + index };
+    }
+    const name = try Registry.Name.init("name-95");
+    turn = try store.turn(.{});
+    turn.delivery.input.origin = .{ .external = .{ .principal = 0, .policy_revision = 1 } };
+    try t.expectError(error.RegistryDenied, Registry.apply(&turn, .{ .scope = 1, .name = name, .operation = .lookup }));
+    turn.delivery.input.origin.external.principal = 65536;
+    try t.expectError(error.RegistryRevisionConflict, Registry.apply(&turn, .{ .scope = 1, .name = name, .operation = .rebind, .destination = 2000 }));
+    _ = try Registry.apply(&turn, .{ .scope = 1, .name = name, .operation = .unregister, .expected_revision = 1 });
+    const mutation = turn.decision.mutations[0].?;
+    store.entries[97] = .{ .key = mutation.key, .value = mutation.value.?, .revision = 200 };
+    turn = try store.turn(.{});
+    turn.delivery.input.origin = .{ .external = .{ .principal = 65536, .policy_revision = 1 } };
+    const tombstone = try Registry.apply(&turn, .{ .scope = 1, .name = name, .operation = .lookup });
+    try t.expectEqual(@as(u64, 2), tombstone.revision);
+    try t.expectEqual(null, tombstone.destination);
+    store.fail = true;
+    try t.expectError(error.Unavailable, Registry.apply(&turn, .{ .scope = 1, .name = name, .operation = .lookup }));
+    try t.expectError(error.Unavailable, turn.validate());
+}
+
+test "growing registry routing keeps a verified resolution and rolls back exhausted output capacity" {
+    var store: Store = .{};
+    const correlation = 5;
+    store.entries[0] = .{ .key = Turn.waitKey(correlation), .value = (Turn.Wait{ .target = 8, .phase = .replied, .resolution_input = 4 }).encode(), .revision = 1 };
+    const frame: Frame = .{ .kind = .reply, .correlation = correlation, .payload = (Registry.Binding{ .scope = 1, .revision = 7, .destination = 9 }).encode() };
+    var turn = try store.turn(try frame.encode());
+    turn.delivery.input.origin = .{ .process = .{ .pid = 8, .turn = 3, .output = 2 } };
+    try t.expectEqual(@as(u64, 9), try Registry.route(&turn, 8, frame, try p.Value.init("fixed")));
+    try t.expectEqual(@as(u64, 9), turn.decision.outputs[0].?.pid);
+    try t.expectEqual(@as(u64, 7), (try Registry.Binding.decode(try p.Value.init(turn.decision.mutations[0].?.value.?.slice()[8..]))).revision);
+    turn = try store.turn(try frame.encode());
+    turn.delivery.input.origin = .{ .process = .{ .pid = 8, .turn = 3, .output = 2 } };
+    for (0..4) |_| try turn.cast(10, .{});
+    const before = turn.decision;
+    try t.expectError(error.OutputBudgetExceeded, Registry.route(&turn, 8, frame, .{}));
+    try t.expect(std.meta.eql(before, turn.decision));
+}
 
 test "growing Table pages bind a view and stop at Table boundaries without losing extreme keys" {
     var store: Store = .{};

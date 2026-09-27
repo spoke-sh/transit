@@ -46,7 +46,8 @@ pub const Action = union(enum) {
     query_result: []const u8,
     query_policy: struct { peer: u64, table: u32, expected_revision: u64, allow: bool },
     registry_create: u32,
-    registry_grant: struct { scope: u32, subject: s.Registry.Subject, lookup: bool, mutate: bool },
+    // Keep the legacy ABI's principal range; growing registry helpers are Zig-only.
+    registry_grant: struct { scope: u32, subject: union(enum) { principal: u8, process: u64 }, lookup: bool, mutate: bool },
     registry_handle: void,
     registry_route: struct { registry: u64, payload: p.Value },
     supervisor_register: s.Supervisor.Child,
@@ -180,7 +181,10 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Resul
         },
         .query_policy => |grant| try s.Query.setPolicy(turn, grant.peer, grant.table, grant.expected_revision, grant.allow),
         .registry_create => |scope| try s.Registry.create(turn, scope),
-        .registry_grant => |grant| try s.Registry.grant(turn, grant.scope, grant.subject, .{ .lookup = grant.lookup, .mutate = grant.mutate }),
+        .registry_grant => |grant| try s.Registry.grant(turn, grant.scope, switch (grant.subject) {
+            .principal => |id| .{ .principal = id },
+            .process => |id| .{ .process = id },
+        }, .{ .lookup = grant.lookup, .mutate = grant.mutate }),
         .registry_handle => try s.Registry.handle(turn, try s.Frame.decode(turn.delivery.input.value)),
         .registry_route => |route| {
             _ = try s.Registry.route(turn, route.registry, try s.Frame.decode(turn.delivery.input.value), route.payload);
