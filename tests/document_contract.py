@@ -7,6 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'packages/zig/transit-station-document/src/fixtures/changes.json'
+REMOTE = FIXTURE.with_name('remote.json')
 
 
 def dot(value=None):
@@ -83,7 +84,24 @@ def generate():
     return json.dumps({'changes': fixtures, 'reference': reference, 'reference_hex': wire.hex()}, ensure_ascii=False, indent=2) + '\n'
 
 
+def remote():
+    change = json.loads(generate())['changes'][0]
+    spec = change['spec']
+    request = b'SDQ1' + struct.pack('<QQQQIQQII', 2**53-1, 2**64-1, 2**64-1, 1, 1, 1,
+        2**64-1, spec['format'], spec['length']) + bytes(spec['digest'])
+    basis = b'SDR1' + struct.pack('<QQQIQ', 7, 2**64-1, 1, 1, 42)
+    reply = b'SDO1' + struct.pack('<BBQ', 1, 0, 2**63+17) + basis
+    route = b'SDT1' + struct.pack('<QQQQ', 2, 3, 17, 2**64-1) + request
+    call = b'SDW1' + struct.pack('<QQQ', 2, 7, 2**64-1) + request
+    assert (len(request), len(reply), len(route), len(call)) == (96, 54, 132, 124)
+    return json.dumps({'change_hex': change['wire_hex'], 'request_hex': request.hex(),
+        'reply_hex': reply.hex(), 'route_hex': route.hex(), 'call_hex': call.hex()}, indent=2) + '\n'
+
+
 if __name__ == '__main__':
-    if sys.argv[1:] == ['--write']: FIXTURE.write_text(generate())
-    elif sys.argv[1:] or FIXTURE.read_text() != generate(): raise SystemExit('Document fixtures differ; review and regenerate explicitly')
-    print('Document fixtures: independent SDC1, SDR1, Unicode, full-width values and commitments passed.')
+    if sys.argv[1:] == ['--write']:
+        FIXTURE.write_text(generate())
+        REMOTE.write_text(remote())
+    elif sys.argv[1:] or FIXTURE.read_text() != generate() or REMOTE.read_text() != remote():
+        raise SystemExit('Document fixtures differ; review and regenerate explicitly')
+    print('Document fixtures: independent changes, reads, submission/reply routes and commitments passed.')

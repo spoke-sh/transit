@@ -4,7 +4,9 @@
 Document ID. Reserve that namespace for this service. It stores its own records
 under a separate framework key prefix and never depends on a worker-local file.
 Current resource grants and fenced Transit ownership remain necessary for every
-turn. The application owns authenticated routing and adding acceptance outputs.
+turn. The application may compose routing directly or use the
+[remote call helpers](remote.md) to freeze authenticated routing and add acceptance
+outputs in the final turn.
 
 Create the Document with a nonzero type revision and explicit Publication limits:
 records must allow 4096 bytes, with at least one record's staging capacity. Default
@@ -62,7 +64,8 @@ old snapshots, fit final acceptance plus framework state/output, reject changed
 requests, reclaim failed candidates, enforce explicit capacity, and recheck denied
 reads/retirement. The separate `just test::document` disk proof kills workers,
 node and store, recovers exact signed retries and reads through a separate
-read-only principal. Public SDK and placement qualification remain in progress.
+read-only principal. All ten public SDKs pass the installed scoped change/read
+schedule; remote placement qualification remains in progress.
 
 ## Checkpoint and retention policy
 

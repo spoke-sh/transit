@@ -131,8 +131,9 @@ Rejected jobs have permanently closed intervals. Their independent cleanup may
 reclaim that interval's unreachable nodes/request, with at most one bounded
 Publication operation per turn. Accepted job intervals and snapshots stay retained
 until an explicit checkpoint/lifetime policy permits their disposition. Capacity
-failure never chooses that policy. Disk/placement and checkpoint qualification
-are still pending; private-turn component tests are not evidence for those gates.
+failure never chooses that policy. Disk and checkpoint recovery evidence is in
+the [test guide](../tests/README.md#m17-work-in-progress); remote placement remains
+pending. Private-turn component tests alone are not evidence for those gates.
 
 ## Checkpoints and finite merge windows
 
@@ -191,3 +192,68 @@ Host `character` is a UTF-8 string containing exactly one Unicode scalar. These
 are binding values: SDC1 remains the canonical binary change, and language-native
 public APIs own their idiomatic numeric, string and byte types. Host codecs share
 Zig validation and implement no independent merge algorithm.
+
+## Authenticated submission profile
+
+The remote profile is under implementation; the installed scoped SDK proofs
+above do not qualify remote submission or deployment. A caller publishes one
+canonical SDC1 change as Publication record 1 in a dedicated caller namespace.
+It sends an STN1 `call` carrying SDQ1, a 96-byte reference with these ordered,
+little-endian fields: magic, resource:u64, namespace:u64, document:u64, epoch:u64,
+type_revision:u32, replica:u64, policy_revision:u64, format:u32, length:u32,
+digest:32 bytes. Format must be `0x53444301`; length is 1–4096 bytes. Identity and
+policy fields are nonzero; resource uses the kernel ID range. The complete STN1
+request is 109 bytes. No mailbox or KV limit changes.
+
+The writer uses the authenticated process origin, never a payload PID. Explicit
+current service policy binds that caller PID to its request resource, replica
+and policy revision for the selected Document. Both the reference and decoded
+change must match. Resource grants remain separate: the writer needs current
+read access to the caller's publication and current mutation rights to its own
+Document resource. Replica identity alone cannot impersonate another caller.
+Every publication chunk rechecks current access and immutable spec; later
+building steps recheck publication availability and service policy. Read outages
+or policy loss leave work recoverable, without inventing an accepted outcome.
+
+Admission freezes the original writer PID, caller PID, input position,
+correlation and SDQ1 bytes in a 132-byte SDT1 route. Its job ID is the input
+position with bit 63 set; that range is reserved for remote jobs. Admission uses
+three mutations (job, head, route), leaving one framework mutation. There is one
+active candidate per Document. Busy or invalid submissions receive an explicit
+correlated rejection; they are not held in an implicit pending queue. Publishing
+caller bytes or admitting a job does not accept a Document change.
+
+Progress reconstructs the recorded job and route under fresh ownership of the
+same writer PID. Final accepted state, job outcome and success reply share one
+fenced turn, with at most three Document mutations plus framework state. No
+later tick sends another success for a completed job. A distinct call containing
+the same canonical change may receive its original accepted revision through
+the CRDT's duplicate contract. Uncertain commits retain exact signed bytes.
+Replacement PIDs or renamed services cannot retarget the recorded route.
+
+SDO1 is a 54-byte reply: magic, status:u8, reason:u8, job:u64, basis:40-byte SDR1
+or forty zero bytes for no basis. Denied and malformed requests receive no basis,
+so they cannot inspect accepted state through a rejected call.
+Status is 1 accepted, 2 duplicate, or 3 rejected. Reasons are 0 none, 1 invalid
+request, 2 denied, 3 busy, 4 invalid change, 5 dependency missing/wrong dependency,
+6 identity conflict, 7 resynchronization required, 8 capacity, 9 retired, and
+10 type mismatch. Accepted/duplicate require reason zero, a nonzero job and a
+nonzero accepted revision. Rejection requires a nonzero reason; job zero means
+no job was admitted. Its basis names the current accepted Document, not a
+partially applied candidate. Unknown enum values and malformed frames reject.
+The caller verifies reply origin and durable correlation before recording it.
+Neither a success reference nor a rejection basis promises continued availability.
+
+The caller's private SDW1 record is 124 bytes: magic, writer_pid:u64,
+writer_resource:u64, correlation:u64 and the original 96-byte SDQ1. Its call,
+Station wait record and original destination commit together. The received SDO1
+is stored unchanged only after validating process origin, correlation and any
+returned resource/Document basis. A new call after semantic rejection requires
+an explicit new publication namespace; changing a configured name cannot reroute
+an already recorded call.
+
+Terminal candidate rejection closes the recorded interval and sends its reply
+in one turn. Cleanup remains a separate bounded operation. Infrastructure,
+corruption and authorization errors are not silently converted to domain
+rejections. An administrator may explicitly reject blocked work under current
+authority; capacity never authorizes retirement, expiry or arbitrary cleanup.

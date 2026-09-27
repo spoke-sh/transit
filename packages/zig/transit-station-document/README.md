@@ -42,6 +42,11 @@ authority cache. See [proof evidence](../../../tests/README.md#m17-work-in-progr
 All ten public SDKs now pass the installed Document change/read recovery schedule.
 Remote submission, Board and placement proofs remain in progress.
 
+`Request`, `Caller` and `Remote` now provide [authenticated submission and
+original reply routing](docs/remote.md). Component tests qualify admission,
+recovery and final acceptance within the unchanged four-mutation budget;
+remote disk/placement evidence remains pending.
+
 `Client` provides current-policy descriptions, typed path/sequence reads, accepted
 tail changes and resynchronization independently of writer ownership. Its SDR1
 reference fixes resource, Document, epoch, type revision and accepted revision.

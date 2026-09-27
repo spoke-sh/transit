@@ -7,35 +7,8 @@ const Pub = lib.station.Publication;
 const Index = lib.station.ImmutableIndex;
 const Service = lib.Service;
 const m = lib.Model;
-const Turns = struct {
-    state: std.AutoHashMapUnmanaged(p.Value, p.Value) = .empty,
-    revision: u64 = 1,
-    input: u64 = 1,
-    denied: bool = false,
-    accepted_outputs: usize = 0,
-    fn deinit(self: *Turns) void {
-        self.state.deinit(t.allocator);
-    }
-    fn read(raw: *anyopaque, _: p.Growth.View, address: p.Value) !?p.Value {
-        const self: *Turns = @ptrCast(@alignCast(raw));
-        if (self.denied) return error.AccessDenied;
-        return self.state.get(address);
-    }
-    fn capture(self: *Turns) !Turn {
-        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 2, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = 7, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read });
-    }
-    fn commit(self: *Turns, turn: Turn) !void {
-        try turn.validate();
-        for (turn.decision.mutations) |slot| if (slot) |mutation| {
-            if (mutation.value) |bytes| try self.state.put(t.allocator, mutation.key, bytes) else _ = self.state.remove(mutation.key);
-        };
-        for (turn.decision.outputs) |output| if (output != null) {
-            self.accepted_outputs += 1;
-        };
-        self.revision += 1;
-        self.input += 1;
-    }
-};
+const Turns = @import("test_store.zig");
+
 const service: Service = .{ .resource = 7, .document = 17 };
 const limits: Pub.Limits = .{ .record_bytes = 4096, .staging_bytes = 4096, .staging_records = 1 };
 fn makeChange(replica: u64, first: u64, ops: []const m.Operation) m.Change {

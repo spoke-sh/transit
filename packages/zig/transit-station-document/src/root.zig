@@ -8,6 +8,9 @@ pub const Operation = Model.Operation;
 pub const Client = @import("Client.zig");
 pub const Checkpoint = @import("Checkpoint.zig");
 pub const Service = @import("Service.zig");
+pub const Request = @import("Request.zig");
+pub const Remote = @import("Remote.zig");
+pub const Caller = @import("Caller.zig");
 pub const Document = @import("Document.zig");
 pub const codec = @import("codec.zig");
 test {
@@ -20,4 +23,5 @@ test {
     _ = codec;
     _ = @import("merge_test.zig");
     _ = @import("service_test.zig");
+    _ = @import("remote_test.zig");
 }

@@ -1,11 +1,11 @@
 # Documents and collaborative text
 
-Status: M17 implementation in progress. Storage/merge choices below are the
-selected implementation direction; durable Document/SDK qualification is pending.
-[M14](roadmap/M14.md) has qualified bounded immutable publication over growing
-KV. HTTP and gRPC are scheduled first in M15/M16; Document semantics remain
-independent of their transports. No Document change format or CRDT API is
-implemented by that prerequisite.
+Status: M17 implementation in progress. Durable merge/checkpoint recovery and
+the installed change/read schedule pass across all ten M11 SDKs. Remote call
+components are implemented; worker, example, Board and placement qualification
+remain open. [M14](roadmap/M14.md) supplies bounded immutable publication over
+growing KV. M15/M16 qualify HTTP/gRPC integrations; Document semantics remain
+independent of those transports. See [executed evidence](../tests/README.md#m17-work-in-progress).
 
 ## Authority and identity
 
@@ -120,5 +120,7 @@ remain [M18](roadmap/M18.md) obligations, separate from Document mutation APIs.
 The [Station Document package](../packages/zig/transit-station-document/README.md)
 now implements the selected merge model and bounded candidate/reader component.
 Its [neutral format](../contracts/STATION_DOCUMENT_V1.md) owns exact fields and
-limits. Component convergence and fault tests do not complete durable acceptance,
-checkpoint, SDK or placement qualification.
+limits. [Authenticated call helpers](../packages/zig/transit-station-document/docs/remote.md)
+bind the caller's allowed replica, immutable request and original reply route.
+Their component tests supplement the existing disk and SDK proofs; they do not
+complete remote worker or placement qualification.

@@ -107,6 +107,18 @@ Reads use the existing serialized BEAM worker and close rejects later calls.
 The test joins a separately spawned read before closing; it does not inject
 native cancellation or claim BEAM process death cancels remote work.
 
+The Document package now passes **25 tests in 1 second / 17 MiB peak RSS** after
+adding authenticated remote calls. Independent Python fixtures cover SDQ1,
+SDT1, SDO1 and SDW1, including full-width IDs and exact frame sizes. Seven new
+component cases reject caller/replica impersonation, digest substitution, changed
+policy, access loss after a verified chunk, retired publications and replacement
+PIDs. They reconstruct every private step, preserve the original reply route,
+atomically reject missing dependencies and roll back final acceptance when the
+reply budget is exhausted. Caller tests preserve peer/correlation and reject
+spoofed or conflicting outcomes. These are in-memory component tests; remote
+disk and deployment qualification remain pending. The root `just check` passed
+after completion of all ten installed SDK APIs.
+
 ## M16 finite connector qualification
 
 `just test::unit` runs the new RPC request codec against a Python-generated
