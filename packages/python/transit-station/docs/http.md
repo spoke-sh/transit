@@ -85,5 +85,15 @@ resource/exchange. A rejection remains `HttpRejected`. Duplicate requests remain
 safe after worker restart and capture cleanup. This operation needs no transcript
 read grant; the service checks the recorded holder and current admission policy.
 It performs no remote cancellation, retirement or automatic physical cleanup.
-The finite worker needs a fresh `poll` activation to handle the call. Public
-followup helpers remain M15 work.
+The finite worker needs a fresh `poll` activation to handle the call.
+
+For an explicit linked attempt, use
+`turn.followup_http(connector, parent_outcome, HttpFollowupReason.RETRY, request)`.
+The other reasons are `REDIRECT`, `RECONCILE` and `CANCEL`. The proposed request
+must already be published in the current resource with the original deadline and
+total attempt budget. Save the new correlation and authenticate its `HttpOutcome`
+or `HttpRejected` through the same reply codec. The shared service validates the
+original caller, current scope and parent's frozen policy before allocating a
+child; the helper neither retries automatically nor decides that a retry is safe.
+Use a fresh configured child exchange in the finite worker's admission profile.
+Neither a successful child nor a cancellation request rewrites the parent outcome.

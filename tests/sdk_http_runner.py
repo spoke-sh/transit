@@ -11,7 +11,7 @@ import threading
 import time
 
 
-def run(node, cli, raw_library, worker, install, label, *, public_release=False):
+def run(node, cli, raw_library, worker, install, label, *, public_release=False, public_followup=False):
     from client_abi import Native
     from client_abi_growing import GrowingSystem
     from station import frame
@@ -207,6 +207,33 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False)
             assert json.loads(child.communicate(timeout=30)[0]) == {'joined': True}
             assert child.returncode == 0
             children.remove(child)
+            if public_followup:
+                # A public typed helper records an ordinary correlated call;
+                # the service refuses unsupported followups without allocating
+                # a child or obtaining credentials. Positive retry dispatch is
+                # independently qualified by the shared Zig worker schedule.
+                for reason in ('retry', 'redirect', 'reconcile', 'cancel'):
+                    caller['followup_reason'] = reason
+                    child = start('http-caller', caller)
+                    command({'send': {'pid': caller['pid'], 'value': frame(b'followup')}})
+                    assert action(child, 'step') == {'followup': False}
+                    outputs = deliver()
+                    assert len(outputs) == 1 and outputs[0]['destination'] == service['pid']
+                    wire = bytes.fromhex(outputs[0]['value'])[13:]
+                    assert len(wire) == 133 and wire[:4] == b'HTU1'
+                    assert int.from_bytes(wire[12:20], 'little') == 2**64-1
+                    assert wire[20] == ('retry', 'redirect', 'reconcile', 'cancel').index(reason) + 1
+                    own(service)
+                    worker_config.update(generation=service['generation'], mode='poll',
+                        exchange=2**64-2, followup={'parent': 2**64-1, 'reason': reason})
+                    result = invoke()
+                    assert result['phase'] == 'not_admitted' and result['outcome'] == 'not_committed'
+                    outputs = deliver()
+                    assert len(outputs) == 1 and outputs[0]['destination'] == caller['pid']
+                    assert action(child, 'step') == {'followup': True}
+                    close(child)
+                worker_config['exchange'] = 2**64-1
+                worker_config.pop('followup')
             if public_release:
                 # A durable disposal call needs no transcript read grant and
                 # can recover an acknowledgement after explicit capture cleanup.
@@ -231,7 +258,8 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False)
             assert not failures, failures
             assert requests == ['/items/%CE%BB%20%2F'], requests
             disposal = ', authenticated durable disposal before/after cleanup without read permission' if public_release else ''
-            print(f'{label} HTTP SDK: installed caller, staged host recovery, wide identity, binary TLS, correlated outcome, revoked prefix, owned replay without credentials and joined local stop/disposal{disposal} passed ({time.monotonic()-started:.2f}s).')
+            followups = ', four typed followup calls with authenticated policy rejection and no child/send' if public_followup else ''
+            print(f'{label} HTTP SDK: installed caller, staged host recovery, wide identity, binary TLS, correlated outcome, revoked prefix, owned replay without credentials and joined local stop/disposal{disposal}{followups} passed ({time.monotonic()-started:.2f}s).')
         finally:
             for child in children:
                 child.kill(); child.wait(timeout=10)

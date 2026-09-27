@@ -103,6 +103,12 @@ published request in the current associated resource, and emits the ordinary
 durable call under a new correlation. Invalid/unpublished/changed references
 consume no turn capacity. The native suite passes these additions alongside
 its existing ownership, exact-retry, Table/query and interoperability schedules.
+The installed Python HTTP schedule now includes all four typed followup reasons,
+full-width parent identity, cross-realm/expired-turn refusal and authenticated
+HTF1 rejection with the saved correlation. It reports no child allocation or
+additional send for unsupported policy, and still passes durable disposal and
+replay. Its expanded local HTTP schedule took 63.21 seconds. Positive public retry
+dispatch belongs to the independent Zig worker proof above.
 The shared `http_stage` helper freezes namespace ownership and advances one
 publication step per turn. Its disk/native proof replaces the host and owner
 after a committed metadata prefix, rejects a changed endpoint revision without

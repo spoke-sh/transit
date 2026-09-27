@@ -11,7 +11,7 @@ from ._growing import Growing
 from .models import Basis, Codec, Found, Key, KVEntry, Page, Reply, WaitPolicy, encoded, decoded
 if TYPE_CHECKING:
     from .query import QueryJob, QueryPlan, ResultReader
-    from .http import PreparedHttpRequest
+    from .http import PreparedHttpRequest, HttpOutcome, HttpFollowupReason
 
 T = TypeVar('T')
 U64_MAX = (1 << 64) - 1
@@ -326,6 +326,23 @@ class Turn:
             raise UnsupportedCapability('Native Station lacks durable HTTP release support')
         result = self._apply({'http_release': {'pid': pid, 'resource': resource.resource,
             'exchange': str(integer(exchange, 'exchange', maximum=U64_MAX))}})
+        return int(result['correlation'])
+
+    def followup_http(self, peer: ProcessRef, parent: HttpOutcome, reason: HttpFollowupReason,
+                      request: PreparedHttpRequest) -> int:
+        """Explicitly request a linked attempt; current service policy decides admission."""
+        from .http import HttpOutcome, HttpFollowupReason
+        pid = self._peer(peer)
+        self._http_request(request)
+        if not isinstance(parent, HttpOutcome) or not isinstance(parent.resource, ResourceRef) or parent.resource.realm != self.resource.realm:
+            raise ValueError('HTTP parent must belong to the current realm')
+        if not isinstance(reason, HttpFollowupReason):
+            raise TypeError('Expected HttpFollowupReason')
+        if not self._native.caps.get('http_followup'):
+            raise UnsupportedCapability('Native Station lacks HTTP followup support')
+        result = self._apply({'http_followup': {'pid': pid, 'resource': parent.resource.resource,
+            'parent': str(integer(parent.exchange, 'parent exchange', maximum=U64_MAX)),
+            'reason': reason.value, 'reference': owned_bytes(request.reference, 112).hex()}})
         return int(result['correlation'])
 
     def table(self, schema: TableSchema[C]) -> Table[C]:

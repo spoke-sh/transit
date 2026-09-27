@@ -19,6 +19,7 @@ from .http import (HttpMethod as HttpMethod, Literal as Literal, Variable as Var
     HttpRequest as HttpRequest, PreparedHttpRequest as PreparedHttpRequest,
     prepare_http as prepare_http, decode_http_reply as decode_http_reply,
     HttpPhase as HttpPhase, HttpRejection as HttpRejection, HttpOutcome as HttpOutcome,
+    HttpFollowupReason as HttpFollowupReason,
     HttpRejected as HttpRejected, HttpReleased as HttpReleased, HttpReplyCodec as HttpReplyCodec,
     HttpReplayPolicy as HttpReplayPolicy, HttpPartKind as HttpPartKind,
     HttpPart as HttpPart, HttpReader as HttpReader, AsyncHttpReader as AsyncHttpReader)

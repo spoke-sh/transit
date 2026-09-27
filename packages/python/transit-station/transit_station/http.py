@@ -135,6 +135,13 @@ class HttpPhase(Enum):
     NOT_DISPATCHED = 'not_dispatched'
 
 
+class HttpFollowupReason(Enum):
+    RETRY = 'retry'
+    REDIRECT = 'redirect'
+    RECONCILE = 'reconcile'
+    CANCEL = 'cancel'
+
+
 class HttpRejection(Enum):
     DENIED = 'denied'
     INVALID_REQUEST = 'invalid_request'

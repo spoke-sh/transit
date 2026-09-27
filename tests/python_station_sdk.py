@@ -344,7 +344,8 @@ def http_consumer(mode, cfg):
     from transit_station import (Activation, ServiceConfig, Runner, AsyncRunner,
         FailurePolicy, Recovery, Key, Cast, Reply, Committed, HttpReplyCodec,
         HttpRequest, HttpMethod, HttpHeader, Literal, Variable, SecretRef, prepare_http,
-        HttpOutcome, HttpReleased, HttpPhase, HttpPartKind, decode_http_reply)
+        HttpOutcome, HttpReleased, HttpPhase, HttpPartKind, decode_http_reply,
+        HttpFollowupReason, HttpRejected, HttpRejection)
     from transit_sdk_examples.codecs import u64
     class Bytes:
         type_id, version, max_encoded_bytes = 'test.http-control', 1, 243
@@ -363,6 +364,7 @@ def http_consumer(mode, cfg):
     correlation = Key(b'http-correlation', u64)
     status = Key(b'http-status', u64)
     disposal = Key(b'http-disposal', u64)
+    followup = Key(b'http-followup', u64)
     codec = HttpReplyCodec(Bytes(), 72)
     class Handler:
         result = None
@@ -371,7 +373,19 @@ def http_consumer(mode, cfg):
         def handle(self, turn, incoming):
             self.escaped = turn
             if isinstance(incoming, Cast):
-                if incoming.value == b'dispose':
+                if incoming.value == b'followup':
+                    from dataclasses import replace
+                    outcome = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
+                    assert isinstance(outcome, HttpOutcome)
+                    reason = HttpFollowupReason(cfg['followup_reason'])
+                    wrong = replace(outcome, resource=ResourceRef(73, outcome.resource.resource))
+                    try: turn.followup_http(peer, wrong, reason, request)
+                    except ValueError: pass
+                    else: raise AssertionError('Cross-realm followup accepted')
+                    call = turn.followup_http(peer, outcome, reason, request)
+                    turn.state.put(followup, call)
+                    self.result = {'followup': False}
+                elif incoming.value == b'dispose':
                     outcome = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
                     assert isinstance(outcome, HttpOutcome)
                     try: turn.release_http(peer, ResourceRef(73, outcome.resource.resource), outcome.exchange)
@@ -390,6 +404,12 @@ def http_consumer(mode, cfg):
                     self.result = {'called': False}
             else:
                 assert isinstance(incoming, Reply)
+                if isinstance(incoming.value, HttpRejected):
+                    turn.require_reply(incoming, peer=peer, correlation=turn.state.require(followup))
+                    assert incoming.value.reason is HttpRejection.DENIED
+                    turn.state.put(Key(b'http-followup-denied', u64), incoming.correlation)
+                    self.result = {'followup': True}
+                    return
                 if isinstance(incoming.value, HttpReleased):
                     turn.require_reply(incoming, peer=peer, correlation=turn.state.require(disposal))
                     original = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
@@ -452,6 +472,10 @@ def http_consumer(mode, cfg):
                 try: handler.escaped.release_http(peer, ResourceRef(72, cfg['resource']), 1)
                 except TurnExpired: pass
                 else: raise AssertionError('Escaped disposal turn accepted')
+                if 'outcome' in cfg:
+                    try: handler.escaped.followup_http(peer, decode_http_reply(72, bytes.fromhex(cfg['outcome'])), HttpFollowupReason.RETRY, request)
+                    except TurnExpired: pass
+                    else: raise AssertionError('Escaped followup turn accepted')
                 result = handler.result
             elif action == 'open':
                 outcome = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
@@ -504,7 +528,7 @@ def run(node, cli, raw_library, wheels, http_worker=None, *, execute=None):
     (execute or schedule)(node, cli, raw_library, install, 'Python')
     if execute is None:
         from sdk_http_runner import run as http_schedule
-        http_schedule(node, cli, raw_library, http_worker, install, 'Python', public_release=True)
+        http_schedule(node, cli, raw_library, http_worker, install, 'Python', public_release=True, public_followup=True)
 
 if __name__ == '__main__':
     if sys.argv[1] == '--consumer': consumer(*sys.argv[2:])
