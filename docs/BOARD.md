@@ -181,6 +181,14 @@ the requested design principles separately from its still-open navigation choice
 and maps executable SELECT, reference-only DDL and missing control grammar without
 claiming that planned syntax can run today.
 
+[D3 — A quieter Transit shell](design/board-console/D3.md) reduces the proposed
+shell to Transit branding, a product/application-oriented realm dropdown and a
+compact Workspace/Operations icon toggle above the contextual menu. It removes
+the extra navigation bar, hierarchy labels and persistent footer, and shows one
+active representation with evidence available in context. Realm labels are
+presentation metadata over stable identities; the proposed selector adds no
+cross-realm capability to the current single-realm deployment.
+
 ## Boundary and packaging
 
 ```mermaid

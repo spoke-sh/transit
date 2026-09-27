@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+<title id="title">D3 — Operations using the same compact shell</title><desc id="desc">The toggle is in its right-hand Operations position and Access is selected. One grant form fills the work area; SQL is an alternative view. Apply remains unavailable. Synthetic, proposed interface; not an application screenshot.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<rect x="232" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="248" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M435 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Operations. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="white" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="white" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="white" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="white" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="114" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="black" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="black" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="black" stroke="black"/>
+</g>
+<text x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Overview</text>
+<rect x="16" y="172" width="3" height="31" rx="0" fill="black" stroke="none"/>
+<text x="32" y="195" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Access</text>
+<text x="32" y="237" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Credentials &amp; trust</text>
+<text x="32" y="279" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Capabilities</text>
+<text x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Runtime &amp; storage</text>
+<text x="32" y="363" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Diagnostics</text>
+<text x="240" y="106" font-family="sans-serif" font-size="23" font-weight="700" fill="black">Access</text>
+<text x="334" y="106" font-family="sans-serif" font-size="22" font-weight="400" fill="black">/</text>
+<text x="359" y="106" font-family="sans-serif" font-size="23" font-weight="700" fill="black">New grant</text>
+<text x="240" y="165" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Form</text>
+<path d="M240 177 H272" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="340" y="165" font-family="sans-serif" font-size="15" font-weight="400" fill="black">SQL</text>
+<path d="M240 187 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="240" y="251" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Principal</text>
+<rect x="240" y="269" width="620" height="44" rx="0" fill="white" stroke="black"/>
+<text x="256" y="297" font-family="sans-serif" font-size="16" font-weight="400" fill="black">analyst</text>
+<path d="M830 286 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="240" y="361" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Object</text>
+<rect x="240" y="379" width="620" height="44" rx="0" fill="white" stroke="black"/>
+<text x="256" y="407" font-family="sans-serif" font-size="16" font-weight="400" fill="black">samples</text>
+<path d="M830 396 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="240" y="471" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Privilege</text>
+<rect x="240" y="489" width="620" height="44" rx="0" fill="white" stroke="black"/>
+<text x="256" y="517" font-family="sans-serif" font-size="16" font-weight="400" fill="black">read</text>
+<path d="M830 506 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="930" y="251" font-family="sans-serif" font-size="16" font-weight="700" fill="black">Resolution</text>
+<text x="930" y="288" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Not available</text>
+<text x="930" y="323" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Principal, target and privilege</text>
+<text x="930" y="347" font-family="sans-serif" font-size="14" font-weight="400" fill="black">must resolve before applying.</text>
+<rect x="240" y="578" width="184" height="36" rx="0" fill="white" stroke="black" stroke-dasharray="4 4"/>
+<text x="254" y="602" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Apply unavailable</text>
+<text x="446" y="602" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Grant execution is not available.</text>
+</svg>

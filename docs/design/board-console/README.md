@@ -12,12 +12,13 @@ resource-workspace exploration. This item builds on its selected visual directio
 and bounded implementation without changing its recorded outcomes.
 [Board](../../BOARD.md) remains the owner of product boundaries and current behavior.
 
-**Current review:** [D2 — Visualizing the declarative system](D2.md).
+**Current review:** [D3 — A quieter Transit shell](D3.md).
 
 | Review | Focus | Status | Outcome or next decision |
 | --- | --- | --- | --- |
 | [D1](D1.md) | Product structure, administration model, data workspace and future capability families | Reviewed | Useful starting point; reviewer requested monochrome wireframes, two navigation levels and a declarative foundation; D2 refines the flat shell and form-first model |
-| [D2](D2.md) | Declarative objects, Workspace/Operations hierarchy and grammar-to-UI mapping | In review | Black-and-white and declarative design principles requested; review the proposed grouping, definition/dependency views and change semantics |
+| [D2](D2.md) | Declarative objects, Workspace/Operations hierarchy and grammar-to-UI mapping | Reviewed | Reviewer requested a compact icon toggle, Transit branding, a product/application-oriented realm dropdown and removal of redundant shell text; D3 refines the presentation |
+| [D3](D3.md) | Compact navigation, product context and more working space | In review | Review the left/right area toggle, realm selector and focused content layouts; no new implementation or grammar scope |
 
 The figures are black-and-white vector wireframes with synthetic examples. They are
 neither application screenshots nor evidence of available protocols, permissions
@@ -36,6 +37,10 @@ new implementation work requires its own place in the linear roadmap.
 - [D2 query representations wireframe](images/d2-03-query.svg).
 - [D2 Operations / Access wireframe](images/d2-04-operations.svg).
 - [D2 SQL examples and expected support](d2-fixture.json).
+- [D3 Workspace wireframe](images/d3-01-workspace.svg).
+- [D3 query wireframe](images/d3-02-query.svg).
+- [D3 Operations wireframe](images/d3-03-operations.svg).
+- [D3 realm dropdown wireframe](images/d3-04-realm-selector.svg).
 
 Follow the shared [review workflow](../README.md#maintaining-the-sequence) and
-[template](../TEMPLATE.md); subsequent reviews continue with D3 in this directory.
+[template](../TEMPLATE.md); subsequent reviews continue with D4 in this directory.
