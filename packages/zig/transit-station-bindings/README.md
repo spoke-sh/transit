@@ -17,8 +17,9 @@ all [ten public SDKs](../../../docs/CLIENT.md#http-connector-callers) provide ty
 request/call/replay conveniences with local qualification. Explicit durable
 release is also available through shared codecs and scoped `http_release` calls;
 all ten SDKs expose it. Scoped `http_followup` calls validate published request
-commitments and submit HTU1 through the same durable call machinery. Language-native
-followup helpers and broader lifecycle work remain in M15.
+commitments and submit HTU1 through the same durable call machinery. All ten SDKs
+expose typed followup helpers and qualify correlated policy refusal; broader
+connector lifecycle and deployment work remain in M15.
 
 See the [binding guide](docs/bindings.md) for ownership, scoped turns, explicit
 dispatch, exact pending retry and query buffers. Native foreign pointers never
