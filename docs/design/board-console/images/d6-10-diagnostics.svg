@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">D6 — Diagnostics and recorded outcomes</title><desc id="desc">Synthetic service signals retain instance identity, observation time and incomplete coverage. Transport completion links to Activity and does not become a durable outcome.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
+<rect x="420" y="10" width="600" height="36" rx="0" fill="white" stroke="black"/>
+<circle cx="440" cy="27" r="5" fill="white" stroke="black"/>
+<path d="M444 31 l5 5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="463" y="34" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Search Transit…</text>
+<rect x="956" y="17" width="52" height="22" rx="0" fill="white" stroke="black"/>
+<text x="969" y="33" font-family="sans-serif" font-size="12" font-weight="400" fill="black">⌘ K</text>
+</g>
+<rect x="1178" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M1381 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Operations. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="114" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="white" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="white" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="white" stroke="black"/>
+</g>
+
+<text x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Overview</text>
+<text x="32" y="195" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Access</text>
+<text x="32" y="237" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Secrets &amp; trust</text>
+<text x="32" y="279" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Capabilities</text>
+<text x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Runtime &amp; storage</text>
+<rect x="16" y="340" width="3" height="31" fill="black" stroke="none" stroke-width="1"/>
+<text x="32" y="363" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Diagnostics</text>
+<text x="240" y="111" font-family="sans-serif" font-size="24" font-weight="700" fill="black">Diagnostics</text>
+<text x="240" y="140" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Bounded service observations</text>
+<rect x="1258" y="86" width="150" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1333.0" y="110" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Refresh</text>
+<rect x="240" y="176" width="204" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="342.0" y="200" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Service: All</text>
+<rect x="460" y="176" width="182" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="551.0" y="200" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Signal: Logs</text>
+<rect x="658" y="176" width="254" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="785.0" y="200" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Observed: Today · UTC</text>
+<text x="264" y="271" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Service / instance</text>
+<text x="710" y="271" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Latest signal</text>
+<text x="1150" y="271" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Coverage</text>
+<path d="M240 290 L1408 290" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="336" font-family="monospace" font-size="15" font-weight="400" fill="black">transit-board</text>
+<path d="M264 340 L381.39 340" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="363" font-family="sans-serif" font-size="12" font-weight="400" fill="black">board-03</text>
+<text x="710" y="336" font-family="monospace" font-size="14" font-weight="400" fill="black">board.http.request</text>
+<text x="710" y="363" font-family="sans-serif" font-size="12" font-weight="400" fill="black">14:34:59 UTC</text>
+<text x="1150" y="336" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Bounded page</text>
+<path d="M240 389 L1408 389" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="430" font-family="monospace" font-size="15" font-weight="400" fill="black">transit-station-http-worker</text>
+<path d="M264 434 L507.81 434" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="457" font-family="sans-serif" font-size="12" font-weight="400" fill="black">http-07</text>
+<text x="710" y="430" font-family="monospace" font-size="14" font-weight="400" fill="black">http.transport.completed</text>
+<text x="710" y="457" font-family="sans-serif" font-size="12" font-weight="400" fill="black">14:31:10 UTC</text>
+<text x="1150" y="430" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Partial · 2 records dropped</text>
+<path d="M240 483 L1408 483" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="586" font-family="sans-serif" font-size="17" font-weight="700" fill="black">Selected signal</text>
+<text x="264" y="631" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Service instance</text>
+<text x="540" y="631" font-family="sans-serif" font-size="14" font-weight="400" fill="black">http-07</text>
+<text x="264" y="678" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Transport observation</text>
+<text x="540" y="678" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Completed · captured HTTP status 200</text>
+<text x="264" y="725" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Recorded correlation</text>
+<text x="540" y="725" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Attempt 811 · read current evidence in Activity</text>
+<rect x="264" y="782" width="164" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="346.0" y="806" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Open activity</text>
+<text x="264" y="862" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Transport completion is not durable settlement. Missing logs do not establish missing work.</text>
+</svg>

@@ -254,6 +254,17 @@ outcomes explicitly. Its declaration catalogs, change operations, external-row
 mapping and sink input binding remain future contracts; the finite connector
 inspection already implemented does not supply those administrative surfaces.
 
+[D6 — Operations](design/board-console/D6.md) explores the less frequent operator
+work that establishes Workspace's foundations: access, secrets and trust,
+capabilities, runtime/storage and diagnostics. Its
+[SQL map](design/board-console/OPERATIONS_SQL.md) audits the existing grammar and
+proposes managing SECRET metadata as versioned bindings to external credentials,
+with separate consumer updates and retirement. Authentication, current grants,
+credential use and peer verification remain distinct. These are design proposals;
+attributable operator admission, managed catalogs and administrative SQL require
+new public contracts. Today's private shared viewer profile and separate query
+identity remain unchanged.
+
 ## Boundary and packaging
 
 ```mermaid

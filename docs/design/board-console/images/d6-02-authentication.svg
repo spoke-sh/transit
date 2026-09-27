@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">D6 — Authentication and Board access</title><desc id="desc">Future authentication profile with explicit issuer, audience, verifier trust and principal mapping. Viewer admission, inspection, query and operator identities remain distinct.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
+<rect x="420" y="10" width="600" height="36" rx="0" fill="white" stroke="black"/>
+<circle cx="440" cy="27" r="5" fill="white" stroke="black"/>
+<path d="M444 31 l5 5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="463" y="34" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Search Transit…</text>
+<rect x="956" y="17" width="52" height="22" rx="0" fill="white" stroke="black"/>
+<text x="969" y="33" font-family="sans-serif" font-size="12" font-weight="400" fill="black">⌘ K</text>
+</g>
+<rect x="1178" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M1381 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Operations. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="114" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="white" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="white" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="white" stroke="black"/>
+</g>
+
+<text x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Overview</text>
+<rect x="16" y="172" width="3" height="31" fill="black" stroke="none" stroke-width="1"/>
+<text x="32" y="195" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Access</text>
+<text x="32" y="237" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Secrets &amp; trust</text>
+<text x="32" y="279" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Capabilities</text>
+<text x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Runtime &amp; storage</text>
+<text x="32" y="363" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Diagnostics</text>
+<text x="240" y="88" font-family="sans-serif" font-size="13" font-weight="400" fill="black">‹ Access / Authentication</text>
+<path d="M240 92 L405.75 92" fill="none" stroke="black" stroke-width="1"/>
+<text x="240" y="128" font-family="monospace" font-size="24" font-weight="700" fill="black">workforce</text>
+<text x="240" y="155" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Authentication profile · auth-01 · accepted revision 2</text>
+<rect x="1238" y="108" width="170" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1323.0" y="132" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Edit definition</text>
+<text x="240" y="190" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Definition</text>
+<path d="M240 204 L320 204" fill="none" stroke="black" stroke-width="2"/>
+<text x="358" y="190" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Dependencies</text>
+<text x="492" y="190" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Changes</text>
+<text x="602" y="190" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Activity</text>
+<path d="M240 218 L1408 218" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="256" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Form</text>
+<text x="343" y="256" font-family="sans-serif" font-size="14" font-weight="400" fill="black">SQL</text>
+<path d="M264 267 L302 267" fill="none" stroke="black" stroke-width="2"/>
+<text x="264" y="305" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Verifier</text>
+<text x="540" y="305" font-family="monospace" font-size="15" font-weight="400" fill="black">OIDC</text>
+<path d="M264 329 L1384 329" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="360" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Issuer</text>
+<text x="540" y="360" font-family="monospace" font-size="15" font-weight="400" fill="black">https://identity.example.test</text>
+<path d="M264 384 L1384 384" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="415" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Audience</text>
+<text x="540" y="415" font-family="monospace" font-size="15" font-weight="400" fill="black">transit-board</text>
+<path d="M264 439 L1384 439" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="470" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Verifier trust</text>
+<text x="540" y="470" font-family="monospace" font-size="15" font-weight="400" fill="black">workforce_keys · revision 6</text>
+<path d="M264 494 L1384 494" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="525" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Principal mapping</text>
+<text x="540" y="525" font-family="monospace" font-size="15" font-weight="400" fill="black">Issuer + subject → explicit Transit principal</text>
+<path d="M264 549 L1384 549" fill="none" stroke="black" stroke-width="1"/>
+<path d="M240 589 L1408 589" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="632" font-family="sans-serif" font-size="17" font-weight="700" fill="black">Board access</text>
+<text x="1190" y="632" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Open access profile</text>
+<path d="M1190 636 L1325.66 636" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="680" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Viewer admission</text>
+<text x="530" y="680" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Private deployment boundary</text>
+<text x="865" y="680" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Reachability is separate from Transit rights</text>
+<text x="264" y="732" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Inspection identity</text>
+<text x="530" y="732" font-family="sans-serif" font-size="14" font-weight="700" fill="black">board_reader</text>
+<text x="865" y="732" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Current read-only scope</text>
+<text x="264" y="784" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Query identity</text>
+<text x="530" y="784" font-family="sans-serif" font-size="14" font-weight="700" fill="black">board_query</text>
+<text x="865" y="784" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Separate, optional query scope</text>
+<text x="264" y="836" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Operator identity</text>
+<text x="530" y="836" font-family="sans-serif" font-size="14" font-weight="700" fill="black">ops_admin</text>
+<text x="865" y="836" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Mapped identity + current action grants</text>
+</svg>
