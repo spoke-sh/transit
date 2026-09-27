@@ -78,10 +78,10 @@ around the probabilistic policy.
 
 ## What the result means
 
-| Label | Required evidence |
+| Presentation | Required evidence |
 | --- | --- |
 | Complete (current draft) | Exact current compiled semantics, mode and basis available in Query info |
-| Preview (speculative) | Complete candidate SQL, candidate ID, parent draft and exact result basis in Query info; the compact indicator explains that this is not the answer to unresolved text |
+| Pale grey provisional surface, no label | Complete candidate SQL, candidate ID, parent draft and exact result basis in Query info; the information icon's accessible description identifies the candidate relationship |
 | Earlier draft | Executed text/generation and original basis, clearly distinct from current text |
 | Updating | A newer eligible generation is being evaluated; the older view retains its label |
 | Following | Continuous generation with a committed frontier and explicit initial-snapshot/delta coverage |
@@ -92,10 +92,12 @@ is useful. Its result covers all six fixture rows; no LIMIT is silently appended
 If the user accepts the completion, the candidate may become current only when
 the semantics, mode, source/schema basis and current authority match. Promotion
 does not retimestamp a snapshot to “now”; preserve its original basis in Query info.
-The result toolbar carries only the short state; counts live in Profile.
+Provisional results have no Preview badge: a pale grey result surface and the
+information icon carry that state. Other short state controls remain; counts
+live in Profile. Promotion removes the grey only after the checks above pass.
 Source/candidate IDs and executed SQL are details on demand. The Profile panel summarizes the same
 identified answer as the rows. Closing it changes layout, not execution, and
-never removes the toolbar's Preview/Earlier draft/Following distinction.
+preserves the provisional surface and Earlier draft/Following distinctions.
 
 Each evaluation requires session/epoch, document version, exact/candidate
 fingerprint, mode, source/schema and policy context, and its own admitted query

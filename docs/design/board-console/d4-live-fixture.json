@@ -8,8 +8,15 @@
     "candidate_id": "C1",
     "candidate_sql": "SELECT id, value FROM samples",
     "source_revision": 42,
-    "label": "Preview",
-    "provenance_location": "Query info from the result-state control; no repeated SQL, source revision or candidate ID line in the result area.",
+    "label": null,
+    "presentation": {
+      "result_background": "#f2f2f2",
+      "scope": "Result region including Profile; remains when Profile is closed.",
+      "query_info_control": "Standalone information icon with an accessible provisional-candidate description.",
+      "promotion": "Return to white only when promotion_requires all hold; stopping typing is insufficient.",
+      "text_and_controls": "Black text, active controls; no whole-region opacity or required animation."
+    },
+    "provenance_location": "Query info from the information icon; no repeated SQL, source revision or candidate ID line in the result area.",
     "rows": [
       [
         101,

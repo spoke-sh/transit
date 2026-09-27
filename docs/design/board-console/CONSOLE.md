@@ -252,15 +252,23 @@ access and secret-handling contracts. No automatic localStorage history is impli
 ## Result layout and column profiles
 
 Make returned rows the main result view. The compact toolbar contains Rows/Chart,
-a short result-state information control and the Profile toggle. Row/column
+query information and the Profile toggle. Row/column
 counts live once at the top of Profile; closing it hides those counts rather than
 moving them back into the result toolbar. Remove the prominent
 speculative title and source/candidate metadata line, plus the duplicate SQL
 block and separate Summary tab. Exact statement, source/schema revisions,
 candidate/draft identity, verified completion and observation evidence are
-available in **Query info**, opened from the result-state information affordance.
-Remove the old Details link, which did not explain that content. Give the state
-button an accessible name such as Preview — Query info; Enter/Space opens the
+available in **Query info**, opened from the information affordance.
+Provisional answers use a pale grey result background (`#f2f2f2` in the study),
+covering rows/charts and their Profile panel, with no visible Preview label or
+replacement badge. Keep black text and active controls; do not dim the whole
+region or make it look disabled. Retain the unlabelled information icon with an
+accessible name describing Query info and the provisional candidate relationship.
+Announce a change of result state accessibly, not every keystroke or cell update.
+The grey treatment persists with Profile closed and returns to white only when
+the result qualifies as the exact current answer. Motion alone is not its state
+contract, and no flashing or animation is required.
+Remove the old Details link, which did not explain its content. Enter/Space opens the
 popover, Escape closes it and returns focus. The popover names the relationship
 between executed SQL and the draft; Earlier draft and Following remain distinct.
 Detailed provenance is not repeated in the grid or profile headings.

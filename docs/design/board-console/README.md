@@ -21,7 +21,8 @@ and bounded implementation without changing its recorded outcomes.
 | [D3](D3.md) | Compact navigation, product context and more working space | Reviewed | Reviewer found the shell cleaner and easy to review; D4 carries it forward and merges Data/Queries into Explore |
 | [D4](D4.md) | Live SQL-first Explore, context-aware Transit search, compact profiles and charts | In review | Figure 1 direction selected; reviewer requested global header search grounded in section context, typed grouping and a breakdown of retrieval/ranking with streaming indexes; search, scheduling and profile/stream contracts remain proposed |
 
-The figures are black-and-white vector wireframes with synthetic examples. They are
+The figures are monochrome vector wireframes with synthetic examples; D4 uses
+reviewer-requested pale grey to indicate provisional results without a label. They are
 neither application screenshots nor evidence of available protocols, permissions
 or scale. The proposal preserves M2/M13 and maps dependencies to M15–M19;
 new implementation work requires its own place in the linear roadmap.

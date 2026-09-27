@@ -203,7 +203,9 @@ and unavailable measurements; search does not scan data or alter the SQL draft.
 The result grid is primary, with a closable right Profile panel for returned-column
 cardinality, nulls, ranges and distributions. Query provenance lives in Query info
 on the result-state control;
-compact preview/earlier-draft/following indicators and profile coverage stay visible.
+pale grey provisional results replace the Preview label, while earlier-draft/
+following indicators and profile coverage stay visible. The information icon
+retains candidate provenance and an accessible state description.
 Closing or reopening the panel does not rerun SQL or change a result's identity.
 Row/column counts belong inside Profile. Compact horizontal column summaries
 make room for more dimensions, and Chart plots the same identified result with
