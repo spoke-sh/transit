@@ -91,6 +91,15 @@ eight-item catalog pages to that observation. Any intervening authority change
 expires the page. Legacy PID-scoped inspection remains on the default `legacy_v2`
 profile and its existing routes; growing atlas does not implement those routes.
 
+The growing profile also serves `GET /api/v1/resources/{resource}/records`.
+Provision `inspect | read` (3) on the resource to expose record identities and
+recognized exchange metadata. Metadata-only inspect permission is insufficient.
+Each request rechecks the current read grant; no query identity is used. An
+optional `revision=N&after=HEX` cursor continues the same resource revision,
+where `HEX` is a lowercase key of 1–32 bytes. A changed revision returns 409;
+revoked access returns 403 even for a previously valid cursor. The response
+omits raw values, capture bodies and adapter context. It does not pin history.
+
 Queries are disabled unless `query` is configured. For an already provisioned
 source/requester installation, add these fields to the ordinary Board config:
 

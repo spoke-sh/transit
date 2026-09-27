@@ -82,6 +82,23 @@ hit the default hot-only 64 MiB store limit; the proof now uses M10's existing
 object-store bytes without enabling retention or raising memory limits.
 Naming-service rebinding and broader deployment qualification remain separate work.
 
+`just transit-board::http-test` adds the real Board API to that disk/S3 worker
+schedule; `just transit-board::http-browser` additionally exercises its embedded
+UI. The latter passes bounded record paging, exact source alignment, no raw value
+disclosure, unchanged durable authority position across inspection, stale-revision
+refusal, and current read revocation including a previously valid continuation.
+The actual generated JavaScript validator accepts service pages and rejects
+numeric full-width exchange IDs. The real browser clears capture cards on live
+revocation, resumes after access is restored, sends only GET requests, and leaves
+no cookies or local/session storage. The complete worker/API/browser schedule
+took 460.46 seconds excluding compilation, including 11.7 seconds of Chromium
+execution, and retained 971 cold objects / 104,734,346 object-store bytes. This is
+local evidence, not hosted CI qualification.
+Deterministic projection/client units cover malformed versions, wrong writers,
+private context omission, exact uint64 limits and source mismatches. HTTP timing,
+omission and root endpoint policy inspection remain outside this initial slice.
+`just transit-board::query-test` also passes against the changed growing router.
+
 Public HTD1 disposal now releases only the authenticated original caller's hold.
 The real worker's `poll` mode passes disposal without its credential file,
 accepted-receipt loss with exact retry,

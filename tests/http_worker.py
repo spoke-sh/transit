@@ -14,9 +14,10 @@ from storage import Fixture, free_port, wait_ready
 from cold_storage import ColdStore
 
 
-def run(node, provision, worker, library):
+def run(node, provision, worker, library, board=None, browser=False):
     started = time.monotonic()
     node, provision, worker, library = map(lambda value: str(Path(value).resolve()), (node, provision, worker, library))
+    if board is not None: board = str(Path(board).resolve())
     payload = bytes((i * 29 + 5) % 256 for i in range(1027))
     with ColdStore() as cold, Fixture(cold.config()) as fixture:
         public = json.loads(subprocess.check_output([provision, "public"], timeout=10))
@@ -389,6 +390,10 @@ def run(node, provision, worker, library):
             assert result["effect"] > 0 and result["attempt"] > 0
             assert requests[-1] == "/public"
 
+            if board is not None:
+                from http_board import inspect_capture
+                inspect_capture(fixture, admin, url, saved, board, provision, state, browser)
+
             from station_growing_abi import Native
             from station_abi import rejects
             libraries = fixture.root / "libraries"
@@ -656,4 +661,4 @@ def run(node, provision, worker, library):
 
 
 if __name__ == "__main__":
-    run(*sys.argv[1:])
+    run(*sys.argv[1:6], browser="--browser" in sys.argv)

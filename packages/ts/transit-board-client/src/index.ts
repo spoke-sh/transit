@@ -119,9 +119,79 @@ export function readState(
   return request(base + query, validateStateResponse, { signal });
 }
 
-export type { AtlasResponse, QueryRequest, QueryResponse } from "./types";
-import type { AtlasResponse, QueryRequest, QueryResponse } from "./types";
-import { AtlasResponse as atlasValidator, QueryResponse as queryValidator } from "./validators.js";
+export type { AtlasResponse, QueryRequest, QueryResponse, RecordsResponse } from "./types";
+import type { AtlasResponse, QueryRequest, QueryResponse, RecordsResponse } from "./types";
+import {
+  AtlasResponse as atlasValidator,
+  QueryResponse as queryValidator,
+  RecordsResponse as recordsValidator,
+} from "./validators.js";
+export function validateRecords(value: unknown): value is RecordsResponse {
+  if (!recordsValidator(value)) return false;
+  const page = value as RecordsResponse;
+  const wide = (text: string, zero = false) =>
+    /^(0|[1-9][0-9]{0,19})$/.test(text) &&
+    (zero || text !== "0") &&
+    BigInt(text) <= 18446744073709551615n;
+  return page.exchanges.every((lens, index) => {
+    if (lens === null) return true;
+    const entry = page.page.entries[index];
+    const source = lens.source;
+    if (
+      entry == null ||
+      source.realm !== page.realm ||
+      source.resource !== page.resource.id ||
+      source.pid !== page.resource.writer ||
+      source.position !== page.position ||
+      source.resource_revision !== page.resource.revision ||
+      source.entry_revision !== entry.revision ||
+      source.key !== entry.key
+    )
+      return false;
+    const detail = lens.declaration;
+    if ("capture" in detail) {
+      const d = detail.capture;
+      return (
+        wide(d.exchange) && wide(d.parent, true) && wide(d.bytes, true) && wide(d.capture_bytes)
+      );
+    }
+    if ("lineage" in detail) {
+      const d = detail.lineage;
+      return (
+        wide(d.exchange) &&
+        wide(d.root) &&
+        wide(d.parent) &&
+        wide(d.policy) &&
+        wide(d.policy_revision)
+      );
+    }
+    if ("obligations" in detail)
+      return wide(detail.obligations.exchange) && wide(detail.obligations.dependents, true);
+    return (
+      wide(detail.attempts.exchange) &&
+      detail.attempts.unsettled < detail.attempts.used &&
+      detail.attempts.used <= detail.attempts.limit
+    );
+  });
+}
+export function records(
+  resource: number,
+  cursor?: { revision: number; after: string },
+  signal?: AbortSignal,
+) {
+  if (!Number.isSafeInteger(resource) || resource <= 0) throw new BoardError(0, "InvalidResource");
+  if (
+    cursor &&
+    (!Number.isSafeInteger(cursor.revision) ||
+      cursor.revision < 0 ||
+      !/^([0-9a-f]{2}){1,32}$/.test(cursor.after))
+  )
+    throw new BoardError(0, "InvalidCursor");
+  const suffix = cursor
+    ? `?${new URLSearchParams({ revision: String(cursor.revision), after: cursor.after })}`
+    : "";
+  return request(`/api/v1/resources/${resource}/records${suffix}`, validateRecords, { signal });
+}
 export const validateAtlas = (value: unknown): value is AtlasResponse => atlasValidator(value);
 export const validateQuery = (value: unknown): value is QueryResponse => {
   if (!queryValidator(value)) return false;

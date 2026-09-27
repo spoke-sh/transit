@@ -29,6 +29,10 @@ fn route(out: *std.json.Stringify, path: []const u8, method: []const u8, name: [
     if (pid) try out.write(.{ .name = if (std.mem.indexOf(u8, path, "{resource}") != null) "resource" else "pid", .in = "path", .required = true, .schema = .{ .type = "integer", .minimum = 1, .maximum = api.protocol.max_counter } });
     if (paged) for ([_][]const u8{ "after", "position", "policy_revision", "retained_from" }) |param| try out.write(.{ .name = param, .in = "query", .required = false, .schema = .{ .type = "integer", .minimum = 0, .maximum = api.protocol.max_counter }, .description = "Continuation: supply all cut fields together; restart explicitly after 409" });
     if (std.mem.eql(u8, path, "/api/v1/atlas")) for ([_][]const u8{ "position", "process_after", "resource_after" }) |param| try out.write(.{ .name = param, .in = "query", .required = false, .schema = .{ .type = "integer", .minimum = 0, .maximum = api.protocol.max_counter }, .description = "Growing profile only. An after cursor requires its original position; refresh explicitly after 409." });
+    if (std.mem.eql(u8, path, "/api/v1/resources/{resource}/records")) {
+        try out.write(.{ .name = "revision", .in = "query", .required = false, .schema = .{ .type = "integer", .minimum = 0, .maximum = api.protocol.max_counter }, .description = "Growing resource revision. Refresh explicitly after 409." });
+        try out.write(.{ .name = "after", .in = "query", .required = false, .schema = .{ .type = "string", .pattern = "^([0-9a-f]{2}){1,32}$" }, .description = "Exclusive key cursor; supply its original resource revision." });
+    }
     if (std.mem.eql(u8, method, "post")) try out.write(.{ .name = "Origin", .in = "header", .required = true, .schema = .{ .type = "string" }, .description = "Must exactly match the configured public_origin. Query capability must be explicitly configured." });
     try out.endArray();
     if (std.mem.eql(u8, method, "post")) {
@@ -63,6 +67,7 @@ pub fn main(init: std.process.Init) !void {
     try route(&out, "/api/v1/resources", "get", "StateResponse", false, true);
     try route(&out, "/api/v1/resources/{resource}", "get", "StateResponse", true, true);
     try route(&out, "/api/v1/resources/{resource}/entries", "get", "StateResponse", true, true);
+    try route(&out, "/api/v1/resources/{resource}/records", "get", "RecordsResponse", true, false);
     for ([_][]const u8{ "mailbox", "outbox", "effects", "payloads", "history", "journey" }) |resource| {
         var path: [128]u8 = undefined;
         try route(&out, try std.fmt.bufPrint(&path, "/api/v1/processes/{{pid}}/{s}", .{resource}), "get", "Response", true, true);
@@ -72,7 +77,7 @@ pub fn main(init: std.process.Init) !void {
     try out.beginObject();
     try out.objectField("schemas");
     try out.beginObject();
-    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "QueryRequest", "QueryResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.QueryRequest, api.QueryResponse }) |name, T| {
+    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "QueryRequest", "QueryResponse", "RecordsResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.QueryRequest, api.QueryResponse, api.RecordsResponse }) |name, T| {
         try out.objectField(name);
         try s.write(T, &out, .{ .output = true, .safe_integers = true, .text_max_length = if (T == api.QueryRequest or T == api.QueryResponse) 16384 else 256 });
     }

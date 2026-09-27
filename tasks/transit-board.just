@@ -65,3 +65,11 @@ query-test:
 # Qualify the real growing atlas/workspace, typed results and live revocation.
 query-browser:
     zig build test-board-query -Dquery-browser=true
+
+# Inspect real HTTP captures, scoped metadata pages and revoked continuations.
+http-test:
+    zig build test-http-worker -Dhttp-board=true
+
+# Exercise the embedded exchange inspector and clearing after read revocation.
+http-browser:
+    zig build test-http-worker -Dhttp-board-browser=true

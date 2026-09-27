@@ -1164,6 +1164,126 @@
         }
       }
     },
+    "/api/v1/resources/{resource}/records": {
+      "get": {
+        "summary": "RecordsResponse",
+        "parameters": [
+          {
+            "name": "resource",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Growing resource revision. Refresh explicitly after 409."
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2}){1,32}$"
+            },
+            "description": "Exclusive key cursor; supply its original resource revision."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "RecordsResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/processes/{pid}/mailbox": {
       "get": {
         "summary": "Response",
@@ -7420,6 +7540,748 @@
             }
           }
         ]
+      },
+      "RecordsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-transit-field-order": [
+          "version",
+          "realm",
+          "position",
+          "resource",
+          "page",
+          "exchanges"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "x-transit-bits": 8,
+            "x-transit-signed": false
+          },
+          "realm": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "x-transit-bits": 64,
+            "x-transit-signed": false
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "x-transit-bits": 64,
+            "x-transit-signed": false
+          },
+          "resource": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "id",
+              "writer",
+              "owner",
+              "revision",
+              "entries",
+              "deadline_ms",
+              "phase",
+              "retired_at"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "writer": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "owner": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "entries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "deadline_ms": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "retired"
+                ]
+              },
+              "retired_at": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "writer",
+              "owner",
+              "revision",
+              "entries",
+              "deadline_ms",
+              "phase",
+              "retired_at"
+            ],
+            "x-transit-defaults": {
+              "entries": 0,
+              "phase": "active",
+              "retired_at": null
+            }
+          },
+          "page": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "entries",
+              "next"
+            ],
+            "properties": {
+              "entries": {
+                "type": "array",
+                "minItems": 8,
+                "maxItems": 8,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "key",
+                        "revision"
+                      ],
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "revision"
+                      ],
+                      "x-transit-defaults": {}
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "next": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?:[0-9a-f]{2})*$",
+                    "maxLength": 512,
+                    "x-transit-encoding": "lowercase-hex"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "entries",
+              "next"
+            ],
+            "x-transit-defaults": {
+              "entries": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ],
+              "next": null
+            }
+          },
+          "exchanges": {
+            "type": "array",
+            "minItems": 8,
+            "maxItems": 8,
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "version",
+                    "source",
+                    "declaration"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 255,
+                      "x-transit-bits": 8,
+                      "x-transit-signed": false
+                    },
+                    "source": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "realm",
+                        "pid",
+                        "resource",
+                        "key",
+                        "entry_revision",
+                        "resource_revision",
+                        "position"
+                      ],
+                      "properties": {
+                        "realm": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "resource": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "key": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "entry_revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "resource_revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "position": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "realm",
+                        "pid",
+                        "resource",
+                        "key",
+                        "entry_revision",
+                        "resource_revision",
+                        "position"
+                      ],
+                      "x-transit-defaults": {}
+                    },
+                    "declaration": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "capture"
+                          ],
+                          "properties": {
+                            "capture": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "exchange",
+                                "protocol",
+                                "phase",
+                                "caller",
+                                "input",
+                                "owner",
+                                "parent",
+                                "effect",
+                                "attempt",
+                                "executor",
+                                "reconcile_before_ms",
+                                "segments",
+                                "max_segments",
+                                "bytes",
+                                "capture_bytes",
+                                "segment_bytes",
+                                "pending_kind",
+                                "terminal_code",
+                                "collected",
+                                "coverage"
+                              ],
+                              "properties": {
+                                "exchange": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "protocol": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "phase": {
+                                  "type": "string",
+                                  "enum": [
+                                    "preparing",
+                                    "capturing",
+                                    "complete",
+                                    "unknown",
+                                    "retired",
+                                    "ready"
+                                  ]
+                                },
+                                "caller": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "input": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "owner": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "parent": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "effect": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "attempt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "executor": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "reconcile_before_ms": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "segments": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "max_segments": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "bytes": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "capture_bytes": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "segment_bytes": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "pending_kind": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "terminal_code": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "collected": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "coverage": {
+                                  "type": "array",
+                                  "minItems": 32,
+                                  "maxItems": 32,
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 255,
+                                    "x-transit-bits": 8,
+                                    "x-transit-signed": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "exchange",
+                                "protocol",
+                                "phase",
+                                "caller",
+                                "input",
+                                "owner",
+                                "parent",
+                                "effect",
+                                "attempt",
+                                "executor",
+                                "reconcile_before_ms",
+                                "segments",
+                                "max_segments",
+                                "bytes",
+                                "capture_bytes",
+                                "segment_bytes",
+                                "pending_kind",
+                                "terminal_code",
+                                "collected",
+                                "coverage"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "obligations"
+                          ],
+                          "properties": {
+                            "obligations": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "exchange",
+                                "dependents",
+                                "disposition",
+                                "caller",
+                                "effect"
+                              ],
+                              "properties": {
+                                "exchange": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "dependents": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "disposition": {
+                                  "type": "string",
+                                  "enum": [
+                                    "no_intent",
+                                    "pending",
+                                    "observed",
+                                    "cancelled",
+                                    "closed_unknown"
+                                  ]
+                                },
+                                "caller": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none",
+                                    "held",
+                                    "released"
+                                  ]
+                                },
+                                "effect": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                }
+                              },
+                              "required": [
+                                "exchange",
+                                "dependents",
+                                "disposition",
+                                "caller",
+                                "effect"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "lineage"
+                          ],
+                          "properties": {
+                            "lineage": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "exchange",
+                                "root",
+                                "parent",
+                                "ordinal",
+                                "reason",
+                                "policy",
+                                "policy_revision"
+                              ],
+                              "properties": {
+                                "exchange": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "root": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "parent": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "ordinal": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "reason": {
+                                  "type": "string",
+                                  "enum": [
+                                    "retry",
+                                    "redirect",
+                                    "reconcile",
+                                    "cancel"
+                                  ]
+                                },
+                                "policy": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "policy_revision": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                }
+                              },
+                              "required": [
+                                "exchange",
+                                "root",
+                                "parent",
+                                "ordinal",
+                                "reason",
+                                "policy",
+                                "policy_revision"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "attempts"
+                          ],
+                          "properties": {
+                            "attempts": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "exchange",
+                                "limit",
+                                "used",
+                                "unsettled"
+                              ],
+                              "properties": {
+                                "exchange": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "limit": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "used": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                },
+                                "unsettled": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 4294967295,
+                                  "x-transit-bits": 32,
+                                  "x-transit-signed": false
+                                }
+                              },
+                              "required": [
+                                "exchange",
+                                "limit",
+                                "used",
+                                "unsettled"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "source",
+                    "declaration"
+                  ],
+                  "x-transit-defaults": {
+                    "version": 1
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "version",
+          "realm",
+          "position",
+          "resource",
+          "page",
+          "exchanges"
+        ],
+        "x-transit-defaults": {
+          "version": 1,
+          "exchanges": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        }
       }
     }
   }

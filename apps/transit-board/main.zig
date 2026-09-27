@@ -62,6 +62,7 @@ const Server = struct {
         if (err == error.UnsafePrincipal) return self.failure(req, .forbidden, .UnsafePrincipal);
         if (err == error.QueryChanged or upstream.last_rejection == .StaleStateResource or upstream.last_rejection == .QueryExpired) return self.failure(req, .conflict, .QueryExpired);
         if (err == error.QuerySourceUnavailable or upstream.last_rejection == .StateResourceExpired) return self.failure(req, .gone, .StateResourceExpired);
+        if (upstream.last_rejection == .UnknownStateResource) return self.failure(req, .not_found, .NotFound);
         if (err == error.QueryBusy) return self.failure(req, .conflict, .QueryBusy);
         if (err == error.IncompleteResult) return self.failure(req, .conflict, .IncompleteResult);
         if (err == error.InvalidQueryOrdinal) return self.failure(req, .bad_request, .InvalidQueryOrdinal);
@@ -92,7 +93,8 @@ const Server = struct {
     }
     fn growingRequest(self: *Server, req: *std.http.Server.Request, target: []const u8) !void {
         const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
-        const cursor = if (capabilities) growing.Cursor{} else parseAtlas(target) catch return self.failure(req, .bad_request, .InvalidQuery);
+        const records = parseRecords(target) catch return self.failure(req, .bad_request, .InvalidQuery);
+        const cursor = if (capabilities or records != null) growing.Cursor{} else parseAtlas(target) catch return self.failure(req, .bad_request, .InvalidQuery);
         if (self.now() < self.next_read_ms) return self.failure(req, .too_many_requests, .RateLimited);
         self.next_read_ms = self.now() + self.config.read_interval_ms;
         var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
@@ -104,7 +106,13 @@ const Server = struct {
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
         if (capabilities) {
             const reader = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailure(req, &upstream, err);
-            return self.json(req, .ok, api.Capabilities{ .profile = .growing_v3, .query_enabled = self.config.query != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = 16384 });
+            return self.json(req, .ok, api.Capabilities{ .profile = .growing_v3, .query_enabled = self.config.query != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = 16384, .http_connector = true });
+        }
+        if (records) |page| {
+            var arena = std.heap.ArenaAllocator.init(self.allocator);
+            defer arena.deinit();
+            const result = growing.records(&upstream, self.config.realm, self.config.principal, key, page, arena.allocator()) catch |err| return self.queryFailure(req, &upstream, err);
+            return self.json(req, .ok, result);
         }
         const result = growing.atlas(&upstream, self.config.realm, self.config.principal, key, cursor, if (self.config.query) |config| config.connection.resource else null) catch |err| return self.queryFailure(req, &upstream, err);
         return self.json(req, .ok, result);
@@ -206,6 +214,7 @@ fn logRoute(target: []const u8) []const u8 {
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
     inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes" }) |known| if (std.mem.eql(u8, path, known)) return known;
     if (assets.get(path) != null) return "/assets/{asset}";
+    if ((parseRecords(path) catch null) != null) return "/api/v1/resources/{resource}/records";
     if (parseStateQuery(path, 1, 1) catch null) |q| return switch (q.kind) {
         .resources => if (q.resource == null) "/api/v1/resources" else "/api/v1/resources/{resource}",
         .associations => "/api/v1/processes/{pid}/associations",
@@ -304,6 +313,38 @@ fn parseStateQuery(target: []const u8, realm: u64, principal: u8) !?client.proto
     }
     try client.protocol.State.validateQuery(q);
     return q;
+}
+fn parseRecords(target: []const u8) !?growing.RecordsCursor {
+    const sep = std.mem.indexOfScalar(u8, target, '?') orelse target.len;
+    const path = target[0..sep];
+    const prefix = "/api/v1/resources/";
+    const suffix = "/records";
+    if (!std.mem.startsWith(u8, path, prefix) or !std.mem.endsWith(u8, path, suffix)) return null;
+    if (path.len <= prefix.len + suffix.len) return error.InvalidQuery;
+    var result: growing.RecordsCursor = .{ .resource = try number(path[prefix.len .. path.len - suffix.len]) };
+    if (result.resource == 0) return error.InvalidQuery;
+    if (sep < target.len) {
+        var fields = std.mem.splitScalar(u8, target[sep + 1 ..], '&');
+        var seen: u8 = 0;
+        while (fields.next()) |field| {
+            const equal = std.mem.indexOfScalar(u8, field, '=') orelse return error.InvalidQuery;
+            const name = field[0..equal];
+            const value = field[equal + 1 ..];
+            const bit: u8 = if (std.mem.eql(u8, name, "revision")) 1 else if (std.mem.eql(u8, name, "after")) 2 else return error.InvalidQuery;
+            if (seen & bit != 0) return error.InvalidQuery;
+            seen |= bit;
+            if (bit == 1) {
+                result.revision = try number(value);
+            } else {
+                if (value.len == 0 or value.len > client.protocol.Growth.key_bytes * 2 or value.len % 2 != 0) return error.InvalidQuery;
+                for (value) |byte| if (!(byte >= '0' and byte <= '9') and !(byte >= 'a' and byte <= 'f')) return error.InvalidQuery;
+                var bytes: [client.protocol.Growth.key_bytes]u8 = undefined;
+                result.after = try client.protocol.Value.init(std.fmt.hexToBytes(&bytes, value) catch return error.InvalidQuery);
+            }
+        }
+        if (result.after != null and result.revision == null) return error.InvalidQuery;
+    }
+    return result;
 }
 fn parseAtlas(target: []const u8) !growing.Cursor {
     const sep = std.mem.indexOfScalar(u8, target, '?') orelse target.len;
@@ -420,4 +461,24 @@ test "routes and query bounds reject ambiguous or unsafe identity" {
     try std.testing.expectError(error.InvalidQuery, parseQuery("/api/v1/processes?position=3", 1, 1));
     try std.testing.expectError(error.InvalidQuery, parseQuery("/api/v1/processes?after=0&after=0", 1, 1));
     try std.testing.expectError(error.InvalidQuery, parseQuery("/api/v1/processes?url=http://evil", 1, 1));
+}
+test "record cursors require an exact bounded key and original revision" {
+    const t = std.testing;
+    const page = (try parseRecords("/api/v1/resources/7/records?revision=42&after=0045ff")).?;
+    try t.expectEqual(@as(u64, 7), page.resource);
+    try t.expectEqual(@as(?u64, 42), page.revision);
+    try t.expectEqualStrings("\x00E\xff", page.after.?.slice());
+    try t.expectEqualStrings("/api/v1/resources/{resource}/records", logRoute("/api/v1/resources/7/records?after=private"));
+    try t.expectEqual(null, try parseRecords("/api/v1/atlas"));
+    inline for (.{
+        "/api/v1/resources/0/records",
+        "/api/v1/resources/9007199254740992/records",
+        "/api/v1/resources/7/records?after=00",
+        "/api/v1/resources/7/records?revision=1&after=",
+        "/api/v1/resources/7/records?revision=1&after=0",
+        "/api/v1/resources/7/records?revision=1&after=FF",
+        "/api/v1/resources/7/records?revision=1&after=%00",
+        "/api/v1/resources/7/records?revision=1&revision=2",
+        "/api/v1/resources/7/records?view=3",
+    }) |invalid| try t.expectError(error.InvalidQuery, parseRecords(invalid));
 }

@@ -1,8 +1,10 @@
 //! Board v1: evidence-preserving projections over the public Transit contract.
 const std = @import("std");
+pub const Exchange = @import("Exchange.zig");
 pub const Json = @import("Json.zig");
 test {
     _ = Json;
+    _ = Exchange;
 }
 pub const protocol = @import("transit_protocol");
 const p = protocol;
@@ -29,6 +31,39 @@ pub const Lens = struct {
     declaration: @import("transit_station").Metadata.Detail,
 };
 pub const StateResponse = struct { observation: p.State.Page, framework: [p.State.page_size]?Lens = @splat(null) };
+pub const ExchangeLens = struct { version: u8 = 1, source: @FieldType(Lens, "source"), declaration: Exchange.Detail };
+pub const RecordIdentity = struct { key: p.Value, revision: u64 };
+pub const RecordsResponse = struct {
+    version: u8 = 1,
+    realm: u64,
+    position: u64,
+    resource: p.Growth.Resource,
+    page: p.Growth.Batch(RecordIdentity, p.Value),
+    exchanges: [p.Growth.page_size]?ExchangeLens = @splat(null),
+};
+pub fn projectRecords(allocator: std.mem.Allocator, realm: u64, position: u64, resource: p.Growth.Resource, page: p.Growth.Batch(p.Growth.Entry, p.Value)) !RecordsResponse {
+    var result: RecordsResponse = .{ .realm = realm, .position = position, .resource = resource, .page = .{ .next = page.next } };
+    for (page.entries, 0..) |slot, index| if (slot) |entry| {
+        result.page.entries[index] = .{ .key = entry.key, .revision = entry.revision };
+        if (try Exchange.decode(allocator, resource.writer, entry.key, entry.value)) |detail| result.exchanges[index] = .{ .source = .{ .realm = realm, .pid = resource.writer, .resource = resource.id, .key = entry.key, .entry_revision = entry.revision, .resource_revision = resource.revision, .position = position }, .declaration = detail };
+    };
+    return result;
+}
+test "growing metadata projection never returns captured or application values" {
+    const t = std.testing;
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    var page: p.Growth.Batch(p.Growth.Entry, p.Value) = .{};
+    const body = try p.Value.init("private captured body");
+    page.entries[0] = .{ .key = try p.Value.init("application"), .value = body, .revision = 5 };
+    const projected = try projectRecords(arena.allocator(), 1, 7, .{ .id = 3, .writer = 2, .owner = null, .revision = 5, .entries = 1, .deadline_ms = null }, page);
+    try t.expectEqual(null, projected.exchanges[0]);
+    try t.expect(projected.page.entries[0].?.key.eql(page.entries[0].?.key));
+    const json = try std.json.Stringify.valueAlloc(arena.allocator(), projected, .{});
+    try t.expect(std.mem.indexOf(u8, json, "private captured body") == null);
+    const hex = try std.fmt.allocPrint(arena.allocator(), "{x}", .{body.slice()});
+    try t.expect(std.mem.indexOf(u8, json, hex) == null);
+}
 pub const Capabilities = struct {
     version: u32 = 1,
     profile: enum { legacy_v2, growing_v3 } = .legacy_v2,

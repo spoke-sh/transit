@@ -3,6 +3,7 @@ import { text } from "./components";
 import {
   validateCapabilities,
   validateQuery,
+  validateRecords,
   type QueryResponse,
   BoardError,
 } from "@rey/transit-board-client";
@@ -40,6 +41,69 @@ describe("inspection semantics", () => {
     expect(validateCapabilities({ ...caps, realm: 9007199254740992 })).toBe(false);
     expect(validateCapabilities({ ...caps, scope_pid: "1" })).toBe(false);
     expect(validateCapabilities({ ...caps, unexpected: true })).toBe(false);
+  });
+});
+
+describe("exchange metadata boundary", () => {
+  const page = () => ({
+    version: 1,
+    realm: 1,
+    position: 20,
+    resource: {
+      id: 7,
+      writer: 2,
+      owner: null,
+      revision: 18,
+      entries: 1,
+      deadline_ms: null,
+      phase: "active",
+      retired_at: null,
+    },
+    page: {
+      entries: [{ key: "0045", revision: 18 }, ...Array(7).fill(null)],
+      next: null,
+    },
+    exchanges: [
+      {
+        version: 1,
+        source: {
+          realm: 1,
+          pid: 2,
+          resource: 7,
+          key: "0045",
+          entry_revision: 18,
+          resource_revision: 18,
+          position: 20,
+        },
+        declaration: {
+          lineage: {
+            exchange: "18446744073709551615",
+            root: "1",
+            parent: "1",
+            ordinal: 2,
+            reason: "retry",
+            policy: "18446744073709551615",
+            policy_revision: "7",
+          },
+        },
+      },
+      ...Array(7).fill(null),
+    ],
+  });
+  it("preserves full-width identity and refuses narrowed or invented source evidence", () => {
+    const valid = page();
+    expect(validateRecords(valid)).toBe(true);
+    for (const exchange of ["18446744073709551616", "01", "0", "1e3", 1]) {
+      const changed = structuredClone(valid);
+      changed.exchanges[0].declaration.lineage.exchange = exchange;
+      expect(validateRecords(changed)).toBe(false);
+    }
+    const other = page();
+    other.exchanges[0].source.resource = 8;
+    expect(validateRecords(other)).toBe(false);
+    const context = page();
+    context.exchanges[0].declaration.lineage.context = "private";
+    expect(validateRecords(context)).toBe(false);
   });
 });
 

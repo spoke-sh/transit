@@ -257,6 +257,10 @@ pub fn build(b: *std.Build) void {
     http_worker_test.addArtifactArg(http_provision);
     http_worker_test.addArtifactArg(http_worker);
     http_worker_test.addArtifactArg(station_bindings.artifact("transit_station"));
+    const http_browser = b.option(bool, "http-board-browser", "Include real HTTP exchange inspection in Board") orelse false;
+    const http_board = b.option(bool, "http-board", "Qualify Board metadata against real HTTP capture") orelse false;
+    if (http_browser or http_board) http_worker_test.addArtifactArg(board);
+    if (http_browser) http_worker_test.addArg("--browser");
     http_worker_test.has_side_effects = true;
     http_worker_test.stdio = .inherit;
     b.step("test-http-worker", "Prove durable HTTP capture and unknown-outcome recovery").dependOn(&http_worker_test.step);

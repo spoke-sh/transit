@@ -7,6 +7,7 @@ const p = client.protocol;
 const g = p.Growth;
 pub const QueryConfig = struct { seed_file: []const u8, connection: q.Model.Connection };
 pub const Cursor = struct { position: ?u64 = null, process_after: ?u64 = null, resource_after: ?u64 = null };
+pub const RecordsCursor = struct { resource: u64, revision: ?u64 = null, after: ?p.Value = null };
 pub fn identity(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair) !g.Response {
     const response = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .identity = {} } }, key);
     // First growing Board profile supports a realm inspector plus filtered
@@ -25,6 +26,15 @@ pub fn atlas(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.Ke
         if (slot) |resource| if (resource.id == query_resource) break query_resource;
     } else null;
     return .{ .realm = realm, .position = reader.position, .identity = reader.body.identity, .processes = processes.body.processes, .resources = resources.body.resources, .query_resource = visible };
+}
+pub fn records(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: RecordsCursor, allocator: std.mem.Allocator) !api.RecordsResponse {
+    _ = try identity(wire, realm, principal, key);
+    const revision = cursor.revision orelse (try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .resource = cursor.resource } }, key)).body.resource.revision;
+    const response = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .entries = .{ .resource = cursor.resource, .revision = revision, .after = cursor.after } } }, key);
+    const entries = response.body.entries;
+    if (entries.resource.id != cursor.resource) return error.QueryChanged;
+    if (entries.resource.phase != .active) return error.QuerySourceUnavailable;
+    return api.projectRecords(allocator, realm, response.position, entries.resource, entries.page);
 }
 pub fn query(wire: *client.Client, io: std.Io, config: QueryConfig, request: api.QueryRequest, allocator: std.mem.Allocator) !api.QueryResponse {
     var key = try client.readKey(allocator, io, config.seed_file);

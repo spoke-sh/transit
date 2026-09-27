@@ -3,7 +3,8 @@
 The typed Board v1 response contract, exported as `transit_board_api`. Depends on
 [transit-protocol](../transit-protocol/README.md) and
 [Station's metadata codecs](../transit-station/src/Metadata.zig), plus
-[transit-query](../transit-query/README.md) for the optional query contract. It does not read stores, execute
+[transit-query](../transit-query/README.md) for the optional query contract and
+[transit-exchange](../transit-exchange/README.md) for capture metadata. It does not read stores, execute
 handlers, or authenticate viewers; the Board executable composes those boundaries.
 
 `try project(page)` rejects malformed mixed-resource or inconsistent
@@ -32,6 +33,7 @@ the shared query client.
 | `Response` / `project` | One authorized inspection page plus bounded recorded causal edges |
 | `StateResponse` / `projectState` | One authorized state page without business-value interpretation |
 | `AtlasResponse` | Growing process/resource pages and the current inspection identity at one cut |
+| `RecordsResponse` / `projectRecords` | Eight growing record identities and recognized exchange metadata, with exact source evidence |
 | `QueryRequest`, `QueryResponse` | Optional Table query operations, opaque frozen submissions and verified typed pages |
 | `Json.write` | Schema-consistent JSON: fixed byte arrays stay arrays, text slices stay strings |
 | `Capabilities`, `Error` | Board build capabilities and its finite error vocabulary |
@@ -41,6 +43,16 @@ All projections are deterministic and have no I/O, credential or cache ownership
 Array bounds are part of the wire contract; missing history remains an explicit
 coverage value. A new framework projection must preserve source evidence and
 unknown-version fallback without broadening authorization.
+
+The growing records projection exposes keys/revisions and allowlisted capture,
+obligation, lineage and attempt-budget fields. It omits raw values, captured
+bodies and immutable adapter context. Unknown records retain their identity with
+no decoded detail. Recognition requires the exchange key namespace and canonical
+versioned codec; descriptor ownership must match the resource writer. Full-width
+exchange, policy and count fields use canonical unsigned decimal strings. These
+records describe committed framework evidence, not proof of remote execution or
+permission to dispatch. HTTP timing, omission and root endpoint policy views are
+not implemented yet.
 
 Change the types/projection and tests here, then run `just transit-board::generate`
 and `just transit-board::contract` from the repository root. Update service

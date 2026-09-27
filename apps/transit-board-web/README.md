@@ -54,7 +54,11 @@ No storage, history or retention pin survives leaving the page.
 The atlas shows at most eight processes and eight authorized resources. Relief
 marks pending work qualitatively; unavailable bytes, outbox counts and age stay
 unknown. Keys include framework metadata. Only the configured query Table has
-an entry affordance; all other resources remain inspection-only. Auto emphasis,
+an entry affordance for queries; all resources offer **Inspect records**, subject
+to the configured read grant. That view holds eight record identities with
+recognized exchange metadata and exact source revisions. It omits captured
+bodies and application values, uses explicit continuation, and clears on errors
+or tab hiding. Five-second refreshes recheck current authority. Auto emphasis,
 animated entry and D8 venues/growth remain open design proposals.
 
 ## Working in the frontend
@@ -66,6 +70,7 @@ animated entry and D8 venues/growth remain open design proposals.
 | [resources.tsx](src/resources.tsx)             | Resource/association/entry reads and generic state presentation                   |
 | [components.tsx](src/components.tsx)           | Evidence, status and process views                                                |
 | [atlas.tsx](src/atlas.tsx)                     | Growing catalog, emphasis, selection and explicit resource entry                  |
+| [records.tsx](src/records.tsx)                 | Growing record identities and source-backed exchange metadata                     |
 | [query-workspace.tsx](src/query-workspace.tsx) | One draft/result, explicit submission, current-policy refresh and denial clearing |
 | [model.test.ts](src/model.test.ts)             | Model/client boundary tests                                                       |
 
@@ -85,3 +90,5 @@ host libraries; on supported CI Linux images Playwright can provision them with
 
 `just transit-board::query-browser` qualifies the growing atlas and workspace
 against real hosts, including live revocation and lossless typed values.
+`just transit-board::http-browser` checks actual HTTP capture metadata and live
+read revocation against the disk/S3 worker fixture; it additionally requires Docker.

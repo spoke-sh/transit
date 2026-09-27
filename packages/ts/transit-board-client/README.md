@@ -40,8 +40,8 @@ const visible = page.observation.resources.filter((resource) => resource !== nul
 Values remain exact hexadecimal bytes. Resource metadata grants and entry-read
 grants differ; a denied entry read does not erase unrelated authorized process
 views. Follow `next` with its original cut; never combine pages after a cut
-expires. Framework enrichment is a future versioned contract, not a decoder for
-application values.
+expires. Recognized framework enrichment preserves source evidence and does not
+decode application values.
 
 [src/index.ts](src/index.ts) owns transport and error handling. Generated types,
 schemas and validators live beside it; edit the Zig owner and generator rather
@@ -54,6 +54,17 @@ types. Unit/runtime and real-browser checks live with Board web; API fixtures an
 independent Python consumers live in `tests/board.py`.
 
 ## Growing atlas and queries
+
+`records(resource, cursor?, signal?)` reads up to eight record identities and
+recognized exchange metadata from a growing resource. It requires the configured
+inspection principal's current resource read grant. A continuation carries the
+original resource revision and a lowercase hexadecimal key of 1–32 bytes;
+revision changes require an explicit refresh. `validateRecords` checks source
+alignment and canonical full-width unsigned decimal strings after generated
+schema validation. The response never includes raw values or captured bodies.
+Consumers must clear displayed records on read errors and recheck authority when
+returning to a hidden view. The actual generated validator is also exercised
+against real HTTP captures by `tests/board_records_client.mjs`.
 
 `atlas(cursor?, signal?)` reads bounded growing catalogs. `query(operation,
 signal?)` posts a Zig-owned query operation to the separately configured route.

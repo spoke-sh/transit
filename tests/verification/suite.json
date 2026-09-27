@@ -61,7 +61,8 @@
     ],
     "browser": [
       "transit-board::browser",
-      "transit-board::query-browser"
+      "transit-board::query-browser",
+      "transit-board::http-browser"
     ]
   },
   "tiers": {

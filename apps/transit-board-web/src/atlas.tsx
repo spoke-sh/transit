@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { atlas, BoardError, type AtlasResponse } from "@rey/transit-board-client";
 import { message, useScope } from "./state";
 import { QueryWorkspace } from "./query-workspace";
+import { Records } from "./records";
 import "./atlas.css";
 
 type Selection = { kind: "process" | "resource"; id: number };
@@ -19,6 +20,7 @@ export function Atlas({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [entered, setEntered] = useState(false);
   const [workspace, setWorkspace] = useState<number | null>(null);
+  const [recordResource, setRecordResource] = useState<number | null>(null);
   const [flat, setFlat] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [cursor, setCursor] = useState<Cursor>();
@@ -269,6 +271,9 @@ export function Atlas({
                       <dt>Decoded value bytes</dt>
                       <dd>Unavailable</dd>
                     </dl>
+                    <button onClick={() => setRecordResource(selectedResource.id)}>
+                      Inspect records
+                    </button>
                     {scope?.query_enabled && selectedResource.id === data.query_resource ? (
                       <button
                         className="primary"
@@ -349,6 +354,11 @@ export function Atlas({
           )}
         </>
       )}
+      {data &&
+        recordResource !== null &&
+        resources.some((resource) => resource.id === recordResource) && (
+          <Records key={recordResource} resource={recordResource} />
+        )}
     </main>
   );
 }

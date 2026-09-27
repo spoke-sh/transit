@@ -141,6 +141,15 @@ state. View changes never submit work. Unknown mutations retain exact frozen
 requests for explicit retry; disconnect is not cancellation. No saved query,
 offline result cache or retention pin exists.
 
+M15 adds a bounded growing records view through the same inspection identity's
+resource read grant. Eight keys/revisions and recognized exchange descriptors,
+settlement obligations, lineage and attempt budgets carry exact source evidence.
+Capture bodies and adapter context are omitted. Full-width exchange/policy IDs
+remain decimal strings. The API rechecks each read, rejects changed-revision
+cursors and makes no durable writes; the browser clears records on errors and tab
+hiding. Real HTTP capture and live-revocation browser checks qualify this slice.
+HTTP timing, omission and root endpoint policy inspection remain unimplemented.
+
 ## Boundary and packaging
 
 ```mermaid
@@ -305,8 +314,8 @@ and revision provenance. The [API package](../packages/zig/transit-board-api/REA
 owns the implemented lens set and unknown-version behavior.
 
 Station supplies descriptors for GenServers, Tables, supervisors, registries,
-waits and captured Arrow queries; the later HTTP connector adds exchange and
-attempt views. Identification
+waits and captured Arrow queries; M15 adds exchange and attempt views in the
+growing profile. Identification
 must come from explicit, versioned runtime/framework declarations or an
 operator-configured mapping with visible provenance. A numeric `code` tag,
 process name, or payload shape alone cannot prove a behavior's identity.

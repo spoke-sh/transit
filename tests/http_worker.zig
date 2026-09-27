@@ -39,7 +39,15 @@ pub fn main(init: std.process.Init) !void {
         const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.arena.allocator(), .limited(4096));
         const parsed = try std.json.parseFromSlice(Saved, init.arena.allocator(), bytes, .{});
         saved = parsed.value;
-        if (std.mem.eql(u8, args[2], "call")) {
+        if (std.mem.eql(u8, args[2], "board-grant")) {
+            _ = try admin.submit(.{ .grant = .{ .subject = 55, .public_key = (try p.Ed25519.KeyPair.generateDeterministic(@splat(74))).public_key.toBytes(), .permissions = p.permission(.inspect) } });
+            _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 55, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        } else if (std.mem.eql(u8, args[2], "board-revoke") or std.mem.eql(u8, args[2], "board-restore")) {
+            _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 55, .permissions = if (std.mem.eql(u8, args[2], "board-revoke")) p.State.permission(.inspect) else p.State.permission(.inspect) | p.State.permission(.read) } });
+        } else if (std.mem.eql(u8, args[2], "position")) {
+            try std.json.Stringify.value((try admin.query(.{ .capabilities = {} })).position, .{}, &output.interface);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "call")) {
             if (args.len != 5) return error.MissingRequestConfiguration;
             saved.caller = try Caller.publish(init, &admin, saved.pid, saved.resource, args[4]);
             saved.generation = 3;

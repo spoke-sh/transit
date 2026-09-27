@@ -105,6 +105,10 @@ real disk-backed service proofs. `just transit-board::browser-install` installs 
 Chromium; `just transit-board::browser` exercises the real embedded UI with Playwright.
 `just transit-board::query-test` qualifies the growing API;
 `just transit-board::query-browser` runs its real workspace and revocation proof.
+`just transit-board::http-test` inspects actual HTTP captures;
+`just transit-board::http-browser` additionally checks the embedded records view
+and clearing after revocation. Both use the disk/S3 worker fixture and require
+Docker; the browser task also needs the installed Chromium.
 The [test guide](../../tests/README.md) records measured limits and reference evidence.
 
 ## State resources
@@ -143,6 +147,16 @@ at one current authorized cut. The UI offers Processes/Resources emphasis,
 overhead detail, explicit resource entry, and coordinated Canvas/Browse views.
 Missing size, outbox and age measurements remain labeled unavailable. Catalog
 entry counts include framework keys and do not claim logical Table row counts.
+
+**Inspect records** reads eight keys/revisions through the current resource read
+grant. `GET /api/v1/resources/{resource}/records` adds recognized exchange capture,
+settlement, dependency, lineage and attempt-budget metadata, each tied to its exact
+source record and observation. Raw values and captured bodies are omitted. Pages
+use an explicit resource revision and key cursor; a changed revision requires a
+fresh read. This route needs no query identity and creates no durable work.
+The UI holds one page, clears it on errors or tab hiding, and rechecks every five
+seconds. Capture completion, kernel settlement and remote business success remain
+separate claims. HTTP timing, omission and root endpoint policy views remain open.
 
 The separate query route compiles M12's Table SELECT subset through the shared
 Zig client. Queries execute in external Station hosts; verified Arrow segments
