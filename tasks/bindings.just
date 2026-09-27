@@ -266,3 +266,7 @@ unified-dotnet source="kv": dotnet-build
 unified-beam source="table": beam-build
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=erlang -Dunified-source={{source}}
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=elixir -Dunified-source={{source}}
+
+# All ten installed SDKs against each of the three v2 source services.
+unified-all: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir

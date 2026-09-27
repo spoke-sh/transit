@@ -177,6 +177,21 @@ and malformed streams. Root `just check` passes. All ten SDKs now have typed v2
 APIs; the complete SDK-by-source service matrix and broader lifecycle/deployment
 qualification remain in progress.
 
+The full installed SDK/source recovery matrix subsequently passes: **all ten
+SDKs on KV in 285.65 seconds, Table in 302.53 seconds and accepted Document in
+661.95 seconds**, including isolated installed-consumer setup in each measurement.
+KV/Table return 41 rows / six segments / 13,584 Arrow bytes with eight authority
+pages; Document returns 12 rows / two segments / 9,880 bytes with 64 authority
+pages (533.36 seconds of its run provisions accepted state). All use 8 MiB hot
+storage. Cold evidence is 124 objects / 9,575,310 bytes (KV), 109 / 9,061,732
+(Table), and 1,252 / 112,961,269 (Document). Every SDK independently reads and
+verifies every segment, rejects revoked access after an actual returned prefix,
+and checks all three codec declarations. One uploader performs the lost-receipt
+schedule per source; it is not ten independent upload fault schedules. All
+consumers join successfully before the matrix is counted. `just bindings::unified-all`
+builds the installed packages and reruns this matrix in the bindings shell.
+These local measurements do not qualify hosted CI cost or deployment recovery.
+
 ## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test
