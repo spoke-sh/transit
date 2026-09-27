@@ -26,11 +26,11 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M16](M16.md) | gRPC connector and bounded streaming calls | Finite profile locally qualified: four shapes, ten SDKs, Board, three placements and recovery; hosted cost deferred |
 | [M17](M17.md) | Documents and collaborative text | Qualified growing profile: structured/text CRDTs, ten SDKs, Board and three placements; hosted cost deferred |
 | [M18](M18.md) | Unified state querying and versioned source contracts | Qualified growing profile: three state sources, ten SDKs, SQL/Board, native lifecycle and Table Compose/Substrate recovery; hosted cost deferred |
-| [M19](M19.md) | Serving foundation and HTTP APIs | Planned; qualify shared serving through application APIs and Board |
-| [M20](M20.md) | Reactive APIs: SSE, WebSocket and API contracts | Planned; shared session/subscription semantics and generated OpenAPI/AsyncAPI descriptions |
-| [M21](M21.md) | Reactive interfaces over reactive APIs | Planned; live views and exact snapshot refresh consume M20 |
-| [M22](M22.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned; Arrow protocol adapters reuse the qualified serving foundation |
-| [M23](M23.md) | Clustered execution and portability | Planned; extend component proofs across authority/runtime topologies |
+| [M19](M19.md) | Serving foundation and HTTP APIs | Planned from M18 evidence; shared HTTP, coordinated admission and bounded concurrent Board/application serving |
+| [M20](M20.md) | Reactive APIs: SSE, WebSocket and API contracts | Planned; Table watch coverage, shared sessions/recovery and generated OpenAPI/AsyncAPI descriptions |
+| [M21](M21.md) | Reactive interfaces over reactive APIs | Planned; bounded, generation-safe snapshot refresh over M20, with shared-principal fairness |
+| [M22](M22.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned from finite transport/query evidence; explicit Table protocol/type and client qualification |
+| [M23](M23.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
 
 The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -80,17 +80,60 @@ M19–M21 separately qualify the serving foundation, reactive API contracts and
 their interface consumers. Completed milestone scope and proof remain unchanged;
 each new milestone requires its own entry gates and qualification evidence.
 
-The M15/M16 plans are reviewed from current M14 evidence. M17 onward has a
-composition plan now, with a further entry review after the connectors have
-actually passed their proofs. A planned transport, capture API or shared contract
-is not an implemented dependency. Provider-specific integrations later compose
-connectors without a new durability model or application policy in the kernel.
+M15–M18 now have executed qualification within their declared profiles. The
+M19–M23 plans carry those findings forward; a planned server, watch or cluster
+contract is still not an implemented dependency. Provider-specific integrations
+compose the existing components without a new durability model or application
+policy in the kernel.
 
 Each milestone owns its scope, acceptance criteria, and completion status.
 Preserve the [M1 design gates](M1.md#design-gates-before-expanding-the-slice)
 as later milestones expand the supported profiles. Detailed proof results stay
 in the [test guide](../../tests/README.md); implementation and operating details
 stay with their [owning components](../ARCHITECTURE.md#planned-monorepo-decomposition).
+
+## M15–M18 handoff to M19–M23
+
+The [query compatibility matrix](../../packages/zig/transit-query/docs/compatibility.md)
+and [proof ledger](../../tests/README.md#m18-qualification) are the baseline for
+the next implementation reviews. M18 qualifies native KV/Table/Document recovery,
+ten SDKs and SQL/Board ingress; its physical query-host recovery covers Table.
+M15/M16 qualify finite outbound effects, not inbound serving. M17's accepted-state
+reads do not create a watch, and manual growing-host placement does not create a
+cluster controller. All five milestones below remain planned.
+
+| Milestone | Reuse first | New qualification boundary |
+| --- | --- | --- |
+| [M19](M19.md#m15m18-implementation-review) | Public client/Station admission, shared query workspace, Board contracts and owned deployment fixtures | Concurrent signing/admission ownership, encoded/decoded response budgets, inbound identity and recovery |
+| [M20](M20.md#m18-handoff-and-first-watch-profile) | M19 operation identity, current-policy reads and M18 finite lifetime/error distinctions | Public snapshot/watch coverage, meaningful invalidations, cross-transport recovery and bounded leases |
+| [M21](M21.md#m18-findings-applied-to-refresh) | M20 API and M18 frozen query/result verification | No missed changes or self-triggered refresh loop, bounded complete-result presentation and shared-principal scheduling |
+| [M22](M22.md#evidence-carried-from-m15m18) | Finite gRPC pieces, query/Arrow codecs and M19 serving seams | Inbound gRPC, explicit v1/v2 Table schemas, Flight message budgets, metadata and independent ADBC ownership |
+| [M23](M23.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
+
+At each entry, run the relevant existing proof unchanged, then extend it at the
+new boundary. Preserve accepted-but-lost receipts, changed-intent rejection,
+staged capture loss, current denial after a returned prefix, pin release, real
+expiry and permanent retirement as shared regression cases. New protocol peers
+must verify durable stages and exact identities, not just eventual rows. Use
+owned disposable installations, check cleanup and keep failed or incomplete
+runs out of passing evidence.
+
+Keep fast contracts/models, focused service/source checks, installed-client
+matrices and physical placement tasks separately selectable under
+[M10's policy](M10.md#exit-criteria). Measure provisioning, build/image work,
+scenario and cleanup separately: M18's final Document browser run spent 477.83
+of 875.94 seconds provisioning accepted state. That is fixture cost, not a query
+latency measurement; neither retained cold bytes nor a configured page cache is
+peak RSS. Reuse builds and fault harnesses without sharing mutable authority
+between tests or dropping source coverage to improve timing.
+
+Expanded hosted costs remain deferred. Adding these milestones must not quietly
+expand the ordinary PR matrix under M10's old budget claim. Record local task
+costs first, then obtain representative hosted measurements before changing
+required lanes or claiming the expanded suite fits the accepted budgets. Under
+ten minutes remains the improvement target and five the stretch target; the
+existing under-fifteen-minute warm qualification is historical evidence for its
+recorded suite, not a new timing guarantee.
 
 ## Maintaining the sequence
 
