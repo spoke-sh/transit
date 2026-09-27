@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "scope": "Synthetic board-console D2 study; parser acceptance is not execution support.",
+  "statements": [
+    {
+      "id": "table_definition",
+      "sql": "CREATE TABLE samples (id INT64 NOT NULL, value INT64);",
+      "reference_rule": "statement",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "document_definition",
+      "sql": "CREATE DOCUMENT manual;",
+      "reference_rule": "statement",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "kv_definition",
+      "sql": "CREATE KV settings (BINARY);",
+      "reference_rule": "statement",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "connection_definition",
+      "sql": "CREATE CONNECTION catalog_api TO HTTP (endpoint = 'https://catalog.example.test', token = SECRET('catalog-token@3'));",
+      "reference_rule": "statement",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "source_definition",
+      "sql": "CREATE SOURCE catalog_rows FROM HTTP CONNECTION catalog_api WITH (path = '/samples');",
+      "reference_rule": "statement",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "sink_definition",
+      "sql": "CREATE SINK audit_sink INTO HTTP CONNECTION catalog_api WITH (path = '/audit');",
+      "reference_rule": "statement",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "read_grant",
+      "sql": "GRANT read ON samples TO analyst;",
+      "reference_rule": "statement",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "read_revoke",
+      "sql": "REVOKE read ON samples FROM analyst;",
+      "reference_rule": "statement",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "catalog",
+      "sql": "SHOW CONNECTIONS;",
+      "reference_rule": "statement",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "describe",
+      "sql": "DESCRIBE catalog_api;",
+      "reference_rule": "statement",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "query",
+      "sql": "SELECT id, value FROM samples WHERE id >= 104 LIMIT 3;",
+      "reference_rule": "statement",
+      "reference_accepts": true,
+      "production": "compiles",
+      "schema": { "columns": ["id", "value"], "type": "int64" }
+    },
+    {
+      "id": "as_of_fragment",
+      "sql": "FOR SYSTEM_TIME AS OF 240",
+      "reference_rule": "asOfFragment",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "as_of_select_excluded",
+      "sql": "SELECT * FROM samples FOR SYSTEM_TIME AS OF 240;",
+      "reference_rule": "statement",
+      "reference_accepts": false,
+      "production": "rejects"
+    },
+    {
+      "id": "system_namespace_excluded",
+      "sql": "SELECT * FROM connector.attempts;",
+      "reference_rule": "statement",
+      "reference_accepts": false,
+      "production": "rejects"
+    },
+    {
+      "id": "alter_excluded",
+      "sql": "ALTER CONNECTION catalog_api;",
+      "reference_rule": "statement",
+      "reference_accepts": false,
+      "production": "UnsupportedStatement"
+    }
+  ],
+  "query_data": {
+    "source": "samples",
+    "revision": 42,
+    "schema": { "columns": ["id", "value"], "type": "int64" },
+    "rows": [[101, 8], [102, 13], [103, 21], [104, 34], [105, 55], [106, 89]],
+    "illustrated_result": [[104, 34], [105, 55], [106, 89]],
+    "coverage": "Complete for this synthetic six-row fixture only."
+  }
+}

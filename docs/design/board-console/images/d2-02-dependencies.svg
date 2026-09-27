@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+<title id="title">D2 Figure 2 — A declared source dependency</title><desc id="desc">A source uses one named connection. Its SQL and graph agree. The connection selects the HTTP capability. A separate panel states no fetch or materialization is established.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="none" stroke="black"/></marker></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="37" font-family="sans-serif" font-size="20" font-weight="700" fill="black">TRANSIT / BOARD</text>
+<text x="282" y="37" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Development / realm-demo</text>
+<text x="1102" y="37" font-family="sans-serif" font-size="13" font-weight="700" fill="black">D2 · SYNTHETIC WIREFRAME</text>
+<path d="M0 58 L1440 58" stroke="black" fill="none"/>
+<rect x="24" y="76" width="166" height="34" fill="black" stroke="black" stroke-width="1"/>
+<text x="36" y="99" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Workspace</text>
+<rect x="202" y="76" width="166" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="214" y="99" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Operations</text>
+<text x="413" y="98" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Level 1: area</text>
+<text x="1050" y="98" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Scope and access checked per operation</text>
+<path d="M0 130 L1440 130" stroke="black" fill="none"/>
+<path d="M222 130 L222 918" stroke="black" fill="none"/>
+<text x="24" y="165" font-family="sans-serif" font-size="12" font-weight="700" fill="black">LEVEL 2 / WORKSPACE</text>
+<text x="30" y="209" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Atlas</text>
+<text x="30" y="255" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Data</text>
+<text x="30" y="301" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Connections</text>
+<rect x="15" y="325" width="4" height="29" fill="black" stroke="black" stroke-width="1"/>
+<text x="30" y="347" font-family="sans-serif" font-size="16" font-weight="700" fill="black">Sources</text>
+<text x="30" y="393" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Sinks</text>
+<text x="30" y="439" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Queries</text>
+<text x="30" y="485" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Activity</text>
+<text x="24" y="839" font-family="sans-serif" font-size="13" font-weight="400" fill="black">One realm</text>
+<text x="24" y="864" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Current grants apply</text>
+<path d="M0 918 L1440 918" stroke="black" fill="none"/>
+<text x="24" y="944" font-family="sans-serif" font-size="13" font-weight="400" fill="black">FIGURE 2 · Source/connection syntax is reference-only. Dependency edges do not prove execution or define a materialization pipeline.</text>
+<text x="252" y="171" font-family="sans-serif" font-size="29" font-weight="700" fill="black">catalog_rows</text>
+<text x="252" y="202" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Source definition / connection dependency</text>
+<rect x="1138" y="154" width="270" height="34" fill="white" stroke="black" stroke-width="1" stroke-dasharray="5 4"/>
+<text x="1150" y="177" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Review unavailable</text>
+<rect x="252" y="230" width="1156" height="278" fill="white" stroke="black" stroke-width="1"/>
+<text x="276" y="261" font-family="sans-serif" font-size="12" font-weight="700" fill="black">DEPENDENCIES / DECLARED REFERENCES</text>
+<rect x="276" y="293" width="270" height="116" fill="white" stroke="black" stroke-width="1"/>
+<text x="294" y="319" font-family="sans-serif" font-size="12" font-weight="700" fill="black">SOURCE</text>
+<text x="294" y="351" font-family="sans-serif" font-size="21" font-weight="700" fill="black">catalog_rows</text>
+<text x="294" y="382" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Read declaration</text>
+<path d="M546 350 L670 350" stroke="black" fill="none" marker-end="url(#arrow)"/>
+<text x="552" y="329" font-family="sans-serif" font-size="12" font-weight="400" fill="black">uses connection</text>
+<rect x="682" y="293" width="292" height="116" fill="white" stroke="black" stroke-width="1"/>
+<text x="700" y="319" font-family="sans-serif" font-size="12" font-weight="700" fill="black">CONNECTION</text>
+<text x="700" y="351" font-family="sans-serif" font-size="21" font-weight="700" fill="black">catalog_api</text>
+<text x="700" y="382" font-family="sans-serif" font-size="14" font-weight="400" fill="black">TO HTTP · secret reference</text>
+<path d="M974 350 L1078 350" stroke="black" fill="none" marker-end="url(#arrow)"/>
+<text x="980" y="329" font-family="sans-serif" font-size="12" font-weight="400" fill="black">selects family</text>
+<rect x="1090" y="293" width="294" height="116" fill="white" stroke="black" stroke-width="1" stroke-dasharray="5 4"/>
+<text x="1108" y="319" font-family="sans-serif" font-size="12" font-weight="700" fill="black">CAPABILITY</text>
+<text x="1108" y="351" font-family="sans-serif" font-size="21" font-weight="700" fill="black">HTTP</text>
+<text x="1108" y="382" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Operations / Capabilities →</text>
+<text x="276" y="469" font-family="sans-serif" font-size="14" font-weight="400" fill="black">No automatic Table destination. Source-to-Table materialization needs a separate declaration contract.</text>
+<rect x="252" y="532" width="568" height="346" fill="white" stroke="black" stroke-width="1"/>
+<text x="276" y="564" font-family="sans-serif" font-size="12" font-weight="700" fill="black">FORM / SAME SOURCE DEFINITION</text>
+<text x="276" y="607" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Name</text>
+<text x="478" y="607" font-family="sans-serif" font-size="16" font-weight="700" fill="black">catalog_rows</text>
+<path d="M276 622 L796 622" stroke="black" fill="none"/>
+<text x="276" y="655" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Connector family</text>
+<text x="478" y="655" font-family="sans-serif" font-size="16" font-weight="700" fill="black">HTTP</text>
+<path d="M276 670 L796 670" stroke="black" fill="none"/>
+<text x="276" y="703" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Connection</text>
+<text x="478" y="703" font-family="sans-serif" font-size="16" font-weight="700" fill="black">catalog_api</text>
+<path d="M276 718 L796 718" stroke="black" fill="none"/>
+<text x="276" y="751" font-family="sans-serif" font-size="14" font-weight="400" fill="black">path option</text>
+<text x="478" y="751" font-family="sans-serif" font-size="16" font-weight="700" fill="black">/samples</text>
+<path d="M276 766 L796 766" stroke="black" fill="none"/>
+<text x="276" y="827" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Option types, capture and lifecycle are future contracts.</text>
+<rect x="844" y="532" width="564" height="346" fill="white" stroke="black" stroke-width="1"/>
+<text x="868" y="564" font-family="sans-serif" font-size="12" font-weight="700" fill="black">SQL / REFERENCE-ONLY PREVIEW</text>
+<text x="868" y="609" font-family="monospace" font-size="16" font-weight="400" fill="black">CREATE SOURCE catalog_rows</text>
+<text x="868" y="636" font-family="monospace" font-size="16" font-weight="400" fill="black">FROM HTTP</text>
+<text x="868" y="663" font-family="monospace" font-size="16" font-weight="400" fill="black">CONNECTION catalog_api</text>
+<text x="868" y="690" font-family="monospace" font-size="16" font-weight="400" fill="black">WITH (path = &#x27;/samples&#x27;);</text>
+<path d="M868 726 L1384 726" stroke="black" fill="none"/>
+<text x="868" y="758" font-family="sans-serif" font-size="12" font-weight="700" fill="black">OBSERVED</text>
+<text x="868" y="791" font-family="sans-serif" font-size="13" font-weight="400" fill="black">No execution or captured data established by this draft.</text>
+<text x="868" y="826" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Changing layout or validating syntax does not fetch.</text>
+</svg>

@@ -171,6 +171,16 @@ Table query profile retain their current access boundaries. Existing M15–M19
 handoffs and the new implementation scope required before enabling controls are
 identified in D1; review acceptance does not complete or expand those milestones.
 
+[D2 — Visualizing the declarative system](design/board-console/D2.md) refines
+that proposal around the [query language](QUERY_LANGUAGE.md#declarative-model-and-visual-interfaces):
+definitions, dependencies, changes and observed state are coordinated views of
+shared typed semantics. It explores two navigation levels, with Workspace for
+data and connection declarations and Operations for access and supporting system
+administration. Black-and-white wireframes replace premature styling. D2 records
+the requested design principles separately from its still-open navigation choices,
+and maps executable SELECT, reference-only DDL and missing control grammar without
+claiming that planned syntax can run today.
+
 ## Boundary and packaging
 
 ```mermaid

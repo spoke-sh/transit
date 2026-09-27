@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+<title id="title">D2 Figure 3 — One query in Form, SQL and Canvas</title><desc id="desc">A shared SELECT draft is represented as form fields, SQL and a typed plan. Explicit Run produces one identified result. Three synthetic matching rows are displayed without a second query.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="none" stroke="black"/></marker></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="37" font-family="sans-serif" font-size="20" font-weight="700" fill="black">TRANSIT / BOARD</text>
+<text x="282" y="37" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Development / realm-demo</text>
+<text x="1102" y="37" font-family="sans-serif" font-size="13" font-weight="700" fill="black">D2 · SYNTHETIC WIREFRAME</text>
+<path d="M0 58 L1440 58" stroke="black" fill="none"/>
+<rect x="24" y="76" width="166" height="34" fill="black" stroke="black" stroke-width="1"/>
+<text x="36" y="99" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Workspace</text>
+<rect x="202" y="76" width="166" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="214" y="99" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Operations</text>
+<text x="413" y="98" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Level 1: area</text>
+<text x="1050" y="98" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Scope and access checked per operation</text>
+<path d="M0 130 L1440 130" stroke="black" fill="none"/>
+<path d="M222 130 L222 918" stroke="black" fill="none"/>
+<text x="24" y="165" font-family="sans-serif" font-size="12" font-weight="700" fill="black">LEVEL 2 / WORKSPACE</text>
+<text x="30" y="209" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Atlas</text>
+<text x="30" y="255" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Data</text>
+<text x="30" y="301" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Connections</text>
+<text x="30" y="347" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Sources</text>
+<text x="30" y="393" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Sinks</text>
+<rect x="15" y="417" width="4" height="29" fill="black" stroke="black" stroke-width="1"/>
+<text x="30" y="439" font-family="sans-serif" font-size="16" font-weight="700" fill="black">Queries</text>
+<text x="30" y="485" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Activity</text>
+<text x="24" y="839" font-family="sans-serif" font-size="13" font-weight="400" fill="black">One realm</text>
+<text x="24" y="864" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Current grants apply</text>
+<path d="M0 918 L1440 918" stroke="black" fill="none"/>
+<text x="24" y="944" font-family="sans-serif" font-size="13" font-weight="400" fill="black">FIGURE 3 · SELECT shape is executable today; visual editor is proposed. Result rows are the stated synthetic fixture, not a live query.</text>
+<text x="252" y="171" font-family="sans-serif" font-size="29" font-weight="700" fill="black">Query / samples</text>
+<text x="252" y="202" font-family="sans-serif" font-size="15" font-weight="400" fill="black">One draft · source R17 / revision 42 · one identified execution</text>
+<rect x="1255" y="154" width="153" height="34" fill="black" stroke="black" stroke-width="1"/>
+<text x="1267" y="177" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Run query</text>
+<rect x="252" y="230" width="558" height="227" fill="white" stroke="black" stroke-width="1"/>
+<text x="276" y="261" font-family="sans-serif" font-size="12" font-weight="700" fill="black">FORM / DRAFT Q7</text>
+<text x="276" y="302" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Source</text>
+<text x="449" y="302" font-family="sans-serif" font-size="16" font-weight="700" fill="black">samples</text>
+<text x="276" y="340" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Columns</text>
+<text x="449" y="340" font-family="sans-serif" font-size="16" font-weight="700" fill="black">id, value</text>
+<text x="276" y="378" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Filter</text>
+<text x="449" y="378" font-family="sans-serif" font-size="16" font-weight="700" fill="black">id &gt;= 104</text>
+<text x="276" y="416" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Limit</text>
+<text x="449" y="416" font-family="sans-serif" font-size="16" font-weight="700" fill="black">3</text>
+<rect x="834" y="230" width="574" height="227" fill="white" stroke="black" stroke-width="1"/>
+<text x="858" y="261" font-family="sans-serif" font-size="12" font-weight="700" fill="black">SQL / SAME DRAFT Q7</text>
+<text x="858" y="307" font-family="monospace" font-size="18" font-weight="400" fill="black">SELECT id, value</text>
+<text x="858" y="334" font-family="monospace" font-size="18" font-weight="400" fill="black">FROM samples</text>
+<text x="858" y="361" font-family="monospace" font-size="18" font-weight="400" fill="black">WHERE id &gt;= 104</text>
+<text x="858" y="388" font-family="monospace" font-size="18" font-weight="400" fill="black">LIMIT 3;</text>
+<rect x="252" y="481" width="1156" height="173" fill="white" stroke="black" stroke-width="1"/>
+<text x="276" y="512" font-family="sans-serif" font-size="12" font-weight="700" fill="black">CANVAS / SAME SEMANTICS</text>
+<rect x="276" y="536" width="238" height="88" fill="white" stroke="black" stroke-width="1"/>
+<text x="292" y="562" font-family="sans-serif" font-size="12" font-weight="700" fill="black">SOURCE</text>
+<text x="292" y="598" font-family="sans-serif" font-size="18" font-weight="700" fill="black">samples</text>
+<path d="M514 580 L542 580" stroke="black" fill="none" marker-end="url(#arrow)"/>
+<rect x="548" y="536" width="238" height="88" fill="white" stroke="black" stroke-width="1"/>
+<text x="564" y="562" font-family="sans-serif" font-size="12" font-weight="700" fill="black">FILTER</text>
+<text x="564" y="598" font-family="sans-serif" font-size="18" font-weight="700" fill="black">id &gt;= 104</text>
+<path d="M786 580 L814 580" stroke="black" fill="none" marker-end="url(#arrow)"/>
+<rect x="820" y="536" width="238" height="88" fill="white" stroke="black" stroke-width="1"/>
+<text x="836" y="562" font-family="sans-serif" font-size="12" font-weight="700" fill="black">PROJECT</text>
+<text x="836" y="598" font-family="sans-serif" font-size="18" font-weight="700" fill="black">id, value</text>
+<path d="M1058 580 L1086 580" stroke="black" fill="none" marker-end="url(#arrow)"/>
+<rect x="1092" y="536" width="238" height="88" fill="white" stroke="black" stroke-width="1"/>
+<text x="1108" y="562" font-family="sans-serif" font-size="12" font-weight="700" fill="black">LIMIT</text>
+<text x="1108" y="598" font-family="sans-serif" font-size="18" font-weight="700" fill="black">3</text>
+<rect x="252" y="678" width="1156" height="200" fill="white" stroke="black" stroke-width="1"/>
+<text x="276" y="709" font-family="sans-serif" font-size="12" font-weight="700" fill="black">RESULT Q7 / SOURCE REVISION 42 / LIMITED RESULT</text>
+<text x="276" y="747" font-family="sans-serif" font-size="15" font-weight="700" fill="black">id</text>
+<text x="508" y="747" font-family="sans-serif" font-size="15" font-weight="700" fill="black">value</text>
+<text x="788" y="747" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Exact integers · primary-key order</text>
+<path d="M276 758 L1384 758" stroke="black" fill="none"/>
+<text x="276" y="786" font-family="monospace" font-size="15" font-weight="400" fill="black">104</text>
+<text x="508" y="786" font-family="monospace" font-size="15" font-weight="400" fill="black">34</text>
+<text x="276" y="817" font-family="monospace" font-size="15" font-weight="400" fill="black">105</text>
+<text x="508" y="817" font-family="monospace" font-size="15" font-weight="400" fill="black">55</text>
+<text x="276" y="848" font-family="monospace" font-size="15" font-weight="400" fill="black">106</text>
+<text x="508" y="848" font-family="monospace" font-size="15" font-weight="400" fill="black">89</text>
+<text x="788" y="793" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Rows and future charts share this result identity.</text>
+<text x="788" y="826" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Editing the draft marks this result as previous.</text>
+<text x="788" y="856" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Changing representation never reruns it.</text>
+</svg>

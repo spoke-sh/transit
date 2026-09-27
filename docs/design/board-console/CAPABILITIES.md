@@ -4,6 +4,9 @@
 
 Supporting material for **board-console D1**, not another review or an
 implementation plan. All configuration and operational UI below is proposed.
+The [D2 refinement](D2.md) carries this inventory forward while organizing
+workload declarations in Workspace and supporting capabilities in Operations.
+No row here supplies a new SQL production or executable declaration contract.
 Only the finite HTTP/1.1 connector has current implementation progress; gRPC,
 Document, unified-query and Flight milestones retain their own planned scope.
 Other families are design candidates without a selected implementation order.

@@ -16,11 +16,11 @@ Follow the contracts for the area you change:
 | Authentication, grants, credentials, trust | [Security](docs/SECURITY.md), [service contract](contracts/SERVICE_V2.md) |
 | Storage, delivery, producer/consumer behavior | [Streams](docs/STREAMS.md), [Ursula boundary](docs/URSULA.md) |
 | State resources, associations, KV/Table/Document APIs | [State](docs/STATE.md), [M7](docs/roadmap/M7.md), [Document M17](docs/roadmap/M17.md) |
-| Fuze/query planning and execution | [Fuze](docs/FUZE.md), [Tables](docs/TABLES.md) |
+| Declarative interfaces, SQL, Fuze/query planning and execution | [Query language](docs/QUERY_LANGUAGE.md), [grammar contract](contracts/sql/README.md), [Fuze](docs/FUZE.md), [Tables](docs/TABLES.md) |
 | Arrow IPC/C interfaces, Flight/Flight SQL, ADBC | [Arrow](docs/ARROW.md) |
 | Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/RETENTION.md) |
 | Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [SDK milestone M11](docs/roadmap/M11.md), [public protocol package](packages/zig/transit-protocol/README.md) |
-| Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [M2 plan](docs/roadmap/M2.md) |
+| Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [query language](docs/QUERY_LANGUAGE.md), [grammar contract](contracts/sql/README.md), [M2 plan](docs/roadmap/M2.md) |
 | Service logs, metrics, traces, probes | [Observability](docs/OBSERVABILITY.md), [M4](docs/roadmap/M4.md) |
 | Behaviors, supervision, names | [Station](docs/STATION.md) |
 | Effects, capture, secret interpolation | [Connectors](docs/CONNECTORS.md), [gRPC](docs/GRPC.md) for RPC work |
@@ -59,6 +59,17 @@ from executable evidence; never treat a skipped or incomplete proof as passed.
   Zig implementation owns protocol and framework semantics. Preserve uncertainty,
   durable call identity and cancellation distinctions through convenience APIs;
   host tasks and handler fields are not durable state.
+- Design Board and other operator interfaces as views over Transit's declarative
+  model. Map objects, forms, diagrams and actions to the SQL grammar and shared
+  typed contracts in [Query language](docs/QUERY_LANGUAGE.md#declarative-model-and-visual-interfaces).
+  SQL, visual editing, CLI and SDK surfaces must share validation and semantics:
+  queries lower to Fuze plans; declarations and controls use their owning public
+  operations, never a separate UI configuration authority. Show definitions,
+  dependencies, proposed changes and observed state distinctly. Distinguish
+  executable syntax, reference-grammar-only forms and missing grammar/semantics;
+  propose missing contracts explicitly instead of inventing runnable SQL or
+  treating parser acceptance as execution support. A visual edit never applies
+  a change, runs a query or dispatches an effect implicitly.
 - Respect the architecture's dependency direction. Core depends on the public
   protocol, never Station or a provider. Applications use the client; the node
   must not import handlers or claim protocol validation proves honest computation.
@@ -131,6 +142,9 @@ Register design items in the [design index](docs/design/README.md). Keep one
 linear review sequence and summary table per item in `docs/design/<item>/README.md`,
 with one `D<number>.md` per review in that directory. Use the shared template,
 preserve recorded outcomes, and distinguish accepted design from implemented behavior.
+Use black-and-white wireframes for structure and interaction reviews. Introduce
+color only when visual styling is explicitly being reviewed; keep meaning in
+labels, geometry and line styles.
 
 Keep the roadmap linear: give additional work its own numbered milestone and
 renumber upcoming milestones and references, following the

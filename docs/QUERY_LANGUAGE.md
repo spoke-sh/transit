@@ -22,6 +22,39 @@ authority."* A relational parser and a dataframe builder are both frontends
 sitting to the left of "typed logical plan" in FUZE.md's pipeline — nothing
 about the boundary changes if one, both, or neither ships.
 
+## Declarative model and visual interfaces
+
+Design Board over this declarative model. A Table schema, connection definition,
+source dependency, sink destination or access policy should have the same meaning
+whether inspected as SQL, a form, a diagram or a typed API value. Start with the
+language and owning operation contract, then choose the visual representation.
+Adding an SQL preview to an independently designed configuration form is not
+enough: the field constraints, dependencies, validation and resulting operation
+must agree across surfaces.
+
+Queries lower to Fuze's shared typed plans. Administrative declarations and
+controls require their own typed public-operation lowering; they do not become
+Fuze operators or grant new kernel authority. The target is shared semantics,
+not a requirement to send SQL text through every API. Durable accepted state
+remains authoritative, rather than a browser draft or a second configuration
+database. Keep a proposed definition, accepted definition and observed runtime
+state distinguishable. Declarative intent does not imply automatic reconciliation,
+continuous execution or safe retries without an owning lifecycle contract.
+
+Every visual design must identify which operations execute today, which exist
+only in the reference grammar, and which still need syntax and semantic design.
+`CREATE` syntax does not define `ALTER`, `DROP`, migration or idempotent apply;
+SQL names do not yet supply catalog resolution, identity or authorization.
+For unsupported constructs, preserve the text and show a precise limit rather
+than silently translating or discarding part of a declaration. UI-only layout,
+selection and chart settings are presentation state, not new SQL capabilities.
+
+[Board console D2](design/board-console/D2.md) applies this principle to a
+two-level Workspace/Operations hierarchy, black-and-white studies and a mapping
+from the existing grammar to proposed screens. Its hierarchy and interactions
+remain a design proposal. It neither implements the administrative grammar nor
+expands M12/M13's qualified query profile.
+
 ## DDL: mostly a spelling problem, with one real prerequisite
 
 `CREATE TABLE` is not a new capability. Station already has a typed
