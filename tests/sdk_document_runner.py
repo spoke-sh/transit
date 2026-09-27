@@ -56,7 +56,7 @@ def run(node, cli, library, install, label):
                 {'assign': {'field': 'value', 'value': {'null_value': {}}}},
                 {'insert': {'object': object_id, 'after': {'counter': '3', 'replica': replica}, 'value': {'character': '́'}}}]}]
         cfg = {'url': system.url, 'realm': 72, 'principal': 65536, 'pid': pid, 'generation': 2,
-               'seed_file': str(seed), 'profile': 'growing_v3', 'resource': resource, 'document': document,
+               'seed_file': str(seed), 'profile': 'growing_v3', 'peer': pid, 'resource': resource, 'document': document,
                'document_fixtures': str(fixtures), 'changes': [encode(change).hex() for change in changes]}
         count = 0
         def config_file(config):

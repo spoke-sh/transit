@@ -51,7 +51,12 @@ a disconnected peer edit, old accepted reads through a separate non-executing
 principal, prefix revocation, conflict/text visibility, resynchronization and
 permanent retirement. Asynchronous cancellation followed by runner close joins
 native reads; escaped owner objects reject. Strict mypy passes all 20 public SDK
-and example modules. The other nine language targets remain in progress.
+and example modules. The installed Node schedule also passes in **222.85 seconds**, including clean
+tarball installation and the same 139-turn/read-only-consumer schedule. Additional
+Node tests reject dropped Document operations after native completion; typed
+construction copies inputs before awaiting and prepared byte getters return
+copies. Vite+ formatting/lint and strict TypeScript pass. The other eight language
+targets remain in progress.
 
 ## M16 finite connector qualification
 

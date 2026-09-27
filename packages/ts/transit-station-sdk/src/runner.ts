@@ -12,6 +12,7 @@ import {
 } from "@transit/client";
 import { Serial } from "@transit/client/internal";
 import { Bridge } from "./bridge.ts";
+import { DocumentReader } from "./document.ts";
 import { context } from "./context.ts";
 import { unhex } from "./framing.ts";
 import { createTurn, type Turn } from "./turn.ts";
@@ -390,6 +391,22 @@ export class Runner<M> implements AsyncDisposable {
   reconcile(): Promise<RunnerEvent> {
     this.#admit();
     return this.#serial.run(() => this.#attempt());
+  }
+  get documents(): DocumentReader {
+    return new DocumentReader(
+      this.#config.activation.process.realm,
+      (action) => {
+        this.#admit();
+        return this.#serial.run(async () => {
+          if (this.#pending) throw new Busy("Resolve the saved mutation before reading Documents");
+          return await this.#bridge.documentRead(action);
+        });
+      },
+      (action) => {
+        this.#admit();
+        return this.#serial.run(() => this.#bridge.documentCodec(action));
+      },
+    );
   }
   #httpRead(action: HttpReadAction): Promise<HttpReadResult> {
     this.#admit();

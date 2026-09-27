@@ -31,6 +31,7 @@ import { QueryPlan, ResultReader, type QueryJob } from "./query.ts";
 import type { GrowingAction, GrowingEvent } from "./wire.ts";
 import { PreparedHttpRequest, HttpOutcome, type HttpFollowupReason } from "./http.ts";
 import { PreparedGrpcRequest, GrpcOutcome } from "./grpc.ts";
+import { DocumentOwner } from "./document.ts";
 
 function cursor(value?: string): string | null {
   return value === undefined ? null : text(value, limits.max_body);
@@ -175,6 +176,9 @@ export class Turn {
     if (!(peer instanceof ProcessRef) || peer.realm !== this.process.realm)
       throw new TypeError("Destination must be a ProcessRef in this realm");
     return peer.pid;
+  }
+  document(identity: bigint): DocumentOwner {
+    return new DocumentOwner(this, identity);
   }
   #http(request: PreparedHttpRequest, bridge: Bridge): void {
     if (

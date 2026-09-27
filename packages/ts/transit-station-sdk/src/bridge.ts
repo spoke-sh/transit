@@ -14,6 +14,10 @@ import {
 } from "@transit/client/internal";
 import schemas from "./schemas.json" with { type: "json" };
 import type {
+  DocumentCodecAction,
+  DocumentCodecResult,
+  DocumentReadAction,
+  DocumentReadResult,
   GrowingAction,
   GrowingResult,
   GrowingEvent,
@@ -153,6 +157,22 @@ export class Bridge {
       { growing_apply: { scope, action } },
       { phase: "apply", validator: validation.GrowingResult },
     )) as GrowingResult;
+  }
+  async documentCodec(action: DocumentCodecAction): Promise<DocumentCodecResult> {
+    if (!this.caps.document_codecs)
+      throw new UnsupportedCapability("Native Document codecs are unavailable");
+    return (await this.port.request(
+      { document_codec: action },
+      { phase: "document-codec", validator: validation.DocumentCodecResult },
+    )) as DocumentCodecResult;
+  }
+  async documentRead(action: DocumentReadAction): Promise<DocumentReadResult> {
+    if (!this.caps.document_reads)
+      throw new UnsupportedCapability("Native Document reads are unavailable");
+    return (await this.port.request(
+      { growing_document_read: action },
+      { phase: "document-read", validator: validation.DocumentReadResult },
+    )) as DocumentReadResult;
   }
   async httpCodec(action: HttpCodecAction): Promise<HttpCodecResult> {
     if (!this.caps.http_requests)

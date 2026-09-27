@@ -80,3 +80,28 @@ export type {
   GrpcPartKind,
   GrpcPart,
 } from "./grpc.ts";
+
+export {
+  documentRoot,
+  prepareDocument,
+  decodeDocument,
+  PreparedDocumentChange,
+  DocumentReference,
+  DocumentOwner,
+  DocumentReader,
+} from "./document.ts";
+export type {
+  DocumentDot,
+  DocumentValue,
+  DocumentOperation,
+  DocumentChange,
+  DocumentStatus,
+  DocumentAssignment,
+  DocumentField,
+  DocumentDescription,
+  DocumentPath,
+  DocumentItem,
+  DocumentPage,
+  DocumentResynchronization,
+  DocumentProgress,
+} from "./document.ts";

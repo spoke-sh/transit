@@ -44,3 +44,7 @@ original package and semantics.
 
 The [finite RPC guide](docs/grpc.md) covers local descriptor binding, original
 message batches, durable calls, explicit retry/disposal and owned replay.
+
+The [Document guide](docs/documents.md) covers typed structured/text edits,
+scoped writer jobs and asynchronous current-policy reads. `bigint` identities,
+owned bytes and validated native responses preserve the shared Zig contract.

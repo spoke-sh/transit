@@ -187,3 +187,10 @@ document-native: build
 document-python: python-build
     zig build transit-node rey-cli
     python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language python
+
+# Installed Node Document values, scoped ownership, retained reads and host loss.
+document-node: node-build
+    vp exec --filter @transit/station tsc --noEmit
+    vp exec --filter @transit/station node --test src/document.test.ts
+    zig build transit-node rey-cli
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language node

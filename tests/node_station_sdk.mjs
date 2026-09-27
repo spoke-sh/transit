@@ -19,6 +19,7 @@ const tagged = (_key, value) => typeof value === 'bigint' ? { bigint: value.toSt
 const revived = (_key, value) => value && typeof value === 'object' && Object.keys(value).join() === 'bigint' ? BigInt(value.bigint) : value;
 
 async function main() {
+  if (mode.startsWith('document-')) return documentConsumer();
   if (mode.startsWith('grpc-')) return grpcConsumer();
   if (mode.startsWith('http-')) return httpConsumer();
   if (mode === 'arrow') {
@@ -492,4 +493,99 @@ async function grpcConsumer() {
     }
   } finally { await runner.close(); }
 }
+async function documentConsumer() {
+  const { prepareDocument, decodeDocument, DocumentReference } = await import('@transit/station');
+  const bytes = value => new Uint8Array(Buffer.from(value, 'hex'));
+  const toHex = value => Buffer.from(value).toString('hex');
+  const document = BigInt(cfg.document), replica = (1n << 64n)-1n;
+  const resource = new ResourceRef(cfg.realm, cfg.resource);
+  if (mode === 'document-codecs') {
+    const fixtures = JSON.parse(await readFile(cfg.document_fixtures, 'utf8'));
+    for (const entry of fixtures.changes) {
+      const decoded = await decodeDocument(bytes(entry.wire_hex));
+      assert.equal(toHex((await prepareDocument(decoded)).data), entry.wire_hex);
+      for (const length of [0, 1, bytes(entry.wire_hex).length-1]) await assert.rejects(decodeDocument(bytes(entry.wire_hex).subarray(0, length)));
+    }
+    const ref = await DocumentReference.decode(cfg.realm, bytes(fixtures.reference_hex));
+    assert.equal(ref.document, replica); assert.equal(ref.revision, replica);
+    assert.equal(toHex(ref.data), fixtures.reference_hex);
+    const mutable = { document, epoch: 1n, replica, first: 1n, operations: [
+      { kind: 'assign', field: 'value', value: { kind: 'signed', value: -(1n<<63n) } },
+      { kind: 'assign', field: 'body', value: { kind: 'text' } },
+      { kind: 'insert', object: { counter: 2n, replica }, value: { kind: 'character', value: '🙂' } }] };
+    const pending = prepareDocument(mutable); mutable.document = 4n; mutable.operations.length = 0;
+    const prepared = await pending;
+    assert.equal(prepared.document, document); assert.equal(toHex(prepared.data), cfg.changes[0]);
+    prepared.data.fill(0); assert.equal(toHex(prepared.data), cfg.changes[0]);
+    await assert.rejects(prepareDocument({ document, epoch: 1n, replica, first: 1n, operations: [{ kind: 'insert', object: { counter: 2n, replica }, value: { kind: 'character', value: 'é' } }] }));
+    report({ codecs: true }); return;
+  }
+  const changes = await Promise.all(cfg.changes.map(async value => prepareDocument(await decodeDocument(bytes(value)))));
+  const codec = { typeId: 'test.document.tick', version: 1, maxEncodedBytes: 32, encode: value => new Uint8Array(value), decode: value => new Uint8Array(value) };
+  const handler = {
+    phase: null, escaped: undefined,
+    async initialize(turn) { await turn.document(document).create(); },
+    async handle(turn, incoming) {
+      this.escaped = turn.document(document);
+      const value = Buffer.from(incoming.value).toString();
+      if (value === 'initialize') return;
+      if (value === '0' || value === '1') this.phase = (await this.escaped.stage(BigInt(Number(value)+1), changes[Number(value)], 256)).phase;
+      else if (value === 'checkpoint') this.phase = (await this.escaped.checkpoint(90n)).phase;
+      else if (value === 'window') await this.escaped.mergeWindow(2n);
+      else if (value === 'retire') await this.escaped.retire();
+      else throw new Error(value);
+    },
+  };
+  const options = { failure: 'stop', recovery: { kind: 'fence-on-restart' } };
+  const runner = await Runner.open({ ...config, timeoutMs: 15000 }, handler, codec, options);
+  let saved;
+  const input = createInterface({ input: process.stdin });
+  try {
+    for await (const action of input) {
+      let out;
+      if (action === 'close') { report({ closed: true }); return; }
+      if (action === 'one') {
+        handler.phase = null;
+        let committed = false;
+        for (let i = 0; i < 12; i++) {
+          const event = await runner.next();
+          if (event.kind === 'committed') { committed = true; break; }
+          assert.equal(event.kind, 'progress');
+        }
+        assert.ok(committed); if (handler.escaped) assert.throws(() => handler.escaped.retire(), TurnExpired);
+        out = { event: 'committed', phase: handler.phase };
+      } else if (action === 'read') {
+        const description = await runner.documents.describe(resource, document);
+        const ref = description.reference;
+        assert.equal(description.floor, 0n); assert.equal(description.mergeWindow, 0n);
+        const field = (await runner.documents.path(ref, ['value'])).field;
+        const page = await runner.documents.sequence(ref, { counter: 2n, replica });
+        assert.equal(page.next, undefined);
+        assert.equal(page.items.map(item => item.field.assignments[0].value.value).join(''), ref.revision === 2n ? '🙂' : '🙂́');
+        assert.deepEqual(field.assignments[0].value, { kind: 'signed', value: -(1n<<63n) });
+        assert.equal((await runner.documents.path(ref, ['missing'])).field.status, 'missing');
+        assert.equal(toHex((await prepareDocument(await runner.documents.acceptedChange(ref))).data), cfg.changes[Number(ref.revision)-2]);
+        saved ??= ref; out = { revision: ref.revision.toString(), items: page.items.length, status: field.status };
+      } else if (action === 'old') {
+        assert.equal((await runner.documents.path(saved, ['value'])).field.status, 'scalar'); out = { retained: true };
+      } else if (action === 'denied') {
+        await assert.rejects(runner.documents.path(saved, ['value']), AccessDenied); out = { denied: true };
+      } else if (action === 'resynchronize') {
+        const v = await runner.documents.resynchronize(resource, document, replica);
+        assert.equal(v.reference.revision, 3n); out = { previous: v.previousCounter.toString(), clock: v.clock.toString() };
+      } else if (action === 'retired') {
+        assert.ok((await runner.documents.describe(resource, document)).retired);
+        await assert.rejects(runner.documents.path(saved, ['value']), error => error.code === 'DocumentRetired'); out = { retired: true };
+      } else if (action === 'async-close') {
+        const other = await Runner.open(config, handler, codec, options), reader = other.documents;
+        const reading = reader.describe(resource, document);
+        const outcome = reading.then(() => {}, error => { assert.ok(error instanceof Closed); });
+        await other.close(); await outcome;
+        await assert.rejects(reader.describe(resource, document), Closed); out = { joined: true };
+      } else throw new Error(action);
+      report(out);
+    }
+  } finally { input.close(); await runner.close(); }
+}
+
 await main();
