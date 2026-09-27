@@ -66,6 +66,13 @@ class Growing:
         data = encode(action)
         return self.api.call('station_growing_apply', self.handle, scope, data, len(data))
 
+    def document_read(self, action: object) -> dict[str, Any]:
+        if not self.caps.get('document_reads'):
+            raise UnsupportedCapability('Native Station lacks Document reads')
+        data = encode(action)
+        result: dict[str, Any] = self.api.call('station_growing_document_read', self.handle, data, len(data))
+        return result
+
     def http_read(self, action: object) -> dict[str, Any]:
         if not self.caps.get('http_replay'):
             raise UnsupportedCapability('Native Station lacks HTTP replay support')

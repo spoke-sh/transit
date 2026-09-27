@@ -43,6 +43,16 @@ The bridge's eight component tests pass in **15 ms / 8 MiB peak RSS**; `just che
 also passes after generated schema/native additions. Public SDK evidence follows
 separately; no remote Document service protocol is claimed by this bridge proof.
 
+`just bindings::document-python` passes the installed public Python API in
+**224.26 seconds**, including clean wheel installation. Independent change/Unicode/
+full-width/reference fixtures round-trip through public types. Its 139 scoped
+turns cover an empty checkpoint, host replacement during upload, exact duplicates,
+a disconnected peer edit, old accepted reads through a separate non-executing
+principal, prefix revocation, conflict/text visibility, resynchronization and
+permanent retirement. Asynchronous cancellation followed by runner close joins
+native reads; escaped owner objects reject. Strict mypy passes all 20 public SDK
+and example modules. The other nine language targets remain in progress.
+
 ## M16 finite connector qualification
 
 `just test::unit` runs the new RPC request codec against a Python-generated

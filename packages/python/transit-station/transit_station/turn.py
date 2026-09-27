@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from .query import QueryJob, QueryPlan, ResultReader
     from .http import PreparedHttpRequest, HttpOutcome, HttpFollowupReason
     from .grpc import PreparedGrpcRequest, GrpcOutcome
+    from .document import DocumentOwner
 
 T = TypeVar('T')
 U64_MAX = (1 << 64) - 1
@@ -296,6 +297,11 @@ class Turn:
     def cancel_call(self, correlation: int) -> bool:
         value: bool = self._apply({'cancel': str(integer(correlation, 'correlation', maximum=U64_MAX))})['cancelled']
         return value
+
+    def document(self, identity: int) -> DocumentOwner:
+        from .document import DocumentOwner
+        self._check()
+        return DocumentOwner(self, identity)
 
     def _http_request(self, request: PreparedHttpRequest) -> None:
         from .http import PreparedHttpRequest

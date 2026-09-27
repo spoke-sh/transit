@@ -34,3 +34,18 @@ from .grpc import (GrpcShape as GrpcShape, GrpcMethod as GrpcMethod,
     GrpcOutcome as GrpcOutcome, GrpcRejected as GrpcRejected, GrpcReleased as GrpcReleased,
     GrpcReplyCodec as GrpcReplyCodec, GrpcReplayPolicy as GrpcReplayPolicy, GrpcPartKind as GrpcPartKind,
     GrpcPart as GrpcPart, GrpcReader as GrpcReader, AsyncGrpcReader as AsyncGrpcReader)
+
+from .document import (DocumentDot as DocumentDot, DocumentKind as DocumentKind,
+    DocumentUnsigned as DocumentUnsigned, DocumentCharacter as DocumentCharacter,
+    DocumentValue as DocumentValue, DocumentOperation as DocumentOperation,
+    DocumentAssign as DocumentAssign, DocumentRemove as DocumentRemove,
+    DocumentInsert as DocumentInsert, DocumentSetElement as DocumentSetElement,
+    DocumentDeleteElement as DocumentDeleteElement, DocumentChange as DocumentChange,
+    PreparedDocumentChange as PreparedDocumentChange, prepare_document as prepare_document,
+    decode_document as decode_document, DocumentReference as DocumentReference,
+    DocumentStatus as DocumentStatus, DocumentAssignment as DocumentAssignment,
+    DocumentField as DocumentField, DocumentDescription as DocumentDescription,
+    DocumentPath as DocumentPath, DocumentItem as DocumentItem, DocumentPage as DocumentPage,
+    DocumentResynchronization as DocumentResynchronization, DocumentPhase as DocumentPhase,
+    DocumentProgress as DocumentProgress, DocumentOwner as DocumentOwner,
+    DocumentReader as DocumentReader, AsyncDocumentReader as AsyncDocumentReader)

@@ -17,6 +17,7 @@ from .query import ResultReader
 from .turn import Turn
 from .http import HttpOutcome, HttpPhase, HttpReplayPolicy, HttpReader, AsyncHttpReader
 from .grpc import GrpcOutcome, GrpcPhase, GrpcReplayPolicy, GrpcReader, AsyncGrpcReader
+from .document import DocumentReader, AsyncDocumentReader
 
 M = TypeVar('M')
 R = TypeVar('R')
@@ -131,6 +132,16 @@ class Runner(Generic[M]):
 
     def reconcile(self) -> RunnerEvent:
         return self._public(self._reconcile)
+
+    def _document_action(self, action: object) -> dict[str, Any]:
+        if self._native is None: raise Closed('Runner is closed')
+        if self._pending is not None: raise Busy('Resolve the saved mutation before reading Documents')
+        return self._native.document_read(action)
+
+    @property
+    def documents(self) -> DocumentReader:
+        return DocumentReader(lambda action: self._public(lambda: self._document_action(action)),
+                              self.config.activation.process.realm, self.config.native_directory)
 
     def _http_action(self, action: object) -> dict[str, Any]:
         if self._native is None:
@@ -384,6 +395,12 @@ class AsyncRunner(Generic[M]):
 
     async def next(self) -> RunnerEvent: return await self._public(self._runner._next)
     async def reconcile(self) -> RunnerEvent: return await self._public(self._runner._reconcile)
+
+    @property
+    def documents(self) -> AsyncDocumentReader:
+        async def read(action: object) -> dict[str, Any]:
+            return await self._public(lambda: self._runner._document_action(action))
+        return AsyncDocumentReader(read, self._runner.config.activation.process.realm, self._runner.config.native_directory)
 
     async def open_http(self, outcome: HttpOutcome, *, policy: HttpReplayPolicy = HttpReplayPolicy.CAPTURED) -> AsyncHttpReader:
         identity = await self._public(lambda: self._runner._http_open(outcome, policy))

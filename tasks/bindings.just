@@ -182,3 +182,8 @@ grpc-faults: python-build
 document-native: build
     zig build transit-node rey-cli
     PYTHONPATH=packages/python/transit-station:packages/python/transit-client python3 -B tests/station_document_abi.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_station.so zig-out/lib/libtransit_client.so zig-out/bin/transit-station-host
+
+# Installed Python Document types, scoped changes, retained reads and host loss.
+document-python: python-build
+    zig build transit-node rey-cli
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language python

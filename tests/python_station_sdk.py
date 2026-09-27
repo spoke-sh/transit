@@ -25,6 +25,9 @@ def consumer(mode, config_path):
     from transit_sdk_examples.query import TableService, QueryRequester
     cfg = json.loads(Path(config_path).read_bytes())
     assert Path(station.__file__).is_relative_to(Path(sys.prefix))
+    if mode.startswith('document-'):
+        document_consumer(mode, cfg)
+        return
     if mode.startswith('grpc-'):
         grpc_consumer(mode, cfg)
         return
@@ -680,6 +683,135 @@ def grpc_consumer(mode, cfg):
             else: raise AssertionError(action)
             print(json.dumps(result), flush=True)
     print(json.dumps({'closed': True, 'owned': owned.hex()}), flush=True)
+
+
+def document_consumer(mode, cfg):
+    import transit_station as s
+    from transit_client import ResourceRef, ProcessRef
+    from transit_client.errors import AccessDenied, HandlerError, Closed, TransitError
+    document = int(cfg['document'])
+    resource = ResourceRef(cfg['realm'], cfg['resource'])
+    if mode == 'document-codecs':
+        fixtures = json.loads(Path(cfg['document_fixtures']).read_bytes())
+        for case in fixtures['changes']:
+            decoded = s.decode_document(bytes.fromhex(case['wire_hex']))
+            assert s.prepare_document(decoded).data.hex() == case['wire_hex']
+            for length in (0, 1, len(bytes.fromhex(case['wire_hex']))-1):
+                try: s.decode_document(bytes.fromhex(case['wire_hex'])[:length])
+                except TransitError: pass
+                else: raise AssertionError('Truncated Document change accepted')
+        ref = s.DocumentReference.decode(cfg['realm'], bytes.fromhex(fixtures['reference_hex']))
+        assert ref.document == ref.revision == 2**64-1 and ref.encode().hex() == fixtures['reference_hex']
+        bootstrap = s.DocumentChange(document, 1, 2**64-1, 1, (
+            s.DocumentAssign('value', -(2**63)), s.DocumentAssign('body', s.DocumentKind.TEXT),
+            s.DocumentInsert(s.DocumentDot(2, 2**64-1), s.DocumentCharacter('🙂'))))
+        assert s.prepare_document(bootstrap).data.hex() == cfg['changes'][0]
+        for invalid in ('', 'é', '\ud800'):
+            try: s.DocumentCharacter(invalid)
+            except (ValueError, UnicodeError): pass
+            else: raise AssertionError('Not a single Unicode scalar')
+        print('Document Python codecs passed', flush=True)
+        return
+    class Bytes:
+        type_id, version, max_encoded_bytes = 'test.document.tick', 1, 32
+        def encode(self, value): return value
+        def decode(self, value): return value
+    class Handler:
+        phase = None
+        escaped = None
+        def initialize(self, turn):
+            turn.document(document).create()
+        def handle(self, turn, incoming):
+            self.escaped = turn.document(document)
+            value = incoming.value
+            if value == b'initialize': return
+            if value in (b'0', b'1'):
+                index = int(value)
+                change = s.PreparedDocumentChange(document, bytes.fromhex(cfg['changes'][index]))
+                progress = self.escaped.stage(index+1, change, node_limit=256)
+                self.phase = progress.phase.value
+                assert (progress.revision is None) == (progress.phase is s.DocumentPhase.PROGRESS)
+            elif value == b'checkpoint': self.phase = self.escaped.checkpoint(90).phase.value
+            elif value == b'window': self.escaped.merge_window(2)
+            elif value == b'retire': self.escaped.retire()
+            else: raise AssertionError(value)
+    config = s.ServiceConfig(cfg['url'], cfg['profile'], s.Activation(ProcessRef(cfg['realm'], cfg['pid']),
+        cfg['principal'], cfg['generation'], Path(cfg['seed_file'])), timeout_ms=15000)
+    handler = Handler()
+    runner = s.Runner(config, handler=handler, codec=Bytes(), failure_policy=s.FailurePolicy.STOP, recovery=s.Recovery.fence_on_restart())
+    saved = None
+    try:
+        for line in sys.stdin:
+            mode = line.strip()
+            if mode == 'close': break
+            if mode == 'one':
+                handler.phase = None
+                for _ in range(12):
+                    result = runner.next()
+                    if isinstance(result, s.Committed): break
+                    assert isinstance(result, s.Progress), result
+                else: raise AssertionError('No commit')
+                if handler.escaped:
+                    from transit_client.errors import TurnExpired
+                    try: handler.escaped.retire()
+                    except TurnExpired: pass
+                    else: raise AssertionError('Escaped Document owner remained usable')
+                output = {'event': 'committed', 'phase': handler.phase}
+            elif mode in ('read', 'old', 'denied', 'retired'):
+                if mode == 'read':
+                    description = runner.documents.describe(resource, document)
+                    reference = description.reference
+                    assert description.floor == description.merge_window == 0
+                    field = runner.documents.path(reference, ('value',)).field
+                    page = runner.documents.sequence(reference, s.DocumentDot(2, 2**64-1))
+                    assert page.next is None
+                    chars = ''.join(item.field.assignments[0].value.value for item in page.items)
+                    assert chars == ('🙂' if reference.revision == 2 else '🙂́')
+                    assert field.assignments[0].value == -(2**63)
+                    assert runner.documents.path(reference, ('missing',)).field.status is s.DocumentStatus.MISSING
+                    accepted = runner.documents.accepted_change(reference)
+                    assert s.prepare_document(accepted).data.hex() == cfg['changes'][reference.revision-2]
+                    saved = saved or reference
+                    output = {'revision': str(reference.revision), 'items': len(page.items), 'status': field.status.value}
+                elif mode == 'old':
+                    assert runner.documents.path(saved, ('value',)).field.status is s.DocumentStatus.SCALAR
+                    output = {'retained': True}
+                elif mode == 'denied':
+                    try: runner.documents.path(saved, ('value',))
+                    except AccessDenied: output = {'denied': True}
+                    else: raise AssertionError('Revoked Document read succeeded')
+                else:
+                    assert runner.documents.describe(resource, document).retired
+                    try: runner.documents.path(saved, ('value',))
+                    except TransitError as error:
+                        assert error.code == 'DocumentRetired', error
+                        output = {'retired': True}
+                    else: raise AssertionError('Retired Document read succeeded')
+            elif mode == 'resynchronize':
+                result = runner.documents.resynchronize(resource, document, 2**64-1)
+                assert result.reference.revision == 3
+                output = {'previous': str(result.previous_counter), 'clock': str(result.clock)}
+            elif mode == 'async-close':
+                async def asynchronous():
+                    other = await s.AsyncRunner.open(config, handler=Handler(), codec=Bytes(), failure_policy=s.FailurePolicy.STOP, recovery=s.Recovery.fence_on_restart())
+                    read = other.documents
+                    task = asyncio.create_task(read.describe(resource, document))
+                    await asyncio.sleep(0)
+                    task.cancel()
+                    try: await task
+                    except asyncio.CancelledError: pass
+                    await other.aclose()
+                    try: await read.describe(resource, document)
+                    except Closed: pass
+                    else: raise AssertionError('Read survived runner destruction')
+                asyncio.run(asynchronous())
+                output = {'joined': True}
+            else: raise AssertionError(mode)
+            print(json.dumps(output), flush=True)
+    finally:
+        runner.close()
+    print(json.dumps({'closed': True}), flush=True)
+
 
 
 def run(node, cli, raw_library, wheels, http_worker=None, *, execute=None):

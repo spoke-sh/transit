@@ -54,3 +54,8 @@ application codecs; no state or wire-profile conversion occurs automatically.
 
 The [finite RPC guide](docs/grpc.md) covers local descriptor binding, original
 message batches, durable calls, explicit retry/disposal and owned replay.
+
+The [Document guide](docs/documents.md) covers typed structured/text changes,
+scoped writer jobs and current-policy synchronous/asynchronous reads. These M17
+APIs compose shared Zig semantics; remote writer routing and the other language
+adapters remain separately qualified work.
