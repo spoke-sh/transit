@@ -95,6 +95,20 @@ internal sealed class Bridge : IWorkerState<object?>
         uint status = Api.station_growing_grpc_read(server, bytes, (nuint)bytes.Length, out var buffer);
         return Result(status, buffer, "grpc-replay", schema: "GrpcReadResult");
     }
+    internal JsonObject DocumentCodec(JsonObject action)
+    {
+        HttpCapability("document_codecs"); byte[] bytes = Value.Json(action);
+        if (bytes.Length > 32768) throw new ArgumentException("Document codec action exceeds its bound");
+        uint status = Api.station_document_codec(bytes, (nuint)bytes.Length, out var buffer);
+        return Result(status, buffer, "document-codec", schema: "DocumentCodecResult");
+    }
+    internal JsonObject DocumentRead(JsonObject action)
+    {
+        HttpCapability("document_reads"); byte[] bytes = Value.Json(action);
+        if (bytes.Length > 4096) throw new ArgumentException("Document read action exceeds its bound");
+        uint status = Api.station_growing_document_read(server, bytes, (nuint)bytes.Length, out var buffer);
+        return Result(status, buffer, "document-read", schema: "DocumentReadResult");
+    }
     internal byte[] Buffer(uint status, IntPtr pointer, string phase)
     {
         byte[] bytes;

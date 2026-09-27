@@ -90,6 +90,13 @@ loss. Invalid surrogates and expired owners reject. A cancelled read future is
 followed by joined runner close, and later reader use fails closed. The generated
 host schema validates native response shapes before typed materialization.
 
+The installed .NET 8 Document consumer passes in **223.35 seconds**, including
+clean NuGet restore and compilation with zero warnings. It executes the shared
+139-turn authority/recovery schedule, verifies immutable operation/value buffers,
+full-width numbers, Unicode scalar text, original references and conflict states.
+Cancelling an admitted read followed by asynchronous disposal joins native work;
+readers fail closed afterward. Invalid surrogate strings and escaped owners reject.
+
 ## M16 finite connector qualification
 
 `just test::unit` runs the new RPC request codec against a Python-generated

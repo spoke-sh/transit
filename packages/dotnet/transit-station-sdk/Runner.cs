@@ -7,7 +7,7 @@ using StationApi = Transit.Station.Sdk.Internal.NativeApi;
 
 namespace Transit.Station.Sdk;
 
-public sealed class Runner<T> : IDisposable, IAsyncDisposable, IHttpOwner, IGrpcOwner where T : notnull
+public sealed class Runner<T> : IDisposable, IAsyncDisposable, IHttpOwner, IGrpcOwner, IDocumentOwner where T : notnull
 {
     private sealed class State : IWorkerState<RunnerShutdown>
     {
@@ -161,7 +161,8 @@ public sealed class Runner<T> : IDisposable, IAsyncDisposable, IHttpOwner, IGrpc
     }
     private readonly Worker<State, RunnerShutdown> worker;
     public StopToken StopToken { get; }
-    private Runner(Worker<State, RunnerShutdown> worker, StopToken stop) { this.worker = worker; StopToken = stop; }
+    private readonly ulong realm;
+    private Runner(Worker<State, RunnerShutdown> worker, StopToken stop, ulong realm) { this.worker = worker; StopToken = stop; this.realm = realm; }
     public static async Task<Runner<T>> OpenAsync(ServiceConfig config, IHandler<T> handler, ICodec<T> codec, FailurePolicy failure, Recovery recovery)
     {
         ArgumentNullException.ThrowIfNull(config); ArgumentNullException.ThrowIfNull(handler); ArgumentNullException.ThrowIfNull(codec); ArgumentNullException.ThrowIfNull(recovery);
@@ -169,11 +170,13 @@ public sealed class Runner<T> : IDisposable, IAsyncDisposable, IHttpOwner, IGrpc
         if (recovery is Recovery.PersistBeforeDispatch persist) NativeValues.SynchronousCallbacks(persist.Store, typeof(IRecoveryStore));
         StopToken stop = new();
         var worker = await Worker<State, RunnerShutdown>.OpenAsync(() => new State(config, handler, codec, failure, recovery, stop), StationApi.MinimumStackBytes).ConfigureAwait(false);
-        return new Runner<T>(worker, stop);
+        return new Runner<T>(worker, stop, config.Activation.Process.Realm);
     }
     public Task<RunnerEvent> NextAsync(CancellationToken cancellation = default) => worker.Invoke(state => state.Next(), cancellation);
     public Task<RunnerEvent> ReconcileAsync(CancellationToken cancellation = default) => worker.Invoke(state => state.Attempt(), cancellation);
     public Task<RunnerShutdown> EvidenceAsync(CancellationToken cancellation = default) => worker.Invoke(state => state.Evidence(), cancellation);
+    public Document.Reader Documents => new(this, realm);
+    Task<R> IDocumentOwner.DocumentAccess<R>(Func<StationBridge, R> action, CancellationToken cancellation) => worker.Invoke(state => state.ReplayAccess(action), cancellation);
     Task<R> IHttpOwner.HttpAccess<R>(Func<StationBridge, R> action, CancellationToken cancellation) => worker.Invoke(state => state.ReplayAccess(action), cancellation);
     void IHttpOwner.CheckClose() => worker.CheckClose();
     public Task<Http.Reader> OpenHttpAsync(Http.Outcome outcome, Http.ReplayPolicy policy = Http.ReplayPolicy.Captured, CancellationToken cancellation = default)

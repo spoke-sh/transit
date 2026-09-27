@@ -56,6 +56,7 @@ public sealed class Turn
     public ProcessRef Process { get { Check(); return ProcessRef; } }
     public ResourceRef Resource { get { Check(); return ResourceRef; } }
     public ulong ResourceRevision { get { Check(); return Value.Number(Event["resource_revision"]); } }
+    public Document.Owner Document(ulong identity) { Check(); return new Sdk.Document.Owner(this, identity); }
     public State State { get { Check(); return new State(this, null); } }
     public Budgets Budgets() => Access(false, () => {
         JsonObject value = Value.Object(Raw(Value.Obj(("budgets", Value.Obj())))["budgets"]);

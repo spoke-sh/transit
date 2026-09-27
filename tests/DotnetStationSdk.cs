@@ -423,9 +423,86 @@ static class Proof
             }
         }
     }
+    sealed class DocumentHandler(IReadOnlyList<Document.Prepared> changes) : IHandler<Bytes>
+    {
+        public Document.Phase? Phase; public Document.Owner? Escaped;
+        public void Initialize(Turn turn) => turn.Document(ulong.MaxValue).Create(1);
+        public void OnMessage(Turn turn,Incoming<Bytes> input) {
+            var owner=turn.Document(ulong.MaxValue); Escaped=owner; Phase=null;
+            string command=System.Text.Encoding.UTF8.GetString(((Cast<Bytes>)input).Value.Copy());
+            switch(command) {
+                case "initialize": return;
+                case "checkpoint": Phase=owner.Checkpoint(90).Phase; return;
+                case "window": owner.MergeWindow(2); return;
+                case "retire": owner.Retire(); return;
+                case "0": case "1": int index=int.Parse(command,System.Globalization.CultureInfo.InvariantCulture); Phase=owner.Stage((ulong)index+1,changes[index],256).Phase; return;
+                default: throw new Exception("Unknown Document tick");
+            }
+        }
+    }
+    static async Task DocumentProof(string mode,JsonObject cfg) {
+        ResourceRef resource=new(72,Number(cfg,"resource"));
+        if(mode=="document-codecs") {
+            JsonObject fixtures=Read(Text(cfg,"document_fixtures"));
+            foreach(var item in fixtures["changes"]!.AsArray()) {
+                byte[] bytes=Convert.FromHexString(Text(item!.AsObject(),"wire_hex"));
+                Check((await Document.PrepareAsync(await Document.DecodeAsync(bytes))).Bytes.Copy().AsSpan().SequenceEqual(bytes));
+                foreach(int size in new[]{0,1,bytes.Length-1}) { bool rejected=false; try { await Document.DecodeAsync(bytes[..size]); } catch(Exception error) when(error is TransitException or ArgumentException) { rejected=true; } Check(rejected); }
+            }
+            byte[] encoded=Convert.FromHexString(Text(fixtures,"reference_hex")); var reference=await Document.Reference.DecodeAsync(72,encoded);
+            Check(reference.DocumentId==ulong.MaxValue && reference.Revision==ulong.MaxValue && reference.Bytes.Copy().AsSpan().SequenceEqual(encoded));
+            Document.Change change=new(ulong.MaxValue,1,1,ulong.MaxValue,0,1,[
+                new Document.Assign(default,"value",[],new Document.Signed(long.MinValue)),
+                new Document.Assign(default,"body",[],new Document.Container(Document.ContainerKind.Text)),
+                new Document.Insert(new(2,ulong.MaxValue),default,new Document.CharacterValue(new System.Text.Rune(0x1f642)))]);
+            var prepared=await Document.PrepareAsync(change); byte[] copy=prepared.Bytes.Copy(); copy[0]^=127;
+            Check(Convert.ToHexString(prepared.Bytes.Copy()).ToLowerInvariant()==cfg["changes"]![0]!.GetValue<string>());
+            bool invalid=false; try { _=new Document.StringValue("\ud800"); } catch(ArgumentException) { invalid=true; } Check(invalid);
+            Report(new(){["codecs"]=true}); return;
+        }
+        List<Document.Prepared> changes=[];
+        foreach(var item in cfg["changes"]!.AsArray()) changes.Add(await Document.PrepareAsync(await Document.DecodeAsync(Convert.FromHexString(item!.GetValue<string>()))));
+        ServiceConfig config=new(new ClientConfig(new Uri(Text(cfg,"url")),Profile.GrowingV3),new Activation(new ProcessRef(72,Number(cfg,"pid")),Number(cfg,"generation"),new Credential(72,Number(cfg,"principal"),Text(cfg,"seed_file"))));
+        DocumentHandler handler=new(changes); Document.Reference? saved=null;
+        await using var runner=await Runner<Bytes>.OpenAsync(config,handler,new GrpcBytes(),FailurePolicy.Stop,new Recovery.FreshOwnership()); var reader=runner.Documents;
+        for(string? command;(command=Console.ReadLine()) is not null;) {
+            switch(command) {
+                case "one": {
+                    bool committed=false; for(int i=0;i<12;i++) { var next=await runner.NextAsync(); if(next is Committed) { committed=true; break; } Check(next is Progress); }
+                    Check(committed); Expect(ErrorKind.TurnExpired,() => handler.Escaped!.MergeWindow(0));
+                    string? phase=handler.Phase switch { Document.Phase.Progress=>"progress",Document.Phase.Accepted=>"accepted",Document.Phase.Duplicate=>"duplicate",Document.Phase.CheckpointComplete=>"checkpoint_complete",null=>null,_=>throw new Exception("Invalid phase") };
+                    Report(new(){["event"]="committed",["phase"]=phase}); break;
+                }
+                case "read": {
+                    var description=await reader.DescribeAsync(resource,ulong.MaxValue); var reference=description.Reference; Check(description.Floor==0 && description.MergeWindow==0);
+                    var field=await reader.PathAsync(reference,["value"]); var page=await reader.SequenceAsync(reference,new(2,ulong.MaxValue)); Check(page.Next is null);
+                    string text=string.Concat(page.Items.Select(v => ((Document.CharacterValue)v.Field.Assignments[0].Value).Value.ToString())); bool initial=reference.Revision==2;
+                    Check(text==(initial?"🙂":"🙂́") && ((Document.Signed)field.Field.Assignments[0].Value).Value==long.MinValue);
+                    Check((await reader.PathAsync(reference,["missing"])).Field.Status==Document.Status.Missing);
+                    Check((await Document.PrepareAsync(await reader.AcceptedChangeAsync(reference))).Bytes.Equals(changes[(int)reference.Revision-2].Bytes));
+                    Check(field.Field.Status==(initial?Document.Status.Scalar:Document.Status.Conflict)); saved??=reference;
+                    Report(new(){["revision"]=reference.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture),["items"]=page.Items.Count,["status"]=initial?"scalar":"conflict"}); break;
+                }
+                case "old": Check((await reader.PathAsync(saved!,["value"])).Field.Status==Document.Status.Scalar); Report(new(){["retained"]=true}); break;
+                case "denied": Expect(ErrorKind.AccessDenied,() => reader.PathAsync(saved!,["value"]).GetAwaiter().GetResult()); Report(new(){["denied"]=true}); break;
+                case "resynchronize": { var result=await reader.ResynchronizeAsync(resource,ulong.MaxValue,ulong.MaxValue); Check(result.Reference.Revision==3); Report(new(){["previous"]=result.PreviousCounter.ToString(System.Globalization.CultureInfo.InvariantCulture),["clock"]=result.Clock.ToString(System.Globalization.CultureInfo.InvariantCulture)}); break; }
+                case "retired": Check((await reader.DescribeAsync(resource,ulong.MaxValue)).Retired); try { await reader.PathAsync(saved!,["value"]); throw new Exception("Retired read accepted"); } catch(TransitException error) { Check(error.Code=="DocumentRetired"); } Report(new(){["retired"]=true}); break;
+                case "async-close": {
+                    var other=await Runner<Bytes>.OpenAsync(config,new DocumentHandler(changes),new GrpcBytes(),FailurePolicy.Stop,new Recovery.FreshOwnership()); var active=other.Documents;
+                    using CancellationTokenSource cancellation=new(); var pending=active.DescribeAsync(resource,ulong.MaxValue,cancellation.Token); cancellation.Cancel();
+                    try { await pending; } catch(OperationCanceledException) {} await other.DisposeAsync();
+                    Expect(ErrorKind.Closed,() => active.DescribeAsync(resource,ulong.MaxValue).GetAwaiter().GetResult()); Report(new(){["joined"]=true}); break;
+                }
+                case "close": await runner.DisposeAsync(); Expect(ErrorKind.Closed,() => reader.DescribeAsync(resource,ulong.MaxValue).GetAwaiter().GetResult()); Report(new(){["closed"]=true}); return;
+                default: throw new Exception("Unknown Document command");
+            }
+        }
+    }
+
     public static async Task Main(string[] args) {
         string mode = args[0], path = args[1]; var cfg = Read(path);
         Check(typeof(Runner<>).Assembly.Location.StartsWith(Path.GetDirectoryName(path)!, StringComparison.Ordinal)); Check(Text(cfg, "profile") == "growing_v3");
+        if (mode.StartsWith("document-", StringComparison.Ordinal)) { await DocumentProof(mode,cfg); return; }
         if (mode=="grpc-golden") { await GrpcGolden(cfg); return; }
         if (mode.StartsWith("grpc-", StringComparison.Ordinal)) { await GrpcProof(mode, cfg); return; }
         if (mode.StartsWith("http-", StringComparison.Ordinal)) { await HttpProof(mode, cfg); return; }

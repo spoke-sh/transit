@@ -38,3 +38,6 @@ evidence; managed tasks and object fields are not durable state.
 
 M16 adds [finite RPC calls and captured replay](docs/GRPC.md), including local
 descriptor binding, binary metadata and observed status zero.
+
+M17 adds [immutable Document changes and asynchronous accepted-state reads](docs/DOCUMENTS.md)
+with scoped jobs, full-width identities and joined cancellation/disposal.

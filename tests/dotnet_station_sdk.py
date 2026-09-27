@@ -61,7 +61,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
         golden.write_text(json.dumps({'profile': 'growing_v3', 'grpc_fixtures': str(grpc_fixtures)}))
         subprocess.run(['dotnet', str(output / 'Consumer.dll'), 'grpc-golden', str(golden)], env=environment, cwd=target, check=True, timeout=30)
         def command(mode, config):
-            if mode.startswith(('http-', 'grpc-')):
+            if mode.startswith(('http-', 'grpc-', 'document-')):
                 return ['dotnet', str(output / 'Consumer.dll'), mode, str(config)]
             # Establish a durable private directory entry before the proof's store
             # truncates, writes and Flush(true)s each exact frozen mutation.
