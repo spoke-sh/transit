@@ -1,7 +1,9 @@
 # transit-exchange
 
-Shared Zig capture over Station's growing immutable publication. HTTP consumes
-this package; it has no sockets, credentials, HTTP parser or remote retry loop.
+Shared Zig capture over Station's growing immutable publication. HTTP and RPC
+consume this package; it has no external transport, credential resolver, protocol
+parser or remote retry loop. Its optional Worker helper uses only the public
+Transit client for authority I/O.
 [M15](../../../docs/roadmap/M15.md) is in progress. The initial unit checks do not
 qualify the complete connector, deployment, SDK or disk-recovery obligations.
 
@@ -62,6 +64,22 @@ at most two chunk deletions per call. Permanent descriptors prevent ID reuse.
 Historical roots remain protected until explicitly released. Resource quotas,
 current grants and immutable namespace allocation remain mandatory; there is no
 automatic expiry, dependency discovery or whole-history resident array.
+
+`Service(Adapter)` shares authenticated process-origin admission, fixed reply
+routing, linked-call allocation, terminal publication and explicit caller disposal.
+The adapter supplies its wire records, status conversion, scope validator and
+followup policy. No adapter can bypass Exchange's settlement/dependency checks.
+HTTP keeps its existing HT* records; RPC supplies GR* records and status + 1
+conversion. Duplicate routing, current policy and private-decision rollback use
+the same implementation in both connectors.
+
+`Worker(Host, Adapter, options)` shares signed command retry, bounded host pumping,
+self-tick commits, segment staging/resume, exact intent-position effect lookup and
+current public reads. The host supplies its server/client/configuration, protocol
+policy and external transport. Options declare the tick and capture limits; there
+is no generic implicit quota. An uncertain authority command must stop the
+activation rather than reconstruct lost network state. Fresh ownership, external
+I/O and observation/closure decisions remain explicit host responsibilities.
 
 See the [versioned contract](../../../contracts/STATION_EXCHANGE_V1.md). Run
 `nix develop --command bash -c 'cd packages/zig/transit-exchange && zig build test'`

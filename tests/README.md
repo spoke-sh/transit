@@ -15,6 +15,13 @@ this extraction in **483.14 seconds**, with sixteen sends, eight applications,
 two cancellation requests and 1,066 cold objects / 116,710,006 bytes under the
 8 MiB hot limit. These local timings do not establish hosted CI cost.
 
+HTTP and RPC now share authenticated admission/routing/disposal and the public
+Transit worker driver. The unchanged HTTP recovery corpus passed after both
+extractions in **491.58 seconds**, with sixteen sends, eight applications, two
+cancellation requests and 1,025 cold objects / 114,036,242 bytes under 8 MiB hot
+storage. This is the shared-component regression; the separate RPC worker proof
+must qualify its protocol-specific orchestration and durable response publication.
+
 `just test::grpc-libraries` runs the selected pinned HTTP/2, HPACK, protobuf and
 gRPC client suites. Compatibility changes and the intentionally excluded server
 surface are recorded with source hashes in the [snapshot](../third_party/zig-libs/README.md).

@@ -5,6 +5,8 @@ pub const p = station.protocol;
 pub const Publication = station.Publication;
 pub const Exchange = @import("Exchange.zig");
 pub const Client = @import("Client.zig");
+pub const Worker = @import("Worker.zig").For;
+pub const Service = @import("Service.zig").For;
 pub const codec = @import("codec.zig");
 pub const Phase = enum(u8) { preparing = 1, capturing = 2, complete = 3, unknown = 4, retired = 5, ready = 6 };
 pub const Limits = struct {
