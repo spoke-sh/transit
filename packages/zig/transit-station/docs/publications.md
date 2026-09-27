@@ -65,6 +65,23 @@ under the old activation. Stale owners cannot publish or clean up. Resource
 revocation, expiry, view expiry and retained-version release are explicit errors;
 no helper opens a fresh source automatically.
 
+## Resumable finite uploads
+
+`PublicationUpload.step` stages one or two finite records, one operation per turn,
+using the same namespace, immutable specs and caller-owned source bytes on every
+resume. It returns `true` only when all records were already published before
+that turn; the adapter may then admit the reference using the remaining budget.
+It restores the private decision on failure, including failures after namespace
+creation. Published records are individually visible; the adapter owns admission
+of their combined reference.
+
+Supply a separate nonempty `identity_key` and an opaque frozen `identity` that
+binds every record spec and adapter policy field. Changed identity/content and an
+occupied namespace without that marker fail explicitly. The helper validates
+content digests and quota before staging, but does not interpret the adapter's
+marker or grant access. HTTP and RPC callers use this shared upload mechanism;
+formats, authorization and durable call identity remain with their adapters.
+
 ## Disposition and cleanup
 
 Retention defaults to unlimited. There is no timer or automatic garbage collector.

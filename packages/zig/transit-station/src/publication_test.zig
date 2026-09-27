@@ -304,3 +304,66 @@ test "bounded cleanup retains permanent identities and a captured historical roo
     var captured = try historical.capture();
     try verify(pubn, &captured, 1, &bytes);
 }
+
+test "paired upload keeps partial publication separate from admission and rejects changed identities" {
+    const Upload = @import("PublicationUpload.zig");
+    var store: Store = .{};
+    defer store.deinit();
+    const body: [513]u8 = @splat(0x7d);
+    const records = [_]Upload.Record{
+        .{ .id = 1, .bytes = "metadata", .spec = try Pub.Digest.of(2, "metadata") },
+        .{ .id = 2, .bytes = &body, .spec = try Pub.Digest.of(2, &body) },
+    };
+    const input: Upload.Input = .{ .namespace = std.math.maxInt(u64), .identity_key = try p.Value.init("upload"), .identity = try p.Value.init("bound-metadata-and-body-v1"), .limits = limits, .records = &records };
+    var steps: usize = 0;
+    while (steps < 20) : (steps += 1) {
+        var turn = try store.capture();
+        const before = turn.decision;
+        const ready = try Upload.step(&turn, input);
+        try t.expect(store.reads <= 8);
+        if (ready) {
+            try t.expectEqualDeep(before, turn.decision);
+            break;
+        }
+        try store.commit(turn);
+    }
+    try t.expect(steps > 2 and steps < 20);
+    var turn = try store.capture();
+    const publication: Pub = .{ .resource = 7, .namespace = input.namespace };
+    try verify(publication, &turn, 1, "metadata");
+    try verify(publication, &turn, 2, &body);
+    var changed = input;
+    changed.identity = try p.Value.init("different-frozen-request");
+    turn = try store.capture();
+    const before = turn.decision;
+    try t.expectError(error.PublicationUploadIdentityConflict, Upload.step(&turn, changed));
+    try t.expectEqualDeep(before, turn.decision);
+    var changed_records = records;
+    changed_records[1].bytes = "altered";
+    changed.records = &changed_records;
+    try t.expectError(error.InvalidPublicationUpload, Upload.step(&turn, changed));
+    try t.expectEqualDeep(before, turn.decision);
+    // Removing only the adapter marker cannot silently adopt old history.
+    _ = store.state.remove(input.identity_key);
+    turn = try store.capture();
+    const before_adoption = turn.decision;
+    try t.expectError(error.PublicationUploadNamespaceInUse, Upload.step(&turn, input));
+    try t.expectEqualDeep(before_adoption, turn.decision);
+}
+
+test "upload initialization failure restores an already populated private decision" {
+    const Upload = @import("PublicationUpload.zig");
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture();
+    try fill(&turn, 3);
+    const before = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, Upload.step(&turn, .{
+        .namespace = 1,
+        .identity_key = try p.Value.init("upload"),
+        .identity = try p.Value.init("frozen"),
+        .limits = limits,
+        .records = &.{.{ .id = 1, .bytes = "", .spec = try Pub.Digest.of(1, "") }},
+    }));
+    try t.expectEqualDeep(before, turn.decision);
+}

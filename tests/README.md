@@ -2,6 +2,14 @@
 
 ## M16 transport work in progress
 
+The shared `PublicationUpload` helper now stages HTTP's two immutable request
+records with the same frozen identity and one bounded operation per turn.
+Units cover partial upload, changed content/identity, occupied namespace refusal
+and private-decision rollback. The unchanged HTTP worker corpus passed after
+this extraction in **483.14 seconds**, with sixteen sends, eight applications,
+two cancellation requests and 1,066 cold objects / 116,710,006 bytes under the
+8 MiB hot limit. These local timings do not establish hosted CI cost.
+
 `just test::grpc-libraries` runs the selected pinned HTTP/2, HPACK, protobuf and
 gRPC client suites. Compatibility changes and the intentionally excluded server
 surface are recorded with source hashes in the [snapshot](../third_party/zig-libs/README.md).
