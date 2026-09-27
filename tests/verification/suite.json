@@ -140,6 +140,7 @@
       "test::unified-codec",
       "test::unified-ingress",
       "test::unified-lifecycle",
+      "test::unified-expiry",
       "bindings::unified-all"
     ]
   },

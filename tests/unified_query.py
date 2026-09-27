@@ -252,7 +252,12 @@ if __name__ == "__main__":
     parser.add_argument('--board')
     parser.add_argument('--browser', action='store_true')
     parser.add_argument('--lifecycle', action='store_true')
+    parser.add_argument('--expiry', action='store_true')
     args = parser.parse_args()
+    if args.expiry:
+        from unified_expiry import run as expiry
+        expiry(args.node, args.host, args.proof, args.library, args.kinds or ('kv', 'table', 'document'))
+        raise SystemExit(0)
     run(args.node, args.host, args.proof, args.port_host, args.library,
         kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or (), shell=args.shell,
         board=args.board, browser=args.browser, lifecycle=args.lifecycle)

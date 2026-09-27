@@ -251,6 +251,10 @@ unified-ingress source="table":
 unified-lifecycle source="kv":
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-lifecycle=true
 
+# Real opted-in request lifetime, complete/prefix reads and disk restart.
+unified-expiry source="kv":
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-expiry=true
+
 # Independent v2 bundle and Arrow fixtures through native and port APIs.
 unified-codec:
     zig build test-unified-codec

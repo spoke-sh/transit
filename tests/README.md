@@ -225,8 +225,23 @@ read rejection, and completed bounded cleanup. Cancellation can reach the source
 as its cancel frame or as withdrawal of the request publication; the requester
 keeps its explicit cancelled disposition in either ordering. Source, requester
 and courier emit bounded JSON readiness/progress evidence without fixture
-payloads or signing seeds. Table/Document lifecycle runs and real-clock expiry
-remain pending; this result does not qualify them.
+payloads or signing seeds. The same Table lifecycle schedule passes in **143.25
+seconds**, with 185 cold objects / 16,387,913 bytes. The complete Document
+shell/API/Chromium/lifecycle run passes in **875.94 seconds**, including 477.83
+seconds of accepted Document provisioning, with 1,612 cold objects / 174,056,281
+bytes and 64 resident authority pages. It returns 12 rows / 2 segments / 9,880
+Arrow bytes. These durations include the fixture schedule, not just query time.
+
+The real-clock opted-in KV request-expiry proof passes in **194.84 seconds**, with
+116 cold objects / 9,727,232 bytes. A complete result and prefix are readable
+before the deadline; expired status/pages reject, and node/disk-store recovery
+cannot revive them. The source pin is released. It uses a three-minute lifetime
+and waits through the authority's declared clock uncertainty. This uncovered
+and fixed an unlimited requester wait under finite resource lifetime. Component
+coverage checks earliest process/resource deadlines, authenticated timer closure
+and bounded cleanup. Table expiry passes in **198.24 seconds** (125 cold objects /
+9,854,161 bytes); Document expiry passes in **697.82 seconds** (1,261 cold objects /
+109,186,815 bytes), including accepted-state seeding. Neither uses a test clock.
 
 The KV ingress run also reaches passing shell, generated-client, Board API and
 Chromium checks, including uncertain retry and current denial, before the newly

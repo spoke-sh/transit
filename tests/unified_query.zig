@@ -8,7 +8,7 @@ const Kind = enum { kv, table, document };
 const count = 41;
 const document_count = 12;
 const budgets: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
-const Config = struct { url: []const u8, connection: q.UnifiedClient.Connection, kind: Kind };
+const Config = struct { url: []const u8, connection: q.UnifiedClient.Connection, kind: Kind, expiry_at_ms: ?u64 = null };
 const path = [_]q.document.Model.Name{q.document.Model.Name.init("items") catch unreachable};
 const optional_path = [_]q.document.Model.Name{q.document.Model.Name.init("optional") catch unreachable};
 const projections = [_]q.SourceDefinition.Projection{
@@ -37,6 +37,7 @@ const Seed = struct {
     peer: u64,
     requests: u64,
     done: bool = false,
+    freeze: bool = false,
     fn initialize(raw: ?*anyopaque, turn: *s.GrowingTurn) !void {
         const self: *Seed = @ptrCast(@alignCast(raw.?));
         switch (self.kind) {
@@ -67,6 +68,10 @@ const Seed = struct {
         const command = try frame.payload.asInteger();
         self.done = false;
         if (command == -1) return;
+        if (command == -4) {
+            if (self.freeze) return error.FreezeForAssociation;
+            return;
+        }
         if (command == -2 or command == -3) {
             try q.UnifiedCapture.setPolicy(turn, .{ .peer = self.peer, .requests = self.requests, .revision = if (command == -2) 1 else 2, .allow = command == -2, .limits = budgets, .declaration = try q.Bundle.declaration(try definition(self.kind, turn.view.resource)) });
             if (command == -2) {
@@ -160,20 +165,25 @@ pub fn main(init: std.process.Init) !void {
     var transport = s.client.Client.init(init.gpa, init.io, url);
     defer transport.deinit();
     transport.timeout_ms = 10000;
+    errdefer if (transport.last_rejection) |reason| std.debug.print("Authority rejection: {s}\n", .{@tagName(reason)});
     var admin: Admin = .{ .wire = &transport, .key = root };
     admin.sequence = (try admin.query(.{ .capabilities = {} })).principal_sequence;
-    if (std.mem.eql(u8, command, "provision")) {
+    if (std.mem.eql(u8, command, "provision") or std.mem.eql(u8, command, "provision-expiring")) {
         if (args.len != 5) return error.Usage;
         const kind = std.meta.stringToEnum(Kind, args[4]) orelse return error.InvalidKind;
         const writer_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8));
         const requester_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
         const caller_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10));
         const courier_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(11));
-        const requester = try admin.provision(65537, requester_key);
-        const writer = try admin.provisionReader(65536, writer_key, requester.resource);
+        const expiring = std.mem.eql(u8, command, "provision-expiring");
+        var requester: Admin.Provision = if (expiring) .{ .pid = try admin.submit(.{ .spawn = .{} }), .resource = 0, .generation = 0 } else try admin.provision(65537, requester_key);
+        if (expiring) _ = try admin.submit(.{ .grant = .{ .subject = 65537, .public_key = requester_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .pid = requester.pid } });
+        var writer = try admin.provisionReader(65536, writer_key, if (expiring) null else requester.resource);
         _ = try admin.submit(.{ .grant = .{ .subject = 1234, .public_key = caller_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
         _ = try admin.submit(.{ .grant = .{ .subject = 65538, .public_key = courier_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) | p.permission(.delivery) } });
-        for ([_]u64{ writer.resource, requester.resource }) |resource| _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = 1234, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        for ([_]u64{ writer.resource, requester.resource }) |resource| {
+            if (resource != 0) _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = 1234, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        }
         var server = try s.GrowingGenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
         var seed: Seed = .{ .kind = kind, .peer = requester.pid, .requests = requester.resource };
         const handler: s.GrowingGenServer.Handler = .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle };
@@ -197,6 +207,38 @@ pub fn main(init: std.process.Init) !void {
                 try drive(init, &server, handler);
             }
         }
+        var expiry_at_ms: ?u64 = null;
+        if (expiring) {
+            // The growing profile only permits association changes while
+            // unowned. Record/retry a deliberate seed barrier before installing
+            // the late finite request resource; never mutate topology under an
+            // active writer or broaden its PID-scoped grant.
+            seed.freeze = true;
+            try admin.send(writer.pid, -4);
+            drive(init, &server, handler) catch |err| {
+                if (err != error.FreezeForAssociation) return err;
+            };
+            const paused = (try admin.query(.{ .process = writer.pid })).body.process.process;
+            _ = try admin.submit(.{ .retry = .{ .pid = writer.pid, .expected_generation = paused.generation, .failure_input = paused.failure orelse return error.SeedBarrierMissing } });
+            writer.generation = paused.generation + 1;
+            // Start the explicitly opted-in lifetime after expensive source
+            // seeding. The real synchronized node clock enforces the deadline.
+            expiry_at_ms = @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 180000;
+            requester.resource = try admin.submit(.{ .create_resource = .{ .writer = requester.pid, .deadline_ms = expiry_at_ms } });
+            for ([_]u64{ 0, 65537 }) |subject| _ = try admin.submit(.{ .grant_resource = .{ .resource = requester.resource, .subject = subject, .permissions = p.State.all_permissions } });
+            for ([_]u64{ 1234, 65536 }) |subject| _ = try admin.submit(.{ .grant_resource = .{ .resource = requester.resource, .subject = subject, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+            _ = try admin.submit(.{ .associate = .{ .pid = requester.pid, .name = try p.Value.init("state"), .resource = requester.resource } });
+            _ = try admin.submit(.{ .own = .{ .pid = requester.pid, .expected_generation = 1, .worker = 65537 } });
+            requester.generation = 2;
+            _ = try admin.submit(.{ .associate = .{ .pid = writer.pid, .name = try p.Value.init("requests"), .resource = requester.resource, .required = false } });
+            writer.generation += 1;
+            _ = try admin.submit(.{ .own = .{ .pid = writer.pid, .expected_generation = writer.generation, .worker = 65536 } });
+            writer.generation += 1;
+            seed.requests = requester.resource;
+            seed.freeze = false;
+            server = try s.GrowingGenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
+            try drive(init, &server, handler);
+        }
         try admin.send(writer.pid, -2);
         try drive(init, &server, handler);
         var requests = try s.GrowingGenServer.init(.{ .client = &transport, .realm = 46, .principal = 65537, .pid = requester.pid, .generation = requester.generation, .key = requester_key }, "state");
@@ -206,7 +248,7 @@ pub fn main(init: std.process.Init) !void {
         _ = try admin.submit(.{ .own = .{ .pid = writer.pid, .expected_generation = writer.generation, .worker = 65536 } });
         _ = try admin.submit(.{ .own = .{ .pid = requester.pid, .expected_generation = requester.generation, .worker = 65537 } });
         const connection: q.UnifiedClient.Connection = .{ .realm = 46, .principal = 1234, .source = writer.pid, .resource = writer.resource, .requester = requester.pid, .requests = requester.resource };
-        const client_config: Config = .{ .url = url, .connection = connection, .kind = kind };
+        const client_config: Config = .{ .url = url, .connection = connection, .kind = kind, .expiry_at_ms = expiry_at_ms };
         try save(init, directory, "client.json", client_config);
         try save(init, directory, "shell.json", .{ .url = url, .seed_file = try keyFile(init, directory, "caller.seed", 10), .connection = connection, .workspace = q.Workspace.Config{ .name = "items", .source = try q.Values.Source.fromNative(init.arena.allocator(), try definition(kind, connection.resource)), .limits = try q.Values.Limits.fromNative(init.arena.allocator(), budgets) } });
         _ = try keyFile(init, directory, "caller.seed", 10);
@@ -219,6 +261,11 @@ pub fn main(init: std.process.Init) !void {
     }
     const parsed = try std.json.parseFromSlice(Config, init.arena.allocator(), try std.Io.Dir.cwd().readFileAlloc(init.io, try file(init, directory, "client.json"), init.arena.allocator(), .limited(8192)), .{});
     const config = parsed.value;
+    if (std.mem.eql(u8, command, "expire-request")) {
+        if (config.expiry_at_ms == null) return error.ExpiryNotOptedIn;
+        _ = try admin.submit(.{ .expire_resource = config.connection.requests });
+        return print(init, (try admin.query(.{ .resource = config.connection.requests })).body.resource);
+    }
     if (std.mem.eql(u8, command, "board-provision")) {
         const inspector = try p.Ed25519.KeyPair.generateDeterministic(@splat(12));
         _ = try admin.submit(.{ .grant = .{ .subject = 55, .public_key = inspector.public_key.toBytes(), .permissions = p.permission(.inspect) } });
