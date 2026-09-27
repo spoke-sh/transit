@@ -39,6 +39,8 @@ def run(node, cli, raw_library, install, label):
         shutil.copyfile(root / 'tests/verification/sdk-codecs-v1.json', codec_fixture)
         http_fixture = target / 'http-codecs.json'
         shutil.copyfile(root / 'packages/zig/transit-station-http/src/admission-fixtures.json', http_fixture)
+        http_release_fixture = target / 'http-release-codecs.json'
+        shutil.copyfile(root / 'packages/zig/transit-station-http/src/release-fixtures.json', http_release_fixture)
         native = Native(raw_library)
         admin = native.client(system.url)
         private = bytes.fromhex(system.seed.read_text().strip())
@@ -109,7 +111,7 @@ def run(node, cli, raw_library, install, label):
             output.mkdir()
             cfg = {'url': url, 'realm': 72, 'principal': principal, 'pid': pid, 'generation': 2,
                 'seed_file': str(seed), 'profile': 'growing_v3', 'peer': pid, 'role': role, 'resource': resource,
-                'pending': str(target / f'pending-{pid}'), 'output': str(output), 'fixtures': str(codec_fixture), 'http_fixtures': str(http_fixture),
+                'pending': str(target / f'pending-{pid}'), 'output': str(output), 'fixtures': str(codec_fixture), 'http_fixtures': str(http_fixture), 'http_release_fixtures': str(http_release_fixture),
                 'query_results': role in ('table', 'query'), 'work_before_ms': now+lifetime_ms if finite else None}
             return cfg
         def config_file(cfg):

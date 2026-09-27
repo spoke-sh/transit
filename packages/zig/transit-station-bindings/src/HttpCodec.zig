@@ -89,6 +89,7 @@ pub fn apply(alloc: std.mem.Allocator, action: Action) !Result {
         },
         .outcome => |wire| {
             if (std.mem.startsWith(u8, wire.slice(), http.Service.Rejection.magic)) return .{ .rejected = (try http.exchange.codec.decode(http.Service.Rejection, wire)).reason };
+            if (std.mem.startsWith(u8, wire.slice(), http.Service.Released.magic)) return apply(alloc, .{ .released = wire });
             const value = try http.Service.Outcome.decode(wire);
             return .{ .outcome = .{ .phase = value.phase, .resource = value.resource, .exchange = try a.decimal(alloc, value.exchange), .effect = value.effect, .attempt = value.attempt, .status = if (value.phase == .observed) value.status else null, .reference = if (value.phase == .observed) try (try value.reference()).encode() else null } };
         },

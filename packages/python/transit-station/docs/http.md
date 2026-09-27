@@ -39,8 +39,8 @@ Each namespace belongs permanently to one request and cannot be recycled after
 retirement. Calling with unpublished or changed records rejects before output.
 
 Use `HttpReplyCodec(application_codec, realm)` as an explicit union codec for
-ordinary application messages plus `HttpOutcome`/`HttpRejected`. It reserves the
-`HTR1` and `HTF1` payload prefixes for shared HTTP replies. Before using an outcome,
+ordinary application messages plus `HttpOutcome`/`HttpRejected`/`HttpReleased`.
+It reserves the `HTR1`, `HTF1` and `HTK1` payload prefixes for shared HTTP replies. Before using an outcome,
 call `turn.require_reply(incoming, peer=connector, correlation=saved_correlation)`
 to verify the current authenticated input against the durable wait. Decoding an
 outcome or possessing a reference confers no authority.
@@ -75,5 +75,15 @@ Concurrent operations reject as busy. Cancelling an await does not undo native
 work; always `await runner.aclose()` to join it and dispose the native reader,
 including when cancellation races with opening a reader. Reader bytes remain
 owned after disposal. Closing the reader releases local state only; it does not
-release the caller's durable capture hold. Public followup/release conveniences
-and the remaining language SDK matrix are still M15 work.
+release the caller's durable capture hold.
+
+To dispose that durable hold, call
+`turn.release_http(connector, outcome.resource, outcome.exchange)` in a handler
+and save its returned correlation in state. Check the subsequent `HttpReleased`
+with `turn.require_reply` against that connector and correlation, then check its
+resource/exchange. A rejection remains `HttpRejected`. Duplicate requests remain
+safe after worker restart and capture cleanup. This operation needs no transcript
+read grant; the service checks the recorded holder and current admission policy.
+It performs no remote cancellation, retirement or automatic physical cleanup.
+The finite worker needs a fresh `poll` activation to handle the call. Public
+followup helpers remain M15 work.

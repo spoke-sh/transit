@@ -11,7 +11,7 @@ import threading
 import time
 
 
-def run(node, cli, raw_library, worker, install, label):
+def run(node, cli, raw_library, worker, install, label, *, public_release=False):
     from client_abi import Native
     from client_abi_growing import GrowingSystem
     from station import frame
@@ -207,9 +207,31 @@ def run(node, cli, raw_library, worker, install, label):
             assert json.loads(child.communicate(timeout=30)[0]) == {'joined': True}
             assert child.returncode == 0
             children.remove(child)
+            if public_release:
+                # A durable disposal call needs no transcript read grant and
+                # can recover an acknowledgement after explicit capture cleanup.
+                command({'grant_resource': {'resource': service['resource'], 'subject': caller['principal'], 'permissions': 0}})
+                child = start('http-caller', caller)
+                for attempt in range(2):
+                    command({'send': {'pid': caller['pid'], 'value': frame(b'dispose')}})
+                    assert action(child, 'step') == {'released': False}
+                    outputs = deliver()
+                    assert len(outputs) == 1 and outputs[0]['destination'] == service['pid']
+                    own(service)
+                    worker_config.update(generation=service['generation'], mode='poll')
+                    assert invoke()['phase'] == ('complete' if attempt == 0 else 'retired')
+                    outputs = deliver()
+                    assert len(outputs) == 1 and outputs[0]['destination'] == caller['pid']
+                    assert action(child, 'step') == {'released': True}
+                    if attempt == 0:
+                        own(service)
+                        worker_config.update(generation=service['generation'], mode='release')
+                        assert invoke()['phase'] == 'retired'
+                close(child)
             assert not failures, failures
             assert requests == ['/items/%CE%BB%20%2F'], requests
-            print(f'{label} HTTP SDK: installed caller, staged host recovery, wide identity, binary TLS, correlated outcome, revoked prefix, owned replay without credentials and joined local stop/disposal passed ({time.monotonic()-started:.2f}s).')
+            disposal = ', authenticated durable disposal before/after cleanup without read permission' if public_release else ''
+            print(f'{label} HTTP SDK: installed caller, staged host recovery, wide identity, binary TLS, correlated outcome, revoked prefix, owned replay without credentials and joined local stop/disposal{disposal} passed ({time.monotonic()-started:.2f}s).')
         finally:
             for child in children:
                 child.kill(); child.wait(timeout=10)

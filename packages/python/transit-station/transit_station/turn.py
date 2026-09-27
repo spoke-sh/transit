@@ -317,6 +317,17 @@ class Turn:
         result = self._apply({'http_call': {'pid': pid, 'reference': owned_bytes(request.reference, 112).hex()}})
         return int(result['correlation'])
 
+    def release_http(self, peer: ProcessRef, resource: ResourceRef, exchange: int) -> int:
+        """Request durable hold disposal; authenticate the correlated HttpReleased reply."""
+        pid = self._peer(peer)
+        if not isinstance(resource, ResourceRef) or resource.realm != self.resource.realm:
+            raise ValueError('HTTP capture must belong to the current realm')
+        if not self._native.caps.get('http_release'):
+            raise UnsupportedCapability('Native Station lacks durable HTTP release support')
+        result = self._apply({'http_release': {'pid': pid, 'resource': resource.resource,
+            'exchange': str(integer(exchange, 'exchange', maximum=U64_MAX))}})
+        return int(result['correlation'])
+
     def table(self, schema: TableSchema[C]) -> Table[C]:
         self._check()
         if not isinstance(schema, TableSchema):

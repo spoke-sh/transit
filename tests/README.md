@@ -92,10 +92,15 @@ with duplicate headers, escaped Unicode target and credential references, fresh
 ownership after a staging prefix, one correlated reply, prefix revocation and
 reopening, owned replay after deleting credentials, and joined asynchronous
 cancellation. Only one request reaches the independent TLS peer. The local
-2026-09-26 HTTP schedule took **30.38 seconds**, including clean wheel installation
+2026-09-26 expanded HTTP schedule took **52.98 seconds**, including clean wheel installation
 and excluding compilation. The ordinary raw client, runner recovery and Arrow
 consumer regressions also passed. Sticky replay errors report the current local
 failure instead of inheriting a previous authority rejection.
+The expanded schedule calls `release_http` from a scoped handler, authenticates
+the correlated `HttpReleased` acknowledgement and repeats disposal after capture
+cleanup. It runs without a transcript read grant or credential file and still
+records only one remote request. Cross-realm and expired-turn calls reject;
+independent acknowledgement fixtures preserve full-width exchange identities.
 `just bindings::node-sdk-test` runs the same HTTP schedule through clean Node
 tarballs, including runtime schema validation, owned request/getter bytes, native
 HTTP reply dispatch and joining a delayed replay read during local stop/disposal.
@@ -148,7 +153,7 @@ This is local proof time, not a hosted CI or aggregate runner-minute measurement
 Machine output distinguishes sealed capture phase from the kernel outcome.
 
 These checks passed locally on Linux x86_64 with the pinned compiler. They do not
-yet qualify general public multi-call/followup/release APIs, managed secret providers,
+yet qualify general public multi-call/followup APIs, disposal helpers in every SDK, managed secret providers,
 every cross-service lifetime combination, all launchers
 or hosted CI cost. Those remain explicit
 [M15](../docs/roadmap/M15.md) exit obligations. The shared capture

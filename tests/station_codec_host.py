@@ -33,6 +33,7 @@ def run(host, library=None):
             {'outcome': fixture['outcome']}, {'outcome': fixture['rejection']},
             {'release': {'resource': 7, 'exchange': str(2**64-1)}},
             {'released': release['reply']},
+            {'outcome': release['reply']},
             {'outcome': fixture['outcome'][:-2]},
             {'released': release['reply'][:-2]},
             {'released': release['request']},
@@ -52,7 +53,8 @@ def run(host, library=None):
         assert responses[2] == {'status': 0, 'value': {'rejected': 'denied'}}
         assert responses[3] == {'status': 0, 'value': {'release': release['request']}}
         assert responses[4] == {'status': 0, 'value': {'released': {'resource': 7, 'exchange': str(2**64-1)}}}
-        assert all(r['status'] == 1 for r in responses[5:])
+        assert responses[5] == responses[4]
+        assert all(r['status'] == 1 for r in responses[6:])
         if library:
             # The generated ABI declares the exact same implementation as the port.
             from transit_station import _Library, TransitError

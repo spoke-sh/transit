@@ -61,7 +61,7 @@ def consumer(mode, config_path):
         from transit_client.errors import TransitError
         from transit_station import (HttpMethod, HttpRequest, Literal, Variable, SecretRef,
             HttpHeader, prepare_http, decode_http_reply, HttpOutcome, HttpPhase,
-            HttpRejected, HttpRejection, HttpReplyCodec)
+            HttpRejected, HttpReleased, HttpRejection, HttpReplyCodec)
         http_fixture = json.loads(Path(cfg['http_fixtures']).read_bytes())
         request = HttpRequest(HttpMethod.POST, (Literal('/write'),))
         prepared = prepare_http(ResourceRef(72, 8), 2**64-1, request,
@@ -75,6 +75,15 @@ def consumer(mode, config_path):
         assert decode_http_reply(72, bytes.fromhex(http_fixture['rejection'])) == HttpRejected(HttpRejection.DENIED)
         union = HttpReplyCodec(codecs.counter_codec, 72)
         assert union.decode(bytes.fromhex(http_fixture['outcome'])) == outcome
+        disposal = json.loads(Path(cfg['http_release_fixtures']).read_bytes())
+        released = HttpReleased(ResourceRef(72, 7), 2**64-1)
+        assert union.decode(bytes.fromhex(disposal['reply'])) == released
+        try: union.encode(released)
+        except ValueError: pass
+        else: raise AssertionError('Release acknowledgement is receive-only')
+        try: decode_http_reply(72, bytes.fromhex(disposal['reply'])[:-1])
+        except TransitError: pass
+        else: raise AssertionError('Truncated release acknowledgement accepted')
         assert union.decode(union.encode(codecs.Add(2**53+1))) == codecs.Add(2**53+1)
         complex_request = HttpRequest(HttpMethod.POST, (Literal('/items/'), Variable('id', 'λ /')), (
             HttpHeader('X-Tag', (Literal('one'),)), HttpHeader('X-Tag', (Literal('two'),)),
@@ -335,7 +344,7 @@ def http_consumer(mode, cfg):
     from transit_station import (Activation, ServiceConfig, Runner, AsyncRunner,
         FailurePolicy, Recovery, Key, Cast, Reply, Committed, HttpReplyCodec,
         HttpRequest, HttpMethod, HttpHeader, Literal, Variable, SecretRef, prepare_http,
-        HttpOutcome, HttpPhase, HttpPartKind, decode_http_reply)
+        HttpOutcome, HttpReleased, HttpPhase, HttpPartKind, decode_http_reply)
     from transit_sdk_examples.codecs import u64
     class Bytes:
         type_id, version, max_encoded_bytes = 'test.http-control', 1, 243
@@ -353,6 +362,7 @@ def http_consumer(mode, cfg):
         bytes.fromhex(cfg['body']), endpoint_revision=7, reconcile_before_ms=cfg['deadline'])
     correlation = Key(b'http-correlation', u64)
     status = Key(b'http-status', u64)
+    disposal = Key(b'http-disposal', u64)
     codec = HttpReplyCodec(Bytes(), 72)
     class Handler:
         result = None
@@ -361,7 +371,16 @@ def http_consumer(mode, cfg):
         def handle(self, turn, incoming):
             self.escaped = turn
             if isinstance(incoming, Cast):
-                if turn.state.find(correlation) is not None:
+                if incoming.value == b'dispose':
+                    outcome = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
+                    assert isinstance(outcome, HttpOutcome)
+                    try: turn.release_http(peer, ResourceRef(73, outcome.resource.resource), outcome.exchange)
+                    except ValueError: pass
+                    else: raise AssertionError('Cross-realm disposal accepted')
+                    call = turn.release_http(peer, outcome.resource, outcome.exchange)
+                    turn.state.put(disposal, call)
+                    self.result = {'released': False}
+                elif turn.state.find(correlation) is not None:
                     self.result = {'called': True}
                 elif turn.stage_http(request):
                     call = turn.call_http(peer, request)
@@ -370,7 +389,15 @@ def http_consumer(mode, cfg):
                 else:
                     self.result = {'called': False}
             else:
-                assert isinstance(incoming, Reply) and isinstance(incoming.value, HttpOutcome)
+                assert isinstance(incoming, Reply)
+                if isinstance(incoming.value, HttpReleased):
+                    turn.require_reply(incoming, peer=peer, correlation=turn.state.require(disposal))
+                    original = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
+                    assert (incoming.value.resource, incoming.value.exchange) == (original.resource, original.exchange)
+                    turn.state.put(Key(b'http-disposed', u64), incoming.value.exchange)
+                    self.result = {'released': True}
+                    return
+                assert isinstance(incoming.value, HttpOutcome)
                 turn.require_reply(incoming, peer=peer, correlation=turn.state.require(correlation))
                 assert incoming.value.phase is HttpPhase.OBSERVED and incoming.value.status == 200
                 turn.state.put(status, incoming.value.status)
@@ -422,6 +449,9 @@ def http_consumer(mode, cfg):
                 try: handler.escaped.stage_http(request)
                 except TurnExpired: pass
                 else: raise AssertionError('Escaped HTTP turn accepted')
+                try: handler.escaped.release_http(peer, ResourceRef(72, cfg['resource']), 1)
+                except TurnExpired: pass
+                else: raise AssertionError('Escaped disposal turn accepted')
                 result = handler.result
             elif action == 'open':
                 outcome = decode_http_reply(72, bytes.fromhex(cfg['outcome']))
@@ -474,7 +504,7 @@ def run(node, cli, raw_library, wheels, http_worker=None, *, execute=None):
     (execute or schedule)(node, cli, raw_library, install, 'Python')
     if execute is None:
         from sdk_http_runner import run as http_schedule
-        http_schedule(node, cli, raw_library, http_worker, install, 'Python')
+        http_schedule(node, cli, raw_library, http_worker, install, 'Python', public_release=True)
 
 if __name__ == '__main__':
     if sys.argv[1] == '--consumer': consumer(*sys.argv[2:])

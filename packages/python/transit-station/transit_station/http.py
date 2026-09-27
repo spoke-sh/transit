@@ -84,14 +84,14 @@ class HttpRequest:
         return {'method': self.method.value, 'target': _pieces(self.target), 'headers': headers}
 
 
-def _codec(action: object, native_directory: Path | None) -> dict[str, Any]:
+def _codec(action: object, native_directory: Path | None, *, capability: str = 'http_requests') -> dict[str, Any]:
     api = Library('station', Path(__file__).with_name('station-abi.json'), native_directory)
     worker = Worker(api.contract['minimum_stack_bytes'])
     try:
         data = encode(action)
         def call() -> dict[str, Any]:
-            if not api.call('station_growing_capabilities').get('http_requests'):
-                raise UnsupportedCapability('Native Station lacks HTTP request support')
+            if not api.call('station_growing_capabilities').get(capability):
+                raise UnsupportedCapability('Native Station lacks ' + capability)
             value: dict[str, Any] = api.call('station_http_codec', data, len(data))
             return value
         return worker.call(call)
@@ -157,11 +157,21 @@ class HttpRejected:
     reason: HttpRejection
 
 
-def decode_http_reply(realm: int, data: bytes, *, native_directory: Path | None = None) -> HttpOutcome | HttpRejected:
+@dataclass(frozen=True, slots=True)
+class HttpReleased:
+    resource: ResourceRef
+    exchange: int
+
+
+def decode_http_reply(realm: int, data: bytes, *, native_directory: Path | None = None) -> HttpOutcome | HttpRejected | HttpReleased:
     integer(realm, 'realm')
-    value = _codec({'outcome': owned_bytes(data, 71).hex()}, native_directory)
+    data = owned_bytes(data, 71)
+    value = _codec({'outcome': data.hex()}, native_directory,
+                   capability='http_release' if data[:4] == b'HTK1' else 'http_requests')
     if 'rejected' in value:
         return HttpRejected(HttpRejection(value['rejected']))
+    if 'released' in value:
+        return HttpReleased(ResourceRef(realm, value['released']['resource']), int(value['released']['exchange']))
     result = value['outcome']
     return HttpOutcome(HttpPhase(result['phase']), ResourceRef(realm, result['resource']),
                        int(result['exchange']), result['effect'], result['attempt'], result['status'],
@@ -179,13 +189,13 @@ class HttpReplyCodec(Generic[T]):
         self.type_id = 'transit.http.reply+' + application.type_id
         self.max_encoded_bytes = max(71, application.max_encoded_bytes)
 
-    def encode(self, value: T | HttpOutcome | HttpRejected) -> bytes:
-        if isinstance(value, (HttpOutcome, HttpRejected)):
+    def encode(self, value: T | HttpOutcome | HttpRejected | HttpReleased) -> bytes:
+        if isinstance(value, (HttpOutcome, HttpRejected, HttpReleased)):
             raise ValueError('HTTP outcome records are receive-only')
         return self.application.encode(value)
 
-    def decode(self, data: bytes) -> T | HttpOutcome | HttpRejected:
-        if data[:4] in (b'HTR1', b'HTF1'):
+    def decode(self, data: bytes) -> T | HttpOutcome | HttpRejected | HttpReleased:
+        if data[:4] in (b'HTR1', b'HTF1', b'HTK1'):
             return decode_http_reply(self.realm, data, native_directory=self.native_directory)
         return self.application.decode(data)
 
