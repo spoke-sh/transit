@@ -14,6 +14,7 @@ pub const Request = union(enum) {
     growing_capabilities: void,
     growing_document_read: abi.document_bridge.ReadAction,
     document_codec: abi.document.Action,
+    unified_query_codec: abi.unified_query.Action,
     grpc_codec: abi.grpc.Action,
     growing_grpc_read: abi.grpc.ReadAction,
     http_codec: abi.http.Action,

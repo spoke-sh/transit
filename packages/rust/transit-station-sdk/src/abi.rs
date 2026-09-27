@@ -6,6 +6,7 @@ pub const MINIMUM_STACK_BYTES: usize = 8388608;
 #[repr(C)] pub struct station_growing_server { _private: [u8; 0] }
 #[repr(C)] pub struct station_buffer { _private: [u8; 0] }
 pub struct Api {
+    pub station_unified_query_codec: unsafe extern "C" fn(*const u8, usize, *mut *mut station_buffer) -> u32,
     pub station_growing_document_read: unsafe extern "C" fn(*mut station_growing_server, *const u8, usize, *mut *mut station_buffer) -> u32,
     pub station_document_codec: unsafe extern "C" fn(*const u8, usize, *mut *mut station_buffer) -> u32,
     pub station_grpc_codec: unsafe extern "C" fn(*const u8, usize, *mut *mut station_buffer) -> u32,
@@ -42,6 +43,7 @@ pub struct Api {
 impl Api {
     pub unsafe fn load(library: libloading::Library) -> Result<Self, libloading::Error> {
         Ok(Self {
+            station_unified_query_codec: *unsafe { library.get(b"station_unified_query_codec\0")? },
             station_growing_document_read: *unsafe { library.get(b"station_growing_document_read\0")? },
             station_document_codec: *unsafe { library.get(b"station_document_codec\0")? },
             station_grpc_codec: *unsafe { library.get(b"station_grpc_codec\0")? },

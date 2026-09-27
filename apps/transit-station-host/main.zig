@@ -117,6 +117,10 @@ fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.
             defer allocator.free(json);
             break :blk if (growing) |pointer| abi.Api.station_growing_document_read(pointer, json.ptr, json.len, &buffer) else .not_ready;
         },
+        .unified_query_codec => |action| blk: {
+            const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
+            break :blk abi.Api.station_unified_query_codec(json.ptr, json.len, &buffer);
+        },
         .document_codec => |action| blk: {
             const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
             break :blk abi.Api.station_document_codec(json.ptr, json.len, &buffer);

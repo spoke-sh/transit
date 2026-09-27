@@ -68,6 +68,14 @@ Behavior cases qualify configured-principal ingress, malformed-command dispositi
 restart-configuration refusal and original-route source closure after request
 access denial. These are component checks; actual daemon/SDK qualification remains.
 
+The shared native `QueryCodec` additionally passes **28 independent library/port
+cases** in `tests/unified_codec.py`: the three canonical source/bundle fixtures,
+schema/version/limit rejection, and PyArrow-produced empty/full nested streams
+with all six primitive types and five states. Owned output preserves full-width
+integers and conflict IDs, negative-zero bits, Unicode and binary. The standalone
+binding unit tests and generated-schema checks pass. This is local codec evidence;
+the language SDK and signed lifecycle schedules remain separate obligations.
+
 ## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test

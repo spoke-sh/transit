@@ -46,3 +46,9 @@ operations. `station_growing_document_read` exposes descriptions, path/sequence
 pages, accepted changes and resynchronization through current permissions, without
 writer ownership. Public language APIs and remote caller routing remain in progress;
 the additive capabilities describe only the implemented native surfaces.
+
+M18 adds `station_unified_query_codec` and `unified_query_codec` for typed v2
+KV/Table/Document bundles and owned nested Arrow values. See the
+[unified codec guide](docs/unified-query.md) for representation, bounds and
+ownership. Independent bundle and PyArrow fixtures pass through both native
+transports; this alone does not qualify a language SDK or signed query lifecycle.

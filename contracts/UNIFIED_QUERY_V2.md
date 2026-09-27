@@ -159,6 +159,28 @@ The finite `UQM2` manifest contains two u16 lengths followed by complete `UQJ2`
 and `UQC2` records, within 512 bytes. It is published separately from segments;
 only its original-call reply establishes a completed query for the requester.
 
+## Language-neutral values
+
+The shared native `QueryCodec` accepts typed source declarations and plans,
+produces canonical `UQB2` bytes and validates nested Arrow. Its JSON schemas are
+generated from Zig alongside the additive `station_unified_query_codec` export
+and `unified_query_codec` local-port action. This is a codec boundary, not query
+admission or a grant.
+
+Resource/PID/revision counters keep the public protocol's safe-number range.
+Other u64/i64 values, work budgets, limits and Document identities use canonical
+decimal strings without leading zeros or negative zero. Float64 uses exactly
+eight little-endian bytes encoded as hex; non-finite values reject. Binary and
+encoded bundles use hex. UTF-8 remains text. Projection indices are JSON integer
+arrays. Missing, null, type error, value and ordered conflicts remain distinct
+tagged values, including the full-width counter/replica pair of each alternative.
+
+Input JSON is bounded at 256 KiB; source, plan, bundle, scalar, page and Arrow
+limits still apply independently. Native outputs are owned buffers that callers
+release explicitly; port responses copy them before native release. Pure local
+codecs need no endpoint, signing credential or execution handle. The same schema
+and semantic validation apply to the library and the port.
+
 ## Public surfaces and qualification
 
 The signed shell, explicit-submit Board query workspace and all ten M11 SDKs use
