@@ -2,6 +2,20 @@
 
 ## M15 connector work in progress
 
+The terminal-publication fault extension to `just test::http-worker` passes in
+**499.61 seconds** excluding compilation. The executor is killed after kernel
+observation commits but before the receipt/framework publication; fresh ownership
+after node/store restart settles without another send. A second node/store
+restart happens after the correlated output commits and before delivery. The
+schedule still records sixteen sends, eight applications and two cancellation
+requests, retaining 1,009 cold objects / 113,779,019 bytes. Endpoint hostname,
+scheme, port and metadata-address changes reject before dispatch. The independent
+transport proof now has **22 sends**, explicit SNI/Host assertions, a nonexistent
+DNS name with a numeric pin, nonnumeric-address refusal and wrong-CA rejection.
+Both uppercase and lowercase proxy variables are ignored. A separate non-CA
+intermediate audit exposed a standard-library TLS weakness; path hardening is
+not yet qualified, so these passes do not establish that security obligation.
+
 `just examples::http-reference` passes in **192.85 seconds** before successful
 owned-resource cleanup. The actual gVisor caller admits a request, loses its
 worker pod, registers a fresh in-memory key, receives explicit Transit ownership

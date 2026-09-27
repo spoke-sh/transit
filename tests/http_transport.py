@@ -15,6 +15,7 @@ import time
 def run(binary):
     requests = []
     failures = []
+    names = []
     payload = bytes((i * 17 + 3) % 256 for i in range(16387))
 
     class Peer(socketserver.BaseRequestHandler):
@@ -32,6 +33,8 @@ def run(binary):
                 assert body == b"request-body", body
                 assert b"X-Order: first\r\nX-Order: second" in head
                 path = head.split(b" ")[1].decode()
+                host = b"http-pin.invalid" if path == "/pinned-name" else b"localhost"
+                assert b"Host: " + host + b":" in head
                 requests.append(path)
                 if path == "/timeout":
                     time.sleep(1.3)
@@ -66,26 +69,33 @@ def run(binary):
     with tempfile.TemporaryDirectory(prefix="transit-http-") as directory:
         root = Path(directory)
         key, cert = root / "key.pem", root / "cert.pem"
-        subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,DNS:http-pin.invalid"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        other_cert = root / "other.pem"
+        subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(root / "other-key.pem"), "-out", str(other_cert), "-days", "1", "-subj", "/CN=other"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for tls in (False, True):
             with Server(("127.0.0.1", 0), Peer) as server:
                 if tls:
                     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
                     context.load_cert_chain(cert, key)
+                    context.set_servername_callback(lambda connection, name, context: names.append(name))
                     server.socket = context.wrap_socket(server.socket, server_side=True)
                 thread = threading.Thread(target=server.serve_forever, daemon=True)
                 thread.start()
                 try:
-                    def invoke(path):
+                    def invoke(path, trust=cert):
                         before = requests.count(path)
-                        env = dict(os.environ, HTTP_PROXY="http://127.0.0.1:1", HTTPS_PROXY="http://127.0.0.1:1", ALL_PROXY="http://127.0.0.1:1")
-                        result = json.loads(subprocess.check_output([binary, str(server.server_address[1]), path, "tls" if tls else "plain", str(cert)], timeout=10, env=env))
-                        if path != "/wrong-host":
+                        env = dict(os.environ, **{key: "http://127.0.0.1:1" for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")})
+                        result = json.loads(subprocess.check_output([binary, str(server.server_address[1]), path, "tls" if tls else "plain", str(trust)], timeout=10, env=env))
+                        if path not in ("/wrong-host", "/dns-address", "/wrong-ca"):
                             assert requests.count(path) == before + 1, (path, requests)
+                        else:
+                            assert requests.count(path) == before
                         return result
 
                     result = invoke("/chunked")
                     assert result == {"status": 200, "bytes": len(payload), "omitted": 2, "sha256": hashlib.sha256(payload).hexdigest()}, result
+                    assert invoke("/pinned-name") == result  # Reserved name has no DNS record.
+                    assert "error" in invoke("/dns-address")  # A name cannot replace the pinned numeric address.
                     assert invoke("/no-body")["bytes"] == 0
                     assert invoke("/redirect")["status"] == 307
                     assert invoke("/smuggling")["error"] == "InvalidHttpFraming"
@@ -98,6 +108,8 @@ def run(binary):
                     assert close.get("error") == "UnframedTlsResponse" if tls else close["bytes"] == len(payload)
                     if tls:
                         assert invoke("/wrong-host")["error"] == "TlsInitializationFailed"
+                        assert invoke("/wrong-ca", other_cert)["error"] == "TlsInitializationFailed"
+                        assert "http-pin.invalid" in names and "localhost" in names
                 finally:
                     server.shutdown()
                     thread.join(timeout=5)

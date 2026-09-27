@@ -25,6 +25,8 @@ pub fn main(init: std.process.Init) !void {
     var endpoint: http.Transport.Endpoint = .{ .host = "localhost", .address = "127.0.0.1", .port = try std.fmt.parseInt(u16, args[1], 10), .tls = !std.mem.eql(u8, args[3], "plain"), .timeout_ms = 1000 };
     if (endpoint.tls) endpoint.ca_file = args[4];
     if (std.mem.eql(u8, args[2], "/wrong-host")) endpoint.host = "wrong.test";
+    if (std.mem.eql(u8, args[2], "/pinned-name")) endpoint.host = "http-pin.invalid";
+    if (std.mem.eql(u8, args[2], "/dns-address")) endpoint.address = "localhost";
     if (std.mem.eql(u8, args[2], "/small")) endpoint.response_bytes = 8;
     var body: std.Io.Reader = .fixed("request-body");
     const request: http.Request = .{ .method = .POST, .target = &.{.{ .literal = args[2] }}, .body_bytes = 12, .headers = &.{ .{ .name = "X-Order", .value = &.{.{ .literal = "first" }} }, .{ .name = "X-Order", .value = &.{.{ .literal = "second" }} } } };

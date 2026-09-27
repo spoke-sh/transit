@@ -36,6 +36,9 @@ def run(node, provision, worker, library, board=None, browser=False):
         capture_prefix = threading.Event()
         release_capture = threading.Event()
         capture_kill_armed = False
+        observation_kill_armed = False
+        terminal_commit = threading.Event()
+        release_terminal = threading.Event()
         dropped = {}
         recovered = set()
         failures = []
@@ -115,6 +118,9 @@ def run(node, provision, worker, library, board=None, browser=False):
                         if any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b"EXL2") for m in turn.get("mutations", [])):
                             selected = "caller_followup"
                         if request["principal"] == 65536:
+                            if observation_kill_armed and "observe" in command and not terminal_commit.is_set():
+                                terminal_commit.set()
+                                release_terminal.wait(timeout=30)
                             if capture_kill_armed and not capture_prefix.is_set() and any(m and m["value"] and bytes.fromhex(m["value"]) == payload[:256] for m in turn.get("mutations", [])):
                                 capture_prefix.set()
                                 release_capture.wait(timeout=30)
@@ -259,7 +265,8 @@ def run(node, provision, worker, library, board=None, browser=False):
             refused = subprocess.run([worker, str(config)], capture_output=True, timeout=15)
             assert refused.returncode != 0 and b"HttpEndpointChanged" in refused.stderr, refused
             assert requests == [] and admin("inspect")["effect"] == "pending"
-            for override in ({"response_bytes": 1}, {"response_headers": []}):
+            for override in ({"response_bytes": 1}, {"response_headers": []}, {"host": "metadata.invalid"},
+                             {"address": "169.254.169.254"}, {"port": 443}, {"tls": False}):
                 saved = admin("own")
                 configure(saved, "/complete", "execute")
                 changed = json.loads(config.read_text())
@@ -424,12 +431,27 @@ def run(node, provision, worker, library, board=None, browser=False):
             assert refused.returncode != 0 and b"HttpRequestNotGranted" in refused.stderr, refused
             saved = admin("own")
             admission(saved, "/public", "execute")
+            observation_kill_armed = True
+            child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE)
+            assert terminal_commit.wait(timeout=90), "Kernel outcome was not committed"
+            child.kill(); child.wait(timeout=10); child = None
+            release_terminal.set()
+            assert admin("inspect")["effect"] == "observed"
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start()
+            authority = start_node()
+            saved = admin("own")
+            admission(saved, "/public", "execute")
             assert invoke()["phase"] == "complete"
+            # The correlated output has committed, but delivery has not run.
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start()
+            authority = start_node()
             received = admin("receive")
             result = received["outcome"]
             assert result["phase"] == "observed" and result["status"] == 200
             assert result["effect"] > 0 and result["attempt"] > 0
-            assert requests[-1] == "/public"
+            assert requests[-1] == "/public" and requests.count("/public") == 1
 
             if board is not None:
                 from http_board import inspect_capture
@@ -725,6 +747,7 @@ def run(node, provision, worker, library, board=None, browser=False):
             release.set()
             release_preparation.set()
             release_capture.set()
+            release_terminal.set()
             for process in (child, authority):
                 if process is not None:
                     process.kill(); process.wait(timeout=10)
