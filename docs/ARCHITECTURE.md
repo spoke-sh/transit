@@ -225,6 +225,7 @@ follow a second concrete implementation, not a speculative plugin system.
 
 | Entry point | Role |
 | --- | --- |
+| [transit-station-document-worker](../apps/transit-station-document-worker/README.md) | M17 authenticated Document writer and bounded maintenance; local recovery qualified, Compose/reference placement pending |
 | [transit-station-grpc-worker](../apps/transit-station-grpc-worker/README.md) | M16 finite RPC preparation/dispatch/capture worker; recovery and public interfaces under qualification |
 | [transit-station-http-worker](../apps/transit-station-http-worker/README.md) | Initial finite M15 HTTP preparation/dispatch/capture worker; broader caller/SDK/deployment qualification remains open |
 | [transit-node](../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
@@ -241,6 +242,7 @@ follow a second concrete implementation, not a speculative plugin system.
 | [example-counter](../examples/counter/README.md) | Complete caller, also the reference deployment workload |
 | [example-byte-log](../examples/byte-log/README.md) | Independent caller against the same generic authority |
 | [example-station-ledger](../examples/station-ledger/README.md) | Three Station processes with Tables, calls, registry, supervision and Arrow replies |
+| [example-station-document](../examples/station-document/README.md) | Independent structured/text editors over the public Document call/read APIs |
 
 Transit artifacts use the `transit-` prefix, including the `transit-board*`
 inspection family, `transit-station*` framework and `transit-fuze*` engine

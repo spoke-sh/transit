@@ -115,9 +115,23 @@ policy, access loss after a verified chunk, retired publications and replacement
 PIDs. They reconstruct every private step, preserve the original reply route,
 atomically reject missing dependencies and roll back final acceptance when the
 reply budget is exhausted. Caller tests preserve peer/correlation and reject
-spoofed or conflicting outcomes. These are in-memory component tests; remote
-disk and deployment qualification remain pending. The root `just check` passed
+spoofed or conflicting outcomes. These in-memory component tests alone do not
+qualify remote disk recovery or deployment. The root `just check` passed
 after completion of all ten installed SDK APIs.
+
+`just examples::document` (also `just test::document-remote`) passes the real
+Zig writer and two independent editor binaries in **571.4 seconds** over disk
+Ursula with an **8 MiB hot-store limit**. It verifies disconnected/reordered
+structured and Unicode text edits, explicit conflicts/resolution, duplicates,
+one writer SIGKILL during candidate publication, node/store restart, denied
+request access followed by fresh-owner recovery, exact signed acceptance retry,
+finite-window resynchronization and permanent retirement. The run records 421
+writer turn attempts, a four-mutation maximum, 642 cold objects and 64,766,910
+cold bytes. It also refuses reuse of a completed activation marker. Caller and
+writer PID-scoped inspection requires optional cross-resource associations plus
+separate read grants; the proof does not broaden them to realm execution rights.
+Compose/reference placement and Board remain open. The Document tasks are
+registered as focused verification; their hosted CI cost has not been measured.
 
 ## M16 finite connector qualification
 

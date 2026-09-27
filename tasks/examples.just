@@ -15,6 +15,11 @@ run name:
     zig build apps examples
     python3 -B examples/local.py {{quote(name)}}
 
+# Two independent Document editors, atomic replies and worker/store recovery.
+document:
+    zig build transit-node rey-cli transit-station-document-worker example-station-document
+    python3 -B examples/station-document/run.py
+
 # Finite HTTP call, separate connector, captured replay and worker/store recovery.
 http:
     zig build transit-node rey-cli example-station-http transit-station-http-worker

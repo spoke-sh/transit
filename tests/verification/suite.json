@@ -121,7 +121,18 @@
       "examples::http-bootstrap",
       "test::sql-grammar",
       "examples::grpc-bootstrap",
-      "transit-board::grpc-test"
+      "transit-board::grpc-test",
+      "test::document",
+      "test::document-remote",
+      "bindings::document-native",
+      "bindings::document-python",
+      "bindings::document-node",
+      "bindings::document-ruby",
+      "bindings::document-rust",
+      "bindings::document-c",
+      "bindings::document-java",
+      "bindings::document-dotnet",
+      "bindings::document-beam"
     ]
   },
   "nested_tasks": {

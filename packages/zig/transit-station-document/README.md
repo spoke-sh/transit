@@ -40,12 +40,14 @@ The disk-backed `just test::document` additionally qualifies real worker/node/
 store loss, exact retry, current-policy reads and bounded cleanup with a one-page
 authority cache. See [proof evidence](../../../tests/README.md#m17-work-in-progress).
 All ten public SDKs now pass the installed Document change/read recovery schedule.
-Remote submission, Board and placement proofs remain in progress.
+The real two-client local remote-submission proof passes. Board and
+Compose/reference placement proofs remain in progress.
 
 `Request`, `Caller` and `Remote` now provide [authenticated submission and
 original reply routing](docs/remote.md). Component tests qualify admission,
 recovery and final acceptance within the unchanged four-mutation budget;
-remote disk/placement evidence remains pending.
+the two-client disk proof additionally qualifies actual worker/node/store loss
+and original correlated replies. Compose/reference placement remains pending.
 
 `Client` provides current-policy descriptions, typed path/sequence reads, accepted
 tail changes and resynchronization independently of writer ownership. Its SDR1

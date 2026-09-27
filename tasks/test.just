@@ -187,10 +187,15 @@ growing-service-release:
 growing-station *args:
     zig build test-growing-station -- "$@"
 
-# Qualify larger immutable records, current access and bounded cleanup over disk Ursula.
+# Qualify Document jobs, checkpoint recovery and current-policy reads over disk Ursula.
 document:
     zig build test-document
 
+# Run the real Document writer and two Zig editors through failure and resynchronization.
+document-remote:
+    just examples::document
+
+# Qualify larger immutable records, current access and bounded cleanup over disk Ursula.
 publication:
     zig build test-publication
 

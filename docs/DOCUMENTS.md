@@ -2,8 +2,8 @@
 
 Status: M17 implementation in progress. Durable merge/checkpoint recovery and
 the installed change/read schedule pass across all ten M11 SDKs. Remote call
-components are implemented; worker, example, Board and placement qualification
-remain open. [M14](roadmap/M14.md) supplies bounded immutable publication over
+components and the two-client local worker proof pass; Board and Compose/reference
+placement qualification remain open. [M14](roadmap/M14.md) supplies bounded immutable publication over
 growing KV. M15/M16 qualify HTTP/gRPC integrations; Document semantics remain
 independent of those transports. See [executed evidence](../tests/README.md#m17-work-in-progress).
 
@@ -122,5 +122,5 @@ now implements the selected merge model and bounded candidate/reader component.
 Its [neutral format](../contracts/STATION_DOCUMENT_V1.md) owns exact fields and
 limits. [Authenticated call helpers](../packages/zig/transit-station-document/docs/remote.md)
 bind the caller's allowed replica, immutable request and original reply route.
-Their component tests supplement the existing disk and SDK proofs; they do not
-complete remote worker or placement qualification.
+Their component tests supplement the existing disk, SDK and two-client local
+worker proofs; they do not complete Compose/reference placement qualification.

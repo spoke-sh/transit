@@ -276,6 +276,17 @@ pub fn build(b: *std.Build) void {
         build_test_step.dependOn(&app.step);
     }
     var query_host: *std.Build.Step.Compile = undefined;
+    const document_worker = b.addExecutable(.{ .name = "transit-station-document-worker", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-station-document-worker/main.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_document", .module = document.module("transit_station_document") }, .{ .name = "telemetry", .module = telemetry.module("telemetry") } } }) });
+    const install_document_worker = b.addInstallArtifact(document_worker, .{});
+    b.getInstallStep().dependOn(&install_document_worker.step);
+    apps_step.dependOn(&install_document_worker.step);
+    build_test_step.dependOn(&document_worker.step);
+    b.step("transit-station-document-worker", "Install the growing Document writer").dependOn(&install_document_worker.step);
+    const document_caller = b.addExecutable(.{ .name = "example-station-document", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-document/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_document", .module = document.module("transit_station_document") }} }) });
+    const install_document_caller = b.addInstallArtifact(document_caller, .{});
+    b.getInstallStep().dependOn(&install_document_caller.step);
+    build_test_step.dependOn(&document_caller.step);
+    b.step("example-station-document", "Install the collaborative Document caller").dependOn(&install_document_caller.step);
     const grpc_worker = b.addExecutable(.{ .name = "transit-station-grpc-worker", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-station-grpc-worker/main.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_grpc", .module = station_grpc.module("transit_station_grpc") }, .{ .name = "telemetry", .module = telemetry.module("telemetry") } } }) });
     const install_grpc_worker = b.addInstallArtifact(grpc_worker, .{});
     b.getInstallStep().dependOn(&install_grpc_worker.step);
@@ -544,6 +555,7 @@ pub fn build(b: *std.Build) void {
     b.step("readiness-caller", "Install the runtime readiness caller proof").dependOn(&b.addInstallArtifact(readiness_caller, .{}).step);
     build_test_step.dependOn(&readiness_caller.step);
     const examples_step = b.step("examples", "Install runnable example applications");
+    examples_step.dependOn(&install_document_caller.step);
     examples_step.dependOn(&install_http_caller.step);
     const station_ledger = b.addExecutable(.{ .name = "example-station-ledger", .root_module = b.createModule(.{
         .root_source_file = b.path("examples/station-ledger/main.zig"),

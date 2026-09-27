@@ -2,7 +2,9 @@
 
 `Request`, `Caller` and `Remote` compose Document jobs with Station's authenticated
 call/reply boundary. Component tests qualify their bounded private decisions;
-the runnable worker and deployment proofs are still in progress. Wire sizes and
+the [two-client local proof](../../../../examples/station-document/README.md)
+qualifies actual worker/node/store recovery. Compose/reference placement remains
+open. Wire sizes and
 fields live in the [submission contract](../../../../contracts/STATION_DOCUMENT_V1.md#authenticated-submission-profile).
 
 A caller prepares a change with `Request.prepare(resource, namespace,
