@@ -239,6 +239,14 @@ sql:
 public-query:
     zig build test-public-query
 
+# Signed v2 upload, all source adapters, nested results and disk recovery.
+unified-query *args:
+    zig build test-unified-query {{args}}
+
+# Independent v2 bundle and Arrow fixtures through native and port APIs.
+unified-codec:
+    zig build test-unified-codec
+
 # Qualify RPC preparation, dispatch, final publication and blocked-peer control.
 grpc-faults:
     zig build test-grpc-worker -Dgrpc-faults=true

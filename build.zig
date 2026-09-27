@@ -280,6 +280,14 @@ pub fn build(b: *std.Build) void {
         }
         build_test_step.dependOn(&app.step);
     }
+    const unified_codec_test = b.addSystemCommand(&.{ "python3", "-B" });
+    unified_codec_test.addFileArg(b.path("tests/unified_codec.py"));
+    unified_codec_test.addArtifactArg(station_host);
+    unified_codec_test.addArtifactArg(station_bindings.artifact("transit_station"));
+    unified_codec_test.has_side_effects = true;
+    unified_codec_test.stdio = .inherit;
+    b.step("test-unified-codec", "Qualify unified source and Arrow values through native and port boundaries").dependOn(&unified_codec_test.step);
+    test_step.dependOn(&unified_codec_test.step);
     var query_host: *std.Build.Step.Compile = undefined;
     const document_worker = b.addExecutable(.{ .name = "transit-station-document-worker", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-station-document-worker/main.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_document", .module = document.module("transit_station_document") }, .{ .name = "telemetry", .module = telemetry.module("telemetry") } } }) });
     const install_document_worker = b.addInstallArtifact(document_worker, .{});
@@ -386,6 +394,21 @@ pub fn build(b: *std.Build) void {
     public_query_test.has_side_effects = true;
     public_query_test.stdio = .inherit;
     b.step("test-public-query", "Qualify the public query hosts and signed shell over disk Ursula").dependOn(&public_query_test.step);
+    const unified_query = b.addExecutable(.{ .name = "transit-unified-query-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/unified_query.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
+    }) });
+    b.step("unified-query-proof", "Install the unified query provisioning proof").dependOn(&b.addInstallArtifact(unified_query, .{}).step);
+    build_test_step.dependOn(&unified_query.step);
+    const unified_query_test = b.addSystemCommand(&.{ "python3", "-B" });
+    unified_query_test.addFileArg(b.path("tests/unified_query.py"));
+    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, unified_query }) |artifact| unified_query_test.addArtifactArg(artifact);
+    if (b.option([]const u8, "unified-source", "Limit unified query proof to kv, table or document")) |kind| unified_query_test.addArg(kind);
+    unified_query_test.has_side_effects = true;
+    unified_query_test.stdio = .inherit;
+    b.step("test-unified-query", "Qualify unified query daemons over disk Ursula").dependOn(&unified_query_test.step);
     const query_board_test = b.addSystemCommand(&.{ "python3", "-B" });
     query_board_test.addFileArg(b.path("tests/board_query.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, public_query, board }) |artifact| query_board_test.addArtifactArg(artifact);

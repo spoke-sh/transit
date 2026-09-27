@@ -26,6 +26,12 @@ may retry the read, but must never regenerate uncertain mutations automatically.
 `zig build test` checks the package independently. The real host and shell proof
 is `just test::public-query`; [tests](../../../tests/README.md) record evidence.
 
+`UnifiedClient` adds signed v2 description, finite upload, frozen submission,
+committed-input observation, status and verified result pages. The
+[caller guide](docs/unified-client.md) covers provisioning, ownership, retries and
+cancellation. `transit-query-host` composes its v2 requester/source behaviors;
+`just test::unified-query` exercises these actual daemons over disk Ursula.
+
 M18 adds `SourceDefinition`, `Decoder` and `UnifiedSource` under the separate
 [v2 contract](../../../contracts/UNIFIED_QUERY_V2.md). Canonical `UQS2` definitions
 bind resource identity, declared KV decoder versions, exact Table schemas and

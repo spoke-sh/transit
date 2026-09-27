@@ -17,6 +17,8 @@ const Config = struct {
     role: union(enum) {
         source: q.Behavior.Source,
         requester: q.Behavior.Requester,
+        unified_source: struct { peer: u64, initializer: u64 },
+        unified_requester: q.UnifiedBehavior.Requester,
         courier: struct { destinations: [2]u64 },
     },
 };
@@ -46,14 +48,27 @@ pub fn main(init: std.process.Init) !void {
         return err;
     };
     file.close(init.io);
-    const workspace = try init.gpa.alloc(u8, q.fuze.execution.working_bytes);
+    const unified = config.role == .unified_source or config.role == .unified_requester;
+    const workspace = try init.gpa.alloc(u8, if (unified) q.fuze.Unified.Arrow.working_bytes else q.fuze.execution.working_bytes);
     defer init.gpa.free(workspace);
     const cancellation = q.fuze.execution.Cancellation.init(false);
-    server.query = .{ .workspace = workspace, .cancellation = &cancellation };
-    server.failure_policy = .block_input;
+    if (!unified) server.query = .{ .workspace = workspace, .cancellation = &cancellation };
+    server.failure_policy = if (unified) .stop else .block_input;
+    const adapter = try init.gpa.alloc(u8, if (config.role == .unified_source) q.UnifiedBehavior.adapter_bytes else 0);
+    defer init.gpa.free(adapter);
+    var unified_source: q.UnifiedBehavior.Source = .{
+        .peer = if (config.role == .unified_source) config.role.unified_source.peer else 0,
+        .initializer = if (config.role == .unified_source) config.role.unified_source.initializer else 0,
+        .resources = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key },
+        .adapter = adapter,
+        .workspace = workspace,
+        .cancellation = &cancellation,
+    };
     const handler = switch (config.role) {
         .source => |*source| source.interface(),
         .requester => |*requester| requester.interface(),
+        .unified_source => unified_source.interface(),
+        .unified_requester => |*requester| requester.interface(),
         .courier => unreachable,
     };
     while (true) {
@@ -62,6 +77,11 @@ pub fn main(init: std.process.Init) !void {
             // An ambiguous mutation retains exact bytes in server.pending. Never
             // discard/recompute it under this activation. A restarted OS worker
             // requires fresh fenced ownership, even if it exited while idle.
+            if (unified and server.pending == null and (err == error.Conflict or err == error.Rejected) and (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired or wire.last_rejection == .StateViewExpired)) {
+                if (wire.last_rejection == .StateViewExpired) server.view_id = null;
+                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                continue;
+            }
             if (err == error.AccessDenied or err == error.StaleActivation or err == error.Rejected or err == error.Conflict or server.pending == null) return err;
             try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
             continue;

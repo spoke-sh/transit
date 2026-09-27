@@ -17,9 +17,12 @@ hex Ed25519 seed), and a `role`. Defaults: `interval_ms: 20`,
 | --- | --- | --- |
 | Source | `{"source":{"table":1,"peer":REQUESTER_PID}}` | Existing typed Table and revisioned Station peer policy; fenced source writer with inspect/execute/publish and resource access |
 | Requester | `{"requester":{"principal":QUERY_PRINCIPAL,"source":SOURCE_PID}}` | Dedicated requester PID/resource and inspect/execute/publish worker; separate first `PQI1` initialization cast from the query principal |
+| Unified source | `{"unified_source":{"peer":REQUESTER_PID,"initializer":PRINCIPAL}}` | Existing v2 source declaration/policy and data; a non-required association and independent current read/inspect grant to the request resource |
+| Unified requester | `{"unified_requester":{"principal":QUERY_PRINCIPAL,"source":SOURCE_PID}}` | Dedicated requester PID/resource; separate first `UQI2` cast, authenticating the configured principal |
 | Courier | `{"courier":{"destinations":[SOURCE_PID,REQUESTER_PID]}}` | Dedicated unscoped inspect/delivery/send principal; no execution/storage credentials |
 
-Each OS worker owns one activation and a bounded 1 MiB query workspace. The
+Each OS worker owns one activation. V1 uses a bounded 1 MiB query workspace;
+v2 uses a 4 MiB Arrow workspace and the source adds a 1 MiB adapter arena. The
 courier walks eight-output public pages and preserves exact pending delivery
 requests. It scans retained output history on restart; startup cost can grow
 with history, while resident memory stays bounded. The destination pair is an
@@ -36,3 +39,18 @@ automatic retry of a failed handler, source-data seeding or grant provisioning.
 The real provisioning/proof uses a separate public-API caller and these actual
 binaries (`just test::public-query`), with disk Ursula, an authority, two workers
 and the scoped courier. It is not a production deployment launcher.
+
+The separate [v2 contract](../../contracts/UNIFIED_QUERY_V2.md) and
+[caller guide](../../packages/zig/transit-query/docs/unified-client.md) cover
+finite uploads and result publications. V2 workers preserve frozen pending
+commits and retry only stale reads before preparation. Request-resource access
+denial closes through the original call; source-resource failure stops the host.
+Initialize associations before activation because association changes advance
+the ownership generation. The optional request association permits closure after
+request expiry; making it a required lifetime dependency would prevent that work.
+
+`just test::unified-query` runs the signed KV/Table/Document recovery fixtures;
+`-Dunified-source=kv`, `table` or `document` selects one case. The
+[evidence ledger](../../tests/README.md#m18-work-in-progress) distinguishes passed
+profiles from work still in progress. These fixtures use owned temporary services
+and leave existing launcher deployments alone.

@@ -76,6 +76,20 @@ integers and conflict IDs, negative-zero bits, Unicode and binary. The standalon
 binding unit tests and generated-schema checks pass. This is local codec evidence;
 the language SDK and signed lifecycle schedules remain separate obligations.
 
+The signed **KV and Table** daemon schedules now pass over disk Ursula with eight
+resident authority pages: each returns **41 rows / six segments / 13,584 Arrow
+bytes**, taking **371.42 seconds (KV)** and **416.99 seconds (Table)**, excluding
+compilation. The finite KV request is 587 bytes. The actual requester,
+source and courier recover a lost upload receipt using identical signed bytes;
+the source is killed after committing an unpublished segment candidate. The node
+and disk store then restart, stale activation reuse rejects, and freshly fenced
+workers publish the complete original result. Independent PyArrow verifies every
+row. Revocation after the first returned page denies continuation without moving
+the cursor; restoration permits verification of complete coverage. The source pin
+is released. `just check` also passes. This is local disk evidence with an
+unbounded hot-store fixture, not a bounded-storage, SDK, Compose, Substrate or
+hosted CI qualification. The Document schedule remains in progress.
+
 ## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test
