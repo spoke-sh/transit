@@ -54,3 +54,15 @@ closure never promises cancellation or rollback at the peer. All message/body
 replay uses the public current-availability reader with dialing and credentials
 absent. Board exposes bounded, authorized shape/schema, half-close, directional
 count and terminal metadata; its browser proof checks live read revocation.
+
+## Recovery qualification
+
+`just test::grpc-faults` exercises preparation/dispatch/completion/observation
+crashes, current dispatch revocation, work cutoff and control progress while the
+peer blocks. `just bindings::grpc-faults` adds committed public reply loss and
+caller retirement after dispatch. All use disk-backed authority and real process
+loss. A prepared attempt may resume before authorization; an authorized predecessor
+without complete capture closes unknown, even if the process was killed before
+opening its socket. Complete captured evidence can resume local observation and
+publication. A retired caller's route is permanent; a new PID cannot receive it.
+The exact schedules and timings are in the [test guide](../../tests/README.md).

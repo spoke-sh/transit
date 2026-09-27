@@ -23,7 +23,8 @@ pub fn main(init: std.process.Init) !void {
     admin.sequence = (try admin.query(.{ .capabilities = {} })).principal_sequence;
     var saved: Saved = undefined;
     if (std.mem.eql(u8, args[2], "provision")) {
-        const pid = try admin.submit(.{ .spawn = .{} });
+        const cutoff = if (args.len == 5) try std.fmt.parseInt(u64, args[4], 10) else null;
+        const pid = try admin.submit(.{ .spawn = .{ .work_before_ms = cutoff, .settle_before_ms = if (cutoff) |v| v + 120000 else null } });
         const resource = try admin.submit(.{ .create_resource = .{ .writer = pid, .owned = false } });
         saved = .{ .pid = pid, .resource = resource };
         _ = try admin.submit(.{ .grant = .{ .subject = 65536, .public_key = worker.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish) | p.permission(.send) | p.permission(.effect), .pid = saved.pid } });
@@ -47,6 +48,29 @@ pub fn main(init: std.process.Init) !void {
             saved.generation += 1;
         } else if (std.mem.eql(u8, args[2], "revoke") or std.mem.eql(u8, args[2], "restore")) {
             _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 65536, .permissions = if (std.mem.eql(u8, args[2], "revoke")) 0 else p.State.all_permissions } });
+        } else if (std.mem.eql(u8, args[2], "deny-dispatch") or std.mem.eql(u8, args[2], "allow-dispatch")) {
+            const permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish) | p.permission(.send);
+            _ = try admin.submit(.{ .grant = .{ .subject = 65536, .public_key = worker.public_key.toBytes(), .permissions = permissions | (if (std.mem.eql(u8, args[2], "allow-dispatch")) p.permission(.effect) else 0), .pid = saved.pid } });
+            _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 65536, .permissions = p.State.all_permissions } });
+        } else if (std.mem.eql(u8, args[2], "terminate")) {
+            _ = try admin.submit(.{ .terminate = saved.pid });
+        } else if (std.mem.eql(u8, args[2], "dispatch") or std.mem.eql(u8, args[2], "close") or std.mem.eql(u8, args[2], "cancel") or std.mem.eql(u8, args[2], "forge-observation")) {
+            const id = try std.fmt.parseInt(u64, args[4], 10);
+            const resource = (try admin.query(.{ .resource = saved.resource })).body.resource;
+            const page = try admin.query(.{ .entries = .{ .resource = saved.resource, .revision = resource.revision, .key = x.Exchange.key(id, 'i', 0) } });
+            const intent = page.body.entries.page.entries[0].?;
+            const effect = (try admin.query(.{ .effects = .{ .pid = saved.pid, .after = intent.revision - 1, .position = page.position } })).body.effects.entries[0].?;
+            if (std.mem.eql(u8, args[2], "dispatch")) {
+                const descriptors = try admin.query(.{ .entries = .{ .resource = saved.resource, .revision = resource.revision, .key = x.Exchange.key(id, 'd', 0) } });
+                const descriptor = try x.Descriptor.decode(descriptors.body.entries.page.entries[0].?.value);
+                _ = try admin.submit(.{ .dispatch = .{ .pid = saved.pid, .effect = effect.id, .reconcile_before_ms = descriptor.reconcile_before_ms, .max_observations = 1 } });
+            } else if (std.mem.eql(u8, args[2], "cancel")) {
+                _ = try admin.submit(.{ .cancel_effect = .{ .pid = saved.pid, .effect = effect.id } });
+            } else if (std.mem.eql(u8, args[2], "close")) {
+                _ = try admin.submit(.{ .close_effect = .{ .pid = saved.pid, .effect = effect.id, .attempt = effect.attempt.? } });
+            } else {
+                _ = try admin.submit(.{ .observe = .{ .pid = saved.pid, .effect = effect.id, .attempt = effect.attempt.?, .result = try p.Value.init("forged") } });
+            }
         } else if (std.mem.eql(u8, args[2], "inspect") or std.mem.eql(u8, args[2], "replay")) {
             const id = if (args.len == 5) try std.fmt.parseInt(u64, args[4], 10) else 1;
             var reader: x.Client = .{ .wire = &wire, .realm = 47, .principal = 65536, .key = worker };

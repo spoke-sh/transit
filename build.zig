@@ -302,6 +302,7 @@ pub fn build(b: *std.Build) void {
     const grpc_board = b.option(bool, "grpc-board", "Qualify Board RPC metadata against real captures") orelse false;
     if (grpc_browser or grpc_board) grpc_worker_test.addArtifactArg(board);
     if (grpc_browser) grpc_worker_test.addArg("browser");
+    if (b.option(bool, "grpc-faults", "Run RPC authority and final-publication failure boundaries") orelse false) grpc_worker_test.addArg("faults");
     grpc_worker_test.has_side_effects = true;
     grpc_worker_test.stdio = .inherit;
     b.step("test-grpc-worker", "Prove durable finite RPC capture and recovery").dependOn(&grpc_worker_test.step);

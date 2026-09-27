@@ -15,9 +15,13 @@ import time
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 from storage import Fixture, free_port, wait_ready
 from cold_storage import ColdStore
+from grpc_faults import Boundary
 
 
 def run(node, provision, worker, board=None, browser=None):
+    faults = board == "faults"
+    if faults: board = None
+    boundary = Boundary()
     started = time.monotonic()
     node, provision, worker = [str(Path(path).resolve()) for path in (node, provision, worker)]
     descriptor_bytes = (Path(__file__).parent / "fixtures/grpc/peer.pb").read_bytes()
@@ -42,6 +46,7 @@ def run(node, provision, worker, board=None, browser=None):
             assert ("x-binary-bin", b"\x00\xff") in fields
             operation = next(v for k, v in fields if k == "idempotency-key")
             sends.append((shape, operation)); applied.add(operation)
+            boundary.peer(operation)
             context.send_initial_metadata((("x-repeat", "one"), ("x-repeat", "two"), ("set-cookie", "fixture-rpc-response-secret")))
             context.set_trailing_metadata((("x-binary-bin", b"\x00\xff"),))
         def unary(request, context):
@@ -69,6 +74,8 @@ def run(node, provision, worker, board=None, browser=None):
             def log_message(self, *_): pass
             def do_POST(self):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
+                command = json.loads(body)["request"]["command"] if self.path == "/v3/command" else {}
+                boundary.before(command)
                 connection = HTTPConnection("127.0.0.1", port, timeout=15)
                 try:
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
@@ -82,6 +89,7 @@ def run(node, provision, worker, board=None, browser=None):
                         selected = next((name for name in ("dispatch", "observe") if name in command), None)
                         if any(value.startswith(b"EXM1") for value in values): selected = "seal"
                         if request["principal"] == 65536:
+                            boundary.after(command, values)
                             if capture_armed and not capture_prefix.is_set() and payload[:256] in values:
                                 capture_prefix.set(); release_capture.wait(timeout=30)
                             for name, (original, receipt) in dropped.items():
@@ -131,67 +139,137 @@ def run(node, provision, worker, board=None, browser=None):
         try:
             subprocess.run([node, str(node_config), "--initialize"], check=True, stdout=node_log, stderr=subprocess.STDOUT, timeout=30)
             authority = start_node(); saved = admin("provision")
-            shapes = [("unary", "Unary", 1), ("server_streaming", "Server", 3), ("client_streaming", "Client", 1), ("bidi", "Bidi", 3)]
-            for exchange, (shape, method, response_count) in enumerate(shapes, 1):
-                if exchange != 1: saved = admin("own")
-                configure(saved, exchange, shape, method, f"complete-{shape}", "prepare")
-                assert invoke()["phase"] == "ready"
-                saved = admin("own"); original = configure(saved, exchange, shape, method, f"complete-{shape}", "execute")
-                if exchange == 1:
-                    original["endpoint"]["address"] = "169.254.169.254"; config.write_text(json.dumps(original))
-                    assert invoke(expect=False).returncode != 0 and sends == []
-                    saved = admin("own"); configure(saved, exchange, shape, method, f"complete-{shape}", "execute")
-                    admin("revoke"); assert invoke(expect=False).returncode != 0 and sends == []; admin("restore")
-                    saved = admin("own"); configure(saved, exchange, shape, method, f"complete-{shape}", "execute")
-                result = invoke(); assert result["phase"] == "complete" and result["outcome"] == "observed", result
-                assert invoke(expect=False).returncode != 0, "Entered generation was reused"
-                secret.unlink()
-                replay = admin("replay", exchange)
-                assert replay == dict(bytes=len(payload)*response_count, sha256=hashlib.sha256(payload*response_count).hexdigest(), status=0, messages=response_count), replay
-                secret.write_bytes(b"Bearer fixture-rpc-secret")
-            if board:
-                from grpc_board import inspect_capture
-                inspect_capture(fixture, admin, url, saved, str(Path(board).resolve()), provision, state, browser)
-            assert recovered == {"seal", "dispatch", "observe"}, (dropped.keys(), recovered)
-            for exchange, (shape, method, _) in enumerate(shapes, 5):
-                saved = admin("own"); configure(saved, exchange, shape, method, f"kill-{shape}", "prepare"); assert invoke()["phase"] == "ready"
-                saved = admin("own"); configure(saved, exchange, shape, method, f"kill-{shape}", "execute")
-                capture_prefix.clear(); release_capture.clear(); capture_armed = True
-                child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                assert capture_prefix.wait(timeout=90), ("Durable response prefix not reached", shape, child.poll())
-                child.kill(); child.communicate(timeout=10); child = None
-                release_capture.set(); capture_armed = False
-                authority.kill(); authority.wait(timeout=10); authority = None
-                fixture.stop(); fixture.start(); authority = start_node()
-                before = len(sends); saved = admin("own"); configure(saved, exchange, shape, method, f"kill-{shape}", "execute")
-                result = invoke(); assert result["phase"] == "unknown" and result["outcome"] == "closed_unknown", result
-                assert len(sends) == before
-                assert admin("replay", exchange, expect=False).returncode != 0
-            # An explicit new effect reuses the declared remote idempotency key;
-            # the original attempt remains closed unknown forever.
-            saved = admin("own"); configure(saved, 9, "unary", "Unary", "kill-unary", "prepare", {"parent": 5, "reason": "retry"})
-            assert invoke()["phase"] == "ready"
-            saved = admin("own"); configure(saved, 9, "unary", "Unary", "kill-unary", "execute", {"parent": 5, "reason": "retry"})
-            assert invoke()["outcome"] == "observed"
-            assert admin("inspect", 5)["effect"] == "closed_unknown"
-            assert len(sends) == 9 and len(applied) == 8, (sends, applied)
-            saved = admin("own"); configure(saved, 10, "unary", "Unary", "kill-unary", "prepare", {"parent": 5, "reason": "retry"})
-            assert invoke(expect=False).returncode != 0 and len(sends) == 9
-            # Explicit disposal closes current replay before bounded reclamation.
-            for exchange in (9, 5, 1):
-                for _ in range(8):
-                    saved = admin("own"); value = configure(saved, exchange, "unary", "Unary", "unused", "release"); value["cleanup_steps"] = 8; config.write_text(json.dumps(value)); invoke()
-                    status = admin("inspect", exchange)
-                    assert status["phase"] == "retired"
+            if not faults:
+                shapes = [("unary", "Unary", 1), ("server_streaming", "Server", 3), ("client_streaming", "Client", 1), ("bidi", "Bidi", 3)]
+                for exchange, (shape, method, response_count) in enumerate(shapes, 1):
+                    if exchange != 1: saved = admin("own")
+                    configure(saved, exchange, shape, method, f"complete-{shape}", "prepare")
+                    assert invoke()["phase"] == "ready"
+                    saved = admin("own"); original = configure(saved, exchange, shape, method, f"complete-{shape}", "execute")
+                    if exchange == 1:
+                        original["endpoint"]["address"] = "169.254.169.254"; config.write_text(json.dumps(original))
+                        assert invoke(expect=False).returncode != 0 and sends == []
+                        saved = admin("own"); configure(saved, exchange, shape, method, f"complete-{shape}", "execute")
+                        admin("revoke"); assert invoke(expect=False).returncode != 0 and sends == []; admin("restore")
+                        saved = admin("own"); configure(saved, exchange, shape, method, f"complete-{shape}", "execute")
+                    result = invoke(); assert result["phase"] == "complete" and result["outcome"] == "observed", result
+                    assert invoke(expect=False).returncode != 0, "Entered generation was reused"
+                    secret.unlink()
+                    replay = admin("replay", exchange)
+                    assert replay == dict(bytes=len(payload)*response_count, sha256=hashlib.sha256(payload*response_count).hexdigest(), status=0, messages=response_count), replay
+                    secret.write_bytes(b"Bearer fixture-rpc-secret")
+                if board:
+                    from grpc_board import inspect_capture
+                    inspect_capture(fixture, admin, url, saved, str(Path(board).resolve()), provision, state, browser)
+                assert recovered == {"seal", "dispatch", "observe"}, (dropped.keys(), recovered)
+                for exchange, (shape, method, _) in enumerate(shapes, 5):
+                    saved = admin("own"); configure(saved, exchange, shape, method, f"kill-{shape}", "prepare"); assert invoke()["phase"] == "ready"
+                    saved = admin("own"); configure(saved, exchange, shape, method, f"kill-{shape}", "execute")
+                    capture_prefix.clear(); release_capture.clear(); capture_armed = True
+                    child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    assert capture_prefix.wait(timeout=90), ("Durable response prefix not reached", shape, child.poll())
+                    child.kill(); child.communicate(timeout=10); child = None
+                    release_capture.set(); capture_armed = False
+                    authority.kill(); authority.wait(timeout=10); authority = None
+                    fixture.stop(); fixture.start(); authority = start_node()
+                    before = len(sends); saved = admin("own"); configure(saved, exchange, shape, method, f"kill-{shape}", "execute")
+                    result = invoke(); assert result["phase"] == "unknown" and result["outcome"] == "closed_unknown", result
+                    assert len(sends) == before
                     assert admin("replay", exchange, expect=False).returncode != 0
-                    if status["collected"] == status["segments"] + int(status["pending"]): break
-                else: raise AssertionError("Bounded cleanup did not finish")
+                # An explicit new effect reuses the declared remote idempotency key;
+                # the original attempt remains closed unknown forever.
+                saved = admin("own"); configure(saved, 9, "unary", "Unary", "kill-unary", "prepare", {"parent": 5, "reason": "retry"})
+                assert invoke()["phase"] == "ready"
+                saved = admin("own"); configure(saved, 9, "unary", "Unary", "kill-unary", "execute", {"parent": 5, "reason": "retry"})
+                assert invoke()["outcome"] == "observed"
+                assert admin("inspect", 5)["effect"] == "closed_unknown"
+                assert len(sends) == 9 and len(applied) == 8, (sends, applied)
+                saved = admin("own"); configure(saved, 10, "unary", "Unary", "kill-unary", "prepare", {"parent": 5, "reason": "retry"})
+                assert invoke(expect=False).returncode != 0 and len(sends) == 9
+                # Explicit disposal closes current replay before bounded reclamation.
+                for exchange in (9, 5, 1):
+                    for _ in range(8):
+                        saved = admin("own"); value = configure(saved, exchange, "unary", "Unary", "unused", "release"); value["cleanup_steps"] = 8; config.write_text(json.dumps(value)); invoke()
+                        status = admin("inspect", exchange)
+                        assert status["phase"] == "retired"
+                        assert admin("replay", exchange, expect=False).returncode != 0
+                        if status["collected"] == status["segments"] + int(status["pending"]): break
+                    else: raise AssertionError("Bounded cleanup did not finish")
+            else:
+                # Every stop occurs after a real accepted command, while its receipt
+                # is withheld. Recovery crosses an actual node/store cold restart.
+                for exchange, phase in enumerate(('preparation', 'dispatch', 'complete', 'observe'), 1):
+                    if exchange != 1: saved = admin('own')
+                    operation = 'boundary-' + phase
+                    configure(saved, exchange, 'unary', 'Unary', operation, 'prepare')
+                    if phase != 'preparation':
+                        assert invoke()['phase'] == 'ready'
+                        saved = admin('own'); configure(saved, exchange, 'unary', 'Unary', operation, 'execute')
+                    before = len(sends)
+                    boundary.arm(phase)
+                    child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    assert boundary.reached.wait(timeout=90), (phase, child.poll())
+                    child.kill(); child.communicate(timeout=10); child = None
+                    boundary.close(); boundary.phase = None
+                    authority.kill(); authority.wait(timeout=10); authority = None
+                    fixture.stop(); fixture.start(); authority = start_node()
+                    saved = admin('own'); configure(saved, exchange, 'unary', 'Unary', operation, 'prepare' if phase == 'preparation' else 'execute')
+                    result = invoke()
+                    if phase == 'preparation':
+                        assert result['phase'] == 'ready' and len(sends) == before
+                        saved = admin('own'); configure(saved, exchange, 'unary', 'Unary', operation, 'execute')
+                        assert invoke()['outcome'] == 'observed' and len(sends) == before + 1
+                    elif phase == 'dispatch':
+                        assert result['phase'] == 'unknown' and result['outcome'] == 'closed_unknown'
+                        assert len(sends) == before
+                    else:
+                        assert result['phase'] == 'complete' and result['outcome'] == 'observed'
+                        assert len(sends) == before + 1
+                    print('RPC boundary recovery passed:', phase, flush=True)
+                # Change current effect permission after frozen validation, before
+                # the actual dispatch request reaches authority.
+                saved = admin('own'); configure(saved, 5, 'unary', 'Unary', 'revocation', 'prepare'); invoke()
+                saved = admin('own'); configure(saved, 5, 'unary', 'Unary', 'revocation', 'execute')
+                before = len(sends); boundary.arm('before_dispatch')
+                child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                assert boundary.reached.wait(timeout=90)
+                admin('deny-dispatch'); boundary.close(); boundary.phase = None
+                child.communicate(timeout=30); assert child.returncode != 0; child = None
+                assert len(sends) == before and admin('inspect', 5)['effect'] == 'pending'
+                admin('allow-dispatch'); saved = admin('own'); configure(saved, 5, 'unary', 'Unary', 'revocation', 'execute')
+                assert invoke()['outcome'] == 'observed' and len(sends) == before + 1
+                # A separate executor loses work authority by its declared cutoff.
+                # Its blocked remote invocation cannot starve explicit closure.
+                cutoff = int(time.time()*1000) + 60000
+                saved = admin('provision', cutoff)
+                configure(saved, 1, 'unary', 'Unary', 'blocked-control', 'prepare'); invoke()
+                saved = admin('own'); configure(saved, 2, 'unary', 'Unary', 'never-dispatched', 'prepare'); invoke()
+                saved = admin('own'); configure(saved, 1, 'unary', 'Unary', 'blocked-control', 'execute')
+                boundary.peer_release.clear()
+                child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                assert boundary.peer_blocked.wait(timeout=60), child.poll()
+                assert admin('forge-observation', 1, expect=False).returncode != 0
+                while time.time()*1000 <= cutoff + 200: time.sleep(0.1)
+                before = len(sends)
+                assert admin('dispatch', 2, expect=False).returncode != 0
+                control_start = time.monotonic(); admin('close', 1)
+                assert time.monotonic()-control_start < 10 and child.poll() is None
+                assert admin('inspect', 1)['effect'] == 'closed_unknown'
+                assert admin('close', 1, expect=False).returncode != 0
+                admin('terminate')
+                assert admin('own', expect=False).returncode != 0
+                admin('cancel', 2)
+                boundary.close(); child.communicate(timeout=60); assert child.returncode != 0; child = None
+                assert len(sends) == before and admin('inspect', 1)['effect'] == 'closed_unknown'
+                assert admin('inspect', 2)['effect'] == 'cancelled'
+                print('RPC dispatch revocation, work cutoff, forged observation, blocked-peer control and permanent retirement passed.', flush=True)
             assert not failures, failures
             assert cold.data_objects() > 0
-            print(f"RPC worker: four shapes and partial-capture crashes, current-policy reads, receipt recovery, explicit retry and cleanup passed; {len(sends)} sends, {len(applied)} applications.")
+            print(f"RPC worker {'faults' if faults else 'shapes'}: {len(sends)} sends, {len(applied)} applications.")
             print(f"RPC capture storage: 8 MiB hot limit, {cold.data_objects()} cold objects, {cold.file_bytes()} object-store bytes.")
             print(f"RPC worker proof wall time: {time.monotonic()-started:.2f}s (excludes compilation).")
         finally:
+            boundary.close()
             release_capture.set()
             if child is not None and child.poll() is None: child.kill(); child.communicate(timeout=10)
             if authority is not None: authority.kill(); authority.wait(timeout=10)

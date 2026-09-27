@@ -11,9 +11,12 @@ import threading
 import time
 
 
-def run(node, cli, raw_library, worker, install, label, *, public_release=False, public_followup=False, protocol="http"):
+def run(node, cli, raw_library, worker, install, label, *, public_release=False, public_followup=False, protocol="http", fault=None):
     assert protocol in ("http", "grpc")
     rpc = protocol == "grpc"
+    assert fault is None or (rpc and fault in ("published", "retirement"))
+    from grpc_faults import Boundary
+    boundary = Boundary()
     from client_abi import Native
     from client_abi_growing import GrowingSystem
     from station import frame
@@ -73,6 +76,14 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                     conn.request('POST', self.path, data, {'Content-Type': 'application/json'})
                     result = conn.getresponse()
                     reply = result.read()
+                    if fault and self.path == '/v3/command' and result.status == 200:
+                        request = json.loads(data)['request']
+                        operation = request['command']
+                        if request['principal'] == 65536:
+                            if 'dispatch' in operation: boundary.hit('dispatch')
+                            turn = operation.get('turn', operation.get('turn_with_versions', {}).get('turn', {}))
+                            if any(value and bytes.fromhex(value['value'])[13:].startswith(b'GRR1') for value in turn.get('outputs', [])):
+                                boundary.hit('published')
                     if delayed['enabled'] and self.path == '/v3/query':
                         delayed['enabled'] = False
                         accepted.touch()
@@ -81,6 +92,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                     self.send_header('Content-Length', str(len(reply)))
                     self.end_headers()
                     self.wfile.write(reply)
+                except (BrokenPipeError, ConnectionResetError): pass
                 finally: conn.close()
         key, cert = target / 'peer.key', target / 'peer.pem'
         subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', str(key),
@@ -194,14 +206,54 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                     'metadata': ['x-tag', 'x-data-bin', 'authorization']}
             # The worker config is strict; resource is fixture metadata only.
             worker_config.pop('resource')
+            if fault: worker_config['url'] = url
             def invoke():
                 return json.loads(subprocess.check_output([worker, config_file('worker', worker_config)], timeout=120))
             assert invoke()['phase'] == 'ready'
             own(service)
             worker_config.update(generation=service['generation'], mode='execute')
-            assert invoke()['phase'] == 'complete'
+            if fault:
+                boundary.arm('dispatch' if fault == 'retirement' else 'published')
+                executing = subprocess.Popen([worker, config_file('worker', worker_config)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                children.append(executing)
+                assert boundary.reached.wait(timeout=90), executing.poll()
+                if fault == 'retirement':
+                    close(child)
+                    command({'terminate': caller['pid']})
+                    replacement = command({'spawn': {}})
+                    assert replacement != caller['pid']
+                    boundary.close()
+                    stdout, stderr = executing.communicate(timeout=120)
+                    assert executing.returncode == 0, stderr[-2000:]
+                    assert json.loads(stdout)['phase'] == 'complete'
+                else:
+                    executing.kill(); executing.communicate(timeout=10); boundary.close()
+                children.remove(executing)
+                # Restart the authority and its disk store after committed output,
+                # before any delivery to the saved destination.
+                system.authority.kill(); system.authority.wait(timeout=10)
+                system.store.stop(); system.store.start()
+                system.authority = system.start(system.node, system.config)
+                from storage import wait_ready
+                wait_ready(system.store.http, system.authority, system.url + '/health')
+                own(service); worker_config['generation'] = service['generation']
+                assert invoke()['phase'] == 'complete'
+            else:
+                assert invoke()['phase'] == 'complete'
             outputs = deliver()
             assert len(outputs) == 1 and outputs[0]['destination'] == caller['pid']
+            if fault == 'retirement':
+                item = read({'outputs': {'after': outputs[0]['id']-1, 'position': read({'capabilities': {}})['position']}})['body']['outputs']['entries'][0]
+                assert item['id'] == outputs[0]['id'] and item['phase'] == 'retired'
+                assert read({'process': replacement})['body']['process']['process']['admitted'] == 0
+                assert read({'process': caller['pid']})['body']['process']['process']['lifecycle'] == 'terminated'
+                assert requests == ['/test.Peer/Bidi'] and not failures
+                # Disposal is an explicit controller decision even though the caller
+                # can never acknowledge; termination alone did not retire capture.
+                own(service); worker_config.update(generation=service['generation'], mode='release')
+                assert invoke()['phase'] == 'retired'
+                print(f'{label} RPC caller retirement: one authorized send, recorded destination retained across node/store restart, replacement untouched, explicit cleanup passed ({time.monotonic()-started:.2f}s).')
+                return
             caller['outcome'] = bytes.fromhex(outputs[0]['value'])[13:].hex()
             assert action(child, 'step') == {'observed': True}
             close(child)
@@ -277,8 +329,9 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
             assert requests == (['/test.Peer/Bidi'] if rpc else ['/items/%CE%BB%20%2F']), requests
             disposal = ', authenticated durable disposal before/after cleanup without read permission' if public_release else ''
             followups = ', typed followup calls with authenticated policy rejection and no child/send' if public_followup else ''
-            print(f'{label} {protocol.upper()} SDK: installed caller, staged host recovery, wide identity, binary TLS, correlated outcome, revoked prefix, owned replay without credentials and joined local stop/disposal{disposal}{followups} passed ({time.monotonic()-started:.2f}s).')
+            print(f'{label} {protocol.upper()} SDK {fault or "ordinary"}: installed caller, staged host recovery, wide identity, binary TLS, correlated outcome, revoked prefix, owned replay without credentials and joined local stop/disposal{disposal}{followups} passed ({time.monotonic()-started:.2f}s).')
         finally:
+            boundary.close()
             for child in children:
                 child.kill(); child.wait(timeout=10)
             native.lib.transit_client_destroy(admin)

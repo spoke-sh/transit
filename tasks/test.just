@@ -228,3 +228,7 @@ sql:
 # Real signed query shell, growing workers, exact retry and current read rights.
 public-query:
     zig build test-public-query
+
+# Qualify RPC preparation, dispatch, final publication and blocked-peer control.
+grpc-faults:
+    zig build test-grpc-worker -Dgrpc-faults=true

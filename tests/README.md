@@ -70,6 +70,28 @@ The unchanged worker recovery tail retains nine sends/eight applications and
 protocol evidence only; it loads no protobuf bodies or credential/routing values.
 `just check` passes with eight frontend boundary tests and generated contracts.
 
+`just test::grpc-faults` passes in **184.48 seconds** excluding compilation.
+It kills the actual worker during request preparation, immediately after dispatch
+commits but before network I/O, after capture completion, and after observation
+commits. Every recovery restarts node and disk store. Preparation resumes; an
+authorized attempt with no recorded response closes unknown without sending;
+complete/observed capture settles without another send. Current effect permission
+is revoked while dispatch waits at ingress. A blocked peer does not prevent work
+cutoff, explicit closure, forged-executor rejection, pending-effect cancellation
+or permanent retirement. Five RPCs/five applications retain 349 cold objects /
+34,224,103 bytes under the same 8 MiB hot bound. The test does not promise remote
+cancellation after already authorized work.
+
+`just bindings::grpc-faults` adds actual public caller schedules. The installed
+Python consumer passes committed-reply worker loss and node/store restart before
+delivery in **71.60 seconds**, then the ordinary read/disposal checks. Caller
+retirement after dispatch passes in **58.22 seconds**: one authorized RPC finishes,
+its result keeps the original retired destination across restart, a replacement
+PID receives nothing, and explicit controller disposal reclaims the capture.
+Neither case implicitly repeats the RPC. Other languages run the common SDK
+ownership schedule; these two additional failure schedules use the Python caller
+and the same shared Zig authority and framework implementation.
+
 `just test::grpc-worker` separately passes in **344.45 seconds** excluding
 compilation over disk Ursula and the actual Zig worker. All four shapes complete
 and replay, then lose workers during partial durable response capture and recover

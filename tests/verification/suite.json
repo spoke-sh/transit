@@ -32,6 +32,7 @@
       "test::grpc-libraries",
       "test::grpc-transport",
       "test::grpc-worker",
+      "test::grpc-faults",
       "test::http-worker",
       "examples::http",
       "examples::grpc"
@@ -63,7 +64,8 @@
       "test::model",
       "test::model-delivery",
       "test::sql-rewrites",
-      "test::sql"
+      "test::sql",
+      "bindings::grpc-faults"
     ],
     "browser": [
       "transit-board::browser",
