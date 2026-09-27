@@ -52,7 +52,7 @@ class DocumentBoard:
         if retired:
             assert page["registers"] is None
         else:
-            assert page["registers"] == dict(count=2, conflicts=conflicts, assignments=2+conflicts, next=None)
+            assert page["registers"] == dict(count=5, conflicts=conflicts, assignments=5+conflicts, next=None), page["registers"]
         assert self.query({"capabilities": {}})["position"] == before, "Inspection mutated authority"
         subprocess.run(["node", "tests/board_document_client.mjs"], input=json.dumps(page).encode(), check=True, timeout=20)
         return page

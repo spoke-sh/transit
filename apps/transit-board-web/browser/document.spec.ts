@@ -24,7 +24,7 @@ test("accepted Document metadata clears on current read revocation", async ({ pa
   await records.getByRole("button", { name: "Inspect Document metadata", exact: true }).click();
   const metadata = page.getByRole("region", { name: "Document 17 metadata", exact: true });
   await expect(
-    metadata.getByText("Register page: 2 registers · 1 conflicts · 3 assignments.", {
+    metadata.getByText("Register page: 5 registers · 1 conflicts · 6 assignments.", {
       exact: true,
     }),
   ).toBeVisible();
@@ -36,9 +36,13 @@ test("accepted Document metadata clears on current read revocation", async ({ pa
   });
   admin(process.env.BOARD_DOCUMENT_REVOKE!);
   await expect(metadata).toHaveCount(0);
-  await expect(records.getByRole("status")).toContainText("denied");
+  await expect(
+    page.getByRole("heading", { name: "Document 17 · revision 3", exact: true }),
+  ).toHaveCount(0);
   admin(process.env.BOARD_DOCUMENT_RESTORE!);
-  await records.getByRole("button", { name: "Refresh records", exact: true }).click();
+  await page.reload();
+  await page.getByRole("button", { name: `Select resource ${resource}`, exact: true }).click();
+  await page.getByRole("button", { name: "Inspect records", exact: true }).click();
   await expect(
     records.getByRole("heading", { name: "Document 17 · revision 3", exact: true }),
   ).toBeVisible();

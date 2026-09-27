@@ -30,8 +30,8 @@ reference fixtures, including full-width integers, negative zero, binary and
 Unicode. The same fixtures pass through `station_document_codec` in the real native
 library and port host, including invalid/truncated/canonical-identity checks.
 `just bindings::generate` and `just bindings::build` pass, and `just check` checks
-all generated declarations against the public Zig types. Public SDKs, Board and
-local/Compose/reference example qualification remain in progress; the disk proof does not establish those surfaces.
+all generated declarations against the public Zig types. Public SDK and application-surface evidence appears below; the disk proof
+alone does not establish those surfaces.
 
 `just bindings::document-native` passes in **181.23 seconds** over disk Ursula.
 It uses 140 bounded scoped turns through the real native library and port host,
@@ -70,8 +70,7 @@ Compiler rejection cases prevent a Document owner from escaping its turn and
 prevent a reader from overlapping runner mutation. Full-width values, Unicode,
 retained references and post-retirement reads use the shared fixtures. Threaded
 reads are joined before disposal; arbitrary thread cancellation is not claimed.
-Rust formatting and source checks pass. The remaining language targets are still
-in progress.
+Rust formatting and source checks pass.
 
 The installed C11 and C++17 Document consumers pass in **225.84 seconds** and
 **235.01 seconds**, respectively. C callbacks compile separately with the C11
@@ -130,8 +129,8 @@ writer turn attempts, a four-mutation maximum, 642 cold objects and 64,766,910
 cold bytes. It also refuses reuse of a completed activation marker. Caller and
 writer PID-scoped inspection requires optional cross-resource associations plus
 separate read grants; the proof does not broaden them to realm execution rights.
-Compose/reference placement and Board remain open. The Document tasks are
-registered as focused verification; their hosted CI cost has not been measured.
+The Document tasks are registered as focused verification; their hosted CI
+cost has not been measured.
 
 The Document component suite now passes **27 tests in 1 second / 17 MiB peak
 RSS**. Bounded metadata pages count accepted registers, assignment IDs and
@@ -139,14 +138,13 @@ conflicts without returning application values. Tests cover an eight-record
 boundary, exact older snapshots, invalid cursors, revocation between pages and
 permanent retirement. A separate regression ensures explicit policy rejection
 of an admitted job closes it without disclosing an accepted-state basis. These
-metadata readers are the library handoff for Board, whose API/UI proof remains
-pending. `just check` passes with the worker and these library additions.
+metadata readers are the library handoff for Board. `just check` passes with the worker and these library additions.
 
 `just examples::document-compose` passes in **208.78 seconds**, including cached
 static builds, with two separately credentialed editors and a fenced writer.
 It repeats the original caller after fresh ownership, resumes an unpublished
 candidate after node/store loss, merges reversed structured/Unicode changes,
-resolves conflicts, rejects duplicates, resynchronizes after a finite checkpoint
+resolves conflicts, recognizes duplicates, resynchronizes after a finite checkpoint
 window and refuses changes after retirement. The client network cannot connect
 to Ursula, MinIO or external TCP. The run records **542 cold objects /
 63,005,309 bytes**, using **8 MiB hot storage and 8 MiB cold cache**. The first
@@ -154,7 +152,19 @@ no-cold-tier attempt exhausted the 512 MiB Ursula container; raising that limit
 was not the recovery. The chart now supports a separately created configuration
 Secret without copying credentials into Helm values or ConfigMaps; its deployment
 render/lint tests pass. The root `just check` also passes. These are local
-measurements; the reference and Board browser runs remain pending.
+measurements; reference qualification remains pending.
+
+`just transit-board::document-browser` passes the complete local two-editor
+schedule in **596.76 seconds**, including its real Chromium test (**12.0 seconds**).
+The generated API/model and UI show exact accepted identity/revisions, five
+retained registers, one conflict and six assignments without application values.
+The proof verifies a stale cut, an actual metadata continuation, denial of that
+continuation after revocation, browser clearing, restored access, the finite
+history floor and retirement metadata. It records **621 cold objects /
+63,935,059 bytes** under the same 8 MiB hot limit, plus writer SIGKILL,
+node/store restart and exact acceptance retry. Counts include retained text
+character registers, not just application field names. Component API tests,
+strict frontend checks and all nine frontend unit tests pass.
 
 ## M16 finite connector qualification
 
