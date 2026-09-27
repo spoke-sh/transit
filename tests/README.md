@@ -110,6 +110,9 @@ additional send for unsupported policy, and still passes durable disposal and
 replay. Expanded local HTTP schedules took 63.21 and 70.91 seconds respectively;
 TypeScript additionally refuses an invalid reason at runtime. Positive public retry
 dispatch belongs to the independent Zig worker proof above.
+Rust's typed followup method passes the same installed schedule in 95.12 seconds
+including clean compilation; borrowed turn/request ownership remains enforced by
+its existing compiler rejection checks.
 The shared `http_stage` helper freezes namespace ownership and advances one
 publication step per turn. Its disk/native proof replaces the host and owner
 after a committed metadata prefix, rejects a changed endpoint revision without

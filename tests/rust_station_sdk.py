@@ -80,7 +80,7 @@ arrow-array = { version = "=59.1.0", optional = true, default-features = false }
     (execute or schedule)(node, cli, library, install, 'Rust')
     if execute is None:
         from sdk_http_runner import run as http_schedule
-        http_schedule(node, cli, library, http_worker, install, 'Rust', public_release=True)
+        http_schedule(node, cli, library, http_worker, install, 'Rust', public_release=True, public_followup=True)
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

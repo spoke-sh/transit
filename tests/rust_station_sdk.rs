@@ -626,6 +626,8 @@ struct HttpHandler {
     request: PreparedHttpRequest,
     observed: Arc<Mutex<Value>>,
     disposal: Option<HttpReleased>,
+    parent: Option<HttpOutcome>,
+    followup_reason: HttpFollowupReason,
 }
 impl Handler<HttpMessage<Vec<u8>>> for HttpHandler {
     fn initialize(&mut self, _turn: &mut Turn<'_>) -> Result<()> {
@@ -634,7 +636,26 @@ impl Handler<HttpMessage<Vec<u8>>> for HttpHandler {
     fn handle(&mut self, turn: &mut Turn<'_>, input: Incoming<HttpMessage<Vec<u8>>>) -> Result<()> {
         let correlation = Key::new(b"http-correlation", U64Codec)?;
         let release_correlation = Key::new(b"http-release-correlation", U64Codec)?;
+        let followup_correlation = Key::new(b"http-followup-correlation", U64Codec)?;
         match input {
+            Incoming::Cast {
+                value: HttpMessage::Application(bytes),
+                ..
+            } if bytes == b"followup" => {
+                let parent = self.parent.as_ref().unwrap();
+                let mut wrong = parent.clone();
+                wrong.resource = ResourceRef::new(73, parent.resource.resource())?;
+                assert_eq!(
+                    turn.followup_http(self.peer, &wrong, self.followup_reason, &self.request)
+                        .unwrap_err()
+                        .kind,
+                    ErrorKind::InvalidArgument
+                );
+                let call =
+                    turn.followup_http(self.peer, parent, self.followup_reason, &self.request)?;
+                turn.state().put(&followup_correlation, &call.get())?;
+                *self.observed.lock().unwrap() = json!({"followup":false});
+            }
             Incoming::Cast {
                 value: HttpMessage::Application(bytes),
                 ..
@@ -666,6 +687,15 @@ impl Handler<HttpMessage<Vec<u8>>> for HttpHandler {
                 }
             }
             Incoming::Reply(reply) => {
+                if let HttpMessage::Reply(HttpReply::Rejected(reason)) = &reply.value {
+                    let saved = turn.state().require(&followup_correlation)?;
+                    turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
+                    assert_eq!(*reason, HttpRejection::Denied);
+                    turn.state()
+                        .put(&Key::new(b"http-followup-denied", U64Codec)?, &saved)?;
+                    *self.observed.lock().unwrap() = json!({"followup":true});
+                    return Ok(());
+                }
                 if let HttpMessage::Reply(HttpReply::Released(released)) = &reply.value {
                     let saved = turn.state().require(&release_correlation)?;
                     turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
@@ -743,16 +773,13 @@ fn http_consumer(cfg: Value, mode: &str) -> Result<()> {
         )?,
     );
     let observed = Arc::new(Mutex::new(Value::Null));
-    let disposal = if let Some(value) = cfg["outcome"].as_str() {
+    let parent = if let Some(value) = cfg["outcome"].as_str() {
         let HttpReply::Outcome(outcome) =
             decode_http_reply(72, &transit_client::internal::unhex(value, 71)?, None)?
         else {
             panic!("HTTP outcome");
         };
-        Some(HttpReleased {
-            resource: outcome.resource,
-            exchange: outcome.exchange,
-        })
+        Some(outcome)
     } else {
         None
     };
@@ -762,7 +789,18 @@ fn http_consumer(cfg: Value, mode: &str) -> Result<()> {
             peer: ProcessRef::new(72, number(&cfg, "peer"))?,
             request: prepared,
             observed: observed.clone(),
-            disposal,
+            disposal: parent.as_ref().map(|outcome| HttpReleased {
+                resource: outcome.resource,
+                exchange: outcome.exchange,
+            }),
+            parent,
+            followup_reason: match cfg["followup_reason"].as_str() {
+                Some("redirect") => HttpFollowupReason::Redirect,
+                Some("reconcile") => HttpFollowupReason::Reconcile,
+                Some("cancel") => HttpFollowupReason::Cancel,
+                Some("retry") | None => HttpFollowupReason::Retry,
+                _ => panic!("followup reason"),
+            },
         },
         HttpReplyCodec::new(ByteCodec, 72, None)?,
         RunnerOptions {

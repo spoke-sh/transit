@@ -155,6 +155,34 @@ impl<'a> Turn<'a> {
             retained: None,
         }
     }
+    /// Submit an explicit linked attempt; the service decides current admission.
+    pub fn followup_http(
+        &mut self,
+        peer: ProcessRef,
+        parent: &crate::HttpOutcome,
+        reason: crate::HttpFollowupReason,
+        request: &crate::PreparedHttpRequest,
+    ) -> Result<Correlation> {
+        let pid = self.peer(peer)?;
+        self.http_request(request)?;
+        if parent.resource.realm() != self.resource.realm() || parent.exchange == 0 {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "http-followup-identity",
+            ));
+        }
+        if !self.caps().http_followup {
+            return Err(Error::new(
+                ErrorKind::UnsupportedCapability,
+                "http-followup",
+            ));
+        }
+        let value = self.apply(
+            json!({"http_followup":{"pid":pid,"resource":parent.resource.resource(),"parent":parent.exchange.to_string(),"reason":reason.wire(),"reference":hex(request.reference(),112)?}}),
+            false,
+        )?;
+        Correlation::new(wide(field(&value, "correlation")?)?)
+    }
     pub fn budgets(&mut self) -> Result<Budgets> {
         let value = self.apply(json!({"budgets":{}}), false)?;
         let value = field(&value, "budgets")?;

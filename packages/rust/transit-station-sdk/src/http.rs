@@ -165,6 +165,23 @@ pub enum HttpPhase {
     NotDispatched,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HttpFollowupReason {
+    Retry,
+    Redirect,
+    Reconcile,
+    Cancel,
+}
+impl HttpFollowupReason {
+    pub(crate) fn wire(self) -> &'static str {
+        match self {
+            Self::Retry => "retry",
+            Self::Redirect => "redirect",
+            Self::Reconcile => "reconcile",
+            Self::Cancel => "cancel",
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HttpRejection {
     Denied,
     InvalidRequest,

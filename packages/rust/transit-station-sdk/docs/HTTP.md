@@ -69,4 +69,15 @@ its resource/exchange. Duplicate calls remain safe after worker restart and
 capture cleanup. A transcript read grant is unnecessary; the service checks the
 recorded holder and current admission policy. Release performs no remote
 cancellation, retirement or automatic cleanup. The finite worker needs a fresh
-`poll` activation to handle it. Public followup helpers remain M15 work.
+`poll` activation to handle it.
+
+`turn.followup_http(connector, &parent, HttpFollowupReason::Retry, &request)?`
+records an explicit linked-attempt call with its own correlation. Other reasons
+are `Redirect`, `Reconcile` and `Cancel`. Publish the exact proposed request in
+the current associated resource first, preserving the original deadline and
+total attempt budget. Save the returned correlation and authenticate the resulting
+`HttpReply::Outcome` or `HttpReply::Rejected`. The shared service checks current
+scope, the original caller and frozen parent policy before allocating a child.
+The helper performs no automatic retry or retry-safety inference. Configure a
+fresh child exchange and matching parent/reason on the finite worker. A successful
+child or cancellation request does not rewrite the parent's outcome.

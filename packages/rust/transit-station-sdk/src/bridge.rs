@@ -63,6 +63,7 @@ pub(crate) struct Caps {
     pub http_requests: bool,
     pub http_replay: bool,
     pub http_release: bool,
+    pub http_followup: bool,
 }
 struct Buffer<'a> {
     pointer: *mut abi::station_buffer,
@@ -180,6 +181,7 @@ impl Local {
                 http_requests: boolean(&value["http_requests"], "native-capabilities")?,
                 http_replay: boolean(&value["http_replay"], "native-capabilities")?,
                 http_release: value["http_release"].as_bool().unwrap_or(false),
+                http_followup: value["http_followup"].as_bool().unwrap_or(false),
             };
         }
         Ok(Self {
