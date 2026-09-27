@@ -98,7 +98,24 @@ previous published record until released or made unavailable under the existing
 resource policy. Applications must resolve current references before retirement;
 v1 does not infer a dependency graph from opaque bytes.
 
-## Capacity
+## Immutable reference encoding
+
+The additive `SPF1` reference is exactly 68 bytes: magic (4), resource (u64),
+namespace (u64), record (u64), format (u32), length (u32), and digest (32).
+Integers are little-endian. Resource is a nonzero protocol counter; namespace,
+record and format are nonzero. Unknown magic, trailing bytes and truncation reject.
+This encoding introduces no grant, lifetime extension or application acceptance.
+
+`PublicationReference.read` copies a finite record into explicitly bounded caller
+storage. It reopens current signed resource authority for every 256-byte chunk,
+requires the same published spec and carries only the verified ordinal/hash chain
+between cuts. It rechecks current availability after the final chunk, including
+empty records. A failure invalidates the entire copied output. Applications still
+own format validation, smaller size limits, original-call identity and any extra
+policy/lifecycle checks. Historical `Publication` cursors retain their original
+exact-cut behavior; this helper deliberately reads current availability.
+
+## Capacity accounting
 
 No total record-count array or whole-record materialization is used. Begin and
 publish each use two reads/two writes; append uses two reads/two writes. A stream

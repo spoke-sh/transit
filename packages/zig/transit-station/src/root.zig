@@ -8,6 +8,7 @@ pub const GenServer = @import("GenServer.zig").Legacy;
 pub const GrowingGenServer = @import("GenServer.zig").Growing;
 pub const Table = @import("Table.zig");
 pub const Publication = @import("Publication.zig");
+pub const PublicationReference = @import("PublicationReference.zig");
 pub const ImmutableIndex = @import("ImmutableIndex.zig");
 pub const PublicationUpload = @import("PublicationUpload.zig");
 pub const Query = @import("Query.zig");

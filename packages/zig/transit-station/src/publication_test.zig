@@ -367,3 +367,59 @@ test "upload initialization failure restores an already populated private decisi
     }));
     try t.expectEqualDeep(before, turn.decision);
 }
+
+const ReferenceSource = struct {
+    store: *Store,
+    opens: usize = 0,
+    deny_at: ?usize = null,
+    pub fn open(self: *@This(), resource: u64) !Turn {
+        if (resource != 7) return error.AccessDenied;
+        self.opens += 1;
+        if (self.deny_at == self.opens) return error.AccessDenied;
+        // Fresh current cuts can change while immutable content remains stable.
+        self.store.revision += 1;
+        return self.store.capture();
+    }
+};
+test "publication references verify finite bodies across current cuts and deny before during and after copy" {
+    const Ref = @import("PublicationReference.zig");
+    var store: Store = .{};
+    defer store.deinit();
+    const pubn = try store.create(limits);
+    var body: [657]u8 = undefined;
+    for (&body, 0..) |*byte, i| byte.* = @truncate(i * 19);
+    const reference: Ref = .{ .resource = 7, .namespace = pubn.namespace, .record = 17, .spec = try store.stage(pubn, 17, &body) };
+    try publish(&store, pubn, 17);
+    const encoded = try reference.encode();
+    try t.expectEqualDeep(reference, try Ref.decode(encoded));
+    for (0..encoded.len) |len| try t.expectError(error.InvalidPublicationReference, Ref.decode(try p.Value.init(encoded.slice()[0..len])));
+    var source: ReferenceSource = .{ .store = &store };
+    var output: [657]u8 = undefined;
+    try t.expectEqualSlices(u8, &body, try reference.read(&source, &output));
+    try t.expectEqual(@as(usize, 4), source.opens);
+    for (1..5) |denied| {
+        source = .{ .store = &store, .deny_at = denied };
+        try t.expectError(error.AccessDenied, reference.read(&source, &output));
+    }
+    source = .{ .store = &store };
+    try t.expectError(error.PublicationBufferTooSmall, reference.read(&source, output[0..656]));
+    try t.expectEqual(@as(usize, 0), source.opens);
+    var wrong = reference;
+    wrong.spec.digest[0] ^= 1;
+    try t.expectError(error.PublicationReferenceChanged, wrong.read(&source, &output));
+    const chunk = Pub.key(pubn.namespace, 'c', 17, 1);
+    const original = store.state.get(chunk).?;
+    var corrupt = original;
+    corrupt.data[1] ^= 1;
+    try store.state.put(t.allocator, chunk, corrupt);
+    try t.expectError(error.InvalidPublicationDigest, reference.read(&source, &output));
+    try store.state.put(t.allocator, chunk, original);
+    var turn = try store.capture();
+    _ = try pubn.retire(&turn, 17);
+    try store.commit(turn);
+    try t.expectError(error.PublicationNotPublished, reference.read(&source, &output));
+    const empty: Ref = .{ .resource = 7, .namespace = pubn.namespace, .record = 18, .spec = try store.stage(pubn, 18, "") };
+    try publish(&store, pubn, 18);
+    source = .{ .store = &store, .deny_at = 2 };
+    try t.expectError(error.AccessDenied, empty.read(&source, &.{}));
+}

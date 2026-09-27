@@ -65,6 +65,14 @@ under the old activation. Stale owners cannot publish or clean up. Resource
 revocation, expiry, view expiry and retained-version release are explicit errors;
 no helper opens a fresh source automatically.
 
+`PublicationReference` supplies a canonical 68-byte `SPF1` identity for one
+published record. Its `read(resource_reader, output)` helper materializes a finite
+record into a caller-sized buffer, reopening current access and the exact published
+spec for every chunk and after completion. An error invalidates all copied bytes.
+Use it only with a declared application size/format limit; references do not grant
+access or establish application acceptance. Use `Publication.open/read` when the
+application needs bounded streaming at an explicitly captured or retained cut.
+
 ## Resumable finite uploads
 
 `PublicationUpload.step` stages one or two finite records, one operation per turn,
