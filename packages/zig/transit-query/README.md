@@ -33,7 +33,8 @@ cancellation. `transit-query-host` composes its v2 requester/source behaviors;
 `just test::unified-query` exercises these actual daemons over disk Ursula.
 `Bundle.fromSql` compiles the [v2 SQL profile](../transit-fuze/docs/unified-sql.md)
 against an explicit source declaration and budgets; `UnifiedClient.compileSql`
-first verifies current source policy. Shell/Board integration remains in progress.
+first verifies current source policy. The [compatibility matrix](docs/compatibility.md)
+describes both public versions and the transport handoff boundary.
 
 `Workspace` constrains explicit SQL ingress to one configured source and budgets.
 It uses `Values`/`Bridge` for finite bundles, frozen commands, committed-input
@@ -66,8 +67,8 @@ cells while unknown decoder versions reject the definition.
 Component tests qualify these adapters and the current Document floor/retirement
 checks with in-memory private turns. `UnifiedCapture` now supplies resumable
 retained capture, publication, closure and cleanup; see its
-[capture guide](docs/unified-capture.md). Public submission, result access, SDKs
-and disk/worker recovery qualification remain in progress; the existing `Client` and
+[capture guide](docs/unified-capture.md). Signed submission, verified reads, all ten SDKs and disk/worker recovery are
+qualified across the three source kinds; broader lifecycle/deployment work is open; the existing `Client` and
 `Behavior` still serve public Table v1 queries.
 
 `Bundle` owns the bounded canonical source/plan request and explicit page,

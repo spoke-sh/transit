@@ -54,3 +54,15 @@ request expiry; making it a required lifetime dependency would prevent that work
 [evidence ledger](../../tests/README.md#m18-work-in-progress) distinguishes passed
 profiles from work still in progress. These fixtures use owned temporary services
 and leave existing launcher deployments alone.
+
+Service diagnostics use the shared bounded stderr sink (`LOG_LEVEL`,
+`LOG_FORMAT`); stdout remains unused. `service.ready` reports a validated
+activation and allocated workspaces, or a validated courier scope, not query
+completion. `query.worker.step` counts observed worker steps: `receipt` may be a
+recovered commit; idle/progress stay at debug, and unknown pending mutations are
+`uncertain`. Client attempt spans share the step context. No SQL, source values,
+credentials, frozen tokens or cursors enter logs. Fixed application/client metric
+series reset per process and do not count unique queries. The sink's 2 KiB records,
+128-slot queue, rate limits and 200 ms shutdown bound apply; sink failure never
+changes retries, ownership or control progress. There is no query-host HTTP probe;
+readiness is a startup observation and current progress requires durable status.

@@ -135,7 +135,12 @@
       "bindings::document-java",
       "bindings::document-dotnet",
       "bindings::document-beam",
-      "transit-board::document-test"
+      "transit-board::document-test",
+      "test::unified-query",
+      "test::unified-codec",
+      "test::unified-ingress",
+      "test::unified-lifecycle",
+      "bindings::unified-all"
     ]
   },
   "nested_tasks": {

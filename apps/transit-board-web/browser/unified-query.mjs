@@ -42,6 +42,12 @@ await page.route("**/api/v1/query-v2", async (route) => {
     const body = route.request().postData();
     if (lost === null) {
       const response = await route.fetch();
+      // Rate limiting is a pre-admission refusal. Let the real client repeat
+      // those bytes normally; inject loss only after an accepted receipt.
+      if (response.status() === 429) {
+        await route.fulfill({ response });
+        return;
+      }
       assert.equal(response.status(), 200);
       lost = body;
       await route.fulfill({

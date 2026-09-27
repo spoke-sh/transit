@@ -141,6 +141,14 @@ fn observe(init: std.process.Init, client: *q.UnifiedClient, receipt: p.Receipt)
     }
     return error.QueryCommandPending;
 }
+const JobSnapshot = struct { job: ?q.UnifiedRecords.Job = null, checkpoint: ?q.UnifiedRecords.Checkpoint = null };
+fn inspectJob(transport: *s.client.Client, root: p.Ed25519.KeyPair, connection: q.UnifiedClient.Connection, correlation: u64) !JobSnapshot {
+    const resource_client: s.client.ResourceReader = .{ .wire = transport, .realm = 46, .principal = 0, .key = root };
+    var reader = try resource_client.open(connection.resource);
+    const index = (try reader.read(q.UnifiedRecords.key('i', connection.requester, correlation))) orelse return .{};
+    const job = try q.UnifiedCapture.job(&reader, try q.Request.readIdentity(index));
+    return .{ .job = job, .checkpoint = try q.UnifiedCapture.checkpoint(&reader, job.id) };
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const root = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
@@ -233,6 +241,36 @@ pub fn main(init: std.process.Init) !void {
         return print(init, receipt);
     }
     if (std.mem.eql(u8, command, "status")) return print(init, try client.status(1));
+    if (std.mem.eql(u8, command, "request-read-revoke") or std.mem.eql(u8, command, "request-read-restore")) {
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.connection.requests, .subject = 65536, .permissions = if (std.mem.eql(u8, command, "request-read-revoke")) 0 else p.State.permission(.inspect) | p.State.permission(.read) } });
+        return;
+    }
+    if (std.mem.eql(u8, command, "job")) {
+        if (args.len != 5) return error.Usage;
+        const namespace = try std.fmt.parseInt(u64, args[4], 10);
+        const status = (try client.status(namespace)) orelse return error.QueryUploadNotFound;
+        for (0..3) |_| {
+            const snapshot = inspectJob(&transport, root, config.connection, status.correlation) catch |err| {
+                if ((err == error.Conflict or err == error.Rejected) and (transport.last_rejection == .QueryExpired or transport.last_rejection == .StaleStateResource)) continue;
+                return err;
+            };
+            return print(init, snapshot);
+        }
+        return error.QueryReadConflict;
+    }
+    if (std.mem.eql(u8, command, "released-read")) {
+        const versions = (try admin.query(.{ .read_versions = .{ .pid = config.connection.source } })).body.read_versions;
+        for (versions.entries) |slot| if (slot) |version| {
+            if (version.released_at != null) {
+                _ = transport.queryGrowing(.{ .realm = 46, .principal = 65536, .kind = .{ .version_entries = .{ .id = version.id, .generation = (try admin.query(.{ .process = config.connection.source })).body.process.process.generation } } }, try p.Ed25519.KeyPair.generateDeterministic(@splat(8))) catch {
+                    if (transport.last_rejection != .ReadVersionReleased) return error.WrongVersionRejection;
+                    return print(init, .{ .released_read_denied = true });
+                };
+                return error.ReleasedVersionReadable;
+            }
+        };
+        return error.NoReleasedVersion;
+    }
     if (std.mem.eql(u8, command, "revoke") or std.mem.eql(u8, command, "restore")) {
         _ = try admin.submit(.{ .grant_resource = .{ .resource = config.connection.resource, .subject = 1234, .permissions = if (std.mem.eql(u8, command, "revoke")) 0 else p.State.permission(.inspect) | p.State.permission(.read) } });
         return;

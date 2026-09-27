@@ -247,6 +247,10 @@ unified-query *args="-Doptimize=ReleaseSafe":
 unified-ingress source="table":
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-shell=true -Dunified-board=true -Dunified-browser=true
 
+# Current grant changes/cancellation after a durable segment staging decision.
+unified-lifecycle source="kv":
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-lifecycle=true
+
 # Independent v2 bundle and Arrow fixtures through native and port APIs.
 unified-codec:
     zig build test-unified-codec

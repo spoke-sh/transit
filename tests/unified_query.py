@@ -16,12 +16,13 @@ from cold_storage import ColdStore
 from unified_abi import Native, Port, Failure, upload, verify
 
 
-def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False):
+def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False, lifecycle=False):
     node, host, proof, port_host, library = (str(Path(path).resolve()) for path in (node, host, proof, port_host, library))
     for kind in kinds:
         started = time.monotonic()
         with ColdStore() as cold, Fixture(cold.config()) as fixture:
             root = fixture.root
+            fixture.env.update(LOG_FORMAT="json", LOG_LEVEL="info")
             from sdk_unified import install
             factories = install(root / 'installed', sdks) if sdks else []
             public = json.loads(subprocess.check_output([proof, "public"], timeout=10))
@@ -201,6 +202,22 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 if board:
                     from unified_board import check
                     check(board, root, kind, invoke, expected, fixture, start, browser=browser)
+                if lifecycle:
+                    from unified_lifecycle import check
+                    check(native, root, invoke, fault, kind)
+                for role in ('source', 'requester', 'courier'):
+                    records = []
+                    for line in (root / (role+'-recovered.log')).read_text().splitlines():
+                        try: record = json.loads(line)
+                        except json.JSONDecodeError: continue
+                        if record.get('service_name') == 'transit-query-host': records.append(record)
+                    assert any(r.get('event', {}).get('name') == 'service.ready' for r in records), role
+                    if role != 'courier':
+                        assert any(r.get('event', {}).get('name') == 'query.worker.step' and
+                                   r['event'].get('protocol_outcome') == 'receipt' for r in records), role
+                    serialized = json.dumps(records, ensure_ascii=False)
+                    assert '東京' not in serialized and 'UQP2' not in serialized
+                    for seed in ('08', '09', '0a', '0b'): assert seed*32 not in serialized
                 versions = invoke("versions", direct=True)
                 assert versions["next"] is None
                 assert all(version["released_at"] is not None for version in versions["entries"] if version)
@@ -234,7 +251,8 @@ if __name__ == "__main__":
     parser.add_argument('--shell')
     parser.add_argument('--board')
     parser.add_argument('--browser', action='store_true')
+    parser.add_argument('--lifecycle', action='store_true')
     args = parser.parse_args()
     run(args.node, args.host, args.proof, args.port_host, args.library,
         kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or (), shell=args.shell,
-        board=args.board, browser=args.browser)
+        board=args.board, browser=args.browser, lifecycle=args.lifecycle)

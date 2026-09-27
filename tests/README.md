@@ -216,6 +216,27 @@ Root `just check` passes, including eleven browser-client unit tests and generat
 contract checks. `unified-ingress` is an explicit finite task, not a hosted CI
 budget measurement or a deployment proof.
 
+The focused signed KV lifecycle task (`just test::unified-lifecycle kv`) passes
+in **157.04 seconds**, with 232 cold objects / 20,053,320 bytes and the unchanged
+eight authority pages / 8 MiB hot-store budget. It checks caller denial before
+upload, independent source-worker request-read denial before admission and after
+committed segment staging, explicit requester cancellation, released-version
+read rejection, and completed bounded cleanup. Cancellation can reach the source
+as its cancel frame or as withdrawal of the request publication; the requester
+keeps its explicit cancelled disposition in either ordering. Source, requester
+and courier emit bounded JSON readiness/progress evidence without fixture
+payloads or signing seeds. Table/Document lifecycle runs and real-clock expiry
+remain pending; this result does not qualify them.
+
+The KV ingress run also reaches passing shell, generated-client, Board API and
+Chromium checks, including uncertain retry and current denial, before the newly
+added lifecycle test fails an incorrect staged/completed-segment assertion. The
+Document ingress run reaches passing shell/API checks but its browser fault
+injector incorrectly rejects a legitimate pre-admission HTTP 429. The injector
+now forwards rate limits and drops only an accepted receipt. Neither incomplete
+combined run is counted as a complete passing schedule. The KV lifecycle rerun
+above fixes its inspection helper's bounded stale-read handling as well.
+
 ## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test

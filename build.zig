@@ -421,6 +421,7 @@ pub fn build(b: *std.Build) void {
         unified_query_test.addArtifactArg(board);
     }
     if (b.option(bool, "unified-browser", "Include the actual v2 Board workspace in unified recovery") orelse false) unified_query_test.addArg("--browser");
+    if (b.option(bool, "unified-lifecycle", "Qualify current grants and cancellation during staged v2 capture") orelse false) unified_query_test.addArg("--lifecycle");
     if (b.option([]const u8, "unified-source", "Limit unified query proof to kv, table or document")) |kind| unified_query_test.addArg(kind);
     if (b.option([]const u8, "unified-sdk", "Comma-separated installed SDKs for unified query recovery")) |languages| {
         var selected = std.mem.splitScalar(u8, languages, ',');
