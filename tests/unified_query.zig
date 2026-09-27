@@ -200,6 +200,7 @@ pub fn main(init: std.process.Init) !void {
         const connection: q.UnifiedClient.Connection = .{ .realm = 46, .principal = 1234, .source = writer.pid, .resource = writer.resource, .requester = requester.pid, .requests = requester.resource };
         const client_config: Config = .{ .url = url, .connection = connection, .kind = kind };
         try save(init, directory, "client.json", client_config);
+        try save(init, directory, "shell.json", .{ .url = url, .seed_file = try keyFile(init, directory, "caller.seed", 10), .connection = connection, .workspace = q.Workspace.Config{ .name = "items", .source = try q.Values.Source.fromNative(init.arena.allocator(), try definition(kind, connection.resource)), .limits = try q.Values.Limits.fromNative(init.arena.allocator(), budgets) } });
         _ = try keyFile(init, directory, "caller.seed", 10);
         var bundle_bytes: [q.Bundle.max_bytes]u8 = undefined;
         try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "bundle.bin"), .data = try (try bundle(client_config)).encode(&bundle_bytes) });
@@ -210,6 +211,12 @@ pub fn main(init: std.process.Init) !void {
     }
     const parsed = try std.json.parseFromSlice(Config, init.arena.allocator(), try std.Io.Dir.cwd().readFileAlloc(init.io, try file(init, directory, "client.json"), init.arena.allocator(), .limited(8192)), .{});
     const config = parsed.value;
+    if (std.mem.eql(u8, command, "board-provision")) {
+        const inspector = try p.Ed25519.KeyPair.generateDeterministic(@splat(12));
+        _ = try admin.submit(.{ .grant = .{ .subject = 55, .public_key = inspector.public_key.toBytes(), .permissions = p.permission(.inspect) } });
+        for ([_]u64{ config.connection.resource, config.connection.requests }) |resource| _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = 55, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        return print(init, .{ .seed_file = try keyFile(init, directory, "inspector.seed", 12) });
+    }
     var client: q.UnifiedClient = .{ .wire = &transport, .connection = config.connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
     if (std.mem.eql(u8, command, "upload")) {
         for (0..1000) |_| {

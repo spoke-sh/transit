@@ -192,6 +192,30 @@ consumers join successfully before the matrix is counted. `just bindings::unifie
 builds the installed packages and reruns this matrix in the bindings shell.
 These local measurements do not qualify hosted CI cost or deployment recovery.
 
+The actual v2 SQL shell passes on KV (**166.16 seconds**, 239 cold objects /
+20,230,400 bytes), Table (**169.18 seconds**, 191 / 17,805,776), and Document
+(**697.02 seconds**, 1,337 / 125,730,779). These runs include the original signed
+recovery schedule, a separate SQL query, current denial after a returned prefix,
+complete nested rows, and permanent request retirement/collection. The Document
+run spends 495.20 seconds provisioning accepted state. The subsequent Table
+`just test::unified-ingress table` passes in **277.60 seconds** (320 objects /
+30,600,944 bytes): it additionally exports the frozen bundle and pending token,
+exits the shell after a lost upload receipt, and resumes the identical signed
+request in a fresh shell. It exercises the separately authorized Board v2 API,
+generated TypeScript runtime validation and real Chromium workspace. Browser
+checks cover explicit submission, identical retry after an accepted-but-lost
+receipt, a failing atlas refresh without losing pending work, view/draft identity,
+exact provenance, and protected-state clearing after current denial. Inspection
+remains readable while query access is denied. No cookies or browser storage are
+created. KV/Document browser qualification remains pending at this point.
+
+This proof found and fixed malformed frozen-token errors mapped to HTTP 503
+instead of 400, and transient atlas read failure remounting a v2 workspace and
+losing its pending request. Those failed attempts are not passing evidence.
+Root `just check` passes, including eleven browser-client unit tests and generated
+contract checks. `unified-ingress` is an explicit finite task, not a hosted CI
+budget measurement or a deployment proof.
+
 ## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test

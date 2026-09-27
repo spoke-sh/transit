@@ -243,6 +243,10 @@ public-query:
 unified-query *args="-Doptimize=ReleaseSafe":
     zig build test-unified-query {{args}}
 
+# Explicit SQL shell and separately authorized Board query API/browser.
+unified-ingress source="table":
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-shell=true -Dunified-board=true -Dunified-browser=true
+
 # Independent v2 bundle and Arrow fixtures through native and port APIs.
 unified-codec:
     zig build test-unified-codec

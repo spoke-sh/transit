@@ -43,7 +43,7 @@ fn route(out: *std.json.Stringify, path: []const u8, method: []const u8, name: [
     try out.endArray();
     if (std.mem.eql(u8, method, "post")) {
         try out.objectField("requestBody");
-        try out.write(.{ .required = true, .content = .{ .@"application/json" = .{ .schema = .{ .@"$ref" = "#/components/schemas/QueryRequest" } } } });
+        try out.write(.{ .required = true, .content = .{ .@"application/json" = .{ .schema = .{ .@"$ref" = if (std.mem.eql(u8, path, "/api/v1/query-v2")) "#/components/schemas/UnifiedQueryRequest" else "#/components/schemas/QueryRequest" } } } });
     }
     try out.objectField("responses");
     try out.beginObject();
@@ -66,6 +66,7 @@ pub fn main(init: std.process.Init) !void {
     try out.beginObject();
     try route(&out, "/api/v1/atlas", "get", "AtlasResponse", false, false);
     try route(&out, "/api/v1/query", "post", "QueryResponse", false, false);
+    try route(&out, "/api/v1/query-v2", "post", "UnifiedQueryResponse", false, false);
     try route(&out, "/api/v1/capabilities", "get", "Capabilities", false, false);
     try route(&out, "/api/v1/processes", "get", "Response", false, true);
     try route(&out, "/api/v1/processes/{pid}", "get", "Response", true, true);
@@ -86,9 +87,9 @@ pub fn main(init: std.process.Init) !void {
     try out.beginObject();
     try out.objectField("schemas");
     try out.beginObject();
-    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "QueryRequest", "QueryResponse", "RecordsResponse", "HttpResponse", "GrpcResponse", "DocumentResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.QueryRequest, api.QueryResponse, api.RecordsResponse, api.HttpResponse, api.GrpcResponse, api.DocumentResponse }) |name, T| {
+    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "QueryRequest", "QueryResponse", "RecordsResponse", "HttpResponse", "GrpcResponse", "DocumentResponse", "UnifiedQueryRequest", "UnifiedQueryResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.QueryRequest, api.QueryResponse, api.RecordsResponse, api.HttpResponse, api.GrpcResponse, api.DocumentResponse, api.UnifiedQueryRequest, api.UnifiedQueryResponse }) |name, T| {
         try out.objectField(name);
-        try s.write(T, &out, .{ .output = true, .safe_integers = true, .text_max_length = if (T == api.QueryRequest or T == api.QueryResponse) 16384 else 256 });
+        try s.write(T, &out, .{ .output = true, .safe_integers = true, .sequence_max_length = if (T == api.UnifiedQueryRequest or T == api.UnifiedQueryResponse) 8 else null, .text_max_length = if (T == api.UnifiedQueryRequest or T == api.UnifiedQueryResponse) 131072 else if (T == api.QueryRequest or T == api.QueryResponse) 16384 else 256 });
     }
     try out.endObject();
     try out.endObject();

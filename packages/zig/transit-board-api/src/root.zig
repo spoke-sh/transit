@@ -97,6 +97,8 @@ pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryE
 
 pub const QueryRequest = @import("transit_query").Model.Request;
 pub const QueryResponse = @import("transit_query").Model.Response;
+pub const UnifiedQueryRequest = @import("transit_query").Workspace.Request;
+pub const UnifiedQueryResponse = @import("transit_query").Workspace.Response;
 pub const AtlasResponse = struct {
     version: u8 = 1,
     realm: u64,
@@ -105,6 +107,7 @@ pub const AtlasResponse = struct {
     processes: p.Growth.Batch(p.Growth.Process, u64),
     resources: p.Growth.Batch(p.Growth.Resource, u64),
     query_resource: ?u64,
+    query_version: ?u8 = null,
 };
 
 fn reference(page: i.Page, pid: u64, kind: @FieldType(Reference, "kind"), id: u64) Reference {

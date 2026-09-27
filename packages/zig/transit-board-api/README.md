@@ -41,6 +41,7 @@ the shared query client.
 | `GrpcResponse` / `Grpc.project` | Selected RPC shape/schema, directional counts, half-close and terminal evidence without protobuf interpretation |
 | `DocumentResponse` / `Document.project` | Accepted identity, profile, revision, retained floor and bounded register conflict counts, without field or text values |
 | `QueryRequest`, `QueryResponse` | Optional Table query operations, opaque frozen submissions and verified typed pages |
+| `UnifiedQueryRequest`, `UnifiedQueryResponse` | Optional v2 scoped SQL, finite upload, frozen retry and nested pages through `transit-query.Workspace` |
 | `Json.write` | Schema-consistent JSON: fixed byte arrays stay arrays, text slices stay strings |
 | `Capabilities`, `Error` | Board build capabilities and its finite error vocabulary |
 | [export.zig](src/export.zig) | OpenAPI generation over the public typed definitions |
@@ -77,6 +78,12 @@ to JavaScript's exact safe range. Query int64 cells use decimal strings; opaque 
 requests without JavaScript parsing their full-width literals. The query route
 exposes only the [public query profile](../../../contracts/PUBLIC_QUERY_V1.md),
 not arbitrary Transit commands.
+
+The additive `/api/v1/query-v2` route has its own generated schemas. Dynamic
+row/column/path/conflict arrays are bounded to eight, and full-width counts,
+identities and scalars remain strings. Atlas identifies the configured query
+version only when its resource appears in the authorized inspection page.
+V2 query configuration and grants remain separate from the inspection identity.
 
 From this directory, `zig build test` checks projection boundaries and causal coverage.
 From the repository root, `just test::packages` checks the declared dependencies.

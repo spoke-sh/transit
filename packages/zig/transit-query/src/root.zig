@@ -29,3 +29,4 @@ test {
 
 pub const Values = @import("Values.zig");
 pub const Bridge = @import("Bridge.zig");
+pub const Workspace = @import("Workspace.zig");

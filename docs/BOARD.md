@@ -118,6 +118,16 @@ edits authorize no resource mutation, retention change or future-data query.
 
 ## Implemented M13 workspace
 
+M18 adds an optional v2 workspace over the same source/query contracts as its
+shell and SDKs. Explicitly configured KV decoders and accepted Document
+projections join Table sources; inspection itself still does not decode business
+values. The UI shows executable SQL capabilities, explicit budgets, five cell
+states, exact source/plan evidence and complete page coverage. Run initiates one
+finite upload, subsequent steps observe committed progress, and uncertainty
+requires an explicit identical retry. This does not implement D4 Live sessions.
+The [configuration guide](../apps/transit-board/docs/configuration.md#unified-state-query-workspace)
+owns usage; [M18](roadmap/M18.md) tracks remaining qualification.
+
 [D9](design/board-atlas/D9.md) records the focused implementation baseline: explicit
 Processes/Resources emphasis, flat overhead detail, deliberate resource entry,
 and one SQL draft/result across Canvas and Browse. D7 Auto emphasis and motion,

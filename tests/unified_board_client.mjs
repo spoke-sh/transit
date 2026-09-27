@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { UnifiedQueryResponse as validate } from '../packages/ts/transit-board-client/src/validators.js';
+const values = JSON.parse(readFileSync(0, 'utf8'));
+for (const value of values) assert(validate(value), JSON.stringify(validate.errors));
+const page = values.find((value) => value.page);
+const changed = structuredClone(page);
+changed.page.evidence.manifest.rows = Number(changed.page.evidence.manifest.rows);
+assert(!validate(changed), 'full-width manifest fields require strings');
+const oversized = structuredClone(page);
+oversized.page.cells = Array(9).fill(oversized.page.cells[0]);
+assert(!validate(oversized), 'only eight owned rows per page');
+console.log('Generated v2 Board client validates actual scoped descriptions, plans and nested result pages.');

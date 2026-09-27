@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { atlas, BoardError, type AtlasResponse } from "@rey/transit-board-client";
 import { message, useScope } from "./state";
 import { QueryWorkspace } from "./query-workspace";
+import { UnifiedWorkspace } from "./unified-workspace";
 import { Records } from "./records";
 import "./atlas.css";
 
@@ -20,6 +21,10 @@ export function Atlas({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [entered, setEntered] = useState(false);
   const [workspace, setWorkspace] = useState<number | null>(null);
+  // Keep the selected protocol stable across transient atlas reads. Switching
+  // components would discard an uncertain signed query held by that workspace.
+  // The workspace independently rechecks its query authorization.
+  const [workspaceVersion, setWorkspaceVersion] = useState(1);
   const [recordResource, setRecordResource] = useState<number | null>(null);
   const [flat, setFlat] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -88,7 +93,13 @@ export function Atlas({
         <i />
       </span>
       <strong>Resource {resource.id}</strong>
-      <span>{resource.id === data?.query_resource ? "Table service" : "KV backing resource"}</span>
+      <span>
+        {resource.id === data?.query_resource
+          ? data?.query_version === 2
+            ? "Query source"
+            : "Table service"
+          : "KV backing resource"}
+      </span>
       <small>
         {resource.entries} current keys · writer {resource.writer}
       </small>
@@ -116,7 +127,15 @@ export function Atlas({
           </button>
         </div>
       </div>
-      {workspace !== null && (
+      {workspace !== null && workspaceVersion === 2 && (
+        <UnifiedWorkspace
+          resource={workspace}
+          mode={mode}
+          visible={entered}
+          onBack={() => setEntered(false)}
+        />
+      )}
+      {workspace !== null && workspaceVersion !== 2 && (
         <QueryWorkspace
           resource={workspace}
           mode={mode}
@@ -279,6 +298,7 @@ export function Atlas({
                         className="primary"
                         onClick={() => {
                           setWorkspace(selectedResource.id);
+                          setWorkspaceVersion(data.query_version ?? 1);
                           setEntered(true);
                         }}
                       >

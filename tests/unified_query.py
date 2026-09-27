@@ -16,7 +16,7 @@ from cold_storage import ColdStore
 from unified_abi import Native, Port, Failure, upload, verify
 
 
-def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=()):
+def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False):
     node, host, proof, port_host, library = (str(Path(path).resolve()) for path in (node, host, proof, port_host, library))
     for kind in kinds:
         started = time.monotonic()
@@ -192,6 +192,15 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 assert manifest["checkpoint"]["bytes"] == total
                 verify(native, port_client, root, final['ordinal']+1)
                 for owner in callers: verify(owner, owner, root, final['ordinal']+1)
+                if shell:
+                    from unified_shell import check
+                    shell_config = json.loads((root / 'shell.json').read_text())
+                    shell_config['url'] = proxy_url
+                    (root / 'shell.json').write_text(json.dumps(shell_config))
+                    check(shell, root, kind, invoke, expected, fault)
+                if board:
+                    from unified_board import check
+                    check(board, root, kind, invoke, expected, fixture, start, browser=browser)
                 versions = invoke("versions", direct=True)
                 assert versions["next"] is None
                 assert all(version["released_at"] is not None for version in versions["entries"] if version)
@@ -222,6 +231,10 @@ if __name__ == "__main__":
     for name in ('node', 'host', 'proof', 'port_host', 'library'): parser.add_argument(name)
     parser.add_argument('kinds', nargs='*', choices=('kv', 'table', 'document'))
     parser.add_argument('--sdk', action='append', choices=('python', 'node', 'ruby', 'rust', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir'))
+    parser.add_argument('--shell')
+    parser.add_argument('--board')
+    parser.add_argument('--browser', action='store_true')
     args = parser.parse_args()
     run(args.node, args.host, args.proof, args.port_host, args.library,
-        kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or ())
+        kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or (), shell=args.shell,
+        board=args.board, browser=args.browser)

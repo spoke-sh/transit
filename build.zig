@@ -412,6 +412,15 @@ pub fn build(b: *std.Build) void {
     const unified_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     unified_query_test.addFileArg(b.path("tests/unified_query.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, unified_query, station_host, station_bindings.artifact("transit_station") }) |artifact| unified_query_test.addArtifactArg(artifact);
+    if (b.option(bool, "unified-shell", "Include the actual v2 SQL shell in unified recovery") orelse false) {
+        unified_query_test.addArg("--shell");
+        unified_query_test.addArtifactArg(query_shell);
+    }
+    if (b.option(bool, "unified-board", "Include Board's v2 query API in unified recovery") orelse false) {
+        unified_query_test.addArg("--board");
+        unified_query_test.addArtifactArg(board);
+    }
+    if (b.option(bool, "unified-browser", "Include the actual v2 Board workspace in unified recovery") orelse false) unified_query_test.addArg("--browser");
     if (b.option([]const u8, "unified-source", "Limit unified query proof to kv, table or document")) |kind| unified_query_test.addArg(kind);
     if (b.option([]const u8, "unified-sdk", "Comma-separated installed SDKs for unified query recovery")) |languages| {
         var selected = std.mem.splitScalar(u8, languages, ',');

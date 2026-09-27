@@ -3,6 +3,11 @@
 The additive `transit` executable starts a signed Table query shell. Existing
 `rey-cli` administration commands remain separate.
 
+`transit query-v2` adds the explicit KV/Table/Document SQL profile. Its
+[unified shell guide](docs/unified-query.md) covers source declarations, finite
+upload, namespaces, exact retries and owned nested results. `transit query`
+continues to serve the original Table v1 profile below.
+
 ```sh
 nix develop
 zig build transit

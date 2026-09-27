@@ -12,6 +12,7 @@ const Config = struct {
     principal: u64,
     profile: enum { legacy_v2, growing_v3 } = .legacy_v2,
     query: ?growing.QueryConfig = null,
+    query_v2: ?growing.UnifiedQueryConfig = null,
     seed_file: []const u8,
     public_origin: []const u8,
     development_allow_insecure_http: bool = false,
@@ -58,11 +59,11 @@ const Server = struct {
         return self.json(req, status, api.Error{ .err = code });
     }
     fn queryFailure(self: *Server, req: *std.http.Server.Request, upstream: *client.Client, err: anyerror) !void {
-        if (err == error.AccessDenied or err == error.QueryAccessDenied) return self.failure(req, .forbidden, .Forbidden);
+        if (err == error.AccessDenied or err == error.QueryAccessDenied or err == error.QueryDenied) return self.failure(req, .forbidden, .Forbidden);
         if (err == error.UnsafePrincipal) return self.failure(req, .forbidden, .UnsafePrincipal);
         if (err == error.InvalidDocumentCursor) return self.failure(req, .bad_request, .InvalidQuery);
         if (err == error.DocumentHistoryGap or err == error.DocumentResyncRequired) return self.failure(req, .conflict, .HistoryReclaimed);
-        if (err == error.QueryChanged or upstream.last_rejection == .StaleStateResource or upstream.last_rejection == .QueryExpired) return self.failure(req, .conflict, .QueryExpired);
+        if (err == error.QueryChanged or err == error.QueryReadConflict or upstream.last_rejection == .StaleStateResource or upstream.last_rejection == .QueryExpired) return self.failure(req, .conflict, .QueryExpired);
         if (err == error.QuerySourceUnavailable or err == error.ExchangeUnavailable or err == error.ResourceUnavailable or err == error.DocumentRetired or upstream.last_rejection == .StateResourceExpired) return self.failure(req, .gone, .StateResourceExpired);
         if (err == error.ExchangeNotFound or err == error.DocumentNotFound or upstream.last_rejection == .UnknownStateResource) return self.failure(req, .not_found, .NotFound);
         if (err == error.QueryBusy) return self.failure(req, .conflict, .QueryBusy);
@@ -93,6 +94,30 @@ const Server = struct {
         };
         return self.json(req, .ok, result);
     }
+    fn unifiedQueryRequest(self: *Server, req: *std.http.Server.Request, body: []const u8) !void {
+        const config = self.config.query_v2 orelse return self.failure(req, .not_found, .QueryDisabled);
+        if (req.head.method != .POST) return self.failure(req, .not_found, .NotFound);
+        if (self.now() < self.next_read_ms) return self.failure(req, .too_many_requests, .RateLimited);
+        self.next_read_ms = self.now() + self.config.read_interval_ms;
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const parsed = std.json.parseFromSlice(api.UnifiedQueryRequest, arena.allocator(), body, .{}) catch return self.failure(req, .bad_request, .InvalidQuery);
+        var upstream = client.Client.init(arena.allocator(), self.io, self.config.upstream);
+        defer upstream.deinit();
+        upstream.timeout_ms = self.config.upstream_timeout_ms;
+        upstream.observer = self.observation.span.runtime;
+        upstream.parent_context = self.observation.span.context;
+        const result = growing.unifiedQuery(&upstream, self.io, config, parsed.value, arena.allocator()) catch |err| {
+            // Compiler diagnostics are finite errors, never SQL/payload text.
+            switch (err) {
+                error.StatementTooLarge, error.InvalidSqlEncoding, error.UnsupportedStatement, error.InvalidSqlSyntax, error.UnsupportedConstruct, error.CommentTooDeep, error.LiteralTooLarge, error.LiteralOutOfRange, error.InvalidColumnName, error.UnknownSource, error.UnknownColumn, error.UnknownQualifier, error.DuplicateProjection, error.InvalidProjection, error.UnsupportedAggregate, error.UnsupportedAggregateLimit, error.UnsupportedNullComparison, error.TypeMismatch, error.CellTooLarge, error.InvalidBinaryLiteral => return self.failure(req, .bad_request, .UnsupportedQuery),
+                else => {},
+            }
+            if (err == error.InvalidQueryRequest or err == error.InvalidQueryIdentity or err == error.QueryIdentityMismatch or err == error.QueryBudgetExceeded or err == error.InvalidQueryCursor or err == error.InvalidDocumentInteger or err == error.DocumentEncodingCapacity) return self.failure(req, .bad_request, .InvalidQuery);
+            return self.queryFailure(req, &upstream, err);
+        };
+        return self.json(req, .ok, result);
+    }
     fn growingRequest(self: *Server, req: *std.http.Server.Request, target: []const u8) !void {
         const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
         const records = parseRecords(target) catch return self.failure(req, .bad_request, .InvalidQuery);
@@ -111,7 +136,7 @@ const Server = struct {
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
         if (capabilities) {
             const reader = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailure(req, &upstream, err);
-            return self.json(req, .ok, api.Capabilities{ .profile = .growing_v3, .query_enabled = self.config.query != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = 16384, .http_connector = true, .grpc_connector = true, .documents = true });
+            return self.json(req, .ok, api.Capabilities{ .profile = .growing_v3, .query_enabled = self.config.query != null or self.config.query_v2 != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = if (self.config.query_v2 != null) 49152 else 16384, .http_connector = true, .grpc_connector = true, .documents = true });
         }
         if (records) |page| {
             var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -137,7 +162,9 @@ const Server = struct {
             const result = growing.document(&upstream, self.config.realm, self.config.principal, key, selection, arena.allocator()) catch |err| return self.queryFailure(req, &upstream, err);
             return self.json(req, .ok, result);
         }
-        const result = growing.atlas(&upstream, self.config.realm, self.config.principal, key, cursor, if (self.config.query) |config| config.connection.resource else null) catch |err| return self.queryFailure(req, &upstream, err);
+        const query_resource = if (self.config.query_v2) |config| config.connection.resource else if (self.config.query) |config| config.connection.resource else null;
+        var result = growing.atlas(&upstream, self.config.realm, self.config.principal, key, cursor, query_resource) catch |err| return self.queryFailure(req, &upstream, err);
+        result.query_version = if (result.query_resource == null) null else if (self.config.query_v2 != null) 2 else 1;
         return self.json(req, .ok, result);
     }
     fn handle(self: *Server, stream: std.Io.net.Stream) anyerror!void {
@@ -155,14 +182,16 @@ const Server = struct {
         const target = try self.allocator.dupe(u8, req.head.target);
         defer self.allocator.free(target);
         if (target.len > 1024) return self.failure(&req, .bad_request, .InvalidQuery);
-        const query_route = std.mem.eql(u8, target, "/api/v1/query");
+        const unified_route = std.mem.eql(u8, target, "/api/v1/query-v2");
+        const query_route = std.mem.eql(u8, target, "/api/v1/query") or unified_route;
         if (query_route) {
             const origin = (try header(&req, "origin")) orelse return self.failure(&req, .forbidden, .InvalidOrigin);
             if (!std.mem.eql(u8, origin, self.config.public_origin)) return self.failure(&req, .forbidden, .InvalidOrigin);
             if (!std.mem.eql(u8, (try header(&req, "content-type")) orelse "", "application/json")) return self.failure(&req, .bad_request, .InvalidQuery);
         }
-        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (query_route) 16384 else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (unified_route) 49152 else if (query_route) 16384 else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
         defer self.allocator.free(body);
+        if (unified_route) return self.unifiedQueryRequest(&req, body);
         if (query_route) return self.queryRequest(&req, body);
         if (body.len != 0) return self.failure(&req, .bad_request, .InvalidQuery);
         if (std.mem.eql(u8, target, "/health") and req.head.method == .GET) return self.json(&req, .ok, .{ .ready = true });
@@ -232,6 +261,7 @@ const Server = struct {
 };
 // Route vocabulary is finite; never log a raw path, query or user-provided PID.
 fn logRoute(target: []const u8) []const u8 {
+    if (std.mem.eql(u8, target, "/api/v1/query-v2")) return "/api/v1/query-v2";
     if (std.mem.eql(u8, target, "/api/v1/query")) return "/api/v1/query";
     if (std.mem.startsWith(u8, target, "/api/v1/atlas")) return "/api/v1/atlas";
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
@@ -476,6 +506,9 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (config.principal == 0 or (if (config.profile == .legacy_v2) config.principal >= client.protocol.max_principals else config.principal > client.protocol.max_counter) or config.realm == 0 or config.realm > client.protocol.max_counter or config.request_timeout_ms < 100 or config.request_timeout_ms > 5000 or config.upstream_timeout_ms == 0 or config.upstream_timeout_ms >= config.request_timeout_ms or config.read_interval_ms < 100 or config.read_interval_ms > 5000) return error.InvalidConfig;
     if (config.query) |query| {
         if (config.profile != .growing_v3 or query.connection.realm != config.realm or query.connection.principal == config.principal or query.connection.principal == 0) return error.InvalidQueryConfiguration;
+    }
+    if (config.query_v2) |query| {
+        if (config.query != null or config.profile != .growing_v3 or query.connection.realm != config.realm or query.connection.principal == config.principal or query.connection.principal == 0 or query.workspace.source.resource != query.connection.resource) return error.InvalidQueryConfiguration;
     }
     const host = try originHost(config.public_origin, config.development_allow_insecure_http);
     var server: Server = .{ .io = init.io, .allocator = init.gpa, .config = config, .host = host };

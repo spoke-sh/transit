@@ -9,3 +9,5 @@ export function RecordsResponse(value: unknown): boolean;
 export function HttpResponse(value: unknown): boolean;
 export function GrpcResponse(value: unknown): boolean;
 export function DocumentResponse(value: unknown): boolean;
+export function UnifiedQueryRequest(value: unknown): boolean;
+export function UnifiedQueryResponse(value: unknown): boolean;

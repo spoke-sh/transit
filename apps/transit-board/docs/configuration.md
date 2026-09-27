@@ -161,3 +161,36 @@ bytes. The OpenAPI specifies the finite operations. No arbitrary upstream URL,
 Transit command or opaque value decoder is accepted. Query routes share Board's
 request deadline and rate limit; an uncertain submission must retain its frozen
 token for an exact retry. A read conflict permits a read retry, never a new query.
+
+## Unified state query workspace
+
+Use `query_v2` instead of `query` to expose a declared KV/Table/Document source.
+Both options together reject at startup. `query_v2` contains `seed_file`, the v2
+`connection` (realm, principal, source, resource, requester, requests), and the
+same `workspace` source/name/limits object as the
+[unified shell](../../transit-cli/docs/unified-query.md). The identity must differ
+from inspection, use this realm/upstream and hold its own current grants. The
+source resource must match the connection. Board does not provision workers.
+
+`POST /api/v1/query-v2` exposes only the shared `transit-query.Workspace` operations.
+It has a 49152-byte body bound to carry a finite encoded bundle, the same exact
+Origin/content-type checks, and the existing deadline/rate limit. The generated
+OpenAPI publishes separate v1/v2 request/response types. Atlas advertises the
+visible query resource and version; it never labels an arbitrary resource as a
+query source. Generated schemas bound every result row/column/conflict list to
+eight. The browser further validates full-width numbers and nested cell types.
+
+Run explicitly compiles SQL and starts one finite upload. Browser polling may
+advance that authorized upload only after observing its previous input commit;
+an uncertain signed submission requires **Retry exact submission**. Editing or
+switching Canvas/Browse never executes a new query. Namespaces and immutable
+compiled bundles remain tied to the submitted draft. Resume observes a namespace
+without rerunning it. Separate controls request cancellation or request
+retirement/collection; they cannot promise external cancellation or retract bytes.
+
+One result segment is resident. Each visible observation rechecks current source
+access and verifies that page, including its manifest, plan and source contract.
+Known denial, expiry and history gaps clear source/draft/pending/result state.
+Connection failure hides rows while preserving an uncertain token. Hidden tabs
+hide results and returning rechecks access. No browser storage, Live queries,
+arbitrary business-value decoder or administrative SQL is introduced.

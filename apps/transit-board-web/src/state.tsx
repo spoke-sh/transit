@@ -72,7 +72,7 @@ export function Access({ children }: { children: ReactNode }) {
           <span aria-hidden="true">▥</span> Board <small>REY / TRANSIT</small>
         </a>
         <span className="profile">
-          {scope?.query_enabled ? "INSPECTION · TABLE QUERIES" : "INSPECTION ONLY"}
+          {scope?.query_enabled ? "INSPECTION · SQL QUERIES" : "INSPECTION ONLY"}
         </span>
       </header>
       {!scope ? (

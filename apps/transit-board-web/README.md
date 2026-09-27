@@ -5,6 +5,13 @@ Vite+ 0.3.3 toolchain, packaged as `@rey/transit-board-web`. The static output i
 embedded by the [Board executable](../transit-board/README.md), which hosts the private inspection and optional Table query APIs on the
 same origin. There is no production JavaScript server.
 
+M18 adds a v2 workspace for explicitly configured KV/Table/Document sources.
+It reuses the shared Zig SQL/finite-upload/page boundary, with runtime-validated
+full-width scalar and nested cell states. Source capabilities, budgets, exact
+result provenance and earlier-draft results stay visible. The
+[configuration guide](../transit-board/docs/configuration.md#unified-state-query-workspace)
+describes the separate query identity, exact retry and current-access behavior.
+
 From the repository root:
 
 ```sh

@@ -1,6 +1,6 @@
 # transit-board
 
-Zig inspection service with an optional separately credentialed Table query workspace, containing the static [Board frontend](../transit-board-web/README.md)
+Zig inspection service with optional separately credentialed query workspaces, containing the static [Board frontend](../transit-board-web/README.md)
 and [OpenAPI v1](../../contracts/transit-board-v1.openapi.json). Its runtime libraries are `transit-client`, `transit-board-api`, `transit-query`, and the neutral
 `telemetry` package. It has no kernel, Ursula or provider access and runs no application handlers. [Board's design](../../docs/BOARD.md) owns the architecture.
 
@@ -10,6 +10,9 @@ and [OpenAPI v1](../../contracts/transit-board-v1.openapi.json). Its runtime lib
 private access, origin/listener settings, and migration from experimental viewer
 keys/sessions. Board has no viewer authentication layer; its upstream Transit
 inspection identity remains read-only. The [growing query profile](docs/configuration.md#growing-atlas-and-optional-table-queries) uses a different, explicitly configured identity.
+The additive [v2 workspace](docs/configuration.md#unified-state-query-workspace)
+supports explicit KV/Table/Document declarations through the same query library
+as the shell and SDKs; the original Table workspace keeps its v1 contract.
 
 ## Try it
 

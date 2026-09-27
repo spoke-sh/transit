@@ -18,6 +18,7 @@ const Session = struct {
 };
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
+    if (args.len == 3 and std.mem.eql(u8, args[1], "query-v2")) return @import("Unified.zig").run(init, args[2]);
     if (args.len != 3 or !std.mem.eql(u8, args[1], "query")) return error.ExpectedTransitQueryConfiguration;
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[2], init.gpa, .limited(8192));
     defer init.gpa.free(bytes);

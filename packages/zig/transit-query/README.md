@@ -35,6 +35,12 @@ cancellation. `transit-query-host` composes its v2 requester/source behaviors;
 against an explicit source declaration and budgets; `UnifiedClient.compileSql`
 first verifies current source policy. Shell/Board integration remains in progress.
 
+`Workspace` constrains explicit SQL ingress to one configured source and budgets.
+It uses `Values`/`Bridge` for finite bundles, frozen commands, committed-input
+observation and verified nested pages. The shell's `query-v2` and Board's
+separately credentialed `query_v2` use this interface; their integration
+qualification is recorded in the proof guide.
+
 `Values` owns the neutral JSON source/plan/cell codecs; `Bridge` owns frozen-token
 operations over `UnifiedClient`, including full-width manifest fields and owned
 Arrow bytes. The native ABI and local port delegate to these public modules.
@@ -77,10 +83,11 @@ validate nested Arrow and ordered row/byte/digest coverage, rechecking current
 access before return. `Cursor` is owned continuation state, never a bearer token.
 Returned Arrow borrows the supplied output buffer; schema/scalar bytes belong to
 the supplied result allocator, and decoded conflicts borrow the fixed `Batch`.
-An error invalidates the entire page. Public client/SDK wiring remains in progress.
+An error invalidates the entire page. All ten SDKs pass the signed service
+matrix across all three source kinds; see the [proof guide](../../../tests/README.md#m18-work-in-progress).
 
 `UnifiedRequest`, `UnifiedUpload` and `UnifiedBehavior` compose authenticated
 finite uploads with the source capture and original-call reply. The
 [upload guide](docs/unified-upload.md) documents initialization, duplicate parts,
-cancellation, cleanup and logical admission. Component tests pass; signed
-daemon/deployment and language SDK qualification remain in progress.
+cancellation, cleanup and logical admission. Component tests and signed worker/node/store recovery pass across all source
+kinds. Broader lifecycle and deployment qualification remain in progress.

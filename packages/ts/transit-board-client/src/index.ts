@@ -28,7 +28,7 @@ export const validateCapabilities = (value: unknown): value is Capabilities =>
 export async function request<T>(
   path: string,
   validate: (value: unknown) => value is T,
-  options?: { signal?: AbortSignal; body?: QueryRequest },
+  options?: { signal?: AbortSignal; body?: QueryRequest | UnifiedQueryRequest },
 ): Promise<T> {
   if (!path.startsWith("/api/v1/")) throw new BoardError(0, "InvalidPath");
   const abort = AbortSignal.timeout(4000);
@@ -120,6 +120,8 @@ export function readState(
 }
 
 export type {
+  UnifiedQueryRequest,
+  UnifiedQueryResponse,
   AtlasResponse,
   QueryRequest,
   QueryResponse,
@@ -129,6 +131,8 @@ export type {
   DocumentResponse,
 } from "./types";
 import type {
+  UnifiedQueryRequest,
+  UnifiedQueryResponse,
   AtlasResponse,
   QueryRequest,
   QueryResponse,
@@ -145,6 +149,9 @@ import {
   GrpcResponse as grpcValidator,
   DocumentResponse as documentValidator,
 } from "./validators.js";
+import { validateUnifiedQuery } from "./unified";
+export { validateUnifiedQuery, unifiedCellText } from "./unified";
+export type { UnifiedCell } from "./unified";
 const wide = (text: string, zero = false) =>
   /^(0|[1-9][0-9]{0,19})$/.test(text) &&
   (zero || text !== "0") &&
@@ -488,6 +495,20 @@ export async function query(operation: QueryRequest, signal?: AbortSignal): Prom
   for (let attempt = 0; ; attempt++) {
     try {
       return await request("/api/v1/query", validateQuery, { signal, body: operation });
+    } catch (cause) {
+      if (!(cause instanceof BoardError) || cause.status !== 429 || attempt >= 3 || signal?.aborted)
+        throw cause;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+}
+export async function unifiedQuery(
+  operation: UnifiedQueryRequest,
+  signal?: AbortSignal,
+): Promise<UnifiedQueryResponse> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await request("/api/v1/query-v2", validateUnifiedQuery, { signal, body: operation });
     } catch (cause) {
       if (!(cause instanceof BoardError) || cause.status !== 429 || attempt >= 3 || signal?.aborted)
         throw cause;

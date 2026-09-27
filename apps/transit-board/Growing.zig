@@ -6,6 +6,14 @@ const api = @import("transit_board_api");
 const p = client.protocol;
 const g = p.Growth;
 pub const QueryConfig = struct { seed_file: []const u8, connection: q.Model.Connection };
+pub const UnifiedQueryConfig = struct { seed_file: []const u8, connection: q.UnifiedClient.Connection, workspace: q.Workspace.Config };
+pub fn unifiedQuery(wire: *client.Client, io: std.Io, config: UnifiedQueryConfig, request: api.UnifiedQueryRequest, allocator: std.mem.Allocator) !api.UnifiedQueryResponse {
+    var key = try client.readKey(allocator, io, config.seed_file);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+    var caller: q.UnifiedClient = .{ .wire = wire, .connection = config.connection, .key = key };
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&caller.key));
+    return q.Workspace.apply(allocator, &caller, config.workspace, request);
+}
 pub const Cursor = struct { position: ?u64 = null, process_after: ?u64 = null, resource_after: ?u64 = null };
 pub const RecordsCursor = struct { resource: u64, revision: ?u64 = null, after: ?p.Value = null };
 pub const ExchangeCursor = struct { resource: u64, exchange: u64 };
