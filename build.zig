@@ -404,7 +404,7 @@ pub fn build(b: *std.Build) void {
     build_test_step.dependOn(&unified_query.step);
     const unified_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     unified_query_test.addFileArg(b.path("tests/unified_query.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, unified_query }) |artifact| unified_query_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, unified_query, station_host, station_bindings.artifact("transit_station") }) |artifact| unified_query_test.addArtifactArg(artifact);
     if (b.option([]const u8, "unified-source", "Limit unified query proof to kv, table or document")) |kind| unified_query_test.addArg(kind);
     unified_query_test.has_side_effects = true;
     unified_query_test.stdio = .inherit;

@@ -23,7 +23,7 @@ Configuration is the generated `HostConfig` in Station's
 
 The key is 64 hexadecimal characters. Provision identity/grants/ownership before
 starting a behavior; this executable does not allocate them. Omitting `server`
-creates a raw client port without reading a Station credential. Raw request
+and `growing_server`/`query_client` creates a raw client port without reading a Station credential. Raw request
 preparation takes an explicit key path. The host performs no credential discovery.
 
 Send one JSON request per stdin line and await one stdout line before the next
@@ -80,7 +80,17 @@ event, not an application-codec payload. Public language runners remain separate
 
 ## Joined shutdown
 
-`shutdown` explicitly destroys all legacy/growing Station and raw-client handles,
+The independent `query_client` profile supplies `connection` (realm, principal,
+source/resource and requester/requests identities) and `timeout_ms`. It requires
+an explicit endpoint and seed but no activation. It cannot be combined with a
+server or local-codec profile. `unified_query` delegates signed preparation,
+admission observation and verified result pages to the shared query ABI; see
+the [query guide](../../packages/zig/transit-station-bindings/docs/unified-query.md).
+Prepared requests and result continuations are opaque strings. Retain the exact
+prepared string before dispatch; replacing a child process cannot resolve an
+uncertain submission or renew a revoked grant.
+
+`shutdown` explicitly destroys all legacy/growing Station, query and raw-client handles,
 then responds with `{"closed":true}` and exits without waiting for stdin EOF.
 This works in authority and local-codec modes. Await the acknowledgement and
 successful child exit when joining cleanup; loss of either is a cleanup failure.

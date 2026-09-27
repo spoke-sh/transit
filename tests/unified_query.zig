@@ -19,7 +19,7 @@ fn definition(kind: Kind, resource: u64) !q.SourceDefinition {
     return .{ .resource = resource, .source = switch (kind) {
         .kv => .{ .kv = .{ .prefix = try p.Value.init("k"), .key = .{ .type = .binary }, .value = .{ .type = .utf8 } } },
         .table => .{ .table = .{ .id = 1, .schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .utf8 } } },
-        .document => .{ .document = .{ .reference = .{ .resource = resource, .document = 17, .epoch = 1, .type_revision = 1, .revision = 3 }, .expand = &path, .projections = &projections } },
+        .document => .{ .document = .{ .reference = .{ .resource = resource, .document = 17, .epoch = 1, .type_revision = 1, .revision = document_count + 1 }, .expand = &path, .projections = &projections } },
     } };
 }
 fn bundle(config: Config) !q.Bundle {
@@ -51,8 +51,8 @@ const Seed = struct {
             out.operations[0] = .{ .assign = .{ .field = path[0], .value = .list } };
             return out;
         }
-        const start = (job - 2) * 8;
-        var out: q.document.Change = .{ .document = 17, .epoch = 1, .replica = 1, .previous = start + 1, .first = start + 2, .len = @intCast(@min(8, document_count - start)) };
+        const start = job - 2;
+        var out: q.document.Change = .{ .document = 17, .epoch = 1, .replica = 1, .previous = start + 1, .first = start + 2, .len = 1 };
         for (0..out.len) |offset| {
             const index = start + offset;
             var bytes: [220]u8 = undefined;
@@ -170,7 +170,7 @@ pub fn main(init: std.process.Init) !void {
         try admin.send(writer.pid, -1);
         try drive(init, &server, handler);
         if (kind == .document) {
-            for (1..4) |job| {
+            for (1..document_count + 2) |job| {
                 try admin.send(writer.pid, @intCast(10000 + job));
                 try drive(init, &server, handler);
                 for ([_]usize{ 20000, 30000 }) |stage| {
@@ -196,7 +196,11 @@ pub fn main(init: std.process.Init) !void {
         _ = try admin.submit(.{ .own = .{ .pid = writer.pid, .expected_generation = writer.generation, .worker = 65536 } });
         _ = try admin.submit(.{ .own = .{ .pid = requester.pid, .expected_generation = requester.generation, .worker = 65537 } });
         const connection: q.UnifiedClient.Connection = .{ .realm = 46, .principal = 1234, .source = writer.pid, .resource = writer.resource, .requester = requester.pid, .requests = requester.resource };
-        try save(init, directory, "client.json", Config{ .url = url, .connection = connection, .kind = kind });
+        const client_config: Config = .{ .url = url, .connection = connection, .kind = kind };
+        try save(init, directory, "client.json", client_config);
+        _ = try keyFile(init, directory, "caller.seed", 10);
+        var bundle_bytes: [q.Bundle.max_bytes]u8 = undefined;
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "bundle.bin"), .data = try (try bundle(client_config)).encode(&bundle_bytes) });
         try save(init, directory, "source.json", .{ .url = url, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation + 1, .seed_file = try keyFile(init, directory, "source.seed", 8), .activation_directory = directory, .role = .{ .unified_source = .{ .peer = requester.pid, .initializer = 65536 } } });
         try save(init, directory, "requester.json", .{ .url = url, .realm = 46, .principal = 65537, .pid = requester.pid, .generation = requester.generation + 1, .seed_file = try keyFile(init, directory, "requester.seed", 9), .activation_directory = directory, .role = .{ .unified_requester = behavior } });
         try save(init, directory, "courier.json", .{ .url = url, .realm = 46, .principal = 65538, .seed_file = try keyFile(init, directory, "courier.seed", 11), .role = .{ .courier = .{ .destinations = .{ writer.pid, requester.pid } } } });

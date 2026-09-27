@@ -49,6 +49,10 @@ the additive capabilities describe only the implemented native surfaces.
 
 M18 adds `station_unified_query_codec` and `unified_query_codec` for typed v2
 KV/Table/Document bundles and owned nested Arrow values. See the
-[unified codec guide](docs/unified-query.md) for representation, bounds and
+[unified query guide](docs/unified-query.md) for representation, bounds and
 ownership. Independent bundle and PyArrow fixtures pass through both native
 transports; this alone does not qualify a language SDK or signed query lifecycle.
+The additive query caller handle and `query_client` port profile now share signed
+preparation, admission observation and current-policy verified pages. The local
+KV recovery schedule passes through both transports; further source and installed
+SDK qualification remains in progress.

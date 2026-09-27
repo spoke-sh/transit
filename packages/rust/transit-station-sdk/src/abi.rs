@@ -4,8 +4,12 @@ pub const ABI_VERSION: u32 = 1;
 pub const MINIMUM_STACK_BYTES: usize = 8388608;
 #[repr(C)] pub struct station_server { _private: [u8; 0] }
 #[repr(C)] pub struct station_growing_server { _private: [u8; 0] }
+#[repr(C)] pub struct station_query_client { _private: [u8; 0] }
 #[repr(C)] pub struct station_buffer { _private: [u8; 0] }
 pub struct Api {
+    pub station_unified_query_create: unsafe extern "C" fn(u32, *const u8, usize, *const u8, *const u8, usize, *mut *mut station_query_client) -> u32,
+    pub station_unified_query_destroy: unsafe extern "C" fn(*mut station_query_client) -> (),
+    pub station_unified_query_call: unsafe extern "C" fn(*mut station_query_client, *const u8, usize, *mut *mut station_buffer) -> u32,
     pub station_unified_query_codec: unsafe extern "C" fn(*const u8, usize, *mut *mut station_buffer) -> u32,
     pub station_growing_document_read: unsafe extern "C" fn(*mut station_growing_server, *const u8, usize, *mut *mut station_buffer) -> u32,
     pub station_document_codec: unsafe extern "C" fn(*const u8, usize, *mut *mut station_buffer) -> u32,
@@ -43,6 +47,9 @@ pub struct Api {
 impl Api {
     pub unsafe fn load(library: libloading::Library) -> Result<Self, libloading::Error> {
         Ok(Self {
+            station_unified_query_create: *unsafe { library.get(b"station_unified_query_create\0")? },
+            station_unified_query_destroy: *unsafe { library.get(b"station_unified_query_destroy\0")? },
+            station_unified_query_call: *unsafe { library.get(b"station_unified_query_call\0")? },
             station_unified_query_codec: *unsafe { library.get(b"station_unified_query_codec\0")? },
             station_growing_document_read: *unsafe { library.get(b"station_growing_document_read\0")? },
             station_document_codec: *unsafe { library.get(b"station_document_codec\0")? },

@@ -8,6 +8,7 @@ pub const growing = @import("GrowingAbi.zig");
 pub const document_bridge = @import("DocumentBridge.zig");
 pub const document = @import("DocumentCodec.zig");
 pub const unified_query = @import("QueryCodec.zig");
+pub const query_client = @import("QueryAbi.zig");
 pub const grpc = @import("GrpcCodec.zig");
 pub const http = @import("HttpCodec.zig");
 pub const version: u32 = 1;
@@ -73,6 +74,9 @@ pub fn observe(pointer: *Server, observer: *s.client.observability.telemetry.Run
 }
 
 pub const Api = struct {
+    pub const station_unified_query_create = query_client.create;
+    pub const station_unified_query_destroy = query_client.destroy;
+    pub const station_unified_query_call = query_client.call;
     pub const station_unified_query_codec = unified_query.codec;
     pub const station_growing_document_read = growing.documentRead;
     pub const station_document_codec = document.codec;
@@ -264,4 +268,5 @@ test {
     _ = document;
     _ = document_bridge;
     _ = unified_query;
+    _ = query_client;
 }

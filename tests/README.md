@@ -87,8 +87,17 @@ workers publish the complete original result. Independent PyArrow verifies every
 row. Revocation after the first returned page denies continuation without moving
 the cursor; restoration permits verification of complete coverage. The source pin
 is released. `just check` also passes. This is local disk evidence with an
-unbounded hot-store fixture, not a bounded-storage, SDK, Compose, Substrate or
+default 64 MiB hot-store fixture without cold offload, not a bounded growing-storage, SDK, Compose, Substrate or
 hosted CI qualification. The Document schedule remains in progress.
+
+The extended KV schedule also passes through the standalone query ABI and native
+port in **430.97 seconds**, with the same 41 rows/six segments/13,584 bytes. A
+native caller persists the prepared command before a lost upload response; a
+restarted Zig caller resumes those exact bytes. Native and port readers survive
+the service restart, reject access after the actual returned prefix, and alternate
+pages over one verified cursor. Standalone ABI tests additionally reject invalid
+local envelopes before dispatch and preserve uncertainty on a transport failure.
+This qualifies the shared boundary, not the individual language SDK conveniences.
 
 ## M17 qualification
 

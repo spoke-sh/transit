@@ -1,4 +1,4 @@
-# Unified query codecs
+# Unified query clients and codecs
 
 The additive `station_unified_query_codec(json, length, output)` export and
 `unified_query_codec` port action share `QueryCodec`. Generated schemas come from
@@ -38,3 +38,43 @@ encoded bundles and PyArrow-produced streams. It covers all three sources, six
 primitive types, five cell states, Unicode, binary, full-width integers/IDs,
 negative zero, empty results and malformed inputs. Public SDK qualification
 remains in progress.
+
+## Signed caller ownership
+
+`station_unified_query_create/call/destroy` own a separate query caller. Creation
+requires a URL, explicit seed, realm/principal and source/requester PID/resource
+bindings; it requires no activation or writer ownership. The generated
+`UnifiedQueryConfig`, `UnifiedQueryAction` and `UnifiedQueryResult` schemas define
+the additive ABI. The port selects `query_client` instead of either server
+profile and accepts `unified_query` actions. Importing a language package does
+not open this owner or load a credential.
+
+`capabilities` advertises the local v2 implementation. `describe` separately
+checks the configured current source policy and declared schema. `next` prepares
+one upload/admission command for a caller-selected namespace and canonical
+bundle. Persist its opaque `prepared` string before `submit`. An admission
+receipt supplies the input position for `observe`; wait for `committed` before
+preparing the next command. A null prepared command means upload/admission has
+stopped; inspect `status` for completion, denial or cancellation. It is not a
+complete-result claim. `prepare` also supports explicit cancel, retire and
+bounded collect commands.
+
+After uncertain dispatch, retain and resubmit the **identical prepared string**,
+including after replacing the native owner. Never parse/re-encode it or prepare
+a new command to resolve the old attempt. Local invalid-envelope failures occur
+before dispatch; unconfirmed transport or result failures after dispatch return
+`uncertain`. Successful admission still differs from observed behavior completion.
+
+`page` returns an owned IPC segment, typed source/plan commitments and complete
+manifest counters. Its opaque `next` string preserves verification progress,
+not permission. Each page rechecks current source/request access and lifecycle;
+only a null continuation after whole-result verification establishes coverage.
+Save a cursor only with its exact connection/namespace. A failed page cannot
+advance it. Decimal strings retain full-width quantities in manifests; signed
+prepared/cursor strings must remain opaque to numeric JSON parsers.
+
+Each handle admits one operation at a time and returns `busy` on overlap. Join
+all calls before destroy. Foreign cancellation of an await does not cancel
+durable work; an explicit prepared cancellation is a separate command. Native
+buffers own their data independently of the handle. Calls use bounded request,
+bundle, Arrow workspace and segment sizes from the codec profile above.

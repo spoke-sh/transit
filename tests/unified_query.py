@@ -11,20 +11,24 @@ import time
 import pyarrow as pa
 
 from storage import Fixture, free_port, wait_ready
+from cold_storage import ColdStore
+from unified_abi import Native, Port, Failure, upload, verify
 
 
-def run(node, host, proof, kinds=("kv", "table", "document")):
-    node, host, proof = (str(Path(path).resolve()) for path in (node, host, proof))
+def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")):
+    node, host, proof, port_host, library = (str(Path(path).resolve()) for path in (node, host, proof, port_host, library))
     for kind in kinds:
         started = time.monotonic()
-        with Fixture() as fixture:
+        with ColdStore() as cold, Fixture(cold.config()) as fixture:
             root = fixture.root
             public = json.loads(subprocess.check_output([proof, "public"], timeout=10))
             port = free_port()
             url = f"http://127.0.0.1:{port}"
             node_config = root / "node.json"
-            node_config.write_text(json.dumps({"profile": "growing_v3", "genesis": {"realm": 46, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "unified-query", "journal": "authority", "port": port, "resident_pages": 8, "request_timeout_ms": 10000}))
+            resident_pages = 64 if kind == "document" else 8
+            node_config.write_text(json.dumps({"profile": "growing_v3", "genesis": {"realm": 46, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "unified-query", "journal": "authority", "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
             processes, logs = [], []
+            native, port_client = None, None
             fault = {"lost": None, "retry": False, "stage": threading.Event(), "resume": threading.Event()}
 
             class Proxy(BaseHTTPRequestHandler):
@@ -85,7 +89,7 @@ def run(node, host, proof, kinds=("kv", "table", "document")):
                 subprocess.run([node, str(node_config), "--initialize"], check=True, capture_output=True, timeout=30, env=fixture.env)
                 authority = start("node", [node, str(node_config)])
                 wait_ready(fixture.http, authority, url + "/health")
-                connection = invoke("provision", kind, timeout=900, direct=True)
+                connection = invoke("provision", kind, timeout=1800, direct=True)
                 print(f"Unified {kind}: provisioned in {time.monotonic() - started:.2f}s", flush=True)
                 for name in ("source", "requester", "courier"):
                     path = root / f"{name}.json"
@@ -95,10 +99,16 @@ def run(node, host, proof, kinds=("kv", "table", "document")):
                 requester = start("requester", [host, str(root / "requester.json")])
                 source = start("source", [host, str(root / "source.json")])
                 courier = start("courier", [host, str(root / "courier.json")])
-                invoke("upload", error="InvalidAuthorityResponse")
+                native = Native(library, proxy_url, connection)
+                port_client = Port(port_host, root, proxy_url, connection)
+                try:
+                    upload(native, root)
+                    raise AssertionError('lost upload response was reported as success')
+                except Failure as failure:
+                    assert failure.status == 6 and failure.detail['err'] == 'InvalidAuthorityResponse', failure
                 invoke("resume")
                 assert fault["retry"], "uncertain upload did not retry identical signed bytes"
-                status = invoke("upload")
+                status = upload(native, root)
                 assert status["phase"] in ("admitted", "complete"), status
                 print(f"Unified {kind}: frozen upload retry and admission passed", flush=True)
                 until = time.monotonic() + 120
@@ -141,6 +151,12 @@ def run(node, host, proof, kinds=("kv", "table", "document")):
                 saved = (root / "cursor.json").read_bytes()
                 invoke("revoke", direct=True)
                 invoke("page", error="AccessDenied")
+                for owner in (native, port_client):
+                    try:
+                        owner.call({'page': dict(namespace='1', cursor=saved.decode())})
+                        raise AssertionError('revoked result read succeeded')
+                    except Failure as failure:
+                        assert failure.status == 4, failure
                 assert (root / "cursor.json").read_bytes() == saved
                 invoke("restore", direct=True)
                 final = first
@@ -167,10 +183,12 @@ def run(node, host, proof, kinds=("kv", "table", "document")):
                 assert manifest["job"]["correlation"] == status["correlation"]
                 assert manifest["checkpoint"]["progress"]["basis"]["kind"] == kind
                 assert manifest["checkpoint"]["bytes"] == total
+                verify(native, port_client, root, final['ordinal']+1)
                 versions = invoke("versions", direct=True)
                 assert versions["next"] is None
                 assert all(version["released_at"] is not None for version in versions["entries"] if version)
-                print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
+                assert cold.data_objects() > 0
+                print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / 8 MiB hot store / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
             except BaseException:
                 for log in logs:
                     log.flush(); log.seek(0)
@@ -178,6 +196,8 @@ def run(node, host, proof, kinds=("kv", "table", "document")):
                 raise
             finally:
                 fault["resume"].set()
+                if port_client is not None: port_client.close()
+                if native is not None: native.close()
                 for process in processes:
                     if process.poll() is None: process.kill()
                     process.wait(timeout=10)
@@ -186,4 +206,4 @@ def run(node, host, proof, kinds=("kv", "table", "document")):
 
 
 if __name__ == "__main__":
-    run(*sys.argv[1:4], kinds=sys.argv[4:] or ("kv", "table", "document"))
+    run(*sys.argv[1:6], kinds=sys.argv[6:] or ("kv", "table", "document"))
