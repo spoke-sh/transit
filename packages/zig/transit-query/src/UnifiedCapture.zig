@@ -60,6 +60,7 @@ pub fn start(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Al
     if (try turn.read(r.key('i', peer, frame.correlation)) != null) return error.CorrelationAlreadyUsed;
     var buffer: [q.Bundle.max_bytes]u8 = undefined;
     const bundle = try q.Bundle.decode(allocator, try reference.read(source, &buffer));
+    try q.Bundle.checkPublisher(reference, source, peer);
     try matches(bundle, grant, turn.view.resource);
     try q.UnifiedSource.checkCurrent(bundle.source, turn);
     var columns: [m.max_columns]m.Column = undefined;
@@ -99,6 +100,7 @@ pub fn advance(turn: *Turn, continuation: r.Continuation, source: anytype, alloc
     if (cancellation.load(.acquire)) return error.Cancelled;
     var buffer: [q.Bundle.max_bytes]u8 = undefined;
     const bundle = try q.Bundle.decode(allocator, try stored.request.read(source, &buffer));
+    try q.Bundle.checkPublisher(stored.request, source, stored.destination);
     try matches(bundle, grant, turn.view.resource);
     try q.UnifiedSource.checkCurrent(bundle.source, turn);
     const previous = try checkpoint(turn, stored.id);

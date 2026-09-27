@@ -117,6 +117,9 @@ verified Arrow segments and a final immutable manifest. Staged segments are not
 a complete result. The manifest binds the query, original reply route, all source
 and schema evidence, plan digest, ordered segment digests and complete row/byte
 coverage. A final reference is delivered through the original durable call.
+The request publisher must equal the authenticated requester; result and manifest
+publishers must equal the recorded source PID. Merely reading the referenced
+resource cannot substitute a different publisher or original reply route.
 
 V2 reads verified result publications through current signed resource reads;
 references are not bearer grants. It does not duplicate Arrow bytes into a second

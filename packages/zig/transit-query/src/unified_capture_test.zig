@@ -9,9 +9,17 @@ const capture = q.UnifiedCapture;
 const Store = @import("source_store_test.zig");
 const Source = struct {
     store: *Store,
+    other: ?*Store = null,
+    opens: ?*usize = null,
+    deny_at: ?usize = null,
     pub fn open(self: @This(), resource: u64) !s.GrowingTurn {
-        if (resource != self.store.resource or self.store.denied) return error.AccessDenied;
-        return self.store.capture();
+        if (self.opens) |opens| {
+            opens.* += 1;
+            if (self.deny_at == opens.*) return error.AccessDenied;
+        }
+        const store = if (resource == self.store.resource) self.store else self.other orelse return error.AccessDenied;
+        if (store.denied or resource != store.resource) return error.AccessDenied;
+        return store.capture();
     }
 };
 fn frame(store: *Store, peer: u64, message: s.Frame) !s.GrowingTurn {
@@ -68,8 +76,7 @@ fn seedKV(store: *Store, count: usize) !q.SourceDefinition {
     }
     return .{ .resource = store.resource, .source = .{ .kv = .{ .prefix = try p.Value.init("k"), .key = .{ .type = .binary }, .value = .{ .type = .int64 } } } };
 }
-fn verifyComplete(store: *Store, job: r.Job, expected: u64, workspace: []u8) !void {
-    _ = workspace;
+fn verifyComplete(store: *Store, requests: *Store, job: r.Job, expected: u64, workspace: []u8) !void {
     var reader = try store.capture();
     const complete = try capture.job(&reader, job.id);
     try t.expectEqual(.complete, complete.phase);
@@ -102,11 +109,39 @@ fn verifyComplete(store: *Store, job: r.Job, expected: u64, workspace: []u8) !vo
     try t.expectEqual(expected, rows);
     try t.expectEqual(progress.bytes, size);
     try t.expectEqualSlices(u8, &progress.chain, &chain);
+    const authority: Source = .{ .store = store, .other = requests };
+    const identity: q.UnifiedResult.Expected = .{ .resource = store.resource, .source = store.pid, .requester = 9, .correlation = 77, .request = job.request };
+    var cursor: ?q.UnifiedResult.Cursor = null;
+    var decoded: m.Inspect.Batch = undefined;
+    var output: [m.Arrow.segment_bytes]u8 = undefined;
+    var seen: usize = 0;
+    while (true) {
+        var arena = std.heap.ArenaAllocator.init(t.allocator);
+        defer arena.deinit();
+        const page = try q.UnifiedResult.page(ref, identity, cursor, authority, arena.allocator(), workspace, &output, &decoded);
+        try t.expectEqualDeep(manifest, page.manifest);
+        for (0..decoded.count) |index| {
+            const row = try decoded.row(index);
+            try t.expectEqual(page.schema.columns.len, row.cells.len);
+            seen += 1;
+        }
+        cursor = page.next;
+        if (seen == decoded.count and cursor != null) {
+            store.denied = true;
+            try t.expectError(error.AccessDenied, q.UnifiedResult.page(ref, identity, cursor, authority, arena.allocator(), workspace, &output, &decoded));
+            store.denied = false;
+            requests.denied = true;
+            try t.expectError(error.AccessDenied, q.UnifiedResult.page(ref, identity, cursor, authority, arena.allocator(), workspace, &output, &decoded));
+            requests.denied = false;
+        }
+        if (cursor == null) break;
+    }
+    try t.expectEqual(expected, seen);
 }
 test "finite capture resumes discarded proposals publishes complete coverage and releases exact cut" {
     var store: Store = .{};
     defer store.deinit();
-    var requests: Store = .{ .resource = 8 };
+    var requests: Store = .{ .resource = 8, .pid = 9 };
     defer requests.deinit();
     const source = try seedKV(&store, 37);
     const bundle: q.Bundle = .{ .source = source, .plan = .{ .projection = &.{ 0, 1 } }, .limits = limits };
@@ -137,7 +172,7 @@ test "finite capture resumes discarded proposals publishes complete coverage and
         }
     }
     try t.expect(iterations > 20 and iterations < 1000);
-    try verifyComplete(&store, job, 37, workspace);
+    try verifyComplete(&store, &requests, job, 37, workspace);
     const duplicate = try advance(&store, &requests, job.id, workspace);
     try t.expectEqual(.duplicate, duplicate.step);
     try t.expectEqual(@as(usize, 0), countMutations(duplicate.turn));
@@ -175,7 +210,7 @@ fn finishCleanup(store: *Store, requests: *Store, job: r.Job, workspace: []u8) !
 test "revoked current policy closes staged capture and bounded cleanup does not depend on request access" {
     var store: Store = .{};
     defer store.deinit();
-    var requests: Store = .{ .resource = 8 };
+    var requests: Store = .{ .resource = 8, .pid = 9 };
     defer requests.deinit();
     const source = try seedKV(&store, 12);
     const job = try start(&store, &requests, .{ .source = source, .plan = .{ .projection = &.{1} }, .limits = limits });
@@ -214,7 +249,7 @@ test "Table and accepted Document use the same retained capture manifest and cle
     for ([_]bool{ false, true }) |document| {
         var store: Store = .{};
         defer store.deinit();
-        var requests: Store = .{ .resource = 8 };
+        var requests: Store = .{ .resource = 8, .pid = 9 };
         defer requests.deinit();
         var definition: q.SourceDefinition = undefined;
         var projections = [_]q.SourceDefinition.Projection{
@@ -244,7 +279,7 @@ test "Table and accepted Document use the same retained capture manifest and cle
         }
         const job = try start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{ 0, 1 } }, .limits = limits });
         try drive(&store, &requests, job, workspace);
-        try verifyComplete(&store, job, 12, workspace);
+        try verifyComplete(&store, &requests, job, 12, workspace);
         var turn = try store.capture();
         try capture.close(&turn, job.id, .retired);
         try store.commit(turn);
@@ -256,7 +291,7 @@ test "query budgets and cancellation discard candidates without leaking source p
     defer t.allocator.free(workspace);
     var store: Store = .{};
     defer store.deinit();
-    var requests: Store = .{ .resource = 8 };
+    var requests: Store = .{ .resource = 8, .pid = 9 };
     defer requests.deinit();
     const definition = try seedKV(&store, 12);
     const job = try start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = .{ .pages = 100, .segments = 100, .result_bytes = 1 } });
@@ -272,7 +307,7 @@ test "query budgets and cancellation discard candidates without leaking source p
 test "explicit cancellation and duplicate continuation do not reopen a capture" {
     var store: Store = .{};
     defer store.deinit();
-    var requests: Store = .{ .resource = 8 };
+    var requests: Store = .{ .resource = 8, .pid = 9 };
     defer requests.deinit();
     const definition = try seedKV(&store, 9);
     const job = try start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits });
@@ -297,4 +332,65 @@ test "explicit cancellation and duplicate continuation do not reopen a capture" 
     try finishCleanup(&store, &requests, job, workspace);
     turn = try store.capture();
     try t.expectEqual(.cancelled, (try capture.job(&turn, job.id)).phase);
+}
+
+test "completed result pages enforce current authority and policy before during and after a prefix" {
+    var store: Store = .{};
+    defer store.deinit();
+    var requests: Store = .{ .resource = 8, .pid = 9 };
+    defer requests.deinit();
+    const definition = try seedKV(&store, 20);
+    const job = try start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits });
+    const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
+    defer t.allocator.free(workspace);
+    try drive(&store, &requests, job, workspace);
+    var reader = try store.capture();
+    const pubn = job.publication(store.resource);
+    const descriptor = try pubn.inspect(&reader, r.manifest_record);
+    const reference: s.PublicationReference = .{ .resource = store.resource, .namespace = pubn.namespace, .record = r.manifest_record, .spec = descriptor.spec };
+    const identity: q.UnifiedResult.Expected = .{ .resource = 7, .source = 3, .requester = 9, .correlation = 77, .request = job.request };
+    var count: usize = 0;
+    var authority: Source = .{ .store = &store, .other = &requests, .opens = &count };
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    var decoded: m.Inspect.Batch = undefined;
+    var output: [m.Arrow.segment_bytes]u8 = undefined;
+    const first = try q.UnifiedResult.page(reference, identity, null, authority, arena.allocator(), workspace, &output, &decoded);
+    try t.expect(first.next != null and decoded.count > 0);
+    const reads = count;
+    for ([_]usize{ 1, reads / 2, reads }) |denied| {
+        count = 0;
+        authority.deny_at = denied;
+        try t.expectError(error.AccessDenied, q.UnifiedResult.page(reference, identity, null, authority, arena.allocator(), workspace, &output, &decoded));
+    }
+    authority.deny_at = null;
+    store.denied = true;
+    try t.expectError(error.AccessDenied, q.UnifiedResult.page(reference, identity, first.next, authority, arena.allocator(), workspace, &output, &decoded));
+    store.denied = false;
+    requests.denied = true;
+    try t.expectError(error.AccessDenied, q.UnifiedResult.page(reference, identity, first.next, authority, arena.allocator(), workspace, &output, &decoded));
+    requests.denied = false;
+    var changed_identity = identity;
+    changed_identity.correlation += 1;
+    try t.expectError(error.QueryIdentityMismatch, q.UnifiedResult.page(reference, changed_identity, first.next, authority, arena.allocator(), workspace, &output, &decoded));
+    var forged = first.next.?;
+    forged.rows += 1;
+    try t.expectError(error.InvalidResultSegment, q.UnifiedResult.page(reference, identity, forged, authority, arena.allocator(), workspace, &output, &decoded));
+    var turn = try store.capture();
+    var grant = (try capture.policy(&turn, 9)).?;
+    grant.revision += 1;
+    grant.allow = false;
+    try capture.setPolicy(&turn, grant);
+    try store.commit(turn);
+    try t.expectError(error.QueryDenied, q.UnifiedResult.page(reference, identity, first.next, authority, arena.allocator(), workspace, &output, &decoded));
+}
+
+test "admission rejects a request published by another PID even in the declared resource" {
+    var store: Store = .{};
+    defer store.deinit();
+    var requests: Store = .{ .resource = 8, .pid = 10 };
+    defer requests.deinit();
+    const definition = try seedKV(&store, 1);
+    try t.expectError(error.UnexpectedQueryPublisher, start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits }));
+    try t.expectEqual(@as(usize, 0), store.versions.count());
 }

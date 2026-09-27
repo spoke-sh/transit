@@ -54,3 +54,11 @@ jobs, checkpoints, segment commitments and final manifests. Bundle decoding
 borrows the input and caller arena. Independent Python fixtures cover all three
 source bundles, including a 512-byte predicate and their Publication commitments.
 These codecs alone do not advertise an executable public v2 service.
+
+`UnifiedResult.open/page` verifies the original request/call route, current source
+policy, Document lifecycle, publication publisher and complete manifest. Pages
+validate nested Arrow and ordered row/byte/digest coverage, rechecking current
+access before return. `Cursor` is owned continuation state, never a bearer token.
+Returned Arrow borrows the supplied output buffer; schema/scalar bytes belong to
+the supplied result allocator, and decoded conflicts borrow the fixed `Batch`.
+An error invalidates the entire page. Public client/SDK wiring remains in progress.

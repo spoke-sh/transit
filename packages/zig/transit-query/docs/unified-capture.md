@@ -18,6 +18,8 @@ and self-continuation. Reserve namespaces `2^63 | source_input_position` in this
 resource; occupied namespaces reject, and query jobs never adopt prior records.
 Initialize the enclosing behavior separately before admitting its first query:
 start uses four mutations and cannot share a turn with private initialization.
+The bundle's Publication publisher must also be the authenticated requester PID;
+access to the configured request resource cannot substitute another publisher.
 
 `advance` reopens current request access and source policy, then reads a bounded
 page from the retained source. Supply disposable bounded decode/adapter storage,
@@ -49,3 +51,20 @@ including a partially staged segment or manifest. Descriptors, segment metadata,
 job identity and correlation index remain as permanent history. No automatic
 expiry, cardinality ceiling, retention opt-in or second authoritative store is
 introduced. Resource quotas still govern retained publications and ledgers.
+
+## Reading completed results
+
+`UnifiedResult.open/page` takes the expected source/resource, requester,
+original correlation and exact request reference. It verifies the current complete
+job and source policy, canonical request, Document floor/retirement and manifest
+publisher. The immutable reference does not cache these rights.
+
+Every page reads one segment publication, verifies its raw Arrow digest and
+nested typed schema/states, and advances an owned ordinal/row/byte/hash cursor.
+Only a null continuation verifies whole-result coverage. Current source/request
+access and source policy are rechecked after decoding, before return; denial
+invalidates the entire candidate page. Previously returned bytes remain disclosed.
+Callers must discard partial buffers on error. Arrow bytes borrow the supplied
+output buffer; scalar strings and schema columns use the caller's result allocator.
+Keep the decoded `Batch` at its final address because conflict alternatives borrow
+its fixed arrays. No whole-result allocation or new source pin is needed.

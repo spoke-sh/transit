@@ -10,6 +10,7 @@ const Version = struct { view: p.Growth.ReadVersion, state: Map };
 state: Map = .empty,
 versions: std.AutoHashMapUnmanaged(p.Growth.ReadVersionId, Version) = .empty,
 resource: u64 = 7,
+pid: u64 = 3,
 revision: u64 = 1,
 input: u64 = 1,
 denied: bool = false,
@@ -20,7 +21,7 @@ pub fn deinit(self: *Self) void {
     self.versions.deinit(t.allocator);
 }
 pub fn clone(self: *Self) !Self {
-    var copy: Self = .{ .resource = self.resource, .revision = self.revision, .input = self.input };
+    var copy: Self = .{ .resource = self.resource, .pid = self.pid, .revision = self.revision, .input = self.input };
     copy.state = try self.state.clone(t.allocator);
     return copy;
 }
@@ -72,7 +73,7 @@ fn versionEntries(raw: *anyopaque, view: p.Growth.ReadVersion, key: ?p.Value, af
     return pageMap(&retained.state, view.revision, after);
 }
 pub fn capture(self: *Self) !Turn {
-    return Turn.init(.{ .realm = 1, .principal = 2, .pid = 3, .generation = 1, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = 3, .principal = 2, .generation = 1, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page, .version = version, .version_entries = versionEntries });
+    return Turn.init(.{ .realm = 1, .principal = 2, .pid = self.pid, .generation = 1, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 2, .generation = 1, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10000 }, .{ .context = self, .read = read, .page = page, .version = version, .version_entries = versionEntries });
 }
 pub fn commit(self: *Self, turn: Turn) !void {
     try turn.validate();

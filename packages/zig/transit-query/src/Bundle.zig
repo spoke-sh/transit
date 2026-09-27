@@ -67,6 +67,13 @@ pub fn checkReference(ref: q.station.PublicationReference) !void {
     try ref.validate();
     if (ref.record != 1 or ref.spec.format != format or ref.spec.length < 32 or ref.spec.length > max_bytes) return error.InvalidQueryBundle;
 }
+/// A policy-bound request resource is still not a substitute for its publisher.
+pub fn checkPublisher(ref: q.station.PublicationReference, source: anytype, peer: u64) !void {
+    try checkReference(ref);
+    var reader = try source.open(ref.resource);
+    const descriptor = try ref.publication().inspect(&reader, ref.record);
+    if (descriptor.state != .published or !std.meta.eql(descriptor.spec, ref.spec) or descriptor.publisher != peer) return error.UnexpectedQueryPublisher;
+}
 /// The declaration permits changing only the accepted Document revision. Epoch,
 /// type, format, paths and decoders remain fenced by the durable source policy.
 pub fn declaration(source: q.SourceDefinition) ![32]u8 {

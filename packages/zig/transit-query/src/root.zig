@@ -5,6 +5,7 @@ pub const fuze = station.fuze;
 pub const wire = station.client;
 pub const document = @import("transit_station_document");
 pub const Bundle = @import("Bundle.zig");
+pub const UnifiedResult = @import("UnifiedResult.zig");
 pub const UnifiedCapture = @import("UnifiedCapture.zig");
 pub const UnifiedRecords = @import("UnifiedRecords.zig");
 pub const UnifiedSource = @import("UnifiedSource.zig");

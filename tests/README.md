@@ -50,6 +50,15 @@ Every private turn retains the existing four-mutation limit. `just check` passes
 with these tests. This is in-memory state-machine evidence, not a signed service,
 disk, worker/node recovery, public SDK or returned-prefix authorization proof.
 
+The subsequent `UnifiedResult` component tests read actual captured manifests and
+nested Arrow for all three sources, reject current source/request access denial
+after a returned prefix, and verify complete ordered coverage. A KV schedule also
+injects denial at the first, middle and final current-read boundary, changes the
+policy after completion, and rejects a forged row cursor or original correlation.
+Admission rejects a different Publication publisher before retaining a source.
+`just check` passes; these use the same in-memory reader fixtures and do not
+replace the remaining signed service/deployment schedules.
+
 ## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test
