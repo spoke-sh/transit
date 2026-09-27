@@ -272,9 +272,15 @@ def run(*, board=False, browser=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile", choices=("local", "compose", "reference"), default="local")
     parser.add_argument("--board", action="store_true")
     parser.add_argument("--browser", action="store_true")
     args = parser.parse_args()
-    if hasattr(os, "sched_getaffinity"):
-        os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
-    run(board=args.board, browser=args.browser)
+    if args.profile == "local":
+        if hasattr(os, "sched_getaffinity"):
+            os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
+        run(board=args.board, browser=args.browser)
+    else:
+        if args.board or args.browser: parser.error("Board qualification uses the local profile")
+        from placed import run as run_placed
+        run_placed(args.profile)

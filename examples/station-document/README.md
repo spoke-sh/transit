@@ -10,7 +10,9 @@ a growing Transit node, two caller resources and one Document resource, using
 ephemeral keys and explicit grants. The runner removes only its own temporary
 state after completion. The local schedule passes in 571.4 seconds with an 8 MiB
 hot-store limit; see [evidence](../../tests/README.md#m17-work-in-progress).
-Compose/reference tasks are not yet implemented.
+Compose/reference tasks and their physical trust boundaries are described in the
+[placement guide](docs/placement.md). Compose passes in 208.78 seconds with bounded
+hot storage and cold spill; reference qualification is tracked separately.
 
 The schedule prepares two edits against the same accepted note, keeps one caller
 disconnected, then submits in reverse order. It checks conflicts, Unicode scalar

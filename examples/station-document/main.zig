@@ -8,7 +8,9 @@ const Config = struct {
     url: []const u8,
     realm: u64,
     principal: u64,
-    seed_file: []const u8,
+    seed_file: ?[]const u8 = null,
+    bootstrap_timeout_ms: u32 = 120000,
+    park_after_result_ms: u32 = 0,
     pid: u64 = 0,
     generation: u64 = 0,
     activation_directory: ?[]const u8 = null,
@@ -71,16 +73,26 @@ const Driver = struct {
 };
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 2) return error.ExpectedConfiguration;
+    const bootstrap = args.len == 3 and std.mem.eql(u8, args[1], "--bootstrap-json");
+    if (args.len != 2 and !bootstrap) return error.ExpectedConfiguration;
     const gpa = init.arena.allocator();
-    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], gpa, .limited(16384));
+    const bytes = if (bootstrap) args[2] else try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], gpa, .limited(16384));
+    if (bytes.len > 16384) return error.ConfigurationTooLarge;
     const config = (try std.json.parseFromSlice(Config, gpa, bytes, .{})).value;
     if (config.principal == 0 or config.writer == 0 or config.resource == 0 or config.document == 0 or config.replica == 0) return error.InvalidConfiguration;
-    var key = try s.client.readKey(gpa, init.io, config.seed_file);
+    if (config.park_after_result_ms > 300000 or (!bootstrap and config.park_after_result_ms != 0)) return error.InvalidConfiguration;
+    var key = if (bootstrap) key: {
+        if (config.seed_file != null) return error.BootstrapSeedForbidden;
+        var seed: [32]u8 = undefined;
+        defer std.crypto.secureZero(u8, &seed);
+        try init.io.randomSecure(&seed);
+        break :key try p.Ed25519.KeyPair.generateDeterministic(seed);
+    } else try s.client.readKey(gpa, init.io, config.seed_file orelse return error.MissingSeedFile);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     var wire = s.client.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
     wire.timeout_ms = 5000;
+    if (bootstrap) try s.client.bootstrap.awaitGrowingOwnership(&wire, .{ .realm = config.realm, .pid = config.pid, .principal = config.principal, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, config.bootstrap_timeout_ms);
     const reader: s.client.ResourceReader = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key };
     const client: doc.Client = .{ .source = reader };
     const identity: doc.Client.Identity = .{ .resource = config.resource, .document = config.document };
@@ -154,4 +166,5 @@ pub fn main(init: std.process.Init) !void {
     }
     try output.interface.writeByte('\n');
     try output.interface.flush();
+    if (config.park_after_result_ms != 0) try init.io.sleep(.fromMilliseconds(config.park_after_result_ms), .awake);
 }

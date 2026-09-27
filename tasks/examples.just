@@ -58,3 +58,13 @@ grpc-compose:
 grpc-reference:
     zig build rey-cli
     python3 -B examples/station-grpc/run.py --profile reference
+
+# Two editors and a writer on a client network isolated from disk Ursula.
+document-compose:
+    zig build rey-cli
+    python3 -B examples/station-document/run.py --profile compose
+
+# Two Substrate editor identities and a trusted writer in an owned namespace.
+document-reference:
+    zig build rey-cli
+    python3 -B examples/station-document/run.py --profile reference

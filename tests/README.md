@@ -142,6 +142,20 @@ of an admitted job closes it without disclosing an accepted-state basis. These
 metadata readers are the library handoff for Board, whose API/UI proof remains
 pending. `just check` passes with the worker and these library additions.
 
+`just examples::document-compose` passes in **208.78 seconds**, including cached
+static builds, with two separately credentialed editors and a fenced writer.
+It repeats the original caller after fresh ownership, resumes an unpublished
+candidate after node/store loss, merges reversed structured/Unicode changes,
+resolves conflicts, rejects duplicates, resynchronizes after a finite checkpoint
+window and refuses changes after retirement. The client network cannot connect
+to Ursula, MinIO or external TCP. The run records **542 cold objects /
+63,005,309 bytes**, using **8 MiB hot storage and 8 MiB cold cache**. The first
+no-cold-tier attempt exhausted the 512 MiB Ursula container; raising that limit
+was not the recovery. The chart now supports a separately created configuration
+Secret without copying credentials into Helm values or ConfigMaps; its deployment
+render/lint tests pass. The root `just check` also passes. These are local
+measurements; the reference and Board browser runs remain pending.
+
 ## M16 finite connector qualification
 
 `just test::unit` runs the new RPC request codec against a Python-generated
