@@ -97,6 +97,12 @@ fixtures, preserving full-width exchange IDs and rejecting wrong/truncated frame
 The `http_release` scoped action rejects invalid identities without consuming
 turn capacity, then emits the exact durable call without requiring a capture
 read grant. The service retains holder authentication and current-policy checks.
+Native/port codecs also consume the independently constructed HTU1 fixture. The
+scoped `http_followup` capability preserves all 64 parent bits, validates the exact
+published request in the current associated resource, and emits the ordinary
+durable call under a new correlation. Invalid/unpublished/changed references
+consume no turn capacity. The native suite passes these additions alongside
+its existing ownership, exact-retry, Table/query and interoperability schedules.
 The shared `http_stage` helper freezes namespace ownership and advances one
 publication step per turn. Its disk/native proof replaces the host and owner
 after a committed metadata prefix, rejects a changed endpoint revision without

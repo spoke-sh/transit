@@ -41,6 +41,20 @@ pub const Action = union(enum) {
     outcome: p.Value,
     release: Identity,
     released: p.Value,
+    followup: Followup,
+};
+pub const Followup = struct {
+    resource: u64,
+    parent: []const u8,
+    reason: http.Policy.Reason,
+    reference: p.Value,
+    pub fn native(self: Followup) !http.Service.Followup {
+        const reference = try http.RequestRecord.Reference.decode(self.reference);
+        const encoded = try reference.encode();
+        const value: http.Service.Followup = .{ .resource = self.resource, .parent = try unsigned(self.parent), .reason = self.reason, .request = encoded.data[0..112].* };
+        try value.validate();
+        return value;
+    }
 };
 pub const Identity = struct {
     resource: u64,
@@ -66,6 +80,7 @@ pub const Result = union(enum) {
     rejected: @FieldType(http.Service.Rejection, "reason"),
     release: p.Value,
     released: Identity,
+    followup: p.Value,
 };
 pub const ReadAction = union(enum) {
     open: struct { reference: p.Value, policy: http.Replay.Policy = .captured },
@@ -98,6 +113,7 @@ pub fn apply(alloc: std.mem.Allocator, action: Action) !Result {
             const value = try http.Service.Released.decode(wire);
             return .{ .released = .{ .resource = value.resource, .exchange = try a.decimal(alloc, value.exchange) } };
         },
+        .followup => |value| return .{ .followup = try (try value.native()).encode() },
     }
 }
 pub fn codec(json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {

@@ -7,6 +7,14 @@ const a = @import("Actions.zig");
 const q = s.GrowingQuery;
 const http = @import("HttpCodec.zig").http;
 const unsigned = @import("HttpCodec.zig").unsigned;
+fn publishedRequest(turn: *s.GrowingTurn, wire: p.Value) !void {
+    const reference = try http.RequestRecord.Reference.decode(wire);
+    if (reference.resource != turn.view.resource) return error.InvalidHttpRequestReference;
+    const publication: s.Publication = .{ .resource = reference.resource, .namespace = reference.namespace };
+    const metadata = try publication.open(turn, http.RequestRecord.metadata_id);
+    const body = try publication.open(turn, http.RequestRecord.body_id);
+    if (!std.meta.eql(metadata.spec, reference.metadataSpec()) or !std.meta.eql(body.spec, reference.bodySpec())) return error.InvalidHttpRequestReference;
+}
 pub const Plan = struct {
     projection: @FieldType(a.Plan, "projection") = .both,
     limit: ?[]const u8 = null,
@@ -69,6 +77,7 @@ pub const Action = union(enum) {
     http_call: struct { pid: u64, reference: p.Value },
     http_stage: struct { reference: p.Value, metadata: []const u8, body: []const u8 },
     http_release: struct { pid: u64, resource: u64, exchange: []const u8 },
+    http_followup: struct { pid: u64, resource: u64, parent: []const u8, reason: http.Policy.Reason, reference: p.Value },
 
     pub fn requiresQuery(self: Action) bool {
         return switch (self) {
@@ -145,13 +154,13 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action)
         .publication_retire => |v| return .{ .publication = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).retire(turn, try unsigned(v.id)) },
         .publication_collect => |v| return .{ .collected = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).collect(turn, try unsigned(v.id)) },
         .http_call => |v| {
-            const reference = try http.RequestRecord.Reference.decode(v.reference);
-            if (reference.resource != turn.view.resource) return error.InvalidHttpRequestReference;
-            const publication: s.Publication = .{ .resource = reference.resource, .namespace = reference.namespace };
-            const metadata = try publication.open(turn, http.RequestRecord.metadata_id);
-            const body = try publication.open(turn, http.RequestRecord.body_id);
-            if (!std.meta.eql(metadata.spec, reference.metadataSpec()) or !std.meta.eql(body.spec, reference.bodySpec())) return error.InvalidHttpRequestReference;
+            try publishedRequest(turn, v.reference);
             return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, v.reference, null)) };
+        },
+        .http_followup => |v| {
+            const request = try (@import("HttpCodec.zig").Followup{ .resource = v.resource, .parent = v.parent, .reason = v.reason, .reference = v.reference }).native();
+            try publishedRequest(turn, v.reference);
+            return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, try request.encode(), null)) };
         },
         .http_stage => |v| {
             const reference = try http.RequestRecord.Reference.decode(v.reference);

@@ -26,6 +26,7 @@ def run(host, library=None):
         assert all(response == {'status': 13, 'value': None} for response in responses[3:])
         fixture = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-http/src/admission-fixtures.json').read_text())
         release = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-http/src/release-fixtures.json').read_text())
+        followup = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-http/src/followup-fixtures.json').read_text())
         request = {key: value for key, value in fixture['request'].items() if key != 'body_bytes'}
         actions = [
             {'prepare': {'resource': 8, 'namespace': str(2**64-1), 'request': request,
@@ -34,6 +35,10 @@ def run(host, library=None):
             {'release': {'resource': 7, 'exchange': str(2**64-1)}},
             {'released': release['reply']},
             {'outcome': release['reply']},
+            {'followup': {'resource': 7, 'parent': str(2**64-1), 'reason': 'retry', 'reference': fixture['reference']}},
+            {'followup': {'resource': 7, 'parent': '0', 'reason': 'retry', 'reference': fixture['reference']}},
+            {'followup': {'resource': 7, 'parent': str(2**64), 'reason': 'retry', 'reference': fixture['reference']}},
+            {'followup': {'resource': 7, 'parent': '1', 'reason': 'retry', 'reference': fixture['reference'][:-2]}},
             {'outcome': fixture['outcome'][:-2]},
             {'released': release['reply'][:-2]},
             {'released': release['request']},
@@ -54,7 +59,8 @@ def run(host, library=None):
         assert responses[3] == {'status': 0, 'value': {'release': release['request']}}
         assert responses[4] == {'status': 0, 'value': {'released': {'resource': 7, 'exchange': str(2**64-1)}}}
         assert responses[5] == responses[4]
-        assert all(r['status'] == 1 for r in responses[6:])
+        assert responses[6] == {'status': 0, 'value': {'followup': followup['request']}}
+        assert all(r['status'] == 1 for r in responses[7:])
         if library:
             # The generated ABI declares the exact same implementation as the port.
             from transit_station import _Library, TransitError

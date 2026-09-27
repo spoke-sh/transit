@@ -16,7 +16,9 @@ reuse the same native turn and dispatch gate. These are native composition APIs;
 all [ten public SDKs](../../../docs/CLIENT.md#http-connector-callers) provide typed
 request/call/replay conveniences with local qualification. Explicit durable
 release is also available through shared codecs and scoped `http_release` calls;
-language-native release helpers and broader lifecycle work remain in M15.
+all ten SDKs expose it. Scoped `http_followup` calls validate published request
+commitments and submit HTU1 through the same durable call machinery. Language-native
+followup helpers and broader lifecycle work remain in M15.
 
 See the [binding guide](docs/bindings.md) for ownership, scoped turns, explicit
 dispatch, exact pending retry and query buffers. Native foreign pointers never

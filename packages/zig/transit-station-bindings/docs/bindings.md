@@ -215,7 +215,7 @@ returns its HTQ1 reference, owned metadata bytes and both Publication specs.
 states without inventing a complete reference. Preparation and decoding need no
 authority endpoint or credentials and never perform network effects.
 
-Growing capabilities advertise `publications`, `http_requests`, `http_replay`, `http_release`,
+Growing capabilities advertise `publications`, `http_requests`, `http_replay`, `http_release`, `http_followup`,
 the 65,536-byte finite request profile and 256-byte publication chunks.
 `publication_create/begin/append/publish/abandon/retire/collect` delegate to Station
 Publication inside the active scoped turn. Host adapters schedule bounded steps;
@@ -242,6 +242,16 @@ and current policy. The local codec's `release` emits HTD1 and `released` decode
 HTK1 into resource/exchange identity. Decoding alone authenticates no sender:
 the handler must check the reply origin and correlation. HTF1 rejections retain
 the existing `outcome` decoder. Replay-reader close does not submit this action.
+
+`http_followup` takes the connector `pid`, capture `resource`, canonical full-width
+`parent` string, `reason` (`retry`, `redirect`, `reconcile`, `cancel`) and exact HTQ1
+`reference`. As with `http_call`, the shared implementation requires both exact
+request records to be published in the current associated resource before it
+records a wait/output. It returns a new durable correlation. The local codec's
+`followup` action accepts the same fields except `pid` and emits HTU1. Neither
+conversion nor submission permits a remote send: the service separately checks
+the original caller, terminal parent, current grants, frozen policy and finite
+root budget before child admission. Rejections use HTF1, outcomes HTR1.
 
 `station_growing_http_read` (port `growing_http_read`) is separate from scoped
 handler actions. `open` accepts a complete reference and replay policy; `next`

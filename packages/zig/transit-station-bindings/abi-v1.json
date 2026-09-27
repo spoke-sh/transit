@@ -4225,6 +4225,60 @@
                       "x-transit-encoding": "lowercase-hex"
                     }
                   }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "followup"
+                  ],
+                  "properties": {
+                    "followup": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "resource",
+                        "parent",
+                        "reason",
+                        "reference"
+                      ],
+                      "properties": {
+                        "resource": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "parent": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "retry",
+                            "redirect",
+                            "reconcile",
+                            "cancel"
+                          ]
+                        },
+                        "reference": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        }
+                      },
+                      "required": [
+                        "resource",
+                        "parent",
+                        "reason",
+                        "reference"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
                 }
               ]
             }
@@ -6113,6 +6167,69 @@
                             "pid",
                             "resource",
                             "exchange"
+                          ],
+                          "x-transit-defaults": {}
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "http_followup"
+                      ],
+                      "properties": {
+                        "http_followup": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "pid",
+                            "resource",
+                            "parent",
+                            "reason",
+                            "reference"
+                          ],
+                          "properties": {
+                            "pid": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "resource": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "parent": {
+                              "type": "string",
+                              "maxLength": 524288
+                            },
+                            "reason": {
+                              "type": "string",
+                              "enum": [
+                                "retry",
+                                "redirect",
+                                "reconcile",
+                                "cancel"
+                              ]
+                            },
+                            "reference": {
+                              "type": "string",
+                              "pattern": "^(?:[0-9a-f]{2})*$",
+                              "maxLength": 512,
+                              "x-transit-encoding": "lowercase-hex"
+                            }
+                          },
+                          "required": [
+                            "pid",
+                            "resource",
+                            "parent",
+                            "reason",
+                            "reference"
                           ],
                           "x-transit-defaults": {}
                         }
@@ -8264,6 +8381,69 @@
               "x-transit-defaults": {}
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_followup"
+          ],
+          "properties": {
+            "http_followup": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "pid",
+                "resource",
+                "parent",
+                "reason",
+                "reference"
+              ],
+              "properties": {
+                "pid": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "resource": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "parent": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "retry",
+                    "redirect",
+                    "reconcile",
+                    "cancel"
+                  ]
+                },
+                "reference": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                }
+              },
+              "required": [
+                "pid",
+                "resource",
+                "parent",
+                "reason",
+                "reference"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
         }
       ]
     },
@@ -9688,6 +9868,7 @@
         "publications",
         "http_requests",
         "http_release",
+        "http_followup",
         "http_replay",
         "http_active_readers",
         "http_request_bytes",
@@ -9743,6 +9924,9 @@
           "type": "boolean"
         },
         "http_release": {
+          "type": "boolean"
+        },
+        "http_followup": {
           "type": "boolean"
         },
         "http_replay": {
@@ -9865,6 +10049,7 @@
         "publications",
         "http_requests",
         "http_release",
+        "http_followup",
         "http_replay",
         "http_active_readers",
         "http_request_bytes",
@@ -9895,6 +10080,7 @@
         "publications": true,
         "http_requests": true,
         "http_release": true,
+        "http_followup": true,
         "http_replay": true,
         "http_active_readers": 1,
         "http_request_bytes": 65536,
@@ -10274,6 +10460,60 @@
               "x-transit-encoding": "lowercase-hex"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "followup"
+          ],
+          "properties": {
+            "followup": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "resource",
+                "parent",
+                "reason",
+                "reference"
+              ],
+              "properties": {
+                "resource": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "parent": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "retry",
+                    "redirect",
+                    "reconcile",
+                    "cancel"
+                  ]
+                },
+                "reference": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                }
+              },
+              "required": [
+                "resource",
+                "parent",
+                "reason",
+                "reference"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
         }
       ]
     },
@@ -10561,6 +10801,21 @@
                 "exchange"
               ],
               "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "followup"
+          ],
+          "properties": {
+            "followup": {
+              "type": "string",
+              "pattern": "^(?:[0-9a-f]{2})*$",
+              "maxLength": 512,
+              "x-transit-encoding": "lowercase-hex"
             }
           }
         }

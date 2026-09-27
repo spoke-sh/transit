@@ -349,7 +349,7 @@ def run(node, cli, library, raw_library, host):
             caller, resource, caller_seed = provision(65538)
             destination = command({'spawn': {}})
             server = Native(libraries, url, caller_seed, {**config, 'principal': 65538, 'pid': caller, 'generation': 2})
-            assert caps['publications'] and caps['http_requests'] and caps['http_release'] and caps['publication_chunk_bytes'] == 256
+            assert caps['publications'] and caps['http_requests'] and caps['http_release'] and caps['http_followup'] and caps['publication_chunk_bytes'] == 256
             document = _json({'prepare': {'resource': resource, 'namespace': str(2**64-1),
                 'request': {'method': 'POST', 'target': [{'literal': '/write'}]}, 'body': '00ff01',
                 'endpoint_revision': '7', 'reconcile_before_ms': now + 120000}})
@@ -371,6 +371,7 @@ def run(node, cli, library, raw_library, host):
                 command({'send': {'pid': caller, 'value': frame(b'incomplete')}})
                 scope = ready(server)['scope']
                 assert rejects(1, server.apply, scope, {'http_call': {'pid': destination, 'reference': prepared['reference']}})['err'] == 'PublicationNotPublished'
+                assert rejects(1, server.apply, scope, {'http_followup': {'pid': destination, 'resource': 7, 'parent': str(2**64-1), 'reason': 'retry', 'reference': prepared['reference']}})['err'] == 'PublicationNotPublished'
                 finish(server, scope)
                 operation({'publication_publish': {'namespace': namespace, 'id': identity}})
             command({'send': {'pid': caller, 'value': frame(b'http-call')}})
@@ -404,6 +405,25 @@ def run(node, cli, library, raw_library, host):
             release_fixture = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-http/src/release-fixtures.json').read_text())
             assert disposal['destination'] == destination
             assert bytes.fromhex(disposal['value'])[13:] == bytes.fromhex(release_fixture['request'])
+            command({'send': {'pid': caller, 'value': frame(b'http-followup')}})
+            scope = ready(server)['scope']
+            followup = {'pid': destination, 'resource': 7, 'parent': str(2**64-1), 'reason': 'retry', 'reference': prepared['reference']}
+            before = server.apply(scope, {'budgets': {}})
+            assert rejects(1, server.apply, scope, {'http_followup': {**followup, 'reference': changed.hex()}})['err'] == 'InvalidHttpRequestReference'
+            assert rejects(1, server.apply, scope, {'http_followup': {**followup, 'parent': '0'}})['err'] == 'InvalidHttpFollowup'
+            assert server.apply(scope, {'budgets': {}}) == before
+            linked = server.apply(scope, {'http_followup': followup})['correlation']
+            assert int(linked) > int(released)
+            finish(server, scope)
+            document = _json({'followup': {k: v for k, v in followup.items() if k != 'pid'}})
+            encoded = server.api.call('station_http_codec', document, len(document))['followup']
+            position = root_client.call(root_client.prepare(7, system.seed, {
+                'version': 3, 'realm': 72, 'principal': 0, 'kind': {'capabilities': {}}}))['position']
+            linked_output = next(item for item in query({'outputs': {'after': disposal['id'], 'position': position}})['outputs']['entries'] if item and item['source'] == caller)
+            assert linked_output['destination'] == destination
+            assert bytes.fromhex(linked_output['value'])[13:] == bytes.fromhex(encoded)
+            assert bytes.fromhex(encoded)[:21] == b'HTU1' + (7).to_bytes(8, 'little') + (2**64-1).to_bytes(8, 'little') + b'\x01'
+            assert bytes.fromhex(encoded)[21:] == bytes.fromhex(prepared['reference'])
             operation({'publication_retire': {'namespace': namespace, 'id': '1'}})
             assert operation({'publication_collect': {'namespace': namespace, 'id': '1'}}) == {'collected': True}
 
