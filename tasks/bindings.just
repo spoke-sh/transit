@@ -257,3 +257,12 @@ unified-c source="kv": c-build
 # Java 21 typed unified-query futures and joined native port.
 unified-java source="table": java-build
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=java -Dunified-source={{source}}
+
+# Owned .NET unified-query tasks through the native client.
+unified-dotnet source="kv": dotnet-build
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=dotnet -Dunified-source={{source}}
+
+# Installed Erlang and Elixir unified state queries with owned port workers.
+unified-beam source="table": beam-build
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=erlang -Dunified-source={{source}}
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=elixir -Dunified-source={{source}}

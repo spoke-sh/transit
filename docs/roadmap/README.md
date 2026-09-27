@@ -25,7 +25,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M15](M15.md) | HTTP connector and shared exchange lifecycle | Local qualification and M16 handoff passed; expanded hosted CI cost deferred |
 | [M16](M16.md) | gRPC connector and bounded streaming calls | Finite profile locally qualified: four shapes, ten SDKs, Board, three placements and recovery; hosted cost deferred |
 | [M17](M17.md) | Documents and collaborative text | Qualified growing profile: structured/text CRDTs, ten SDKs, Board and three placements; hosted cost deferred |
-| [M18](M18.md) | Unified state querying and versioned source contracts | In progress; v2 typed plans and nested Arrow engine qualified, adapters and public surfaces next |
+| [M18](M18.md) | Unified state querying and versioned source contracts | In progress; v2 adapters, signed recovery and all ten typed SDKs implemented; lifecycle, shell/Board and deployment qualification next |
 | [M19](M19.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned; compose qualified transport and query components |
 | [M20](M20.md) | Clustered execution and portability | Planned; extend component proofs across authority/runtime topologies |
 

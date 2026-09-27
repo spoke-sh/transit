@@ -1,0 +1,22 @@
+-ifndef(TRANSIT_UNIFIED_QUERY_HRL).
+-define(TRANSIT_UNIFIED_QUERY_HRL, true).
+-include("transit_station_sdk.hrl").
+-record(transit_unified_column, {name :: binary(), type :: int64 | uint64 | float64 | boolean | utf8 | binary}).
+-record(transit_unified_decoder, {type, version = 1}).
+-record(transit_unified_kv, {resource :: #transit_resource{}, prefix = <<>>, key :: #transit_unified_decoder{}, value :: #transit_unified_decoder{}}).
+-record(transit_unified_table, {resource :: #transit_resource{}, id, names = [<<"id">>, <<"value">>], value_type}).
+-record(transit_unified_projection, {column :: #transit_unified_column{}, path = [], relative = false, mode = scalar, text_bytes = 4096, text_steps = 4096}).
+-record(transit_unified_document, {reference :: #transit_document_reference{}, projections = [], expand = undefined}).
+-record(transit_unified_plan, {projection = [], predicate = all, aggregate = rows, limit = undefined}).
+-record(transit_unified_budgets, {pages, segments, result_bytes}).
+-record(transit_unified_bundle, {bytes :: binary()}).
+-record(transit_unified_prepared, {bytes :: binary()}).
+-record(transit_unified_cursor, {opaque :: binary()}).
+-record(transit_unified_connection, {source :: #transit_process{}, resource :: #transit_resource{}, requester :: #transit_process{}, requests :: #transit_resource{}}).
+-record(transit_unified_description, {resource_revision, policy_revision, budgets, active = undefined, bundle_bytes, segment_bytes, batch_rows}).
+-record(transit_unified_status, {phase, correlation, reference, manifest = undefined, collected = false}).
+-record(transit_unified_observation, {state, reason = undefined}).
+-record(transit_unified_alternative, {counter, replica, value}).
+-record(transit_unified_manifest, {job, source, requester, correlation, policy_revision, request, kind, resource, revision, source_digest, schema_digest, plan_digest, pages, scanned, selected, segments, rows, byte_count, sum = undefined, finished, chain}).
+-record(transit_unified_page, {manifest, columns, ordinal, rows, ipc, next = undefined}).
+-endif.

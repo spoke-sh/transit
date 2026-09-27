@@ -1,0 +1,12 @@
+-module(beam_unified_adapter).
+-export([prepare/3,decode/3,open/3,close/1,describe/2,next/3,submit/2,observe/2,status/2,page/3]).
+prepare(S,P,B)->transit_unified_query:prepare(S,P,B).
+decode(C,I,R)->transit_unified_query:decode_arrow(C,I,R).
+open(C,I,R)->transit_unified_query:open(C,I,R).
+close(C)->transit_unified_query:close(C).
+describe(C,S)->transit_unified_query:describe(C,S).
+next(C,N,B)->transit_unified_query:prepare_next(C,N,B).
+submit(C,P)->transit_unified_query:submit(C,P).
+observe(C,P)->transit_unified_query:observe(C,P).
+status(C,N)->transit_unified_query:status(C,N).
+page(C,N,P)->transit_unified_query:page(C,N,P).

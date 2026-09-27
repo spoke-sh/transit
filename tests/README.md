@@ -151,6 +151,21 @@ checks while avoiding the measured Debug provisioning cost. `just test::unified-
 defaults to ReleaseSafe when called without arguments; explicit build arguments
 can select a profile. Measured Debug and ReleaseSafe results above are separate.
 
+Installed .NET 8, Erlang and Elixir callers also pass with ReleaseSafe service
+binaries: .NET KV in **101.25 seconds** (123 cold objects / 9,547,213 bytes),
+Erlang Table in **112.06 seconds** (112 objects / 9,660,453 bytes), and Elixir KV
+in **105.90 seconds** (127 objects / 9,606,013 bytes). Each returns 41 rows / six
+segments / 13,584 Arrow bytes within eight resident authority pages / 8 MiB hot
+storage. Exact signed retry, worker/node/store recovery, current denial after a
+returned prefix, complete independent Arrow verification and released source
+pins pass. Owned page decoding succeeds after client disposal. .NET also rejects
+a cancelled wait before admission; this run does not qualify in-flight Task
+cancellation. Installed BEAM and NuGet codec fixtures pass all three source
+declarations, six types, five states, full-width values, Unicode, negative zero
+and malformed streams. Root `just check` passes. All ten SDKs now have typed v2
+APIs; the complete SDK-by-source service matrix and broader lifecycle/deployment
+qualification remain in progress.
+
 ## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test

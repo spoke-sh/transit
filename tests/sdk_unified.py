@@ -67,6 +67,12 @@ def install(root, languages):
     (root/'fixtures.json').write_text(json.dumps(fixtures))
     factories = []
     for language in languages:
+        if language in ('erlang', 'elixir'):
+            factories.append(install_beam(root / language, root / 'fixtures.json', language))
+            continue
+        if language == 'dotnet':
+            factories.append(install_dotnet(root / language, root / 'fixtures.json'))
+            continue
         if language == 'java':
             factories.append(install_java(root / language, root / 'fixtures.json'))
             continue
@@ -249,6 +255,60 @@ def install_java(root, fixtures):
     subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(lib/'*'), '-d', classes, source], cwd=root, env=env, check=True)
     source.unlink()
     command = ['java', '-cp', os.pathsep.join([str(classes), str(lib/'*')]), 'JavaUnifiedSdk']
+    subprocess.run([*command, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
+    def open_callers(url, connection, state, kind):
+        config = root/'client.json'
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
+        return [Consumer([*command, 'serve', config], env, root)]
+    return open_callers
+
+
+def install_dotnet(root, fixtures):
+    import xml.etree.ElementTree as ET
+    root.mkdir(); source = root/'source'; source.mkdir(); feed = root/'feed'; feed.mkdir()
+    for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
+        name = f'{package}.0.2.0.nupkg'; shutil.copy2(ROOT/'.cache/bindings/dotnet'/name, feed/name)
+    env = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
+    env.update(NUGET_PACKAGES=str(root/'packages'), DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1')
+    project = source/'Consumer.csproj'
+    project.write_text('''<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
+<ItemGroup><PackageReference Include="Transit.Client" Version="[0.2.0]" /><PackageReference Include="Transit.Station.Sdk" Version="[0.2.0]" /></ItemGroup>
+</Project>''')
+    config = ET.Element('configuration'); sources = ET.SubElement(config, 'packageSources'); ET.SubElement(sources, 'clear')
+    ET.SubElement(sources, 'add', key='local-built', value=str(feed)); ET.ElementTree(config).write(source/'NuGet.Config', encoding='utf-8', xml_declaration=True)
+    shutil.copyfile(ROOT/'tests/DotnetUnifiedSdk.cs', source/'Program.cs')
+    subprocess.run(['dotnet', 'restore', project.name, '--configfile', 'NuGet.Config'], cwd=source, env=env, check=True)
+    app = root/'app'
+    subprocess.run(['dotnet', 'build', project.name, '--no-restore', '-c', 'Release', '-o', app], cwd=source, env=env, check=True)
+    shutil.rmtree(source); shutil.rmtree(root/'packages')
+    command = ['dotnet', str(app/'Consumer.dll')]
+    subprocess.run([*command, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
+    def open_callers(url, connection, state, kind):
+        config = root/'client.json'
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
+        return [Consumer([*command, 'serve', config], env, root)]
+    return open_callers
+
+
+def install_beam(root, fixtures, language):
+    root.mkdir(); lib = root/'lib'; lib.mkdir(); classes = root/'classes'; classes.mkdir()
+    names = ['transit_native_client', 'transit_client', 'transit_native_station', 'transit_station_sdk']
+    if language == 'elixir': names += ['transit_client_elixir', 'transit_station_elixir']
+    for name in names:
+        with tarfile.open(ROOT/'.cache/bindings/beam'/f'{name}-0.2.0.tar.gz') as archive: archive.extractall(lib, filter='data')
+    env = {k: v for k, v in os.environ.items() if k not in ('ERL_LIBS', 'ERL_FLAGS', 'TRANSIT_HOST')}
+    env.update(ERL_LIBS=str(lib), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
+    sources = ['beam_unified_controller.erl'] + (['beam_unified_adapter.erl'] if language == 'erlang' else [])
+    for name in sources:
+        source = root/name; shutil.copyfile(ROOT/'tests'/name, source)
+        subprocess.run(['erlc', '-Werror', '-o', classes, source], cwd=root, env=env, check=True); source.unlink()
+    if language == 'elixir':
+        source = root/'elixir_unified_adapter.ex'; shutil.copyfile(ROOT/'tests'/source.name, source)
+        subprocess.run(['elixirc', '--warnings-as-errors', '-pa', classes, '-o', classes, source], cwd=root, env=env, check=True); source.unlink()
+        command = ['elixir', '-pa', str(classes), '-e', ':beam_unified_controller.main(ElixirUnifiedAdapter, System.argv())', '--']
+    else:
+        command = ['erl', '-noshell', '-pa', str(classes), '-eval', 'beam_unified_controller:main(beam_unified_adapter, init:get_plain_arguments()), halt().', '-extra']
     subprocess.run([*command, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
     def open_callers(url, connection, state, kind):
         config = root/'client.json'

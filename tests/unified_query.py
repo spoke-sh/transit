@@ -221,7 +221,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     for name in ('node', 'host', 'proof', 'port_host', 'library'): parser.add_argument(name)
     parser.add_argument('kinds', nargs='*', choices=('kv', 'table', 'document'))
-    parser.add_argument('--sdk', action='append', choices=('python', 'node', 'ruby', 'rust', 'c', 'cpp', 'java'))
+    parser.add_argument('--sdk', action='append', choices=('python', 'node', 'ruby', 'rust', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir'))
     args = parser.parse_args()
     run(args.node, args.host, args.proof, args.port_host, args.library,
         kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or ())

@@ -16,6 +16,7 @@ internal sealed class Bridge : IWorkerState<object?>
     internal readonly JsonObject Caps;
     private RawBridge? raw;
     private IntPtr server;
+    private IntPtr queryClient;
     internal Bridge(string? nativeDirectory)
     {
         if (typeof(Transit.Client.Client).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion != "0.2.0") throw Value.Incompatible("client-sdk-version");
@@ -59,6 +60,41 @@ internal sealed class Bridge : IWorkerState<object?>
         } catch (Exception) { bridge.Dispose(); throw; }
     }
     internal int Limit(string name) => checked((int)Value.Number(Caps[name], 1));
+    internal static Bridge OpenQuery(ClientConfig config, Credential identity, UnifiedQuery.Connection connection)
+    {
+        Bridge bridge = new(config.NativeDirectory);
+        try {
+            byte[] endpoint = Value.Utf8.GetBytes(config.NativeEndpoint);
+            byte[] document = Value.Json(Value.Obj(("connection", connection.Wire(identity)), ("timeout_ms", config.TimeoutMillis)));
+            byte[] seed = RawBridge.Seed(identity.SeedFile);
+            try {
+                uint status = bridge.Api.station_unified_query_create(NativeApi.Version, endpoint, (nuint)endpoint.Length, seed, document, (nuint)document.Length, out bridge.queryClient);
+                if (status != 0) throw Value.NativeError(status, null, "query-create");
+                if (bridge.queryClient == IntPtr.Zero) throw Value.Incompatible("query-create");
+            } finally { CryptographicOperations.ZeroMemory(seed); }
+            var caps = Value.Object(bridge.UnifiedQuery(Value.Obj(("capabilities", Value.Obj())))["capabilities"]);
+            if (Value.Number(caps["version"], 1) != 2) throw Value.Incompatible("query-version");
+            foreach (string kind in new[] { "kv", "table", "document" }) if (!Value.Boolean(caps[kind])) throw Value.Incompatible("query-source");
+            return bridge;
+        } catch (Exception) { bridge.Dispose(); throw; }
+    }
+    internal JsonObject UnifiedCodec(JsonObject action)
+    {
+        HttpCapability("unified_query_codecs");
+        Schema.Require(Value.Object(Schemas["UnifiedQueryCodecAction"]), action);
+        byte[] bytes = Value.Json(action);
+        if (bytes.Length > Value.MaxBody) throw new ArgumentException("Query codec action exceeds its bound");
+        uint status = Api.station_unified_query_codec(bytes, (nuint)bytes.Length, out var buffer);
+        return Result(status, buffer, "query-codec", schema: "UnifiedQueryCodecResult");
+    }
+    internal JsonObject UnifiedQuery(JsonObject action, bool mutation = false)
+    {
+        Schema.Require(Value.Object(Schemas["UnifiedQueryAction"]), action);
+        byte[] bytes = Value.Json(action);
+        if (bytes.Length > Value.MaxBody) throw new ArgumentException("Query action exceeds its bound");
+        uint status = Api.station_unified_query_call(queryClient, bytes, (nuint)bytes.Length, out var buffer);
+        return Result(status, buffer, "query", mutation && status == 0, "UnifiedQueryResult");
+    }
     internal void HttpCapability(string name)
     {
         if (!Value.Boolean(Caps[name])) throw new TransitException(ErrorKind.UnsupportedCapability, name);
@@ -186,6 +222,7 @@ internal sealed class Bridge : IWorkerState<object?>
     public object? Evidence() => null;
     public void Dispose()
     {
+        if (queryClient != IntPtr.Zero) { Api.station_unified_query_destroy(queryClient); queryClient = IntPtr.Zero; }
         try { if (server != IntPtr.Zero) { Api.station_growing_destroy(server); server = IntPtr.Zero; } }
         finally { try { raw?.Dispose(); } finally { package.Dispose(); } }
     }

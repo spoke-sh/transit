@@ -26,3 +26,6 @@ M16 adds [finite RPC calls and captured replay](docs/grpc.md), including local
 descriptor binding and explicit status-zero/unknown outcomes.
 
 M17 adds [Document changes, scoped jobs and owned accepted reads](docs/documents.md).
+
+M18 adds [typed unified state queries](docs/unified-query.md), with owned nested
+Arrow values, current source checks and explicit signed retry tokens.

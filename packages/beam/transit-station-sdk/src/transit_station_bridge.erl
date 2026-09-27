@@ -2,7 +2,7 @@
 -module(transit_station_bridge).
 -include("transit_station_sdk.hrl").
 -export([open/2, local/1, close/1, caps/1, prepare/1, apply/3, finish/3, discard/2,
-         pending/2, dispatch/1, confirmation/2, matches/2, frame/3, http_codec/2, http_read/2, grpc_codec/2, grpc_read/2, document_codec/2, document_read/2]).
+         pending/2, dispatch/1, confirmation/2, matches/2, frame/3, http_codec/2, http_read/2, grpc_codec/2, grpc_read/2, document_codec/2, document_read/2, query/3, unified_codec/2, unified_query/3]).
 -record(bridge, {port, caps}).
 open(#transit_service{client = #transit_config{url = Url, profile = growing_v3, timeout_ms = Timeout, native_host = Override},
     activation = #transit_activation{process = #transit_process{realm = Realm, pid = Pid}, generation = Generation,
@@ -24,6 +24,11 @@ open(#transit_service{client = #transit_config{url = Url, profile = growing_v3, 
     catch Class:Reason:Stack -> catch close(Bridge), erlang:raise(Class, Reason, Stack) end;
 open(_, _) -> transit_sdk_value:fail(invalid_argument, service_config).
 local(Override) -> create(#{<<"local_codec">> => true}, Override).
+query(#transit_config{url=Url,profile=growing_v3,timeout_ms=Timeout,native_host=Override},
+      #transit_credential{seed_file=Seed}, Connection) ->
+    {ok,_}=transit_client:config(Url,growing_v3,#{timeout_ms=>Timeout,native_host=>Override}),
+    create(#{<<"url">>=>Url,<<"seed_file">>=>transit_sdk_value:text(Seed,4096),<<"timeout_ms">>=>Timeout,
+        <<"query_client">>=>#{<<"connection">>=>Connection,<<"timeout_ms">>=>Timeout}},Override).
 create(Config, Override) ->
     case application:load(transit_client) of ok -> ok; {error, {already_loaded, transit_client}} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package) end,
     case application:get_key(transit_client, vsn) of {ok, "0.2.0"} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package_version) end,
@@ -62,6 +67,11 @@ document_codec(#bridge{port = Port, caps = Caps}, Action) ->
 document_read(#bridge{port = Port, caps = Caps}, Action) ->
     case maps:get(<<"document_reads">>, Caps, false) of true -> ok; false -> transit_sdk_value:fail(unsupported_capability, document_reads) end,
     transit_sdk_port:request(Port, #{<<"growing_document_read">> => Action}, document_read, false, <<"DocumentReadResult">>).
+unified_codec(#bridge{port=Port,caps=Caps},Action) ->
+    true=maps:get(<<"unified_query_codecs">>,Caps,false),
+    transit_sdk_port:request(Port,#{<<"unified_query_codec">>=>Action},unified_codec,false,<<"UnifiedQueryCodecResult">>).
+unified_query(#bridge{port=Port},Action,Mutation) ->
+    transit_sdk_port:request(Port,#{<<"unified_query">>=>Action},unified_query,Mutation,<<"UnifiedQueryResult">>).
 close(#bridge{port = Port}) -> transit_sdk_port:close(Port).
 prepare(#bridge{port = Port}) -> transit_sdk_port:request(Port, #{<<"growing_prepare">> => erlang:system_time(millisecond) + 30000}, prepare_turn, false, <<"GrowingEvent">>).
 apply(#bridge{port = Port}, Scope, Action) -> transit_sdk_port:request(Port, #{<<"growing_apply">> => #{<<"scope">> => Scope, <<"action">> => Action}}, apply, false, <<"GrowingResult">>).

@@ -41,3 +41,6 @@ descriptor binding, binary metadata and observed status zero.
 
 M17 adds [immutable Document changes and asynchronous accepted-state reads](docs/DOCUMENTS.md)
 with scoped jobs, full-width identities and joined cancellation/disposal.
+
+M18 adds [typed unified state queries](docs/UNIFIED_QUERY.md), with owned nested
+Arrow values, current source checks and explicit signed retry tokens.
