@@ -38,6 +38,15 @@ or history browser.
 
 ## Source and verification
 
+The opt-in growing profile has explicit `growing-sign`, `growing-submit` and
+`growing-query` commands with the same seed/request-file arguments. Mutation files
+contain a public `Growth.Request`; read files contain `Growth.Query` with `realm`,
+`principal` and `kind`. These commands use the signed `/v3` client and preserve
+the same exact-request retry rule. They do not translate legacy requests or select
+a profile implicitly. M15's [HTTP example](../../examples/station-http/README.md)
+uses them for separate provisioning and delivery; application workers receive
+only their own scoped keys.
+
 [main.zig](main.zig) owns argument parsing and secret-file handling.
 `just test::service` exercises the CLI through real signed ingress. Complete
 setup and caller workflows are available under [examples](../../examples/README.md).

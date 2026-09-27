@@ -249,6 +249,11 @@ pub fn build(b: *std.Build) void {
     apps_step.dependOn(&install_http_worker.step);
     build_test_step.dependOn(&http_worker.step);
     b.step("transit-station-http-worker", "Install the finite growing HTTP worker").dependOn(&install_http_worker.step);
+    const http_caller = b.addExecutable(.{ .name = "example-station-http", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-http/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }} }) });
+    const install_http_caller = b.addInstallArtifact(http_caller, .{});
+    b.getInstallStep().dependOn(&install_http_caller.step);
+    build_test_step.dependOn(&http_caller.step);
+    b.step("example-station-http", "Install the finite HTTP caller example").dependOn(&install_http_caller.step);
     const http_provision = b.addExecutable(.{ .name = "transit-http-worker-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/http_worker.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }, .{ .name = "transit_station", .module = station.module("transit_station") } } }) });
     build_test_step.dependOn(&http_provision.step);
     const http_worker_test = b.addSystemCommand(&.{ "python3", "-B" });
@@ -453,6 +458,7 @@ pub fn build(b: *std.Build) void {
     b.step("readiness-caller", "Install the runtime readiness caller proof").dependOn(&b.addInstallArtifact(readiness_caller, .{}).step);
     build_test_step.dependOn(&readiness_caller.step);
     const examples_step = b.step("examples", "Install runnable example applications");
+    examples_step.dependOn(&install_http_caller.step);
     const station_ledger = b.addExecutable(.{ .name = "example-station-ledger", .root_module = b.createModule(.{
         .root_source_file = b.path("examples/station-ledger/main.zig"),
         .target = target,

@@ -14,3 +14,8 @@ build:
 run name:
     zig build apps examples
     python3 -B examples/local.py {{quote(name)}}
+
+# Finite HTTP call, separate connector, captured replay and worker/store recovery.
+http:
+    zig build transit-node rey-cli example-station-http transit-station-http-worker
+    python3 -B examples/station-http/run.py

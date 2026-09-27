@@ -34,6 +34,29 @@ fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const key = try wire.readKey(init.gpa, init.io, args[2]);
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.gpa, .limited(wire.max_body));
     defer init.gpa.free(bytes);
+    if (std.mem.eql(u8, command, "growing-query")) {
+        if (args.len != 5) return error.ExpectedAuthorityUrl;
+        const query = try std.json.parseFromSlice(transit.Growth.Query, init.gpa, bytes, .{});
+        defer query.deinit();
+        var client = wire.Client.init(init.gpa, init.io, args[4]);
+        defer client.deinit();
+        client.observer = diagnostics;
+        return print(init.io, try client.queryGrowing(query.value, key));
+    }
+    if (std.mem.eql(u8, command, "growing-submit") or std.mem.eql(u8, command, "growing-sign")) {
+        const request = try std.json.parseFromSlice(transit.Growth.Request, init.gpa, bytes, .{});
+        defer request.deinit();
+        const signed = try transit.Growth.sign(request.value, key);
+        if (std.mem.eql(u8, command, "growing-sign")) {
+            if (args.len != 4) return error.ExpectedKeyAndRequestFile;
+            return print(init.io, signed);
+        }
+        if (args.len != 5) return error.ExpectedAuthorityUrl;
+        var client = wire.Client.init(init.gpa, init.io, args[4]);
+        defer client.deinit();
+        client.observer = diagnostics;
+        return print(init.io, try client.submitGrowing(signed));
+    }
     if (std.mem.eql(u8, command, "delivery") or std.mem.eql(u8, command, "sign-delivery")) {
         var query = try std.json.parseFromSlice(transit.Delivery.Query, init.gpa, bytes, .{});
         defer query.deinit();

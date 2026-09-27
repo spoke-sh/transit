@@ -28,7 +28,8 @@
       "test::public-query",
       "test::publication",
       "test::http-transport",
-      "test::http-worker"
+      "test::http-worker",
+      "examples::http"
     ],
     "experience": [
       "transit-board::check",

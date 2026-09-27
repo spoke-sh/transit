@@ -2,6 +2,14 @@
 
 ## M15 connector work in progress
 
+`just examples::http` builds and executes the actual Zig caller and connector
+against a disposable disk Ursula, growing authority and independent TLS peer.
+The **26.81-second** local schedule checks caller replacement after publication
+preserves the call, separately authorized outbox delivery, one remote send,
+correlated receipt and binary/Unicode replay after node/store restart with the
+peer stopped and credential removed. Its operator uses the real growing CLI;
+workers receive scoped keys. This local task does not qualify OS egress isolation.
+
 The worker's bounded diagnostic integration passes the complete disk/S3 schedule
 in **445.26 seconds** excluding compilation, with the same fifteen sends, seven
 applications and two cancellation requests. Structured stderr excludes credentials,

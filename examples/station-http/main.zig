@@ -1,0 +1,141 @@
+//! A finite synthetic caller. Configuration and source bytes are local inputs;
+//! publication progress, call identity and the received outcome are durable state.
+const std = @import("std");
+const http = @import("transit_station_http");
+const x = http.exchange;
+const s = x.station;
+const p = s.protocol;
+const Config = struct {
+    url: []const u8,
+    realm: u64,
+    principal: u64,
+    pid: u64,
+    generation: u64,
+    seed_file: []const u8,
+    worker: u64,
+    namespace: u64 = 1,
+    endpoint_revision: u64 = 1,
+    reconcile_before_ms: u64,
+    request: http.Request,
+    body_file: []const u8,
+    mode: enum { publish, receive, replay },
+};
+const call_key = p.Value.init("http-call") catch unreachable;
+const outcome_key = p.Value.init("http-outcome") catch unreachable;
+const Driver = struct {
+    server: s.GrowingGenServer,
+    reader: x.Client,
+    config: Config,
+    io: std.Io,
+    prepared: http.RequestRecord.Prepared,
+    body: []const u8,
+    fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
+        const self: *Driver = @ptrCast(@alignCast(raw.?));
+        if (frame.kind == .reply) {
+            const saved = (try turn.read(call_key)) orelse return error.MissingCall;
+            if (saved.len != 16 or try s.Frame.source(turn.delivery.input) != std.mem.readInt(u64, saved.data[0..8], .little) or frame.correlation != std.mem.readInt(u64, saved.data[8..16], .little)) return error.WrongReply;
+            _ = try http.Service.Outcome.decode(frame.payload);
+            try turn.put(outcome_key, frame.payload);
+            return;
+        }
+        switch (turn.delivery.input.origin) {
+            .external => |origin| if (origin.principal != self.config.principal) return error.UnexpectedInput,
+            else => return error.UnexpectedInput,
+        }
+        if (frame.kind != .cast or !std.mem.eql(u8, frame.payload.slice(), "example.http.tick.v1")) return error.UnexpectedInput;
+        if (try turn.read(call_key) != null) return;
+        if (try http.RequestRecord.stage(turn, self.prepared.reference, self.prepared.metadata, self.body)) {
+            const correlation = try turn.call(self.config.worker, try self.prepared.reference.encode(), null);
+            var saved: [16]u8 = undefined;
+            std.mem.writeInt(u64, saved[0..8], self.config.worker, .little);
+            std.mem.writeInt(u64, saved[8..16], correlation, .little);
+            try turn.put(call_key, try p.Value.init(&saved));
+        }
+    }
+    fn drive(self: *Driver) !void {
+        for (0..32) |_| {
+            const result = self.server.step(.{ .context = self, .handle = handle }, @as(u64, @intCast(std.Io.Clock.real.now(self.io).toMilliseconds())) + 30000) catch |err| {
+                // A pending submission retains exactly the signed operation.
+                if (self.server.pending == null or err == error.AccessDenied or err == error.Rejected or err == error.Conflict) return err;
+                continue;
+            };
+            switch (result) {
+                .committed => return,
+                .idle => return error.InputNotDelivered,
+                .blocked => return self.server.handler_error orelse error.CallerBlocked,
+                .progress => {},
+            }
+        }
+        return error.AuthorityOutcomeUnknown;
+    }
+    fn tick(self: *Driver) !void {
+        const sequence = (try self.reader.query(.{ .capabilities = {} })).principal_sequence + 1;
+        const signed = try p.Growth.sign(.{ .realm = self.config.realm, .principal = self.config.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.config.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init("example.http.tick.v1") }).encode() } } }, self.reader.key);
+        for (0..3) |_| {
+            _ = self.reader.wire.submitGrowing(signed) catch |err| {
+                if (err == error.AccessDenied or err == error.Conflict or err == error.Rejected) return err;
+                continue;
+            };
+            return self.drive();
+        }
+        return error.AuthorityOutcomeUnknown;
+    }
+    fn read(self: *Driver, name: p.Value) !?p.Value {
+        var source = try self.reader.reader(self.prepared.reference.resource);
+        return source.read(name);
+    }
+};
+pub fn main(init: std.process.Init) !void {
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    if (args.len != 2) return error.ExpectedConfiguration;
+    const gpa = init.arena.allocator();
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], gpa, .limited(65536));
+    const config = (try std.json.parseFromSlice(Config, gpa, bytes, .{})).value;
+    if (config.principal == 0 or config.pid == 0 or config.worker == 0 or config.generation == 0) return error.InvalidConfiguration;
+    const body = try std.Io.Dir.cwd().readFileAlloc(init.io, config.body_file, gpa, .limited(http.RequestRecord.maximum_body_bytes));
+    const key = try s.client.readKey(gpa, init.io, config.seed_file);
+    var wire = s.client.Client.init(init.gpa, init.io, config.url);
+    defer wire.deinit();
+    var server = try s.GrowingGenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
+    server.failure_policy = .stop;
+    const resource = (try server.session.association(try p.Value.init("state"))) orelse return error.MissingStateAssociation;
+    var metadata: [8192]u8 = undefined;
+    var driver: Driver = .{ .server = server, .reader = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key }, .config = config, .io = init.io, .prepared = try http.RequestRecord.prepare(resource.resource, config.namespace, config.request, body, config.endpoint_revision, config.reconcile_before_ms, 1, &metadata), .body = body };
+    var buffer: [1024]u8 = undefined;
+    var output = std.Io.File.stdout().writerStreaming(init.io, &buffer);
+    if (config.mode == .publish) {
+        // Resume interrupted upload using the same immutable input. No socket or
+        // credential resolver exists in this caller.
+        for (0..320) |_| {
+            if (try driver.read(call_key) != null) break;
+            if (try driver.server.session.receive() != null) try driver.drive() else try driver.tick();
+        } else return error.PublicationBudgetExceeded;
+        const saved = (try driver.read(call_key)).?;
+        const reference = (try driver.read(http.RequestRecord.key(config.namespace))) orelse return error.MissingRequest;
+        if (saved.len != 16 or std.mem.readInt(u64, saved.data[0..8], .little) != config.worker or !reference.eql(try driver.prepared.reference.encode())) return error.ChangedCallConfiguration;
+        try output.interface.print("{{\"phase\":\"called\",\"peer\":\"{d}\",\"correlation\":\"{d}\"}}\n", .{ std.mem.readInt(u64, saved.data[0..8], .little), std.mem.readInt(u64, saved.data[8..16], .little) });
+    } else {
+        if (config.mode == .receive) {
+            for (0..32) |_| {
+                if (try driver.read(outcome_key) != null) break;
+                try driver.drive();
+            } else return error.OutcomeNotDelivered;
+        }
+        const outcome = try http.Service.Outcome.decode((try driver.read(outcome_key)) orelse return error.OutcomeNotDelivered);
+        if (config.mode == .replay) {
+            var replay = try http.Replay.open(&driver.reader, try outcome.reference(), .captured);
+            var hash = std.crypto.hash.sha2.Sha256.init(.{});
+            var count: u64 = 0;
+            while (try replay.read()) |part| {
+                if (part.kind == .response_body) {
+                    hash.update(part.bytes.slice());
+                    count += part.bytes.len;
+                }
+                if (part.complete) break;
+            }
+            if (!replay.done) return error.IncompleteExchange;
+            try output.interface.print("{{\"phase\":\"replayed\",\"body_bytes\":{d},\"sha256\":\"{x}\"}}\n", .{ count, hash.finalResult() });
+        } else try std.json.Stringify.value(outcome, .{}, &output.interface);
+    }
+    try output.interface.flush();
+}
