@@ -130,8 +130,14 @@ spec:
         {{- end }}
       volumes:
         - name: config
+          {{- if and (eq $component "ursula") $settings.existingConfigSecret }}
+          secret:
+            secretName: {{ $settings.existingConfigSecret }}
+            defaultMode: 288
+          {{- else }}
           configMap:
             name: {{ include "transit.name" $configCtx }}
+          {{- end }}
         {{- if eq $component "ursula" }}
         - name: data
           persistentVolumeClaim:

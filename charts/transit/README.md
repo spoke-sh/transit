@@ -45,6 +45,17 @@ for an external backend. Board and delivery require the chart's node. Log level/
 resource requests/limits are per component. Config changes trigger replacement
 through a checksum; externally rotated Secrets require an explicit rollout.
 
+For bounded hot storage with an external cold tier, set
+`ursula.existingConfigSecret` to a separately created Secret containing
+`ursula.toml`. The chart mounts it read-only instead of generating the default
+no-cold-tier ConfigMap; it never reads or copies that Secret into Helm values or
+release history. Supply the complete upstream configuration, including listener
+`0.0.0.0:8080`, disk WAL at `/data/wal`, explicit hot/cache limits and snapshot/cold
+backend settings. Preserve these settings during recovery. The deployment keeps
+its PVC and readiness probe; credentials remain available only to Ursula.
+The default profile is still disk WAL with inline snapshots and no cold tier.
+
+
 Supply immutable service images built from the consuming project's release.
 The reference builds and pushes its own images; this repository does not yet
 publish Transit/Board release images. It uses the official Ursula image pinned

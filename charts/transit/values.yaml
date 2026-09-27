@@ -24,6 +24,8 @@ initialize:
 ursula:
   enabled: true
   nameOverride: ""
+  # Optional Secret key ursula.toml; keeps cold-store credentials out of values.
+  existingConfigSecret: ""
   image: ghcr.io/tonbo-io/ursula:0.5.1@sha256:cff4c6669e0f8ce32da9857b21c050a627fe91e32e91a5c5e2d0f08b198081ba
   persistence:
     existingClaim: ""

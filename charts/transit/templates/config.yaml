@@ -3,7 +3,7 @@
 {{- $ := .root }}
 {{- with $ }}
 {{- $settings := index $.Values $component }}
-{{- if or $settings.enabled (and (eq $component "node") $.Values.initialize.enabled) }}
+{{- if and (or $settings.enabled (and (eq $component "node") $.Values.initialize.enabled)) (not (and (eq $component "ursula") $settings.existingConfigSecret)) }}
 {{- $ctx := dict "root" $ "component" $component }}
 ---
 apiVersion: v1

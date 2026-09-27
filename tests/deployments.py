@@ -37,6 +37,14 @@ def run():
                     for doc in yaml.safe_load_all(result.stdout) if doc}
 
         manifests = render(VALUES)
+        cold = copy.deepcopy(VALUES)
+        cold["ursula"] = {"existingConfigSecret": "private-store-config"}
+        configured = render(cold)
+        assert ("ConfigMap", "test-runtime-ursula") not in configured
+        store = configured["Deployment", "test-runtime-ursula"]["spec"]["template"]["spec"]
+        assert store["volumes"][0] == {"name": "config", "secret": {"secretName": "private-store-config", "defaultMode": 288}}
+        assert store["containers"][0]["args"] == ["server", "--config", "/config/ursula.toml"]
+        assert not any(kind == "Secret" for kind, _ in configured)
         subprocess.run(["helm", "lint", "--strict", CHART, "-f", values_file], check=True)
         defaults = yaml.safe_load((CHART / "values.yaml").read_text())
         pins = json.loads((ROOT / "deploy/reference/versions.json").read_text())
