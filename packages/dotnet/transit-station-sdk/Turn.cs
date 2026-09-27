@@ -105,6 +105,15 @@ public sealed class Turn
         Bridge.HttpCapability("http_release");
         return NativeValues.Wide(Raw(Value.Obj(("http_release", Value.Obj(("pid", Peer(connector)), ("resource", capture.Resource), ("exchange", Decimal(exchange))))))["correlation"], true);
     });
+    /// <summary>Submit an explicit linked attempt; the service decides current admission.</summary>
+    public ulong FollowupHttp(ProcessRef connector, Http.Outcome parent, Http.FollowupReason reason, Http.Prepared request) => Access(false, () => {
+        ArgumentNullException.ThrowIfNull(parent); HttpRequest(request);
+        if (parent.Resource.Realm != ResourceRef.Realm) throw new ArgumentException("HTTP parent must belong to this realm");
+        if (reason is not (Http.FollowupReason.Retry or Http.FollowupReason.Redirect or Http.FollowupReason.Reconcile or Http.FollowupReason.Cancel)) throw new ArgumentException("Select an HTTP followup reason");
+        Bridge.HttpCapability("http_followup");
+        return NativeValues.Wide(Raw(Value.Obj(("http_followup", Value.Obj(("pid", Peer(connector)), ("resource", parent.Resource.Resource),
+            ("parent", Decimal(parent.Exchange)), ("reason", reason.ToString().ToLowerInvariant()), ("reference", Http.Hex(request.Reference))))))["correlation"], true);
+    });
     public Table<T> Table<T>(TableSchema<T> schema) => Access(true, () => Sdk.Table<T>.Open(this, schema, null));
     public Table<T> CreateTable<T>(TableSchema<T> schema)
     {

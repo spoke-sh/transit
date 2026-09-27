@@ -119,6 +119,9 @@ turn refusal, authenticated rejection and its previous lifecycle checks in
 Java's clean JAR consumer passes typed followups, saved correlations, cross-realm
 and expired-turn rejection in 76.33 seconds, alongside all prior raw/Station
 and asynchronous capture-reader checks.
+.NET's clean NuGet consumer passes in 68.23 seconds for HTTP, including all four
+followup reasons, invalid enum values, cross-realm/expired-turn refusal and
+authenticated correlated rejection, with prior cancellation/join checks retained.
 The shared `http_stage` helper freezes namespace ownership and advances one
 publication step per turn. Its disk/native proof replaces the host and owner
 after a committed metadata prefix, rejects a changed endpoint revision without

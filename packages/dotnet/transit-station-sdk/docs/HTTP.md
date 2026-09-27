@@ -74,6 +74,16 @@ holder and current admission policy. Release does not cancel remote work, retire
 the capture or clean up its members. The finite worker handles it in a fresh
 `poll` activation.
 
+`turn.FollowupHttp(connector, parent, Http.FollowupReason.Retry, request)` records
+an explicit linked-attempt call. Other reasons are `Redirect`, `Reconcile` and
+`Cancel`; invalid enum values reject. Publish the proposed request in the current
+associated resource first, preserving the original deadline and total attempt
+budget. Save the correlation and authenticate its outcome or rejection. The shared
+service checks the original caller, current scope and frozen parent policy before
+allocating a child. This helper performs no automatic retry or retry-safety
+inference. Configure a fresh child exchange and matching parent/reason on the
+finite worker. The parent outcome remains unchanged.
+
 `just bindings::dotnet-sdk-test` runs clean NuGet consumers through shared golden
 fixtures and the independent TLS/recovery/revocation/cancellation schedule, plus
 the existing client and Station regressions. The

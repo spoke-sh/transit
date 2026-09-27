@@ -113,6 +113,7 @@ public static class Http
         return new(resource, namespaceId, new Bytes(Value.Unhex(prepared["reference"], 112)), new Bytes(Value.Unhex(prepared["metadata"], 8192)), owned);
     }
     public enum Phase { Observed, ClosedUnknown, NotDispatched }
+    public enum FollowupReason { Retry, Redirect, Reconcile, Cancel }
     public enum Rejection { Denied, InvalidRequest, Busy }
     public abstract record Reply { private protected Reply() { } }
     public sealed record Rejected(Rejection Reason) : Reply;

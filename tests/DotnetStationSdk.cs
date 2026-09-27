@@ -176,14 +176,20 @@ static class Proof
         public string TypeId => "test.http-control"; public uint Version => 1; public int MaxEncodedBytes => 243;
         public byte[] Encode(Bytes value) => value.Copy(); public Bytes Decode(byte[] bytes) => new(bytes);
     }
-    sealed class HttpHandler(ProcessRef peer, Http.Prepared request, Http.Outcome? disposal) : IHandler<Http.Message<Bytes>> {
+    sealed class HttpHandler(ProcessRef peer, Http.Prepared request, Http.Outcome? disposal, Http.Outcome? wrongParent, Http.FollowupReason reason) : IHandler<Http.Message<Bytes>> {
         readonly Key<ulong> correlation = new("http-correlation", Codecs.U64);
         readonly Key<ulong> releaseCorrelation = new("http-release-correlation", Codecs.U64);
+        readonly Key<ulong> followupCorrelation = new("http-followup-correlation", Codecs.U64);
         public Turn? Escaped; public JsonObject? Result;
         public void OnMessage(Turn turn, Incoming<Http.Message<Bytes>> input) {
             Escaped = turn;
             if (input is Cast<Http.Message<Bytes>>) {
-                if (input.Value is Http.Application<Bytes> application && application.Value.Copy().AsSpan().SequenceEqual("dispose"u8)) {
+                if (input.Value is Http.Application<Bytes> proposed && proposed.Value.Copy().AsSpan().SequenceEqual("followup"u8)) {
+                    Expect(ErrorKind.Handler, () => turn.FollowupHttp(peer, wrongParent!, reason, request));
+                    Expect(ErrorKind.Handler, () => turn.FollowupHttp(peer, disposal!, (Http.FollowupReason)100, request));
+                    ulong id = turn.FollowupHttp(peer, disposal!, reason, request);
+                    turn.State.Put(followupCorrelation, id); Result = new() { ["followup"] = false };
+                } else if (input.Value is Http.Application<Bytes> application && application.Value.Copy().AsSpan().SequenceEqual("dispose"u8)) {
                     Expect(ErrorKind.Handler, () => turn.ReleaseHttp(peer, new ResourceRef(73, disposal!.Resource.Resource), disposal.Exchange));
                     ulong id = turn.ReleaseHttp(peer, disposal!.Resource, disposal.Exchange);
                     turn.State.Put(releaseCorrelation, id); Result = new() { ["released"] = false };
@@ -192,6 +198,11 @@ static class Proof
                 else Result = new() { ["called"] = false };
             } else {
                 var reply = (Reply<Http.Message<Bytes>>)input;
+                if (reply.Value is Http.Received<Bytes> { Value: Http.Rejected rejected }) {
+                    ulong id = turn.State.Require(followupCorrelation);
+                    turn.RequireReply(reply, peer, id); Check(rejected.Reason == Http.Rejection.Denied);
+                    turn.State.Put(new Key<ulong>("http-followup-denied", Codecs.U64), id); Result = new() { ["followup"] = true }; return;
+                }
                 if (reply.Value is Http.Received<Bytes> { Value: Http.Released released }) {
                     turn.RequireReply(reply, peer, turn.State.Require(releaseCorrelation));
                     Check(released.Resource == disposal!.Resource && released.Exchange == disposal.Exchange);
@@ -214,7 +225,9 @@ static class Proof
         ServiceConfig config = new(new ClientConfig(new Uri(Text(cfg, "url")), Profile.GrowingV3),
             new Activation(new ProcessRef(72, Number(cfg, "pid")), Number(cfg, "generation"), new Credential(72, Number(cfg, "principal"), Text(cfg, "seed_file"))));
         Http.Outcome? disposal = cfg["outcome"] is null ? null : (Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome")));
-        HttpHandler handler = new(new ProcessRef(72, Number(cfg, "peer")), request, disposal);
+        Http.Outcome? wrongParent = cfg["outcome"] is null ? null : (Http.Outcome)await Http.DecodeReplyAsync(73, Convert.FromHexString(Text(cfg, "outcome")));
+        Http.FollowupReason reason = cfg["followup_reason"] is null ? Http.FollowupReason.Retry : Enum.Parse<Http.FollowupReason>(Text(cfg, "followup_reason"), true);
+        HttpHandler handler = new(new ProcessRef(72, Number(cfg, "peer")), request, disposal, wrongParent, reason);
         await using var runner = await Runner<Http.Message<Bytes>>.OpenAsync(config, handler, new Http.ReplyCodec<Bytes>(new HttpBytes(), 72), FailurePolicy.Stop, new Recovery.FreshOwnership());
         if (mode == "http-async") {
             var active = await runner.OpenHttpAsync((Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome"))));
@@ -233,7 +246,8 @@ static class Proof
                 case "step":
                     bool committed = false; for (int n = 0; n < 32; n++) if (await runner.NextAsync() is Committed) { committed = true; break; }
                     Check(committed); Expect(ErrorKind.TurnExpired, () => handler.Escaped!.StageHttp(request));
-                    Expect(ErrorKind.TurnExpired, () => handler.Escaped!.ReleaseHttp(new ProcessRef(72, Number(cfg, "peer")), request.Resource, 1)); Report(handler.Result!); break;
+                    Expect(ErrorKind.TurnExpired, () => handler.Escaped!.ReleaseHttp(new ProcessRef(72, Number(cfg, "peer")), request.Resource, 1));
+                    Expect(ErrorKind.TurnExpired, () => handler.Escaped!.FollowupHttp(new ProcessRef(72, Number(cfg, "peer")), disposal!, reason, request)); Report(handler.Result!); break;
                 case "open":
                     outcome = (Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome"))); reader = await runner.OpenHttpAsync(outcome);
                     Expect(ErrorKind.Busy, () => runner.OpenHttpAsync(outcome).GetAwaiter().GetResult());
