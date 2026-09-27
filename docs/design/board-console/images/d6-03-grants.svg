@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">D6 — Scoped grants</title><desc id="desc">Synthetic grant catalog showing target kinds and policy revisions. The use_secret action is a proposed semantic permission. Selected resource GRANT SQL is reference only, not executable.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
+<rect x="420" y="10" width="600" height="36" rx="0" fill="white" stroke="black"/>
+<circle cx="440" cy="27" r="5" fill="white" stroke="black"/>
+<path d="M444 31 l5 5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="463" y="34" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Search Transit…</text>
+<rect x="956" y="17" width="52" height="22" rx="0" fill="white" stroke="black"/>
+<text x="969" y="33" font-family="sans-serif" font-size="12" font-weight="400" fill="black">⌘ K</text>
+</g>
+<rect x="1178" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M1381 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Operations. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="114" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="white" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="white" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="white" stroke="black"/>
+</g>
+
+<text x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Overview</text>
+<rect x="16" y="172" width="3" height="31" fill="black" stroke="none" stroke-width="1"/>
+<text x="32" y="195" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Access</text>
+<text x="32" y="237" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Secrets &amp; trust</text>
+<text x="32" y="279" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Capabilities</text>
+<text x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Runtime &amp; storage</text>
+<text x="32" y="363" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Diagnostics</text>
+<text x="240" y="111" font-family="sans-serif" font-size="24" font-weight="700" fill="black">Access</text>
+<text x="240" y="140" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Principals, authentication and current permissions</text>
+<text x="240" y="190" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Authentication</text>
+<text x="390" y="190" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Principals</text>
+<text x="508" y="190" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Grants</text>
+<path d="M508 204 L556 204" fill="none" stroke="black" stroke-width="2"/>
+<text x="618" y="190" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Board access</text>
+<path d="M240 218 L1408 218" fill="none" stroke="black" stroke-width="1"/>
+<rect x="240" y="244" width="520" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="256" y="268" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Filter principal or target…</text>
+<rect x="1188" y="244" width="220" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1298.0" y="268" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">New grant draft</text>
+<text x="264" y="328" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Principal</text>
+<text x="525" y="328" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Action</text>
+<text x="760" y="328" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Target</text>
+<text x="1200" y="328" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Policy basis</text>
+<path d="M240 347 L1408 347" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="390" font-family="monospace" font-size="15" font-weight="400" fill="black">board_reader</text>
+<path d="M264 394 L372.36 394" fill="none" stroke="black" stroke-width="1"/>
+<text x="525" y="390" font-family="monospace" font-size="15" font-weight="400" fill="black">inspect</text>
+<text x="760" y="390" font-family="monospace" font-size="15" font-weight="400" fill="black">Storefront</text>
+<path d="M760 394 L850.3 394" fill="none" stroke="black" stroke-width="1"/>
+<text x="760" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Realm</text>
+<text x="1200" y="390" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Revision 12</text>
+<path d="M240 433 L1408 433" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="466" font-family="monospace" font-size="15" font-weight="400" fill="black">catalog_reader</text>
+<path d="M264 470 L390.42 470" fill="none" stroke="black" stroke-width="1"/>
+<text x="525" y="466" font-family="monospace" font-size="15" font-weight="400" fill="black">inspect, read</text>
+<text x="760" y="466" font-family="monospace" font-size="15" font-weight="400" fill="black">samples</text>
+<path d="M760 470 L823.21 470" fill="none" stroke="black" stroke-width="1"/>
+<text x="760" y="490" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Resource · res-03</text>
+<text x="1200" y="466" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Revision 18</text>
+<path d="M240 509 L1408 509" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="542" font-family="monospace" font-size="15" font-weight="400" fill="black">http_executor</text>
+<path d="M264 546 L381.39 546" fill="none" stroke="black" stroke-width="1"/>
+<text x="525" y="542" font-family="monospace" font-size="15" font-weight="400" fill="black">use_secret</text>
+<text x="760" y="542" font-family="monospace" font-size="15" font-weight="400" fill="black">catalog-token</text>
+<path d="M760 546 L877.39 546" fill="none" stroke="black" stroke-width="1"/>
+<text x="760" y="566" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Secret binding · proposed right</text>
+<text x="1200" y="542" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Revision 9</text>
+<path d="M240 585 L1408 585" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="651" font-family="sans-serif" font-size="17" font-weight="700" fill="black">Selected grant</text>
+<text x="1160" y="651" font-family="sans-serif" font-size="13" font-weight="400" fill="black">SQL · Reference only</text>
+<text x="285" y="700" font-family="monospace" font-size="17" font-weight="400" fill="black">GRANT inspect, read ON samples TO catalog_reader;</text>
+<text x="264" y="755" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Resolved target: res-03 · current policy revision 18</text>
+<text x="264" y="791" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Query service admission requires its own policy; this grant only covers resource access.</text>
+<rect x="264" y="836" width="172" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="350.0" y="860" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Review change</text>
+</svg>

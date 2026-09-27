@@ -177,6 +177,14 @@ control APIs, cloud metadata, or another realm's service. Bind observations to
 the authenticated executor and authorized attempt. Correlation IDs alone do
 not authorize a forged reply or effect result.
 
+[Board console D6](design/board-console/D6.md) applies these boundaries to a
+proposed operator interface. Its [SECRET lifecycle](design/board-console/OPERATIONS_SQL.md)
+manages versioned reference metadata, with separate disclosure, management and
+executor-use permissions. It does not implement a credential store, identity
+provider or new grant family. Attributable operator ingress and recovery need
+their own contracts before controls can extend Board's current private viewer
+and read-only inspection profile.
+
 Protect history, checkpoints, transcripts, lookup/list results, logs, metrics,
 and backups as data surfaces. A projection is not automatically public because
 it is derived. End or reauthorize live subscriptions on credential/policy expiry

@@ -1,8 +1,9 @@
 # Monochrome console structure
 
-Proposed in [board-console D5](D5.md). This is a reusable wireframe vocabulary,
-not a shipped component library or a selected visual theme. D3's compact shell
-and D4's search/realm placement remain the foundation.
+Introduced in [board-console D5](D5.md), whose structural direction the reviewer
+endorsed. This is a reusable wireframe vocabulary, not a shipped component
+library or a selected visual theme. D3's compact shell and D4's search/realm
+placement remain the foundation.
 
 ## The working frame
 
@@ -11,6 +12,11 @@ and 32 px content gutters. Transit stays at the left of the header, Search
 Transit at its center and the realm at the right. The Workspace/Operations
 area toggle stays above the contextual navigation. Workspace contains Atlas,
 Explore, Connections, Sources, Sinks and Activity, in that order.
+
+[D6](D6.md) proposes the corresponding Operations destinations: Overview,
+Access, Secrets & trust, Capabilities, Runtime & storage and Diagnostics.
+Categories such as Authentication/Principals/Grants or Secrets/Stores/Trust
+profiles stay local to their destination; object details reuse the views below.
 
 The content hierarchy is **destination → selected object → local view**. A
 destination opens a paged collection; following an object's name replaces that

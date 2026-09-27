@@ -12,7 +12,7 @@ resource-workspace exploration. This item builds on its selected visual directio
 and bounded implementation without changing its recorded outcomes.
 [Board](../../BOARD.md) remains the owner of product boundaries and current behavior.
 
-**Current review:** [D5 — Connections, Sources, Sinks and Activity](D5.md).
+**Current review:** [D6 — Operations: the foundation beneath Workspace](D6.md).
 
 | Review | Focus | Status | Outcome or next decision |
 | --- | --- | --- | --- |
@@ -20,7 +20,8 @@ and bounded implementation without changing its recorded outcomes.
 | [D2](D2.md) | Declarative objects, Workspace/Operations hierarchy and grammar-to-UI mapping | Reviewed | Reviewer requested a compact icon toggle, Transit branding, a product/application-oriented realm dropdown and removal of redundant shell text; D3 refines the presentation |
 | [D3](D3.md) | Compact navigation, product context and more working space | Reviewed | Reviewer found the shell cleaner and easy to review; D4 carries it forward and merges Data/Queries into Explore |
 | [D4](D4.md) | Live SQL-first Explore, context-aware search, result timing, profiles and charts | In review | Figure 1 direction selected; reviewer requested execution/readiness time, data freshness and predicted next readiness in place of result-state badges; search, timing, scheduling and profile/stream contracts remain proposed |
-| [D5](D5.md) | Monochrome structure, Connections, Sources, Sinks and Activity | In review | Shared collection/detail structure and eight wireframes proposed; definition readiness, observed outcomes and unknown remote results remain distinct |
+| [D5](D5.md) | Monochrome structure, Connections, Sources, Sinks and Activity | Accepted in part | Reviewer endorsed the direction and requested merge; D6 carries the monochrome collection/detail/evidence structure into Operations; optional peek, representation preference and Activity defaults remain open |
+| [D6](D6.md) | Operator foundations, authentication, secrets, trust and SQL mapping | In review | Ten Operations studies and a proposed SECRET binding lifecycle; existing grammar, missing syntax and semantic contracts are distinguished |
 
 The figures are monochrome vector wireframes with synthetic examples; D4 uses
 reviewer-requested pale grey to indicate provisional results without a label. They are
@@ -61,6 +62,10 @@ new implementation work requires its own place in the linear roadmap.
 - [D5 monochrome structure guide](STRUCTURE.md) and [synthetic fixture](d5-fixture.json).
 - [D5 visual studies and SVG sources](D5.md#visual-studies): shared structure,
   Connections collection/detail, Source, Sink, Activity, attempt evidence and change review.
+- [D6 operator SQL map and SECRET lifecycle](OPERATIONS_SQL.md), with
+  [synthetic definitions and SQL support fixture](d6-fixture.json).
+- [D6 visual studies and SVG sources](D6.md#visual-studies): Overview, authentication,
+  grants, secrets, version changes, trust, capabilities, runtime/storage and diagnostics.
 
 Follow the shared [review workflow](../README.md#maintaining-the-sequence) and
-[template](../TEMPLATE.md); subsequent reviews continue with D6 in this directory.
+[template](../TEMPLATE.md); subsequent reviews continue with D7 in this directory.

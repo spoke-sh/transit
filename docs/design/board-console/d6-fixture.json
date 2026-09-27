@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "scope": "Synthetic D6 review only. Display aliases are not new wire IDs. No credential bytes, real providers or executed operator SQL.",
+  "base_revision": "b56e8a3",
+  "realm_label": "Storefront",
+  "observed_at": "2026-09-27T14:35:00Z",
+  "authentication": {
+    "name": "workforce",
+    "id": "auth-01",
+    "revision": 2,
+    "type": "OIDC",
+    "issuer": "https://identity.example.test",
+    "audience": "transit-board",
+    "trust": "workforce_keys",
+    "trust_revision": 6,
+    "mapping": "issuer + subject to explicit Transit principal",
+    "implemented": false
+  },
+  "board_access": {
+    "viewer_admission": "private_deployment",
+    "inspection_principal": "board_reader",
+    "query_principal": "board_query",
+    "operator_principal": "ops_admin",
+    "operator_admission": "proposed_attributable_identity"
+  },
+  "secret": {
+    "id": "sec-01",
+    "name": "catalog-token",
+    "binding_revision": 3,
+    "use_type": "HTTP_BEARER",
+    "store": "storefront_secrets",
+    "locator": "catalog-token",
+    "provider_version": "v17",
+    "destination_policy": "catalog_egress",
+    "destination_policy_revision": 5,
+    "last_authorized_use": 811
+  },
+  "second_secret": {
+    "name": "events-token",
+    "binding_revision": 1,
+    "use_type": "HTTP_BEARER",
+    "store": "storefront_secrets",
+    "provider_version": "v2",
+    "disclosed_consumers": []
+  },
+  "connection": {
+    "name": "catalog_api",
+    "revision": 7,
+    "secret": "sec-01",
+    "secret_binding_revision": 3,
+    "trust_profile": "catalog_tls",
+    "trust_revision": 4
+  },
+  "rotation_draft": {
+    "base_binding_revision": 3,
+    "provider_before": "v17",
+    "provider_after": "v18",
+    "submitted": false,
+    "consumer_auto_update": false,
+    "provider_value_mutation": false
+  },
+  "trust": {
+    "name": "catalog_tls",
+    "revision": 4,
+    "purpose": "TLS server verification",
+    "server_name": "catalog.example.test",
+    "bundle": "catalog_roots",
+    "bundle_revision": 5,
+    "observed_attempt": 811
+  },
+  "runtime": {
+    "pid": "pid-08",
+    "binding": "runtime-23",
+    "binding_revision": 2,
+    "instance": "substrate-storefront",
+    "provider_incarnation": 6,
+    "provider_observation": "running",
+    "ownership_observation": null,
+    "resource": "capture-12",
+    "resource_revision": 58,
+    "quota": "quota-02",
+    "byte_usage": null,
+    "retention": "unlimited"
+  },
+  "diagnostics": {
+    "service_instance": "http-07",
+    "kind": "http.transport.completed",
+    "observed_at": "14:31:10Z",
+    "http_status": 200,
+    "attempt": 811,
+    "coverage": "partial",
+    "dropped_records": 2,
+    "durable_outcome_inferred": false
+  },
+  "statements": [
+    {
+      "id": "current_reference",
+      "sql": "CREATE CONNECTION catalog_api TO HTTP (endpoint = 'https://catalog.example.test', token = SECRET('catalog-token@3'));",
+      "reference_grammar": "accepted_shape",
+      "production": "unsupported",
+      "meaning": "opaque secret reference string; no resolver or @version semantics"
+    },
+    {
+      "id": "resource_grant",
+      "sql": "GRANT inspect, read ON samples TO catalog_reader;",
+      "reference_grammar": "accepted_shape",
+      "production": "unsupported"
+    },
+    {
+      "id": "secret_use",
+      "sql": "GRANT use_secret ON \"catalog-token\" TO http_executor;",
+      "reference_grammar": "accepted_shape",
+      "production": "unsupported",
+      "permission_semantics": "proposed"
+    },
+    {
+      "id": "secret_revoke",
+      "sql": "REVOKE use_secret ON \"catalog-token\" FROM http_executor;",
+      "reference_grammar": "accepted_shape",
+      "production": "unsupported",
+      "permission_semantics": "proposed"
+    },
+    {
+      "id": "create_store",
+      "sql": "CREATE SECRET STORE storefront_secrets USING mounted_credentials WITH (deployment_binding = 'storefront-http');",
+      "reference_grammar": "absent",
+      "production": "unsupported"
+    },
+    {
+      "id": "create_secret",
+      "sql": "CREATE SECRET \"catalog-token\"\nTYPE HTTP_BEARER\nFROM storefront_secrets\nWITH (\n  locator = 'catalog-token',\n  provider_version = 'v17',\n  destination_policy = 'catalog_egress'\n);",
+      "reference_grammar": "absent",
+      "production": "unsupported"
+    },
+    {
+      "id": "list_secrets",
+      "sql": "SHOW SECRETS;",
+      "reference_grammar": "absent",
+      "production": "unsupported"
+    },
+    {
+      "id": "describe_secret",
+      "sql": "DESCRIBE \"catalog-token\";",
+      "reference_grammar": "accepted_shape",
+      "production": "unsupported"
+    },
+    {
+      "id": "pinned_reference",
+      "sql": "CREATE CONNECTION catalog_api TO HTTP (endpoint = 'https://catalog.example.test', token = SECRET('catalog-token', REVISION 3));",
+      "reference_grammar": "absent",
+      "production": "unsupported"
+    },
+    {
+      "id": "change_secret",
+      "sql": "ALTER SECRET \"catalog-token\" IF REVISION = 3 SET (provider_version = 'v18');",
+      "reference_grammar": "absent",
+      "production": "unsupported"
+    },
+    {
+      "id": "rebind_connection",
+      "sql": "ALTER CONNECTION catalog_api IF REVISION = 7 SET (token = SECRET('catalog-token', REVISION 4));",
+      "reference_grammar": "absent",
+      "production": "unsupported"
+    },
+    {
+      "id": "retire_secret",
+      "sql": "DROP SECRET \"catalog-token\" IF REVISION = 4 RESTRICT;",
+      "reference_grammar": "absent",
+      "production": "unsupported"
+    }
+  ],
+  "grammar_audit": "Source inspection of TransitExtensions.g4; no parser/runtime qualification claimed.",
+  "sources": [
+    {
+      "url": "https://duckdb.org/docs/current/configuration/secrets_manager",
+      "inspected": "2026-09-27"
+    },
+    {
+      "url": "https://duckdb.org/docs/current/sql/statements/create_secret",
+      "inspected": "2026-09-27"
+    },
+    {
+      "url": "https://duckdb.org/docs/current/operations_manual/securing_duckdb/overview#secrets",
+      "inspected": "2026-09-27"
+    }
+  ]
+}

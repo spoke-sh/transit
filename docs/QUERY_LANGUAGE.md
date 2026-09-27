@@ -87,6 +87,14 @@ The [console notes](design/board-console/CONSOLE.md) and
 admission and source contracts. No continuous SQL syntax or runtime is introduced;
 the qualified snapshot profile and deferred streaming scope below remain intact.
 
+[Board console D6](design/board-console/D6.md) maps operator components to
+declarations and read surfaces in its [SQL appendix](design/board-console/OPERATIONS_SQL.md).
+The existing `SECRET('reference')` is a reference-grammar option value, with no
+implemented catalog resolution or management semantics. D6 proposes typed secret
+bindings, explicit revisions, conditional changes and retirement while keeping
+private values outside SQL. Its new syntax and permission semantics remain
+proposals; neither parser support nor administrative execution is added.
+
 ## DDL: mostly a spelling problem, with one real prerequisite
 
 `CREATE TABLE` is not a new capability. Station already has a typed
