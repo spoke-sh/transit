@@ -42,6 +42,18 @@ const Layout = struct {
         self.data_type = .{ .struct_ = .{ .fields = &self.fields } };
     }
 };
+/// Share the exact layout with bounded result validation. This comparison also
+/// checks nested names, nullability and metadata; no alternate encoding is implied.
+pub fn validateSchema(expected: m.Schema, actual: a.Schema) !void {
+    try expected.validate();
+    if (actual.fields.len != expected.columns.len or (actual.metadata != null and actual.metadata.?.len != 0)) return error.InvalidArrowResult;
+    for (expected.columns, actual.fields) |*column, field| {
+        var layout: Layout = undefined;
+        layout.init(column.type);
+        const wanted: a.Field = .{ .name = column.name.slice(), .data_type = &layout.data_type, .nullable = false };
+        if (!wanted.eql(field)) return error.InvalidArrowResult;
+    }
+}
 fn primitive(comptime data_type: m.Type, allocator: std.mem.Allocator, values: []const ?m.Scalar) !a.ArrayRef {
     const Builder = switch (data_type) {
         .int64 => a.Int64Builder,

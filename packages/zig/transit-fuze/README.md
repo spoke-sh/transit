@@ -23,6 +23,14 @@ values and all eight page widths. Adapters and durable/public submission remain
 in progress. The [v2 contract](../../../contracts/UNIFIED_QUERY_V2.md) states
 workspace, segment and encoding budgets. Existing `Plan`/`Stream` v1 APIs keep their contract.
 
+`Unified.Inspect.decode` validates that exact nested IPC schema and all cell
+states, conflict IDs/order, scalar widths, nullability and complete stream framing.
+Arrow allocations stay in caller-supplied workspace; decoded text/binary is copied
+into the caller's result allocator. Keep the output `Batch` at its final address:
+conflict slices borrow its fixed alternative arrays. Any error invalidates the
+whole output. PyArrow-produced round trips and thirteen malformed schema/state
+cases qualify this reader independently of Fuze's encoder.
+
 Station owns authorized Table adapters and durable result publication; the
 [Fuze design](../../../docs/FUZE.md) describes the broader direction.
 

@@ -1,6 +1,7 @@
 """Read Fuze IPC with a separately implemented, pinned Arrow consumer."""
 from pathlib import Path
 import hashlib
+import copy
 import json
 import math
 import struct
@@ -71,6 +72,41 @@ def run(binary):
                     assert [row[column] for row in actual] == expected
                 assert math.copysign(1, actual[3]["float64"]["value"]) == -1
                 assert math.copysign(1, actual[4]["float64"]["alternatives"][0]["value"]) == -1
+            # The independently encoded stream must survive native semantic
+            # validation and keep owned values after its Arrow workspace dies.
+            encoded = Path(directory) / f"pyarrow-{name}.arrow"
+            with pa.OSFile(str(encoded), "wb") as sink:
+                with pa.ipc.new_stream(sink, table.schema) as writer:
+                    writer.write_batch(table.combine_chunks().to_batches()[0] if name == "rows" else pa.record_batch([pa.array([], type=f.type) for f in table.schema], schema=table.schema))
+            subprocess.run([binary, f"unified-validate-{name}", str(encoded)], check=True, timeout=20)
+            if name == "rows":
+                malformed = []
+                def changed(label, edit):
+                    rows = copy.deepcopy(actual)
+                    edit(rows)
+                    malformed.append((label, rows, table.schema))
+                changed("state", lambda rows: rows[0]["int64"].update(state=255))
+                changed("kind", lambda rows: rows[3]["int64"].update(kind=2))
+                changed("hidden-value", lambda rows: rows[0]["int64"].update(value=17))
+                changed("single-conflict", lambda rows: rows[4]["int64"].update(alternatives=rows[4]["int64"]["alternatives"][:1]))
+                changed("conflict-order", lambda rows: rows[4]["int64"]["alternatives"].reverse())
+                changed("conflict-zero", lambda rows: rows[4]["int64"]["alternatives"][0].update(replica=0))
+                changed("conflict-missing", lambda rows: rows[4]["int64"]["alternatives"][0].update(state=0, kind=0, value=None))
+                changed("hidden-alternatives", lambda rows: rows[0]["int64"].update(alternatives=rows[4]["int64"]["alternatives"]))
+                changed("nan", lambda rows: rows[3]["float64"].update(value=float("nan")))
+                changed("oversized-text", lambda rows: rows[3]["utf8"].update(value="x" * 4097))
+                changed("outer-null", lambda rows: rows[0].update(int64=None))
+                changed("nested-null", lambda rows: rows[3]["int64"].update(state=None))
+                malformed.append(("schema", actual, table.schema.set(0, table.schema.field(0).with_name("renamed"))))
+                for label, rows, schema in malformed:
+                    bad = Path(directory) / f"bad-{label}.arrow"
+                    with pa.OSFile(str(bad), "wb") as sink:
+                        with pa.ipc.new_stream(sink, schema) as writer:
+                            writer.write_batch(pa.RecordBatch.from_pylist(rows, schema=schema))
+                    rejected = subprocess.run([binary, "unified-validate-rows", str(bad)], capture_output=True, timeout=20)
+                    assert rejected.returncode == 1, (label, rejected.returncode, rejected.stderr.decode())
+                    assert b"TestExpectedEqual" not in rejected.stderr, (label, "semantic validation accepted malformed data")
+                print(f"Unified Arrow reader: independent producer round trip and {len(malformed)} malformed state/schema cases passed")
             assert len(data) <= 65536
             print(f"Unified Arrow {name}: {len(data)} bytes; six primitives, nested alternatives and five states verified")
         for name in ("rows", "empty"):

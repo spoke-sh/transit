@@ -21,6 +21,13 @@ Arrow encoding uses a **4 MiB fixed workspace / 64 KiB output limit**; allocatio
 or output exhaustion fails without a result. This remains pure engine evidence;
 it does not establish durable capture or current source authorization.
 
+`Unified.Inspect` additionally passes independent PyArrow-produced streams,
+including empty results, all six types and the five states. Thirteen adversarial
+streams reject unknown states, wrong kinds, hidden values/alternatives, invalid
+conflict cardinality/order/IDs, missing alternatives, NaN, oversized text, nested
+nullability violations and a renamed schema. Owned decoded values survive
+overwriting the Arrow workspace. The original Table v1 Arrow fixtures still pass.
+
 The `transit-query` adapter component tests also pass canonical `UQS2` source
 fixtures and explicit KV decoder checks. A 38-record prefix crosses multiple
 pages with a typed malformed-value error; a 19-row Table retains its old cut

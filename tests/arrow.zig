@@ -161,7 +161,16 @@ fn unified(init: std.process.Init, name: []const u8, path: []const u8) !void {
     for (&rows, &cells) |*row, *items| row.* = .{ .cells = items };
     const workspace = try init.arena.allocator().alloc(u8, m.Arrow.working_bytes);
     var output: [m.Arrow.segment_bytes]u8 = undefined;
-    const selected = if (std.mem.eql(u8, name, "empty")) rows[0..0] else &rows;
+    const selected = if (std.mem.eql(u8, name, "empty") or std.mem.eql(u8, name, "validate-empty")) rows[0..0] else &rows;
+    if (std.mem.startsWith(u8, name, "validate-")) {
+        const data = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(m.Arrow.segment_bytes));
+        var decoded: m.Inspect.Batch = undefined;
+        try m.Inspect.decode(.{ .columns = &columns }, data, @intCast(selected.len), workspace, init.arena.allocator(), &decoded);
+        @memset(workspace, 0xcc);
+        for (selected, 0..) |row, index| try std.testing.expectEqualDeep(row, try decoded.row(index));
+        if (selected.len != 0) try std.testing.expectEqual(@as(u64, 1 << 63), @as(u64, @bitCast(decoded.cells[3][2].value.float64)));
+        return;
+    }
     const bytes = try m.Arrow.encode(.{ .columns = &columns }, selected, workspace, &output);
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = bytes });
 }

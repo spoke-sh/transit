@@ -115,6 +115,16 @@ test "nested Arrow preserves typed states and releases fixed workspace" {
     var repeated: [m.Arrow.segment_bytes]u8 = undefined;
     @memset(workspace, 0x55);
     try t.expectEqualSlices(u8, bytes, try m.Arrow.encode(single, &rows, workspace, &repeated));
+    var owned = std.heap.ArenaAllocator.init(t.allocator);
+    defer owned.deinit();
+    var decoded: m.Inspect.Batch = undefined;
+    try m.Inspect.decode(single, bytes, 5, workspace, owned.allocator(), &decoded);
+    @memset(workspace, 0xcc);
+    for (rows, 0..) |row, index| try t.expectEqualDeep(row, try decoded.row(index));
+    try t.expectError(error.OutOfMemory, m.Inspect.decode(single, bytes, 5, workspace[0..1], owned.allocator(), &decoded));
+    try t.expectError(error.InvalidArrowResult, m.Inspect.decode(single, bytes, 4, workspace, owned.allocator(), &decoded));
+    const wrong: m.Schema = .{ .columns = &.{.{ .name = try m.Name.init("changed"), .type = .utf8 }} };
+    try t.expectError(error.InvalidArrowResult, m.Inspect.decode(wrong, bytes, 5, workspace, owned.allocator(), &decoded));
     var input = std.Io.Reader.fixed(bytes);
     var reader = f.arrow.IpcStreamReader(*std.Io.Reader).init(t.allocator, &input);
     defer reader.deinit();
