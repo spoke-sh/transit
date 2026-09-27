@@ -26,3 +26,11 @@ from .http import (HttpMethod as HttpMethod, Literal as Literal, Variable as Var
 # Compatibility-only M9 aliases. New raw callers use the independent transit_client.
 from .raw import Client as Client, GenServer as GenServer, TransitError as TransitError
 from .raw import _Library as _Library, _json as _json, _seed as _seed
+
+from .grpc import (GrpcShape as GrpcShape, GrpcMethod as GrpcMethod,
+    GrpcSecretRef as GrpcSecretRef, GrpcMetadata as GrpcMetadata, GrpcRequest as GrpcRequest,
+    grpc_method as grpc_method, prepare_grpc as prepare_grpc, PreparedGrpcRequest as PreparedGrpcRequest,
+    decode_grpc_reply as decode_grpc_reply, GrpcPhase as GrpcPhase, GrpcRejection as GrpcRejection,
+    GrpcOutcome as GrpcOutcome, GrpcRejected as GrpcRejected, GrpcReleased as GrpcReleased,
+    GrpcReplyCodec as GrpcReplyCodec, GrpcReplayPolicy as GrpcReplayPolicy, GrpcPartKind as GrpcPartKind,
+    GrpcPart as GrpcPart, GrpcReader as GrpcReader, AsyncGrpcReader as AsyncGrpcReader)

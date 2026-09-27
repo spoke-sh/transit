@@ -12,6 +12,7 @@ from .models import Basis, Codec, Found, Key, KVEntry, Page, Reply, WaitPolicy, 
 if TYPE_CHECKING:
     from .query import QueryJob, QueryPlan, ResultReader
     from .http import PreparedHttpRequest, HttpOutcome, HttpFollowupReason
+    from .grpc import PreparedGrpcRequest, GrpcOutcome
 
 T = TypeVar('T')
 U64_MAX = (1 << 64) - 1
@@ -343,6 +344,53 @@ class Turn:
         result = self._apply({'http_followup': {'pid': pid, 'resource': parent.resource.resource,
             'parent': str(integer(parent.exchange, 'parent exchange', maximum=U64_MAX)),
             'reason': reason.value, 'reference': owned_bytes(request.reference, 112).hex()}})
+        return int(result['correlation'])
+
+    def _grpc_request(self, request: PreparedGrpcRequest) -> None:
+        from .grpc import PreparedGrpcRequest
+        self._check()
+        if not isinstance(request, PreparedGrpcRequest) or request.resource != self.resource:
+            raise ValueError('RPC publication must use the current associated resource')
+        if not self._native.caps.get('grpc_requests'):
+            raise UnsupportedCapability('Native Station lacks RPC request support')
+
+    def stage_grpc(self, request: PreparedGrpcRequest) -> bool:
+        """Advance one upload step; true permits a call in this turn."""
+        self._grpc_request(request)
+        staged: bool = self._apply({'grpc_stage': request._wire()})['staged']
+        return staged
+
+    def call_grpc(self, peer: ProcessRef, request: PreparedGrpcRequest) -> int:
+        """Call with two committed immutable records; return durable correlation."""
+        pid = self._peer(peer)
+        self._grpc_request(request)
+        result = self._apply({'grpc_call': {'pid': pid, 'reference': owned_bytes(request.reference, 145).hex()}})
+        return int(result['correlation'])
+
+    def release_grpc(self, peer: ProcessRef, resource: ResourceRef, exchange: int) -> int:
+        """Request durable hold disposal; authenticate the correlated GrpcReleased reply."""
+        pid = self._peer(peer)
+        if not isinstance(resource, ResourceRef) or resource.realm != self.resource.realm:
+            raise ValueError('RPC capture must belong to the current realm')
+        if not self._native.caps.get('grpc_release'):
+            raise UnsupportedCapability('Native Station lacks durable RPC release support')
+        result = self._apply({'grpc_release': {'pid': pid, 'resource': resource.resource,
+            'exchange': str(integer(exchange, 'exchange', maximum=U64_MAX))}})
+        return int(result['correlation'])
+
+    def retry_grpc(self, peer: ProcessRef, parent: GrpcOutcome,
+                      request: PreparedGrpcRequest) -> int:
+        """Explicitly request a linked attempt; current service policy decides admission."""
+        from .grpc import GrpcOutcome
+        pid = self._peer(peer)
+        self._grpc_request(request)
+        if not isinstance(parent, GrpcOutcome) or not isinstance(parent.resource, ResourceRef) or parent.resource.realm != self.resource.realm:
+            raise ValueError('RPC parent must belong to the current realm')
+        if not self._native.caps.get('grpc_followup'):
+            raise UnsupportedCapability('Native Station lacks RPC followup support')
+        result = self._apply({'grpc_followup': {'pid': pid, 'resource': parent.resource.resource,
+            'parent': str(integer(parent.exchange, 'parent exchange', maximum=U64_MAX)),
+            'reference': owned_bytes(request.reference, 145).hex()}})
         return int(result['correlation'])
 
     def table(self, schema: TableSchema[C]) -> Table[C]:

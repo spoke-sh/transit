@@ -30,6 +30,7 @@ import { Table, TableSchema, type Cell } from "./table.ts";
 import { QueryPlan, ResultReader, type QueryJob } from "./query.ts";
 import type { GrowingAction, GrowingEvent } from "./wire.ts";
 import { PreparedHttpRequest, HttpOutcome, type HttpFollowupReason } from "./http.ts";
+import { PreparedGrpcRequest, GrpcOutcome } from "./grpc.ts";
 
 function cursor(value?: string): string | null {
   return value === undefined ? null : text(value, limits.max_body);
@@ -258,6 +259,88 @@ export class Turn {
               parent: wide(parent.exchange).toString(),
               reason,
               reference: hex(request.reference, 112),
+            },
+          }),
+          "correlation",
+        ),
+      );
+    });
+  }
+  #grpc(request: PreparedGrpcRequest, bridge: Bridge): void {
+    if (
+      !(request instanceof PreparedGrpcRequest) ||
+      request.resource.realm !== this.resource.realm ||
+      request.resource.resource !== this.resource.resource
+    )
+      throw new TypeError("RPC publication must use the current associated resource");
+    if (!bridge.caps.grpc_requests)
+      throw new UnsupportedCapability("Native RPC requests are unavailable");
+  }
+  stageGrpc(request: PreparedGrpcRequest): Promise<boolean> {
+    return operation(this, async ({ bridge, token }) => {
+      this.#grpc(request, bridge);
+      return result(
+        await bridge.apply(token, {
+          grpc_stage: {
+            reference: hex(request.reference, 145),
+            metadata: hex(request.metadata, 8192),
+            batch: hex(request.batch, 65544),
+          },
+        }),
+        "staged",
+      );
+    });
+  }
+  callGrpc(peer: ProcessRef, request: PreparedGrpcRequest): Promise<bigint> {
+    return operation(this, async ({ bridge, token }) => {
+      const pid = this.#peer(peer);
+      this.#grpc(request, bridge);
+      return nativeWide(
+        result(
+          await bridge.apply(token, {
+            grpc_call: {
+              pid,
+              reference: hex(request.reference, 145),
+            },
+          }),
+          "correlation",
+        ),
+      );
+    });
+  }
+  releaseGrpc(peer: ProcessRef, resource: ResourceRef, exchange: bigint): Promise<bigint> {
+    return operation(this, async ({ bridge, token }) => {
+      const pid = this.#peer(peer);
+      if (!(resource instanceof ResourceRef) || resource.realm !== this.resource.realm)
+        throw new TypeError("RPC capture must belong to the current realm");
+      if (!bridge.caps.grpc_release)
+        throw new UnsupportedCapability("Native RPC disposal is unavailable");
+      return nativeWide(
+        result(
+          await bridge.apply(token, {
+            grpc_release: { pid, resource: resource.resource, exchange: wide(exchange).toString() },
+          }),
+          "correlation",
+        ),
+      );
+    });
+  }
+  retryGrpc(peer: ProcessRef, parent: GrpcOutcome, request: PreparedGrpcRequest): Promise<bigint> {
+    return operation(this, async ({ bridge, token }) => {
+      const pid = this.#peer(peer);
+      this.#grpc(request, bridge);
+      if (!(parent instanceof GrpcOutcome) || parent.resource.realm !== this.resource.realm)
+        throw new TypeError("RPC parent must belong to the current realm");
+      if (!bridge.caps.grpc_followup)
+        throw new UnsupportedCapability("Native RPC followup is unavailable");
+      return nativeWide(
+        result(
+          await bridge.apply(token, {
+            grpc_followup: {
+              pid,
+              resource: parent.resource.resource,
+              parent: wide(parent.exchange).toString(),
+              reference: hex(request.reference, 145),
             },
           }),
           "correlation",

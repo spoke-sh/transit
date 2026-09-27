@@ -22,6 +22,10 @@ import type {
   HttpCodecResult,
   HttpReadAction,
   HttpReadResult,
+  GrpcCodecAction,
+  GrpcCodecResult,
+  GrpcReadAction,
+  GrpcReadResult,
 } from "./wire.ts";
 import {
   FrozenMutation,
@@ -171,6 +175,27 @@ export class Bridge {
         validator: validation.HttpReadResult,
       },
     )) as HttpReadResult;
+  }
+  async grpcCodec(action: GrpcCodecAction): Promise<GrpcCodecResult> {
+    if (!this.caps.grpc_requests)
+      throw new UnsupportedCapability("Native RPC requests are unavailable");
+    return (await this.port.request(
+      { grpc_codec: action },
+      {
+        phase: "grpc-codec",
+        validator: validation.GrpcCodecResult,
+      },
+    )) as GrpcCodecResult;
+  }
+  async grpcRead(action: GrpcReadAction): Promise<GrpcReadResult> {
+    if (!this.caps.grpc_replay) throw new UnsupportedCapability("Native RPC replay is unavailable");
+    return (await this.port.request(
+      { growing_grpc_read: action },
+      {
+        phase: "grpc-read",
+        validator: validation.GrpcReadResult,
+      },
+    )) as GrpcReadResult;
   }
   async finish(scope: number, failed: boolean): Promise<void> {
     await this.port.request({ growing_finish_result: { scope, failed } }, { phase: "finish" });

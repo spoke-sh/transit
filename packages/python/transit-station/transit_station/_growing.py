@@ -73,6 +73,13 @@ class Growing:
         result: dict[str, Any] = self.api.call('station_growing_http_read', self.handle, data, len(data))
         return result
 
+    def grpc_read(self, action: object) -> dict[str, Any]:
+        if not self.caps.get('grpc_replay'):
+            raise UnsupportedCapability('Native Station lacks RPC replay support')
+        data = encode(action)
+        result: dict[str, Any] = self.api.call('station_growing_grpc_read', self.handle, data, len(data))
+        return result
+
     def finish(self, scope: int, failed: bool) -> None:
         self.api.call('station_growing_finish_result', self.handle, scope, int(failed))
 

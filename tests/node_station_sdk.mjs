@@ -4,7 +4,7 @@ import { readFile, writeFile, chmod } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Client, ProcessRef, ResourceRef, Busy, Closed, CodecError, TurnExpired, ReadFailed, StaleOwnership, AccessDenied, ProcessRetired, HandlerError } from '@transit/client';
-import { Activation, Runner, ReadVersion, IpcSegment, encodeCast, Key, prepareHttp, decodeHttpReply, HttpOutcome } from '@transit/station';
+import { Activation, Runner, ReadVersion, IpcSegment, encodeCast, Key, prepareHttp, decodeHttpReply, HttpOutcome, grpcMethod, prepareGrpc, decodeGrpcReply, GrpcOutcome } from '@transit/station';
 import { Counter, Requester, TableService, QueryRequester, TABLE, TOTAL, counter, query, u64Codec,
   counterCodec, requesterCodec, queryServiceCodec, queryRequesterCodec } from '@transit/sdk-examples';
 
@@ -19,6 +19,7 @@ const tagged = (_key, value) => typeof value === 'bigint' ? { bigint: value.toSt
 const revived = (_key, value) => value && typeof value === 'object' && Object.keys(value).join() === 'bigint' ? BigInt(value.bigint) : value;
 
 async function main() {
+  if (mode.startsWith('grpc-')) return grpcConsumer();
   if (mode.startsWith('http-')) return httpConsumer();
   if (mode === 'arrow') {
     const { toArrow } = await import('@transit/station/arrow');
@@ -366,6 +367,127 @@ async function httpConsumer() {
       } else if (action === 'close') {
         await runner.close(); report({ closed: true, owned: owned.toString('hex') }); return;
       } else throw new Error('Unexpected HTTP consumer command');
+      report(result);
+    }
+  } finally { await runner.close(); }
+}
+async function grpcConsumer() {
+  const body = new Uint8Array(Buffer.from(cfg.body, 'hex'));
+  const request = await prepareGrpc(new ResourceRef(72, cfg.resource), (1n << 64n) - 1n, {
+    method: await grpcMethod(new Uint8Array(Buffer.from(cfg.descriptor, 'hex')), cfg.method),
+    metadata: [ { name: 'x-tag', value: { kind: 'literal', bytes: new TextEncoder().encode('one') } },
+      { name: 'x-tag', value: { kind: 'literal', bytes: new TextEncoder().encode('two') } },
+      { name: 'x-data-bin', value: { kind: 'literal', bytes: new Uint8Array([0, 255]) } },
+      { name: 'authorization', value: { kind: 'secret', binding: 'api', version: 7n } } ],
+  }, [new Uint8Array(Buffer.from(cfg.body, 'hex')), new Uint8Array()], { endpointRevision: 7n, reconcileBeforeMs: cfg.deadline });
+  const correlation = new Key(new TextEncoder().encode('grpc-correlation'), u64Codec);
+  const status = new Key(new TextEncoder().encode('grpc-status'), u64Codec);
+  const disposal = new Key(new TextEncoder().encode('grpc-disposal'), u64Codec);
+  const followup = new Key(new TextEncoder().encode('grpc-followup'), u64Codec);
+  const codec = { typeId: 'test.grpc-control', version: 1, maxEncodedBytes: 243, encode: value => new Uint8Array(value), decode: value => new Uint8Array(value) };
+  const handler = {
+    result: undefined, escaped: undefined,
+    async initialize() {},
+    async handle(turn, input) {
+      assert.equal(input.kind, 'cast'); this.escaped = turn;
+      if (Buffer.from(input.value).toString() === 'followup') {
+        const original = await decodeGrpcReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        const wrong = await decodeGrpcReply(73, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        await assert.rejects(turn.retryGrpc(peer, wrong, request), TypeError);
+        const call = await turn.retryGrpc(peer, original, request);
+        await turn.state.put(followup, call);
+        this.result = { followup: false };
+      } else if (Buffer.from(input.value).toString() === 'dispose') {
+        const original = await decodeGrpcReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        await assert.rejects(turn.releaseGrpc(peer, new ResourceRef(73, original.resource.resource), original.exchange), TypeError);
+        const call = await turn.releaseGrpc(peer, original.resource, original.exchange);
+        await turn.state.put(disposal, call);
+        this.result = { released: false };
+      } else if (await turn.state.find(correlation)) this.result = { called: true };
+      else if (await turn.stageGrpc(request)) {
+        const call = await turn.callGrpc(peer, request);
+        await turn.state.put(correlation, call);
+        this.result = { called: true };
+      } else this.result = { called: false };
+    },
+    async handleGrpcReply(turn, input) {
+      this.escaped = turn;
+      if (input.value.kind === 'grpc-rejected') {
+        turn.requireReply(input, { peer, correlation: await turn.state.require(followup) });
+        assert.equal(input.value.reason, 'denied');
+        await turn.state.put(new Key(new TextEncoder().encode('grpc-followup-denied'), u64Codec), input.correlation);
+        this.result = { followup: true };
+        return;
+      }
+      if (input.value.kind === 'grpc-released') {
+        turn.requireReply(input, { peer, correlation: await turn.state.require(disposal) });
+        const original = await decodeGrpcReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        assert.deepEqual(input.value.resource, original.resource);
+        assert.equal(input.value.exchange, original.exchange);
+        await turn.state.put(new Key(new TextEncoder().encode('grpc-disposed'), u64Codec), input.value.exchange);
+        this.result = { released: true };
+        return;
+      }
+      turn.requireReply(input, { peer, correlation: await turn.state.require(correlation) });
+      assert.ok(input.value instanceof GrpcOutcome);
+      assert.equal(input.value.phase, 'observed'); assert.equal(input.value.status, 0);
+      await turn.state.put(status, BigInt(input.value.status));
+      this.result = { observed: true };
+    },
+  };
+  const runner = await Runner.open(config, handler, codec, { failure: 'stop', recovery: { kind: 'fence-on-restart' } });
+  let reader, outcome, owned = Buffer.alloc(0);
+  try {
+    if (mode === 'grpc-async') {
+      outcome = await decodeGrpcReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+      reader = await runner.openGrpc(outcome);
+      const first = await reader.read(); assert.ok(first.data.length); assert.ok(!first.complete);
+      await writeFile(cfg.ready, '');
+      while (!existsSync(cfg.continue)) await delay(10);
+      const active = reader.read();
+      const deadline = Date.now() + 15000;
+      while (!existsSync(cfg.accepted)) { assert.ok(Date.now() < deadline); await delay(10); }
+      await assert.rejects(reader.read(), Busy);
+      runner.stop();
+      let finished = false, beats = 0;
+      const close = runner.close().then(() => { finished = true; });
+      while (!finished) { beats++; await delay(10); }
+      await close; await active;
+      assert.ok(beats > 5); assert.ok(first.data.length);
+      await assert.rejects(reader.read(), Closed);
+      report({ joined: true }); return;
+    }
+    const input = createInterface({ input: process.stdin });
+    for await (const action of input) {
+      let result;
+      if (action === 'step') {
+        let committed = false;
+        for (let i = 0; i < 32; i++) if ((await runner.next()).kind === 'committed') { committed = true; break; }
+        assert.ok(committed); assert.throws(() => handler.escaped.stageGrpc(request), TurnExpired);
+        assert.throws(() => handler.escaped.releaseGrpc(peer, new ResourceRef(72, cfg.resource), 1n), TurnExpired);
+        assert.throws(() => handler.escaped.retryGrpc(peer, outcome, request), TurnExpired);
+        result = handler.result;
+      } else if (action === 'open') {
+        outcome = await decodeGrpcReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        reader = await runner.openGrpc(outcome);
+        await assert.rejects(runner.openGrpc(outcome), Busy);
+        const first = await reader.read(); assert.ok(first.data.length); assert.ok(!first.complete);
+        result = { prefix: true };
+      } else if (action === 'denied') {
+        await assert.rejects(reader.read(), AccessDenied); result = { denied: true };
+      } else if (action === 'reopen') {
+        await assert.rejects(reader.read(), error => error instanceof ReadFailed && error.code === 'GrpcReplayFailed');
+        await reader.close(); await reader.close();
+        reader = await runner.openGrpc(outcome);
+        for (;;) {
+          const part = await reader.read(); if (!part) break;
+          if (part.kind === 'response_body') owned = Buffer.concat([owned, part.data]);
+        }
+        assert.ok(reader.complete); await reader.close();
+        result = { complete: true, body: owned.toString('hex') };
+      } else if (action === 'close') {
+        await runner.close(); report({ closed: true, owned: owned.toString('hex') }); return;
+      } else throw new Error('Unexpected RPC consumer command');
       report(result);
     }
   } finally { await runner.close(); }

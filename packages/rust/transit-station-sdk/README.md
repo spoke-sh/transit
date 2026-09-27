@@ -20,3 +20,6 @@ publication and other platforms remain unqualified. See the
 Run `nix develop .#bindings --command just bindings::rust-sdk-test` for formatting,
 clean external consumers, compiler rejection cases and real authority schedules.
 The [test guide](../../../tests/README.md) records evidence and limitations.
+
+The [finite RPC guide](docs/GRPC.md) describes pinned descriptor binding, original
+message batches, scoped durable calls and owned transcript replay.

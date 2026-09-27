@@ -315,10 +315,174 @@ def http_consumer(mode, cfg)
   end
   report(closed: true, owned: owned.unpack1('H*'))
 end
+class GrpcBytes
+  def type_id = 'test.grpc-control'
+  def version = 1
+  def max_encoded_bytes = 243
+  def encode(value) = value.b.dup
+  def decode(value) = value.b.dup
+end
+class GrpcHandler < S::Handler
+  attr_reader :result, :escaped
+  def initialize(peer, request, disposal, followup_reason)
+    @peer, @request, @disposal, @followup_reason = peer, request, disposal, followup_reason
+    @correlation = S::Key.new('grpc-correlation'.b, codec: E::U64)
+    @release_correlation = S::Key.new('grpc-release-correlation'.b, codec: E::U64)
+    @followup_correlation = S::Key.new('grpc-followup-correlation'.b, codec: E::U64)
+  end
+  def on_message(turn, input)
+    @escaped = turn
+    if input.is_a?(S::Cast)
+      if input.value == 'followup'.b
+        wrong = @disposal.with(resource: ResourceRef.new(realm: 73, resource: @disposal.resource.resource))
+        expect(ArgumentError) { turn.retry_grpc(@peer, wrong, @request) }
+        correlation = turn.retry_grpc(@peer, @disposal, @request)
+        turn.state.put(@followup_correlation, correlation)
+        @result = { followup: false }
+      elsif input.value == 'dispose'.b
+        expect(ArgumentError) { turn.release_grpc(@peer, ResourceRef.new(realm: 73, resource: @disposal.resource.resource), @disposal.exchange) }
+        correlation = turn.release_grpc(@peer, @disposal.resource, @disposal.exchange)
+        turn.state.put(@release_correlation, correlation)
+        @result = { released: false }
+      elsif turn.state.find(@correlation)
+        @result = { called: true }
+      elsif turn.stage_grpc(@request)
+        correlation = turn.call_grpc(@peer, @request)
+        turn.state.put(@correlation, correlation)
+        @result = { called: true }
+      else @result = { called: false }
+      end
+    else
+      if input.is_a?(S::Reply) && input.value.is_a?(S::GrpcRejected)
+        correlation = turn.state.require(@followup_correlation)
+        turn.require_reply(input, peer: @peer, correlation: correlation)
+        check input.value.reason == :denied
+        turn.state.put(S::Key.new('grpc-followup-denied'.b, codec: E::U64), correlation)
+        @result = { followup: true }
+        return
+      end
+      if input.is_a?(S::Reply) && input.value.is_a?(S::GrpcReleased)
+        turn.require_reply(input, peer: @peer, correlation: turn.state.require(@release_correlation))
+        check input.value.resource == @disposal.resource && input.value.exchange == @disposal.exchange
+        turn.state.put(S::Key.new('grpc-disposed'.b, codec: E::U64), input.value.exchange)
+        @result = { released: true }
+        return
+      end
+      check input.is_a?(S::Reply) && input.value.is_a?(S::GrpcOutcome)
+      turn.require_reply(input, peer: @peer, correlation: turn.state.require(@correlation))
+      check input.value.phase == :observed && input.value.status == 0
+      turn.state.put(S::Key.new('grpc-status'.b, codec: E::U64), 0)
+      @result = { observed: true }
+    end
+  end
+end
+def grpc_consumer(mode, cfg)
+  body = [cfg.fetch('body')].pack('H*')
+  request = S.prepare_grpc(ResourceRef.new(realm: 72, resource: cfg.fetch('resource')), (1 << 64) - 1,
+    S::GrpcRequest.new(method: S.grpc_method([cfg.fetch('descriptor')].pack('H*'), cfg.fetch('method')), metadata: [
+      S::GrpcMetadata.new(name: 'x-tag', value: 'one'.b), S::GrpcMetadata.new(name: 'x-tag', value: 'two'.b),
+      S::GrpcMetadata.new(name: 'x-data-bin', value: [0, 255].pack('C*')),
+      S::GrpcMetadata.new(name: 'authorization', value: S::GrpcSecretRef.new(binding: 'api', version: 7))]),
+    messages: [body, ''.b], endpoint_revision: 7, reconcile_before_ms: cfg.fetch('deadline'))
+  body.replace('changed')
+  check request.batch.frozen? && request.metadata.frozen? && request.reference.frozen? && request.batch.bytesize > 513
+  config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3),
+    activation: S::Activation.new(process: ProcessRef.new(realm: 72, pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
+      credential: Credential.new(realm: 72, principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))
+  disposal = cfg['outcome'] && S.decode_grpc_reply(72, [cfg['outcome']].pack('H*'))
+  handler = GrpcHandler.new(ProcessRef.new(realm: 72, pid: cfg.fetch('peer')), request, disposal, cfg.fetch('followup_reason', 'retry').to_sym)
+  owned = ''.b
+  S::Runner.open(config, handler: handler, codec: S::GrpcReplyCodec.new(GrpcBytes.new, realm: 72), failure: :stop, recovery: :fence_on_restart) do |runner|
+    if mode == 'grpc-async'
+      outcome = S.decode_grpc_reply(72, [cfg.fetch('outcome')].pack('H*'))
+      reader = runner.open_grpc(outcome)
+      first = reader.read
+      check !first.data.empty? && !first.complete
+      File.write(cfg.fetch('ready'), '')
+      wait_file(cfg.fetch('continue'))
+      interrupted = false
+      controller = Thread.new do
+        begin
+          reader.read
+        rescue InjectedException
+          interrupted = true
+        end
+      end
+      controller.report_on_exception = false
+      wait_file(cfg.fetch('accepted'))
+      expect(Busy) { reader.read }
+      controller.raise(InjectedException)
+      controller.join
+      check interrupted
+      runner.stop
+      closing = Thread.new { runner.close }
+      beats = 0
+      until closing.join(0.01)
+        beats += 1
+      end
+      closing.value
+      check beats > 5 && !first.data.empty?
+      expect(Closed) { reader.read }
+      report(joined: true)
+      return
+    end
+    reader = outcome = nil
+    STDIN.each_line do |line|
+      case line.strip
+      when 'step'
+        committed = false
+        32.times do
+          if runner.next.is_a?(S::Committed)
+            committed = true
+            break
+          end
+        end
+        check committed
+        expect(TurnExpired) { handler.escaped.stage_grpc(request) }
+        expect(TurnExpired) { handler.escaped.release_grpc(ProcessRef.new(realm: 72, pid: cfg.fetch('peer')), request.resource, 1) }
+        expect(TurnExpired) { handler.escaped.retry_grpc(ProcessRef.new(realm: 72, pid: cfg.fetch('peer')), disposal, request) }
+        report(handler.result)
+      when 'open'
+        outcome = S.decode_grpc_reply(72, [cfg.fetch('outcome')].pack('H*'))
+        reader = runner.open_grpc(outcome)
+        expect(Busy) { runner.open_grpc(outcome) }
+        first = reader.read
+        check !first.data.empty? && !first.complete
+        report(prefix: true)
+      when 'denied'
+        expect(AccessDenied) { reader.read }
+        report(denied: true)
+      when 'reopen'
+        begin
+          reader.read
+          raise 'Failed reader resumed'
+        rescue ReadFailed => error
+          check error.code == 'GrpcReplayFailed'
+        end
+        reader.close
+        reader.close
+        reader = runner.open_grpc(outcome)
+        while (part = reader.read)
+          owned << part.data if part.kind == :response_body
+        end
+        check reader.complete
+        reader.close
+        report(complete: true, body: owned.unpack1('H*'))
+      when 'close' then break
+      else raise 'Unexpected RPC consumer command'
+      end
+    end
+  end
+  report(closed: true, owned: owned.unpack1('H*'))
+end
 mode, config_file = ARGV
 cfg = JSON.parse(File.binread(config_file))
 check Gem.loaded_specs.fetch('transit-station').full_gem_path.start_with?(File.dirname(config_file))
 check cfg.fetch('profile') == 'growing_v3'
+if mode.start_with?('grpc-')
+  grpc_consumer(mode, cfg)
+  exit
+end
 if mode.start_with?('http-')
   http_consumer(mode, cfg)
   exit

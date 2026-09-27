@@ -64,6 +64,10 @@ pub(crate) struct Caps {
     pub http_replay: bool,
     pub http_release: bool,
     pub http_followup: bool,
+    pub grpc_requests: bool,
+    pub grpc_replay: bool,
+    pub grpc_release: bool,
+    pub grpc_followup: bool,
 }
 struct Buffer<'a> {
     pointer: *mut abi::station_buffer,
@@ -182,6 +186,10 @@ impl Local {
                 http_replay: boolean(&value["http_replay"], "native-capabilities")?,
                 http_release: value["http_release"].as_bool().unwrap_or(false),
                 http_followup: value["http_followup"].as_bool().unwrap_or(false),
+                grpc_requests: boolean(&value["grpc_requests"], "native-capabilities")?,
+                grpc_replay: boolean(&value["grpc_replay"], "native-capabilities")?,
+                grpc_release: value["grpc_release"].as_bool().unwrap_or(false),
+                grpc_followup: value["grpc_followup"].as_bool().unwrap_or(false),
             };
         }
         Ok(Self {
@@ -324,6 +332,29 @@ impl Bridge {
         };
         buffer.result(status, "http-read", false)
     }
+    pub fn grpc_read(&mut self, action: Value) -> Result<Value> {
+        if !self.caps.grpc_replay {
+            return Err(Error::new(ErrorKind::UnsupportedCapability, "grpc-replay"));
+        }
+        let bytes = serde_json::to_vec(&action)
+            .map_err(|_| Error::new(ErrorKind::InvalidArgument, "grpc-read"))?;
+        if bytes.len() > 2048 {
+            return Err(Error::new(ErrorKind::InvalidArgument, "grpc-read-bound"));
+        }
+        let mut buffer = Buffer {
+            api: &self.local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (self.local.api.station_growing_grpc_read)(
+                self.pointer,
+                bytes.as_ptr(),
+                bytes.len(),
+                &mut buffer.pointer,
+            )
+        };
+        buffer.result(status, "grpc-read", false)
+    }
     pub fn discard(&mut self, scope: u64) -> Result<()> {
         let status = unsafe { (self.local.api.station_growing_discard)(self.pointer, scope) };
         if status != 0 {
@@ -462,6 +493,40 @@ pub(crate) fn http_codec(
             (local.api.station_http_codec)(bytes.as_ptr(), bytes.len(), &mut buffer.pointer)
         };
         buffer.result(status, "http-codec", false)
+    });
+    worker.close()?;
+    result
+}
+
+pub(crate) fn grpc_codec(
+    action: Value,
+    native_directory: Option<&Path>,
+    release: bool,
+) -> Result<Value> {
+    let bytes = serde_json::to_vec(&action)
+        .map_err(|_| Error::new(ErrorKind::InvalidArgument, "grpc-codec"))?;
+    if bytes.len() > MAX_BODY {
+        return Err(Error::new(ErrorKind::InvalidArgument, "grpc-codec-bound"));
+    }
+    let directory = native_directory.map(Path::to_owned);
+    let mut worker = Worker::open(abi::MINIMUM_STACK_BYTES, move || {
+        Local::open(directory.as_deref())
+    })?;
+    let result = worker.call(move |local| {
+        if !local.caps.grpc_requests || release && !local.caps.grpc_release {
+            return Err(Error::new(
+                ErrorKind::UnsupportedCapability,
+                "grpc-requests",
+            ));
+        }
+        let mut buffer = Buffer {
+            api: &local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (local.api.station_grpc_codec)(bytes.as_ptr(), bytes.len(), &mut buffer.pointer)
+        };
+        buffer.result(status, "grpc-codec", false)
     });
     worker.close()?;
     result

@@ -51,3 +51,6 @@ compatible root aliases. They retain the legacy profile and explicit JSON action
 they are not the public growing runner. New raw callers import `transit_client`
 without Station. Migrating requires explicit profile/activation selection and
 application codecs; no state or wire-profile conversion occurs automatically.
+
+The [finite RPC guide](docs/grpc.md) covers local descriptor binding, original
+message batches, durable calls, explicit retry/disposal and owned replay.

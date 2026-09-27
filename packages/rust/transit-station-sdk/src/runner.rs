@@ -419,6 +419,43 @@ impl<M: 'static> Runner<M> {
         })?;
         Ok(crate::HttpReader::new(self, identity))
     }
+    pub(crate) fn grpc_read(&mut self, action: Value) -> Result<Value> {
+        self.worker.call(move |state| {
+            if state.pending.is_some() {
+                return Err(Error::new(ErrorKind::Busy, "pending-mutation"));
+            }
+            state.bridge.grpc_read(action)
+        })
+    }
+    pub fn open_grpc(
+        &mut self,
+        outcome: &crate::GrpcOutcome,
+        policy: crate::GrpcReplayPolicy,
+    ) -> Result<crate::GrpcReader<'_, M>> {
+        if outcome.phase != crate::GrpcPhase::Observed {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "grpc-incomplete-outcome",
+            ));
+        }
+        let reference = outcome
+            .reference()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidArgument, "grpc-reference"))?;
+        let action = json!({"open":{"reference":transit_client::internal::hex(reference,256)?,
+            "policy":match policy { crate::GrpcReplayPolicy::Captured => "captured", crate::GrpcReplayPolicy::RequireUnredacted => "require_unredacted" }}});
+        let realm = outcome.resource.realm();
+        let identity = self.worker.call(move |state| {
+            if state.process.realm() != realm {
+                return Err(Error::new(ErrorKind::InvalidArgument, "grpc-realm"));
+            }
+            if state.pending.is_some() {
+                return Err(Error::new(ErrorKind::Busy, "pending-mutation"));
+            }
+            let result = state.bridge.grpc_read(action)?;
+            number(&result["opened"], "grpc-reader", false)
+        })?;
+        Ok(crate::GrpcReader::new(self, identity))
+    }
     pub fn close(mut self) -> std::result::Result<Shutdown, CloseError> {
         self.stop();
         let evidence = self.evidence().map_err(|error| CloseError {

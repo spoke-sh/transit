@@ -2,6 +2,7 @@
 #[rustfmt::skip]
 mod abi;
 mod bridge;
+mod grpc;
 mod http;
 mod query;
 mod runner;
@@ -9,6 +10,12 @@ mod table;
 mod turn;
 mod types;
 pub use bridge::encode_cast;
+pub use grpc::{
+    GrpcMessage, GrpcMetadata, GrpcMetadataValue, GrpcMethod, GrpcOutcome, GrpcPart, GrpcPartKind,
+    GrpcPhase, GrpcReader, GrpcRejection, GrpcReleased, GrpcReplayPolicy, GrpcReply,
+    GrpcReplyCodec, GrpcRequest, GrpcRequestOptions, GrpcShape, PreparedGrpcRequest,
+    decode_grpc_reply, grpc_method, prepare_grpc,
+};
 pub use http::{
     HttpFollowupReason, HttpHeader, HttpMessage, HttpMethod, HttpOutcome, HttpPart, HttpPartKind,
     HttpPhase, HttpPiece, HttpReader, HttpRejection, HttpReleased, HttpReplayPolicy, HttpReply,

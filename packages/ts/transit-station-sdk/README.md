@@ -41,3 +41,6 @@ See [runtime and recovery](docs/runtime.md), the
 [proof guide](../../../tests/README.md). Public types own application contracts;
 generated wire schemas remain internal. Existing M9 low-level usage retains its
 original package and semantics.
+
+The [finite RPC guide](docs/grpc.md) covers local descriptor binding, original
+message batches, durable calls, explicit retry/disposal and owned replay.

@@ -165,6 +165,32 @@ module Transit
           'parent' => Internal.integer(parent.exchange, max: U64_MAX).to_s, 'reason' => reason.to_s,
           'reference' => request.reference.unpack1('H*') } }).fetch('correlation'), min: 1)
       end
+      def stage_grpc(request)
+        grpc_request!(request)
+        apply_native({ 'grpc_stage' => { 'reference' => request.reference.unpack1('H*'),
+          'metadata' => request.metadata.unpack1('H*'), 'batch' => request.batch.unpack1('H*') } }).fetch('staged')
+      end
+      def call_grpc(peer, request)
+        pid = peer_id(peer)
+        grpc_request!(request)
+        Value.wide(apply_native({ 'grpc_call' => { 'pid' => pid, 'reference' => request.reference.unpack1('H*') } }).fetch('correlation'), min: 1)
+      end
+      def release_grpc(peer, resource, exchange)
+        pid = peer_id(peer)
+        raise ArgumentError, 'RPC capture must belong to the current realm' unless resource.is_a?(ResourceRef) && resource.realm == self.resource.realm
+        raise UnsupportedCapability, 'Native RPC disposal unavailable' unless caps['grpc_release']
+        Value.wide(apply_native({ 'grpc_release' => { 'pid' => pid, 'resource' => resource.resource,
+          'exchange' => Internal.integer(exchange, max: U64_MAX).to_s } }).fetch('correlation'), min: 1)
+      end
+      def retry_grpc(peer, parent, request)
+        pid = peer_id(peer)
+        grpc_request!(request)
+        raise ArgumentError, 'RPC parent must belong to the current realm' unless parent.is_a?(GrpcOutcome) && parent.resource.realm == resource.realm
+        raise UnsupportedCapability, 'Native RPC followup unavailable' unless caps['grpc_followup']
+        Value.wide(apply_native({ 'grpc_followup' => { 'pid' => pid, 'resource' => parent.resource.resource,
+          'parent' => Internal.integer(parent.exchange, max: U64_MAX).to_s,
+          'reference' => request.reference.unpack1('H*') } }).fetch('correlation'), min: 1)
+      end
       def open_version(identity)
         check!
         Value.version_wire(identity)
@@ -179,6 +205,11 @@ module Transit
         check!
         raise ArgumentError, 'HTTP publication must use the current resource' unless request.is_a?(PreparedHttpRequest) && request.resource == resource
         raise UnsupportedCapability, 'Native HTTP requests unavailable' unless caps['http_requests']
+      end
+      def grpc_request!(request)
+        check!
+        raise ArgumentError, 'RPC publication must use the current resource' unless request.is_a?(PreparedGrpcRequest) && request.resource == resource
+        raise UnsupportedCapability, 'Native RPC requests unavailable' unless caps['grpc_requests']
       end
       attr_reader :scope, :poison
       def end_scope! = @active = false

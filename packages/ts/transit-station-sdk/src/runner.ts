@@ -24,6 +24,13 @@ import {
   type HttpReplayPolicy,
 } from "./http.ts";
 import {
+  decodeGrpcWithBridge,
+  GrpcOutcome,
+  GrpcReader,
+  type GrpcReply,
+  type GrpcReplayPolicy,
+} from "./grpc.ts";
+import {
   decode,
   nativeWide,
   serviceConfiguration,
@@ -38,13 +45,20 @@ import {
   type RunnerEvent,
   type ServiceConfig,
 } from "./values.ts";
-import type { GrowingEvent, HttpReadAction, HttpReadResult } from "./wire.ts";
+import type {
+  GrowingEvent,
+  HttpReadAction,
+  HttpReadResult,
+  GrpcReadAction,
+  GrpcReadResult,
+} from "./wire.ts";
 
 export interface Handler<M> {
   initialize(turn: Turn): Promise<void>;
   handle(turn: Turn, incoming: Incoming<M>): Promise<void>;
   handleControl?(turn: Turn, input: Control): Promise<void>;
   handleResult?(turn: Turn, result: ResultReader): Promise<void>;
+  handleGrpcReply?(turn: Turn, input: Reply<GrpcReply>): Promise<void>;
   handleHttpReply?(turn: Turn, input: Reply<HttpReply>): Promise<void>;
 }
 export interface RunnerOptions {
@@ -276,6 +290,20 @@ export class Runner<M> implements AsyncDisposable {
             correlation,
           });
           dispatch = () => this.#handler.handleHttpReply!(turn, reply);
+        } else if (
+          input.kind === "reply" &&
+          typeof this.#handler.handleGrpcReply === "function" &&
+          (httpMagic === "47525231" || httpMagic === "47524631" || httpMagic === "47524b31")
+        ) {
+          const value = await decodeGrpcWithBridge(this.#bridge, turn.process.realm, payload);
+          const reply: Reply<GrpcReply> = Object.freeze({
+            kind: "reply",
+            value,
+            position: input.position,
+            origin: provenance,
+            correlation,
+          });
+          dispatch = () => this.#handler.handleGrpcReply!(turn, reply);
         } else if (input.kind === "cast" || input.kind === "call" || input.kind === "reply") {
           // Decode before initialization can stage application changes.
           const value = decode(this.#codec, payload, this.#bridge.caps.message_bytes);
@@ -389,6 +417,33 @@ export class Runner<M> implements AsyncDisposable {
     });
     if (!("opened" in result)) throw new IncompatibleNative("Expected an HTTP reader");
     return new HttpReader(result.opened, (action) => this.#httpRead(action));
+  }
+  #grpcRead(action: GrpcReadAction): Promise<GrpcReadResult> {
+    this.#admit();
+    return this.#serial.run(async () => {
+      if (this.#pending) throw new Busy("Resolve the saved mutation before reading RPC capture");
+      return await this.#bridge.grpcRead(action);
+    });
+  }
+  async openGrpc(outcome: GrpcOutcome, policy: GrpcReplayPolicy = "captured"): Promise<GrpcReader> {
+    if (
+      !(outcome instanceof GrpcOutcome) ||
+      outcome.phase !== "observed" ||
+      outcome.resource.realm !== this.#config.activation.process.realm
+    )
+      throw new TypeError("Expected a completed RPC outcome in this realm");
+    const reference = outcome.reference;
+    if (!reference) throw new TypeError("RPC outcome has no complete reference");
+    if (policy !== "captured" && policy !== "require-unredacted")
+      throw new TypeError("Select an RPC replay policy");
+    const result = await this.#grpcRead({
+      open: {
+        reference: Buffer.from(reference).toString("hex"),
+        policy: policy === "captured" ? policy : "require_unredacted",
+      },
+    });
+    if (!("opened" in result)) throw new IncompatibleNative("Expected an RPC reader");
+    return new GrpcReader(result.opened, (action) => this.#grpcRead(action));
   }
   async *run(options: { signal?: AbortSignal } = {}): AsyncGenerator<RunnerEvent, void> {
     this.#admit();

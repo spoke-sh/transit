@@ -160,6 +160,17 @@ module Transit
           raise ArgumentError, 'Select an HTTP replay policy' unless %i[captured require_unredacted].include?(policy)
           http_read({ 'open' => { 'reference' => outcome.reference.unpack1('H*'), 'policy' => policy.to_s } }).fetch('opened')
         end
+        def grpc_read(action)
+          raise Busy, 'Resolve the saved mutation before reading RPC capture' if @pending
+          @bridge.grpc_read(action)
+        end
+        def grpc_open(outcome, policy)
+          unless outcome.is_a?(GrpcOutcome) && outcome.phase == :observed && outcome.reference && outcome.resource.realm == @process.realm
+            raise ArgumentError, 'Expected a complete RPC outcome in this realm'
+          end
+          raise ArgumentError, 'Select an RPC replay policy' unless %i[captured require_unredacted].include?(policy)
+          grpc_read({ 'open' => { 'reference' => outcome.reference.unpack1('H*'), 'policy' => policy.to_s } }).fetch('opened')
+        end
         def close = @bridge.close
       end
       private_constant :State
@@ -190,6 +201,14 @@ module Transit
         Thread.handle_interrupt(Object => :never) do
           identity = @worker.call { |state| state.http_open(outcome, policy) }
           HttpReader.new(identity) { |action| @worker.call { |state| state.http_read(action) } }
+        end
+      end
+      def open_grpc(outcome, policy: :captured)
+        # Avoid interruption between acquiring the native slot and returning its
+        # wrapper. The enclosing runner owns joined cleanup after host wait loss.
+        Thread.handle_interrupt(Object => :never) do
+          identity = @worker.call { |state| state.grpc_open(outcome, policy) }
+          GrpcReader.new(identity) { |action| @worker.call { |state| state.grpc_read(action) } }
         end
       end
       def each

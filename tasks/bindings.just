@@ -44,7 +44,9 @@ python-test: python-build
     mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
     zig build transit-node rey-cli transit-station-http-worker
     python3 -B tests/python_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels
+    zig build transit-station-grpc-worker
     python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
 
 # Build installed Node SDK tarballs with independent native artifacts.
 node-build: build
@@ -61,7 +63,9 @@ node-sdk-test: node-build
     vp exec --filter @transit/sdk-examples tsc --noEmit
     zig build transit-node rey-cli transit-station-http-worker
     python3 -B tests/node_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node
+    zig build transit-station-grpc-worker
     python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
 
 # Build independent Rust source crates with their embedded native artifact.
 rust-build: build
@@ -79,7 +83,9 @@ rust-sdk-test: rust-build
     cargo fmt --manifest-path examples/station-sdk/rust/Cargo.toml --check
     zig build transit-node rey-cli transit-station-http-worker
     python3 -B tests/rust_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust
+    zig build transit-station-grpc-worker
     python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language rust
 
 # Build independent Ruby gems; native executables remain separate dependencies.
 ruby-build: build
@@ -105,7 +111,9 @@ ruby-sdk-test: ruby-build
     zig build transit-node rey-cli
     python3 -B tests/ruby_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby
     zig build transit-station-http-worker
+    zig build transit-station-grpc-worker
     python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language ruby
 
 # Build independent C/C++ prefixes with standard pkg-config metadata.
 c-build: build

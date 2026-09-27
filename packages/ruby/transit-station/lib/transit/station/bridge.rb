@@ -63,6 +63,15 @@ module Transit
         raise UnsupportedCapability, 'Native HTTP replay unavailable' unless caps['http_replay']
         port.request({ 'growing_http_read' => action }, phase: :http_read, response: 'HttpReadResult')
       end
+      def grpc_codec(action, release: false)
+        raise UnsupportedCapability, 'Native RPC requests unavailable' unless caps['grpc_requests']
+        raise UnsupportedCapability, 'Native RPC disposal unavailable' if release && !caps['grpc_release']
+        port.request({ 'grpc_codec' => action }, phase: :grpc_codec, response: 'GrpcCodecResult')
+      end
+      def grpc_read(action)
+        raise UnsupportedCapability, 'Native RPC replay unavailable' unless caps['grpc_replay']
+        port.request({ 'growing_grpc_read' => action }, phase: :grpc_read, response: 'GrpcReadResult')
+      end
       def finish(scope, failed)
         port.request({ 'growing_finish_result' => { 'scope' => scope, 'failed' => failed } }, phase: :finish)
       end

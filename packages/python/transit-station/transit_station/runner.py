@@ -16,6 +16,7 @@ from .models import (Blocked, Call, Cast, Codec, Committed, Control, FailurePoli
 from .query import ResultReader
 from .turn import Turn
 from .http import HttpOutcome, HttpPhase, HttpReplayPolicy, HttpReader, AsyncHttpReader
+from .grpc import GrpcOutcome, GrpcPhase, GrpcReplayPolicy, GrpcReader, AsyncGrpcReader
 
 M = TypeVar('M')
 R = TypeVar('R')
@@ -150,6 +151,26 @@ class Runner(Generic[M]):
     def open_http(self, outcome: HttpOutcome, *, policy: HttpReplayPolicy = HttpReplayPolicy.CAPTURED) -> HttpReader:
         identity = self._public(lambda: self._http_open(outcome, policy))
         return HttpReader(identity, lambda action: self._public(lambda: self._http_action(action)))
+
+    def _grpc_action(self, action: object) -> dict[str, Any]:
+        if self._native is None:
+            raise Closed('Runner is closed')
+        if self._pending is not None:
+            raise Busy('Resolve the saved mutation before reading RPC capture')
+        return self._native.grpc_read(action)
+
+    def _grpc_open(self, outcome: GrpcOutcome, policy: GrpcReplayPolicy) -> int:
+        if (not isinstance(outcome, GrpcOutcome) or outcome.phase is not GrpcPhase.OBSERVED
+                or outcome.reference is None or outcome.resource.realm != self.config.activation.process.realm):
+            raise ValueError('Expected a completed RPC outcome in this realm')
+        if not isinstance(policy, GrpcReplayPolicy):
+            raise TypeError('Select an RPC replay policy')
+        result = self._grpc_action({'open': {'reference': outcome.reference.hex(), 'policy': policy.value}})
+        return int(result['opened'])
+
+    def open_grpc(self, outcome: GrpcOutcome, *, policy: GrpcReplayPolicy = GrpcReplayPolicy.CAPTURED) -> GrpcReader:
+        identity = self._public(lambda: self._grpc_open(outcome, policy))
+        return GrpcReader(identity, lambda action: self._public(lambda: self._grpc_action(action)))
 
     def _record(self, event: RunnerEvent) -> RunnerEvent:
         self._last_event = event
@@ -369,6 +390,12 @@ class AsyncRunner(Generic[M]):
         async def read(action: object) -> dict[str, Any]:
             return await self._public(lambda: self._runner._http_action(action))
         return AsyncHttpReader(identity, read)
+
+    async def open_grpc(self, outcome: GrpcOutcome, *, policy: GrpcReplayPolicy = GrpcReplayPolicy.CAPTURED) -> AsyncGrpcReader:
+        identity = await self._public(lambda: self._runner._grpc_open(outcome, policy))
+        async def read(action: object) -> dict[str, Any]:
+            return await self._public(lambda: self._runner._grpc_action(action))
+        return AsyncGrpcReader(identity, read)
 
     def stop(self) -> None: self._runner.stop()
     @property

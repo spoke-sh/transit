@@ -183,6 +183,87 @@ impl<'a> Turn<'a> {
         )?;
         Correlation::new(wide(field(&value, "correlation")?)?)
     }
+    fn grpc_request(&self, request: &crate::PreparedGrpcRequest) -> Result<()> {
+        self.check()?;
+        if request.resource() != self.resource {
+            return Err(Error::new(ErrorKind::InvalidArgument, "grpc-resource"));
+        }
+        if !self.caps().grpc_requests {
+            return Err(Error::new(
+                ErrorKind::UnsupportedCapability,
+                "grpc-requests",
+            ));
+        }
+        Ok(())
+    }
+    pub fn stage_grpc(&mut self, request: &crate::PreparedGrpcRequest) -> Result<bool> {
+        self.grpc_request(request)?;
+        let value = self.apply(json!({"grpc_stage":request.wire()?}), false)?;
+        transit_client::internal::boolean(&value["staged"], "grpc-staged")
+    }
+    pub fn call_grpc(
+        &mut self,
+        peer: ProcessRef,
+        request: &crate::PreparedGrpcRequest,
+    ) -> Result<Correlation> {
+        let pid = self.peer(peer)?;
+        self.grpc_request(request)?;
+        let value = self.apply(
+            json!({"grpc_call":{"pid":pid,"reference":hex(request.reference(),145)?}}),
+            false,
+        )?;
+        Correlation::new(wide(field(&value, "correlation")?)?)
+    }
+    /// Request durable hold disposal; authenticate the correlated GrpcReleased reply.
+    pub fn release_grpc(
+        &mut self,
+        peer: ProcessRef,
+        resource: ResourceRef,
+        exchange: u64,
+    ) -> Result<Correlation> {
+        let pid = self.peer(peer)?;
+        if resource.realm() != self.resource.realm() || exchange == 0 {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "grpc-release-identity",
+            ));
+        }
+        if !self.caps().grpc_release {
+            return Err(Error::new(ErrorKind::UnsupportedCapability, "grpc-release"));
+        }
+        let value = self.apply(
+            json!({"grpc_release":{"pid":pid,"resource":resource.resource(),"exchange":exchange.to_string()}}),
+            false,
+        )?;
+        Correlation::new(wide(field(&value, "correlation")?)?)
+    }
+    /// Submit an explicit linked attempt; the service decides current admission.
+    pub fn retry_grpc(
+        &mut self,
+        peer: ProcessRef,
+        parent: &crate::GrpcOutcome,
+        request: &crate::PreparedGrpcRequest,
+    ) -> Result<Correlation> {
+        let pid = self.peer(peer)?;
+        self.grpc_request(request)?;
+        if parent.resource.realm() != self.resource.realm() || parent.exchange == 0 {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "grpc-followup-identity",
+            ));
+        }
+        if !self.caps().grpc_followup {
+            return Err(Error::new(
+                ErrorKind::UnsupportedCapability,
+                "grpc-followup",
+            ));
+        }
+        let value = self.apply(
+            json!({"grpc_followup":{"pid":pid,"resource":parent.resource.resource(),"parent":parent.exchange.to_string(),"reference":hex(request.reference(),145)?}}),
+            false,
+        )?;
+        Correlation::new(wide(field(&value, "correlation")?)?)
+    }
     pub fn budgets(&mut self) -> Result<Budgets> {
         let value = self.apply(json!({"budgets":{}}), false)?;
         let value = field(&value, "budgets")?;

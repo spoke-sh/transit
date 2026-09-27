@@ -909,11 +909,263 @@ fn http_consumer(cfg: Value, mode: &str) -> Result<()> {
     report(json!({"closed":true,"owned":transit_client::internal::hex(&owned,65536)?}));
     Ok(())
 }
+struct GrpcHandler {
+    peer: ProcessRef,
+    request: PreparedGrpcRequest,
+    observed: Arc<Mutex<Value>>,
+    disposal: Option<GrpcReleased>,
+    parent: Option<GrpcOutcome>,
+}
+impl Handler<GrpcMessage<Vec<u8>>> for GrpcHandler {
+    fn initialize(&mut self, _turn: &mut Turn<'_>) -> Result<()> {
+        Ok(())
+    }
+    fn handle(&mut self, turn: &mut Turn<'_>, input: Incoming<GrpcMessage<Vec<u8>>>) -> Result<()> {
+        let correlation = Key::new(b"grpc-correlation", U64Codec)?;
+        let release_correlation = Key::new(b"grpc-release-correlation", U64Codec)?;
+        let followup_correlation = Key::new(b"grpc-followup-correlation", U64Codec)?;
+        match input {
+            Incoming::Cast {
+                value: GrpcMessage::Application(bytes),
+                ..
+            } if bytes == b"followup" => {
+                let parent = self.parent.as_ref().unwrap();
+                let mut wrong = parent.clone();
+                wrong.resource = ResourceRef::new(73, parent.resource.resource())?;
+                assert_eq!(
+                    turn.retry_grpc(self.peer, &wrong, &self.request)
+                        .unwrap_err()
+                        .kind,
+                    ErrorKind::InvalidArgument
+                );
+                let call =
+                    turn.retry_grpc(self.peer, parent, &self.request)?;
+                turn.state().put(&followup_correlation, &call.get())?;
+                *self.observed.lock().unwrap() = json!({"followup":false});
+            }
+            Incoming::Cast {
+                value: GrpcMessage::Application(bytes),
+                ..
+            } if bytes == b"dispose" => {
+                let disposal = self.disposal.unwrap();
+                assert_eq!(
+                    turn.release_grpc(
+                        self.peer,
+                        ResourceRef::new(73, disposal.resource.resource())?,
+                        disposal.exchange
+                    )
+                    .unwrap_err()
+                    .kind,
+                    ErrorKind::InvalidArgument
+                );
+                let call = turn.release_grpc(self.peer, disposal.resource, disposal.exchange)?;
+                turn.state().put(&release_correlation, &call.get())?;
+                *self.observed.lock().unwrap() = json!({"released":false});
+            }
+            Incoming::Cast { .. } => {
+                if turn.state().find(&correlation)?.is_some() {
+                    *self.observed.lock().unwrap() = json!({"called":true});
+                } else if turn.stage_grpc(&self.request)? {
+                    let call = turn.call_grpc(self.peer, &self.request)?;
+                    turn.state().put(&correlation, &call.get())?;
+                    *self.observed.lock().unwrap() = json!({"called":true});
+                } else {
+                    *self.observed.lock().unwrap() = json!({"called":false});
+                }
+            }
+            Incoming::Reply(reply) => {
+                if let GrpcMessage::Reply(GrpcReply::Rejected(reason)) = &reply.value {
+                    let saved = turn.state().require(&followup_correlation)?;
+                    turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
+                    assert_eq!(*reason, GrpcRejection::Denied);
+                    turn.state()
+                        .put(&Key::new(b"grpc-followup-denied", U64Codec)?, &saved)?;
+                    *self.observed.lock().unwrap() = json!({"followup":true});
+                    return Ok(());
+                }
+                if let GrpcMessage::Reply(GrpcReply::Released(released)) = &reply.value {
+                    let saved = turn.state().require(&release_correlation)?;
+                    turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
+                    assert_eq!(Some(*released), self.disposal);
+                    turn.state()
+                        .put(&Key::new(b"grpc-disposed", U64Codec)?, &released.exchange)?;
+                    *self.observed.lock().unwrap() = json!({"released":true});
+                    return Ok(());
+                }
+                let saved = turn.state().require(&correlation)?;
+                turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
+                let GrpcMessage::Reply(GrpcReply::Outcome(outcome)) = reply.value else {
+                    panic!("RPC outcome");
+                };
+                assert_eq!(outcome.phase, GrpcPhase::Observed);
+                assert_eq!(outcome.status, Some(0));
+                turn.state()
+                    .put(&Key::new(b"grpc-status", U64Codec)?, &0)?;
+                *self.observed.lock().unwrap() = json!({"observed":true});
+            }
+            _ => panic!("RPC input"),
+        }
+        Ok(())
+    }
+}
+fn grpc_consumer(cfg: Value, mode: &str) -> Result<()> {
+    let body = transit_client::internal::unhex(&path(&cfg, "body"), 16384)?;
+    let prepared = prepare_grpc(ResourceRef::new(72, number(&cfg, "resource"))?, u64::MAX,
+        &GrpcRequest { method: grpc_method(&transit_client::internal::unhex(&path(&cfg,"descriptor"),65536)?, &path(&cfg,"method"), None)?,
+            metadata: vec![
+                GrpcMetadata { name: "x-tag".into(), value: GrpcMetadataValue::Literal(b"one".to_vec()) },
+                GrpcMetadata { name: "x-tag".into(), value: GrpcMetadataValue::Literal(b"two".to_vec()) },
+                GrpcMetadata { name: "x-data-bin".into(), value: GrpcMetadataValue::Literal(vec![0,255]) },
+                GrpcMetadata { name: "authorization".into(), value: GrpcMetadataValue::Secret { binding: "api".into(), version: 7 } },
+            ] }, &[&body, b""], GrpcRequestOptions { endpoint_revision: 7, reconcile_before_ms: Count::new(number(&cfg,"deadline"))?, max_attempts: 1 }, None)?;
+    let config = ServiceConfig::new(
+        ClientConfig::growing(&path(&cfg, "url"))?,
+        Activation::new(
+            ProcessRef::new(72, number(&cfg, "pid"))?,
+            number(&cfg, "principal"),
+            number(&cfg, "generation"),
+            path(&cfg, "seed_file"),
+        )?,
+    );
+    let observed = Arc::new(Mutex::new(Value::Null));
+    let parent = if let Some(value) = cfg["outcome"].as_str() {
+        let GrpcReply::Outcome(outcome) =
+            decode_grpc_reply(72, &transit_client::internal::unhex(value, 73)?, None)?
+        else {
+            panic!("RPC outcome");
+        };
+        Some(outcome)
+    } else {
+        None
+    };
+    let mut runner = Runner::open(
+        config,
+        GrpcHandler {
+            peer: ProcessRef::new(72, number(&cfg, "peer"))?,
+            request: prepared,
+            observed: observed.clone(),
+            disposal: parent.as_ref().map(|outcome| GrpcReleased {
+                resource: outcome.resource,
+                exchange: outcome.exchange,
+            }),
+            parent,
+
+        },
+        GrpcReplyCodec::new(ByteCodec, 72, None)?,
+        RunnerOptions {
+            failure: FailurePolicy::Stop,
+            recovery: Recovery::FenceOnRestart,
+        },
+    )?;
+    if mode == "grpc-caller" {
+        for action in io::stdin().lock().lines() {
+            let action = action.map_err(io_error)?;
+            if action == "close" {
+                break;
+            }
+            assert_eq!(action, "step");
+            let mut committed = false;
+            for _ in 0..32 {
+                if matches!(runner.next()?, Some(RunnerEvent::Committed { .. })) {
+                    committed = true;
+                    break;
+                }
+            }
+            assert!(committed);
+            report(observed.lock().unwrap().clone());
+        }
+        runner.close().map_err(|e| e.error)?;
+        report(json!({"closed":true,"owned":""}));
+        return Ok(());
+    }
+    let GrpcReply::Outcome(outcome) = decode_grpc_reply(
+        72,
+        &transit_client::internal::unhex(&path(&cfg, "outcome"), 73)?,
+        None,
+    )?
+    else {
+        panic!("RPC outcome");
+    };
+    if mode == "grpc-async" {
+        let stop = runner.stop_token();
+        let accepted = path(&cfg, "accepted");
+        let worker = thread::spawn(move || {
+            let mut reader = runner
+                .open_grpc(&outcome, GrpcReplayPolicy::Captured)
+                .unwrap();
+            let first = reader.read().unwrap().unwrap();
+            assert!(!first.data.is_empty());
+            assert!(!first.complete);
+            fs::write(path(&cfg, "ready"), "").unwrap();
+            wait_file(path(&cfg, "continue"));
+            reader.read().unwrap();
+            drop(reader);
+            runner.close().unwrap();
+            assert!(!first.data.is_empty());
+        });
+        wait_file(accepted);
+        stop.stop();
+        let mut beats = 0;
+        while !worker.is_finished() {
+            beats += 1;
+            thread::sleep(Duration::from_millis(10));
+        }
+        worker.join().unwrap();
+        assert!(beats > 5);
+        report(json!({"joined":true}));
+        return Ok(());
+    }
+    let mut owned = Vec::new();
+    {
+        let mut reader = runner.open_grpc(&outcome, GrpcReplayPolicy::Captured)?;
+        for action in io::stdin().lock().lines() {
+            match action.map_err(io_error)?.as_str() {
+                "open" => {
+                    let first = reader.read()?.unwrap();
+                    assert!(!first.data.is_empty());
+                    assert!(!first.complete);
+                    report(json!({"prefix":true}));
+                }
+                "denied" => {
+                    assert_eq!(reader.read().unwrap_err().kind, ErrorKind::AccessDenied);
+                    report(json!({"denied":true}));
+                }
+                "reopen" => {
+                    let error = reader.read().unwrap_err();
+                    assert_eq!(error.kind, ErrorKind::ReadFailed);
+                    assert_eq!(error.code.as_deref(), Some("GrpcReplayFailed"));
+                    reader.close()?;
+                    reader.close()?;
+                    drop(reader);
+                    reader = runner.open_grpc(&outcome, GrpcReplayPolicy::Captured)?;
+                    while let Some(part) = reader.read()? {
+                        if part.kind == GrpcPartKind::ResponseBody {
+                            owned.extend_from_slice(&part.data);
+                        }
+                    }
+                    assert!(reader.complete());
+                    reader.close()?;
+                    report(
+                        json!({"complete":true,"body":transit_client::internal::hex(&owned,65536)?}),
+                    );
+                }
+                "close" => break,
+                _ => panic!("RPC command"),
+            }
+        }
+    }
+    runner.close().map_err(|e| e.error)?;
+    report(json!({"closed":true,"owned":transit_client::internal::hex(&owned,65536)?}));
+    Ok(())
+}
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().collect();
     let mode = &args[1];
     let cfg: Value = serde_json::from_slice(&fs::read(&args[2])?)?;
     assert_eq!(cfg["profile"], "growing_v3");
+    if mode.starts_with("grpc-") {
+        return Ok(grpc_consumer(cfg, mode)?);
+    }
     if mode.starts_with("http-") {
         return Ok(http_consumer(cfg, mode)?);
     }

@@ -25,6 +25,9 @@ def consumer(mode, config_path):
     from transit_sdk_examples.query import TableService, QueryRequester
     cfg = json.loads(Path(config_path).read_bytes())
     assert Path(station.__file__).is_relative_to(Path(sys.prefix))
+    if mode.startswith('grpc-'):
+        grpc_consumer(mode, cfg)
+        return
     if mode.startswith('http-'):
         return http_consumer(mode, cfg)
     config, peer = configuration(Path(config_path))
@@ -500,6 +503,176 @@ def http_consumer(mode, cfg):
                 with runner.open_http(outcome) as reader:
                     while (part := reader.read()) is not None:
                         if part.kind is HttpPartKind.RESPONSE_BODY: owned.extend(part.data)
+                    assert reader.complete
+                result = {'complete': True, 'body': owned.hex()}
+            elif action == 'close':
+                break
+            else: raise AssertionError(action)
+            print(json.dumps(result), flush=True)
+    print(json.dumps({'closed': True, 'owned': owned.hex()}), flush=True)
+
+
+def grpc_consumer(mode, cfg):
+    from transit_client import ProcessRef, ResourceRef
+    from transit_client.errors import AccessDenied, Busy, Closed, ReadFailed, TurnExpired
+    from transit_station import (Activation, ServiceConfig, Runner, AsyncRunner,
+        FailurePolicy, Recovery, Key, Cast, Reply, Committed, GrpcReplyCodec,
+        GrpcRequest, GrpcMetadata, GrpcSecretRef, grpc_method, prepare_grpc,
+        GrpcOutcome, GrpcReleased, GrpcPhase, GrpcPartKind, decode_grpc_reply,
+        GrpcRejected, GrpcRejection)
+    from transit_sdk_examples.codecs import u64
+    class Bytes:
+        type_id, version, max_encoded_bytes = 'test.grpc-control', 1, 243
+        def encode(self, value):
+            assert isinstance(value, bytes)
+            return value
+        def decode(self, value): return value
+    config = ServiceConfig(cfg['url'], 'growing_v3', Activation(ProcessRef(72, cfg['pid']),
+        cfg['principal'], cfg['generation'], Path(cfg['seed_file'])))
+    peer = ProcessRef(72, cfg['peer'])
+    request = prepare_grpc(ResourceRef(72, cfg['resource']), 2**64-1,
+        GrpcRequest(grpc_method(bytes.fromhex(cfg['descriptor']), cfg['method']), (
+            GrpcMetadata('x-tag', b'one'), GrpcMetadata('x-tag', b'two'),
+            GrpcMetadata('x-data-bin', b'\x00\xff'), GrpcMetadata('authorization', GrpcSecretRef('api', 7)))),
+        (bytes.fromhex(cfg['body']), b''), endpoint_revision=7, reconcile_before_ms=cfg['deadline'])
+    correlation = Key(b'grpc-correlation', u64)
+    status = Key(b'grpc-status', u64)
+    disposal = Key(b'grpc-disposal', u64)
+    followup = Key(b'grpc-followup', u64)
+    codec = GrpcReplyCodec(Bytes(), 72)
+    class Handler:
+        result = None
+        escaped = None
+        def initialize(self, turn): pass
+        def handle(self, turn, incoming):
+            self.escaped = turn
+            if isinstance(incoming, Cast):
+                if incoming.value == b'followup':
+                    from dataclasses import replace
+                    outcome = decode_grpc_reply(72, bytes.fromhex(cfg['outcome']))
+                    assert isinstance(outcome, GrpcOutcome)
+                    wrong = replace(outcome, resource=ResourceRef(73, outcome.resource.resource))
+                    try: turn.retry_grpc(peer, wrong, request)
+                    except ValueError: pass
+                    else: raise AssertionError('Cross-realm followup accepted')
+                    call = turn.retry_grpc(peer, outcome, request)
+                    turn.state.put(followup, call)
+                    self.result = {'followup': False}
+                elif incoming.value == b'dispose':
+                    outcome = decode_grpc_reply(72, bytes.fromhex(cfg['outcome']))
+                    assert isinstance(outcome, GrpcOutcome)
+                    try: turn.release_grpc(peer, ResourceRef(73, outcome.resource.resource), outcome.exchange)
+                    except ValueError: pass
+                    else: raise AssertionError('Cross-realm disposal accepted')
+                    call = turn.release_grpc(peer, outcome.resource, outcome.exchange)
+                    turn.state.put(disposal, call)
+                    self.result = {'released': False}
+                elif turn.state.find(correlation) is not None:
+                    self.result = {'called': True}
+                elif turn.stage_grpc(request):
+                    call = turn.call_grpc(peer, request)
+                    turn.state.put(correlation, call)
+                    self.result = {'called': True}
+                else:
+                    self.result = {'called': False}
+            else:
+                assert isinstance(incoming, Reply)
+                if isinstance(incoming.value, GrpcRejected):
+                    turn.require_reply(incoming, peer=peer, correlation=turn.state.require(followup))
+                    assert incoming.value.reason is GrpcRejection.DENIED
+                    turn.state.put(Key(b'grpc-followup-denied', u64), incoming.correlation)
+                    self.result = {'followup': True}
+                    return
+                if isinstance(incoming.value, GrpcReleased):
+                    turn.require_reply(incoming, peer=peer, correlation=turn.state.require(disposal))
+                    original = decode_grpc_reply(72, bytes.fromhex(cfg['outcome']))
+                    assert (incoming.value.resource, incoming.value.exchange) == (original.resource, original.exchange)
+                    turn.state.put(Key(b'grpc-disposed', u64), incoming.value.exchange)
+                    self.result = {'released': True}
+                    return
+                assert isinstance(incoming.value, GrpcOutcome)
+                turn.require_reply(incoming, peer=peer, correlation=turn.state.require(correlation))
+                assert incoming.value.phase is GrpcPhase.OBSERVED and incoming.value.status == 0
+                turn.state.put(status, incoming.value.status)
+                self.result = {'observed': True}
+    handler = Handler()
+    options = dict(handler=handler, codec=codec, failure_policy=FailurePolicy.STOP,
+                   recovery=Recovery.fence_on_restart())
+    if mode == 'grpc-async':
+        async def check():
+            runner = await AsyncRunner.open(config, **options)
+            outcome = decode_grpc_reply(72, bytes.fromhex(cfg['outcome']))
+            reader = await runner.open_grpc(outcome)
+            first = await reader.read()
+            assert first.data and not first.complete
+            Path(cfg['ready']).touch()
+            while not Path(cfg['continue']).exists(): await asyncio.sleep(0.01)
+            pending = asyncio.create_task(reader.read())
+            deadline = time.monotonic() + 15
+            while not Path(cfg['accepted']).exists():
+                assert not pending.done() and time.monotonic() < deadline
+                await asyncio.sleep(0.01)
+            try: await reader.read()
+            except Busy: pass
+            else: raise AssertionError('Overlapping reader call accepted')
+            pending.cancel()
+            try: await pending
+            except asyncio.CancelledError: pass
+            close = asyncio.create_task(runner.aclose())
+            beats = 0
+            while not close.done():
+                beats += 1
+                await asyncio.sleep(0.01)
+            await close
+            assert beats > 5 and first.data
+            try: await reader.read()
+            except Closed: pass
+            else: raise AssertionError('Disposed runner retained reader authority')
+            print(json.dumps({'joined': True}), flush=True)
+        asyncio.run(check())
+        return
+    with Runner.open(config, **options) as runner:
+        reader, owned = None, bytearray()
+        for line in sys.stdin:
+            action = line.strip()
+            if action == 'step':
+                for _ in range(32):
+                    if isinstance(runner.next(), Committed): break
+                else: raise AssertionError('No committed caller turn')
+                try: handler.escaped.stage_grpc(request)
+                except TurnExpired: pass
+                else: raise AssertionError('Escaped RPC turn accepted')
+                try: handler.escaped.release_grpc(peer, ResourceRef(72, cfg['resource']), 1)
+                except TurnExpired: pass
+                else: raise AssertionError('Escaped disposal turn accepted')
+                if 'outcome' in cfg:
+                    try: handler.escaped.retry_grpc(peer, decode_grpc_reply(72, bytes.fromhex(cfg['outcome'])), request)
+                    except TurnExpired: pass
+                    else: raise AssertionError('Escaped followup turn accepted')
+                result = handler.result
+            elif action == 'open':
+                outcome = decode_grpc_reply(72, bytes.fromhex(cfg['outcome']))
+                reader = runner.open_grpc(outcome)
+                try: runner.open_grpc(outcome)
+                except Busy: pass
+                else: raise AssertionError('Second active RPC reader accepted')
+                first = reader.read()
+                assert first.data and not first.complete
+                result = {'prefix': True}
+            elif action == 'denied':
+                try: reader.read()
+                except AccessDenied: pass
+                else: raise AssertionError('Revoked RPC capture returned data')
+                result = {'denied': True}
+            elif action == 'reopen':
+                try: reader.read()
+                except ReadFailed as error: assert error.code == 'GrpcReplayFailed'
+                else: raise AssertionError('Failed RPC reader resumed')
+                reader.close()
+                reader.close()
+                with runner.open_grpc(outcome) as reader:
+                    while (part := reader.read()) is not None:
+                        if part.kind is GrpcPartKind.RESPONSE_BODY: owned.extend(part.data)
                     assert reader.complete
                 result = {'complete': True, 'body': owned.hex()}
             elif action == 'close':

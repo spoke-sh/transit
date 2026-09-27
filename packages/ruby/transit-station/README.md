@@ -24,3 +24,6 @@ runtime closure are the qualified baseline. Clean consumers run the shared
 failure/recovery/Table/query schedule; see the [proof guide](../../../tests/README.md).
 Original IPC is independently decoded with PyArrow. No optional Ruby Arrow
 adapter has been selected or qualified.
+
+The [finite RPC guide](docs/GRPC.md) describes pinned descriptor binding, original
+message batches, scoped durable calls and owned transcript replay.

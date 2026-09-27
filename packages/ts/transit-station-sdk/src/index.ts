@@ -56,3 +56,27 @@ export type {
   HttpPartKind,
   HttpPart,
 } from "./http.ts";
+
+export {
+  grpcMethod,
+  prepareGrpc,
+  decodeGrpcReply,
+  PreparedGrpcRequest,
+  GrpcOutcome,
+  GrpcReader,
+} from "./grpc.ts";
+export type {
+  GrpcShape,
+  GrpcMethod,
+  GrpcMetadataValue,
+  GrpcMetadata,
+  GrpcRequest,
+  GrpcPhase,
+  GrpcRejection,
+  GrpcRejected,
+  GrpcReleased,
+  GrpcReply,
+  GrpcReplayPolicy,
+  GrpcPartKind,
+  GrpcPart,
+} from "./grpc.ts";

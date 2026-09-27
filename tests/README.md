@@ -39,7 +39,16 @@ changed-reference refusal and unchanged mutation budgets after failure. Both
 protocol readers use shared local ownership/copy-out logic, with allocation-failure
 rollback units. The independent fixtures preserve empty/binary/Unicode messages,
 duplicate metadata, full-width identities and observed `OK` versus unknown. This
-qualifies the native bridge; installed public RPC SDK schedules remain open.
+qualifies the native bridge. Installed Python, Node, Ruby and Rust RPC callers
+now pass the shared disk-backed schedule in **64.74**, **70.02**, **65.56** and
+**96.56 seconds** respectively (including clean consumer setup). Each binds the
+local descriptor, resumes upload after host replacement, sends binary/Unicode/
+full-width protobuf plus an empty message, authenticates its reply, rejects replay
+after prefix revocation, joins active reader work and disposes its durable hold
+before/after cleanup. Typed retry refusal allocates no child or send. Each peer
+records exactly one RPC. The unchanged Python and Node HTTP schedules pass through
+the shared harness in **65.95** and **68.32 seconds**. Other SDKs and deployment
+remain open; these local timings do not establish hosted CI cost.
 
 `just test::grpc-libraries` runs the selected pinned HTTP/2, HPACK, protobuf and
 gRPC client suites. Compatibility changes and the intentionally excluded server
