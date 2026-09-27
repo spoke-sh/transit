@@ -26,6 +26,11 @@ defmodule Transit.Station.Sdk.Http.Part do
   defstruct [:kind, :data, :complete]
 end
 
+defmodule Transit.Station.Sdk.Http.Released do
+  @enforce_keys [:resource, :exchange]
+  defstruct [:resource, :exchange]
+end
+
 defmodule Transit.Station.Sdk.Http.Reader do
   @enforce_keys [:native]
   @derive {Inspect, only: []}
@@ -48,7 +53,7 @@ end
 defmodule Transit.Station.Sdk.Http do
   alias Transit.Client
   alias Transit.Station.Sdk.{Runner, Turn, Value}
-  alias __MODULE__.{Request, Prepared, Outcome, Rejected, Part, Reader}
+  alias __MODULE__.{Request, Prepared, Outcome, Rejected, Released, Part, Reader}
 
   def literal(value), do: {:literal, value}
   def variable(name, value), do: {:variable, name, value}
@@ -82,6 +87,12 @@ defmodule Transit.Station.Sdk.Http do
 
   def call(%Turn{native: turn}, peer, %Prepared{} = request),
     do: Client.convert(:transit_http.call(turn, Client.native(peer), prepared(request)))
+
+  def release(%Turn{native: turn}, peer, resource, exchange),
+    do:
+      Client.convert(
+        :transit_http.release(turn, Client.native(peer), Client.native(resource), exchange)
+      )
 
   def open(runner, %Outcome{} = outcome, policy \\ :captured) do
     native =
@@ -127,6 +138,9 @@ defmodule Transit.Station.Sdk.Http do
       }
 
   def convert({:transit_http_rejected, reason}), do: %Rejected{reason: reason}
+
+  def convert({:transit_http_released, resource, exchange}),
+    do: %Released{resource: Client.convert(resource), exchange: exchange}
 
   def convert({:transit_http_part, kind, data, complete}),
     do: %Part{kind: kind, data: data, complete: complete}

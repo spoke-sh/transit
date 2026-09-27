@@ -33,7 +33,7 @@ Observe committed runner events and guard against duplicate calls with state.
 Application codecs own message dispatch. With a byte-oriented codec, authenticate
 an incoming reply using `Turn.require_reply/4` before
 `Http.decode_reply(realm, bytes)`. This returns `%Http.Outcome{}` or
-`%Http.Rejected{}` and preserves unknown/not-dispatched distinctions. A cast with
+`%Http.Rejected{}` or `%Http.Released{}` and preserves unknown/not-dispatched distinctions. A cast with
 outcome-shaped bytes is not a reply. Only observed outcomes have complete capture
 references; HTTP status does not establish business success.
 
@@ -56,3 +56,11 @@ Closing invalidates readers while returned binaries remain valid. Local reader
 disposal does not release durable holds or authorize cleanup. The installed
 consumer in `just bindings::beam-sdk-test` exercises this lifecycle through the
 public Elixir API and shared independent TLS schedule.
+
+Call `Http.release(turn, connector, outcome.resource, outcome.exchange)` inside
+a handler to request durable disposal. Save the correlation, authenticate its
+reply with `Turn.require_reply/4`, and check the decoded `%Http.Released{}` identity.
+Duplicate calls remain safe after restart and cleanup without transcript read
+access. The service checks the recorded holder and current admission policy;
+release does not cancel remote work, retire capture or clean up members. A fresh
+finite-worker `poll` activation handles this control call.

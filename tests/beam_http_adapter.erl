@@ -3,7 +3,7 @@
 -behaviour(transit_station_codec).
 -behaviour(transit_station_handler).
 -export([prepare/1, open/3, next/1, close/1, stop/1, stage/2, open_http/2, read/1, close_http/1,
-         complete/1, decode/1, outcome/1, view/1, event/1, golden/1,
+         complete/1, decode/1, outcome/1, view/1, event/1, golden/1, release_expired/1,
          type_id/0, version/0, max_encoded_bytes/0, encode/1, handle_message/3]).
 %% The application codec owns ordinary bytes. Decode HTTP only on an authenticated reply.
 type_id() -> <<"test.http-control">>.
@@ -20,10 +20,19 @@ open(Cfg, S, Request) ->
     {ok, Client} = transit_client:config(maps:get(<<"url">>, Cfg), growing_v3),
     Service = #transit_service{client = Client, activation = #transit_activation{process = #transit_process{realm = 72, pid = maps:get(<<"pid">>, Cfg)},
         generation = maps:get(<<"generation">>, Cfg), credential = #transit_credential{realm = 72, principal = maps:get(<<"principal">>, Cfg), seed_file = maps:get(<<"seed_file">>, Cfg)}}},
-    transit_station_sdk:open(Service, ?MODULE, {S, #transit_process{realm = 72, pid = maps:get(<<"peer">>, Cfg)}, Request}, ?MODULE, stop, fresh_ownership).
-handle_message(Turn, Input, {S, Peer, Request} = Context) ->
+    Disposal = case maps:find(<<"outcome">>, Cfg) of
+        {ok, Bytes} -> {ok, Value} = transit_http:decode_reply(72, binary:decode_hex(Bytes)), Value;
+        error -> undefined end,
+    transit_station_sdk:open(Service, ?MODULE, {S, #transit_process{realm = 72, pid = maps:get(<<"peer">>, Cfg)}, Request, Disposal}, ?MODULE, stop, fresh_ownership).
+handle_message(Turn, Input, {S, Peer, Request, Disposal} = Context) ->
     beam_http_controller:put(S, escaped, Turn), {ok, State} = transit_turn:state(Turn), {ok, Key} = transit_turn:key(<<"http-correlation">>, transit_example_u64_codec),
+    {ok, ReleaseKey} = transit_turn:key(<<"http-release-correlation">>, transit_example_u64_codec),
     Result = case Input#transit_incoming.kind of
+        cast when Input#transit_incoming.value =:= <<"dispose">> ->
+            #transit_http_outcome{resource = Capture, exchange = Exchange} = Disposal,
+            {error, #transit_error{kind = invalid_argument}} = transit_http:release(Turn, Peer, Capture#transit_resource{realm = 73}, Exchange),
+            {ok, Correlation} = transit_http:release(Turn, Peer, Capture, Exchange),
+            {ok, ok} = transit_turn:put(State, ReleaseKey, Correlation), #{released => false};
         cast ->
             Called = case transit_turn:find(State, Key) of
                 {ok, {found, _}} -> true;
@@ -34,15 +43,25 @@ handle_message(Turn, Input, {S, Peer, Request} = Context) ->
             end,
             #{called => Called};
         reply ->
-            {ok, Correlation} = transit_turn:require(State, Key), {ok, ok} = transit_turn:require_reply(Turn, Input, Peer, Correlation),
-            {ok, #transit_http_outcome{phase = observed, status = 200}} = transit_http:decode_reply(72, Input#transit_incoming.value),
-            {ok, Status} = transit_turn:key(<<"http-status">>, transit_example_u64_codec), {ok, ok} = transit_turn:put(State, Status, 200), #{observed => true}
+            case Input#transit_incoming.value of
+                <<"HTK1", _/binary>> ->
+                    {ok, Correlation} = transit_turn:require(State, ReleaseKey), {ok, ok} = transit_turn:require_reply(Turn, Input, Peer, Correlation),
+                    #transit_http_outcome{resource = Capture, exchange = Exchange} = Disposal,
+                    {ok, #transit_http_released{resource = Capture, exchange = Exchange}} = transit_http:decode_reply(72, Input#transit_incoming.value),
+                    {ok, Disposed} = transit_turn:key(<<"http-disposed">>, transit_example_u64_codec),
+                    {ok, ok} = transit_turn:put(State, Disposed, Exchange), #{released => true};
+                _ ->
+                    {ok, Correlation} = transit_turn:require(State, Key), {ok, ok} = transit_turn:require_reply(Turn, Input, Peer, Correlation),
+                    {ok, #transit_http_outcome{phase = observed, status = 200}} = transit_http:decode_reply(72, Input#transit_incoming.value),
+                    {ok, Status} = transit_turn:key(<<"http-status">>, transit_example_u64_codec), {ok, ok} = transit_turn:put(State, Status, 200), #{observed => true}
+            end
     end,
     beam_http_controller:put(S, result, Result), {ok, Context}.
 next(R) -> transit_station_sdk:next(R).
 close(R) -> transit_station_sdk:close(R).
 stop(R) -> transit_station_sdk:stop(R).
 stage(T, Request) -> transit_http:stage(T, Request).
+release_expired(T) -> transit_http:release(T, #transit_process{realm = 72, pid = 1}, #transit_resource{realm = 72, resource = 1}, 1).
 outcome(Bytes) -> transit_http:decode_reply(72, Bytes).
 open_http(R, Outcome) -> transit_http:open(R, Outcome).
 read(Reader) -> case transit_http:read(Reader) of
@@ -63,5 +82,8 @@ golden(Fixture) ->
     {ok, #transit_http_outcome{phase = observed, status = 200, exchange = 18446744073709551615, reference = Ref}} = transit_http:decode_reply(72, Bytes), true = is_binary(Ref),
     {ok, #transit_http_rejected{reason = denied}} = transit_http:decode_reply(72, binary:decode_hex(maps:get(<<"rejection">>, Fixture))),
     {error, _} = transit_http:decode_reply(72, binary:part(Bytes, 0, 70)),
+    Released = binary:decode_hex(maps:get(<<"released">>, Fixture)),
+    {ok, #transit_http_released{resource = #transit_resource{realm = 72, resource = 7}, exchange = 18446744073709551615}} = transit_http:decode_reply(72, Released),
+    {error, _} = transit_http:decode_reply(72, binary:part(Released, 0, 19)),
     {error, _} = transit_http:prepare(#transit_resource{realm = 72, resource = 8}, 1,
         #transit_http_request{method = get, target = [{literal, <<"//other/">>}]}, <<>>, #{endpoint_revision => 1, reconcile_before_ms => 9000}), ok.

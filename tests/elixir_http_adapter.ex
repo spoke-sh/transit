@@ -4,7 +4,7 @@ defmodule ElixirHttpAdapter do
   alias Transit.Client
   alias Transit.Station.Sdk.{Activation, Committed, Incoming, Runner, ServiceConfig, State, Turn}
   alias Transit.Station.Sdk.Http
-  alias Transit.Station.Sdk.Http.{Outcome, Part, Prepared, Reader, Rejected, Request}
+  alias Transit.Station.Sdk.Http.{Outcome, Part, Prepared, Reader, Rejected, Released, Request}
   alias Transit.SdkExamples.U64Codec
 
   def type_id, do: "test.http-control"
@@ -52,19 +52,34 @@ defmodule ElixirHttpAdapter do
 
     peer = %Client.ProcessRef{realm: 72, pid: cfg["peer"]}
 
-    Runner.open(service, __MODULE__, {shared, peer, request}, __MODULE__,
+    disposal =
+      if cfg["outcome"] do
+        {:ok, value} = Http.decode_reply(72, Base.decode16!(cfg["outcome"], case: :mixed))
+        value
+      end
+
+    Runner.open(service, __MODULE__, {shared, peer, request, disposal}, __MODULE__,
       failure_policy: :stop,
       recovery: :fresh_ownership
     )
   end
 
-  def handle_message(turn, input, {shared, peer, request} = context) do
+  def handle_message(turn, input, {shared, peer, request, disposal} = context) do
     :beam_http_controller.put(shared, :escaped, turn)
     {:ok, state} = Turn.state(turn)
     {:ok, key} = Turn.key("http-correlation", U64Codec)
+    {:ok, release_key} = Turn.key("http-release-correlation", U64Codec)
 
     result =
       case input do
+        %Incoming{kind: :cast, value: "dispose"} ->
+          {:error, %Client.Error{kind: :invalid_argument}} =
+            Http.release(turn, peer, %{disposal.resource | realm: 73}, disposal.exchange)
+
+          {:ok, correlation} = Http.release(turn, peer, disposal.resource, disposal.exchange)
+          {:ok, :ok} = State.put(state, release_key, correlation)
+          %{released: false}
+
         %Incoming{kind: :cast} ->
           called =
             case State.find(state, key) do
@@ -84,6 +99,15 @@ defmodule ElixirHttpAdapter do
 
           %{called: called}
 
+        %Incoming{kind: :reply, value: <<"HTK1", _::binary>> = bytes} ->
+          {:ok, correlation} = State.require(state, release_key)
+          {:ok, :ok} = Turn.require_reply(turn, input, peer, correlation)
+          {:ok, %Released{} = released} = Http.decode_reply(72, bytes)
+          true = released.resource == disposal.resource && released.exchange == disposal.exchange
+          {:ok, disposed} = Turn.key("http-disposed", U64Codec)
+          {:ok, :ok} = State.put(state, disposed, released.exchange)
+          %{released: true}
+
         %Incoming{kind: :reply, value: bytes} ->
           {:ok, correlation} = State.require(state, key)
           {:ok, :ok} = Turn.require_reply(turn, input, peer, correlation)
@@ -101,6 +125,16 @@ defmodule ElixirHttpAdapter do
   def close(runner), do: Runner.close(runner)
   def stop(runner), do: Runner.stop(runner)
   def stage(turn, request), do: Http.stage(turn, request)
+
+  def release_expired(turn),
+    do:
+      Http.release(
+        turn,
+        %Client.ProcessRef{realm: 72, pid: 1},
+        %Client.ResourceRef{realm: 72, resource: 1},
+        1
+      )
+
   def open_http(runner, outcome), do: Http.open(runner, outcome)
   def outcome(bytes), do: Http.decode_reply(72, bytes)
 
@@ -148,6 +182,15 @@ defmodule ElixirHttpAdapter do
       Http.decode_reply(72, Base.decode16!(fixture["rejection"], case: :mixed))
 
     {:error, _} = Http.decode_reply(72, binary_part(bytes, 0, 70))
+    released = Base.decode16!(fixture["released"], case: :mixed)
+
+    {:ok,
+     %Released{
+       resource: %Client.ResourceRef{realm: 72, resource: 7},
+       exchange: 18_446_744_073_709_551_615
+     }} = Http.decode_reply(72, released)
+
+    {:error, _} = Http.decode_reply(72, binary_part(released, 0, 19))
 
     {:error, _} =
       Http.prepare(

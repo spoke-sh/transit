@@ -2,7 +2,7 @@
 -module(transit_http).
 -include("transit_station_sdk.hrl").
 -export([prepare/5, prepare/6, decode_reply/2, decode_reply/3, stage/2, call/3,
-         open/2, open/3, read/1, complete/1, close/1, part/2]).
+         release/4, open/2, open/3, read/1, complete/1, close/1, part/2]).
 -export_type([reader/0, piece/0]).
 -opaque reader() :: {transit_http_reader, transit_station_sdk:runner(), pos_integer(), non_neg_integer(), boolean()}.
 -type piece() :: {literal, binary()} | {variable, binary(), binary()} | {secret, binary(), pos_integer()}.
@@ -32,11 +32,12 @@ piece({variable, Name, Value}) -> #{<<"variable">> => #{<<"name">> => transit_sd
 piece({secret, Binding, Version}) -> #{<<"secret">> => #{<<"binding">> => transit_sdk_value:text(Binding, 128), <<"version">> => integer_to_binary(positive(Version))}};
 piece(_) -> transit_sdk_value:fail(invalid_argument, http_piece).
 positive(Value) -> transit_sdk_value:integer(Value, 1, 18446744073709551615).
-local(Action, Override) ->
+local(Action, Override) -> local(Action, Override, <<"http_requests">>).
+local(Action, Override, Capability) ->
     case transit_sdk_worker:open(transit_station_runner, {local, Override}, false) of
         {ok, Worker} ->
             try
-                case transit_sdk_worker:invoke(Worker, {http_codec, Action}) of
+                case transit_sdk_worker:invoke(Worker, {http_codec, Action, Capability}) of
                     {ok, Result} -> Result;
                     {error, Error} -> throw({transit_sdk, Error})
                 end
@@ -46,9 +47,14 @@ local(Action, Override) ->
 decode_reply(Realm, Bytes) -> decode_reply(Realm, Bytes, undefined).
 decode_reply(Realm, Bytes, Override) -> transit_sdk_value:protect(fun() ->
     transit_sdk_value:counter(Realm),
-    Value = local(#{<<"outcome">> => transit_sdk_value:hex(transit_sdk_value:bytes(Bytes, 71))}, Override),
+    Owned = transit_sdk_value:bytes(Bytes, 71),
+    Capability = case Owned of <<"HTK1", _/binary>> -> <<"http_release">>; _ -> <<"http_requests">> end,
+    Value = local(#{<<"outcome">> => transit_sdk_value:hex(Owned)}, Override, Capability),
     case Value of
         #{<<"rejected">> := Rejection} -> #transit_http_rejected{reason = known(Rejection, [denied, invalid_request, busy])};
+        #{<<"released">> := Released} -> #transit_http_released{
+            resource = #transit_resource{realm = Realm, resource = transit_sdk_value:counter(maps:get(<<"resource">>, Released))},
+            exchange = positive(transit_sdk_value:wide(maps:get(<<"exchange">>, Released)))};
         #{<<"outcome">> := Result} ->
             #transit_http_outcome{phase = known(maps:get(<<"phase">>, Result), [observed, closed_unknown, not_dispatched]),
                 resource = #transit_resource{realm = Realm, resource = transit_sdk_value:counter(maps:get(<<"resource">>, Result))},
@@ -70,6 +76,16 @@ stage(Turn, #transit_http_prepared{reference = Reference, metadata = Metadata, b
 call(Turn, Peer, #transit_http_prepared{reference = Reference} = Request) -> transit_turn:access(Turn, false, fun() ->
     scope(Turn, Request),
     Result = transit_turn:raw(Turn, #{<<"http_call">> => #{<<"pid">> => transit_turn:peer(Turn, Peer), <<"reference">> => transit_sdk_value:hex(transit_sdk_value:bytes(Reference, 112))}}),
+    positive(transit_sdk_value:wide(maps:get(<<"correlation">>, Result))) end).
+release(Turn, Peer, Capture, Exchange) -> transit_turn:access(Turn, false, fun() ->
+    #{process := #transit_process{realm = Realm}, bridge := Bridge} = transit_turn:data(Turn),
+    Resource = case Capture of #transit_resource{realm = Realm, resource = Id} -> transit_sdk_value:counter(Id);
+        _ -> transit_sdk_value:fail(invalid_argument, http_release_resource) end,
+    positive(Exchange),
+    case maps:get(<<"http_release">>, transit_station_bridge:caps(Bridge), false) of
+        true -> ok; false -> transit_sdk_value:fail(unsupported_capability, http_release) end,
+    Result = transit_turn:raw(Turn, #{<<"http_release">> => #{<<"pid">> => transit_turn:peer(Turn, Peer),
+        <<"resource">> => Resource, <<"exchange">> => integer_to_binary(Exchange)}}),
     positive(transit_sdk_value:wide(maps:get(<<"correlation">>, Result))) end).
 open(Runner, Outcome) -> open(Runner, Outcome, captured).
 open(Runner, #transit_http_outcome{phase = observed, resource = #transit_resource{realm = Realm}, reference = Reference}, Policy) ->

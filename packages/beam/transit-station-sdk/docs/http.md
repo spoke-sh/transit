@@ -42,7 +42,8 @@ Application codecs retain ownership of payload dispatch. A byte-oriented codec
 can return immutable payloads to the handler. On a `reply` input, authenticate
 the original connector and persisted correlation with
 `transit_turn:require_reply/4`, then call `transit_http:decode_reply(Realm, Bytes)`.
-It returns `#transit_http_rejected{}` or `#transit_http_outcome{}`. A cast containing
+It returns `#transit_http_rejected{}`, `#transit_http_outcome{}` or
+`#transit_http_released{}`. A cast containing
 outcome-shaped bytes is not a reply. Outcomes distinguish observed, closed unknown
 and not dispatched; only observed outcomes contain complete references. HTTP
 status is not business success. No language wrapper duplicates HTTP framing or
@@ -80,6 +81,15 @@ shutdown does not cancel remote HTTP execution. Reader close disposes the local
 slot, and repeated close is accepted for the last closed identity. After runner
 close, all reader tokens fail `closed`. Previously returned binaries remain owned.
 Disposal does not release a durable caller hold, retire capture or erase history.
+
+Inside a handler, `transit_http:release(Turn, Connector, Capture, Exchange)`
+requests disposal of the durable caller hold. Persist its correlation and
+authenticate the subsequent reply with `transit_turn:require_reply/4`, then decode
+and check the `#transit_http_released{resource, exchange}` identity. Duplicate
+calls remain safe after worker restart and cleanup without transcript read access.
+The service checks the recorded holder and current admission policy. Release
+does not cancel remote work, retire capture or clean up its members; the finite
+worker needs a fresh `poll` activation to handle it.
 
 `just bindings::beam-sdk-test` compiles installed Erlang and Elixir consumers
 and runs the shared TLS/recovery/revocation/disposal schedule plus existing SDK

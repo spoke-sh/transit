@@ -30,7 +30,8 @@ committed(A, R, N) -> case A:event(ok(A, A:next(R))) of committed -> ok; _ -> co
 loop(A, R, S, Cfg, Request, Reader, Outcome, Owned) ->
     Line = case io:get_line("") of eof -> eof; Input -> unicode:characters_to_binary(Input) end,
     case Line of
-        <<"step\n">> -> committed(A, R, 32), expect(A, turn_expired, A:stage(get(S, escaped), Request)), report(get(S, result)),
+        <<"step\n">> -> committed(A, R, 32), expect(A, turn_expired, A:stage(get(S, escaped), Request)),
+            expect(A, turn_expired, A:release_expired(get(S, escaped))), report(get(S, result)),
             loop(A, R, S, Cfg, Request, Reader, Outcome, Owned);
         <<"open\n">> ->
             Decoded = ok(A, A:outcome(binary:decode_hex(maps:get(<<"outcome">>, Cfg)))),

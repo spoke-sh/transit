@@ -1,4 +1,5 @@
 """Compile clean OTP consumers and run both public Station authority schedules."""
+import json
 import os
 from pathlib import Path
 import shutil
@@ -40,7 +41,9 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
                     subprocess.run(['elixirc', '--warnings-as-errors', '-pa', str(classes), '-o', str(classes), str(source)], env=env, cwd=target, check=True)
                     source.unlink()
             fixtures = target / 'http-fixtures.json'
-            shutil.copyfile(root / 'packages/zig/transit-station-http/src/admission-fixtures.json', fixtures)
+            http_data = json.loads((root / 'packages/zig/transit-station-http/src/admission-fixtures.json').read_bytes())
+            http_data['released'] = json.loads((root / 'packages/zig/transit-station-http/src/release-fixtures.json').read_bytes())['reply']
+            fixtures.write_text(json.dumps(http_data))
             fake = target / 'bad-station-version'
             fake.write_text(f'#!{sys.executable}\nimport sys\nsys.stdin.readline()\nprint(\'{{"status":0,"value":{{"host_version":1,"station_version":99,"transit_version":1}}}}\')\n')
             fake.chmod(0o700)
@@ -79,7 +82,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
                 return ['elixir', '-e', 'Transit.SdkExamples.CounterMain.main()', '--', str(config), role, '--commits', '1']
             return Consumer(env, command, example, 'invalid-handler', extra_failures=('exit-stop', 'exit-block'), arrow_adapter=False)
         (execute or schedule)(node, cli, library, install, language.capitalize())
-        if execute is None: http_schedule(node, cli, library, http_worker, install, language.capitalize())
+        if execute is None: http_schedule(node, cli, library, http_worker, install, language.capitalize(), public_release=True)
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

@@ -20,7 +20,9 @@ Its shared native bridge exposes publication, request/outcome codecs and bounded
 replay; replay cannot resolve credentials or refetch external data. The
 [test guide](../tests/README.md#m15-connector-work-in-progress) records the actual
 fault corpus and limits. All ten public SDKs qualify request publication, calls
-and owned replay over that bridge. Broader public lifecycle helpers, Board and
+and owned replay over that bridge. All ten also qualify authenticated durable
+disposal before and after cleanup without transcript read permission or secrets.
+Public followup helpers, Board and
 deployment qualification remain open; this does not complete M15.
 
 The connector milestones will add [Board](BOARD.md) enrichment for exchanges and

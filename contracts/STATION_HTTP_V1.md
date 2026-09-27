@@ -126,8 +126,10 @@ the admitted route remains durable. A fresh authorized activation may resume, or
 the controller may explicitly abandon it in `release` mode and publish
 not_dispatched. There is no automatic deletion or implicit expiry on failure.
 
-Public followup submission, multi-exchange queue scheduling and language-native
-release conveniences are not part of this initial admission surface. Explicit controller
+All ten public SDKs expose durable disposal and typed acknowledgements through
+the shared `http_release` capability. Their local readers remain independent
+of that explicit durable operation. Public followup submission and multi-exchange
+queue scheduling are not part of this initial admission surface. Explicit controller
 followups retain the policies below; the remaining M15 SDK/lifecycle obligations
 must be qualified before claiming a completed public connector.
 

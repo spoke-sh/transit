@@ -27,5 +27,6 @@
 -record(transit_http_prepared, {resource, namespace, reference, metadata, body}).
 -record(transit_http_outcome, {phase, resource, exchange, effect, attempt, status = undefined, reference = undefined}).
 -record(transit_http_rejected, {reason}).
+-record(transit_http_released, {resource, exchange}).
 -record(transit_http_part, {kind, bytes, complete = false}).
 -endif.

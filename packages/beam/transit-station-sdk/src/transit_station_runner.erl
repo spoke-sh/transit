@@ -21,6 +21,11 @@ open({#transit_service{activation = #transit_activation{process = Process}} = Se
     catch Class:Reason:Stack -> catch transit_station_bridge:close(Bridge), erlang:raise(Class, Reason, Stack) end.
 execute({encode_cast, Value, Codec}, {local, Bridge} = State) -> {{ok, transit_station_bridge:frame(Bridge, Value, Codec)}, State};
 execute({http_codec, Action}, {local, Bridge} = State) -> {{ok, transit_station_bridge:http_codec(Bridge, Action)}, State};
+execute({http_codec, Action, Capability}, {local, Bridge} = State) ->
+    case maps:get(Capability, transit_station_bridge:caps(Bridge), false) of
+        true -> {{ok, transit_station_bridge:http_codec(Bridge, Action)}, State};
+        false -> transit_sdk_value:fail(unsupported_capability, http_codec)
+    end;
 execute({http, _}, #state{pending = Pending}) when Pending =/= undefined -> transit_sdk_value:fail(busy, pending_mutation);
 execute({http, {open, Realm, Reference, Policy}}, #state{process = #transit_process{realm = Realm}, bridge = Bridge} = State) ->
     Result = transit_station_bridge:http_read(Bridge, #{<<"open">> => #{<<"reference">> => transit_sdk_value:hex(Reference), <<"policy">> => Policy}}),

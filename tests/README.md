@@ -149,11 +149,13 @@ revocation/reopening and cancelled task waits joined by runner disposal. Existin
 raw client and Station recovery/query checks passed in the same invocation.
 `just bindings::beam-sdk-test` installs both BEAM archives and exercises Erlang
 records and Elixir structs. Both raw client and Station schedules passed; after
-fixing the shared test controller to accept binary as well as list input, both
-HTTP schedules passed through the task's shared harness in **36.33** and **37.28
-seconds**. Immutable reader tokens reject stale cursor reuse; a killed waiting
+fixing a missing import in the new fixture loader, both Station and expanded
+HTTP schedules passed through the task's harness in **54.45** and **55.47
+seconds** for HTTP. Both authenticate durable disposal under revoked transcript
+access and repeat it after cleanup. Immutable reader tokens reject stale cursor reuse; a killed waiting
 process cannot silently skip a part, and disposal joins the admitted port job.
-All ten SDKs now pass the HTTP fixtures and caller schedule. The existing public
+All ten SDKs now pass the HTTP fixtures, caller schedule and durable disposal
+before/after cleanup without transcript access or credentials. The existing public
 counter/query interoperability ring was rerun against these installed artifacts:
 all ten edges passed in **255.78 seconds**, including clean consumer installation.
 
@@ -162,7 +164,7 @@ This is local proof time, not a hosted CI or aggregate runner-minute measurement
 Machine output distinguishes sealed capture phase from the kernel outcome.
 
 These checks passed locally on Linux x86_64 with the pinned compiler. They do not
-yet qualify general public multi-call/followup APIs, disposal helpers in every SDK, managed secret providers,
+yet qualify general public multi-call/followup APIs, managed secret providers,
 every cross-service lifetime combination, all launchers
 or hosted CI cost. Those remain explicit
 [M15](../docs/roadmap/M15.md) exit obligations. The shared capture
