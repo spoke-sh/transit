@@ -15,7 +15,7 @@ session budgets and Snapshot/Stream behavior; this file owns editor assistance.
 | --- | --- | --- |
 | SQL syntax | [TransitExtensions.g4](../../../contracts/sql/TransitExtensions.g4), with a generated Python/ANTLR verification parser | A pinned editor artifact generator and incomplete-input/caret analysis |
 | Executable semantics | [Sql.zig](../../../packages/zig/transit-fuze/src/Sql.zig) strictly parses complete SELECT statements and compiles against supplied source metadata | A versioned capability/semantic descriptor; useful diagnostic spans and completion contexts |
-| Source metadata | [Query Model.Source](../../../packages/zig/transit-query/src/Model.zig) describes one configured Table, schema, revisions and current observation | Authorized bounded catalog search, stable object identities and source binding beyond that one Table |
+| Source metadata | [Query Model.Source](../../../packages/zig/transit-query/src/Model.zig) describes one configured Table, schema, revisions and current observation | Authorized bounded catalog search, stable object identities, owner-produced metric/schema summaries and source binding beyond that one Table |
 | Browser execution | [QueryWorkspace](../../../apps/transit-board-web/src/query-workspace.tsx) prepares/freezes/submits, observes status and reads verified pages | A multiline shell, active-statement ranges, worksheet drafts, completion and session history |
 | Result data | Query model supplies columns, lossless cells, pages, manifests and phases | Typed profile computation with explicit coverage; no inference from page count alone |
 
@@ -120,6 +120,8 @@ is superseded when the prefix/scope changes. Show warm candidates immediately,
 then merge fresh catalog matches without stealing the current selection. On a
 cold miss show that discovery is pending; network latency cannot honestly be
 promised as instant. Never download the whole catalog or sample rows for hints.
+Resource-search metrics and schema previews arrive with that bounded page or
+from the same versioned cache; they never block names or trigger per-row fan-out.
 
 Proposed prototype budgets, **unmeasured and subject to qualification**:
 
@@ -128,6 +130,7 @@ Proposed prototype budgets, **unmeasured and subject to qualification**:
 | Warm keypress to visible candidates | p95 ≤ 50 ms, p99 ≤ 100 ms; includes scheduling and rendering |
 | Editor main-thread work per edit | p95 ≤ 4 ms; no edit-induced task over 50 ms |
 | Completion popup | At most 20 visible candidates, with bounded continuation |
+| Resource-search list | At most five visible rows; bounded continuation through the same catalog page; previews cap at four fields or two nested levels |
 | Language worker queue | One active job plus one replacement request |
 | Open drafts | At most eight; 64 KiB UTF-8 per worksheet as a proposed editor budget |
 | Session history | At most 50 completed records and 256 KiB, whichever is reached first; active/uncertain operation identity is held separately and cannot be evicted with history |
@@ -151,6 +154,82 @@ eight open drafts and catalogs up to a million synthetic entries behind bounded
 search. Repeat with delayed/offline metadata and result pages arriving. Report
 latency percentiles, long tasks, resident/peak memory, cold startup and bytes
 fetched. The catalog cardinality is a future test workload, not scale evidence.
+
+## Resource search: one field, informative rows
+
+The **Find resources** field replaces the Catalog button/tree. It stays beside
+Explore's title and opens a wide, dismissible list below it, over the worksheet.
+The SQL editor keeps its width and split position. On a narrow screen the list
+uses the available content width and stacks each row's metrics under its name;
+hide no resource kind or measurement qualifier to preserve a desktop grid.
+
+Focus with no text shows bounded recently inspected resources in the current
+authorized scope; without recents, show the first bounded name page. Typing filters
+warm names immediately while a fresh page is fetched. Begin with prefix matching
+on resource names, exact matches first, then kind (Table, Document, KV) and stable
+name/identity order within each kind.
+Ranking is independent of metrics arriving. Broader token/fuzzy or schema-field
+search needs an explicit index and ranking contract; do not imply it by filtering
+only a loaded page. Kind filters, when used, are discrete controls, not a new SQL
+or magic search-language grammar. Clearing text returns to the initial list.
+
+Rows align four groups: name/kind/capability, cardinality, size and schema.
+Keep kind text beside its icon; communicate selection with an outline and marker.
+Schema diagrams have equivalent text. Keyboard navigation and assistive technology
+receive each row's name, kind, capability and metric qualifiers as one option.
+Use a labelled combobox with listbox options; Details/Insert name are separate
+focusable actions for the selected row, not interactive controls nested in an
+option. Arrow keys change selection, Enter opens Details and Escape closes the
+list and returns to SQL. Tab reaches the explicit actions. Pointer selection
+follows the same behavior. Preserve the selected identity when a page refreshes;
+if it disappears, clear selection rather than moving it onto another resource.
+The search field's accessible label is Find resources; the hint names the kinds
+it can discover. Detail views return to the same search text and selected identity.
+
+| Row content | Meaning and evidence |
+| --- | --- |
+| Name, type and capability | Stable resource identity with a display name; Table, Document or KV text/icon; Queryable or Inspect only for the current profile and grant |
+| Cardinality | Table logical rows; KV keys in the named keyspace; a Document has no implied row count. Structural field/node counts, when available, are labelled separately. Physical resource entry counts may include framework records and cannot substitute for logical rows |
+| Size | Named measure and unit: logical value bytes, encoded current-state bytes or retained bytes. Keep these different; provider allocation/compression is not derivable from a logical byte count |
+| Table schema | Bounded field cells with names, declared types, primary-key and nullability labels; additional fields appear as `+N fields`, expanded in Details |
+| Document shape | A small branching map/list diagram only from a recognized declared or registered shape with its version. Optional/unknown parts stay explicit; an absent descriptor is Shape unavailable, never a sampled schema |
+| KV shape | Key encoding → value encoding or declared type; opaque bytes stay bytes. A decoder/schema requires the qualified owning adapter |
+| Observation | Each metric carries resource/scope, basis revision, coverage, exact/estimated/unavailable state and producer. Estimates disclose method/error information when available; stale observations retain their old basis and stale label |
+
+Keep the row compact: value plus unit on the first line, basis/qualification on
+the second. Details exposes complete identity, scope, provenance and freshness,
+including different metric/schema revisions. A schema diagram is structure, not
+a value distribution; row profiles and histograms still belong to identified query
+results. Never add a decorative sparkline without a bounded historical metric and
+an explicit axis/window. Unknown size is `Unavailable`, distinct from exact zero.
+
+The [synthetic search fixture](d4-catalog-fixture.json) supplies Figure 4's rows.
+Its Table cardinality describes all six source rows at r42, not the worksheet's
+three-row result. The 96 B figure counts only twelve eight-byte values; it is not
+disk use. Document/KV observations illustrate future metadata contracts. Neither
+today's atlas entry count nor a limited result can populate these fields honestly.
+Metadata owners must maintain or publish bounded authorized summaries through
+public surfaces, with their own cost/freshness contract. No per-keypress COUNT,
+sample reads, raw storage inspection or background profile scans are implied.
+
+Search text is discovery text, never a worksheet edit or executable statement.
+Moving selection/opening Details leaves SQL and its Live result unchanged;
+already admitted worksheet work can continue. **Insert name** is enabled only
+for a queryable resource and a captured source-name position/selection. Recheck
+editor version/range, current source identity, schema and capability before one
+undoable, correctly quoted replacement. If context changed, ask the user to place
+the SQL caret again rather than replacing unrelated text. Inserted SQL is eligible
+for Live; an inspection-only Document/KV cannot become a runnable FROM candidate.
+The compact SQL caret popup shares the resolver and metadata but stays small;
+it need not show every search-list metric.
+
+No matches, Loading, More available, offline metadata and authorization failure
+are distinct. Show only authorized match coverage: a bounded page is not a total
+count, and no hidden count leaks through an empty result. Names can arrive before
+metrics with Pending placeholders. Late metric responses must match search/scope
+generation and row identity/basis; they cannot repopulate a cleared or revoked row.
+Keep authorized but aged observations visibly stale; expired authorization hides
+them under the disclosure rules below.
 
 ## Catalog and history disclosure
 
@@ -238,6 +317,13 @@ effects or automatic administrative writes. A completion popup itself is not
 execution authority. Verify candidate identity, supersession and stale-result
 fencing using the live scenarios.
 Test keyboard/screen-reader completion, IME composition, undo and focus stability.
+For resource search, additionally cover delayed metrics without list reordering,
+empty versus unavailable measurements, exact versus estimated cardinality,
+framework-entry versus logical-row counts, truncated schema previews, bounded
+continuations, narrow layouts and stale captured SQL insertion positions. Search
+input and Details must leave the worksheet draft/generation unchanged; only the
+explicit Insert name action enters live scheduling. The search fixture records
+these expectations, not an implemented interaction test.
 
 Compare summaries with independent typed computations on empty/all-null, large
 int64, multi-page and retried-page fixtures. Prove that page profiles cannot be

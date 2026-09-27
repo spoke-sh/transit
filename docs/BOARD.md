@@ -192,9 +192,12 @@ cross-realm capability to the current single-realm deployment.
 
 [D4 — Explore: a SQL-first workspace](design/board-console/D4.md) merges the
 proposed Data and Queries destinations into Explore. It makes a browser SQL
-console the default, with grammar/catalog completion, highlighting, optional
-catalog/history drawers and a summary of each executed result. Its
-[console notes](design/board-console/CONSOLE.md) distinguish generated syntax
+console the default, with grammar/catalog completion, highlighting, a resource
+search field, contextual history and a summary of each executed result. Resource
+typeahead opens a list with kind labels, inline size/cardinality and compact
+schema diagrams. Counts and sizes name their basis and distinguish estimates
+and unavailable measurements; search does not scan data or alter the SQL draft.
+Its [console notes](design/board-console/CONSOLE.md) distinguish generated syntax
 assistance from executable semantics, define proposed responsiveness budgets,
 and preserve exact result identity and profile coverage. These editor and catalog
 services are new design work; the current Table compiler and query API do not

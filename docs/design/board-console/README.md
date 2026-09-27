@@ -19,7 +19,7 @@ and bounded implementation without changing its recorded outcomes.
 | [D1](D1.md) | Product structure, administration model, data workspace and future capability families | Reviewed | Useful starting point; reviewer requested monochrome wireframes, two navigation levels and a declarative foundation; D2 refines the flat shell and form-first model |
 | [D2](D2.md) | Declarative objects, Workspace/Operations hierarchy and grammar-to-UI mapping | Reviewed | Reviewer requested a compact icon toggle, Transit branding, a product/application-oriented realm dropdown and removal of redundant shell text; D3 refines the presentation |
 | [D3](D3.md) | Compact navigation, product context and more working space | Reviewed | Reviewer found the shell cleaner and easy to review; D4 carries it forward and merges Data/Queries into Explore |
-| [D4](D4.md) | Live SQL-first Explore, predictive scheduling and Snapshot/Stream results | In review | Figure 1 layout selected; reviewer requested execution while typing and probabilistic scheduling, refined in D4 in place; execution/stream contracts remain proposed |
+| [D4](D4.md) | Live SQL-first Explore, resource typeahead and Snapshot/Stream results | In review | Figure 1 layout selected; execution while typing and resource search with inline metrics/schema refined in D4 in place; scheduling, search metadata and stream contracts remain proposed |
 
 The figures are black-and-white vector wireframes with synthetic examples. They are
 neither application screenshots nor evidence of available protocols, permissions
@@ -45,7 +45,7 @@ new implementation work requires its own place in the linear roadmap.
 - [D4 table completion wireframe](images/d4-01-typeahead.svg).
 - [D4 column completion wireframe](images/d4-02-columns.svg).
 - [D4 result summary wireframe](images/d4-03-result-summary.svg).
-- [D4 catalog drawer wireframe](images/d4-04-catalog.svg).
+- [D4 resource typeahead wireframe](images/d4-04-catalog.svg) and [search fixture](d4-catalog-fixture.json).
 - [D4 live stream wireframe](images/d4-05-live-stream.svg).
 - [D4 console design notes](CONSOLE.md) and [study fixture](d4-fixture.json).
 - [D4 live scheduling notes](LIVE.md) and [live scenarios](d4-live-fixture.json).

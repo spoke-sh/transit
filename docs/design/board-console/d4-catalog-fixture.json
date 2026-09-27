@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "scope": "Synthetic D4 resource-search observations and design expectations, not an API schema or measured runtime behavior. Document/KV summaries require future owning contracts.",
+  "search": {
+    "realm_label": "Storefront",
+    "text": "sam",
+    "matching": "Authorized resource-name prefix, exact first, then kind (Table, Document, KV), then stable name/identity order.",
+    "complete_for_authorized_matches": true,
+    "selected": "samples",
+    "sql_before_and_after_search": "SELECT id, value FROM samples WHERE id >= 104 LIMIT 3;",
+    "captured_source_selection_utf16": [22, 29]
+  },
+  "resources": [
+    {
+      "name": "samples",
+      "kind": "Table",
+      "capability": "Queryable",
+      "basis": { "resource": "17", "revision": "42", "schema_version": "1" },
+      "cardinality": {
+        "state": "exact",
+        "value": "6",
+        "unit": "logical rows",
+        "coverage": "Entire samples Table in d2-fixture.json, excluding framework entries.",
+        "producer": "Synthetic observation derived from D2's six rows; a real owner-produced summary is not implemented."
+      },
+      "size": {
+        "state": "exact",
+        "bytes": "96",
+        "measure": "INT64 value payloads",
+        "derivation": "6 rows * 2 non-null INT64 values * 8 bytes; excludes keys, null maps, encoding headers, indexes, retained history and storage overhead.",
+        "label": "96 B · value payloads"
+      },
+      "schema_preview": {
+        "origin": "Declared Table schema",
+        "fields": [
+          { "name": "id", "type": "INT64", "primary_key": true, "nullable": false },
+          { "name": "value", "type": "INT64", "primary_key": false, "nullable": true }
+        ]
+      }
+    },
+    {
+      "name": "sample_notes",
+      "kind": "Document",
+      "capability": "Inspect only",
+      "basis": { "resource": "18", "revision": "9", "shape_version": "1" },
+      "cardinality": { "state": "not_applicable", "reason": "One Document is not a row collection; do not invent a Table cardinality." },
+      "size": {
+        "state": "exact",
+        "bytes": "12288",
+        "measure": "Encoded current state",
+        "producer": "Synthetic future Document metadata observation, not derived from payload reads or claimed as an existing encoding.",
+        "label": "12 KiB · encoded state"
+      },
+      "schema_preview": {
+        "origin": "Synthetic registered Document shape, future contract",
+        "root": "map",
+        "fields": [ { "name": "title", "type": "text" }, { "name": "sections", "type": "list" } ],
+        "inferred_from_values": false
+      }
+    },
+    {
+      "name": "sample_cache",
+      "kind": "KV",
+      "capability": "Inspect only",
+      "basis": { "resource": "19", "revision": "18", "encoding_version": "1" },
+      "cardinality": {
+        "state": "estimated",
+        "value": "1300",
+        "unit": "keys",
+        "coverage": "Named user keyspace, excludes framework records.",
+        "producer": "Synthetic future owner summary",
+        "method": "Not specified in this visual study; real metadata must disclose its estimator.",
+        "error_bound": null,
+        "label": "~1.3k keys"
+      },
+      "size": { "state": "unavailable", "bytes": null, "reason": "No authorized size observation." },
+      "schema_preview": { "origin": "Declared encodings", "key": "bytes", "value": "bytes", "application_decoder": null }
+    }
+  ],
+  "interaction_expectations": [
+    { "action": "Type sam in resource search while Live", "expected": "Only metadata discovery; SQL draft and generation unchanged, no new data-query submission." },
+    { "action": "Move selection or open Details", "expected": "No SQL edit; already admitted worksheet work can continue." },
+    { "action": "Insert selected queryable name at an unchanged captured FROM position", "expected": "One quoted, undoable SQL edit; resulting draft is eligible for Live scheduling." },
+    { "action": "Insert after the captured SQL document/range changes", "expected": "No replacement; require a current SQL insertion position." },
+    { "action": "Select an inspection-only Document or KV", "expected": "Details available; SQL insertion unavailable in this profile." },
+    { "action": "Metric response arrives after resource revocation or scope change", "expected": "Discard it; no resurrection of names, counts, sizes or schemas." },
+    { "action": "Metrics arrive after the name page", "expected": "Replace pending metrics without reordering matches or moving selection." },
+    { "action": "Metadata observation is older than source but authorization remains current", "expected": "Show stale with original basis; never label the metric current." },
+    { "action": "Read a framework-inclusive entry count", "expected": "Do not relabel it as logical Table rows or user keys." },
+    { "action": "Size unavailable or cardinality exactly zero", "expected": "Unavailable stays unavailable; an exact empty collection shows zero with its unit and basis." },
+    { "action": "Registered shape absent or beyond the preview budget", "expected": "Show Shape unavailable or +N fields; do not infer types or fetch payloads." },
+    { "action": "More matches exist beyond the bounded page", "expected": "Show continuation, never claim a whole-catalog count or fetch the entire catalog." }
+  ]
+}

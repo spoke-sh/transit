@@ -61,6 +61,10 @@ capability rules and authorized catalog metadata jointly drive proposed completi
 and highlighting. The checked grammar is an input to a future editor service,
 not an existing incremental/completion API. Editing assistance must handle
 incomplete text without weakening complete-statement compilation at execution.
+Resource discovery uses the same authorized metadata in a search field with
+typed results, inline statistics and schema previews. Its search text is not SQL;
+inserting a resource name is an explicit, context-checked SQL edit. Catalog
+statistics describe their resource and observation, not the worksheet's result.
 Its live refinement proposes automatic evaluation of qualified read queries
 as text changes, including probabilistically selected complete candidates.
 Live/Paused controls scheduling; Snapshot/Stream controls time semantics.
