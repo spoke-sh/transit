@@ -68,7 +68,8 @@ Component tests qualify these adapters and the current Document floor/retirement
 checks with in-memory private turns. `UnifiedCapture` now supplies resumable
 retained capture, publication, closure and cleanup; see its
 [capture guide](docs/unified-capture.md). Signed submission, verified reads, all ten SDKs and disk/worker recovery are
-qualified across the three source kinds; broader lifecycle/deployment work is open; the existing `Client` and
+qualified across the three source kinds. Lifecycle/expiry covers all three; physical
+Compose/Substrate recovery covers Table. The existing `Client` and
 `Behavior` still serve public Table v1 queries.
 
 `Bundle` owns the bounded canonical source/plan request and explicit page,
@@ -85,10 +86,11 @@ access before return. `Cursor` is owned continuation state, never a bearer token
 Returned Arrow borrows the supplied output buffer; schema/scalar bytes belong to
 the supplied result allocator, and decoded conflicts borrow the fixed `Batch`.
 An error invalidates the entire page. All ten SDKs pass the signed service
-matrix across all three source kinds; see the [proof guide](../../../tests/README.md#m18-work-in-progress).
+matrix across all three source kinds; see the [proof guide](../../../tests/README.md#m18-qualification).
 
 `UnifiedRequest`, `UnifiedUpload` and `UnifiedBehavior` compose authenticated
 finite uploads with the source capture and original-call reply. The
 [upload guide](docs/unified-upload.md) documents initialization, duplicate parts,
 cancellation, cleanup and logical admission. Component tests and signed worker/node/store recovery pass across all source
-kinds. Broader lifecycle and deployment qualification remain in progress.
+kinds. The proof guide records all-source lifecycle/expiry and Table physical
+placement, including failed attempts and qualification limits.

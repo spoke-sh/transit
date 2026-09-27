@@ -16,7 +16,7 @@ from cold_storage import ColdStore
 from unified_abi import Native, Port, Failure, upload, verify
 
 
-def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False, lifecycle=False):
+def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False, lifecycle=False, example=None):
     node, host, proof, port_host, library = (str(Path(path).resolve()) for path in (node, host, proof, port_host, library))
     for kind in kinds:
         started = time.monotonic()
@@ -34,13 +34,17 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
             processes, logs = [], []
             native, port_client = None, None
             callers = []
-            fault = {"lost": None, "retry": False, "stage": threading.Event(), "resume": threading.Event()}
+            fault = {"lost": None, "retry": False, "stage": threading.Event(), "resume": threading.Event(),
+                     "read_timeout": threading.Event(), "timed_out": threading.Event()}
 
             class Proxy(BaseHTTPRequestHandler):
                 def log_message(self, *_): pass
                 def do_POST(self):
                     body = self.rfile.read(int(self.headers["Content-Length"]))
                     message = json.loads(body)
+                    if self.path == '/v3/query' and message['query']['principal'] == 65537 and fault['read_timeout'].is_set() and not fault['timed_out'].is_set():
+                        fault['timed_out'].set()
+                        time.sleep(6)
                     connection = HTTPConnection("127.0.0.1", port, timeout=15)
                     try:
                         connection.request("POST", self.path, body, {"Content-Type": "application/json"})
@@ -153,6 +157,11 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     assert source.poll() is None and requester.poll() is None, "query worker exited"
                     time.sleep(0.2)
                 print(f"Unified {kind}: complete manifest after {time.monotonic() - started:.2f}s", flush=True)
+                fault['read_timeout'].set()
+                assert fault['timed_out'].wait(timeout=20), 'requester did not perform a current read'
+                time.sleep(6)
+                assert requester.poll() is None, 'transient read timeout killed requester'
+                assert 'AuthorityTimeout' in (root/'requester-recovered.log').read_text()
                 first = invoke("page")
                 assert not first["complete"] and first["rows"] > 0
                 saved = (root / "cursor.json").read_bytes()
@@ -205,6 +214,9 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 if lifecycle:
                     from unified_lifecycle import check
                     check(native, root, invoke, fault, kind)
+                if example:
+                    from unified_example import check
+                    check(example, root, native, fault, kind)
                 for role in ('source', 'requester', 'courier'):
                     records = []
                     for line in (root / (role+'-recovered.log')).read_text().splitlines():
@@ -221,6 +233,13 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 versions = invoke("versions", direct=True)
                 assert versions["next"] is None
                 assert all(version["released_at"] is not None for version in versions["entries"] if version)
+                invoke('retire-source', direct=True)
+                for owner in (native, port_client, *callers):
+                    try:
+                        owner.call({'page': {'namespace': '1'}})
+                        raise AssertionError('retired source disclosed a completed result')
+                    except Failure as failure:
+                        assert failure.detail['err'] in ('QuerySourceUnavailable', 'ResourceUnavailable', 'Rejected', 'AccessDenied'), failure
                 assert cold.data_objects() > 0
                 print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / 8 MiB hot store / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes / installed SDKs={','.join(sdks) or 'none'}; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
             except BaseException:
@@ -253,6 +272,7 @@ if __name__ == "__main__":
     parser.add_argument('--browser', action='store_true')
     parser.add_argument('--lifecycle', action='store_true')
     parser.add_argument('--expiry', action='store_true')
+    parser.add_argument('--example')
     args = parser.parse_args()
     if args.expiry:
         from unified_expiry import run as expiry
@@ -260,4 +280,4 @@ if __name__ == "__main__":
         raise SystemExit(0)
     run(args.node, args.host, args.proof, args.port_host, args.library,
         kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or (), shell=args.shell,
-        board=args.board, browser=args.browser, lifecycle=args.lifecycle)
+        board=args.board, browser=args.browser, lifecycle=args.lifecycle, example=args.example)

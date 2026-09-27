@@ -1,6 +1,64 @@
 # Validation and milestone evidence
 
-## M18 work in progress
+## M18 qualification
+
+The declared Linux x86_64 growing profile is qualified: signed KV/Table/Document
+queries, all ten installed SDKs, the explicit SQL shell and separately authorized
+Board workspace. Native lifecycle proofs cover all three sources; physical
+Compose and Substrate recovery is qualified for Table. KV/Document physical
+placement remains unmeasured. No optimizer rewrite or Flight/ADBC endpoint is
+introduced. The detailed evidence below preserves each workload, configuration,
+failed attempt and scope; earlier component results do not imply later service
+coverage. Expanded hosted CI cost remains deferred under the agreed CI policy.
+
+| Final recovery schedule | Seconds | Cold objects / bytes | Resident authority pages |
+| --- | ---: | ---: | ---: |
+| KV shell, Board API/Chromium, lifecycle and example | 595.25 | 781 / 83,591,053 | 8 |
+| Table example with injected host read timeout | 193.33 | 210 / 19,269,554 | 8 |
+| Document shell, Board API/Chromium and lifecycle | 875.94 | 1,612 / 174,056,281 | 64 |
+| Document example and permanent source retirement | 670.95 | 1,327 / 122,898,144 | 64 |
+| Table Compose recovery/isolation | 100.76 | 136 / 11,572,217 | 8 |
+| Table Substrate recovery/isolation | 253.55 | 120 / 11,626,265 | 8 |
+
+All use 8 MiB hot Ursula storage with cold offload and ReleaseSafe executables.
+Native times include provisioning and exclude compilation. Placement times include
+image preparation inside the runner and exclude its preceding host build; they
+are recorded before successful owned-resource cleanup. Cold bytes are retained
+storage, not process RSS. These finite schedules do not establish throughput or
+hosted CI budgets. Document's final example spends 473.86 seconds provisioning
+accepted state; the browser/lifecycle run spends 477.83 seconds there.
+
+`just examples::query SOURCE` runs the real finite Zig SQL caller. Its 0600
+recovery file preserves the original bundle and pending signed command before
+dispatch. The proof loses an accepted acknowledgement, rejects changed SQL without
+altering recovery material, restarts the caller, verifies identical retry and
+reads bounded owned pages to complete coverage. The Table timeout extension also
+holds a requester read beyond its deadline: the host logs the timeout and stays
+alive. Every prepared mutation remains frozen; no timeout grants authority.
+
+`just examples::query-compose table` and `just examples::query-reference table`
+kill actual source/requester hosts during an intermediate capture and restart
+node/disk storage before fresh ownership. Reference kills the source's physical
+Substrate worker, validates replacement public registrations and scopes fresh
+keys before granting exact generations. The source and requester run in gVisor;
+the finite caller and separate courier run at the operator. Egress probes deny
+storage, external and reference control-plane targets. Final coverage, original
+call/source identity, released pins and permanent retirement pass. Cleanup checks
+namespace identity and leaves the default installation untouched.
+
+The first reference attempt stopped on an idle read timeout and is excluded.
+The host now retries read timeouts without discarding frozen mutations or hiding
+authorization/fencing failures. A Compose attempt and the first combined KV
+attempt rejected a valid `ResourceUnavailable` retirement error in their test
+assertions; those incomplete runs are excluded. The standalone Table example's
+first fault run accidentally bypassed the proxy and is also excluded. Passing
+runs above include the corrected fault paths and cleanup. The original v1 public
+Table shell/host proof and real Board service regression still pass. Board's v2
+transport additionally qualifies escaped pages beyond 256 KiB under a separate
+1 MiB decoded-response bound; other routes retain 256 KiB. All twelve frontend
+unit tests, generated boundaries and repository checks pass.
+
+### Component and incremental evidence
 
 `just test::sql` now also checks the v2 compiler against an independent 70-row
 Python evaluator and PyArrow: **13 queries × three source-kind bases × eight
@@ -68,7 +126,7 @@ injects denial at the first, middle and final current-read boundary, changes the
 policy after completion, and rejects a forged row cursor or original correlation.
 Admission rejects a different Publication publisher before retaining a source.
 `just check` passes; these use the same in-memory reader fixtures and do not
-replace the remaining signed service/deployment schedules.
+replace the signed service/deployment schedules recorded separately.
 
 The v2 upload component fixture submits a 4 KiB predicate using at most 145-byte
 command payloads, retries each part, rejects conflicting bytes/identities and
@@ -77,7 +135,7 @@ abandonment holds admission until bounded cleanup releases quota. Independent
 Python fixtures cover every command and full-width namespace/status encoding.
 Behavior cases qualify configured-principal ingress, malformed-command disposition,
 restart-configuration refusal and original-route source closure after request
-access denial. These are component checks; actual daemon/SDK qualification remains.
+access denial. These are component checks; daemon/SDK qualification is recorded separately.
 
 The shared native `QueryCodec` additionally passes **28 independent library/port
 cases** in `tests/unified_codec.py`: the three canonical source/bundle fixtures,
@@ -99,7 +157,7 @@ row. Revocation after the first returned page denies continuation without moving
 the cursor; restoration permits verification of complete coverage. The source pin
 is released. `just check` also passes. This is local disk evidence with a
 default 64 MiB hot-store fixture without cold offload, not a bounded growing-storage, SDK, Compose, Substrate or
-hosted CI qualification. The Document schedule remains in progress.
+hosted CI qualification. Document evidence follows below.
 
 The extended KV schedule also passes through the standalone query ABI and native
 port in **430.97 seconds**, with the same 41 rows/six segments/13,584 bytes. A
@@ -119,8 +177,8 @@ persists exact upload retry material, survives worker/node/store restart, reject
 revocation after a returned prefix and verifies complete page coverage. Python
 also checks the optional pinned PyArrow adapter. Their installed codec fixtures
 cover all three source declarations, six types, five states, full-width values,
-Unicode, negative zero and malformed streams. Typed Table/Document service runs
-and the other SDK service profiles remain separately unqualified.
+Unicode, negative zero and malformed streams. This early run covered those SDK/source combinations only; the complete installed
+matrix follows below.
 
 Installed TypeScript and Rust pass the Table schedule with the same eight-page /
 8 MiB hot-store bounds and 41 rows/six segments/13,584 bytes. TypeScript completes
@@ -174,8 +232,7 @@ a cancelled wait before admission; this run does not qualify in-flight Task
 cancellation. Installed BEAM and NuGet codec fixtures pass all three source
 declarations, six types, five states, full-width values, Unicode, negative zero
 and malformed streams. Root `just check` passes. All ten SDKs now have typed v2
-APIs; the complete SDK-by-source service matrix and broader lifecycle/deployment
-qualification remain in progress.
+APIs; these individual runs precede the complete SDK/source matrix below.
 
 The full installed SDK/source recovery matrix subsequently passes: **all ten
 SDKs on KV in 285.65 seconds, Table in 302.53 seconds and accepted Document in
@@ -207,7 +264,7 @@ checks cover explicit submission, identical retry after an accepted-but-lost
 receipt, a failing atlas refresh without losing pending work, view/draft identity,
 exact provenance, and protected-state clearing after current denial. Inspection
 remains readable while query access is denied. No cookies or browser storage are
-created. KV/Document browser qualification remains pending at this point.
+created. Later KV/Document browser evidence is recorded above and below.
 
 This proof found and fixed malformed frozen-token errors mapped to HTTP 503
 instead of 400, and transient atlas read failure remounting a v2 workspace and

@@ -1,7 +1,7 @@
 # Query compatibility and protocol handoff
 
 This matrix describes the implemented query contracts. Qualification is tracked
-in the [proof guide](../../../../tests/README.md#m18-work-in-progress); a planned
+in the [proof guide](../../../../tests/README.md#m18-qualification); a planned
 transport does not become available by sharing an engine. Planned
 [HTTP serving M19](../../../../docs/roadmap/M19.md),
 [reactive APIs M20](../../../../docs/roadmap/M20.md),

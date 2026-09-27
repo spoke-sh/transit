@@ -288,6 +288,34 @@ pub fn main(init: std.process.Init) !void {
         return print(init, receipt);
     }
     if (std.mem.eql(u8, command, "status")) return print(init, try client.status(1));
+    if (std.mem.eql(u8, command, "activate-host")) {
+        if (args.len != 6) return error.Usage;
+        const requester = std.mem.eql(u8, args[4], "requester");
+        if (!requester and !std.mem.eql(u8, args[4], "source")) return error.InvalidRole;
+        const pid = if (requester) config.connection.requester else config.connection.source;
+        const principal: u64 = if (requester) 65537 else 65536;
+        const registration_bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[5], init.arena.allocator(), .limited(2048));
+        const registration = (try std.json.parseFromSlice(s.client.bootstrap.GrowingRegistration, init.arena.allocator(), registration_bytes, .{})).value;
+        const process = (try admin.query(.{ .process = pid })).body.process.process;
+        if (registration.version != 1 or registration.realm != 46 or registration.pid != pid or registration.principal != principal or registration.generation != process.generation + 1) return error.InvalidRegistration;
+        _ = try admin.submit(.{ .grant = .{ .subject = principal, .public_key = registration.public_key, .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .pid = pid } });
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = if (requester) config.connection.requests else config.connection.resource, .subject = principal, .permissions = p.State.all_permissions } });
+        if (!requester) _ = try admin.submit(.{ .grant_resource = .{ .resource = config.connection.requests, .subject = principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        _ = try admin.submit(.{ .own = .{ .pid = pid, .expected_generation = process.generation, .worker = principal } });
+        return print(init, .{ .generation = process.generation + 1 });
+    }
+    if (std.mem.eql(u8, command, "host-generation")) {
+        if (args.len != 5) return error.Usage;
+        const requester = std.mem.eql(u8, args[4], "requester");
+        if (!requester and !std.mem.eql(u8, args[4], "source")) return error.InvalidRole;
+        const process = (try admin.query(.{ .process = if (requester) config.connection.requester else config.connection.source })).body.process.process;
+        return print(init, .{ .generation = process.generation });
+    }
+    if (std.mem.eql(u8, command, "retire-source")) {
+        _ = try admin.submit(.{ .terminate = config.connection.source });
+        _ = try admin.submit(.{ .retire_resource = config.connection.resource });
+        return;
+    }
     if (std.mem.eql(u8, command, "request-read-revoke") or std.mem.eql(u8, command, "request-read-restore")) {
         _ = try admin.submit(.{ .grant_resource = .{ .resource = config.connection.requests, .subject = 65536, .permissions = if (std.mem.eql(u8, command, "request-read-revoke")) 0 else p.State.permission(.inspect) | p.State.permission(.read) } });
         return;

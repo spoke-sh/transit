@@ -108,7 +108,9 @@
       "test::pages-cold",
       "test::scale",
       "examples::document-compose",
-      "examples::document-reference"
+      "examples::document-reference",
+      "examples::query-compose",
+      "examples::query-reference"
     ],
     "discovery": [
       "test::mutations"
@@ -141,6 +143,7 @@
       "test::unified-ingress",
       "test::unified-lifecycle",
       "test::unified-expiry",
+      "examples::query",
       "bindings::unified-all"
     ]
   },

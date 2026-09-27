@@ -8,7 +8,8 @@ const Config = struct {
     url: []const u8,
     realm: u64,
     principal: u64,
-    seed_file: []const u8,
+    seed_file: ?[]const u8 = null,
+    bootstrap_timeout_ms: u32 = 120000,
     pid: u64 = 0,
     generation: u64 = 0,
     association: []const u8 = "state",
@@ -36,14 +37,21 @@ pub fn main(init: std.process.Init) !void {
 }
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 2) return error.ExpectedConfiguration;
-    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(8192));
-    defer init.gpa.free(bytes);
+    const bootstrap = args.len == 3 and std.mem.eql(u8, args[1], "--bootstrap-json");
+    if (args.len != 2 and !bootstrap) return error.ExpectedConfiguration;
+    const bytes = if (bootstrap) args[2] else try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.arena.allocator(), .limited(8192));
+    if (bytes.len > 8192) return error.ConfigurationTooLarge;
     const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
     defer parsed.deinit();
     var config = parsed.value;
     if (config.principal == 0 or config.principal > p.max_counter or config.realm == 0 or config.interval_ms == 0 or config.interval_ms > 60000 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
-    var key = try q.wire.readKey(init.gpa, init.io, config.seed_file);
+    var key = if (bootstrap) key: {
+        if (config.seed_file != null or config.role == .courier) return error.InvalidBootstrapConfiguration;
+        var seed: [32]u8 = undefined;
+        defer std.crypto.secureZero(u8, &seed);
+        try init.io.randomSecure(&seed);
+        break :key try p.Ed25519.KeyPair.generateDeterministic(seed);
+    } else try q.wire.readKey(init.gpa, init.io, config.seed_file orelse return error.MissingSeedFile);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     var wire = q.wire.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
@@ -51,6 +59,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     wire.observer = diagnostics;
     if (config.role == .courier) return courier(init, &wire, config, key);
     if (config.pid == 0 or config.generation == 0) return error.MissingActivation;
+    if (bootstrap) try q.wire.bootstrap.awaitGrowingOwnership(&wire, .{ .realm = config.realm, .pid = config.pid, .principal = config.principal, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, config.bootstrap_timeout_ms);
     var server = try s.GrowingGenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, config.association);
     // Check current ownership before recording that this activation has run.
     _ = try server.session.receive();
@@ -101,6 +110,14 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
                 try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
                 continue;
             }
+            // Station retains every prepared mutation before dispatch and
+            // discards poisoned, unsent private proposals. A read timeout can
+            // therefore retry without replacing any uncertain signed command.
+            if (err == error.AuthorityTimeout) {
+                if (server.pending == null and server.ready != null) try server.discard();
+                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                continue;
+            }
             if (err == error.AccessDenied or err == error.StaleActivation or err == error.Rejected or err == error.Conflict or server.pending == null) return err;
             try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
             continue;
@@ -129,9 +146,17 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             pending = null;
             continue;
         }
-        const basis = try wire.queryGrowing(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .capabilities = {} } }, key);
+        const basis = wire.queryGrowing(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .capabilities = {} } }, key) catch |err| {
+            if (err != error.AuthorityTimeout) return err;
+            try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+            continue;
+        };
         const page = wire.queryGrowing(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .outputs = .{ .after = after, .position = basis.position } } }, key) catch |err| {
             if (err == error.Conflict and wire.last_rejection == .QueryExpired) continue;
+            if (err == error.AuthorityTimeout) {
+                try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+                continue;
+            }
             return err;
         };
         for (page.body.outputs.entries) |slot| if (slot) |output| {

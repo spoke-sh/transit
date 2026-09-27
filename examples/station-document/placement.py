@@ -24,14 +24,15 @@ class Compose(BaseCompose):
 
 
 class Reference(BaseReference):
-    def __init__(self, work):
-        super().__init__(work, "document")
+    def __init__(self, work, protocol="document"):
+        super().__init__(work, protocol)
 
     def deploy(self):
         # Keep storage credentials out of values, ConfigMaps and Helm history.
-        self.apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "document-store-config"},
+        name = self.protocol + "-store-config"
+        self.apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": name},
                     "data": {"ursula.toml": base64.b64encode((self.work / "ursula.toml").read_bytes()).decode()}})
-        self.values["ursula"]["existingConfigSecret"] = "document-store-config"
+        self.values["ursula"]["existingConfigSecret"] = name
         return super().deploy()
 
     def stop_for_recovery(self, service, process):

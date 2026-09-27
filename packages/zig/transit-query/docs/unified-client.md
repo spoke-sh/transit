@@ -54,5 +54,5 @@ its retained cut at capture completion or closure, before result retrieval.
 disk Ursula. Its schedule persists a frozen command before a lost response,
 retries identical signed bytes, kills source work during segment staging, restarts
 the node/store, requires fresh worker generations, and revokes access after an
-actual returned prefix. The [test ledger](../../../../tests/README.md#m18-work-in-progress)
+actual returned prefix. The [test ledger](../../../../tests/README.md#m18-qualification)
 records which source profiles passed and the remaining qualification obligations.

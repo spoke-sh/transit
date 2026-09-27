@@ -68,3 +68,17 @@ document-compose:
 document-reference:
     zig build rey-cli
     python3 -B examples/station-document/run.py --profile reference
+
+# Finite SQL over synthetic Unicode data; exact caller and worker/disk recovery.
+query source="table":
+    python3 -B examples/state-query/run.py --source {{quote(source)}}
+
+# Separate query hosts, caller and private storage network.
+query-compose source="table":
+    zig build unified-query-proof example-state-query transit-query-host -Doptimize=ReleaseSafe
+    python3 -B examples/state-query/run.py --profile compose --source {{quote(source)}}
+
+# Two Substrate query hosts; explicit operator grants and fresh ownership.
+query-reference source="table":
+    zig build unified-query-proof example-state-query transit-query-host -Doptimize=ReleaseSafe
+    python3 -B examples/state-query/run.py --profile reference --source {{quote(source)}}

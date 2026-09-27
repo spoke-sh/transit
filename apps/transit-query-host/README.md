@@ -43,7 +43,7 @@ and the scoped courier. It is not a production deployment launcher.
 The separate [v2 contract](../../contracts/UNIFIED_QUERY_V2.md) and
 [caller guide](../../packages/zig/transit-query/docs/unified-client.md) cover
 finite uploads and result publications. V2 workers preserve frozen pending
-commits and retry only stale reads before preparation. Request-resource access
+commits and retry transient read timeouts and stale reads before preparation. Request-resource access
 denial closes through the original call; source-resource failure stops the host.
 Initialize associations before activation because association changes advance
 the ownership generation. The optional request association permits closure after
@@ -51,12 +51,12 @@ request expiry; making it a required lifetime dependency would prevent that work
 
 `just test::unified-query` runs the signed KV/Table/Document recovery fixtures;
 `-Dunified-source=kv`, `table` or `document` selects one case. The
-[evidence ledger](../../tests/README.md#m18-work-in-progress) distinguishes passed
+[evidence ledger](../../tests/README.md#m18-qualification) distinguishes passed
 profiles from work still in progress. These fixtures use owned temporary services
 and leave existing launcher deployments alone.
 
 Service diagnostics use the shared bounded stderr sink (`LOG_LEVEL`,
-`LOG_FORMAT`); stdout remains unused. `service.ready` reports a validated
+`LOG_FORMAT`); stdout remains unused except for the public bootstrap registration. `service.ready` reports a validated
 activation and allocated workspaces, or a validated courier scope, not query
 completion. `query.worker.step` counts observed worker steps: `receipt` may be a
 recovered commit; idle/progress stay at debug, and unknown pending mutations are
@@ -66,3 +66,13 @@ series reset per process and do not count unique queries. The sink's 2 KiB recor
 128-slot queue, rate limits and 200 ms shutdown bound apply; sink failure never
 changes retries, ownership or control progress. There is no query-host HTTP probe;
 readiness is a startup observation and current progress requires durable status.
+
+`--bootstrap-json CONFIG` is an operator-placed activation mode. It forbids a seed
+file and courier role, generates a fresh in-memory key and emits only its public
+registration. The external operator must validate provider identity, grant the
+key its independent PID/resource rights and record the exact expected generation.
+`bootstrap_timeout_ms` defaults to 120000 and is bounded at 300000. No ownership
+is acquired automatically and a later generation is never adopted. Activation
+markers still prevent reuse; private key bytes are cleared on exit. The
+[query example](../../examples/state-query/docs/placement.md) exercises physical
+placement; consult its proof ledger before relying on a particular profile.

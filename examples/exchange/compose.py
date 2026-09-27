@@ -26,10 +26,11 @@ class Process:
 
 
 class Compose:
+    binary_names = None
     def __init__(self, work, protocol="http"):
         self.work = work
         self.protocol = protocol
-        assert protocol in ("http", "grpc", "document")
+        assert protocol in ("http", "grpc", "document", "query")
         self.project = "transit-" + protocol + "-" + uuid.uuid4().hex[:10]
         self.env = os.environ | {"EXCHANGE_UID": str(os.getuid()), "EXCHANGE_GID": str(os.getgid()),
             "EXCHANGE_WORK": str(work),
@@ -47,7 +48,7 @@ class Compose:
     def build(self):
         prefix = ROOT / f".cache/{self.protocol}-example/images"
         prefix.mkdir(parents=True, exist_ok=True)
-        names = {"NODE": "transit-node", "CALLER": f"example-station-{self.protocol}", "CONNECTOR": f"transit-station-{self.protocol}-worker"}
+        names = self.binary_names or {"NODE": "transit-node", "CALLER": f"example-station-{self.protocol}", "CONNECTOR": f"transit-station-{self.protocol}-worker"}
         architecture = subprocess.check_output(["docker", "info", "--format", "{{.Architecture}}"], text=True).strip()
         target = {"x86_64": "x86_64-linux-musl", "aarch64": "aarch64-linux-musl"}[architecture]
         subprocess.run(["zig", "build", *names.values(), "-Doptimize=ReleaseSafe", "-Dtarget=" + target,

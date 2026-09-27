@@ -407,11 +407,24 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
     }) });
+    const query_example = b.addExecutable(.{ .name = "example-state-query", .root_module = b.createModule(.{
+        .root_source_file = b.path("examples/state-query/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
+    }) });
+    const install_query_example = b.addInstallArtifact(query_example, .{});
+    build_test_step.dependOn(&query_example.step);
+    b.step("example-state-query", "Install the finite SQL recovery example").dependOn(&install_query_example.step);
     b.step("unified-query-proof", "Install the unified query provisioning proof").dependOn(&b.addInstallArtifact(unified_query, .{}).step);
     build_test_step.dependOn(&unified_query.step);
     const unified_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     unified_query_test.addFileArg(b.path("tests/unified_query.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, unified_query, station_host, station_bindings.artifact("transit_station") }) |artifact| unified_query_test.addArtifactArg(artifact);
+    if (b.option(bool, "unified-example", "Run the finite SQL example and recover its original intent") orelse false) {
+        unified_query_test.addArg("--example");
+        unified_query_test.addArtifactArg(query_example);
+    }
     if (b.option(bool, "unified-shell", "Include the actual v2 SQL shell in unified recovery") orelse false) {
         unified_query_test.addArg("--shell");
         unified_query_test.addArtifactArg(query_shell);
@@ -421,8 +434,8 @@ pub fn build(b: *std.Build) void {
         unified_query_test.addArtifactArg(board);
     }
     if (b.option(bool, "unified-browser", "Include the actual v2 Board workspace in unified recovery") orelse false) unified_query_test.addArg("--browser");
-    if (b.option(bool, "unified-lifecycle", "Qualify current grants and cancellation during staged v2 capture") orelse false) unified_query_test.addArg("--lifecycle");
     if (b.option(bool, "unified-expiry", "Qualify real finite request expiry across source kinds") orelse false) unified_query_test.addArg("--expiry");
+    if (b.option(bool, "unified-lifecycle", "Qualify current grants and cancellation during staged v2 capture") orelse false) unified_query_test.addArg("--lifecycle");
     if (b.option([]const u8, "unified-source", "Limit unified query proof to kv, table or document")) |kind| unified_query_test.addArg(kind);
     if (b.option([]const u8, "unified-sdk", "Comma-separated installed SDKs for unified query recovery")) |languages| {
         var selected = std.mem.splitScalar(u8, languages, ',');
@@ -605,6 +618,7 @@ pub fn build(b: *std.Build) void {
     b.step("readiness-caller", "Install the runtime readiness caller proof").dependOn(&b.addInstallArtifact(readiness_caller, .{}).step);
     build_test_step.dependOn(&readiness_caller.step);
     const examples_step = b.step("examples", "Install runnable example applications");
+    examples_step.dependOn(&install_query_example.step);
     examples_step.dependOn(&install_document_caller.step);
     examples_step.dependOn(&install_http_caller.step);
     const station_ledger = b.addExecutable(.{ .name = "example-station-ledger", .root_module = b.createModule(.{

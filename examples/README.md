@@ -12,6 +12,7 @@ against Transit; no example is required to run the authority.
 | [HTTP caller](station-http/README.md) | `example-station-http` | Immutable request, separate effect worker, correlated outcome and bounded replay |
 | [RPC caller](station-grpc/README.md) | `example-station-grpc` | Pinned descriptor, finite protobuf batch, separate effect worker and captured replay |
 | [Collaborative Document](station-document/README.md) | `example-station-document` | Two independent structured/text editors, fenced writer, conflicts and resynchronization |
+| [State query](state-query/README.md) | `example-state-query` | Finite SQL, persisted original intent, exact signed retry and bounded nested result pages |
 | [Language callers](station-bindings/README.md) | Per-language examples | Shared Station behavior/Table API across C/C++, Rust, Python, Node, Java, .NET and BEAM |
 
 M11's [public SDK examples](station-sdk/README.md) define shared counter/query
