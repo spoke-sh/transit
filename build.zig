@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const grpc = b.dependency("transit_grpc", .{ .target = target, .optimize = optimize });
     const exchange = b.dependency("transit_exchange", .{ .target = target, .optimize = optimize });
     const station_http = b.dependency("transit_station_http", .{ .target = target, .optimize = optimize });
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
@@ -53,6 +54,14 @@ pub fn build(b: *std.Build) void {
     tls_alpn_test.has_side_effects = true;
     tls_alpn_test.stdio = .inherit;
     b.step("test-tls-alpn", "Qualify required ALPN with independent TLS peers").dependOn(&tls_alpn_test.step);
+    const grpc_transport_proof = b.addExecutable(.{ .name = "transit-grpc-transport-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/grpc_transport.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_grpc", .module = grpc.module("transit_grpc") }} }) });
+    build_test_step.dependOn(&grpc_transport_proof.step);
+    const grpc_transport_test = b.addSystemCommand(&.{ "python3", "-B" });
+    grpc_transport_test.addFileArg(b.path("tests/grpc_transport.py"));
+    grpc_transport_test.addArtifactArg(grpc_transport_proof);
+    grpc_transport_test.has_side_effects = true;
+    grpc_transport_test.stdio = .inherit;
+    b.step("test-grpc-transport", "Qualify finite RPC shapes against independent peers").dependOn(&grpc_transport_test.step);
     const http_transport_proof = b.addExecutable(.{ .name = "transit-http-transport-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/http_transport.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }} }) });
     build_test_step.dependOn(&http_transport_proof.step);
     const http_transport_test = b.addSystemCommand(&.{ "python3", "-B" });

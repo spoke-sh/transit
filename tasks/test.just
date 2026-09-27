@@ -14,6 +14,12 @@ unit:
 tls-alpn:
     zig build test-tls-alpn
 
+grpc-libraries:
+    cd third_party/zig-libs && zig build test-rpc
+
+grpc-transport:
+    zig build test-grpc-transport
+
 http-transport:
     zig build test-http-transport
 
@@ -70,6 +76,7 @@ station:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-grpc && zig build test
     cd packages/zig/transit-tls && zig build test
     cd packages/zig/transit-station-bindings && zig build test
     cd packages/zig/transit-exchange && zig build test
@@ -88,6 +95,7 @@ packages:
 
 # Compile each library independently; root unit checks own shared test execution.
 packages-build:
+    cd packages/zig/transit-grpc && zig build check
     cd packages/zig/transit-tls && zig build check
     cd packages/zig/transit-station-bindings && zig build check
     cd packages/zig/transit-exchange && zig build check

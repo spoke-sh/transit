@@ -1,0 +1,8 @@
+.{
+    .name = .transit_grpc,
+    .version = "0.0.0",
+    .fingerprint = 0x4c5210b685d0feae,
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{ .zig_libs = .{ .path = "../../../third_party/zig-libs" }, .transit_tls = .{ .path = "../transit-tls" } },
+    .paths = .{ "build.zig", "build.zig.zon", "src", "README.md" },
+}

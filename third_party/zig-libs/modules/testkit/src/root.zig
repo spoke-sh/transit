@@ -162,3 +162,15 @@ test "getEnv returns null on windows without touching Environ.getPosix" {
     if (builtin.target.os.tag != .windows) return;
     try std.testing.expectEqual(@as(?[]const u8, null), getEnv("ANYTHING"));
 }
+
+/// Compatibility for removed string repetition syntax in pinned upstream tests.
+pub fn repeat(comptime bytes: []const u8, comptime count: usize) *const [bytes.len * count:0]u8 {
+    return comptime blk: {
+        @setEvalBranchQuota(100000);
+        var value: [bytes.len * count:0]u8 = undefined;
+        for (0..count) |i| @memcpy(value[i * bytes.len ..][0..bytes.len], bytes);
+        value[bytes.len * count] = 0;
+        const frozen = value;
+        break :blk &frozen;
+    };
+}

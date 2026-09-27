@@ -1,7 +1,8 @@
 # gRPC connector
 
 Status: second connector in progress, [M16](roadmap/M16.md), after
-[HTTP M15](roadmap/M15.md). No general gRPC transport or connector is implemented.
+[HTTP M15](roadmap/M15.md). The [finite transport](../packages/zig/transit-grpc/README.md)
+now has independent-peer evidence; the durable Station connector is in progress.
 The [shared effect boundary](CONNECTORS.md#effect-boundary) and
 [bounded reconciliation contract](CONNECTORS.md#bounded-reconciliation-contract)
 apply without weakening expiry, fencing or replay rules.
@@ -19,8 +20,8 @@ its half-close before committing one exact effect intent. Responses can arrive
 concurrently but cannot create additional sends on that connection. All four
 method shapes remain required. Interactive response-dependent messages are a
 separate authority extension. HTTP's executed lifecycle/recovery corpus and the
-pinned TLS adapter are the reusable foundation; HTTP/2 and RPC-specific behavior
-still require their own executable qualification.
+pinned TLS adapter are the reusable foundation; the finite HTTP/2 transport now
+has its own live proof. Durable RPC publication and recovery remain unqualified.
 
 ## Purpose and ownership
 

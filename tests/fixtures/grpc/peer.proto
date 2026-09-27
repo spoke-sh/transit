@@ -1,0 +1,13 @@
+syntax = "proto3";
+package test;
+message Payload {
+  string text = 1;
+  bytes blob = 2;
+  uint64 sequence = 3;
+}
+service Peer {
+  rpc Unary(Payload) returns (Payload);
+  rpc Server(Payload) returns (stream Payload);
+  rpc Client(stream Payload) returns (Payload);
+  rpc Bidi(stream Payload) returns (stream Payload);
+}

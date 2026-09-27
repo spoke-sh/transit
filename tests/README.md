@@ -2,6 +2,20 @@
 
 ## M16 transport work in progress
 
+`just test::grpc-libraries` runs the selected pinned HTTP/2, HPACK, protobuf and
+gRPC client suites. Compatibility changes and the intentionally excluded server
+surface are recorded with source hashes in the [snapshot](../third_party/zig-libs/README.md).
+`just test::grpc-transport` runs all four call shapes against grpcio 1.80.0 over
+TLS, preserving original protobuf bytes with binary/Unicode/full-width values,
+duplicate/binary metadata and distinct trailers. Eight calls exercise complete,
+non-OK, oversized, exhausted-budget and stalled results without retries.
+Six independent h2 peer schedules add 64-byte request credit, 16-KiB response
+credit, a response larger than its window before request credit is returned,
+missing status, truncated/compressed frames and malformed/duplicate terminal
+status. The same-frame END_STREAM regression rejects a false terminal head even
+when later DATA and END_STREAM arrive in one read. This is transport evidence;
+durable RPC effects, transcripts, SDKs and deployment remain unqualified.
+
 `just test::tls-alpn` executes a real Zig client against six independent TLS
 connections: TLS 1.2 and 1.3 each accept `h2` and reject absent or incompatible
 selection before application bytes. Units reject unsolicited/duplicate selection,

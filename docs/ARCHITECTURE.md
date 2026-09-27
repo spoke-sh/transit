@@ -191,6 +191,7 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 | [transit-exchange](../packages/zig/transit-exchange/README.md) / `transit_exchange` | M15 shared segment capture, frozen intent coverage and explicit cleanup; qualification in progress | transit-station |
 | [transit-station-http](../packages/zig/transit-station-http/README.md) / `transit_station_http` | M15 HTTP request construction and strict framing; connector implementation in progress | transit-exchange, transit-tls |
 | [transit-tls](../packages/zig/transit-tls/README.md) / `transit_tls` | Compiler-pinned TLS client with bounded certificate-path verification | Pinned zig-libs certificate-validation snapshot |
+| [transit-grpc](../packages/zig/transit-grpc/README.md) / `transit_grpc` | Finite HTTP/2 RPC transport and protobuf codecs; no dispatch authority | transit-tls, pinned zig-libs HTTP/2/protobuf/gRPC client snapshot |
 | [transit-observability](../packages/zig/transit-observability/README.md) / `transit_observability` | Transit diagnostic vocabulary and optional instrumentation | transit-protocol, telemetry |
 | [telemetry](../packages/zig/telemetry/README.md) / `telemetry` | Bounded diagnostic sinks, local metrics and trace context | None |
 | [transit-protocol](../packages/zig/transit-protocol/README.md) / `transit_protocol` | Public types, signatures, opaque values, schema, shared fixtures | None |

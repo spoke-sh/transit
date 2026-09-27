@@ -1,0 +1,406 @@
+# http — spec
+
+Design + threat notes for auditors. Usage: see ./README.md. Attribution/provenance: see /NOTICE.
+
+## Design & invariants
+Submodules: `Client` / `Server` (h1), `h1` (parser), `hpack` + `h2` + `h2_server` + `h2_client`
+(HTTP/2), `proxy` (reverse-proxy handler) + `h2_upstream` (h2 upstream pool) + `bufpool` (shared
+client buffer pool), plus request/response feature layers `conditional`, `body`, `multipart`, `sse`,
+`range`, `conneg`, `gzip`, `problem`. One `test { _ = … }` aggregator pulls every submodule's tests (the dark-tests
+rule). Same handler serves h1 and h2 — h2 pseudo-headers map to the stock `Request`, the
+`ResponseWriter` is re-framed as HEADERS+DATA; h2 is opt-in (`enable_h2c`), off by default so the h1
+path is byte-for-byte unchanged. Streaming + backpressure: `ResponseWriter.flush()` for incremental
+output; bodies stream with flow control. **h2 server streaming, both directions:** the h1→h2
+re-framing runs *as the response is written* (`h2_server.Framer`, a `std.Io.Writer` `ResponseWriter`
+drains into) rather than over a staged copy — deliberately ONE response engine, so every
+`ResponseWriter` feature (gzip/range/conditional/conneg/trailers) is inherited rather than
+reimplemented, and a response inside `response_buffer_size` is still framed byte-identically
+(HEADERS + one END_STREAM DATA). The alternatives — a second streaming-only handler type, or an h2
+framing mode inside `ResponseWriter` — were rejected as, respectively, two engines that drift and a
+protocol branch through the type every h1 handler runs through. The cost: a handler failing after
+part of the body is on the wire gets RST_STREAM(INTERNAL_ERROR), not a rewritten 500. Request bodies
+buffer to END_STREAM by default and stream per-route via `Options.h2_stream_request`
+(`h2_server.StreamBody`); the default exists because the pre-dispatch 413 (`max_body_bytes`) and 400
+(§8.1.1 content-length vs DATA total) both need the whole body, and both survive on the streaming
+surface as read failures. **Receive-window policy is surface-dependent and must be:** buffered
+bodies credit WINDOW_UPDATE on *arrival* (consumption-based crediting would withhold the credit the
+peer needs to send the END_STREAM the dispatch waits for → deadlock above the initial window; memory
+is bounded by `max_body_bytes` instead), streaming bodies on *consumption* (same policy and argument
+as `h2_client.readBody` — unread octets then cannot exceed the advertised window). Discarded octets
+are always credited to the connection window immediately (§6.9.1), and a handler that answers
+without reading is retired with RST_STREAM(NO_ERROR) per §8.1. **Request arenas:** an h2 request's
+scratch (the synthesized header block, the `ResponseWriter` buffer, the framer's lists) comes from
+an arena built for that request and freed when it ends. A pool of per-connection spares was added
+for F14 on 2026-09-15 and removed on 2026-09-18 — see `CHANGELOG.md` for why, and read it before
+proposing the idea again. `setHeader` stores the value slice **without copying** —
+dynamic header values need caller-stable memory (documented per-helper). BYO-TLS seam:
+`serveStream` / `connectH2Over` + ALPN run h2/h1 over a caller-terminated (TLS) stream — TLS
+termination is out of this module. **Reverse proxy (`proxy`):** forwards over HTTP/1.1 (streaming)
+or, per-backend (`Backend.protocol` `.h2c`/`.h2`), over HTTP/2 through `h2_upstream.Pool` — one
+multiplexed h2 connection per backend origin, each proxied request a stream on it (reuses
+`h2_client.Session`; no second h2 stack). Header translation (hop-by-hop, `X-Forwarded-*`, `Via`) is
+shared across both forward paths; the h2 path buffers bodies (bounded, `h2_max_body_bytes`) where h1
+streams, and per-connection response collection is mutex-serialized (multiplex is on the wire, full
+cross-thread parallelism needs a dedicated reader task — deferred). h2 flow control is exercised
+end-to-end (WINDOW_UPDATE past the initial window); h2 upstream trailers are not forwarded (the h2
+client surfaces them on `Response.trailers`, but the proxy layer does not relay them). **Client buffer pool (`bufpool.BufferPool`):** an optional bounded, shared,
+thread-safe slab pool wired via `Client.Options.buffer_pool`, backing h2 upstream dial buffers so a
+gateway that churns h2 connections reuses `O(peak)` slabs instead of allocating one per dial (h1's
+idle `Pool` already recycles whole warm connections, so it does not need it). **Trailers, both directions, both protocols:** the read side captures an incoming chunked trailer
+section (h1) or request trailer HEADERS frame (h2) behind one handler surface
+(`Request.trailer`/`iterateTrailers`/`trailers`); the write side is
+`ResponseWriter.declareTrailers` + `setTrailer`, emitted after the terminating chunk on h1 (RFC 9112
+§7.1.2) and as a trailing HEADERS frame carrying END_STREAM on h2 (RFC 9113 §8.1 — the final DATA
+frame then does *not* carry it). Declaring trailers commits the response to chunked framing, so
+`Trailer` and `Content-Length` can never coexist; every framing that cannot carry a trailer section
+(HTTP/1.0 peer, declared Content-Length, HEAD/1xx/204/304) is a typed error at set time, never a
+silent drop. **Trailer field policy is deny-list ∧ allow-list:** the RFC 9110 §6.5.1 forbidden set
+(framing/routing/request-modifier/auth/response-control/payload-processing fields, plus
+connection-specific ones, `Cookie`/`Set-Cookie` and any `:`-prefixed pseudo-header) is rejected
+unconditionally, *and* a field must have been advertised in `Trailer` first — arbitrary
+handler-chosen trailers are a request-smuggling and cache-poisoning vector because intermediaries
+treat trailers inconsistently. Incoming h2 trailer blocks containing pseudo-headers are dropped
+whole (§8.1 malformed; a late `:status`/`:path` is an override primitive). Never-panic: malformed
+requests are typed errors → 400/413/414/431/500; handler errors/panics become a clean 500.
+Foundational module: `router`, `dns` (DoH),
+`rdap`, `acme`, `mcp-http`, and the whole REST/API cluster sit on it. Original work of the zig-libs
+authors; design refs (behavior only, no source copied):
+lalinsky/dusty (1.1 client), Go net/http (redirect semantics, server shape, gzip handler); RFCs
+7230/9110 (1.1), 7541 (HPACK), 9113 (h2), 7301 (ALPN), 7233 (Range), 9110 §8.8/12 (conditional/
+content-negotiation), 7578 (multipart); TLS via `tlsclient` (std's client + RFC 5280 chain verification). See NOTICE.
+
+**`Client` has a plaintext-only call graph, decl-level, no flag.**
+`Client.requestPlain`/`requestStreamingPlain`/`putFilePlain` mirror
+`request`/`requestStreaming`/`putFile` (redirect/retry/pooling unchanged,
+`error.UnsupportedScheme` on any `https://`, including a redirect hop that
+lands there) but reach the network through `acquireConnPlain`→`dialPlain`
+instead of `acquireConn`→`dialConn`. This exists because `dialConn` computed
+`tls_needed` from a *runtime* URL value, so its `if (tls_needed)` branch was
+a genuine runtime branch that forced Sema to analyse the whole TLS client
+(handshake state machine, X.509 parse/verify, every hash/curve/AEAD it
+pulls in) for every caller regardless of which branch ever executed — a
+consumer measured this at +351 000 B / +49% on x86-64 musl/ReleaseSmall
+(+607 200 B on big-endian MIPS32) for two plaintext-only operations, 89.8%
+of it (325 760 B) attributed to that one reference. `dialConn` is now a
+two-line dispatcher onto `dialPlain`/`dialTls` (split out of its former
+single body) — `request`/`requestStreaming`/`putFile` still go through it
+unchanged, so they still cost what they always cost, TLS included; the
+plaintext-only entry points never call `dialConn` or `dialTls` at all, which
+is the part that actually matters — a shared dispatcher still names both
+halves, so any caller reaching it keeps referencing TLS regardless of which
+branch runs (verified: refactoring only the branches *inside* one shared
+`dialConn` does not remove the cost, only removing the call does). No build
+option, no comptime flag: two call graphs that happen to share everything
+that doesn't touch TLS (`Conn`, `Pool`, `sendAndReadHead`,
+`writeRequestHead`/`readResponseHead`, `runBounded`, …), each reached from a
+different, statically-distinguishable entry point — the same mechanism
+`connectH2c` already used for HTTP/2's zero cost when unused (its own entry
+point, never called from `dialConn`). Measured in
+`modules/http/sizeprobe/` (not wired into `zig build`): 324 888 B saved on
+x86-64-musl/ReleaseSmall, 685 328 B on mips-linux-musleabi (BE MIPS32,
+static, two isolated call sites mirroring the consumer's measurement); `nm`
+on an unstripped build of the plaintext-only probe shows zero
+`tls.Client`/`Certificate`/curve/hash symbols on either target (196 on the
+TLS-capable probe, for contrast). See README.md's "Plaintext-only client"
+section and `sizeprobe/README.md` for the full numbers and methodology.
+
+**Auto-header suppression now agrees between the socket and socket-free
+paths.** `StreamOptions.server_name`/`.now` were always `?[]const u8`/`?Now`
+(null = omit), because `serveStream` is the composable codec layer a caller
+can drive with no `Server` at all. `Server.Options.server_name` was
+non-optional and `connMain` always synthesized a `Now`, so a caller could
+not omit `Server`/`Date` through `Server` no matter what they passed — the
+socket-owning entry point was structurally unable to reach a state the
+socket-free one always could. `Options.server_name` is now `?[]const u8`
+(null = omit, default unchanged) and `Options.emit_date: bool = true`
+governs the same suppression `StreamOptions.now = null` gives directly — a
+plain bool rather than exposing `StreamOptions.Now` on `Options`, since
+`Server` only ever wants "the server's own clock, or nothing" and never a
+caller-supplied clock source at this layer.
+
+**`Server.bind` no longer discards the underlying failure.** `BindError`
+stays the two-tag `{ BadAddress, ListenFailed, Canceled }` shape (unchanged,
+so no exhaustive `switch` breaks), but the `std.Io.net` error each tag
+collapsed — `IpAddress.parse`'s `ParseError` or `IpAddress.listen`'s
+`ListenError` (e.g. `AddressInUse`) — now survives in `last_bind_error`,
+read via `bindErrorName()`. Same shape as `probe.ConnectOutcome.err_name`
+and for the same reason: `std.Io.net` reports an `anyerror`, not an errno,
+so there is no numeric code to carry, only `@errorName`'s static string.
+
+## Threat model / out of scope
+Hardened for direct internet exposure (no reverse proxy required):
+- **Request smuggling:** duplicate/disagreeing Content-Length → 400; Content-Length **and**
+  Transfer-Encoding both present → 400 (no CL.TE); TE-without-chunked, duplicate Host, obs-fold, and
+  **bare-LF** line endings (RFC 9112 §2.2) all rejected.
+- **The h2→h1 seam (RFC 9113 §8.2.1 / §8.3.1):** an h2 request reaches the handler as a
+  synthesized h1 head — the decoded fields re-serialized into a CRLF block, `:path` as
+  `req.path` — so a field carrying a CR/LF/NUL, or a `:path` with a space or control byte in it,
+  would come out of that block (and out of `proxy.ProxyHandler`'s request line to a backend) as
+  a header or a whole request the peer never legally sent. HPACK frames by length and stops none
+  of it. Every field is therefore held to §8.2.1 before anything is rebuilt — lowercase token
+  names, values with no CR/LF/NUL/control byte and no leading/trailing whitespace — and the
+  pseudo-header values to the h1 request-line rules (`h1.isToken` / `h1.isValidRequestTarget` /
+  `h1.isValidHost`, the SAME predicates the h1 parser applies); a `host` field must agree with
+  `:authority`. A violation is a malformed request: RST_STREAM(PROTOCOL_ERROR), no response
+  head. `:path` then gets the h1 path guard verbatim (`Server.checkOriginPath` /
+  `normalizePathInto`: 414 over the cap, 400 on NUL/`%00`, dot-segments collapsed so `..` cannot
+  walk a route prefix, `*` outside OPTIONS → 400). A trailer block failing §8.2.1 is dropped
+  whole, like one carrying a pseudo-header. **The outbound side has the same rule:** `Client`
+  refuses a header it cannot write as one line (`error.InvalidHeader`) and `Url.parse` a URL
+  with a byte a URI cannot hold (`BadUrl`), both before any dial; `h2_client` likewise
+  (`InvalidHeader`, nothing framed). Measured end to end before the fix (2026-09-04, A1 G1): an
+  unauthenticated h2c client's `:path` became a complete second HTTP/1.1 request on the
+  backend's wire, answered 200. `proxy.zig`'s "A1 G1" integration test stands on that wire.
+- **Resource/DoS:** slowloris read/request timeouts bound the whole request (`request_timeout_ms`
+  covers keep-alive idle + head + body reads together; response writing and handler compute time
+  are not counted). The write-side stall timeout (`write_timeout_ms`) is a *per-write* budget that
+  resets on every successful write — it drops a peer that stops reading outright, but not one that
+  keeps draining a response a trickle at a time (RUDY-style slow-read); see `TimeoutWriter`'s doc
+  comment. Size caps (413/431/414); per-connection request-count cap; inbound gzip is
+  zip-bomb-capped (`max_decompressed_request_bytes` → 413). A chunked request's trailer section is
+  bounded too — `h1.ChunkedReader.max_trailer_bytes` (32 KiB default), charged against BOTH one
+  line's length and the number of lines, whether the trailers are captured or discarded (A1 http
+  F5, 2026-09-11 — before that `max_body_bytes` covered decoded body bytes only; the trailer
+  section, discarded or not, was consumed inside the decoder's own read loop with nothing bounding
+  it but the connection's read timeout).
+- **HTTP/2 DoS:** rapid-reset (CVE-2023-44487), CONTINUATION-flood (CVE-2024-27316),
+  MAX_CONCURRENT_STREAMS, control-frame flood budgets, total-streams-per-conn cap — all
+  configurable, safe by default (so `enable_h2c` is hardened out of the box), and the shipped
+  default VALUES are pinned by tests, not only the mechanisms. The flood budget covers every
+  no-progress frame class, WINDOW_UPDATE included: a grant that replenishes credit we actually
+  spent is progress, one to a sender that has not sent (or to a closed stream) is not. With
+  `Options.h2_dispatcher` installed (concurrent handlers, off by default) two more caps apply:
+  per-connection `Dispatcher.max_concurrent_handlers` (a ready stream over it waits in the
+  already-bounded jobs map) and the dispatcher's own global admission, whose refusal is answered
+  with RST_STREAM(REFUSED_STREAM) rather than a queue. The dispatched tasks may be OS threads or,
+  with `Dispatcher.io`, fibers of the connection's own thread (every wait then parks). Rapid-reset stays a *budget* rather than a
+  consequence of one-handler-at-a-time: a cancellation after dispatch is charged exactly like one
+  before it. **Not covered:** per-user connection-rate limiting — that belongs on the accept path
+  (`Options.on_connect`), not in the h2 loop. GOAWAY is charged against the no-progress budget the
+  same as every sibling frame type (A1 http F16, 2026-09-11 — before that a peer could stream
+  GOAWAY frames past `max_unproductive_frames` for free). `Options.max_body_bytes` is enforced
+  CONNECTION-WIDE on h2, not per stream (A1 http F2, 2026-09-11 — before that
+  `Limits.max_concurrent_streams` buffered bodies each up to the cap gave one connection
+  `max_concurrent_streams × max_body_bytes` at once, 150 MB at the shipped defaults). An
+  `enable_h2c` connection also gets an absolute lifetime cap, `Options.max_h2c_connection_ms`
+  (default 4 h, armed once at connection start): `request_timeout_ms` is deliberately h1-only, so
+  before this a connection kept "productive" by the protocol layer's own accounting — one stream
+  fed an occasional single byte, which resets every no-progress and per-stall budget in its path —
+  ran unbounded (A1 http F7).
+- **Header injection:** outbound header names/values reject CR/LF/NUL (response-splitting guard).
+- **Redirect hops (client):** on an origin change the client drops `Authorization`, `Cookie` and
+  `Proxy-Authorization` and replaces a caller-supplied `Host` with the hop's authority (A1 G3/G4,
+  2026-09-06 — before that `Host: vhost.internal` and `Proxy-Authorization` arrived at the second
+  origin). **The destination itself is not judged by default.** `RequestOptions.redirect_filter`
+  is the gate (consulted before any dial; `RedirectRefused` sends nothing), and `null` means every
+  redirect within `max_redirects` is followed. That default is a recorded decision, not an
+  omission: 27 in-tree consumers follow cross-origin redirects legitimately (`rdap` referrals,
+  `acme`, `jwt` discovery), so a default-deny would have to be re-enabled in each; the
+  consequence is that **a consumer that follows redirects across origins without setting
+  `redirect_filter` has no destination gate** (loopback, link-local, RFC 1918 — the SSRF class)
+  and owes its own. `llmclient` chose the other option and follows no redirect at all.
+- Response bodies of 304/204/1xx are suppressed (framing correctness).
+- **Out of scope:** TLS termination (bring-your-own via the seam — reverse proxy today, ianic/std
+  server later), HTTP/3 (QUIC), auth (`aaa-gate`/`jwt`), rate limiting (`ratelimit`), path-traversal
+  normalization beyond what `router` does.
+
+## Verification
+HPACK vs RFC 7541 Appendix C vectors (bytes + decoded fields + dynamic-table state per step); h2
+offline scripted client↔server pipe exchanges + h2spec-style negatives; h2 DoS attack-sim tests
+(rapid-reset proves no handler runs); serveStream goldens for conditional/range/multipart/content-
+neg; smuggling/timeout/size negatives; a BYO-TLS in-memory dogfood (connectH2Over ↔ serveStream).
+Auto-header suppression: byte-exact `serveStream` goldens for `server_name = null`, `now = null`
+and both together, plus a live-loopback `Server` pair proving `Options` defaults put both headers
+on the wire and `Options{ server_name = null, emit_date = false }` produces a head byte-identical
+to the socket-free suppressed golden — the agreement between the two entry points is the assertion,
+not either suppression alone. `bind`: a forced `AddressInUse` (second listener on an already-bound
+port) pins `bindErrorName()` to the exact underlying tag; a forced parse failure asserts a name
+survives without pinning which std tag it is.
+**Trailers are anchored against a live third party, not only against ourselves**
+(`src/curl_interop.zig`): a real `Server` on loopback answered by `curl` 8.18 / nghttp2 1.68 on both
+`--http1.1` and `--http2-prior-knowledge`, asserting curl's own header dump carries the trailer
+fields *after* the head — i.e. curl parsed a trailer section, rather than our bytes merely containing
+those strings. Self-interop cannot catch a shared misreading of the framing (the writer and reader
+agree on the same mistake); mutation testing confirms the difference — emitting the h1 trailer block
+before the last-chunk line fails curl outright (exit 56), and leaving END_STREAM on the last h2 DATA
+frame makes curl/nghttp2 *silently discard* the trailer frame and still exit 0, so on h2 the
+load-bearing assertion is the surfacing check rather than the exit code. Offline byte goldens pin the
+h1 wire layout and the h2 END_STREAM placement; the forbidden-field policy has its own rejection
+tests for both gates. **h2 server streaming is anchored against curl too**, which is the right
+direction here (curl is the client): a 256 KiB upload consumed incrementally — it cannot complete at
+all unless the consumption-driven WINDOW_UPDATEs are accounted right, since nghttp2 simply stops at
+the 65 535-octet initial window — a complete response produced from the first 8 octets of that
+upload (§8.1 + RST_STREAM(NO_ERROR), which curl accepts, exit 0, surfacing the early body), and a
+256 KiB flushed response whose END_STREAM rides an empty DATA frame, a framing only the streaming
+engine emits. Offline, the load-bearing assertions are about the frames actually on the wire: the
+handler answering a stream that NEVER carried END_STREAM (dispatch timing), and the split of
+returned window credit between the stream and connection windows — the only observable that
+distinguishes consumption-driven from arrival-driven crediting, since the *totals* agree either way.
+9 mutations were run and each turned tests red; the sharpest is arrival-driven crediting on the
+streaming surface (8 tests red, 2 of them curl's). h2 upstreaming: loopback h1-proxy → h2c-backend end-to-end (forwarding headers + hop-by-hop strip +
+large-body flow control + concurrent clients over one shared upstream connection + 502 on dead
+backend); pool-level multiplex (two streams in flight on one connection), sequential-reuse and
+buffer-pool reuse/bounded proofs. Run: `zig build test-http`.
+
+**Plaintext-only client (`requestPlain`/`requestStreamingPlain`/`putFilePlain`):**
+a Zig test proves the *behavioral* half — `error.UnsupportedScheme` on
+`https://` (direct or via redirect) with `dialCount()` staying 0, i.e. no
+socket is ever opened for it — plus loopback functional tests (GET, POST,
+PUT-a-real-file, pooling) proving the plaintext path works, not just rejects.
+What no Zig test can show — a symbol's *absence* from a differently-scoped
+binary is not an observable of any already-linked test binary — is proved
+separately by `modules/http/sizeprobe/` (not wired into `zig build`): two
+minimal executables per target, one calling only the TLS-capable entry
+points and one calling only the plaintext-only ones, `nm`'d for zero
+`tls.Client`/`Certificate`/curve/hash symbols and compared for size. See
+`sizeprobe/README.md` for the measured numbers (last run: 324 888 B saved on
+x86-64-musl/ReleaseSmall, 685 328 B on mips-linux-musleabi/ReleaseSmall,
+static).
+
+**Fuzz harnesses (HD1):** every untrusted-wire parser has a `std.testing.fuzz` harness asserting
+"typed error or valid result, never a panic" — `h1.RequestHead.parse`/`ResponseHead.parse`/
+`ChunkedReader` (request/status line, header block, chunked framing), `body.ContentType.parse`/
+`urlencoded` (Content-Type + form body), `multipart.parse` (form-data boundary/part parse),
+`range.parse` (Range header), `hpack.Decoder.decodeBlock` (HPACK header-block decode), and
+`h2.parseFrame`/`h2.Connection.recv` (HTTP/2 frame decode, both pre- and post-handshake). They run
+as a deterministic empty-input smoke test under plain `zig build test` and as real continuous fuzzing
+under `zig build test-http --fuzz`; verified green in both Debug and `-Doptimize=ReleaseFast`. The
+same pattern covers `jwt.parse`/`jwt.parseJwks` (compact-token + JWKS parse, `modules/jwt`) and
+`x509.extensions.findExtensions`/the extension-value parsers + `x509.chain.parsePssParams`
+(`modules/x509`) — see those modules' own test files. **Deferred, not fuzzed:** any path that calls
+into `std`'s own parser on attacker bytes without this collection's bounds-safety wrapper around it —
+namely `std.crypto.Certificate.parse` (used by `x509.chain`'s per-link verify once a certificate is
+accepted for path building; `x509`'s own `extensions`/`parsePssParams` DER walks are fuzzed instead,
+see `x509/root.zig`'s doc comment) and `std.compress.flate.Decompress` (`gzip.zig`'s inbound
+request-body decompression, size-capped by `max_decompressed_request_bytes` but not itself
+fuzz-verified here). These are std's parsers, not ours, to fix or fuzz-harness directly; ReleaseSafe
+(below) is exactly the mitigation for that residual, un-fuzzed surface.
+
+## Hardening: ReleaseSafe vs ReleaseFast for the exposed binary (HD7)
+This module's entire job is turning fully attacker-controlled bytes (request line, headers, chunked
+framing, multipart bodies, Range headers, HPACK blocks, HTTP/2 frames) into typed values before any
+handler sees them. **Recommendation: build the internet-facing binary `ReleaseSafe`, not
+`ReleaseFast`.** ReleaseSafe keeps bounds/overflow/UB checks live, so a parser bug that would
+otherwise be silent, exploitable undefined behavior in `ReleaseFast` instead becomes a controlled
+panic — a crash-and-restart under a process supervisor, not a memory-safety break. The fuzz harnesses
+above (this module, `jwt`, `x509`) are the safety net that makes this a defense-in-depth choice rather
+than a crutch: they already prove "no panic on arbitrary input" for every *fuzzed* code path in both
+Debug and ReleaseFast, so ReleaseSafe's checks are there for what fuzzing has NOT reached yet
+(untested branches, and the explicitly deferred `std`-parser call sites above) — not a substitute for
+fuzzing, and not the other way around. If a deployment genuinely needs `ReleaseFast`'s throughput for
+this binary, treat a `-Doptimize=ReleaseSafe` fuzz/CI lane (`zig build test-http --fuzz`, ditto
+`test-jwt`/`test-x509`) as a *mandatory*, continuously-running gate on that decision, not an optional
+extra — the perf gap being traded away is small next to what a missed bounds check costs on a
+directly-exposed parser.
+
+## Backlog / deferred
+
+~~**zstd/br negotiated by the serving loops**~~ — DONE 2026-09-26 (found by qap):
+`Server.EncoderProvider` (`acquire`/`release` per response, no codec linked here) in `Options`,
+`StreamOptions` and `h2_server.Options` as `encoder_provider`; `preferredBy` is the q-value choice
+against gzip (a tie goes to the provider, absent header admits nothing); acquired only past the
+eligibility gate, released when the request is over, none free → gzip or identity. README
+"The serving loops negotiate one themselves".
+
+**Differential oracle against karlseguin's library** — IDEA (2026-09-24, CML review of karlseguin's Zig libraries; not scheduled). `karlseguin/http.zig` (httpz) is an HTTP/1.1 server. Feed the same raw request bytes to both parsers and compare accept vs reject (smuggling-shaped framing, obs-fold, bad chunk sizes, over-long headers). It is also a reference point for qap's h1 benchmark. It would live in `tools/` as a differential oracle (CONVENTIONS §9); the library is MIT and targets Zig 0.16, so no copyleft or version barrier.
+
+**Query-string parameters and path percent-decoding** — BACKLOG (2026-09-22, found by qap).
+`Request` exposes the raw `path` and `query` but nothing that reads a parameter out of the query
+or decodes the path; `body.zig` already has the `application/x-www-form-urlencoded` decoder for
+*bodies*, and Go's `URL.Query()`/`PathUnescape` or Rust's `form_urlencoded` are the equivalents a
+consumer expects. qap wrote its own (`src/inputs.zig`: first-match `param` with decoded keys,
+`+`→space, and a strict path decoder that refuses `%2F`, `%00` and malformed escapes so an
+encoded separator can never reach a router). Wanted here, shared with `router`, so the rule that
+decides what a path segment is lives in one place.
+
+**PROXY protocol v1/v2 (server side)** — BACKLOG (2026-09-24, found by qap plan M5.1). A server
+behind a load balancer learns the real client only from the haproxy PROXY header the balancer
+prepends to the connection; nginx (`proxy_protocol`), Go (`pires/go-proxyproto`) and HAProxy itself
+parse it on accept, and nothing in zig-libs does. qap wrote its own (`src/proxy_protocol.zig`: v2
+only, TCP4/TCP6/LOCAL, TLVs bounds-walked and skipped, a 536-byte header cap, and the trusted-peer
+check over `netaddr.Prefix`). Wanted here or as a small module of its own: a parser over a
+`std.Io.Reader` (peek + toss, so a missing optional header leaves the bytes for the codec), v1 text
+form too, TLV access (AWS/GCP ids, SSL info), and the "only from listed peers" rule as the API's
+default rather than the caller's discipline.
+
+**HTTP Upgrade from a handler** — DONE 2026-09-24 (qap plan M5.3): `ResponseWriter.upgrade`.
+
+**h2 server concurrency for fibers** — DONE 2026-09-23 (qap plan M4.7a): `Dispatcher.io`. With it
+set, the session lock is a `std.Io.Mutex` and `waitForPeer`/the drain park on a `std.Io.Condition`
+(`Session.moved`) that `pump`, a retiring handler and the connection task's exit broadcast; a
+`progress` counter sampled under the lock makes the wait immune to a wakeup that lands between the
+caller's unlock and its wait. `null` keeps the yield-spin. Tested under `BatonIo` (OS threads, one
+runner at a time, the baton handed over only inside a blocking `Io` call = the fiber rule), because
+`std.Io.Evented` does not compile in Zig 0.16.0; without `io` the first such test hangs, and a `pump`
+that does not broadcast hangs the flow-control one (both measured).
+
+**h2 upstream forwarding** reuses the multiplexing `h2_client.Session` through its *buffered*
+surface, so it (a) buffers request/response bodies in memory (bounded) rather than streaming like
+the h1 path — no longer an engine limitation since `h2_client` grew `openStream`/`sendData`/
+`readBody`, just work not yet done in `h2_upstream`/`proxy` — (b) does not
+forward trailers, and (c) serializes response collection per upstream connection under a mutex —
+genuinely parallel in-flight streams across OS threads would need a dedicated per-connection reader
+task (a larger async redesign), deferred to avoid forking a second h2 stack. A shared *server*-side
+`ResponseWriter` buffer pool (across connections) is still open; the *client*-side one now exists
+(`bufpool`). WebSocket and an MQTT broker are noted (see the Non-goals section of /README.md) as
+candidate consumers layered on top of `http`'s server template, not gaps in `http` itself. TLS
+termination stays BYO (reverse proxy today)
+pending a native std TLS server.
+
+## Status
+`extract+gap · any · both · single_owner` · deps: `netaddr`, `tlsclient` (+ `std.Io.net`,
+`std.compress.flate`) — canonical source is `pub const meta` in src/root.zig.
+
+## Known limits a consumer should size for
+
+**`Options.max_body_bytes` defaults to 1 MiB.** Any route that accepts a real
+upload (no natural size ceiling) must set it to `null` or every body over
+1 MiB gets a 413 before the handler runs — the single most likely first-run
+failure for a new consumer, and documented in README where one meets the
+option. The h1 and h2 *struct-level* defaults look asymmetric —
+`Server.Options.max_body_bytes` is `1 << 20`, `h2_server.Options.max_body_bytes`
+is `null` — but this is not a live behavioral gap for a `Server`-based
+consumer: `connMain` forwards `Options.max_body_bytes` verbatim into
+`h2_server.Options` when dispatching an `enable_h2c` connection, so h1 and h2
+are capped identically by default when both are driven through `Server`. The
+null default on `h2_server.Options` exists for the same reason
+`StreamOptions.max_body_bytes` is also null — both are the low-level,
+socket-free/composable codec layer `Server` wraps, meant to stay permissive
+for a caller composing them directly (tests, or a BYO-TLS h2 server that
+never goes through `Server` at all) rather than a caller silently inheriting
+a cap they did not ask for. That direct-`h2_server` caller — unlike a
+`Server`-based one — does see an uncapped body by default; this is
+established from the forwarding code in `Server.connMain`, not assumed.
+
+**A response over `response_buffer_size` (default 4 KiB) switches to
+chunked framing silently** — correct per RFC 9112, and it has bitten a
+consumer across a component boundary: a minimal hand-rolled HTTP client on
+the other end that does not decode `Transfer-Encoding: chunked` needs an
+explicit `Content-Length` on every reply from a route whose body can exceed
+the buffer, set via `rw.setHeader("Content-Length", …)` rather than relying
+on the auto framing.
+
+**The header budget is per-middleware, never composite.** `http` allows 4096 B of
+response headers, `security-headers` accepts a CSP up to 3863 B and `cookies`
+advertises 4096 B — and each validates only itself, so nothing checks their sum.
+It takes a session cookie carrying roughly 3.4 kB of value to overflow, which is
+not a default-configuration trap, and that is why it is recorded rather than
+fixed. Related: `max_set_cookie_bytes` is unreachable even on an empty response,
+because the cookie name and attributes come out of the same budget.
+
+**Still unbounded after the 2026-08-13 timeout work**, deliberately: reading the
+response body (the caller drives it and owns the deadline), `H2Session` once the
+dial has completed, and an `Io` with no free unit of concurrency. The connect and
+request phases ARE bounded; do not read that as the whole client being bounded.
+
+
+## Anchoring
+
+**Anchor grade:** class A · oracle MIXED
+
+- **Class A** — wire/interop format — other implementations must byte-agree with it.
+- **Oracle MIXED** — anchored for some paths, self for others — the evidence below names which.
+
+**What the tests actually contain.** HPACK RFC7541 vectors + curl/nghttp2 live interop; h1/smuggling goldens self
+
+**How it got there.** The anchoring work landed. DONE 9dee82e: h11 on framing; fixed a misquoted RFC 9112 2.2 in comments

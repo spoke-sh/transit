@@ -4,6 +4,7 @@
     .version = "0.0.0",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
+        .transit_grpc = .{ .path = "packages/zig/transit-grpc" },
         .transit_tls = .{ .path = "packages/zig/transit-tls" },
         .transit_exchange = .{ .path = "packages/zig/transit-exchange" },
         .transit_station_http = .{ .path = "packages/zig/transit-station-http" },

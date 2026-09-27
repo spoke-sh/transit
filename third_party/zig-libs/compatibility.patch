@@ -1,3 +1,40 @@
+--- a/modules/testkit/src/root.zig
++++ b/modules/testkit/src/root.zig
+@@ -164,0 +165,12 @@
++
++/// Compatibility for removed string repetition syntax in pinned upstream tests.
++pub fn repeat(comptime bytes: []const u8, comptime count: usize) *const [bytes.len * count:0]u8 {
++    return comptime blk: {
++        @setEvalBranchQuota(100000);
++        var value: [bytes.len * count:0]u8 = undefined;
++        for (0..count) |i| @memcpy(value[i * bytes.len ..][0..bytes.len], bytes);
++        value[bytes.len * count] = 0;
++        const frozen = value;
++        break :blk &frozen;
++    };
++}
+--- a/modules/testkit/src/golden.zig
++++ b/modules/testkit/src/golden.zig
+@@ -192,2 +192,2 @@
+-    const too_long = "ab" ** (scratch_len + 1);
+-    try testing.expectError(error.GoldenTooLarge, hexVerdict(too_long, &.{}));
++    const too_long = @as([2 * (scratch_len + 1)]u8, @bitCast(@as([scratch_len + 1][2]u8, @splat("ab".*))));
++    try testing.expectError(error.GoldenTooLarge, hexVerdict(&too_long, &.{}));
+--- a/modules/montint/src/montint.zig
++++ b/modules/montint/src/montint.zig
+@@ -352 +352 @@
+-            var A = [_]u64{0} ** (2 * L);
++            var A = @as([(2 * L)]u64, @splat(0));
+@@ -426 +426 @@
+-            var t = [_]u64{0} ** (L + 2);
++            var t = @as([(L + 2)]u64, @splat(0));
+@@ -1039,3 +1039,3 @@
+-    fuzzseed.seedHex("01" ++ "00" ** 31 ++ "01"), // 33 significant octets → Overflow
+-    fuzzseed.seedHex("ff" ++ "00" ** 32), // ⭐ Overflow from the FIRST byte, with the rest zero: the `limb >= M.L` guard, not the carry one
+-    fuzzseed.seedHex("0180" ++ "00" ** 30), // a byte straddling the limb boundary (`sh != 0` carry into limb+1)
++    fuzzseed.seedHex("01" ++ "00000000000000000000000000000000000000000000000000000000000000" ++ "01"), // 33 significant octets → Overflow
++    fuzzseed.seedHex("ff" ++ "0000000000000000000000000000000000000000000000000000000000000000"), // ⭐ Overflow from the FIRST byte, with the rest zero: the `limb >= M.L` guard, not the carry one
++    fuzzseed.seedHex("0180" ++ "000000000000000000000000000000000000000000000000000000000000"), // a byte straddling the limb boundary (`sh != 0` carry into limb+1)
 --- a/modules/montint/src/asm_core.zig
 +++ b/modules/montint/src/asm_core.zig
 @@ -556 +556 @@
@@ -35,21 +72,6 @@
 @@ -404 +404 @@
 -    var t = [_]u64{0} ** (L + 2);
 +    var t = @as([(L + 2)]u64, @splat(0));
---- a/modules/montint/src/montint.zig
-+++ b/modules/montint/src/montint.zig
-@@ -352 +352 @@
--            var A = [_]u64{0} ** (2 * L);
-+            var A = @as([(2 * L)]u64, @splat(0));
-@@ -426 +426 @@
--            var t = [_]u64{0} ** (L + 2);
-+            var t = @as([(L + 2)]u64, @splat(0));
-@@ -1039,3 +1039,3 @@
--    fuzzseed.seedHex("01" ++ "00" ** 31 ++ "01"), // 33 significant octets → Overflow
--    fuzzseed.seedHex("ff" ++ "00" ** 32), // ⭐ Overflow from the FIRST byte, with the rest zero: the `limb >= M.L` guard, not the carry one
--    fuzzseed.seedHex("0180" ++ "00" ** 30), // a byte straddling the limb boundary (`sh != 0` carry into limb+1)
-+    fuzzseed.seedHex("01" ++ "00000000000000000000000000000000000000000000000000000000000000" ++ "01"), // 33 significant octets → Overflow
-+    fuzzseed.seedHex("ff" ++ "0000000000000000000000000000000000000000000000000000000000000000"), // ⭐ Overflow from the FIRST byte, with the rest zero: the `limb >= M.L` guard, not the carry one
-+    fuzzseed.seedHex("0180" ++ "000000000000000000000000000000000000000000000000000000000000"), // a byte straddling the limb boundary (`sh != 0` carry into limb+1)
 --- a/modules/rsa/src/root.zig
 +++ b/modules/rsa/src/root.zig
 @@ -196 +196 @@
@@ -106,13 +128,6 @@
 @@ -41 +41 @@
 -        std.mem.writeInt(u32, a.bytes[16..20], @intFromEnum(t), .big);
 +        std.mem.writeInt(u32, a.bytes[16..20], @backingInt(t), .big);
---- a/modules/testkit/src/golden.zig
-+++ b/modules/testkit/src/golden.zig
-@@ -192,2 +192,2 @@
--    const too_long = "ab" ** (scratch_len + 1);
--    try testing.expectError(error.GoldenTooLarge, hexVerdict(too_long, &.{}));
-+    const too_long = @as([2 * (scratch_len + 1)]u8, @bitCast(@as([scratch_len + 1][2]u8, @splat("ab".*))));
-+    try testing.expectError(error.GoldenTooLarge, hexVerdict(&too_long, &.{}));
 --- a/modules/x509/src/chain.zig
 +++ b/modules/x509/src/chain.zig
 @@ -972 +972 @@
@@ -140,3 +155,2033 @@
 @@ -962 +962 @@
 -    const six = [_]u8{ 0x30, 0x0e, 0x30, 0x0c } ++ [_]u8{ 0x02, 0x00 } ** 6;
 +    const six = [_]u8{ 0x30, 0x0e, 0x30, 0x0c } ++ [_]u8{0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00};
+--- a/modules/http/src/h1.zig
++++ b/modules/http/src/h1.zig
+@@ -1483 +1483 @@
+-    var src: Reader = .fixed("3\r\nabc\r\n0\r\nX-Big: " ++ ("z" ** 200) ++ "\r\n\r\n");
++    var src: Reader = .fixed("3\r\nabc\r\n0\r\nX-Big: " ++ (@import("testkit").repeat("z", 200)) ++ "\r\n\r\n");
+@@ -1504,2 +1504,2 @@
+-    const one_huge_line = "3\r\nabc\r\n0\r\nX-Big: " ++ ("z" ** 40_000) ++ "\r\n\r\n";
+-    const many_small_lines = "3\r\nabc\r\n0\r\n" ++ ("A: 1\r\n" ** 6_000) ++ "\r\n";
++    const one_huge_line = "3\r\nabc\r\n0\r\nX-Big: " ++ (@import("testkit").repeat("z", 40_000)) ++ "\r\n\r\n";
++    const many_small_lines = "3\r\nabc\r\n0\r\n" ++ (@import("testkit").repeat("A: 1\r\n", 6_000)) ++ "\r\n";
+--- a/modules/http/src/root.zig
++++ b/modules/http/src/root.zig
+@@ -2,166 +2 @@
+-
+-//! http — HTTP/1.1 client + server, pure Zig (TLS via `std.crypto.tls`).
+-//!
+-//! Phase 1: `Client` — HTTP/1.1 over TCP and TLS, streaming bodies both
+-//! ways, chunked + Content-Length framing, RFC-conformant redirect
+-//! following. Phase 2 (this code): `Server` — request codec, response
+-//! writer and a thread-per-connection serving loop; Phase 2.1 hardened it
+-//! for **direct internet exposure** (peer address on requests, accept
+-//! hook + connection accounting, 431/414/413 size limits, stall +
+-//! whole-request + write timeouts — see `Server`); TLS termination is a
+-//! separate later task (a reverse proxy also works). Phase 2.2 adds
+-//! negotiated gzip response compression (`Server.Options.compression`,
+-//! off by default; `std.compress.flate` streaming into the chunked
+-//! framing). Phase 3 adds HTTP/2: `hpack` (RFC 7541) + `h2` (RFC 9113
+-//! framing/state machine/flow control), and Phase 3.1 wires them into
+-//! the server as opt-in cleartext h2c via prior knowledge
+-//! (`Server.Options.enable_h2c`, RFC 9113 §3.3) — the same handler
+-//! serves both protocols. Phase 3.2 adds the client side and makes the
+-//! h2 stack bidirectional: `h2_client.Session` multiplexes requests
+-//! over one connection, and `Client.connectH2c` binds it to a TCP
+-//! stream (h2c prior knowledge). Phase 3.3 closes the loop with the
+-//! **TLS-adapter seam**: bring your own TLS (a reverse proxy, an
+-//! external Zig TLS library, a future std TLS server) and run the h2
+-//! stack over the established stream — `alpn_offer`/`protocolFromAlpn`
+-//! consume the ALPN result (RFC 7301; over TLS h2 is selected only via
+-//! ALPN, RFC 9113 §3.3), then `h2_server.serveStream` serves it and
+-//! `Client.connectH2Over` drives the client side; `Server.serveStream`
+-//! is the matching h1-over-provided-stream path.
+-//! Deliberately NOT built on `std.http` (API
+-//! churn is the reason this module exists); client TLS is strictly
+-//! `std.crypto.tls`.
+-//!
+-//! Layout: this file owns the shared vocabulary (methods, URL parsing,
+-//! redirect rules); `h1.zig` is the pure HTTP/1.1 wire codec (offline
+-//! testable, shared by both sides); `Client.zig` / `Server.zig` are the
+-//! transports.
+-
+-const std = @import("std");
+-const netaddr = @import("netaddr");
+-
+-pub const meta = .{
+-    // The module catalog's one-line entry. This IS the source of truth:
+-    // README.md's table is rendered from it by `zig build gen-catalog`.
+-    .doc = "HTTP/1.1 client **and** server, hardened for direct exposure (slowloris caps, gzip, multipart, Range, negotiation); also speaks HTTP/2 (h2c/h2 client+server). Not `std.http`.",
+-    // The catalog's Platform cell. Prose, because it carries nuance the
+-    // `platform` enum below cannot -- "any (packer: linux)", "amd64 asm +
+-    // portable fallback". Rendered by `gen-catalog` alongside `doc`.
+-    .platform_note = "any",
+-    .targets = .{.linux64},
+-    .platform = .any,
+-    .role = .both, // Client + Server submodules
+-    // One thread owns a Client (and its responses) or drives a Server;
+-    // the Server runs its own connection threads internally — handlers
+-    // must be thread-safe if they share state.
+-    .concurrency = .single_owner,
+-    .model_after = "lalinsky/dusty (1.1 client shape) + Go net/http (redirect semantics, Server shape, gzip handler); nghttp2 later for h2",
+-    // `datefmt` for the `Date` header's calendar: std has one, and it walks a
+-    // year at a time from 1970 (`Server.formatHttpDate`).
+-    .deps = .{ "netaddr", "datefmt", "tlsclient" }, // `tlsclient`: std's TLS client with RFC 5280 chain checks (ziglang/zig #35877); also uses std.Io.net, std.compress.flate
+-};
+-
+-/// Pure HTTP/1.1 wire framing (request/response head parse, chunked codec,
+-/// Content-Length reader) — shared by the client and the server.
+-pub const h1 = @import("h1.zig");
+-
+-/// HPACK header compression for HTTP/2 (RFC 7541): `hpack.Encoder` /
+-/// `hpack.Decoder`. Pure codec, verified against the RFC Appendix C
+-/// vectors; the HTTP/2 framing layer (Phase 3) will build on it.
+-pub const hpack = @import("hpack.zig");
+-
+-/// HTTP/2 framing + connection/stream state machine (RFC 9113): the §4/§6
+-/// frame codec, §5 stream lifecycle, §5.2 flow control and the
+-/// HEADERS+CONTINUATION assembler over `hpack` — see `h2.Connection`.
+-/// Pure wire layer; the server integrates it as opt-in cleartext h2c
+-/// (`Server.Options.enable_h2c`, prior knowledge per RFC 9113 §3.3).
+-pub const h2 = @import("h2.zig");
+-
+-/// HTTP/2 client engine (Phase 3.2): `h2_client.Session` drives
+-/// `h2.Connection` in client role over any byte transport, multiplexing
+-/// requests (demux by stream id) with §5.2/§6.9 flow control and typed
+-/// GOAWAY/RST_STREAM handling. Two surfaces over one engine: buffered
+-/// (`request` + `awaitResponse`) and incremental (`openStream` +
+-/// `sendData`/`closeSend` on one side, `awaitHead`/`readBody`/`trailers`
+-/// on the other — both live at once on a stream, with receive-window
+-/// credit returned as the caller CONSUMES). `Client.connectH2c` binds it to a TCP
+-/// stream for cleartext h2c via prior knowledge (RFC 9113 §3.3);
+-/// `Client.connectH2Over` binds it to a caller-provided (e.g. TLS)
+-/// stream after ALPN selected `alpn_h2`.
+-pub const h2_client = @import("h2_client.zig");
+-
+-/// HTTP/2 server integration: the h2c serve loop behind
+-/// `Server.Options.enable_h2c`, and `h2_server.serveStream` — the
+-/// BYO-TLS entry point that serves HTTP/2 on one already-established
+-/// (e.g. TLS) connection when ALPN selected `alpn_h2`.
+-pub const h2_server = @import("h2_server.zig");
+-
+-/// HTTP/2 **upstream** connection pool (`h2_upstream.Pool`): keeps one
+-/// multiplexed h2 connection per backend origin and runs each proxied
+-/// request as a stream on it (reusing `h2_client.Session`). The back-side
+-/// h2 capability the reverse proxy's forward seam uses to forward to an
+-/// h2/h2c backend (`Backend.protocol`), the multiplexing counterpart of the
+-/// h1 `Client`'s idle connection pool.
+-pub const h2_upstream = @import("h2_upstream.zig");
+-
+-/// A shared, bounded slab pool for client connection read/write buffers
+-/// (`bufpool.BufferPool`), wired to the h2 client via
+-/// `Client.Options.buffer_pool` so pooled h2 upstream connections reuse a
+-/// bounded set of slabs instead of allocating one per dial.
+-pub const bufpool = @import("bufpool.zig");
+-
+-/// The HTTP/1.1 client (plus opt-in HTTP/2 h2c via `Client.connectH2c`).
+-/// See `Client.init` / `Client.request`.
+-pub const Client = @import("Client.zig");
+-
+-/// The HTTP/1.1 server: `Server.Request`, `Server.ResponseWriter`, the
+-/// socket-free `Server.serveStream` codec loop, and the TCP serving loop.
+-pub const Server = @import("Server.zig");
+-
+-/// Reverse-proxy handler (`proxy.ProxyHandler`): forwards a `Server`
+-/// request to a backend via `Client`, streaming both ways, with hop-by-hop
+-/// stripping, `X-Forwarded-*` / `Via` injection, and 502/503/504 mapping.
+-/// Backend selection is a seam so `upstream`/`router` compose from above.
+-pub const proxy = @import("proxy.zig");
+-
+-/// Conditional requests (RFC 9110 §8.8/§13): ETag / Last-Modified validators
+-/// with `If-Match` / `If-None-Match` / `If-Modified-Since` /
+-/// `If-Unmodified-Since` → 304 Not Modified / 412 Precondition Failed.
+-pub const conditional = @import("conditional.zig");
+-
+-/// Request-body helpers: the `Content-Type` media-type + parameter parser and
+-/// an `application/x-www-form-urlencoded` decoder. The `multipart/form-data`
+-/// parser lives in `multipart`.
+-pub const body = @import("body.zig");
+-
+-/// `multipart/form-data` body parser (RFC 7578): iterate a form's parts —
+-/// field `name`, optional `filename`, `Content-Type`, and raw (binary-safe)
+-/// value — from a size-bounded in-memory body.
+-pub const multipart = @import("multipart.zig");
+-
+-/// Server-Sent Events (`text/event-stream`) encoder over a streaming
+-/// `ResponseWriter` — the push half of a live HTTP endpoint (SSE / MCP).
+-pub const sse = @import("sse.zig");
+-
+-/// Range requests (RFC 7233): the `Range` request-header parser (R1) —
+-/// `bytes=` byte-range-set into validated `ByteRangeSpec`s (range/from/suffix).
+-pub const range = @import("range.zig");
+-
+-/// Proactive content negotiation (RFC 9110 §12): the `Accept` media-range +
+-/// q-value parser (N1) — media-ranges with integer milli-unit weights.
+-pub const conneg = @import("conneg.zig");
+-
+-/// Negotiated response compression for `Server` (`acceptsGzip`,
+-/// `contentTypeCompressible`, `requestContentEncoding`, the `Scratch` /
+-/// `DecodeScratch` compression/decompression buffers) — the pure,
+-/// offline-testable half; the wire-side integration lives in `Server.zig`.
+-/// Was missing from this list (A1 audit G9, 2026-09-04): every sibling
+-/// codec module above is reachable by name through `http.<name>`, this one
+-/// was reachable only by inference through `Server.Options.compression`.
+-pub const gzip = @import("gzip.zig");
+-
+-/// Problem details for HTTP APIs (RFC 9457): the `application/problem+json`
+-/// error body — standard members + caller extensions, always valid UTF-8.
+-pub const problem = @import("problem.zig");
+-
+-// ── request vocabulary ──────────────────────────────────────────────────────
+-
++//! Selected byte-transport HTTP/2 client surface; see compatibility.patch.
+@@ -193,505 +28,5 @@
+-// ── URL parsing ─────────────────────────────────────────────────────────────
+-
+-/// A parsed `http(s)` URL. All slices point into the parsed text.
+-pub const Url = struct {
+-    scheme: Scheme,
+-    /// Hostname or IP literal; IPv6 brackets already stripped.
+-    host: []const u8,
+-    /// Explicit port, or the scheme default.
+-    port: u16,
+-    /// Path component, always at least "/". Percent-encoding is passed
+-    /// through untouched.
+-    path: []const u8,
+-    /// Query without the leading '?', or "".
+-    query: []const u8,
+-
+-    pub const Scheme = enum {
+-        http,
+-        https,
+-
+-        pub fn defaultPort(s: Scheme) u16 {
+-            return switch (s) {
+-                .http => 80,
+-                .https => 443,
+-            };
+-        }
+-    };
+-
+-    pub const ParseError = error{ UnsupportedScheme, BadUrl };
+-
+-    /// Parse `http[s]://host[:port][/path][?query][#fragment]`. The fragment
+-    /// is discarded; userinfo (`user@host`) is rejected. So is any byte a
+-    /// URI cannot contain (RFC 3986 §2: whitespace, a control byte, a byte
+-    /// >= 0x80) — `BadUrl`. A URL is what a client writes into a request
+-    /// line, and one with a space or a CR/LF in it would be written as a
+-    /// second request; a caller that has such a string has unencoded input,
+-    /// not a URL.
+-    pub fn parse(text: []const u8) ParseError!Url {
+-        for (text) |c| if (c <= ' ' or c >= 0x7f) return error.BadUrl;
+-        var scheme: Scheme = undefined;
+-        var rest: []const u8 = undefined;
+-        if (std.ascii.startsWithIgnoreCase(text, "http://")) {
+-            scheme = .http;
+-            rest = text["http://".len..];
+-        } else if (std.ascii.startsWithIgnoreCase(text, "https://")) {
+-            scheme = .https;
+-            rest = text["https://".len..];
+-        } else return error.UnsupportedScheme;
+-
+-        const authority_end = std.mem.indexOfAny(u8, rest, "/?#") orelse rest.len;
+-        const authority = rest[0..authority_end];
+-        if (authority.len == 0) return error.BadUrl;
+-        if (std.mem.indexOfScalar(u8, authority, '@') != null) return error.BadUrl; // userinfo unsupported
+-
+-        var host: []const u8 = undefined;
+-        var port: ?u16 = null;
+-        if (authority[0] == '[') {
+-            const close = std.mem.indexOfScalar(u8, authority, ']') orelse return error.BadUrl;
+-            host = authority[1..close];
+-            if (netaddr.parseIp6(host) == null) return error.BadUrl;
+-            if (close + 1 < authority.len) {
+-                if (authority[close + 1] != ':') return error.BadUrl;
+-                port = parsePort(authority[close + 2 ..]) orelse return error.BadUrl;
+-            }
+-        } else if (std.mem.indexOfScalar(u8, authority, ':') != null) {
+-            const hp = netaddr.parseHostPort(authority) orelse return error.BadUrl;
+-            host = hp.host;
+-            port = hp.port;
+-        } else {
+-            host = authority;
+-        }
+-        if (host.len == 0) return error.BadUrl;
+-
+-        var target = rest[authority_end..];
+-        if (std.mem.indexOfScalar(u8, target, '#')) |i| target = target[0..i];
+-        var path: []const u8 = target;
+-        var query: []const u8 = "";
+-        if (std.mem.indexOfScalar(u8, target, '?')) |i| {
+-            path = target[0..i];
+-            query = target[i + 1 ..];
+-        }
+-        if (path.len == 0) path = "/";
+-
+-        return .{
+-            .scheme = scheme,
+-            .host = host,
+-            .port = port orelse scheme.defaultPort(),
+-            .path = path,
+-            .query = query,
+-        };
+-    }
+-
+-    pub fn portIsDefault(u: Url) bool {
+-        return u.port == u.scheme.defaultPort();
+-    }
+-
+-    /// True when `host` is an IPv6 literal (needs brackets on the wire).
+-    pub fn hostIsV6(u: Url) bool {
+-        return netaddr.parseIp6(u.host) != null;
+-    }
+-
+-    /// Write the wire form of the authority for a Host header:
+-    /// `host` / `[v6]` plus `:port` when non-default.
+-    pub fn writeHostHeaderValue(u: Url, w: *std.Io.Writer) std.Io.Writer.Error!void {
+-        if (u.hostIsV6()) {
+-            try w.print("[{s}]", .{u.host});
+-        } else {
+-            try w.writeAll(u.host);
+-        }
+-        if (!u.portIsDefault()) try w.print(":{d}", .{u.port});
+-    }
+-};
+-
+-// Kept in sync with `netaddr.parsePort` (audit F8, closed 2026-09-12): a
+-// leading zero is rejected the same way here as it is on the non-bracketed
+-// `host:port` authority form four lines above, which goes through
+-// `netaddr.parseHostPort`. Without this, `http://[::1]:0080/` and
+-// `http://host:0080/` would disagree on whether "0080" is a valid port.
+-fn parsePort(text: []const u8) ?u16 {
+-    if (text.len == 0 or text.len > 5) return null;
+-    if (text.len > 1 and text[0] == '0') return null; // leading zero, len >= 2
+-    var v: u32 = 0;
+-    for (text) |c| {
+-        if (c < '0' or c > '9') return null;
+-        v = v * 10 + (c - '0');
+-    }
+-    return if (v <= std.math.maxInt(u16)) @intCast(v) else null;
+-}
+-
+-// ── redirect rules (Go net/http semantics) ──────────────────────────────────
+-
+-/// Which method a redirect should be retried with, or null when `status` is
+-/// not an auto-followed redirect. Mirrors Go's `redirectBehavior`: 301/302/303
+-/// rewrite everything except GET/HEAD to GET (dropping the body); 307/308
+-/// preserve method and body.
+-pub fn redirectMethodFor(status: u16, method: Method) ?Method {
+-    return switch (status) {
+-        301, 302, 303 => if (method == .get or method == .head) method else .get,
+-        307, 308 => method,
+-        else => null,
+-    };
+-}
+-
+-pub const ResolveError = error{ BadRedirect, RedirectTooLong };
+-
+-/// Resolve a Location header value against the request URL (RFC 3986 §5.2),
+-/// producing an absolute http(s) URL in `out`. Handles absolute URLs,
+-/// scheme-relative (`//host/…`), absolute-path and relative-path references
+-/// (with dot-segment removal).
+-pub fn resolveLocation(base: Url, location: []const u8, out: []u8) ResolveError![]const u8 {
+-    if (location.len == 0) return error.BadRedirect;
+-    if (std.ascii.startsWithIgnoreCase(location, "http://") or
+-        std.ascii.startsWithIgnoreCase(location, "https://"))
+-    {
+-        if (location.len > out.len) return error.RedirectTooLong;
+-        @memcpy(out[0..location.len], location);
+-        return out[0..location.len];
+-    }
+-
+-    var w: std.Io.Writer = .fixed(out);
+-    if (std.mem.startsWith(u8, location, "//")) {
+-        w.print("{t}:{s}", .{ base.scheme, location }) catch return error.RedirectTooLong;
+-        return w.buffered();
+-    }
+-
+-    w.print("{t}://", .{base.scheme}) catch return error.RedirectTooLong;
+-    base.writeHostHeaderValue(&w) catch return error.RedirectTooLong;
+-
+-    if (std.mem.startsWith(u8, location, "/")) {
+-        w.writeAll(location) catch return error.RedirectTooLong;
+-        return w.buffered();
+-    }
+-
+-    // Relative path: merge with the base path's directory, then clean.
+-    const loc_path_end = std.mem.indexOfAny(u8, location, "?#") orelse location.len;
+-    const dir_len = if (std.mem.lastIndexOfScalar(u8, base.path, '/')) |i| i + 1 else 0;
+-    var merged: [max_merged_path]u8 = undefined;
+-    const total = dir_len + loc_path_end;
+-    if (total > merged.len) return error.RedirectTooLong;
+-    @memcpy(merged[0..dir_len], base.path[0..dir_len]);
+-    @memcpy(merged[dir_len..][0..loc_path_end], location[0..loc_path_end]);
+-    const cleaned = merged[0..removeDotSegments(merged[0..total])];
+-    w.writeAll(cleaned) catch return error.RedirectTooLong;
+-    w.writeAll(location[loc_path_end..]) catch return error.RedirectTooLong;
+-    return w.buffered();
+-}
+-
+-/// Scratch bound for relative-redirect path merging.
+-pub const max_merged_path = 4096;
+-
+-// ── ALPN (RFC 7301) — the bring-your-own-TLS seam ───────────────────────────
+-//
+-// This module ships no TLS server: TLS termination is the caller's (a
+-// reverse proxy in front of the h1/h2c `Server`, an external Zig TLS
+-// library, a future std TLS server). ALPN itself is negotiated inside the
+-// caller's TLS handshake (RFC 7301) — the vocabulary below is for *feeding*
+-// that handshake (`alpn_offer`) and *consuming* its result
+-// (`protocolFromAlpn`). Over TLS, HTTP/2 is selected exclusively via the
+-// ALPN id "h2" (RFC 9113 §3.3 — there is no request-based upgrade), so the
+-// intended deployment flow is:
+-//
+-//     terminate TLS with your library, offering `http.alpn_offer`
+-//     switch (http.protocolFromAlpn(negotiated)) {
+-//         .h2     => h2_server.serveStream(gpa, in, out, peer, .{ .handler = h });
+-//         .http11 => Server.serveStream(opts, in, out, bufs);   // or unknown:
+-//         .unknown => Server.serveStream(opts, in, out, bufs),  // h1 default
+-//     }
+-//
+-// where `in`/`out` are the TLS connection's plaintext reader/writer. The
+-// client side mirrors it: offer `alpn_offer`, and when "h2" comes back call
+-// `Client.connectH2Over` on the TLS stream (RFC 7301 §3.2: an empty or
+-// absent ALPN result means the server chose nothing — HTTP/1.1 is the safe
+-// default, hence `.unknown` maps to the h1 path above).
+-
+-/// ALPN protocol id selecting HTTP/2 over TLS (RFC 9113 §3.3).
+-pub const alpn_h2 = "h2";
+-
+-/// ALPN protocol id selecting HTTP/1.1 (RFC 7301 §6 IANA registry).
+-pub const alpn_http11 = "http/1.1";
+-
+-/// The protocol list to offer in a TLS handshake, most-preferred first
+-/// (RFC 7301 §3.1): clients send it in the ClientHello, servers use it as
+-/// their preference order when picking against the client's list.
+-pub const alpn_offer = [_][]const u8{ alpn_h2, alpn_http11 };
+-
+-/// Dispatch verdict for a negotiated ALPN protocol id — see `protocolFromAlpn`.
+-pub const AlpnProtocol = enum { http11, h2, unknown };
+-
+-/// Map the ALPN protocol id the caller's TLS layer negotiated to the module
+-/// entry point to use: `.h2` → `h2_server.serveStream` /
+-/// `Client.connectH2Over`, `.http11` → `Server.serveStream` / the h1
+-/// `Client`. `.unknown` (anything else, including "" when ALPN was not
+-/// used) should be treated as HTTP/1.1 per RFC 7301 §3.2 fallback custom.
+-/// Comparison is exact and case-sensitive — ALPN ids are opaque bytes.
+-pub fn protocolFromAlpn(selected: []const u8) AlpnProtocol {
+-    if (std.mem.eql(u8, selected, alpn_h2)) return .h2;
+-    if (std.mem.eql(u8, selected, alpn_http11)) return .http11;
+-    return .unknown;
+-}
+-
+-/// RFC 3986 §5.2.4 remove_dot_segments, in place; returns the new length.
+-pub fn removeDotSegments(path: []u8) usize {
+-    var r: usize = 0;
+-    var w: usize = 0;
+-    while (r < path.len) {
+-        const rest = path[r..];
+-        if (std.mem.startsWith(u8, rest, "../")) {
+-            r += 3;
+-        } else if (std.mem.startsWith(u8, rest, "./")) {
+-            r += 2;
+-        } else if (std.mem.eql(u8, rest, ".")) {
+-            r += 1;
+-        } else if (std.mem.startsWith(u8, rest, "/./")) {
+-            r += 2; // keep the leading '/'
+-        } else if (std.mem.eql(u8, rest, "/.")) {
+-            path[w] = '/';
+-            w += 1;
+-            break;
+-        } else if (std.mem.startsWith(u8, rest, "/../") or std.mem.eql(u8, rest, "/..")) {
+-            while (w > 0) {
+-                w -= 1;
+-                if (path[w] == '/') break;
+-            }
+-            if (std.mem.eql(u8, rest, "/..")) {
+-                path[w] = '/';
+-                w += 1;
+-                break;
+-            }
+-            r += 3;
+-        } else if (std.mem.eql(u8, rest, "..")) {
+-            r += 2;
+-        } else {
+-            const start = r;
+-            var e = if (path[r] == '/') r + 1 else r;
+-            while (e < path.len and path[e] != '/') e += 1;
+-            std.mem.copyForwards(u8, path[w..], path[start..e]);
+-            w += e - start;
+-            r = e;
+-        }
+-    }
+-    return w;
+-}
+-
+-// ── tests ───────────────────────────────────────────────────────────────────
+-
+-const testing = std.testing;
+-
+-test {
+-    _ = h1;
+-    _ = hpack;
+-    _ = h2;
+-    _ = h2_client;
+-    _ = h2_server;
+-    _ = h2_upstream;
+-    _ = bufpool;
+-    _ = Client;
+-    _ = Server;
+-    _ = proxy;
+-    _ = conditional;
+-    _ = body;
+-    _ = multipart;
+-    _ = sse;
+-    _ = range;
+-    _ = conneg;
+-    _ = problem;
+-    _ = curl_interop;
+-    _ = h11_interop;
+-}
+-
+-/// LIVE third-party interop (response trailers vs real curl/nghttp2) — tests
+-/// only, nothing importable, so it is not part of the public surface.
+-const curl_interop = @import("curl_interop.zig");
+-
+-/// OFFLINE third-party interop (wire-framing edge cases vs h11, captured
+-/// once and frozen) — tests only, nothing importable, so it is not part of
+-/// the public surface.
+-const h11_interop = @import("h11_interop.zig");
+-
+-test "protocolFromAlpn: exact ALPN ids dispatch, anything else is unknown" {
+-    try testing.expectEqual(AlpnProtocol.h2, protocolFromAlpn("h2"));
+-    try testing.expectEqual(AlpnProtocol.http11, protocolFromAlpn("http/1.1"));
+-    // Not negotiated / ALPN absent → the caller falls back to HTTP/1.1.
+-    try testing.expectEqual(AlpnProtocol.unknown, protocolFromAlpn(""));
+-    // Unsupported protocols we never offer.
+-    try testing.expectEqual(AlpnProtocol.unknown, protocolFromAlpn("h3"));
+-    try testing.expectEqual(AlpnProtocol.unknown, protocolFromAlpn("http/1.0"));
+-    // ALPN ids are opaque bytes — no case folding, no prefix matching.
+-    try testing.expectEqual(AlpnProtocol.unknown, protocolFromAlpn("H2"));
+-    try testing.expectEqual(AlpnProtocol.unknown, protocolFromAlpn("h2c"));
+-}
+-
+-test "alpn_offer: h2 preferred, http/1.1 fallback, nothing else" {
+-    try testing.expectEqual(@as(usize, 2), alpn_offer.len);
+-    try testing.expectEqualStrings(alpn_h2, alpn_offer[0]);
+-    try testing.expectEqualStrings(alpn_http11, alpn_offer[1]);
+-    // Every offered id round-trips through the dispatcher.
+-    try testing.expectEqual(AlpnProtocol.h2, protocolFromAlpn(alpn_offer[0]));
+-    try testing.expectEqual(AlpnProtocol.http11, protocolFromAlpn(alpn_offer[1]));
+-}
+-
+-test "Url.parse: happy paths" {
+-    const a = try Url.parse("http://example.com/x/y?q=1#frag");
+-    try testing.expectEqual(Url.Scheme.http, a.scheme);
+-    try testing.expectEqualStrings("example.com", a.host);
+-    try testing.expectEqual(@as(u16, 80), a.port);
+-    try testing.expectEqualStrings("/x/y", a.path);
+-    try testing.expectEqualStrings("q=1", a.query);
+-
+-    const b = try Url.parse("HTTPS://Example.com:8443");
+-    try testing.expectEqual(Url.Scheme.https, b.scheme);
+-    try testing.expectEqual(@as(u16, 8443), b.port);
+-    try testing.expectEqualStrings("/", b.path);
+-    try testing.expectEqualStrings("", b.query);
+-
+-    const c = try Url.parse("https://example.com?x=1"); // query, no path
+-    try testing.expectEqualStrings("/", c.path);
+-    try testing.expectEqualStrings("x=1", c.query);
+-
+-    const v6 = try Url.parse("http://[2001:db8::1]:8080/api");
+-    try testing.expectEqualStrings("2001:db8::1", v6.host);
+-    try testing.expectEqual(@as(u16, 8080), v6.port);
+-    try testing.expect(v6.hostIsV6());
+-
+-    const v6np = try Url.parse("https://[::1]/");
+-    try testing.expectEqual(@as(u16, 443), v6np.port);
+-
+-    const v4 = try Url.parse("http://127.0.0.1:9070/v1/data");
+-    try testing.expectEqualStrings("127.0.0.1", v4.host);
+-    try testing.expect(!v4.hostIsV6());
+-}
+-
+-test "Url.parse: rejects malformed input" {
+-    try testing.expectError(error.UnsupportedScheme, Url.parse("ftp://x/"));
+-    try testing.expectError(error.UnsupportedScheme, Url.parse("example.com/x"));
+-    try testing.expectError(error.BadUrl, Url.parse("http:///x"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://user@host/"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://host:99999/"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://host:/"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://[not-v6]/"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://[::1]8080/"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://2001:db8::1/")); // v6 needs brackets
+-}
+-
+-// audit netaddr F8, closed 2026-09-12: a leading zero on the port used to
+-// parse (as decimal, e.g. "0080" -> 80) on both authority forms. Now
+-// rejected on both, so the bracketed and non-bracketed paths agree.
+-test "Url.parse: a leading zero on the port is rejected on both authority forms" {
+-    try testing.expectError(error.BadUrl, Url.parse("http://host:0080/"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://[::1]:0080/"));
+-    // A bare "0" is not a *leading* zero -- still valid on both forms.
+-    const a = try Url.parse("http://host:0/");
+-    try testing.expectEqual(@as(u16, 0), a.port);
+-    const b = try Url.parse("http://[::1]:0/");
+-    try testing.expectEqual(@as(u16, 0), b.port);
+-}
+-
+-test "Url.parse: whitespace, control bytes and non-ASCII are not URL bytes (RFC 3986 §2)" {
+-    // Each of these would be written into a request line verbatim; the
+-    // first two would end that line and start another.
+-    try testing.expectError(error.BadUrl, Url.parse("http://h/a\r\nX: y\r\n\r\nGET /admin HTTP/1.1"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://h/a\nb"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://h/a HTTP/1.1"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://h/a?q=x y"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://h/a\x00b"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://h\r\nX: y/"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://h/caf\xc3\xa9"));
+-    try testing.expectError(error.BadUrl, Url.parse("http://h/a\x7f"));
+-    // Percent-encoded, the same characters are fine — and untouched.
+-    const u = try Url.parse("http://h/a%20b?q=x%0d%0ay");
+-    try testing.expectEqualStrings("/a%20b", u.path);
+-    try testing.expectEqualStrings("q=x%0d%0ay", u.query);
+-}
+-
+-test "Url host header form" {
+-    var buf: [64]u8 = undefined;
+-    var w: std.Io.Writer = .fixed(&buf);
+-    try (try Url.parse("https://example.com/")).writeHostHeaderValue(&w);
+-    try testing.expectEqualStrings("example.com", w.buffered());
+-
+-    w = .fixed(&buf);
+-    try (try Url.parse("http://example.com:8080/")).writeHostHeaderValue(&w);
+-    try testing.expectEqualStrings("example.com:8080", w.buffered());
+-
+-    w = .fixed(&buf);
+-    try (try Url.parse("http://[::1]:81/")).writeHostHeaderValue(&w);
+-    try testing.expectEqualStrings("[::1]:81", w.buffered());
+-
+-    w = .fixed(&buf);
+-    try (try Url.parse("http://[::1]/")).writeHostHeaderValue(&w);
+-    try testing.expectEqualStrings("[::1]", w.buffered());
+-}
+-
+-test "redirectMethodFor mirrors Go" {
+-    try testing.expectEqual(@as(?Method, .get), redirectMethodFor(301, .post));
+-    try testing.expectEqual(@as(?Method, .get), redirectMethodFor(302, .put));
+-    try testing.expectEqual(@as(?Method, .get), redirectMethodFor(303, .post));
+-    try testing.expectEqual(@as(?Method, .get), redirectMethodFor(301, .get));
+-    try testing.expectEqual(@as(?Method, .head), redirectMethodFor(302, .head));
+-    try testing.expectEqual(@as(?Method, .post), redirectMethodFor(307, .post));
+-    try testing.expectEqual(@as(?Method, .delete), redirectMethodFor(308, .delete));
+-    try testing.expectEqual(@as(?Method, null), redirectMethodFor(200, .get));
+-    try testing.expectEqual(@as(?Method, null), redirectMethodFor(304, .get));
+-    try testing.expectEqual(@as(?Method, null), redirectMethodFor(300, .get));
+-    try testing.expectEqual(@as(?Method, null), redirectMethodFor(404, .get));
+-}
+-
+-fn expectResolved(base_url: []const u8, location: []const u8, expected: []const u8) !void {
+-    const base = try Url.parse(base_url);
+-    var buf: [512]u8 = undefined;
+-    try testing.expectEqualStrings(expected, try resolveLocation(base, location, &buf));
+-}
+-
+-test "resolveLocation" {
+-    // Absolute — taken verbatim (scheme change allowed, e.g. http→https).
+-    try expectResolved("http://a.example/x", "https://b.example/y", "https://b.example/y");
+-    // Scheme-relative.
+-    try expectResolved("https://a.example/x", "//b.example/z?k=1", "https://b.example/z?k=1");
+-    // Absolute path keeps host and non-default port.
+-    try expectResolved("http://a.example:8080/x/y", "/new", "http://a.example:8080/new");
+-    // Relative path merges with the base directory.
+-    try expectResolved("http://a.example/dir/page", "other", "http://a.example/dir/other");
+-    try expectResolved("http://a.example/dir/page", "sub/other", "http://a.example/dir/sub/other");
+-    // Dot segments per RFC 3986.
+-    try expectResolved("http://a.example/a/b/c", "./../g", "http://a.example/a/g");
+-    try expectResolved("http://a.example/a/b/c", "../../../g", "http://a.example/g");
+-    // Query carried through on relative locations.
+-    try expectResolved("http://a.example/p/q", "r?s=1", "http://a.example/p/r?s=1");
+-    // IPv6 host round-trips with brackets.
+-    try expectResolved("http://[2001:db8::1]:81/x/y", "/z", "http://[2001:db8::1]:81/z");
+-
+-    // Errors.
+-    const base = try Url.parse("http://a.example/");
+-    var tiny: [8]u8 = undefined;
+-    try testing.expectError(error.RedirectTooLong, resolveLocation(base, "http://very-long-host.example/path", &tiny));
+-    var buf: [512]u8 = undefined;
+-    try testing.expectError(error.BadRedirect, resolveLocation(base, "", &buf));
+-}
+-
+-test "removeDotSegments" {
+-    const cases = [_]struct { in: []const u8, out: []const u8 }{
+-        .{ .in = "/a/b/c/./../../g", .out = "/a/g" },
+-        .{ .in = "/../x", .out = "/x" },
+-        .{ .in = "/a/../../", .out = "/" },
+-        .{ .in = "/a/b/..", .out = "/a/" },
+-        .{ .in = "/a/b/.", .out = "/a/b/" },
+-        .{ .in = "/a/./b", .out = "/a/b" },
+-        .{ .in = "/", .out = "/" },
+-        .{ .in = "/..", .out = "/" },
+-        .{ .in = "mid/content=5/../6", .out = "mid/6" },
+-    };
+-    for (cases) |case| {
+-        var buf: [64]u8 = undefined;
+-        @memcpy(buf[0..case.in.len], case.in);
+-        try testing.expectEqualStrings(case.out, buf[0..removeDotSegments(buf[0..case.in.len])]);
+-    }
+-}
+-
+-test "gzip is reexported at the module root, like every other codec here (G9)" {
+-    // Before this fix `root.zig` listed h1/hpack/h2/h2_client/h2_server/
+-    // h2_upstream/bufpool/Client/Server/proxy/conditional/body/multipart/
+-    // sse/range/conneg but not gzip, so a consumer had no name to reach
+-    // `acceptsGzip`/`contentTypeCompressible`/etc through `@import("http")`
+-    // with -- only inference via `Server.Options.compression` (A1 audit G9,
+-    // 2026-09-04). This resolves iff the `pub const gzip` line exists.
+-    try testing.expect(!gzip.acceptsGzip(null));
+-}
++pub const h1 = @import("h1.zig");
++pub const hpack = @import("hpack.zig");
++pub const h2 = @import("h2.zig");
++pub const h2_client = @import("h2_client.zig");
++test { _ = h1; _ = hpack; _ = h2; _ = h2_client; }
+--- a/modules/http/src/h2.zig
++++ b/modules/http/src/h2.zig
+@@ -189 +189 @@
+-        out[3] = @intFromEnum(h.frame_type);
++        out[3] = @backingInt(h.frame_type);
+@@ -198 +198 @@
+-            .frame_type = @enumFromInt(bytes[3]),
++            .frame_type = @fromBackingInt(bytes[3]),
+@@ -254 +254 @@
+-            .id = @enumFromInt(std.mem.readInt(u16, chunk[0..2], .big)),
++            .id = @fromBackingInt(std.mem.readInt(u16, chunk[0..2], .big)),
+@@ -341 +341 @@
+-                .code = @enumFromInt(std.mem.readInt(u32, payload[0..4], .big)),
++                .code = @fromBackingInt(std.mem.readInt(u32, payload[0..4], .big)),
+@@ -376 +376 @@
+-                .code = @enumFromInt(std.mem.readInt(u32, payload[4..8], .big)),
++                .code = @fromBackingInt(std.mem.readInt(u32, payload[4..8], .big)),
+@@ -399 +399 @@
+-            .frame_type = @intFromEnum(h.frame_type),
++            .frame_type = @backingInt(h.frame_type),
+@@ -551 +551 @@
+-    std.mem.writeInt(u32, &payload, @intFromEnum(code), .big);
++    std.mem.writeInt(u32, &payload, @backingInt(code), .big);
+@@ -630 +630 @@
+-    std.mem.writeInt(u32, fixed[4..8], @intFromEnum(code), .big);
++    std.mem.writeInt(u32, fixed[4..8], @backingInt(code), .big);
+@@ -668 +668 @@
+-    std.mem.writeInt(u16, buf[n.*..][0..2], @intFromEnum(id), .big);
++    std.mem.writeInt(u16, buf[n.*..][0..2], @backingInt(id), .big);
+@@ -1854 +1854 @@
+-    try encodeRstStream(gpa, &out, 5, @enumFromInt(0xdeadbeef)); // unknown code survives
++    try encodeRstStream(gpa, &out, 5, @fromBackingInt(0xdeadbeef)); // unknown code survives
+@@ -1856 +1856 @@
+-    try testing.expectEqual(@as(u32, 0xdeadbeef), @intFromEnum(unk.rst_stream.code));
++    try testing.expectEqual(@as(u32, 0xdeadbeef), @backingInt(unk.rst_stream.code));
+@@ -1910 +1910 @@
+-    try encodeRawFrame(gpa, &out, .settings, Flags.ack, 0, &(.{0} ** 6));
++    try encodeRawFrame(gpa, &out, .settings, Flags.ack, 0, &(@as([6]u8, @splat(0))));
+@@ -1980 +1980 @@
+-    try encodeRawFrame(gpa, &out, .ping, 0, 3, &(.{0} ** 8)); // stream != 0
++    try encodeRawFrame(gpa, &out, .ping, 0, 3, &(@as([8]u8, @splat(0)))); // stream != 0
+@@ -1988 +1988 @@
+-    try encodeRawFrame(gpa, &out, .goaway, 0, 1, &(.{0} ** 8)); // stream != 0
++    try encodeRawFrame(gpa, &out, .goaway, 0, 1, &(@as([8]u8, @splat(0)))); // stream != 0
+@@ -2009 +2009 @@
+-    try encodeRawFrame(gpa, &out, @enumFromInt(0xbe), 0xff, 21, "whatever");
++    try encodeRawFrame(gpa, &out, @fromBackingInt(0xbe), 0xff, 21, "whatever");
+@@ -2086 +2086 @@
+-    try encodePing(gpa, &bytes, .{0} ** 8, false);
++    try encodePing(gpa, &bytes, @as([8]u8, @splat(0)), false);
+@@ -2130 +2130 @@
+-    try encodePing(gpa, &bytes, .{0} ** 8, false); // must have been CONTINUATION
++    try encodePing(gpa, &bytes, @as([8]u8, @splat(0)), false); // must have been CONTINUATION
+@@ -2161 +2161 @@
+-    try encodeRawFrame(gpa, &bytes, .settings, Flags.ack, 0, &(.{0} ** 6));
++    try encodeRawFrame(gpa, &bytes, .settings, Flags.ack, 0, &(@as([6]u8, @splat(0))));
+@@ -2420 +2420 @@
+-    const long_value = "0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ" ** 3;
++    const long_value = @import("testkit").repeat("0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ", 3);
+@@ -2554 +2554 @@
+-    const chunk = [_]u8{0xaa} ** 16_000;
++    const chunk = @as([16_000]u8, @splat(0xaa));
+@@ -2812 +2812 @@
+-        try encodeHeaders(gpa, &wire, 1, &(.{0} ** 65), .{ .end_headers = false });
++        try encodeHeaders(gpa, &wire, 1, &(@as([65]u8, @splat(0))), .{ .end_headers = false });
+@@ -2821,2 +2821,2 @@
+-        try encodeHeaders(gpa, &wire, 1, &(.{0} ** 40), .{ .end_headers = false });
+-        try encodeContinuation(gpa, &wire, 1, &(.{0} ** 40), false);
++        try encodeHeaders(gpa, &wire, 1, &(@as([40]u8, @splat(0))), .{ .end_headers = false });
++        try encodeContinuation(gpa, &wire, 1, &(@as([40]u8, @splat(0))), false);
+@@ -2834 +2834 @@
+-        for (0..8) |_| try encodePing(gpa, &wire, .{0} ** 8, false);
++        for (0..8) |_| try encodePing(gpa, &wire, @as([8]u8, @splat(0)), false);
+@@ -2846,2 +2846,2 @@
+-            try encodePing(gpa, &wire, .{0} ** 8, false);
+-            try encodePing(gpa, &wire, .{0} ** 8, false);
++            try encodePing(gpa, &wire, @as([8]u8, @splat(0)), false);
++            try encodePing(gpa, &wire, @as([8]u8, @splat(0)), false);
+@@ -3069 +3069 @@
+-    frameSeed(@enumFromInt(0xff), 0, 1, "unknown"), // an unregistered type must be ignored, not refused
++    frameSeed(@fromBackingInt(0xff), 0, 1, "unknown"), // an unregistered type must be ignored, not refused
+@@ -3197 +3197 @@
+-    }) ++ [_]u8{'x'} ** 64)), // a frame declaring one octet more than SETTINGS_MAX_FRAME_SIZE
++    }) ++ @as([64]u8, @splat('x')))), // a frame declaring one octet more than SETTINGS_MAX_FRAME_SIZE
+--- a/modules/http/src/hpack.zig
++++ b/modules/http/src/hpack.zig
+@@ -313 +313 @@
+-    var nodes = [_]HuffNode{.{ .next = .{ 0, 0 }, .sym = -1 }} ** 513;
++    var nodes = @as([513]HuffNode, @splat(.{ .next = .{ 0, 0 }, .sym = -1 }));
+@@ -1306 +1306 @@
+-    try huffmanEncode(gpa, &enc, "0" ** 100);
++    try huffmanEncode(gpa, &enc, @import("testkit").repeat("0", 100));
+@@ -1615 +1615 @@
+-        .{ .name = "x-large", .value = "0123456789" ** 10 },
++        .{ .name = "x-large", .value = @import("testkit").repeat("0123456789", 10) },
+@@ -1651 +1651 @@
+-    try enc.encodeBlock(&.{.{ .name = "x-big", .value = "0123456789" ** 8 }}, &out);
++    try enc.encodeBlock(&.{.{ .name = "x-big", .value = @import("testkit").repeat("0123456789", 8) }}, &out);
+@@ -1654 +1654 @@
+-    try expectFields(hl, &.{.{ .name = "x-big", .value = "0123456789" ** 8 }});
++    try expectFields(hl, &.{.{ .name = "x-big", .value = @import("testkit").repeat("0123456789", 8) }});
+--- a/modules/http/src/h2_client.zig
++++ b/modules/http/src/h2_client.zig
+@@ -242,0 +243,2 @@
++    /// END_STREAM on this exact initial header block, not a later DATA frame.
++    end_stream: bool,
+@@ -256,0 +259 @@
++    head_end: bool = false,
+@@ -555,0 +559,29 @@
++    /// Transit duplex adapter: inspect already received state without waiting
++    /// for input. Null means pending; no second task may drive this session.
++    pub fn headAvailable(s: *Session, sid: u31) Error!?Head {
++        const p = s.streams.getPtr(sid) orelse return error.UnknownStream;
++        if (p.headers == null and !p.end and p.rst == null and !p.refused) {
++            if (s.broken) |err| return err;
++            return null;
++        }
++        return try s.awaitHead(sid);
++    }
++
++    /// Null is pending, zero is terminal. Uses the same consumption/credit path
++    /// as readBody; it may flush WINDOW_UPDATE but never waits for input.
++    pub fn readAvailable(s: *Session, sid: u31, buffer: []u8) Error!?usize {
++        if (try s.headAvailable(sid) == null) return null;
++        const p = s.streams.getPtr(sid) orelse return error.UnknownStream;
++        if (p.unread().len == 0 and !p.end and p.rst == null and !p.refused) {
++            if (s.broken) |err| return err;
++            return null;
++        }
++        return try s.readBody(sid, buffer);
++    }
++
++    /// Advance the one shared receive engine when neither direction can make
++    /// progress. The caller owns its deadline and allocation budget.
++    pub fn advance(s: *Session) Error!void {
++        return s.pump();
++    }
++
+@@ -565 +597 @@
+-        return .{ .status = status, .headers = headers };
++        return .{ .status = status, .headers = headers, .end_stream = p.head_end };
+@@ -832,0 +865 @@
++                            p.head_end = hd.end_stream;
+@@ -834 +867 @@
+-                    } else if (p.trailers == null and !containsPseudoHeader(hd.headers)) {
++                    } else if (p.trailers == null and hd.end_stream and !containsPseudoHeader(hd.headers)) {
+@@ -842 +875,3 @@
+-                        hd.headers.deinit(s.gpa); // malformed or a third block
++                        hd.headers.deinit(s.gpa);
++                        p.rst = .protocol_error;
++                        s.conn.sendRstStream(&s.wire, hd.stream_id, .protocol_error) catch {};
+@@ -854,0 +890,5 @@
++                        if (p.headers == null or p.trailers != null) {
++                            p.rst = .protocol_error;
++                            s.conn.sendRstStream(&s.wire, d.stream_id, .protocol_error) catch {};
++                            break :held false;
++                        }
+@@ -923,0 +964,2 @@
++    var status: ?u16 = null;
++    var regular = false;
+@@ -925,4 +967,9 @@
+-        if (std.mem.eql(u8, f.name, ":status"))
+-            return std.fmt.parseInt(u16, f.value, 10) catch null;
+-    }
+-    return null;
++        if (f.name.len != 0 and f.name[0] == ':') {
++            if (regular or status != null or !std.mem.eql(u8, f.name, ":status") or f.value.len != 3) return null;
++            for (f.value) |byte| if (!std.ascii.isDigit(byte)) return null;
++            const code = std.fmt.parseInt(u16, f.value, 10) catch return null;
++            if (code < 100 or code > 599) return null;
++            status = code;
++        } else regular = true;
++    }
++    return status;
+@@ -964,30 +1010,0 @@
+-const h2_server = @import("h2_server.zig");
+-const Server = @import("Server.zig");
+-
+-fn testHandler(req: *Server.Request, rw: *Server.ResponseWriter) anyerror!void {
+-    if (std.mem.eql(u8, req.path, "/hello")) {
+-        try rw.setHeader("Content-Type", "text/plain");
+-        if (req.query.len != 0) try rw.setHeader("X-Query", req.query);
+-        try rw.writeAll("hello");
+-    } else if (std.mem.eql(u8, req.path, "/echo")) {
+-        var buf: [512]u8 = undefined;
+-        var w: Writer = .fixed(&buf);
+-        _ = try req.reader().streamRemaining(&w);
+-        try rw.writeAll(w.buffered());
+-    } else if (std.mem.eql(u8, req.path, "/hdr")) {
+-        try rw.writeAll(req.header("x-custom") orelse "-");
+-    } else {
+-        rw.setStatus(404);
+-        try rw.writeAll("not found\n");
+-    }
+-}
+-
+-/// Run the h2c server engine over the client bytes staged in `out`, then
+-/// point the session's reader at the server's reply.
+-fn serveStaged(in: *Reader, out: *const Writer, srv_out: []u8, opts: h2_server.Options) void {
+-    var srv_in: Reader = .fixed(out.buffered());
+-    var srv_w: Writer = .fixed(srv_out);
+-    h2_server.serve(testing.allocator, opts, &srv_in, &srv_w);
+-    in.* = .fixed(srv_w.buffered());
+-}
+-
+@@ -1026,55 +1042,0 @@
+-test "h2 client: GET and POST round-trip against the h2c server engine (offline)" {
+-    const gpa = testing.allocator;
+-    var in: Reader = .fixed("");
+-    var out_buf: [16384]u8 = undefined;
+-    var out: Writer = .fixed(&out_buf);
+-    var s: Session = try .init(gpa, &in, &out, .{});
+-    defer s.deinit();
+-
+-    const sid_get = try s.request(.get, "/hello?x=1", .{ .authority = "t" });
+-    const sid_post = try s.request(.post, "/echo", .{
+-        .authority = "t",
+-        .body = "ping pong h2",
+-    });
+-    // Header names are lowercased; connection-specific ones stripped —
+-    // the server 400s any request where they leak through (§8.2).
+-    const sid_hdr = try s.request(.get, "/hdr", .{
+-        .authority = "t",
+-        .headers = &.{
+-            .{ .name = "X-Custom", .value = "Val-1" },
+-            .{ .name = "Connection", .value = "keep-alive" },
+-        },
+-    });
+-    try testing.expectEqual(@as(u31, 1), sid_get); // §5.1.1: odd, monotonic
+-    try testing.expectEqual(@as(u31, 3), sid_post);
+-    try testing.expectEqual(@as(u31, 5), sid_hdr);
+-
+-    var srv_out: [16384]u8 = undefined;
+-    serveStaged(&in, &out, &srv_out, .{ .handler = testHandler, .server_name = "h2test" });
+-
+-    // Collect out of order — frames were already demuxed per stream.
+-    var post = try s.awaitResponse(sid_post);
+-    defer post.deinit(gpa);
+-    try testing.expectEqual(@as(u16, 200), post.status);
+-    try testing.expectEqualStrings("ping pong h2", post.body);
+-
+-    var get = try s.awaitResponse(sid_get);
+-    defer get.deinit(gpa);
+-    try testing.expectEqual(@as(u16, 200), get.status);
+-    try testing.expectEqualStrings("hello", get.body);
+-    try testing.expectEqualStrings("text/plain", get.header("Content-Type").?);
+-    try testing.expectEqualStrings("x=1", get.header("x-query").?);
+-    try testing.expectEqualStrings("h2test", get.header("server").?);
+-
+-    var hdr = try s.awaitResponse(sid_hdr);
+-    defer hdr.deinit(gpa);
+-    try testing.expectEqual(@as(u16, 200), hdr.status);
+-    try testing.expectEqualStrings("Val-1", hdr.body);
+-
+-    // Collected streams are gone; unknown ids answer typed errors.
+-    try testing.expectError(error.UnknownStream, s.awaitResponse(sid_get));
+-    try testing.expectError(error.UnknownStream, s.awaitResponse(99));
+-}
+-
+-/// Fabricated peer: an `h2.Connection` in server role whose handshake with
+-/// the session's staged bytes is already done, ready to script responses.
+@@ -1193 +1155 @@
+-test "h2 client: a trailer block carrying pseudo-headers is dropped (§8.1)" {
++test "h2 client: a trailer block carrying pseudo-headers fails the stream (§8.1)" {
+@@ -1213,6 +1175 @@
+-    var res = try s.awaitResponse(sid);
+-    defer res.deinit(gpa);
+-    // The real status stands and the whole malformed block is gone.
+-    try testing.expectEqual(@as(u16, 200), res.status);
+-    try testing.expect(res.trailers == null);
+-    try testing.expectEqualStrings("hello", res.body);
++    try testing.expectError(error.StreamReset, s.awaitResponse(sid));
+@@ -1311 +1268 @@
+-    const chunk = "0123456789abcdef" ** 64; // 1024 B
++    const chunk = @import("testkit").repeat("0123456789abcdef", 64); // 1024 B
+@@ -1847,4 +1804,2 @@
+-    // Those four octets must NOT reach a caller that has no status to
+-    // interpret them with: the read waits for the head instead, which on a
+-    // drained offline transport surfaces as the transport EOF. Without the
+-    // guard this returns "leak".
++    // Protocol failure is immediate; a later header cannot legitimize DATA
++    // that arrived before the response head.
+@@ -1852,2 +1807,2 @@
+-    try testing.expectError(error.ConnectionClosed, s.readBody(sid, &rbuf));
+-}
++    try testing.expectError(error.StreamReset, s.readBody(sid, &rbuf));
++}
+--- a/modules/grpc/src/call_test.zig
++++ b/modules/grpc/src/call_test.zig
+@@ -379 +379 @@
+-test "response: grpc-status in the initial HEADERS ends the call there" {
++test "response: initial grpc-status without same-frame END_STREAM is malformed" {
+@@ -388,4 +388,2 @@
+-    // A HEADERS frame carrying `grpc-status` is a Trailers-Only response by
+-    // the spec's own definition (the status is in the initial metadata), even
+-    // without END_STREAM. This pins the decision rather than leaving it to
+-    // whichever branch happens to run first.
++    // A status cannot claim completion while more DATA can still follow.
++    // Even receiving a later END_STREAM in the same read cannot hide this gap.
+@@ -404,3 +402,2 @@
+-    try testing.expectEqual(@as(?pb.Decoded(Msg), null), try s.receive());
+-    try s.finish();
+-    try testing.expectEqual(grpc.Status.ok, s.call.status.?);
++    try testing.expectError(error.MalformedResponse, s.receive());
++    try testing.expectError(error.MalformedResponse, s.finish());
+@@ -614 +611 @@
+-    try peer.data(1, "x" ** 64, false);
++    try peer.data(1, @import("testkit").repeat("x", 64), false);
+@@ -1029,13 +1026,2 @@
+-    // ⚠ The second assertion is deliberately restricted to `head_end`. This
+-    // harness found, on its 62nd input, that a peer which puts `grpc-status`
+-    // in the initial HEADERS *without* END_STREAM and then also sends a
+-    // trailer section leaves `trailers_only == true` while
+-    // `trailingMetadata()` is non-null — because that accessor just asks the
+-    // session for whatever trailer section arrived. The client's own handling
+-    // is right (it resolved the status from the head and stopped reading), but
+-    // `trailingMetadata`'s doc comment says "null for a Trailers-Only
+-    // response", and for that malformed-peer shape it is not. Asserting the
+-    // doc comment verbatim would fail on a case the module never claimed to
+-    // cover, so the check is stated for the conforming wire only and the
+-    // hybrid is recorded here rather than silently asserted away.
+-    const trailers_only_wire = status_in_head and http_ok and grpc_ct;
++    // Only same-frame END_STREAM proves a Trailers-Only response.
++    const trailers_only_wire = status_in_head and head_end and http_ok and grpc_ct;
+@@ -1123 +1109,2 @@
+-    try testing.expectEqual(@as(usize, 4), trailers_only);
++    // The malformed hybrid no longer counts as a terminal initial block.
++    try testing.expectEqual(@as(usize, 3), trailers_only);
+@@ -1126,0 +1114,71 @@
++
++test "duplex polling preserves fragmented messages and can send before the response completes" {
++    const gpa = testing.allocator;
++    const fx = try Fx.init(gpa, .{});
++    defer fx.deinit();
++    var call = try fx.ch.start("/echo.Echo/Bidi", .{});
++    defer call.deinit();
++    try testing.expect(try call.pollReceive() == .pending);
++    var peer = try Peer.init(fx.clientBytes());
++    defer peer.deinit();
++    try peer.conn.sendHeaders(&peer.wire, call.sid, &.{
++        .{ .name = ":status", .value = "200" },
++        .{ .name = "content-type", .value = "application/grpc" },
++    }, false);
++    try peer.conn.sendData(&peer.wire, call.sid, &.{ 0, 0, 0 }, false);
++    fx.reply(peer.wire.items);
++    try fx.session.advance();
++    try testing.expect(try call.pollReceive() == .pending);
++    // No blocking read of the unfinished message: sending remains possible.
++    try call.sendMessage("outgoing", false);
++    peer.wire.clearRetainingCapacity();
++    try peer.conn.sendData(&peer.wire, call.sid, &.{ 0, 3, 0, 255, 7 }, false);
++    fx.reply(peer.wire.items);
++    try fx.session.advance();
++    try testing.expectEqualSlices(u8, &.{ 0, 255, 7 }, (try call.pollReceive()).message);
++    try testing.expect(try call.pollReceive() == .pending);
++    try call.closeSend();
++    peer.wire.clearRetainingCapacity();
++    try peer.conn.sendHeaders(&peer.wire, call.sid, &.{.{ .name = "grpc-status", .value = "0" }}, true);
++    fx.reply(peer.wire.items);
++    try fx.session.advance();
++    try testing.expect(try call.pollReceive() == .finished);
++    try call.finish();
++}
++
++
++test "response: duplicate reserved status is refused while duplicate application metadata survives" {
++    const gpa = testing.allocator;
++    const fx = try Fx.init(gpa, .{});
++    defer fx.deinit();
++    var call = try fx.ch.start("/s/m", .{});
++    defer call.deinit();
++    try call.closeSend();
++    var peer = try Peer.init(fx.clientBytes());
++    defer peer.deinit();
++    try peer.okHeaders(1, false);
++    try peer.trailers(1, &.{
++        .{ .name = "grpc-status", .value = "0" },
++        .{ .name = "grpc-status", .value = "7" },
++    });
++    fx.reply(peer.wire.items);
++    try testing.expectError(error.MalformedResponse, call.receive());
++}
++
++
++test "response: a trailer status without END_STREAM cannot be completed by later DATA" {
++    const gpa = testing.allocator;
++    const fx = try Fx.init(gpa, .{});
++    defer fx.deinit();
++    var call = try fx.ch.start("/s/m", .{});
++    defer call.deinit();
++    try call.closeSend();
++    var peer = try Peer.init(fx.clientBytes());
++    defer peer.deinit();
++    try peer.okHeaders(1, false);
++    try peer.conn.sendHeaders(&peer.wire, 1, &.{.{ .name = "grpc-status", .value = "0" }}, false);
++    try peer.data(1, "", true);
++    fx.reply(peer.wire.items);
++    try testing.expectError(error.StreamReset, call.receive());
++    try testing.expectError(error.StreamReset, call.finish());
++}
+--- a/modules/grpc/src/call.zig
++++ b/modules/grpc/src/call.zig
+@@ -161 +161 @@
+-        out[digits.len] = @intFromEnum(t.unit);
++        out[digits.len] = @backingInt(t.unit);
+@@ -221,11 +220,0 @@
+-    /// Convenience over `http.Client`'s h2 session wrapper: borrows its
+-    /// `h2_client.Session` and its default `:authority`.
+-    pub fn overH2Session(hs: *http.Client.H2Session, options: Options) Channel {
+-        return .{
+-            .gpa = hs.gpa,
+-            .session = &hs.session,
+-            .authority = hs.authority,
+-            .options = options,
+-        };
+-    }
+-
+@@ -285,0 +275 @@
++    failed: ?Error = null,
+@@ -353,0 +344,4 @@
++        if (c.failed) |err| return err;
++        return c.readHeadInner() catch |err| { c.failed = err; return err; };
++    }
++    fn readHeadInner(c: *Call) Error!void {
+@@ -355,0 +350 @@
++        try validateSingletons(head.headers);
+@@ -370,0 +366 @@
++            if (!head.end_stream) return error.MalformedResponse;
+@@ -389,0 +386,4 @@
++        if (c.failed) |err| return err;
++        return c.receiveInner() catch |err| { c.failed = err; return err; };
++    }
++    fn receiveInner(c: *Call) Error!?[]const u8 {
+@@ -404,0 +405,28 @@
++    pub const Poll = union(enum) { pending, message: []const u8, finished };
++
++    /// Transit duplex adapter: preserve the deframer and terminal semantics
++    /// without waiting for additional input while the request has send credit.
++    /// Returned bytes have the same borrowed lifetime as receive().
++    pub fn pollReceive(c: *Call) Error!Poll {
++        if (c.failed) |err| return err;
++        return c.pollReceiveInner() catch |err| { c.failed = err; return err; };
++    }
++    fn pollReceiveInner(c: *Call) Error!Poll {
++        if (c.head == null) {
++            if (try c.ch.session.headAvailable(c.sid) == null) return .pending;
++            try c.readHead();
++        }
++        if (c.recv_done) return .finished;
++        while (true) {
++            if (c.de.next() catch |err| return c.mapFrameError(err)) |message| return .{ .message = message };
++            const n = (try c.ch.session.readAvailable(c.sid, c.read_buf)) orelse return .pending;
++            if (n == 0) {
++                c.de.endOfStream() catch |err| return c.mapFrameError(err);
++                c.recv_done = true;
++                try c.readTrailers();
++                return .finished;
++            }
++            c.de.push(c.ch.gpa, c.read_buf[0..n]) catch |err| return c.mapFrameError(err);
++        }
++    }
++
+@@ -409,0 +438 @@
++        if (c.failed) |err| return err;
+@@ -462,0 +492 @@
++        try validateSingletons(hl);
+@@ -510,0 +541,10 @@
++
++fn validateSingletons(headers: hpack.HeaderList) Error!void {
++    for ([_][]const u8{ "content-type", "grpc-encoding", "grpc-status", "grpc-message" }) |name| {
++        var found = false;
++        for (headers.fields) |field| if (std.ascii.eqlIgnoreCase(field.name, name)) {
++            if (found) return error.MalformedResponse;
++            found = true;
++        };
++    }
++}
+--- a/modules/grpc/src/root.zig
++++ b/modules/grpc/src/root.zig
+@@ -80 +79,0 @@
+-const server_mod = @import("server.zig");
+@@ -255,29 +253,0 @@
+-// ── server ──────────────────────────────────────────────────────────────────
+-
+-/// Everything server-side, one namespace deep, for callers who prefer
+-/// `grpc.server.Router` to the flat re-exports below.
+-pub const server = server_mod;
+-
+-/// The routing table plus policy: hand it services and wire it into
+-/// `http.Server` with `Router.httpOptions` (or `h2_server` via
+-/// `Router.h2ServerOptions`). See `server.zig` for why registration is a
+-/// data table rather than comptime reflection over a struct's decls.
+-pub const Router = server_mod.Router;
+-/// One service: the `{Service}` half of `/{Service}/{Method}`.
+-pub const Service = server_mod.Service;
+-/// One method. Build these with `Methods(Req, Rep)`, or `Method.raw` for a
+-/// codec other than protobuf.
+-pub const Method = server_mod.Method;
+-/// The typed method constructors — one per call shape, so the shape is a
+-/// written decision rather than something inferred from a signature.
+-pub const Methods = server_mod.Methods;
+-/// One server-side RPC: `receive`, `send`, `fail`, plus the metadata and
+-/// deadline surfaces.
+-pub const ServerCall = server_mod.Call;
+-pub const ServerOptions = server_mod.Options;
+-pub const ServerError = server_mod.CallError;
+-/// Injected monotonic clock for `grpc-timeout` enforcement.
+-pub const Clock = server_mod.Clock;
+-/// `http.Server.Handler` for a `Router` — installed by `Router.httpOptions`.
+-pub const handleHttp = server_mod.handleHttp;
+-
+@@ -293 +262,0 @@
+-    _ = server_mod;
+--- a/modules/grpc/src/adversarial.zig
++++ b/modules/grpc/src/adversarial.zig
+@@ -269 +269 @@
+-        self.pushHex("00" ++ "000000C8" ++ ("AA" ** 200), 64);
++        self.pushHex("00" ++ "000000C8" ++ (@import("testkit").repeat("AA", 200)), 64);
+@@ -281 +281 @@
+-        self.pushHex("00" ** 512, 64);
++        self.pushHex(@import("testkit").repeat("00", 512), 64);
+--- a/modules/grpc/src/reference_replay.zig
++++ b/modules/grpc/src/reference_replay.zig
+@@ -59 +58,0 @@
+-const server = @import("server.zig");
+@@ -143 +142 @@
+-        const want = @min(@min(chunk_len, c.src.len - c.pos), @intFromEnum(limit));
++        const want = @min(@min(chunk_len, c.src.len - c.pos), @backingInt(limit));
+@@ -296 +295 @@
+-        .count = @intFromEnum(grpc.Status.permission_denied),
++        .count = @backingInt(grpc.Status.permission_denied),
+@@ -313 +312 @@
+-        .count = @intFromEnum(grpc.Status.not_found),
++        .count = @backingInt(grpc.Status.not_found),
+@@ -569,692 +567,0 @@
+-}
+-
+-// ═══════════════════════════════════════════════════════════════════════════
+-// REVERSE: the reference CLIENT's recorded bytes, fed to OUR server.
+-// ═══════════════════════════════════════════════════════════════════════════
+-
+-// The service must be identical to the one `tools/interop.zig` served at
+-// capture time — the manifest's `reverse_service` records the method list so
+-// a one-sided edit is visible. It is duplicated rather than imported: a
+-// module's tests must not reach into `tools/`.
+-
+-const M = server.Methods(EchoRequest, EchoReply);
+-
+-fn srvUnary(c: *server.Call, req: EchoRequest) anyerror!EchoReply {
+-    return .{
+-        .text = try std.fmt.allocPrint(c.arena, "echo:{s}", .{req.text}),
+-        .index = req.count,
+-        .blob = req.blob,
+-    };
+-}
+-
+-fn srvServerStream(s: *M.Stream, req: EchoRequest) anyerror!void {
+-    var i: i32 = 0;
+-    while (i < req.count) : (i += 1) {
+-        try s.send(.{
+-            .text = try std.fmt.allocPrint(s.call.arena, "{s}-{d}", .{ req.text, i }),
+-            .index = i,
+-        });
+-    }
+-}
+-
+-fn srvClientStream(s: *M.Stream) anyerror!EchoReply {
+-    var parts: std.ArrayList([]const u8) = .empty;
+-    var n: i32 = 0;
+-    while (try s.receive()) |*r| {
+-        defer @constCast(r).deinit();
+-        try parts.append(s.call.arena, try s.call.arena.dupe(u8, r.value.text));
+-        n += 1;
+-    }
+-    return .{ .text = try std.mem.join(s.call.arena, "|", parts.items), .index = n };
+-}
+-
+-fn srvBidi(s: *M.Stream) anyerror!void {
+-    var i: i32 = 0;
+-    while (try s.receive()) |*r| {
+-        defer @constCast(r).deinit();
+-        try s.send(.{
+-            .text = try std.fmt.allocPrint(s.call.arena, "re:{s}", .{r.value.text}),
+-            .index = i,
+-        });
+-        i += 1;
+-    }
+-}
+-
+-fn srvFail(c: *server.Call, req: EchoRequest) anyerror!EchoReply {
+-    try c.setTrailingMetadata(.{ .name = "x-why", .value = "because" });
+-    return c.fail(@enumFromInt(@as(u32, @intCast(req.count))), req.text);
+-}
+-
+-fn srvStreamFail(s: *M.Stream, req: EchoRequest) anyerror!void {
+-    var i: i32 = 0;
+-    while (i < req.count) : (i += 1) {
+-        try s.send(.{ .text = "partial", .index = i });
+-    }
+-    return s.call.failFmt(.data_loss, "gave up after {d}", .{req.count});
+-}
+-
+-fn srvEmpty(s: *M.Stream, req: EchoRequest) anyerror!void {
+-    _ = s;
+-    _ = req;
+-}
+-
+-fn srvBig(c: *server.Call, req: EchoRequest) anyerror!EchoReply {
+-    const n: usize = @intCast(@max(0, req.count));
+-    const blob = try c.arena.alloc(u8, n);
+-    @memset(blob, 0x5a);
+-    return .{ .text = "big", .index = req.count, .blob = blob };
+-}
+-
+-fn srvMeta(c: *server.Call, req: EchoRequest) anyerror!EchoReply {
+-    _ = req;
+-    const probe = c.metadataValue("x-probe") orelse "-";
+-    const bin: []const u8 = if (try c.metadataValueDecoded("x-probe-bin")) |d| blk: {
+-        defer d.deinit(c.gpa);
+-        break :blk try c.arena.dupe(u8, d.bytes);
+-    } else "";
+-    try c.addInitialMetadata(.{ .name = "x-echo", .value = probe });
+-    try c.addInitialMetadata(.{ .name = "x-echo-bin", .value = bin });
+-    try c.declareTrailingMetadata(&.{ "x-tail", "x-tail-bin" });
+-    try c.setTrailingMetadata(.{ .name = "x-tail", .value = probe });
+-    try c.setTrailingMetadata(.{ .name = "x-tail-bin", .value = bin });
+-    return .{ .text = probe, .index = @intCast(bin.len), .blob = bin };
+-}
+-
+-/// −1 = no deadline, 1 = a deadline in (29 s, 31 s], 2 = anything else. The
+-/// band is what proves the **unit**: reading `m` as minutes instead of
+-/// milliseconds turns grpcio's `30100m` into three weeks.
+-///
+-/// The clock is the real one here, exactly as at capture: the server computes
+-/// `now + grpc-timeout` when it decodes the recorded request, so the band is
+-/// stable no matter when the replay runs.
+-fn srvDeadline(c: *server.Call, req: EchoRequest) anyerror!EchoReply {
+-    _ = req;
+-    const raw = c.metadataValue("grpc-timeout") orelse "none";
+-    const ns = c.remaining() orelse return .{ .text = raw, .index = -1 };
+-    const in_band = ns > 29 * std.time.ns_per_s and ns <= 31 * std.time.ns_per_s;
+-    return .{ .text = raw, .index = if (in_band) 1 else 2 };
+-}
+-
+-const interop_service: server.Service = .{
+-    .name = "echo.Echo",
+-    .methods = &.{
+-        M.unary("Unary", srvUnary),
+-        M.serverStreaming("ServerStream", srvServerStream),
+-        M.clientStreaming("ClientStream", srvClientStream),
+-        M.bidiStreaming("Bidi", srvBidi),
+-        M.unary("Fail", srvFail),
+-        M.serverStreaming("StreamFail", srvStreamFail),
+-        M.serverStreaming("Empty", srvEmpty),
+-        M.unary("Big", srvBig),
+-        M.unary("Meta", srvMeta),
+-        M.unary("Deadline", srvDeadline),
+-    },
+-};
+-
+-/// One response stream as a client-role peer saw it — **frame counts and
+-/// END_STREAM placement**, not just field values. That is the part that can
+-/// tell Trailers-Only from a trailer section: both spellings use the same
+-/// field name, and only the number of field blocks distinguishes them.
+-const Collected = struct {
+-    path: []const u8 = "",
+-    status: u16 = 0,
+-    headers: ?hpack.HeaderList = null,
+-    trailers: ?hpack.HeaderList = null,
+-    body: std.ArrayList(u8) = .empty,
+-    data_frames: u32 = 0,
+-    headers_end_stream: bool = false,
+-
+-    fn header(c: *const Collected, name: []const u8) ?[]const u8 {
+-        const hl = c.headers orelse return null;
+-        for (hl.fields) |f| {
+-            if (std.mem.eql(u8, f.name, name)) return f.value;
+-        }
+-        return null;
+-    }
+-
+-    fn trailer(c: *const Collected, name: []const u8) ?[]const u8 {
+-        const hl = c.trailers orelse return null;
+-        for (hl.fields) |f| {
+-            if (std.mem.eql(u8, f.name, name)) return f.value;
+-        }
+-        return null;
+-    }
+-
+-    /// `grpc-status` wherever it legitimately lives — the trailer section, or
+-    /// the single field block of a Trailers-Only response.
+-    fn grpcStatus(c: *const Collected) ?grpc.Status {
+-        const v = c.trailer("grpc-status") orelse c.header("grpc-status") orelse return null;
+-        return status_mod.parse(v);
+-    }
+-
+-    fn grpcMessage(c: *const Collected) []const u8 {
+-        return c.trailer("grpc-message") orelse c.header("grpc-message") orelse "";
+-    }
+-
+-    fn isTrailersOnly(c: *const Collected) bool {
+-        return c.headers_end_stream and c.data_frames == 0 and c.trailers == null;
+-    }
+-
+-    /// The length-prefixed messages in the body.
+-    fn messages(c: *const Collected, gpa: Allocator, out: *std.ArrayList([]const u8)) !void {
+-        var d: frame.Deframer = .{ .max_recv_message_size = 8 * 1024 * 1024 };
+-        defer d.deinit(gpa);
+-        try d.push(gpa, c.body.items);
+-        while (try d.next()) |m| try out.append(gpa, try gpa.dupe(u8, m));
+-    }
+-
+-    fn deinit(c: *Collected, gpa: Allocator) void {
+-        if (c.headers) |*hl| hl.deinit(gpa);
+-        if (c.trailers) |*hl| hl.deinit(gpa);
+-        c.body.deinit(gpa);
+-    }
+-};
+-
+-/// Everything one replay of the reverse direction produced.
+-const Reverse = struct {
+-    gpa: Allocator,
+-    /// Per response stream, in the order the reference opened them.
+-    streams: std.ArrayList(Collected) = .empty,
+-    /// The reference client's own report, parsed on demand.
+-    report: []const u8 = capture.reverse_report,
+-
+-    fn deinit(rv: *Reverse) void {
+-        for (rv.streams.items) |*c| {
+-            rv.gpa.free(c.path);
+-            c.deinit(rv.gpa);
+-        }
+-        rv.streams.deinit(rv.gpa);
+-    }
+-
+-    /// The `n`-th response stream whose request had this `:path`.
+-    fn call(rv: *const Reverse, path: []const u8, n: usize) !*const Collected {
+-        var seen: usize = 0;
+-        for (rv.streams.items) |*c| {
+-            if (!std.mem.eql(u8, c.path, path)) continue;
+-            if (seen == n) return c;
+-            seen += 1;
+-        }
+-        std.debug.print("\nthe capture has no call #{d} to `{s}`\n", .{ n, path });
+-        return error.MissingCaptureCall;
+-    }
+-
+-    /// What grpcio itself read for this observation, at capture time.
+-    fn reported(rv: *const Reverse, key: []const u8) ![]const u8 {
+-        var it = std.mem.splitScalar(u8, rv.report, '\n');
+-        while (it.next()) |line| {
+-            const tab = std.mem.indexOfScalar(u8, line, '\t') orelse continue;
+-            if (std.mem.eql(u8, line[0..tab], key)) return line[tab + 1 ..];
+-        }
+-        std.debug.print("\nthe reference client's report has no `{s}`\n", .{key});
+-        return error.MissingCaptureObservation;
+-    }
+-
+-    /// Assert an observation against the reference's own reading of it.
+-    fn expectReported(rv: *const Reverse, key: []const u8, got: []const u8) !void {
+-        try testing.expectEqualStrings(try rv.reported(key), got);
+-    }
+-
+-    fn expectReportedInt(rv: *const Reverse, key: []const u8, got: anytype) !void {
+-        var buf: [32]u8 = undefined;
+-        try rv.expectReported(key, try std.fmt.bufPrint(&buf, "{d}", .{got}));
+-    }
+-
+-    /// grpcio names statuses in SCREAMING_SNAKE (`PERMISSION_DENIED`); our
+-    /// enum tags are the same words in lower case. Comparing them upper-cased
+-    /// keeps the expectation anchored to what the reference read, instead of
+-    /// to a number typed here.
+-    fn expectReportedStatus(rv: *const Reverse, key: []const u8, c: *const Collected) !void {
+-        const st = c.grpcStatus() orelse {
+-            std.debug.print("\nno grpc-status on the `{s}` response at all\n", .{c.path});
+-            return error.NoStatus;
+-        };
+-        var buf: [64]u8 = undefined;
+-        const tag = @tagName(st);
+-        try testing.expect(tag.len <= buf.len);
+-        for (tag, 0..) |ch, i| buf[i] = std.ascii.toUpper(ch);
+-        try rv.expectReported(key, buf[0..tag.len]);
+-    }
+-};
+-
+-/// Our server's response bytes must fit somewhere; a 48 KiB reply plus twelve
+-/// other calls needs room. File-scope so the test binary's stack stays small.
+-var reverse_out_buf: [1024 * 1024]u8 = undefined;
+-
+-/// The SETTINGS the recorded peer advertised, read straight out of the
+-/// recording: the 24-octet client connection preface (§3.4) is followed
+-/// immediately by a SETTINGS frame, and §6.5 requires it. Reading them back
+-/// rather than transcribing them is what keeps the decoders in `replayReverse`
+-/// honest when the fixture is regenerated against a different grpcio.
+-fn peerSettings(recording: []const u8) h2.Settings {
+-    var out: h2.Settings = .{ .enable_push = false };
+-    const preface_len = 24;
+-    if (recording.len < preface_len + 9) return out;
+-    const head = recording[preface_len..][0..9];
+-    const len: usize = (@as(usize, head[0]) << 16) | (@as(usize, head[1]) << 8) | head[2];
+-    if (head[3] != 0x4) return out; // not SETTINGS — leave the defaults
+-    if (len % 6 != 0 or recording.len < preface_len + 9 + len) return out;
+-    var it: h2.SettingsIterator = .{ .payload = recording[preface_len + 9 ..][0..len] };
+-    while (it.next()) |e| switch (e.id) {
+-        .header_table_size => out.header_table_size = e.value,
+-        .initial_window_size => out.initial_window_size = e.value,
+-        .max_frame_size => out.max_frame_size = e.value,
+-        .max_header_list_size => out.max_header_list_size = e.value,
+-        else => {},
+-    };
+-    return out;
+-}
+-
+-/// Replay the reference client's recorded bytes into our server.
+-///
+-/// Three passes, because they answer three different questions:
+-///
+-///   1. a **server-role** `h2.Connection` decodes the recording on its own,
+-///      to recover which stream id carried which `:path` (and to prove the
+-///      recording is well-formed HTTP/2 independently of our server);
+-///   2. `h2_server.serve` — the exact entry point the capture ran on, with
+-///      the socket swapped for a fixed reader — turns those bytes into our
+-///      server's response bytes;
+-///   3. a **client-role** `h2.Connection`, primed with the stream ids pass 1
+-///      found, decodes the response bytes into `Collected` per stream.
+-fn replayReverse(gpa: Allocator) !Reverse {
+-    var rv: Reverse = .{ .gpa = gpa };
+-    errdefer rv.deinit();
+-
+-    // ── pass 1: what did the reference ASK for? ─────────────────────────────
+-    var ids: std.ArrayList(u31) = .empty;
+-    defer ids.deinit(gpa);
+-    {
+-        // A passive decoder: it never runs handlers, so it never consumes and
+-        // never emits WINDOW_UPDATEs of its own. The recording, however, holds
+-        // a 64 KiB request (the over-limit case) that a live server paid for
+-        // with exactly those updates. Both windows are therefore opened wide
+-        // up front — legal, and precisely what a server that acks instantly
+-        // would do. Enforcement is not this pass's job; pass 2 runs the real
+-        // server with the real defaults.
+-        var req_conn: h2.Connection = .init(gpa, .server, .{
+-            .settings = .{ .initial_window_size = 1 << 28 },
+-        });
+-        defer req_conn.deinit();
+-        var wire: std.ArrayList(u8) = .empty;
+-        defer wire.deinit(gpa);
+-        var events: std.ArrayList(h2.Event) = .empty;
+-        defer {
+-            for (events.items) |*ev| ev.deinit(gpa);
+-            events.deinit(gpa);
+-        }
+-        try req_conn.sendWindowUpdate(&wire, 0, 1 << 28);
+-        try req_conn.recv(capture.reverse_client, &wire, &events);
+-        for (events.items) |*ev| switch (ev.*) {
+-            .headers => |*hd| {
+-                var path: []const u8 = "";
+-                for (hd.headers.fields) |f| {
+-                    if (std.mem.eql(u8, f.name, ":path")) path = f.value;
+-                }
+-                // The duped path is freed by `freeReverse`.
+-                try rv.streams.append(gpa, .{
+-                    .path = try gpa.dupe(u8, path),
+-                    .body = .empty,
+-                });
+-                try ids.append(gpa, hd.stream_id);
+-            },
+-            else => {},
+-        };
+-    }
+-    try testing.expect(rv.streams.items.len != 0);
+-
+-    // ── pass 2: OUR server, over the recorded request bytes ─────────────────
+-    var router: server.Router = .{
+-        .gpa = gpa,
+-        .services = &.{interop_service},
+-        // Deliberately below the oversized request the reference sends, and
+-        // above everything else it sends — identical to the capture run.
+-        .options = .{ .max_recv_message_size = 64 * 1024 },
+-    };
+-    var in = Chunked.init(capture.reverse_client);
+-    in.arm();
+-    var out: Writer = .fixed(&reverse_out_buf);
+-    http.h2_server.serve(gpa, router.h2ServerOptions(.{
+-        .handler = server.handleHttp,
+-        .max_body_bytes = 8 << 20,
+-    }), &in.reader, &out);
+-    const response_bytes = out.buffered();
+-    try testing.expect(response_bytes.len != 0);
+-
+-    // ── pass 3: decode what our server answered ─────────────────────────────
+-    // The response decoder must be configured the way the RECORDED peer was,
+-    // not the way `h2.Settings`'s defaults are: grpcio advertises a 4 MiB
+-    // `SETTINGS_MAX_FRAME_SIZE` and a 4 MiB initial window, and our server
+-    // sized its DATA frames to exactly that. A decoder holding the 16 KiB
+-    // default rejects them with FRAME_SIZE_ERROR — which would be a fault in
+-    // the instrument, not in the module. The values are read back OUT of the
+-    // recording rather than typed here, so they cannot drift from it.
+-    var resp_conn: h2.Connection = .init(gpa, .client, .{ .settings = peerSettings(capture.reverse_client) });
+-    defer resp_conn.deinit();
+-    var wire: std.ArrayList(u8) = .empty;
+-    defer wire.deinit(gpa);
+-    var events: std.ArrayList(h2.Event) = .empty;
+-    defer events.deinit(gpa);
+-
+-    // Like pass 1 this decoder never consumes, so it never earns its window
+-    // back; open it wide instead of enforcing accounting the real server
+-    // (pass 2) already enforced with the real defaults.
+-    try resp_conn.sendWindowUpdate(&wire, 0, 1 << 28);
+-
+-    // Prime the client-role connection with the same stream ids the reference
+-    // opened, so the responses land on streams it considers open. The fields
+-    // are the real `:path`s from pass 1 and the bytes go nowhere.
+-    try resp_conn.sendPreface(&wire);
+-    for (rv.streams.items, ids.items) |*c, want_id| {
+-        const fields = [_]hpack.Field{
+-            .{ .name = ":method", .value = "POST" },
+-            .{ .name = ":scheme", .value = "http" },
+-            .{ .name = ":path", .value = c.path },
+-            .{ .name = ":authority", .value = "t" },
+-            .{ .name = "te", .value = "trailers" },
+-            .{ .name = "content-type", .value = "application/grpc+proto" },
+-        };
+-        const sid = try resp_conn.startStream(&wire, &fields, true);
+-        // grpcio allocates client stream ids 1, 3, 5, … in order, and so do
+-        // we — if that ever stops holding, the mapping below is wrong and the
+-        // whole reverse replay would be quietly asserting the wrong streams.
+-        try testing.expectEqual(want_id, sid);
+-    }
+-    wire.clearRetainingCapacity();
+-
+-    try resp_conn.recv(response_bytes, &wire, &events);
+-    for (events.items) |*ev| switch (ev.*) {
+-        .headers => |*hd| {
+-            const idx = std.mem.indexOfScalar(u31, ids.items, hd.stream_id) orelse {
+-                hd.headers.deinit(gpa);
+-                continue;
+-            };
+-            const c = &rv.streams.items[idx];
+-            if (c.headers == null) {
+-                c.headers = hd.headers;
+-                c.headers_end_stream = hd.end_stream;
+-                if (c.header(":status")) |v| c.status = std.fmt.parseInt(u16, v, 10) catch 0;
+-            } else if (c.trailers == null) {
+-                c.trailers = hd.headers;
+-            } else hd.headers.deinit(gpa);
+-        },
+-        .data => |d| {
+-            const idx = std.mem.indexOfScalar(u31, ids.items, d.stream_id) orelse continue;
+-            const c = &rv.streams.items[idx];
+-            try c.body.appendSlice(gpa, d.data);
+-            c.data_frames += 1;
+-        },
+-        else => {},
+-    };
+-    return rv;
+-}
+-
+-test "replay grpcio AS CLIENT: our server answers all four call shapes the way the reference read them" {
+-    const gpa = testing.allocator;
+-    var rv = try replayReverse(gpa);
+-    defer rv.deinit();
+-
+-    // The recording is of a run that reached the end; nothing timed out.
+-    try rv.expectReported("DONE", "1");
+-
+-    // ── unary ──
+-    {
+-        const c = try rv.call("/echo.Echo/Unary", 0);
+-        var msgs: std.ArrayList([]const u8) = .empty;
+-        defer {
+-            for (msgs.items) |m| gpa.free(m);
+-            msgs.deinit(gpa);
+-        }
+-        try c.messages(gpa, &msgs);
+-        try testing.expectEqual(@as(usize, 1), msgs.items.len);
+-        var d = try pb.decode(EchoReply, gpa, msgs.items[0], .{});
+-        defer d.deinit();
+-        try rv.expectReported("unary.text", d.value.text);
+-        try rv.expectReportedInt("unary.index", d.value.index);
+-        var hex_buf: [64]u8 = undefined;
+-        try rv.expectReported("unary.blob", try std.fmt.bufPrint(&hex_buf, "{x}", .{d.value.blob}));
+-        try rv.expectReportedStatus("unary.code", c);
+-        // HEADERS, DATA, then a real trailer section — three frames, not one.
+-        try testing.expect(!c.isTrailersOnly());
+-        try testing.expect(c.trailers != null);
+-        try testing.expectEqual(@as(u16, 200), c.status);
+-    }
+-
+-    // ── server-streaming: five separate messages ──
+-    {
+-        const c = try rv.call("/echo.Echo/ServerStream", 0);
+-        var msgs: std.ArrayList([]const u8) = .empty;
+-        defer {
+-            for (msgs.items) |m| gpa.free(m);
+-            msgs.deinit(gpa);
+-        }
+-        try c.messages(gpa, &msgs);
+-        var joined: std.ArrayList(u8) = .empty;
+-        defer joined.deinit(gpa);
+-        for (msgs.items, 0..) |m, i| {
+-            var d = try pb.decode(EchoReply, gpa, m, .{});
+-            defer d.deinit();
+-            if (i != 0) try joined.append(gpa, ',');
+-            try joined.appendSlice(gpa, d.value.text);
+-        }
+-        try rv.expectReported("serverstream.texts", joined.items);
+-        try rv.expectReportedStatus("serverstream.code", c);
+-    }
+-
+-    // ── client-streaming ──
+-    {
+-        const c = try rv.call("/echo.Echo/ClientStream", 0);
+-        var msgs: std.ArrayList([]const u8) = .empty;
+-        defer {
+-            for (msgs.items) |m| gpa.free(m);
+-            msgs.deinit(gpa);
+-        }
+-        try c.messages(gpa, &msgs);
+-        try testing.expectEqual(@as(usize, 1), msgs.items.len);
+-        var d = try pb.decode(EchoReply, gpa, msgs.items[0], .{});
+-        defer d.deinit();
+-        try rv.expectReported("clientstream.text", d.value.text);
+-        try rv.expectReportedInt("clientstream.index", d.value.index);
+-        try rv.expectReportedStatus("clientstream.code", c);
+-    }
+-
+-    // ── bidirectional ──
+-    {
+-        const c = try rv.call("/echo.Echo/Bidi", 0);
+-        var msgs: std.ArrayList([]const u8) = .empty;
+-        defer {
+-            for (msgs.items) |m| gpa.free(m);
+-            msgs.deinit(gpa);
+-        }
+-        try c.messages(gpa, &msgs);
+-        var joined: std.ArrayList(u8) = .empty;
+-        defer joined.deinit(gpa);
+-        for (msgs.items, 0..) |m, i| {
+-            var d = try pb.decode(EchoReply, gpa, m, .{});
+-            defer d.deinit();
+-            if (i != 0) try joined.append(gpa, ',');
+-            try joined.appendSlice(gpa, d.value.text);
+-        }
+-        try rv.expectReported("bidi.texts", joined.items);
+-    }
+-}
+-
+-test "replay grpcio AS CLIENT: both ways a status reaches the reference" {
+-    const gpa = testing.allocator;
+-    var rv = try replayReverse(gpa);
+-    defer rv.deinit();
+-
+-    // ── an error before any message → Trailers-Only ──
+-    {
+-        const c = try rv.call("/echo.Echo/Fail", 0);
+-        try rv.expectReportedStatus("fail.code", c);
+-        // ONE field block, no DATA, no second block. A response with the
+-        // right fields in the wrong number of frames is a different response,
+-        // and only a frame-level peer can see the difference.
+-        try testing.expect(c.isTrailersOnly());
+-
+-        // The detail contained a newline, a multi-byte UTF-8 sequence and a
+-        // literal '%' — every class of byte the grpc-message ABNF forbids.
+-        // grpcio's percent-DEcoder reproduced it exactly at capture time
+-        // (`fail.details_match` = 1), which is what says our ENcoder is
+-        // right; here we check our encoder still emits the same wire form.
+-        try rv.expectReported("fail.details_match", "1");
+-        var buf: [256]u8 = undefined;
+-        const decoded = status_mod.decodeMessage(c.grpcMessage(), &buf);
+-        try testing.expectEqualStrings("boom\nline two \xe2\x98\x83 100% done", decoded);
+-        // …and the trailing metadata that rode in the SAME single field block.
+-        try rv.expectReported("fail.x_why", c.header("x-why") orelse "-");
+-    }
+-
+-    // ── messages, then a status in a real trailer section ──
+-    {
+-        const c = try rv.call("/echo.Echo/StreamFail", 0);
+-        var msgs: std.ArrayList([]const u8) = .empty;
+-        defer {
+-            for (msgs.items) |m| gpa.free(m);
+-            msgs.deinit(gpa);
+-        }
+-        try c.messages(gpa, &msgs);
+-        try rv.expectReportedInt("streamfail.count", msgs.items.len);
+-        try rv.expectReportedStatus("streamfail.code", c);
+-        try testing.expect(!c.isTrailersOnly());
+-        try testing.expect(c.trailers != null);
+-        var buf: [256]u8 = undefined;
+-        try rv.expectReported("streamfail.details", status_mod.decodeMessage(c.grpcMessage(), &buf));
+-    }
+-
+-    // ── routing: a method that does not exist ──
+-    {
+-        const c = try rv.call("/echo.Echo/NoSuchMethod", 0);
+-        try rv.expectReportedStatus("unknown.code", c);
+-        var buf: [256]u8 = undefined;
+-        try rv.expectReported("unknown.details", status_mod.decodeMessage(c.grpcMessage(), &buf));
+-    }
+-
+-    // ── a REQUEST over the server's receive limit ──
+-    {
+-        // The oversized one is the SECOND call to /echo.Echo/Unary: the
+-        // reference sends 128 KiB of blob against a 64 KiB limit.
+-        const c = try rv.call("/echo.Echo/Unary", 1);
+-        try rv.expectReportedStatus("toolarge.code", c);
+-    }
+-
+-    // ── a successful call that produces no message at all ──
+-    {
+-        const c = try rv.call("/echo.Echo/Empty", 0);
+-        var msgs: std.ArrayList([]const u8) = .empty;
+-        defer {
+-            for (msgs.items) |m| gpa.free(m);
+-            msgs.deinit(gpa);
+-        }
+-        try c.messages(gpa, &msgs);
+-        try rv.expectReportedInt("empty.count", msgs.items.len);
+-        try rv.expectReportedStatus("empty.code", c);
+-    }
+-}
+-
+-test "replay grpcio AS CLIENT: metadata, deadlines and a many-frame reply" {
+-    const gpa = testing.allocator;
+-    var rv = try replayReverse(gpa);
+-    defer rv.deinit();
+-
+-    // ── metadata, both sections, ASCII and -bin ──
+-    {
+-        const c = try rv.call("/echo.Echo/Meta", 0);
+-        var msgs: std.ArrayList([]const u8) = .empty;
+-        defer {
+-            for (msgs.items) |m| gpa.free(m);
+-            msgs.deinit(gpa);
+-        }
+-        try c.messages(gpa, &msgs);
+-        try testing.expectEqual(@as(usize, 1), msgs.items.len);
+-        var d = try pb.decode(EchoReply, gpa, msgs.items[0], .{});
+-        defer d.deinit();
+-        // Our server decoded grpcio's OWN base64 `-bin` header to get this.
+-        try rv.expectReported("meta.body_text", d.value.text);
+-        var hex_buf: [64]u8 = undefined;
+-        try rv.expectReported("meta.body_blob", try std.fmt.bufPrint(&hex_buf, "{x}", .{d.value.blob}));
+-
+-        try rv.expectReported("meta.initial_ascii", c.header("x-echo").?);
+-        try rv.expectReported("meta.trailing_ascii", c.trailer("x-tail").?);
+-        // Decisive: a field the reference reported as TRAILING must not also
+-        // appear in the initial block. If our server put the trailer fields
+-        // in the head, this flips.
+-        try rv.expectReported("meta.tail_not_initial", if (c.header("x-tail") == null) "1" else "0");
+-
+-        // The `-bin` values our server emitted, decoded the way grpcio did.
+-        const raw = [_]u8{ 0x00, 0x01, 0xfe, 0xff, 0x0a, 0x25 };
+-        var bin_buf: [64]u8 = undefined;
+-        var dec = std.base64.standard_no_pad.Decoder;
+-        const ib = c.header("x-echo-bin").?;
+-        const ib_len = try dec.calcSizeForSlice(ib);
+-        try dec.decode(bin_buf[0..ib_len], ib);
+-        try testing.expectEqualSlices(u8, &raw, bin_buf[0..ib_len]);
+-        try rv.expectReported("meta.initial_bin", try std.fmt.bufPrint(&hex_buf, "{x}", .{bin_buf[0..ib_len]}));
+-
+-        const tb = c.trailer("x-tail-bin").?;
+-        const tb_len = try dec.calcSizeForSlice(tb);
+-        try dec.decode(bin_buf[0..tb_len], tb);
+-        try rv.expectReported("meta.trailing_bin", try std.fmt.bufPrint(&hex_buf, "{x}", .{bin_buf[0..tb_len]}));
+-    }
+-
+-    // ── grpc-timeout, as the reference rendered it ──
+-    {
+-        // Two calls: the first carries a 30 s deadline, the second none.
+-        const with = try rv.call("/echo.Echo/Deadline", 0);
+-        var msgs: std.ArrayList([]const u8) = .empty;
+-        defer {
+-            for (msgs.items) |m| gpa.free(m);
+-            msgs.deinit(gpa);
+-        }
+-        try with.messages(gpa, &msgs);
+-        var d = try pb.decode(EchoReply, gpa, msgs.items[0], .{});
+-        defer d.deinit();
+-        // Band 1 = our server, parsing grpcio's own `grpc-timeout` literal,
+-        // computed a deadline in (29 s, 31 s]. Reading `m` as minutes instead
+-        // of milliseconds turns grpcio's `30100m` into three weeks and lands
+-        // in band 2 — this single digit is the whole unit check.
+-        try rv.expectReportedInt("deadline.band", d.value.index);
+-        // `text` is grpcio's literal, echoed back. Its exact form (`30100m`
+-        // vs `30S`) is grpcio's own timing artifact — the recording pins one,
+-        // and only its SHAPE is a contract.
+-        try rv.expectReported("deadline.raw", d.value.text);
+-        const raw = d.value.text;
+-        try testing.expect(raw.len >= 2);
+-        try testing.expect(switch (raw[raw.len - 1]) {
+-            'H', 'M', 'S', 'm', 'u', 'n' => std.mem.indexOfNone(u8, raw[0 .. raw.len - 1], "0123456789") == null,
+-            else => false,
+-        });
+-
+-        const without = try rv.call("/echo.Echo/Deadline", 1);
+-        var msgs2: std.ArrayList([]const u8) = .empty;
+-        defer {
+-            for (msgs2.items) |m| gpa.free(m);
+-            msgs2.deinit(gpa);
+-        }
+-        try without.messages(gpa, &msgs2);
+-        var d2 = try pb.decode(EchoReply, gpa, msgs2.items[0], .{});
+-        defer d2.deinit();
+-        try rv.expectReportedInt("deadline.none", d2.value.index);
+-    }
+-
+-    // ── a reply spanning many DATA frames ──
+-    {
+-        const c = try rv.call("/echo.Echo/Big", 0);
+-        var msgs: std.ArrayList([]const u8) = .empty;
+-        defer {
+-            for (msgs.items) |m| gpa.free(m);
+-            msgs.deinit(gpa);
+-        }
+-        try c.messages(gpa, &msgs);
+-        var d = try pb.decode(EchoReply, gpa, msgs.items[0], .{});
+-        defer d.deinit();
+-        try rv.expectReportedInt("big.len", d.value.blob.len);
+-        var all_5a = true;
+-        for (d.value.blob) |b| {
+-            if (b != 0x5a) all_5a = false;
+-        }
+-        try rv.expectReported("big.all_5a", if (all_5a) "1" else "0");
+-        // 48 KiB against the peer's frame size: this provably left in several
+-        // DATA frames rather than one.
+-        try testing.expect(c.data_frames > 1);
+-    }
+--- a/modules/grpc/src/status.zig
++++ b/modules/grpc/src/status.zig
+@@ -154 +154 @@
+-    return @enumFromInt(n);
++    return @fromBackingInt(n);
+@@ -261,2 +261,2 @@
+-    try testing.expectEqual(@as(u32, 0), @intFromEnum(Status.ok));
+-    try testing.expectEqual(@as(u32, 16), @intFromEnum(Status.unauthenticated));
++    try testing.expectEqual(@as(u32, 0), @backingInt(Status.ok));
++    try testing.expectEqual(@as(u32, 16), @backingInt(Status.unauthenticated));
+@@ -265,2 +265,2 @@
+-    inline for (@typeInfo(Status).@"enum".fields) |f| {
+-        const s: Status = @enumFromInt(f.value);
++    inline for (@typeInfo(Status).@"enum".field_names) |field_name| {
++        const s: Status = @field(Status, field_name);
+@@ -273 +273 @@
+-    const s: Status = @enumFromInt(99);
++    const s: Status = @fromBackingInt(99);
+--- a/modules/protobuf/src/conformance.zig
++++ b/modules/protobuf/src/conformance.zig
+@@ -200 +200 @@
+-    .{ .name = "enum_open", .value = .{ .color = @enumFromInt(9999) } },
++    .{ .name = "enum_open", .value = .{ .color = @fromBackingInt(9999) } },
+@@ -224 +224 @@
+-    .{ .name = "rep_enum", .value = .{ .colors = &.{ .red, .green, @enumFromInt(77) } } },
++    .{ .name = "rep_enum", .value = .{ .colors = &.{ .red, .green, @fromBackingInt(77) } } },
+--- a/modules/protobuf/src/encode.zig
++++ b/modules/protobuf/src/encode.zig
+@@ -425 +425 @@
+-        .@"enum" => wire.signExtend(@as(i64, @intFromEnum(elem))),
++        .@"enum" => wire.signExtend(@as(i64, @backingInt(elem))),
+@@ -437 +437 @@
+-        .@"enum" => @intFromEnum(elem) == 0,
++        .@"enum" => @backingInt(elem) == 0,
+@@ -444 +444,2 @@
+-    inline for (@typeInfo(T).@"struct".fields) |sf| {
++    inline for (@typeInfo(T).@"struct".field_names) |name| {
++        const sf = .{ .name = name, .type = @FieldType(T, name) };
+--- a/modules/protobuf/src/codec_test.zig
++++ b/modules/protobuf/src/codec_test.zig
+@@ -183,2 +183,2 @@
+-        .{ .color = @enumFromInt(9999) }, // open enum: a value we never declared
+-        .{ .color = @enumFromInt(-3) },
++        .{ .color = @fromBackingInt(9999) }, // open enum: a value we never declared
++        .{ .color = @fromBackingInt(-3) },
+@@ -275 +275 @@
+-        .colors = &.{ .red, .green, @enumFromInt(77) },
++        .colors = &.{ .red, .green, @fromBackingInt(77) },
+@@ -677 +677 @@
+-        .colors = &.{@enumFromInt(smith.valueRangeAtMost(u2, 0, 2))},
++        .colors = &.{@fromBackingInt(smith.valueRangeAtMost(u2, 0, 2))},
+--- a/modules/protobuf/src/decode.zig
++++ b/modules/protobuf/src/decode.zig
+@@ -236,2 +236,2 @@
+-        const Attrs = std.builtin.Type.StructField.Attributes;
+-        var names: [inf.len + 1][]const u8 = undefined;
++        const Attrs = std.lang.Type.Struct.FieldAttributes;
++        var names: [inf.len + 1][:0]const u8 = undefined;
+@@ -244 +244 @@
+-                    names[n] = i.name;
++                    names[n] = std.fmt.comptimePrint("{s}", .{i.name});
+@@ -252 +252 @@
+-            names[n] = i.name;
++            names[n] = std.fmt.comptimePrint("{s}", .{i.name});
+@@ -259 +259 @@
+-            names[n] = name;
++            names[n] = std.fmt.comptimePrint("{s}", .{name});
+@@ -283 +283,2 @@
+-    for (@typeInfo(T).@"struct".fields) |sf| {
++    for (@typeInfo(T).@"struct".field_names) |name| {
++        const sf = .{ .name = name, .type = @FieldType(T, name) };
+@@ -441 +442 @@
+-            if (@typeInfo(E).@"enum".is_exhaustive) {
++            if (@typeInfo(E).@"enum".mode == .exhaustive) {
+@@ -444 +445 @@
+-            break :blk @enumFromInt(raw);
++            break :blk @fromBackingInt(raw);
+--- a/modules/protobuf/src/adversarial.zig
++++ b/modules/protobuf/src/adversarial.zig
+@@ -302 +302 @@
+-    try testing.expectEqual(@as(i32, 123), @intFromEnum(d.value.e));
++    try testing.expectEqual(@as(i32, 123), @backingInt(d.value.e));
+--- a/modules/protobuf/src/wire.zig
++++ b/modules/protobuf/src/wire.zig
+@@ -216 +216 @@
+-        const wire: WireType = @enumFromInt(@as(u3, @truncate(raw)));
++        const wire: WireType = @fromBackingInt(@as(u3, @truncate(raw)));
+@@ -288 +288 @@
+-        self.varint((@as(u64, number) << 3) | @intFromEnum(wire));
++        self.varint((@as(u64, number) << 3) | @backingInt(wire));
+@@ -305 +305 @@
+-    return varintLen((@as(u64, number) << 3) | @intFromEnum(wire));
++    return varintLen((@as(u64, number) << 3) | @backingInt(wire));
+@@ -479 +479 @@
+-        var status: u32 = 0;
++        var status: i32 = 0;
+--- a/modules/protobuf/src/schema.zig
++++ b/modules/protobuf/src/schema.zig
+@@ -153,2 +153,2 @@
+-        const desc_fields = @typeInfo(Desc).@"struct".fields;
+-        const struct_fields = @typeInfo(T).@"struct".fields;
++        const desc_fields = @typeInfo(Desc).@"struct".field_names;
++        const struct_fields = @typeInfo(T).@"struct".field_names;
+@@ -159 +159,2 @@
+-        for (struct_fields) |sf| {
++        for (struct_fields, 0..) |name, field_index| {
++            const sf = .{ .name = name, .type = @FieldType(T, name), .default_value_ptr = @typeInfo(T).@"struct".field_attrs[field_index].default_value_ptr };
+@@ -197,2 +198,2 @@
+-                if (!@hasField(T, df.name))
+-                    @compileError("protobuf: pb_fields entry ." ++ df.name ++
++                if (!@hasField(T, df))
++                    @compileError("protobuf: pb_fields entry ." ++ df ++

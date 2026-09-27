@@ -853,6 +853,29 @@
       ],
       "limits": "Finite HTTP/1.1 worker over disk Ursula: one public root call per provisioned connector PID, 64 KiB request profile, 1,027-byte worker response; independent transport response 16,387 bytes. Explicit controller retry/redirect/status/cancel and all ten public HTTP SDKs are qualified. Public followups and language-native release conveniences, Board, launchers and hosted costs remain M15 work. Numeric IPv4 endpoint, identity encoding; TLS close-delimited bodies rejected.",
       "model": null
+    },
+    {
+      "id": "RPC-01",
+      "claim": "Finite duplex RPC transport preserves directional message bytes and requires an actual terminal envelope",
+      "owner": "packages/zig/transit-grpc/README.md",
+      "implementation": [
+        "packages/zig/transit-grpc/src/root.zig",
+        "packages/zig/transit-tls/src/Client.zig"
+      ],
+      "profile": "M16 transport only; one connection and one finite outgoing batch",
+      "tasks": [
+        "test::grpc-libraries",
+        "test::grpc-transport",
+        "test::tls-alpn"
+      ],
+      "scenarios": [
+        "All four call shapes against grpcio with independent protobuf, binary and duplicate metadata, status and trailers",
+        "Simultaneous 64-byte request and 16-KiB response credit; no receive-blocked upload",
+        "Truncated/compressed/oversized messages, missing status, deadline and capture capacity refusal",
+        "Initial status without same-frame END_STREAM and duplicate reserved status reject; malformed state is sticky"
+      ],
+      "limits": "No durable RPC authority, connector recovery, SDK or deployment claim. Identity compression only; no reconnect, retry or remote resume.",
+      "model": null
     }
   ]
 }

@@ -29,6 +29,8 @@
       "test::publication",
       "test::http-transport",
       "test::tls-alpn",
+      "test::grpc-libraries",
+      "test::grpc-transport",
       "test::http-worker",
       "examples::http"
     ],
