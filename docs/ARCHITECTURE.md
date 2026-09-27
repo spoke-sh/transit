@@ -46,7 +46,7 @@ Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 | Transit — kernel | Processes/PIDs, lifecycle, legal sequences, ordered commits, realm/grant checks, ownership and effect authority; resource/association contracts | [TRANSIT.md](TRANSIT.md), [STATE.md](STATE.md), [SECURITY.md](SECURITY.md) |
 | Durable transport | Persistent history, continuation positions, mailbox storage and delivery | [STREAMS.md](STREAMS.md), [URSULA.md](URSULA.md) |
 | Station — framework | GenServer behaviors, Table/association helpers, scoped name registries, request/reply, supervision, timers, worker-pool patterns | [STATION.md](STATION.md) |
-| Fuze — query and compute | Shared source/plan/operator model; implemented bounded Table queries, KV/Document adapters next | [FUZE.md](FUZE.md) |
+| Fuze — query and compute | Shared source/plan/operator model; versioned KV/Table/Document adapters and bounded nested Arrow results | [FUZE.md](FUZE.md) |
 | Serving — inbound interfaces (planned M19) | Published service bindings, authenticated request context, admission, bounded responses and recovery; HTTP first for application APIs and Board | [SERVING.md](SERVING.md) |
 | Reactive APIs (planned M20) | SSE/WebSocket hosting, shared session/watch and resume contracts, generated OpenAPI/AsyncAPI descriptions | [REACTIVE_API.md](REACTIVE_API.md) |
 | Reactive interfaces (planned M21) | Live views, exact snapshot refresh and visible freshness over the reactive API | [REACTIVE.md](REACTIVE.md) |
@@ -191,11 +191,11 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 
 | Package / module | Owns | Direct package dependencies |
 | --- | --- | --- |
-| [transit-exchange](../packages/zig/transit-exchange/README.md) / `transit_exchange` | M15 shared segment capture, frozen intent coverage and explicit cleanup; qualification in progress | transit-station |
-| [transit-station-document](../packages/zig/transit-station-document/README.md) / `transit_station_document` | M17 structured merge, collaborative text and paged accepted-state candidates; service qualification in progress | transit-station |
-| [transit-station-http](../packages/zig/transit-station-http/README.md) / `transit_station_http` | M15 HTTP request construction and strict framing; connector implementation in progress | transit-exchange, transit-tls |
+| [transit-exchange](../packages/zig/transit-exchange/README.md) / `transit_exchange` | M15 qualified segment capture, frozen intent coverage and explicit cleanup | transit-station |
+| [transit-station-document](../packages/zig/transit-station-document/README.md) / `transit_station_document` | M17 structured merge, collaborative text and qualified paged accepted-state publication | transit-station |
+| [transit-station-http](../packages/zig/transit-station-http/README.md) / `transit_station_http` | M15 qualified finite HTTP request construction, strict framing and durable capture | transit-exchange, transit-tls |
 | [transit-tls](../packages/zig/transit-tls/README.md) / `transit_tls` | Compiler-pinned TLS client with bounded certificate-path verification | Pinned zig-libs certificate-validation snapshot |
-| [transit-station-grpc](../packages/zig/transit-station-grpc/README.md) / `transit_station_grpc` | M16 durable finite RPC adapter, in progress | transit-exchange, transit-grpc |
+| [transit-station-grpc](../packages/zig/transit-station-grpc/README.md) / `transit_station_grpc` | M16 qualified durable finite RPC adapter | transit-exchange, transit-grpc |
 | [transit-grpc](../packages/zig/transit-grpc/README.md) / `transit_grpc` | Finite HTTP/2 RPC transport and protobuf codecs; no dispatch authority | transit-tls, pinned zig-libs HTTP/2/protobuf/gRPC client snapshot |
 | [transit-observability](../packages/zig/transit-observability/README.md) / `transit_observability` | Transit diagnostic vocabulary and optional instrumentation | transit-protocol, telemetry |
 | [telemetry](../packages/zig/telemetry/README.md) / `telemetry` | Bounded diagnostic sinks, local metrics and trace context | None |
@@ -228,23 +228,24 @@ follow a second concrete implementation, not a speculative plugin system.
 
 | Entry point | Role |
 | --- | --- |
-| [transit-station-document-worker](../apps/transit-station-document-worker/README.md) | M17 authenticated Document writer and bounded maintenance; local recovery qualified, Compose/reference placement pending |
-| [transit-station-grpc-worker](../apps/transit-station-grpc-worker/README.md) | M16 finite RPC preparation/dispatch/capture worker; recovery and public interfaces under qualification |
-| [transit-station-http-worker](../apps/transit-station-http-worker/README.md) | Initial finite M15 HTTP preparation/dispatch/capture worker; broader caller/SDK/deployment qualification remains open |
+| [transit-station-document-worker](../apps/transit-station-document-worker/README.md) | M17 authenticated Document writer and bounded maintenance; local/Compose/reference recovery qualified |
+| [transit-station-grpc-worker](../apps/transit-station-grpc-worker/README.md) | M16 qualified finite RPC preparation/dispatch/capture worker |
+| [transit-station-http-worker](../apps/transit-station-http-worker/README.md) | M15 qualified finite HTTP preparation/dispatch/capture worker |
 | [transit-node](../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
 | [transit-delivery](../apps/transit-delivery/README.md) | Public-client courier for ordered committed outboxes; no storage or handler authority |
 | [transit-runtime-controller](../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
 | [transit-station-controller](../apps/transit-station-controller/README.md) | Observes Station timers/children or applies separately scoped lifecycle intent |
 | [transit-station-host](../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
 | [transit-client-host](../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
-| [transit-query-host](../apps/transit-query-host/README.md) | Runnable growing Table source/requester workers and scoped courier |
-| [transit-cli](../apps/transit-cli/README.md) (`transit`) | Interactive signed Table SQL shell through transit-query |
-| [transit-board](../apps/transit-board/README.md) | Inspection API plus optional separate Table query capability with embedded [TanStack Router frontend](../apps/transit-board-web/README.md); public client and transit-board-api composition |
+| [transit-query-host](../apps/transit-query-host/README.md) | Runnable growing v1/v2 source/requester workers and scoped courier |
+| [transit-cli](../apps/transit-cli/README.md) (`transit`) | Interactive signed v1 Table and v2 unified SQL shells through transit-query |
+| [transit-board](../apps/transit-board/README.md) | Inspection API plus optional separate v1 Table or v2 unified query capability with embedded [TanStack Router frontend](../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
 | [rey-cli](../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |
 | [example-counter](../examples/counter/README.md) | Complete caller, also the reference deployment workload |
 | [example-byte-log](../examples/byte-log/README.md) | Independent caller against the same generic authority |
 | [example-station-ledger](../examples/station-ledger/README.md) | Three Station processes with Tables, calls, registry, supervision and Arrow replies |
+| [example-state-query](../examples/state-query/README.md) | Finite SQL caller with private original-intent recovery and bounded owned pages |
 | [example-station-document](../examples/station-document/README.md) | Independent structured/text editors over the public Document call/read APIs |
 
 Transit artifacts use the `transit-` prefix, including the `transit-board*`

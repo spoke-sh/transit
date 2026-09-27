@@ -9,8 +9,8 @@ Transit gives programs durable processes, ordered mailboxes, and associated stat
 Application code runs in callers; the kernel governs what can commit and how work
 recovers. [Board](docs/BOARD.md) makes that history inspectable. [Station](docs/STATION.md)
 provides behaviors, supervision, registries and typed Tables through Zig and
-shared language bindings. [Fuze](docs/FUZE.md) queries those Tables and returns
-Arrow results; KV and Document querying comes next.
+shared language bindings. [Fuze](docs/FUZE.md) queries declared KV, Table and accepted Document sources
+through one versioned plan and nested Arrow result model.
 
 This monorepo contains Transit's Zig libraries and services, TypeScript/Vite+
 frontends, and development tooling. Ursula supplies durable storage; Kubernetes
@@ -28,6 +28,12 @@ installed examples and public interoperability across all target languages on Li
 plan, with independent parser/result checks and scoped Lean rewrite proofs.
 [M13](docs/roadmap/M13.md) adds a signed Table query shell, runnable query hosts
 and Board's growing atlas/workspace with a separate query capability.
+[M14](docs/roadmap/M14.md) adds bounded immutable publication;
+[M15](docs/roadmap/M15.md) and [M16](docs/roadmap/M16.md) qualify the first finite
+HTTP and RPC connectors over shared capture and explicit outcome policies.
+[M17](docs/roadmap/M17.md) adds structured Documents and collaborative text.
+[M18](docs/roadmap/M18.md) extends querying across those state sources, with all
+ten SDKs, explicit SQL ingress and bounded current-authority result readers.
 The [roadmap](docs/roadmap/README.md) records supported profiles and qualification limits.
 
 ## Get started

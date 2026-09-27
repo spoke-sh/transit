@@ -6,10 +6,14 @@ Status: kernel direction and deployment reference established. The bounded
 for bounded inspection. The [M7 KV profile](roadmap/M7.md) and
 [M8 runtime readiness](roadmap/M8.md) are also implemented and qualified.
 [M9](roadmap/M9.md) adds Station and the first bounded Fuze Table profile.
-[M10](roadmap/M10.md) plans verification and scale foundations before
-[M11](roadmap/M11.md)'s idiomatic language SDKs.
-Broader framework, connector and application outcomes below remain design
-direction; they are not implied by those profiles.
+[M10](roadmap/M10.md) qualifies growing state and measured verification budgets;
+[M11](roadmap/M11.md) supplies the language SDKs. [M12](roadmap/M12.md) through
+[M14](roadmap/M14.md) add SQL, public queries and immutable publication.
+[HTTP M15](roadmap/M15.md), [RPC M16](roadmap/M16.md) and
+[Documents M17](roadmap/M17.md) are qualified within their declared profiles.
+[Unified querying M18](roadmap/M18.md) implements the shared state-query model;
+its proof ledger qualifies native source/lifecycle coverage and Table physical recovery. Broader deployment,
+transport and application outcomes below remain design direction.
 
 ## Purpose
 

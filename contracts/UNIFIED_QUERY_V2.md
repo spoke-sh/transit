@@ -227,3 +227,11 @@ before/during/after capture, returned-prefix denial, expiry, retained-version
 release, retirement and cleanup. Local, Compose and Substrate examples record
 actual evidence and measured costs. M22 receives a source/type/protocol matrix;
 no Flight, Flight SQL or ADBC support follows from this contract alone.
+
+Finite requester process/resource lifetimes also bound its Station call wait to
+their earliest recorded deadline. The configured query principal is the timer
+observer and already owns explicit cancellation. An authenticated ordered timer
+observation closes the wait and schedules request-publication cleanup; hard
+process/resource expiry requires no timer delivery. Neither path renews source
+or result availability. A local transport timeout or disconnected frontend has
+no such authority and leaves the original durable call unchanged.
