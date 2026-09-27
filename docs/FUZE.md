@@ -25,6 +25,11 @@ qualified pure Zig engine with bounded batches and whole-query progress. Station
 durable fragment/result publication is still being implemented; this engine
 boundary alone does not close the large-query recovery gate.
 
+The [unified v2 contract](../contracts/UNIFIED_QUERY_V2.md) now fixes M18's
+source/decoder/projection boundary, five-state typed cells and Publication-based
+request/result direction. Initial pure model/codec tests are implemented; adapter,
+Arrow and end-to-end qualification remain in progress.
+
 ## Purpose and ownership
 
 Fuze is Transit's Zig-native query and compute engine, used by Station to query

@@ -1,5 +1,15 @@
 # Validation and milestone evidence
 
+## M18 work in progress
+
+Fuze's first four unified-model tests and the independent Python fixture check
+pass. They bind the same plan to KV/Table/Document source-kind evidence, preserve
+missing/null/type-error/value/conflict distinctions and ordered assignment IDs,
+reject type/schema/projection mismatches, and round-trip full-width integers,
+negative zero, binary, Unicode and a 537-byte plan. Every strict prefix of the
+canonical plans rejects, as do trailing bytes. This is pure model/codec evidence,
+not source-adapter, Arrow, durable execution or SDK qualification.
+
 ## M17 work in progress
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test

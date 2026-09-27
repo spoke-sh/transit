@@ -50,6 +50,11 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_grpc.module("transit_station_grpc") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_http.module("transit_station_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
+    const unified_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
+    unified_contract_test.addFileArg(b.path("tests/unified_contract.py"));
+    unified_contract_test.has_side_effects = true;
+    unified_contract_test.stdio = .inherit;
+    test_step.dependOn(&unified_contract_test.step);
     const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     document_contract_test.addFileArg(b.path("tests/document_contract.py"));
     document_contract_test.has_side_effects = true;

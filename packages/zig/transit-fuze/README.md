@@ -12,6 +12,13 @@ to the same `Stream.Plan`/`PlanCodec`. It owns its AST, performs no I/O, and
 requires an explicit source name/schema. See the [SQL guide](docs/sql.md) for
 syntax, aggregate limits, errors and qualification.
 
+`Unified` starts the separate [M18 v2 contract](../../../contracts/UNIFIED_QUERY_V2.md):
+up to eight typed columns, full-width signed/unsigned values, finite float64,
+UTF-8/binary, five cell states and preserved conflict alternatives. Its canonical
+`FZP2` codec borrows decoded input and supports larger finite plans. The pure
+model/codec fixtures pass; v2 Arrow execution, adapters and public submission
+are still in progress. Existing `Plan`/`Stream` v1 APIs keep their contract.
+
 Station owns authorized Table adapters and durable result publication; the
 [Fuze design](../../../docs/FUZE.md) describes the broader direction.
 
