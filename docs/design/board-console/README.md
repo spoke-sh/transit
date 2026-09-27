@@ -19,7 +19,7 @@ and bounded implementation without changing its recorded outcomes.
 | [D1](D1.md) | Product structure, administration model, data workspace and future capability families | Reviewed | Useful starting point; reviewer requested monochrome wireframes, two navigation levels and a declarative foundation; D2 refines the flat shell and form-first model |
 | [D2](D2.md) | Declarative objects, Workspace/Operations hierarchy and grammar-to-UI mapping | Reviewed | Reviewer requested a compact icon toggle, Transit branding, a product/application-oriented realm dropdown and removal of redundant shell text; D3 refines the presentation |
 | [D3](D3.md) | Compact navigation, product context and more working space | Reviewed | Reviewer found the shell cleaner and easy to review; D4 carries it forward and merges Data/Queries into Explore |
-| [D4](D4.md) | Live SQL-first Explore, resource typeahead and a closable result-profile panel | In review | Figure 1 direction selected; reviewer requested cleaner results and right-side column profiles after the Live and resource-search refinements; scheduling, metadata and profile/stream contracts remain proposed |
+| [D4](D4.md) | Live SQL-first Explore, resource typeahead, compact profiles and charts | In review | Figure 1 direction selected; reviewer requested counts in Profile, horizontal column summaries, clearer query information and a chart example; scheduling, metadata and profile/stream contracts remain proposed |
 
 The figures are black-and-white vector wireframes with synthetic examples. They are
 neither application screenshots nor evidence of available protocols, permissions
@@ -46,8 +46,11 @@ new implementation work requires its own place in the linear roadmap.
 - [D4 result with Profile closed](images/d4-01b-profile-closed.svg).
 - [D4 column completion wireframe](images/d4-02-columns.svg).
 - [D4 result summary wireframe](images/d4-03-result-summary.svg).
+- [D4 Query info popover](images/d4-03b-query-info.svg).
 - [D4 resource typeahead wireframe](images/d4-04-catalog.svg) and [search fixture](d4-catalog-fixture.json).
 - [D4 live stream wireframe](images/d4-05-live-stream.svg).
+- [D4 chart wireframe](images/d4-06-chart.svg).
+- [D4 wider profile layout study](images/d4-07-wide-profile.svg).
 - [D4 console design notes](CONSOLE.md) and [study fixture](d4-fixture.json).
 - [D4 live scheduling notes](LIVE.md) and [live scenarios](d4-live-fixture.json).
 

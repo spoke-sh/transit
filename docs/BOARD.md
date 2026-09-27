@@ -198,9 +198,13 @@ typeahead opens a list with kind labels, inline size/cardinality and compact
 schema diagrams. Counts and sizes name their basis and distinguish estimates
 and unavailable measurements; search does not scan data or alter the SQL draft.
 The result grid is primary, with a closable right Profile panel for returned-column
-cardinality, nulls, ranges and distributions. Query provenance moves into Details;
+cardinality, nulls, ranges and distributions. Query provenance lives in Query info
+on the result-state control;
 compact preview/earlier-draft/following indicators and profile coverage stay visible.
 Closing or reopening the panel does not rerun SQL or change a result's identity.
+Row/column counts belong inside Profile. Compact horizontal column summaries
+make room for more dimensions, and Chart plots the same identified result with
+explicit coverage; chart controls do not independently submit queries.
 Its [console notes](design/board-console/CONSOLE.md) distinguish generated syntax
 assistance from executable semantics, define proposed responsiveness budgets,
 and preserve exact result identity and profile coverage. These editor and catalog

@@ -137,7 +137,7 @@ Proposed prototype budgets, **unmeasured and subject to qualification**:
 | Active executable statement | Existing 4096-byte SQL bound; M13's separate 207-byte encoded-plan limit still applies |
 | Resident catalog slice | At most 2 MiB and 2,000 entries, whichever is reached first; LRU by scope/version |
 | Catalog response / concurrency | At most 100 entries and 64 KiB; one in flight, prefix requests coalesced after 100 ms idle |
-| Profiles and visible data | One bounded result page; at most four visible column profiles, up to 32 histogram bins each; exact distinct sets stay within an explicit per-column entry/byte budget; no retained row history |
+| Profiles and visible data | One bounded result page; at most eight visible column profiles, up to 32 histogram bins each; exact distinct sets stay within an explicit per-column entry/byte budget; no retained row history |
 
 These numbers constrain editor work, not total catalog or result cardinality.
 Larger worksheets remain editable only within their declared buffer budget;
@@ -252,19 +252,33 @@ access and secret-handling contracts. No automatic localStorage history is impli
 ## Result layout and column profiles
 
 Make returned rows the main result view. The compact toolbar contains Rows/Chart,
-counts, a short result state, Details and the Profile toggle. Remove the prominent
+a short result-state information control and the Profile toggle. Row/column
+counts live once at the top of Profile; closing it hides those counts rather than
+moving them back into the result toolbar. Remove the prominent
 speculative title and source/candidate metadata line, plus the duplicate SQL
 block and separate Summary tab. Exact statement, source/schema revisions,
 candidate/draft identity, verified completion and observation evidence are
-available in **Details**. A small **Preview** indicator has a focus/click description
-that it answers a predicted completion; Earlier draft and Following remain
-distinct. Detailed provenance is not repeated in the grid or profile headings.
+available in **Query info**, opened from the result-state information affordance.
+Remove the old Details link, which did not explain that content. Give the state
+button an accessible name such as Preview — Query info; Enter/Space opens the
+popover, Escape closes it and returns focus. The popover names the relationship
+between executed SQL and the draft; Earlier draft and Following remain distinct.
+Detailed provenance is not repeated in the grid or profile headings.
 
 The right **Profile** panel starts at the result split, leaving the SQL editor
 full width. It opens by default for the first available result on a wide display.
-Each visible column has its name/type, distinct-value cardinality, null count,
-min/max and a compact distribution. Numeric columns use labelled histograms;
-later categorical types can use bounded top-value bars and an Other bucket.
+Each visible column uses a compact row: name/type, a thin horizontal distribution
+bar, distinct/null counts and min/max. Keep a roughly 76 px collapsed row in this
+study; selecting a column expands only that row's detailed distribution. Numeric
+bar segments follow ascending bins. Segment width represents the fraction of
+non-null rows in that bin, not numeric distance; min/max are separately labelled.
+One short legend explains the encoding. In monochrome, outlines, separators and
+alternating solid/hatched/open fills distinguish segments. Focus/hover exposes
+the exact range, count and denominator, with equivalent screen-reader text.
+Later categorical types can use stable ordered top-value shares and an Other
+bucket; a selected category is labelled directly. Exclude nulls from the bar and
+show their count separately. No segment is silently removed for being too small;
+the expanded distribution retains every bucket or explicitly aggregates Other.
 Row count belongs to the result; **Distinct** means non-null column cardinality,
 with nulls shown separately. A dataset with six rows need not have six distinct
 values. Never substitute source-resource cardinality for either metric.
@@ -293,12 +307,40 @@ authorization. A result change invalidates old profiles. If computation lags,
 show Updating rather than pairing old statistics with new rows.
 
 Figure 1's six-row result and Figure 3's three-row result fit completely in one
-loaded page, so the panel says **All 6 returned rows** or **All 3 returned rows**.
-For a partial page, keep **Loaded page: N of M returned rows** visible even when
-Details is closed; per-column coverage overrides it if different. A stream panel
+loaded page, so Profile gives the row/column counts followed by **All returned rows**.
+For a partial page, keep **Loaded page: N of M returned rows** in Profile;
+per-column coverage overrides it if different. With Profile closed, Rows/Chart
+still shows a compact Loaded page coverage indicator, without repeating the total
+count strip. Query info also records that basis. A stream panel
 instead names the current frontier, and every displayed statistic describes that
 same relation. [The study fixture](d4-fixture.json) records the illustrated
 histogram bins, cardinality and panel actions; it does not implement profiling.
+
+## Chart is a view of one result
+
+Figure 6 uses the existing three-row result as a scatter plot of `id` against
+`value`. A small chart toolbar chooses type and X/Y fields. Every point corresponds
+to a returned row; the example does not aggregate, interpolate or turn `id` into
+time. Axis labels/ticks, point values and row coverage are visible or keyboard
+accessible. The right Profile still describes the same result, independently of
+the chart's X/Y choice. Changing an axis, opening a tooltip or switching back to
+Rows changes presentation, with no query submission or extra page fetch.
+
+Persist chart selection only in the authorized worksheet session. Revalidate the
+field/type binding when a new result schema arrives. Explain incompatible fields,
+empty data or unavailable profiles explicitly. Exclude null/unplottable values
+only with visible omission counts; never plot them as zero. A partial page or
+sample is labelled on the chart even when Profile is closed. More extensive plots
+require an explicit, qualified result-read/profile operation and point/bucket
+budgets, not an automatic full download. For int64 values, exact labels/tooltips
+and safe relative scaling must avoid conversion collisions; use a categorical
+axis or explain an unsupported mapping when distinct positions cannot be drawn.
+Streams replace/retract points and profiles at the same published frontier.
+
+The six-column profile inset is a future layout case only, with its own synthetic
+rows and counts. It does not extend today's two-column Table model or introduce
+text query execution. Its repeated numeric/category values demonstrate compact
+bars and useful cardinalities without changing the executable sample query.
 
 ## Summary semantics
 
@@ -307,7 +349,7 @@ source identity/revision and verified manifest. Column labels and types come
 from the result schema, which may differ from source columns after an aggregate.
 Before verified completion, show status/progress, not apparently final rows or
 profiles. Speculative snapshots additionally bind their candidate and parent
-draft, disclosed in Details; they can be verified answers to that candidate
+draft, disclosed in Query info; they can be verified answers to that candidate
 without answering current text. Stream views instead require the committed-frontier contract in the live
 notes, and cannot reuse snapshot Complete as a status for an endless query.
 A submission receipt does not establish query admission or completion;
@@ -342,9 +384,11 @@ Keep int64 values exact as decimal strings/BigInt and preserve null versus empty
 false, missing and unavailable. Null counts/ranges need bounded accumulators.
 For loaded-page histograms, a bounded pass finds min/max and a second pass over
 that same resident page fills fixed bins; no source scan is needed. Compute bin
-edges without int64 overflow or lossy Number conversions. The figures use three
-inclusive integer ranges per column; counts sum to its non-null count, and labels
-state the ranges. Uniform values use one bin, not division by a zero range.
+edges without int64 overflow or lossy Number conversions. The two-column query
+figures use three inclusive integer ranges per column; the wider layout also
+shows smaller numeric ranges and categories. Counts sum to the non-null count,
+with exact ranges available on focus/hover and in the expanded distribution.
+Uniform values use one bin, not division by a zero range.
 Empty/all-null columns have zero distinct values and no non-null distribution;
 their min/max are unavailable. Never draw an apparently measured zero range.
 

@@ -9,7 +9,7 @@
     "candidate_sql": "SELECT id, value FROM samples",
     "source_revision": 42,
     "label": "Preview",
-    "provenance_location": "Details; no repeated SQL, source revision or candidate ID line in the result area.",
+    "provenance_location": "Query info from the result-state control; no repeated SQL, source revision or candidate ID line in the result area.",
     "rows": [
       [
         101,

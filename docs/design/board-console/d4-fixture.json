@@ -273,5 +273,223 @@
       "A partial page explicitly labels loaded-page coverage, regardless of verified whole-query completion.",
       "Distinct excludes nulls, exact-set exhaustion is not truncation, and stream deletes retract old distribution/min/max contributions."
     ]
+  },
+  "compact_profile": {
+    "scope": "Synthetic compact layout, Query info and chart expectations; no runtime behavior. The wider result needs future schema/type qualification.",
+    "count_location": "Profile only; closed Profile does not put counts back in the result toolbar.",
+    "bar_encoding": "Ordered numeric bins or stable categories; segment width = count / non-null rows. Min/max are separate statistics, not an axis.",
+    "query_info_trigger": "Result-state information control; replaces result Details link.",
+    "chart": {
+      "type": "scatter",
+      "x": "id",
+      "y": "value",
+      "rows_from": "d4-live-fixture.json#/snapshot/rows",
+      "points": [
+        [
+          104,
+          34
+        ],
+        [
+          105,
+          55
+        ],
+        [
+          106,
+          89
+        ]
+      ],
+      "x_domain": [
+        "103.8",
+        "106.2"
+      ],
+      "y_domain": [
+        "0",
+        "100"
+      ],
+      "aggregation": "none",
+      "extra_queries": 0
+    },
+    "wide_result": {
+      "support": "Layout only; future wider schema/text result contract, no executable SQL example.",
+      "rows": [
+        [
+          101,
+          8,
+          1,
+          0,
+          "ready",
+          "west"
+        ],
+        [
+          102,
+          13,
+          1,
+          0,
+          "ready",
+          "east"
+        ],
+        [
+          103,
+          21,
+          1,
+          1,
+          "retry",
+          "west"
+        ],
+        [
+          104,
+          34,
+          2,
+          0,
+          "ready",
+          "west"
+        ],
+        [
+          105,
+          55,
+          2,
+          2,
+          "done",
+          null
+        ],
+        [
+          106,
+          89,
+          2,
+          1,
+          null,
+          "east"
+        ]
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "distinct": 6,
+          "null_count": 0,
+          "min": "101",
+          "max": "106",
+          "bins": [
+            [
+              "101",
+              "102",
+              2
+            ],
+            [
+              "103",
+              "104",
+              2
+            ],
+            [
+              "105",
+              "106",
+              2
+            ]
+          ]
+        },
+        {
+          "name": "value",
+          "distinct": 6,
+          "null_count": 0,
+          "min": "8",
+          "max": "89",
+          "bins": [
+            [
+              "8",
+              "35",
+              4
+            ],
+            [
+              "36",
+              "63",
+              1
+            ],
+            [
+              "64",
+              "91",
+              1
+            ]
+          ]
+        },
+        {
+          "name": "batch",
+          "distinct": 2,
+          "null_count": 0,
+          "min": "1",
+          "max": "2",
+          "bins": [
+            [
+              "1",
+              "1",
+              3
+            ],
+            [
+              "2",
+              "2",
+              3
+            ]
+          ]
+        },
+        {
+          "name": "attempts",
+          "distinct": 3,
+          "null_count": 0,
+          "min": "0",
+          "max": "2",
+          "bins": [
+            [
+              "0",
+              "0",
+              3
+            ],
+            [
+              "1",
+              "1",
+              2
+            ],
+            [
+              "2",
+              "2",
+              1
+            ]
+          ]
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "distinct": 3,
+          "null_count": 1,
+          "categories": [
+            [
+              "done",
+              1
+            ],
+            [
+              "ready",
+              3
+            ],
+            [
+              "retry",
+              1
+            ]
+          ]
+        },
+        {
+          "name": "region",
+          "type": "TEXT",
+          "distinct": 2,
+          "null_count": 1,
+          "categories": [
+            [
+              "east",
+              2
+            ],
+            [
+              "west",
+              3
+            ]
+          ]
+        }
+      ]
+    }
   }
 }

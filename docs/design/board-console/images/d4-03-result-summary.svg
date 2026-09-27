@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
-<title id="title">D4 — Returned rows beside their column profiles</title><desc id="desc">Live Snapshot returns three rows from the current query. A closable right Profile panel covers all three returned rows: both columns have three distinct non-null values, id min 104 max 106, value min 34 max 89. Numeric histograms and their counts share the same result. Query/source identities are in Details. Synthetic proposed design, not an implemented UI.</desc>
+<title id="title">D4 — Three returned rows with compact profiles</title><desc id="desc">Three returned rows with compact profiles. Profile owns counts, ordered horizontal bars, distinct/null counts and min/max. Complete opens Query info. Synthetic proposed interface, not implemented behavior.</desc>
 <rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
 <text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
 <rect x="232" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
@@ -64,16 +64,20 @@
 <path d="M355.03999999999996 339 H365.87999999999994" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <text xml:space="preserve" x="365.87999999999994" y="334" font-family="monospace" font-size="18" font-weight="400" fill="black">;</text>
 
+
+<defs><pattern id="stripe" patternUnits="userSpaceOnUse" width="5" height="5"><rect width="5" height="5" fill="white"/><path d="M-1 1 l2 -2 M0 5 l5 -5 M4 6 l2 -2" stroke="black" stroke-width="1"/></pattern></defs>
 <path d="M240 378 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M804 375 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M804 381 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <text x="240" y="417" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Rows</text>
-<path d="M240 429 H278" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 <text x="326" y="417" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Chart</text>
-<text x="454" y="417" font-family="sans-serif" font-size="14" font-weight="400" fill="black">3 rows · 2 columns</text>
-<rect x="675" y="396" width="92" height="28" rx="0" fill="white" stroke="black"/>
-<text x="687" y="415" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Complete</text>
-<text x="964" y="417" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Details</text>
+<path d="M240 429 H282" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Complete — Query info">
+<rect x="900" y="396" width="140" height="28" rx="0" fill="white" stroke="black"/>
+<text x="912" y="415" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Complete</text>
+<circle cx="1024" cy="410" r="6" fill="white" stroke="black"/>
+<text x="1022.5" y="413.5" font-family="sans-serif" font-size="10" font-weight="400" fill="black">i</text>
+</g>
 <path d="M240 440 H1040" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <text x="264" y="480" font-family="monospace" font-size="14" font-weight="700" fill="black">id</text>
 <text x="325" y="480" font-family="sans-serif" font-size="11" font-weight="400" fill="black">INT64</text>
@@ -94,42 +98,41 @@
 <g role="img" aria-label="Close Profile panel">
 <text x="1375" y="417" font-family="sans-serif" font-size="22" font-weight="400" fill="black">×</text>
 </g>
-<text x="1088" y="451" font-family="sans-serif" font-size="12" font-weight="400" fill="black">All 3 returned rows</text>
-<g role="img" aria-label="id: INT64, 3 distinct non-null values, 0 nulls, min 104, max 106. Histogram counts by inclusive integer range: 104 to 104: 1; 105 to 105: 1; 106 to 106: 1">
-<text x="1088" y="495" font-family="monospace" font-size="16" font-weight="700" fill="black">id</text>
-<text x="1302" y="495" font-family="monospace" font-size="12" font-weight="400" fill="black">INT64</text>
-<text x="1088" y="523" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Distinct  3</text>
-<text x="1274" y="523" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Nulls  0</text>
-<text x="1088" y="550" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Min  104</text>
-<text x="1274" y="550" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Max  106</text>
-<path d="M1088 612 H1384" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-<rect x="1094" y="577.0" width="80" height="35.0" rx="0" fill="white" stroke="black"/>
-<text x="1128" y="571.0" font-family="sans-serif" font-size="11" font-weight="400" fill="black">1</text>
-<text x="1118" y="631" font-family="sans-serif" font-size="11" font-weight="400" fill="black">104</text>
-<rect x="1195" y="577.0" width="80" height="35.0" rx="0" fill="white" stroke="black"/>
-<text x="1229" y="571.0" font-family="sans-serif" font-size="11" font-weight="400" fill="black">1</text>
-<text x="1219" y="631" font-family="sans-serif" font-size="11" font-weight="400" fill="black">105</text>
-<rect x="1296" y="577.0" width="80" height="35.0" rx="0" fill="white" stroke="black"/>
-<text x="1330" y="571.0" font-family="sans-serif" font-size="11" font-weight="400" fill="black">1</text>
-<text x="1320" y="631" font-family="sans-serif" font-size="11" font-weight="400" fill="black">106</text>
+<text x="1088" y="449" font-family="sans-serif" font-size="14" font-weight="700" fill="black">3 rows · 2 columns</text>
+<text x="1088" y="471" font-family="sans-serif" font-size="11" font-weight="400" fill="black">All returned rows</text>
+<text x="1088" y="497" font-family="sans-serif" font-size="10" font-weight="400" fill="black">Bar width = share of non-null rows</text>
+<g role="img" aria-label="id: 3 distinct non-null values; 0 nulls. Bar widths show shares of 3 non-null rows: 104: 1; 105: 1; 106: 1">
+<path d="M1089 521 l4 4 l-4 4" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1104" y="529" font-family="monospace" font-size="14" font-weight="700" fill="black">id</text>
+<text x="1330" y="529" font-family="monospace" font-size="10" font-weight="400" fill="black">INT64</text>
+<g><title>104: 1 / 3 non-null rows</title>
+<rect x="1088" y="541" width="98.66666666666667" height="12" rx="0" fill="black" stroke="black"/>
 </g>
-<path d="M1088 671 H1384" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-<g role="img" aria-label="value: INT64, 3 distinct non-null values, 0 nulls, min 34, max 89. Histogram counts by inclusive integer range: 34 to 52: 1; 53 to 71: 1; 72 to 90: 1">
-<text x="1088" y="695" font-family="monospace" font-size="16" font-weight="700" fill="black">value</text>
-<text x="1302" y="695" font-family="monospace" font-size="12" font-weight="400" fill="black">INT64</text>
-<text x="1088" y="723" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Distinct  3</text>
-<text x="1274" y="723" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Nulls  0</text>
-<text x="1088" y="750" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Min  34</text>
-<text x="1274" y="750" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Max  89</text>
-<path d="M1088 812 H1384" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-<rect x="1094" y="777.0" width="80" height="35.0" rx="0" fill="white" stroke="black"/>
-<text x="1128" y="771.0" font-family="sans-serif" font-size="11" font-weight="400" fill="black">1</text>
-<text x="1103" y="831" font-family="sans-serif" font-size="11" font-weight="400" fill="black">34–52</text>
-<rect x="1195" y="777.0" width="80" height="35.0" rx="0" fill="white" stroke="black"/>
-<text x="1229" y="771.0" font-family="sans-serif" font-size="11" font-weight="400" fill="black">1</text>
-<text x="1204" y="831" font-family="sans-serif" font-size="11" font-weight="400" fill="black">53–71</text>
-<rect x="1296" y="777.0" width="80" height="35.0" rx="0" fill="white" stroke="black"/>
-<text x="1330" y="771.0" font-family="sans-serif" font-size="11" font-weight="400" fill="black">1</text>
-<text x="1305" y="831" font-family="sans-serif" font-size="11" font-weight="400" fill="black">72–90</text>
+<g><title>105: 1 / 3 non-null rows</title>
+<rect x="1186.6666666666667" y="541" width="98.66666666666667" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<g><title>106: 1 / 3 non-null rows</title>
+<rect x="1285.3333333333335" y="541" width="98.66666666666667" height="12" rx="0" fill="url(#stripe)" stroke="black"/>
+</g>
+<text x="1088" y="573" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Min 104   Max 106</text>
+<text x="1245" y="573" font-family="sans-serif" font-size="11" font-weight="400" fill="black">3 distinct · 0 nulls</text>
+<path d="M1088 588 H1384" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g role="img" aria-label="value: 3 distinct non-null values; 0 nulls. Bar widths show shares of 3 non-null rows: 34–52: 1; 53–71: 1; 72–90: 1">
+<path d="M1089 597 l4 4 l-4 4" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1104" y="605" font-family="monospace" font-size="14" font-weight="700" fill="black">value</text>
+<text x="1330" y="605" font-family="monospace" font-size="10" font-weight="400" fill="black">INT64</text>
+<g><title>34–52: 1 / 3 non-null rows</title>
+<rect x="1088" y="617" width="98.66666666666667" height="12" rx="0" fill="black" stroke="black"/>
+</g>
+<g><title>53–71: 1 / 3 non-null rows</title>
+<rect x="1186.6666666666667" y="617" width="98.66666666666667" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<g><title>72–90: 1 / 3 non-null rows</title>
+<rect x="1285.3333333333335" y="617" width="98.66666666666667" height="12" rx="0" fill="url(#stripe)" stroke="black"/>
+</g>
+<text x="1088" y="649" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Min 34   Max 89</text>
+<text x="1245" y="649" font-family="sans-serif" font-size="11" font-weight="400" fill="black">3 distinct · 0 nulls</text>
+<path d="M1088 664 H1384" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
 </svg>
