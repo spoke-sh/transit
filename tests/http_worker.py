@@ -33,6 +33,9 @@ def run(node, provision, worker, library, board=None, browser=False):
         release = threading.Event()
         prepared_prefix = threading.Event()
         release_preparation = threading.Event()
+        capture_prefix = threading.Event()
+        release_capture = threading.Event()
+        capture_kill_armed = False
         dropped = {}
         recovered = set()
         failures = []
@@ -112,6 +115,9 @@ def run(node, provision, worker, library, board=None, browser=False):
                         if any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b"EXL2") for m in turn.get("mutations", [])):
                             selected = "caller_followup"
                         if request["principal"] == 65536:
+                            if capture_kill_armed and not capture_prefix.is_set() and any(m and m["value"] and bytes.fromhex(m["value"]) == payload[:256] for m in turn.get("mutations", [])):
+                                capture_prefix.set()
+                                release_capture.wait(timeout=30)
                             if not prepared_prefix.is_set() and any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b'{"version":1,"endpoint_revision":') for m in turn.get("mutations", [])):
                                 prepared_prefix.set()
                                 release_preparation.wait(timeout=30)
@@ -678,16 +684,47 @@ def run(node, provision, worker, library, board=None, browser=False):
             result = admin("receive")["outcome"]
             assert result["phase"] == "closed_unknown" and result["attempt"] > 0
             assert requests.count("/public-kill") == 1
+
+            # Kill after the first response chunk commits but before its receipt
+            # returns. A durable body prefix is not a complete response, even
+            # though the independent peer already completed its application.
+            saved = admin("provision")
+            configure(saved, "/capture-kill", "prepare")
+            assert invoke()["phase"] == "ready"
+            saved = admin("own")
+            configure(saved, "/capture-kill", "execute")
+            capture_kill_armed = True
+            child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE)
+            assert capture_prefix.wait(timeout=60), "Durable response prefix was not reached"
+            child.kill(); child.wait(timeout=10); child = None
+            release_capture.set()
+            assert admin("inspect")["phase"] == "capturing"
+            refused = subprocess.run([provision, url, "replay", str(state)], capture_output=True, timeout=30)
+            assert refused.returncode and b"IncompleteExchange" in refused.stderr, refused
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start()
+            authority = start_node()
+            saved = admin("own")
+            configure(saved, "/capture-kill", "execute")
+            unknown = invoke()
+            assert unknown["phase"] == "unknown" and unknown["outcome"] == "closed_unknown"
+            assert requests.count("/capture-kill") == 1
+            saved = admin("own")
+            configure(saved, "/capture-kill", "release")
+            assert invoke()["phase"] == "retired"
+            reclaimed = admin("inspect")
+            assert reclaimed["collected"] == reclaimed["segments"] + 1, reclaimed
             assert not failures, failures
             assert {'http.worker.operation', 'http.transport.completed', 'service.ready'} <= signal_names
-            assert len(requests) == 15 and len(applied) == 7
+            assert len(requests) == 16 and len(applied) == 8
             assert cold.data_objects() > 0, "Exchange history never spilled to durable cold storage"
-            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit and public retry/redirect/status/cancel, public admission/disposal, caller termination and name rebinding passed; fifteen sends, seven applications, two cancellation requests.")
+            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit and public retry/redirect/status/cancel, public admission/disposal, caller termination, name rebinding and partial-capture loss passed; sixteen sends, eight applications, two cancellation requests.")
             print(f"HTTP capture storage: 8 MiB hot limit, {cold.data_objects()} persisted cold objects, {cold.file_bytes()} object-store bytes.")
             print(f"HTTP worker proof wall time: {time.monotonic() - started:.2f}s (excludes compilation).")
         finally:
             release.set()
             release_preparation.set()
+            release_capture.set()
             for process in (child, authority):
                 if process is not None:
                     process.kill(); process.wait(timeout=10)

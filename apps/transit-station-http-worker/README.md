@@ -37,6 +37,8 @@ configured, scoped process-origin calls. Capture requires an independent resourc
 with no owner/deadline. Provisioning and ownership remain separate administrative
 work. See [public admission and recovery](docs/admission.md) for `accept` mode,
 request publications, fixed caller destinations and lifetime requirements.
+The [capacity and recovery guide](docs/capacity.md) records finite budgets,
+measured storage amplification and the limits of kernel control-reserve headroom.
 
 In `prepare` mode, supply a typed `Request`, optional body file and finite
 `reconcile_before_ms`. Preparation captures the metadata, rendered head and body,

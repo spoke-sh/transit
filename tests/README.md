@@ -2,6 +2,15 @@
 
 ## M15 connector work in progress
 
+The expanded `just test::http-worker` schedule passes in **493.33 seconds** excluding
+compilation, with **sixteen sends, eight applications and two cancellation
+requests**, retaining 1,074 cold objects / 116,719,300 object-store bytes under the
+same 8 MiB hot bound. It kills the executor after a response chunk is durably
+committed while its acknowledgement is withheld. The capture remains partial;
+replay refuses. Fresh ownership after node/store restart closes unknown without
+resending, then explicit retirement/cleanup reclaims the unsealed member too.
+This extends the earlier schedules below; it does not add a hosted measurement.
+
 `just examples::http` builds and executes the actual Zig caller and connector
 against a disposable disk Ursula, growing authority and independent TLS peer.
 The **26.81-second** local schedule checks caller replacement after publication
