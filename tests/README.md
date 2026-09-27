@@ -42,6 +42,11 @@ language now qualifies the finite RPC caller/replay/disposal surface. The unchan
 Erlang and Elixir HTTP schedules pass with the shared reader in **68.26** and
 **68.48 seconds**. `just check` also passes after all ten SDK extensions.
 
+The Zig HTTP caller now uses the shared `Exchange.Caller` for bounded ticks,
+request publication, durable correlation and authenticated reply storage. Its
+unchanged local application/restart/replay proof passes in **27.05 seconds** with
+exactly one network send. Protocol request/replay validators stay in the adapters.
+
 `just test::grpc-worker` separately passes in **344.45 seconds** excluding
 compilation over disk Ursula and the actual Zig worker. All four shapes complete
 and replay, then lose workers during partial durable response capture and recover

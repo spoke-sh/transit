@@ -2,7 +2,7 @@
 
 Shared Zig capture over Station's growing immutable publication. HTTP and RPC
 consume this package; it has no external transport, credential resolver, protocol
-parser or remote retry loop. Its optional Worker helper uses only the public
+parser or remote retry loop. Its optional Worker and Caller helpers use only the public
 Transit client for authority I/O.
 [M15](../../../docs/roadmap/M15.md) is in progress. The initial unit checks do not
 qualify the complete connector, deployment, SDK or disk-recovery obligations.
@@ -80,6 +80,15 @@ policy and external transport. Options declare the tick and capture limits; ther
 is no generic implicit quota. An uncertain authority command must stop the
 activation rather than reconstruct lost network state. Fresh ownership, external
 I/O and observation/closure decisions remain explicit host responsibilities.
+
+`Caller(Adapter, options)` shares finite publication ticks, exact signed retry,
+durable peer/correlation storage and authenticated reply handling. The adapter
+supplies request publication and outcome decoding; options reserve application
+state keys and the exact self-tick value. Configuration and source bytes remain
+caller-owned inputs. The helper has no external transport or credential resolver;
+publication and the saved correlation remain the recovery evidence. Applications
+choose bounded orchestration and disposition, and cannot infer commitment from
+returning from a handler.
 
 See the [versioned contract](../../../contracts/STATION_EXCHANGE_V1.md). Run
 `nix develop --command bash -c 'cd packages/zig/transit-exchange && zig build test'`

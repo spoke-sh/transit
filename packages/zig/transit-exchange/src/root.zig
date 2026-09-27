@@ -5,6 +5,7 @@ pub const p = station.protocol;
 pub const Publication = station.Publication;
 pub const Exchange = @import("Exchange.zig");
 pub const Client = @import("Client.zig");
+pub const Caller = @import("Caller.zig").For;
 pub const Worker = @import("Worker.zig").For;
 pub const Service = @import("Service.zig").For;
 pub const codec = @import("codec.zig");
