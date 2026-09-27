@@ -64,6 +64,9 @@ pub(crate) struct Caps {
     pub http_replay: bool,
     pub http_release: bool,
     pub http_followup: bool,
+    pub document_codecs: bool,
+    pub document_owner: bool,
+    pub document_reads: bool,
     pub grpc_requests: bool,
     pub grpc_replay: bool,
     pub grpc_release: bool,
@@ -186,6 +189,9 @@ impl Local {
                 http_replay: boolean(&value["http_replay"], "native-capabilities")?,
                 http_release: value["http_release"].as_bool().unwrap_or(false),
                 http_followup: value["http_followup"].as_bool().unwrap_or(false),
+                document_codecs: value["document_codecs"].as_bool().unwrap_or(false),
+                document_owner: value["document_owner"].as_bool().unwrap_or(false),
+                document_reads: value["document_reads"].as_bool().unwrap_or(false),
                 grpc_requests: boolean(&value["grpc_requests"], "native-capabilities")?,
                 grpc_replay: boolean(&value["grpc_replay"], "native-capabilities")?,
                 grpc_release: value["grpc_release"].as_bool().unwrap_or(false),
@@ -331,6 +337,38 @@ impl Bridge {
             )
         };
         buffer.result(status, "http-read", false)
+    }
+    pub fn document_read(&mut self, action: Value) -> Result<Value> {
+        if !self.caps.document_reads {
+            return Err(Error::new(
+                ErrorKind::UnsupportedCapability,
+                "document-read",
+            ));
+        }
+        let bytes = serde_json::to_vec(&action)
+            .map_err(|_| Error::new(ErrorKind::InvalidArgument, "document-read"))?;
+        if bytes.len() > 4096 {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "document-read-bound",
+            ));
+        }
+        let mut buffer = Buffer {
+            api: &self.local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (self.local.api.station_growing_document_read)(
+                self.pointer,
+                bytes.as_ptr(),
+                bytes.len(),
+                &mut buffer.pointer,
+            )
+        };
+        buffer.result(status, "document-read", false)
+    }
+    pub fn document_codec(&mut self, action: Value) -> Result<Value> {
+        document_codec_local(&self.local, action)
     }
     pub fn grpc_read(&mut self, action: Value) -> Result<Value> {
         if !self.caps.grpc_replay {
@@ -528,6 +566,40 @@ pub(crate) fn grpc_codec(
         };
         buffer.result(status, "grpc-codec", false)
     });
+    worker.close()?;
+    result
+}
+
+fn document_codec_local(local: &Local, action: Value) -> Result<Value> {
+    if !local.caps.document_codecs {
+        return Err(Error::new(
+            ErrorKind::UnsupportedCapability,
+            "document-codec",
+        ));
+    }
+    let bytes = serde_json::to_vec(&action)
+        .map_err(|_| Error::new(ErrorKind::InvalidArgument, "document-codec"))?;
+    if bytes.len() > 32768 {
+        return Err(Error::new(
+            ErrorKind::InvalidArgument,
+            "document-codec-bound",
+        ));
+    }
+    let mut buffer = Buffer {
+        api: &local.api,
+        pointer: ptr::null_mut(),
+    };
+    let status = unsafe {
+        (local.api.station_document_codec)(bytes.as_ptr(), bytes.len(), &mut buffer.pointer)
+    };
+    buffer.result(status, "document-codec", false)
+}
+pub(crate) fn document_codec(action: Value, native_directory: Option<&Path>) -> Result<Value> {
+    let directory = native_directory.map(Path::to_owned);
+    let mut worker = Worker::open(abi::MINIMUM_STACK_BYTES, move || {
+        Local::open(directory.as_deref())
+    })?;
+    let result = worker.call(move |local| document_codec_local(local, action));
     worker.close()?;
     result
 }

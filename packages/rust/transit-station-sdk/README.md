@@ -23,3 +23,6 @@ The [test guide](../../../tests/README.md) records evidence and limitations.
 
 The [finite RPC guide](docs/GRPC.md) describes pinned descriptor binding, original
 message batches, scoped durable calls and owned transcript replay.
+
+The [Document guide](docs/DOCUMENTS.md) covers typed changes, scoped publication
+jobs, accepted references and readers with exclusive runner borrows.

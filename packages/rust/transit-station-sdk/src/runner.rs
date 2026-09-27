@@ -419,6 +419,28 @@ impl<M: 'static> Runner<M> {
         })?;
         Ok(crate::HttpReader::new(self, identity))
     }
+    pub(crate) fn document_read(&mut self, realm: u64, action: Value) -> Result<Value> {
+        self.worker.call(move |state| {
+            if state.pending.is_some() {
+                return Err(Error::new(ErrorKind::Busy, "pending-mutation"));
+            }
+            if realm != state.process.realm() {
+                return Err(Error::new(ErrorKind::InvalidArgument, "document-realm"));
+            }
+            state.bridge.document_read(action)
+        })
+    }
+    pub(crate) fn document_codec(&mut self, action: Value) -> Result<Value> {
+        self.worker
+            .call(move |state| state.bridge.document_codec(action))
+    }
+    pub fn documents(&mut self) -> Result<crate::DocumentReader<'_, M>> {
+        let realm = self.worker.call(|state| Ok(state.process.realm()))?;
+        Ok(crate::DocumentReader {
+            runner: self,
+            realm,
+        })
+    }
     pub(crate) fn grpc_read(&mut self, action: Value) -> Result<Value> {
         self.worker.call(move |state| {
             if state.pending.is_some() {

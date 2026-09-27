@@ -62,7 +62,16 @@ schedule in **226.06 seconds** with clean gem installation. Frozen owned values
 round-trip full-width integers, negative zero, binary and Unicode; invalid UTF-8
 and escaped turn owners reject. Reads use the runner's serialized worker, and
 close joins an outstanding read before destruction. `just check` passes after
-the Ruby additions. The remaining language targets are still in progress.
+the Ruby additions.
+
+`just bindings::document-rust` and the installed Rust consumer pass in **253.21
+seconds**, including clean crate compilation and the same 139-turn schedule.
+Compiler rejection cases prevent a Document owner from escaping its turn and
+prevent a reader from overlapping runner mutation. Full-width values, Unicode,
+retained references and post-retirement reads use the shared fixtures. Threaded
+reads are joined before disposal; arbitrary thread cancellation is not claimed.
+Rust formatting and source checks pass. The remaining language targets are still
+in progress.
 
 ## M16 finite connector qualification
 

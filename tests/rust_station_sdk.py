@@ -64,7 +64,11 @@ arrow-array = { version = "=59.1.0", optional = true, default-features = false }
             'E0308': 'use transit_station_sdk::Codec; fn main() { transit_sdk_examples::codecs::U64Codec.encode(&true).unwrap(); }',
         }
         cases['cannot borrow `*runner` as mutable more than once at a time'] = "fn overlap(runner: &mut transit_station_sdk::Runner<()>, outcome: &transit_station_sdk::HttpOutcome) { let mut reader = runner.open_http(outcome, transit_station_sdk::HttpReplayPolicy::Captured).unwrap(); runner.next().unwrap(); reader.read().unwrap(); } fn main() {}"
-        for code, source in cases.items():
+        document_reader_case = "fn overlap(runner: &mut transit_station_sdk::Runner<()>) { let mut reader = runner.documents().unwrap(); runner.next().unwrap(); reader.describe(transit_client::ResourceRef::new(72,1).unwrap(),1).unwrap(); } fn main() {}"
+        document_owner_case = "fn escape<'a>(turn: &'a mut transit_station_sdk::Turn<'a>) -> transit_station_sdk::DocumentOwner<'static> { turn.document(1).unwrap() } fn main() {}"
+        for code, source in [*cases.items(),
+                ('cannot borrow `*runner` as mutable more than once at a time', document_reader_case),
+                ('lifetime may not live long enough', document_owner_case)]:
             (target / 'src/main.rs').write_text(source)
             checked = subprocess.run(['cargo', 'check', '--locked', '--offline', '--bin', 'transit-rust-station-proof'], cwd=target, env=environment, capture_output=True, text=True)
             assert checked.returncode != 0 and code in checked.stderr, checked.stderr

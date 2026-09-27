@@ -2,6 +2,7 @@
 #[rustfmt::skip]
 mod abi;
 mod bridge;
+mod document;
 mod grpc;
 mod http;
 mod query;
@@ -31,3 +32,10 @@ pub use table::{Cell, CellType, Row, Table, TableSchema, TableValue};
 pub use transit_client::{Correlation, Counter};
 pub use turn::{Source, State, Turn};
 pub use types::*;
+
+pub use document::{
+    DocumentAssignment, DocumentChange, DocumentDescription, DocumentDot, DocumentField,
+    DocumentItem, DocumentLimits, DocumentOperation, DocumentOwner, DocumentPage, DocumentPath,
+    DocumentPhase, DocumentProgress, DocumentReader, DocumentReference, DocumentResynchronization,
+    DocumentStatus, DocumentValue, PreparedDocumentChange, decode_document, prepare_document,
+};
