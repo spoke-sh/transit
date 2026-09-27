@@ -28,6 +28,11 @@ pub const Capabilities = struct {
     tables: bool = true,
     retained_sources: bool = true,
     publications: bool = true,
+    document_codecs: bool = true,
+    document_owner: bool = true,
+    document_reads: bool = true,
+    document_change_bytes: u32 = 4096,
+    document_page_items: u32 = 8,
     grpc_requests: bool = true,
     grpc_descriptors: bool = true,
     grpc_release: bool = true,
@@ -303,6 +308,28 @@ pub fn pending(pointer: *Server, out: *?*base.Buffer) callconv(.c) base.Status {
     defer server.busy.store(false, .release);
     const frozen = server.behavior.pending orelse return .not_ready;
     base.output(.{ .version = @as(u32, 1), .operation = .{ .growing_command = frozen.signed } }, out) catch |err| return base.status(err);
+    return .ok;
+}
+
+/// Stateless bounded accepted-state reads. No ownership, cursor or result bytes
+/// are retained by the native handle; host destruction must still join this call.
+pub fn documentRead(pointer: *Server, json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
+    out.* = null;
+    if (len == 0 or len > 4096) return .invalid_argument;
+    const server = cast(pointer);
+    if (!lock(server)) return .busy;
+    defer server.busy.store(false, .release);
+    if (server.behavior.ready != null or server.behavior.pending != null) return .busy;
+    server.client.last_rejection = null;
+    const bridge = @import("DocumentBridge.zig");
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const parsed = std.json.parseFromSlice(bridge.ReadAction, alloc, json[0..len], .{}) catch |err| return base.failure(err, out);
+    const session = server.behavior.session;
+    const client: @import("DocumentCodec.zig").document.Client = .{ .source = .{ .wire = &server.client, .realm = session.realm, .principal = session.principal, .key = session.key } };
+    const result = bridge.read(alloc, client, parsed.value) catch |err| return failure(server, err, false, out);
+    base.output(result, out) catch |err| return base.status(err);
     return .ok;
 }
 

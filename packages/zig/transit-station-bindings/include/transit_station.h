@@ -26,6 +26,7 @@ typedef struct station_buffer station_buffer;
 #define STATION_STATUS_BLOCKED 12u
 #define STATION_STATUS_NOT_READY 13u
 #define STATION_STATUS_BUDGET_EXCEEDED 14u
+uint32_t station_growing_document_read(station_growing_server * arg0, const uint8_t * arg1, size_t arg2, station_buffer ** arg3);
 uint32_t station_document_codec(const uint8_t * arg0, size_t arg1, station_buffer ** arg2);
 uint32_t station_grpc_codec(const uint8_t * arg0, size_t arg1, station_buffer ** arg2);
 uint32_t station_growing_grpc_read(station_growing_server * arg0, const uint8_t * arg1, size_t arg2, station_buffer ** arg3);

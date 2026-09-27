@@ -50,6 +50,7 @@ pub const Manifest = struct {
     schema: [32]u8,
 };
 pub const Action = union(enum) {
+    document: @import("DocumentBridge.zig").Action,
     budgets: void,
     get: p.Value,
     put: @FieldType(a.Action, "put"),
@@ -100,6 +101,7 @@ pub const Action = union(enum) {
     }
 };
 pub const Result = union(enum) {
+    document: @import("DocumentBridge.zig").Result,
     budgets: struct { mutations: u32, outputs: u32, views: u32, retained_reads: u32, retains: u32, releases: u32 },
     none,
     value: ?p.Value,
@@ -156,6 +158,7 @@ fn tableSchema(allocator: std.mem.Allocator, source: anytype, id: u32) !Result {
 pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action) !Result {
     if (try a.basic(Result, allocator, turn, action)) |result| return result;
     switch (action) {
+        .document => |v| return .{ .document = try @import("DocumentBridge.zig").apply(allocator, turn, v) },
         .budgets => return .{ .budgets = .{ .mutations = remaining(turn.decision.mutations), .outputs = remaining(turn.decision.outputs), .views = remaining(turn.decision.views), .retained_reads = remaining(turn.decision.read_versions), .retains = remaining(turn.decision.retain), .releases = remaining(turn.decision.release) } },
         .publication_create => |v| {
             _ = try s.Publication.create(turn, try unsigned(v.namespace), .{ .record_bytes = v.record_bytes, .staging_bytes = try unsigned(v.staging_bytes), .staging_records = v.staging_records });

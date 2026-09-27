@@ -5,6 +5,7 @@ const p = s.protocol;
 pub const actions = @import("Actions.zig");
 pub const host = @import("HostProtocol.zig");
 pub const growing = @import("GrowingAbi.zig");
+pub const document_bridge = @import("DocumentBridge.zig");
 pub const document = @import("DocumentCodec.zig");
 pub const grpc = @import("GrpcCodec.zig");
 pub const http = @import("HttpCodec.zig");
@@ -71,6 +72,7 @@ pub fn observe(pointer: *Server, observer: *s.client.observability.telemetry.Run
 }
 
 pub const Api = struct {
+    pub const station_growing_document_read = growing.documentRead;
     pub const station_document_codec = document.codec;
     pub const station_grpc_codec = grpc.codec;
     pub const station_growing_grpc_read = growing.grpcRead;
@@ -258,4 +260,5 @@ test {
     _ = http;
     _ = grpc;
     _ = document;
+    _ = document_bridge;
 }

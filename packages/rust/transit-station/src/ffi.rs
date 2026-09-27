@@ -22,6 +22,7 @@ unsafe extern "C" {
     pub fn transit_buffer_data(arg0: *const transit_buffer) -> *const u8;
     pub fn transit_buffer_size(arg0: *const transit_buffer) -> usize;
     pub fn transit_buffer_destroy(arg0: *mut transit_buffer) -> ();
+    pub fn station_growing_document_read(arg0: *mut station_growing_server, arg1: *const u8, arg2: usize, arg3: *mut *mut station_buffer) -> u32;
     pub fn station_document_codec(arg0: *const u8, arg1: usize, arg2: *mut *mut station_buffer) -> u32;
     pub fn station_grpc_codec(arg0: *const u8, arg1: usize, arg2: *mut *mut station_buffer) -> u32;
     pub fn station_growing_grpc_read(arg0: *mut station_growing_server, arg1: *const u8, arg2: usize, arg3: *mut *mut station_buffer) -> u32;

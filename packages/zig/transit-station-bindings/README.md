@@ -41,5 +41,8 @@ SDKs receive owned buffers. Full-width counters/integers use decimal strings,
 binary uses hex, and finite float64 uses eight little-endian bytes as hex to
 preserve negative zero. Editable text characters are exactly one Unicode scalar,
 not one byte, UTF-16 code unit or grapheme cluster. Independent SDC1/SDR1 fixtures
-run through native and port surfaces. Public language changes/reads and durable
-caller APIs are still in progress; codec availability does not claim them complete.
+run through native and port surfaces. Scoped owner actions now compose bounded jobs/checkpoints and permanent lifecycle
+operations. `station_growing_document_read` exposes descriptions, path/sequence
+pages, accepted changes and resynchronization through current permissions, without
+writer ownership. Public language APIs and remote caller routing remain in progress;
+the additive capabilities describe only the implemented native surfaces.

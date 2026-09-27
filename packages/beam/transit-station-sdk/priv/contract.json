@@ -20,6 +20,16 @@
   },
   "functions": [
     {
+      "name": "station_growing_document_read",
+      "result": "uint32_t",
+      "parameters": [
+        "station_growing_server *",
+        "const uint8_t *",
+        "size_t",
+        "station_buffer **"
+      ]
+    },
+    {
       "name": "station_document_codec",
       "result": "uint32_t",
       "parameters": [
@@ -3890,6 +3900,228 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "growing_document_read"
+          ],
+          "properties": {
+            "growing_document_read": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "describe"
+                  ],
+                  "properties": {
+                    "describe": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "resource",
+                        "document"
+                      ],
+                      "properties": {
+                        "resource": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "document": {
+                          "type": "string",
+                          "maxLength": 524288
+                        }
+                      },
+                      "required": [
+                        "resource",
+                        "document"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "path"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "reference",
+                        "names"
+                      ],
+                      "properties": {
+                        "reference": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "names": {
+                          "type": "array",
+                          "maxItems": 128,
+                          "items": {
+                            "type": "string",
+                            "maxLength": 524288
+                          }
+                        }
+                      },
+                      "required": [
+                        "reference",
+                        "names"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "sequence"
+                  ],
+                  "properties": {
+                    "sequence": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "reference",
+                        "object",
+                        "cursor"
+                      ],
+                      "properties": {
+                        "reference": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "object": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "counter",
+                            "replica"
+                          ],
+                          "properties": {
+                            "counter": {
+                              "type": "string",
+                              "maxLength": 524288
+                            },
+                            "replica": {
+                              "type": "string",
+                              "maxLength": 524288
+                            }
+                          },
+                          "required": [],
+                          "x-transit-defaults": {
+                            "counter": "0",
+                            "replica": "0"
+                          }
+                        },
+                        "cursor": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 524288
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "reference",
+                        "object"
+                      ],
+                      "x-transit-defaults": {
+                        "cursor": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "resynchronize"
+                  ],
+                  "properties": {
+                    "resynchronize": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "identity",
+                        "replica"
+                      ],
+                      "properties": {
+                        "identity": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "resource",
+                            "document"
+                          ],
+                          "properties": {
+                            "resource": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "document": {
+                              "type": "string",
+                              "maxLength": 524288
+                            }
+                          },
+                          "required": [
+                            "resource",
+                            "document"
+                          ],
+                          "x-transit-defaults": {}
+                        },
+                        "replica": {
+                          "type": "string",
+                          "maxLength": 524288
+                        }
+                      },
+                      "required": [
+                        "identity",
+                        "replica"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "accepted_change"
+                  ],
+                  "properties": {
+                    "accepted_change": {
+                      "type": "string",
+                      "pattern": "^(?:[0-9a-f]{2})*$",
+                      "maxLength": 512,
+                      "x-transit-encoding": "lowercase-hex"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
             "document_codec"
           ],
           "properties": {
@@ -5913,6 +6145,283 @@
                 },
                 "action": {
                   "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "document"
+                      ],
+                      "properties": {
+                        "document": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "create"
+                              ],
+                              "properties": {
+                                "create": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "document",
+                                    "type_revision",
+                                    "record_bytes",
+                                    "staging_bytes",
+                                    "staging_records"
+                                  ],
+                                  "properties": {
+                                    "document": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "type_revision": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 4294967295,
+                                      "x-transit-bits": 32,
+                                      "x-transit-signed": false
+                                    },
+                                    "record_bytes": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 4294967295,
+                                      "x-transit-bits": 32,
+                                      "x-transit-signed": false
+                                    },
+                                    "staging_bytes": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "staging_records": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 4294967295,
+                                      "x-transit-bits": 32,
+                                      "x-transit-signed": false
+                                    }
+                                  },
+                                  "required": [
+                                    "document",
+                                    "type_revision",
+                                    "record_bytes",
+                                    "staging_bytes",
+                                    "staging_records"
+                                  ],
+                                  "x-transit-defaults": {}
+                                }
+                              }
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "stage"
+                              ],
+                              "properties": {
+                                "stage": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "document",
+                                    "job",
+                                    "change",
+                                    "node_limit"
+                                  ],
+                                  "properties": {
+                                    "document": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "job": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "change": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "node_limit": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 4294967295,
+                                      "x-transit-bits": 32,
+                                      "x-transit-signed": false
+                                    }
+                                  },
+                                  "required": [
+                                    "document",
+                                    "job",
+                                    "change",
+                                    "node_limit"
+                                  ],
+                                  "x-transit-defaults": {}
+                                }
+                              }
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "checkpoint"
+                              ],
+                              "properties": {
+                                "checkpoint": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "document",
+                                    "job"
+                                  ],
+                                  "properties": {
+                                    "document": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "job": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    }
+                                  },
+                                  "required": [
+                                    "document",
+                                    "job"
+                                  ],
+                                  "x-transit-defaults": {}
+                                }
+                              }
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "merge_window"
+                              ],
+                              "properties": {
+                                "merge_window": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "document",
+                                    "revisions"
+                                  ],
+                                  "properties": {
+                                    "document": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "revisions": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    }
+                                  },
+                                  "required": [
+                                    "document",
+                                    "revisions"
+                                  ],
+                                  "x-transit-defaults": {}
+                                }
+                              }
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "reject"
+                              ],
+                              "properties": {
+                                "reject": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "document",
+                                    "job",
+                                    "checkpoint"
+                                  ],
+                                  "properties": {
+                                    "document": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "job": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "checkpoint": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "document",
+                                    "job"
+                                  ],
+                                  "x-transit-defaults": {
+                                    "checkpoint": false
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "collect"
+                              ],
+                              "properties": {
+                                "collect": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "document",
+                                    "job",
+                                    "checkpoint",
+                                    "retired"
+                                  ],
+                                  "properties": {
+                                    "document": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "job": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "checkpoint": {
+                                      "type": "boolean"
+                                    },
+                                    "retired": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "document",
+                                    "job"
+                                  ],
+                                  "x-transit-defaults": {
+                                    "checkpoint": false,
+                                    "retired": false
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "retire"
+                              ],
+                              "properties": {
+                                "retire": {
+                                  "type": "string",
+                                  "maxLength": 524288
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    },
                     {
                       "type": "object",
                       "additionalProperties": false,
@@ -8300,6 +8809,283 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "create"
+                  ],
+                  "properties": {
+                    "create": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "document",
+                        "type_revision",
+                        "record_bytes",
+                        "staging_bytes",
+                        "staging_records"
+                      ],
+                      "properties": {
+                        "document": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "type_revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "record_bytes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "staging_bytes": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "staging_records": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "document",
+                        "type_revision",
+                        "record_bytes",
+                        "staging_bytes",
+                        "staging_records"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "stage"
+                  ],
+                  "properties": {
+                    "stage": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "document",
+                        "job",
+                        "change",
+                        "node_limit"
+                      ],
+                      "properties": {
+                        "document": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "job": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "change": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "node_limit": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "document",
+                        "job",
+                        "change",
+                        "node_limit"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "checkpoint"
+                  ],
+                  "properties": {
+                    "checkpoint": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "document",
+                        "job"
+                      ],
+                      "properties": {
+                        "document": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "job": {
+                          "type": "string",
+                          "maxLength": 524288
+                        }
+                      },
+                      "required": [
+                        "document",
+                        "job"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "merge_window"
+                  ],
+                  "properties": {
+                    "merge_window": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "document",
+                        "revisions"
+                      ],
+                      "properties": {
+                        "document": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "revisions": {
+                          "type": "string",
+                          "maxLength": 524288
+                        }
+                      },
+                      "required": [
+                        "document",
+                        "revisions"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "reject"
+                  ],
+                  "properties": {
+                    "reject": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "document",
+                        "job",
+                        "checkpoint"
+                      ],
+                      "properties": {
+                        "document": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "job": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "checkpoint": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "document",
+                        "job"
+                      ],
+                      "x-transit-defaults": {
+                        "checkpoint": false
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "collect"
+                  ],
+                  "properties": {
+                    "collect": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "document",
+                        "job",
+                        "checkpoint",
+                        "retired"
+                      ],
+                      "properties": {
+                        "document": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "job": {
+                          "type": "string",
+                          "maxLength": 524288
+                        },
+                        "checkpoint": {
+                          "type": "boolean"
+                        },
+                        "retired": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "document",
+                        "job"
+                      ],
+                      "x-transit-defaults": {
+                        "checkpoint": false,
+                        "retired": false
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "retire"
+                  ],
+                  "properties": {
+                    "retire": {
+                      "type": "string",
+                      "maxLength": 524288
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
             "budgets"
           ],
           "properties": {
@@ -10279,6 +11065,90 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "none"
+                  ],
+                  "properties": {
+                    "none": {
+                      "type": "object",
+                      "maxProperties": 0
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "progress"
+                  ],
+                  "properties": {
+                    "progress": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "phase",
+                        "revision"
+                      ],
+                      "properties": {
+                        "phase": {
+                          "type": "string",
+                          "enum": [
+                            "progress",
+                            "accepted",
+                            "duplicate",
+                            "checkpoint_complete"
+                          ]
+                        },
+                        "revision": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 524288
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "phase",
+                        "revision"
+                      ],
+                      "x-transit-defaults": {
+                        "revision": null
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "collected"
+                  ],
+                  "properties": {
+                    "collected": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
             "budgets"
           ],
           "properties": {
@@ -11692,6 +12562,11 @@
         "tables",
         "retained_sources",
         "publications",
+        "document_codecs",
+        "document_owner",
+        "document_reads",
+        "document_change_bytes",
+        "document_page_items",
         "grpc_requests",
         "grpc_descriptors",
         "grpc_release",
@@ -11752,6 +12627,29 @@
         },
         "publications": {
           "type": "boolean"
+        },
+        "document_codecs": {
+          "type": "boolean"
+        },
+        "document_owner": {
+          "type": "boolean"
+        },
+        "document_reads": {
+          "type": "boolean"
+        },
+        "document_change_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
+        },
+        "document_page_items": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "x-transit-bits": 32,
+          "x-transit-signed": false
         },
         "grpc_requests": {
           "type": "boolean"
@@ -11909,6 +12807,11 @@
         "tables",
         "retained_sources",
         "publications",
+        "document_codecs",
+        "document_owner",
+        "document_reads",
+        "document_change_bytes",
+        "document_page_items",
         "grpc_requests",
         "grpc_descriptors",
         "grpc_release",
@@ -11947,6 +12850,11 @@
         "tables": true,
         "retained_sources": true,
         "publications": true,
+        "document_codecs": true,
+        "document_owner": true,
+        "document_reads": true,
+        "document_change_bytes": 4096,
+        "document_page_items": 8,
         "grpc_requests": true,
         "grpc_descriptors": true,
         "grpc_release": true,
@@ -15857,6 +16765,1876 @@
                 "revision"
               ],
               "x-transit-defaults": {}
+            }
+          }
+        }
+      ]
+    },
+    "DocumentReadAction": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "describe"
+          ],
+          "properties": {
+            "describe": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "resource",
+                "document"
+              ],
+              "properties": {
+                "resource": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "document": {
+                  "type": "string",
+                  "maxLength": 524288
+                }
+              },
+              "required": [
+                "resource",
+                "document"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "reference",
+                "names"
+              ],
+              "properties": {
+                "reference": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                },
+                "names": {
+                  "type": "array",
+                  "maxItems": 128,
+                  "items": {
+                    "type": "string",
+                    "maxLength": 524288
+                  }
+                }
+              },
+              "required": [
+                "reference",
+                "names"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sequence"
+          ],
+          "properties": {
+            "sequence": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "reference",
+                "object",
+                "cursor"
+              ],
+              "properties": {
+                "reference": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                },
+                "object": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "counter",
+                    "replica"
+                  ],
+                  "properties": {
+                    "counter": {
+                      "type": "string",
+                      "maxLength": 524288
+                    },
+                    "replica": {
+                      "type": "string",
+                      "maxLength": 524288
+                    }
+                  },
+                  "required": [],
+                  "x-transit-defaults": {
+                    "counter": "0",
+                    "replica": "0"
+                  }
+                },
+                "cursor": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 524288
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "reference",
+                "object"
+              ],
+              "x-transit-defaults": {
+                "cursor": null
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "resynchronize"
+          ],
+          "properties": {
+            "resynchronize": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "identity",
+                "replica"
+              ],
+              "properties": {
+                "identity": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "resource",
+                    "document"
+                  ],
+                  "properties": {
+                    "resource": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "document": {
+                      "type": "string",
+                      "maxLength": 524288
+                    }
+                  },
+                  "required": [
+                    "resource",
+                    "document"
+                  ],
+                  "x-transit-defaults": {}
+                },
+                "replica": {
+                  "type": "string",
+                  "maxLength": 524288
+                }
+              },
+              "required": [
+                "identity",
+                "replica"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "accepted_change"
+          ],
+          "properties": {
+            "accepted_change": {
+              "type": "string",
+              "pattern": "^(?:[0-9a-f]{2})*$",
+              "maxLength": 512,
+              "x-transit-encoding": "lowercase-hex"
+            }
+          }
+        }
+      ]
+    },
+    "DocumentReadResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "description"
+          ],
+          "properties": {
+            "description": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "reference",
+                "source_revision",
+                "floor",
+                "merge_window",
+                "retired",
+                "active_job",
+                "change_format"
+              ],
+              "properties": {
+                "reference": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                },
+                "source_revision": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "floor": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "merge_window": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "retired": {
+                  "type": "boolean"
+                },
+                "active_job": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "change_format": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                }
+              },
+              "required": [
+                "reference",
+                "source_revision",
+                "floor",
+                "merge_window",
+                "retired",
+                "active_job",
+                "change_format"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "reference",
+                "source_revision",
+                "value"
+              ],
+              "properties": {
+                "reference": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                },
+                "source_revision": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "value": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "status",
+                    "assignments"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "missing",
+                        "null_value",
+                        "scalar",
+                        "object",
+                        "conflict"
+                      ]
+                    },
+                    "assignments": {
+                      "type": "array",
+                      "maxItems": 128,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "id",
+                          "value"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "x-transit-field-order": [
+                              "counter",
+                              "replica"
+                            ],
+                            "properties": {
+                              "counter": {
+                                "type": "string",
+                                "maxLength": 524288
+                              },
+                              "replica": {
+                                "type": "string",
+                                "maxLength": 524288
+                              }
+                            },
+                            "required": [
+                              "counter",
+                              "replica"
+                            ],
+                            "x-transit-defaults": {
+                              "counter": "0",
+                              "replica": "0"
+                            }
+                          },
+                          "value": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "null_value"
+                                ],
+                                "properties": {
+                                  "null_value": {
+                                    "type": "object",
+                                    "maxProperties": 0
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "boolean"
+                                ],
+                                "properties": {
+                                  "boolean": {
+                                    "type": "boolean"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "signed"
+                                ],
+                                "properties": {
+                                  "signed": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "unsigned"
+                                ],
+                                "properties": {
+                                  "unsigned": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "float_bits"
+                                ],
+                                "properties": {
+                                  "float_bits": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "string"
+                                ],
+                                "properties": {
+                                  "string": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "binary"
+                                ],
+                                "properties": {
+                                  "binary": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "map"
+                                ],
+                                "properties": {
+                                  "map": {
+                                    "type": "object",
+                                    "maxProperties": 0
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "list"
+                                ],
+                                "properties": {
+                                  "list": {
+                                    "type": "object",
+                                    "maxProperties": 0
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "text"
+                                ],
+                                "properties": {
+                                  "text": {
+                                    "type": "object",
+                                    "maxProperties": 0
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "character"
+                                ],
+                                "properties": {
+                                  "character": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "value"
+                        ],
+                        "x-transit-defaults": {}
+                      }
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "assignments"
+                  ],
+                  "x-transit-defaults": {}
+                }
+              },
+              "required": [
+                "reference",
+                "source_revision",
+                "value"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "page"
+          ],
+          "properties": {
+            "page": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "reference",
+                "source_revision",
+                "items",
+                "next"
+              ],
+              "properties": {
+                "reference": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                },
+                "source_revision": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "items": {
+                  "type": "array",
+                  "maxItems": 128,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "id",
+                      "values"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "counter",
+                          "replica"
+                        ],
+                        "properties": {
+                          "counter": {
+                            "type": "string",
+                            "maxLength": 524288
+                          },
+                          "replica": {
+                            "type": "string",
+                            "maxLength": 524288
+                          }
+                        },
+                        "required": [
+                          "counter",
+                          "replica"
+                        ],
+                        "x-transit-defaults": {
+                          "counter": "0",
+                          "replica": "0"
+                        }
+                      },
+                      "values": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "status",
+                          "assignments"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "missing",
+                              "null_value",
+                              "scalar",
+                              "object",
+                              "conflict"
+                            ]
+                          },
+                          "assignments": {
+                            "type": "array",
+                            "maxItems": 128,
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "id",
+                                "value"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "counter",
+                                    "replica"
+                                  ],
+                                  "properties": {
+                                    "counter": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "replica": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    }
+                                  },
+                                  "required": [
+                                    "counter",
+                                    "replica"
+                                  ],
+                                  "x-transit-defaults": {
+                                    "counter": "0",
+                                    "replica": "0"
+                                  }
+                                },
+                                "value": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "null_value"
+                                      ],
+                                      "properties": {
+                                        "null_value": {
+                                          "type": "object",
+                                          "maxProperties": 0
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "boolean"
+                                      ],
+                                      "properties": {
+                                        "boolean": {
+                                          "type": "boolean"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "signed"
+                                      ],
+                                      "properties": {
+                                        "signed": {
+                                          "type": "string",
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "unsigned"
+                                      ],
+                                      "properties": {
+                                        "unsigned": {
+                                          "type": "string",
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "float_bits"
+                                      ],
+                                      "properties": {
+                                        "float_bits": {
+                                          "type": "string",
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "string"
+                                      ],
+                                      "properties": {
+                                        "string": {
+                                          "type": "string",
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "binary"
+                                      ],
+                                      "properties": {
+                                        "binary": {
+                                          "type": "string",
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "map"
+                                      ],
+                                      "properties": {
+                                        "map": {
+                                          "type": "object",
+                                          "maxProperties": 0
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "list"
+                                      ],
+                                      "properties": {
+                                        "list": {
+                                          "type": "object",
+                                          "maxProperties": 0
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "text"
+                                      ],
+                                      "properties": {
+                                        "text": {
+                                          "type": "object",
+                                          "maxProperties": 0
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "required": [
+                                        "character"
+                                      ],
+                                      "properties": {
+                                        "character": {
+                                          "type": "string",
+                                          "maxLength": 524288
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "value"
+                              ],
+                              "x-transit-defaults": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "assignments"
+                        ],
+                        "x-transit-defaults": {}
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "values"
+                    ],
+                    "x-transit-defaults": {}
+                  }
+                },
+                "next": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 524288
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "reference",
+                "source_revision",
+                "items",
+                "next"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "resynchronization"
+          ],
+          "properties": {
+            "resynchronization": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "reference",
+                "floor",
+                "replica",
+                "previous_counter",
+                "clock"
+              ],
+              "properties": {
+                "reference": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2})*$",
+                  "maxLength": 512,
+                  "x-transit-encoding": "lowercase-hex"
+                },
+                "floor": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "replica": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "previous_counter": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "clock": {
+                  "type": "string",
+                  "maxLength": 524288
+                }
+              },
+              "required": [
+                "reference",
+                "floor",
+                "replica",
+                "previous_counter",
+                "clock"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "change"
+          ],
+          "properties": {
+            "change": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "document",
+                "epoch",
+                "type_revision",
+                "replica",
+                "previous",
+                "first",
+                "operations"
+              ],
+              "properties": {
+                "document": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "epoch": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "type_revision": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295,
+                  "x-transit-bits": 32,
+                  "x-transit-signed": false
+                },
+                "replica": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "previous": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "first": {
+                  "type": "string",
+                  "maxLength": 524288
+                },
+                "operations": {
+                  "type": "array",
+                  "maxItems": 128,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "assign"
+                        ],
+                        "properties": {
+                          "assign": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "x-transit-field-order": [
+                              "object",
+                              "field",
+                              "observed",
+                              "value"
+                            ],
+                            "properties": {
+                              "object": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "x-transit-field-order": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "properties": {
+                                  "counter": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  },
+                                  "replica": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                },
+                                "required": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "x-transit-defaults": {
+                                  "counter": "0",
+                                  "replica": "0"
+                                }
+                              },
+                              "field": {
+                                "type": "string",
+                                "maxLength": 524288
+                              },
+                              "observed": {
+                                "type": "array",
+                                "maxItems": 128,
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "counter",
+                                    "replica"
+                                  ],
+                                  "properties": {
+                                    "counter": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "replica": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    }
+                                  },
+                                  "required": [
+                                    "counter",
+                                    "replica"
+                                  ],
+                                  "x-transit-defaults": {
+                                    "counter": "0",
+                                    "replica": "0"
+                                  }
+                                }
+                              },
+                              "value": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "null_value"
+                                    ],
+                                    "properties": {
+                                      "null_value": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "boolean"
+                                    ],
+                                    "properties": {
+                                      "boolean": {
+                                        "type": "boolean"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "signed"
+                                    ],
+                                    "properties": {
+                                      "signed": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "unsigned"
+                                    ],
+                                    "properties": {
+                                      "unsigned": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "float_bits"
+                                    ],
+                                    "properties": {
+                                      "float_bits": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "string"
+                                    ],
+                                    "properties": {
+                                      "string": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "binary"
+                                    ],
+                                    "properties": {
+                                      "binary": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "map"
+                                    ],
+                                    "properties": {
+                                      "map": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "list"
+                                    ],
+                                    "properties": {
+                                      "list": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "text"
+                                    ],
+                                    "properties": {
+                                      "text": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "character"
+                                    ],
+                                    "properties": {
+                                      "character": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "object",
+                              "field",
+                              "observed",
+                              "value"
+                            ],
+                            "x-transit-defaults": {
+                              "object": {
+                                "counter": "0",
+                                "replica": "0"
+                              },
+                              "observed": []
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "remove"
+                        ],
+                        "properties": {
+                          "remove": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "x-transit-field-order": [
+                              "object",
+                              "field",
+                              "observed"
+                            ],
+                            "properties": {
+                              "object": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "x-transit-field-order": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "properties": {
+                                  "counter": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  },
+                                  "replica": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                },
+                                "required": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "x-transit-defaults": {
+                                  "counter": "0",
+                                  "replica": "0"
+                                }
+                              },
+                              "field": {
+                                "type": "string",
+                                "maxLength": 524288
+                              },
+                              "observed": {
+                                "type": "array",
+                                "maxItems": 128,
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "counter",
+                                    "replica"
+                                  ],
+                                  "properties": {
+                                    "counter": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "replica": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    }
+                                  },
+                                  "required": [
+                                    "counter",
+                                    "replica"
+                                  ],
+                                  "x-transit-defaults": {
+                                    "counter": "0",
+                                    "replica": "0"
+                                  }
+                                }
+                              }
+                            },
+                            "required": [
+                              "object",
+                              "field",
+                              "observed"
+                            ],
+                            "x-transit-defaults": {
+                              "object": {
+                                "counter": "0",
+                                "replica": "0"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "insert"
+                        ],
+                        "properties": {
+                          "insert": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "x-transit-field-order": [
+                              "object",
+                              "after",
+                              "value"
+                            ],
+                            "properties": {
+                              "object": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "x-transit-field-order": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "properties": {
+                                  "counter": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  },
+                                  "replica": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                },
+                                "required": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "x-transit-defaults": {
+                                  "counter": "0",
+                                  "replica": "0"
+                                }
+                              },
+                              "after": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "x-transit-field-order": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "properties": {
+                                  "counter": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  },
+                                  "replica": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                },
+                                "required": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "x-transit-defaults": {
+                                  "counter": "0",
+                                  "replica": "0"
+                                }
+                              },
+                              "value": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "null_value"
+                                    ],
+                                    "properties": {
+                                      "null_value": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "boolean"
+                                    ],
+                                    "properties": {
+                                      "boolean": {
+                                        "type": "boolean"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "signed"
+                                    ],
+                                    "properties": {
+                                      "signed": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "unsigned"
+                                    ],
+                                    "properties": {
+                                      "unsigned": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "float_bits"
+                                    ],
+                                    "properties": {
+                                      "float_bits": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "string"
+                                    ],
+                                    "properties": {
+                                      "string": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "binary"
+                                    ],
+                                    "properties": {
+                                      "binary": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "map"
+                                    ],
+                                    "properties": {
+                                      "map": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "list"
+                                    ],
+                                    "properties": {
+                                      "list": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "text"
+                                    ],
+                                    "properties": {
+                                      "text": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "character"
+                                    ],
+                                    "properties": {
+                                      "character": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "object",
+                              "after",
+                              "value"
+                            ],
+                            "x-transit-defaults": {
+                              "after": {
+                                "counter": "0",
+                                "replica": "0"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "set_element"
+                        ],
+                        "properties": {
+                          "set_element": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "x-transit-field-order": [
+                              "object",
+                              "element",
+                              "observed",
+                              "value"
+                            ],
+                            "properties": {
+                              "object": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "x-transit-field-order": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "properties": {
+                                  "counter": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  },
+                                  "replica": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                },
+                                "required": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "x-transit-defaults": {
+                                  "counter": "0",
+                                  "replica": "0"
+                                }
+                              },
+                              "element": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "x-transit-field-order": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "properties": {
+                                  "counter": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  },
+                                  "replica": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                },
+                                "required": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "x-transit-defaults": {
+                                  "counter": "0",
+                                  "replica": "0"
+                                }
+                              },
+                              "observed": {
+                                "type": "array",
+                                "maxItems": 128,
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "counter",
+                                    "replica"
+                                  ],
+                                  "properties": {
+                                    "counter": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    },
+                                    "replica": {
+                                      "type": "string",
+                                      "maxLength": 524288
+                                    }
+                                  },
+                                  "required": [
+                                    "counter",
+                                    "replica"
+                                  ],
+                                  "x-transit-defaults": {
+                                    "counter": "0",
+                                    "replica": "0"
+                                  }
+                                }
+                              },
+                              "value": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "null_value"
+                                    ],
+                                    "properties": {
+                                      "null_value": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "boolean"
+                                    ],
+                                    "properties": {
+                                      "boolean": {
+                                        "type": "boolean"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "signed"
+                                    ],
+                                    "properties": {
+                                      "signed": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "unsigned"
+                                    ],
+                                    "properties": {
+                                      "unsigned": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "float_bits"
+                                    ],
+                                    "properties": {
+                                      "float_bits": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "string"
+                                    ],
+                                    "properties": {
+                                      "string": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "binary"
+                                    ],
+                                    "properties": {
+                                      "binary": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "map"
+                                    ],
+                                    "properties": {
+                                      "map": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "list"
+                                    ],
+                                    "properties": {
+                                      "list": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "text"
+                                    ],
+                                    "properties": {
+                                      "text": {
+                                        "type": "object",
+                                        "maxProperties": 0
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "character"
+                                    ],
+                                    "properties": {
+                                      "character": {
+                                        "type": "string",
+                                        "maxLength": 524288
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "object",
+                              "element",
+                              "observed",
+                              "value"
+                            ],
+                            "x-transit-defaults": {}
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "delete_element"
+                        ],
+                        "properties": {
+                          "delete_element": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "x-transit-field-order": [
+                              "object",
+                              "element"
+                            ],
+                            "properties": {
+                              "object": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "x-transit-field-order": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "properties": {
+                                  "counter": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  },
+                                  "replica": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                },
+                                "required": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "x-transit-defaults": {
+                                  "counter": "0",
+                                  "replica": "0"
+                                }
+                              },
+                              "element": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "x-transit-field-order": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "properties": {
+                                  "counter": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  },
+                                  "replica": {
+                                    "type": "string",
+                                    "maxLength": 524288
+                                  }
+                                },
+                                "required": [
+                                  "counter",
+                                  "replica"
+                                ],
+                                "x-transit-defaults": {
+                                  "counter": "0",
+                                  "replica": "0"
+                                }
+                              }
+                            },
+                            "required": [
+                              "object",
+                              "element"
+                            ],
+                            "x-transit-defaults": {}
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "document",
+                "epoch",
+                "type_revision",
+                "replica",
+                "previous",
+                "first",
+                "operations"
+              ],
+              "x-transit-defaults": {
+                "type_revision": 1,
+                "previous": "0"
+              }
             }
           }
         }

@@ -306,3 +306,34 @@ The generated schemas and pure native/port fixtures cover binary/Unicode message
 empty messages, duplicate/binary metadata, full-width identities and malformed
 records. Allocation-failure units exercise both protocol readers. Public language
 conveniences and installed RPC caller qualification are tracked separately in M16.
+
+## Document owner operations and current-policy reads
+
+M17 adds `station_document_codec`, scoped `document` actions, and
+`station_growing_document_read` (with corresponding port requests). All return
+owned buffers; language adapters decode them before releasing the native buffer.
+The generated schemas specify the exact host representation. Full-width Document
+identities and counters use canonical decimal strings; resource identities retain
+the protocol's safe-integer bound. Finite float64 uses little-endian IEEE bytes,
+including negative zero, and character values contain one Unicode scalar.
+
+`document.create` fixes explicit quotas. `document.stage` takes the same canonical
+change and permanent job ID on every call, performing one bounded preparation,
+upload or materialization step. Progress, accepted and duplicate results are
+private proposals until the enclosing Station turn commits. Changed bytes under
+the same job reject, including after host replacement. Stage never loops to
+completion, submits implicitly or stores authoritative job state in a host field.
+Checkpoint, explicit merge-window configuration, rejection, retirement and bounded
+collection use the same scoped turn gate. Publication and ordinary mutation limits
+are unchanged. Authenticate application routing before invoking writer operations;
+these primitives do not add a public remote Document service protocol.
+
+Reads are available outside a handler or pending mutation. They use the handle's
+principal and current resource permissions independently of execution ownership.
+Each path/page names an exact SDR1 accepted revision and the fresh resource cut
+where its availability was checked. Cursors bind that reference and sequence
+object; empty continuation pages are not EOF. Missing, null, conflict and type
+failure remain distinct. No whole Document, retained permission or hidden cursor
+lives in the native handle. Resynchronization returns accepted replica/clock facts
+without replaying tentative changes. Runner destruction must join in-flight reads,
+and local cancellation never retires the durable Document.

@@ -5,6 +5,9 @@ internal sealed class NativeApi {
     internal const uint Version = 1;
     internal const int MinimumStackBytes = 8388608;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate uint station_growing_document_readDelegate(IntPtr arg0, [In] byte[] arg1, nuint arg2, out IntPtr arg3);
+    internal readonly station_growing_document_readDelegate station_growing_document_read;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint station_document_codecDelegate([In] byte[] arg0, nuint arg1, out IntPtr arg2);
     internal readonly station_document_codecDelegate station_document_codec;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -95,6 +98,7 @@ internal sealed class NativeApi {
     internal delegate void station_buffer_destroyDelegate(IntPtr arg0);
     internal readonly station_buffer_destroyDelegate station_buffer_destroy;
     internal NativeApi(IntPtr library) {
+        station_growing_document_read = Marshal.GetDelegateForFunctionPointer<station_growing_document_readDelegate>(NativeLibrary.GetExport(library, "station_growing_document_read"));
         station_document_codec = Marshal.GetDelegateForFunctionPointer<station_document_codecDelegate>(NativeLibrary.GetExport(library, "station_document_codec"));
         station_grpc_codec = Marshal.GetDelegateForFunctionPointer<station_grpc_codecDelegate>(NativeLibrary.GetExport(library, "station_grpc_codec"));
         station_growing_grpc_read = Marshal.GetDelegateForFunctionPointer<station_growing_grpc_readDelegate>(NativeLibrary.GetExport(library, "station_growing_grpc_read"));

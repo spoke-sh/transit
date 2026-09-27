@@ -33,6 +33,16 @@ library and port host, including invalid/truncated/canonical-identity checks.
 all generated declarations against the public Zig types. Public SDKs, Board and
 local/Compose/reference example qualification remain in progress; the disk proof does not establish those surfaces.
 
+`just bindings::document-native` passes in **181.23 seconds** over disk Ursula.
+It uses 140 bounded scoped turns through the real native library and port host,
+replaces the host mid-upload with fresh ownership, refuses changed job content
+without consuming private mutation budget, preserves old accepted values across
+new resource cuts, and exposes conflicts/text through a separate read-only
+principal. It rejects reads after prefix revocation and Document retirement.
+The bridge's eight component tests pass in **15 ms / 8 MiB peak RSS**; `just check`
+also passes after generated schema/native additions. Public SDK evidence follows
+separately; no remote Document service protocol is claimed by this bridge proof.
+
 ## M16 finite connector qualification
 
 `just test::unit` runs the new RPC request codec against a Python-generated
