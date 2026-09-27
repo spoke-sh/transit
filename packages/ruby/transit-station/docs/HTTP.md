@@ -64,4 +64,13 @@ exchange too. Duplicates remain safe after worker restart and cleanup. No
 transcript read grant is required: the service checks the recorded holder and
 current admission policy. Release does not cancel remote work, retire the capture
 or clean up its members. The finite worker handles it in a fresh `poll` activation.
-Public followup helpers remain M15 work.
+
+`turn.followup_http(connector, parent_outcome, :retry, request)` records a new
+durable call for an explicit linked attempt. Reasons are `:retry`, `:redirect`,
+`:reconcile` or `:cancel`; other values reject. Publish the proposed request in the
+current associated resource first, preserving the original deadline and total
+attempt budget. Save the returned correlation and authenticate its `HttpOutcome`
+or `HttpRejected`. The service checks the original caller, current scope and
+frozen parent policy before allocating a child. The helper performs no automatic
+retry or retry-safety inference. Select a fresh child exchange and matching
+parent/reason on the finite worker. The parent outcome remains unchanged.

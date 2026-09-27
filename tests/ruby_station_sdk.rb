@@ -163,15 +163,23 @@ class HttpBytes
 end
 class HttpHandler < S::Handler
   attr_reader :result, :escaped
-  def initialize(peer, request, disposal)
-    @peer, @request, @disposal = peer, request, disposal
+  def initialize(peer, request, disposal, followup_reason)
+    @peer, @request, @disposal, @followup_reason = peer, request, disposal, followup_reason
     @correlation = S::Key.new('http-correlation'.b, codec: E::U64)
     @release_correlation = S::Key.new('http-release-correlation'.b, codec: E::U64)
+    @followup_correlation = S::Key.new('http-followup-correlation'.b, codec: E::U64)
   end
   def on_message(turn, input)
     @escaped = turn
     if input.is_a?(S::Cast)
-      if input.value == 'dispose'.b
+      if input.value == 'followup'.b
+        wrong = @disposal.with(resource: ResourceRef.new(realm: 73, resource: @disposal.resource.resource))
+        expect(ArgumentError) { turn.followup_http(@peer, wrong, @followup_reason, @request) }
+        expect(ArgumentError) { turn.followup_http(@peer, @disposal, :automatic, @request) }
+        correlation = turn.followup_http(@peer, @disposal, @followup_reason, @request)
+        turn.state.put(@followup_correlation, correlation)
+        @result = { followup: false }
+      elsif input.value == 'dispose'.b
         expect(ArgumentError) { turn.release_http(@peer, ResourceRef.new(realm: 73, resource: @disposal.resource.resource), @disposal.exchange) }
         correlation = turn.release_http(@peer, @disposal.resource, @disposal.exchange)
         turn.state.put(@release_correlation, correlation)
@@ -185,6 +193,14 @@ class HttpHandler < S::Handler
       else @result = { called: false }
       end
     else
+      if input.is_a?(S::Reply) && input.value.is_a?(S::HttpRejected)
+        correlation = turn.state.require(@followup_correlation)
+        turn.require_reply(input, peer: @peer, correlation: correlation)
+        check input.value.reason == :denied
+        turn.state.put(S::Key.new('http-followup-denied'.b, codec: E::U64), correlation)
+        @result = { followup: true }
+        return
+      end
       if input.is_a?(S::Reply) && input.value.is_a?(S::HttpReleased)
         turn.require_reply(input, peer: @peer, correlation: turn.state.require(@release_correlation))
         check input.value.resource == @disposal.resource && input.value.exchange == @disposal.exchange
@@ -214,7 +230,7 @@ def http_consumer(mode, cfg)
     activation: S::Activation.new(process: ProcessRef.new(realm: 72, pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
       credential: Credential.new(realm: 72, principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))
   disposal = cfg['outcome'] && S.decode_http_reply(72, [cfg['outcome']].pack('H*'))
-  handler = HttpHandler.new(ProcessRef.new(realm: 72, pid: cfg.fetch('peer')), request, disposal)
+  handler = HttpHandler.new(ProcessRef.new(realm: 72, pid: cfg.fetch('peer')), request, disposal, cfg.fetch('followup_reason', 'retry').to_sym)
   owned = ''.b
   S::Runner.open(config, handler: handler, codec: S::HttpReplyCodec.new(HttpBytes.new, realm: 72), failure: :stop, recovery: :fence_on_restart) do |runner|
     if mode == 'http-async'
@@ -264,6 +280,7 @@ def http_consumer(mode, cfg)
         check committed
         expect(TurnExpired) { handler.escaped.stage_http(request) }
         expect(TurnExpired) { handler.escaped.release_http(ProcessRef.new(realm: 72, pid: cfg.fetch('peer')), request.resource, 1) }
+        expect(TurnExpired) { handler.escaped.followup_http(ProcessRef.new(realm: 72, pid: cfg.fetch('peer')), disposal, :retry, request) }
         report(handler.result)
       when 'open'
         outcome = S.decode_http_reply(72, [cfg.fetch('outcome')].pack('H*'))

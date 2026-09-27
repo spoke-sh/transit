@@ -113,6 +113,9 @@ dispatch belongs to the independent Zig worker proof above.
 Rust's typed followup method passes the same installed schedule in 95.12 seconds
 including clean compilation; borrowed turn/request ownership remains enforced by
 its existing compiler rejection checks.
+Ruby passes all four followup symbols, runtime invalid-symbol/cross-realm/expired
+turn refusal, authenticated rejection and its previous lifecycle checks in
+65.47 seconds for the HTTP schedule.
 The shared `http_stage` helper freezes namespace ownership and advances one
 publication step per turn. Its disk/native proof replaces the host and owner
 after a committed metadata prefix, rejects a changed endpoint revision without

@@ -155,6 +155,16 @@ module Transit
         Value.wide(apply_native({ 'http_release' => { 'pid' => pid, 'resource' => resource.resource,
           'exchange' => Internal.integer(exchange, max: U64_MAX).to_s } }).fetch('correlation'), min: 1)
       end
+      def followup_http(peer, parent, reason, request)
+        pid = peer_id(peer)
+        http_request!(request)
+        raise ArgumentError, 'HTTP parent must belong to the current realm' unless parent.is_a?(HttpOutcome) && parent.resource.realm == resource.realm
+        raise ArgumentError, 'Expected an HTTP followup reason' unless %i[retry redirect reconcile cancel].include?(reason)
+        raise UnsupportedCapability, 'Native HTTP followup unavailable' unless caps['http_followup']
+        Value.wide(apply_native({ 'http_followup' => { 'pid' => pid, 'resource' => parent.resource.resource,
+          'parent' => Internal.integer(parent.exchange, max: U64_MAX).to_s, 'reason' => reason.to_s,
+          'reference' => request.reference.unpack1('H*') } }).fetch('correlation'), min: 1)
+      end
       def open_version(identity)
         check!
         Value.version_wire(identity)
