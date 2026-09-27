@@ -13,6 +13,10 @@ final class Bridge implements Worker.State<Void> {
     final Port port;
     final JsonObject caps;
     static Bridge local(Path nativeHost) { return new Bridge(obj("local_codec", true), nativeHost); }
+    static Bridge query(ClientConfig client, Credential credential, UnifiedQuery.Connection connection) {
+        return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
+            "query_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
+    }
     static Bridge open(ServiceConfig config, FailurePolicy failure) {
         Activation activation = config.activation(); ClientConfig client = config.client();
         Bridge bridge = new Bridge(obj("url", client.endpoint().toString(), "seed_file", activation.credential().seedFile().toString(), "timeout_ms", client.timeoutMillis(),
@@ -71,6 +75,13 @@ final class Bridge implements Worker.State<Void> {
     JsonObject documentRead(JsonObject action) {
         httpCapability("document_reads");
         return object(port.request(obj("growing_document_read", action), "document-read", false, "DocumentReadResult"));
+    }
+    JsonObject unifiedCodec(JsonObject action) {
+        httpCapability("unified_query_codecs");
+        return object(port.request(obj("unified_query_codec", action), "unified-query-codec", false, "UnifiedQueryCodecResult"));
+    }
+    JsonObject unifiedQuery(JsonObject action, boolean mutation) {
+        return object(port.request(obj("unified_query", action), "unified-query", mutation, "UnifiedQueryResult"));
     }
     JsonObject prepare() { return object(port.request(obj("growing_prepare", System.currentTimeMillis() + 30_000), "prepare-turn", false, "GrowingEvent")); }
     JsonObject apply(long scope, JsonObject action) {

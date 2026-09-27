@@ -231,20 +231,29 @@ document-beam: beam-build
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build
     mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
-    zig build test-unified-query -Dunified-sdk=python -Dunified-source={{source}}
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=python -Dunified-source={{source}}
 
 # Installed TypeScript unified API, runtime schemas, Arrow and signed recovery.
 unified-node source="table": node-build
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    zig build test-unified-query -Dunified-sdk=node -Dunified-source={{source}}
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=node -Dunified-source={{source}}
 
 # Installed Ruby unified API with immutable values and joined query ownership.
 unified-ruby source="kv": ruby-build
     ruby -c packages/ruby/transit-station/lib/transit/station/unified.rb
-    zig build test-unified-query -Dunified-sdk=ruby -Dunified-source={{source}}
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=ruby -Dunified-source={{source}}
 
 # Installed Rust unified API, exclusive borrows, Arrow and signed recovery.
 unified-rust source="table": rust-build
     cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
-    zig build test-unified-query -Dunified-sdk=rust -Dunified-source={{source}}
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=rust -Dunified-source={{source}}
+
+# Installed C11 and C++17 unified-query callers; each runs the signed schedule.
+unified-c source="kv": c-build
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=c -Dunified-source={{source}}
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=cpp -Dunified-source={{source}}
+
+# Java 21 typed unified-query futures and joined native port.
+unified-java source="table": java-build
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=java -Dunified-source={{source}}

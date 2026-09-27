@@ -58,10 +58,11 @@ def serve(config)
   else Q::DocumentSource.new(reference: Transit::Station::DocumentReference.new(resource: resource, document: 17, epoch: 1, type_revision: 1, revision: 13), expand: ['items'], projections: [
     Q::Projection.new(column: Q::Column.new(name: 'value', type: :utf8), relative: true),
     Q::Projection.new(column: Q::Column.new(name: 'counter', type: :uint64), relative: true, mode: :element_counter),
-    Q::Projection.new(column: Q::Column.new(name: 'replica', type: :uint64), relative: true, mode: :element_replica)])
+    Q::Projection.new(column: Q::Column.new(name: 'replica', type: :uint64), relative: true, mode: :element_replica),
+    Q::Projection.new(column: Q::Column.new(name: 'optional', type: :utf8), path: ['optional'])])
   end
   doc = config.fetch('kind') == 'document'
-  bundle = Q::Bundle.prepare(source, Q::Plan.new(projection: doc ? [0, 1, 2] : [1], predicate:
+  bundle = Q::Bundle.prepare(source, Q::Plan.new(projection: doc ? [0, 1, 2, 3] : [1], predicate:
     Q::Compare.new(column: doc ? 0 : 1, comparison: :ne, value: Q::Scalar.new(type: :utf8, value: 'x'*512))), Q::Budgets.new(pages: 1000, segments: 100, result_bytes: 1048576))
   check(bundle.data == File.binread(config.fetch('bundle')))
   cfg = Transit::ClientConfig.new(url: config.fetch('url'), profile: :growing_v3, timeout_ms: 10000)

@@ -26,3 +26,6 @@ descriptor binding, binary metadata and observed status zero.
 
 M17 adds [immutable Document changes and asynchronous authorized reads](docs/DOCUMENTS.md)
 with scoped publication and explicit Unicode scalar identities.
+
+M18 adds [typed unified queries](docs/UNIFIED_QUERY.md) with immutable nested
+Arrow values, bounded futures and explicit signed retry tokens.

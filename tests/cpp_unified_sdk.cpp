@@ -1,0 +1,86 @@
+#include <transit/unified_query.hpp>
+#include <cassert>
+#include <cmath>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+using namespace transit::sdk;
+using namespace transit::sdk::station;
+namespace q = transit::sdk::station::unified;
+static Bytes read(const std::string &path) { std::ifstream in(path,std::ios::binary); assert(in); return Bytes(std::istreambuf_iterator<char>(in),{}); }
+static std::string hex(const Bytes &v) { const char *digits="0123456789abcdef"; std::string out; for(uint8_t b:v) { out+=digits[b>>4]; out+=digits[b&15]; } return out; }
+static Bytes unhex(const std::string &s) { if(s=="-")return {}; assert(s.size()%2==0); Bytes out; for(size_t i=0;i<s.size();i+=2)out.push_back(static_cast<uint8_t>(std::stoul(s.substr(i,2),nullptr,16))); return out; }
+static std::string maybe_hex(const std::optional<q::Prepared> &v) { return v?"\""+hex(v->data())+"\"":"null"; }
+static q::Source source(ResourceRef resource,int kind,bool golden) {
+    if(kind==0)return q::KvSource{resource,golden?Bytes{'d','a','t','a','/'}:Bytes{'k'},{q::Type::Binary},{golden?q::Type::UInt64:q::Type::Utf8}};
+    if(kind==1)return q::TableSource{resource,static_cast<uint32_t>(golden?9:1),{"id",golden?"label":"value"},q::Type::Utf8};
+    if(golden)return q::DocumentSource{{resource,UINT64_MAX,3,1,42},{{{"title",q::Type::Utf8},{"title"}},{{"body",q::Type::Utf8},{"body"},false,q::ProjectionMode::Text}},std::nullopt};
+    return q::DocumentSource{{resource,17,1,1,13},{
+        {{"value",q::Type::Utf8},{},true},{{"counter",q::Type::UInt64},{},true,q::ProjectionMode::ElementCounter},
+        {{"replica",q::Type::UInt64},{},true,q::ProjectionMode::ElementReplica},{{"optional",q::Type::Utf8},{"optional"}}},std::vector<std::string>{"items"}};
+}
+static q::Bundle bundle(const q::Source &source,int kind,bool golden) {
+    return q::prepare(source,{golden?std::vector<uint8_t>{1,0}:kind==2?std::vector<uint8_t>{0,1,2,3}:std::vector<uint8_t>{1},
+        q::Compare{static_cast<uint8_t>(golden?1:kind==2?0:1),Comparison::Ne,golden&&kind==0?q::Scalar{uint64_t{UINT64_MAX}}:q::Scalar{std::string(512,'x')}},
+        Aggregate::Rows,golden?std::optional<uint64_t>{UINT64_MAX}:std::nullopt},{1000,static_cast<uint64_t>(golden?500:100),1048576});
+}
+static void codecs(const std::string &root) {
+    for(int kind=0;kind<3;++kind) { auto b=bundle(source(ResourceRef(46,7),kind,true),kind,true); assert(b.data()==read(root+"/bundle"+std::to_string(kind)+".bin")); }
+    const std::vector<q::Column> columns{{"int64",q::Type::Int64},{"uint64",q::Type::UInt64},{"float64",q::Type::Float64},{"boolean",q::Type::Boolean},{"utf8",q::Type::Utf8},{"binary",q::Type::Binary}};
+    auto ipc=read(root+"/arrow.ipc"); const auto rows=q::decode_arrow(columns,ipc,5); std::fill(ipc.begin(),ipc.end(),0);
+    const std::array<q::Scalar,6> expected{int64_t{INT64_MIN},uint64_t{UINT64_MAX},-0.0,false,std::string("café é 東京🙂"),Bytes{0,255,128}};
+    for(size_t row=0;row<5;++row)for(size_t col=0;col<6;++col) {
+        const auto &cell=rows.at(row).at(col); assert(cell.index()==row);
+        if(row==2)assert(std::get<q::TypeError>(cell).actual_kind=="map");
+        if(row==3)assert(std::get<q::Scalar>(cell)==expected[col]);
+        if(row==4) { const auto &a=std::get<q::Conflict>(cell).alternatives; assert(a.size()==2 && a[0].counter==UINT64_MAX && a[0].replica==1 && a[1].counter==UINT64_MAX && a[1].replica==2); assert(std::get<q::Scalar>(a[0].value)==expected[col] && std::holds_alternative<q::Null>(a[1].value)); }
+    }
+    assert(std::signbit(std::get<double>(std::get<q::Scalar>(rows[3][2]))));
+    assert(q::decode_arrow(columns,read(root+"/empty.ipc"),0).empty());
+    bool rejected=false; try { q::decode_arrow(columns,read(root+"/malformed.ipc"),5); }catch(const Error &) { rejected=true; } assert(rejected);
+    std::cout<<"C++ installed unified codecs: three sources, six types, five states, owned values and malformed rejection passed"<<std::endl;
+}
+static void serve(char **args) {
+    const auto realm=std::stoull(args[6]); const ResourceRef resource(realm,std::stoull(args[9]));
+    const q::Connection connection{ProcessRef(realm,std::stoull(args[8])),resource,ProcessRef(realm,std::stoull(args[10])),ResourceRef(realm,std::stoull(args[11]))};
+    const int kind=std::string(args[4])=="kv"?0:std::string(args[4])=="table"?1:2;
+    const auto definition=source(resource,kind,false); assert(bundle(definition,kind,false).data()==read(args[5]));
+    std::optional<q::Client> owner(q::Client::open(ClientConfig::growing(args[2]).timeout(10000),Credential(realm,std::stoull(args[7]),args[3]),connection));
+    auto &client=*owner; const auto description=client.describe(definition); assert(description.bundle_bytes==16384&&description.batch_rows==8);
+    std::optional<q::Page> saved; std::cout<<"{\"ready\":true}"<<std::endl;
+    std::string line;
+    while(std::getline(std::cin,line)) {
+        std::istringstream input(line); std::string command,arg,token; input>>command>>arg>>token;
+        if(command=="close")break;
+        try {
+            std::string result;
+            if(command=="next")result="{\"prepared_hex\":"+maybe_hex(client.prepare_next(std::stoull(arg),q::Bundle::recover(unhex(token))))+"}";
+            else if(command=="submit") {
+                const auto bytes=unhex(arg); auto prepared=q::Prepared::recover(bytes);
+                try { result="{\"receipt\":{\"position\":"+std::to_string(client.submit(prepared).position)+"}}"; }
+                catch(const Error &) { assert(prepared.data()==bytes); throw; }
+            }else if(command=="observe") {
+                const auto v=client.observe(std::stoull(arg)); const char *names[]={"pending","committed","rejected"};
+                result=std::string("{\"observation\":{\"")+names[static_cast<size_t>(v.state)]+"\":"+(v.state==q::Observed::Rejected?"\""+hex(Bytes(v.reason.begin(),v.reason.end()))+"\"":"{}")+"}}";
+            }else if(command=="status") {
+                const auto v=client.status(std::stoull(arg)); const char *names[]={"uploading","sealed","admitted","complete","cancelled","denied","rejected","retired"};
+                result=std::string("{\"status\":")+(v?"{\"phase\":\""+std::string(names[static_cast<size_t>(v->phase)])+"\",\"correlation\":\""+std::to_string(v->correlation)+"\"}":"null")+"}";
+            }else {
+                assert(command=="page"); std::optional<q::Cursor> cursor; if(token!="-")cursor.emplace(q::Cursor::recover(unhex(token)));
+                auto page=client.page(std::stoull(arg),cursor?&*cursor:nullptr);
+                assert(page.manifest.source_kind==static_cast<transit_station_unified_source_kind>(kind) && page.manifest.resource.resource==resource.resource()); assert(page.decode().size()==page.rows);
+                result="{\"page\":{\"ordinal\":\""+std::to_string(page.ordinal)+"\",\"ipc\":\""+hex(page.ipc)+"\",\"manifest\":{\"segments\":\""+std::to_string(page.manifest.segments)+"\"},\"next_hex\":"+(page.next?"\""+hex(page.next->data())+"\"":"null")+"}}";
+                saved=std::move(page);
+            }
+            std::cout<<"{\"status\":0,\"value\":"<<result<<"}"<<std::endl;
+        }catch(const Error &error) { const auto &e=error.detail(); assert(e.has_native_status); std::cout<<"{\"status\":"<<e.native_status<<",\"value\":{\"err\":\""<<e.code<<"\"}}"<<std::endl; }
+    }
+    client.close(); bool closed=false; try { client.describe(definition); }catch(const Error &e) { closed=e.detail().kind==TRANSIT_SDK_CLOSED; } assert(closed); owner.reset();
+    if(saved)assert(saved->decode().size()==saved->rows);
+    std::cout<<"{\"closed\":true}"<<std::endl;
+}
+int main(int argc,char **argv) {
+    assert(argc>=3);
+    try { if(std::string(argv[1])=="codecs")codecs(argv[2]);else { assert(argc==12); serve(argv); } }
+    catch(const Error &e) { std::cerr<<e.what()<<" status="<<e.detail().native_status<<" code="<<e.detail().code<<std::endl; return 1; }
+}

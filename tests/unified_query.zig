@@ -10,10 +10,12 @@ const document_count = 12;
 const budgets: q.Bundle.Limits = .{ .pages = 1000, .segments = 100, .result_bytes = 1048576 };
 const Config = struct { url: []const u8, connection: q.UnifiedClient.Connection, kind: Kind };
 const path = [_]q.document.Model.Name{q.document.Model.Name.init("items") catch unreachable};
+const optional_path = [_]q.document.Model.Name{q.document.Model.Name.init("optional") catch unreachable};
 const projections = [_]q.SourceDefinition.Projection{
     .{ .column = .{ .name = q.fuze.Unified.Name.init("value") catch unreachable, .type = .utf8 }, .path = &.{}, .relative = true },
     .{ .column = .{ .name = q.fuze.Unified.Name.init("counter") catch unreachable, .type = .uint64 }, .path = &.{}, .relative = true, .mode = .element_counter },
     .{ .column = .{ .name = q.fuze.Unified.Name.init("replica") catch unreachable, .type = .uint64 }, .path = &.{}, .relative = true, .mode = .element_replica },
+    .{ .column = .{ .name = q.fuze.Unified.Name.init("optional") catch unreachable, .type = .utf8 }, .path = &optional_path },
 };
 fn definition(kind: Kind, resource: u64) !q.SourceDefinition {
     return .{ .resource = resource, .source = switch (kind) {
@@ -24,7 +26,7 @@ fn definition(kind: Kind, resource: u64) !q.SourceDefinition {
 }
 fn bundle(config: Config) !q.Bundle {
     const selected: u8 = if (config.kind == .document) 0 else 1;
-    return .{ .source = try definition(config.kind, config.connection.resource), .plan = .{ .projection = if (config.kind == .document) &.{ 0, 1, 2 } else &.{1}, .predicate = .{ .compare = .{ .column = selected, .op = .ne, .value = .{ .utf8 = &@as([512]u8, @splat('x')) } } } }, .limits = budgets };
+    return .{ .source = try definition(config.kind, config.connection.resource), .plan = .{ .projection = if (config.kind == .document) &.{ 0, 1, 2, 3 } else &.{1}, .predicate = .{ .compare = .{ .column = selected, .op = .ne, .value = .{ .utf8 = &@as([512]u8, @splat('x')) } } } }, .limits = budgets };
 }
 fn value(index: usize, buffer: []u8, padding: usize) ![]const u8 {
     const bytes: [128]u8 = @splat('x');

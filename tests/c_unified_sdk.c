@@ -1,0 +1,134 @@
+/* Installed C11 consumer. Only public SDK operations cross the native boundary. */
+#include <transit/unified_query.h>
+#include <assert.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static void checked(transit_sdk_error error) {
+    if(error.kind) { fprintf(stderr,"C query error kind=%d status=%u phase=%s code=%s\n",error.kind,error.native_status,error.phase,error.code); abort(); }
+}
+static transit_sdk_bytes bytes(const char *s) { return (transit_sdk_bytes){(const uint8_t *)s,strlen(s)}; }
+static transit_sdk_bytes file_bytes(const char *path) {
+    FILE *file=fopen(path,"rb"); assert(file); assert(!fseek(file,0,SEEK_END)); long n=ftell(file); assert(n>=0 && n<=65536); rewind(file);
+    uint8_t *data=malloc((size_t)n+1); assert(data); assert(fread(data,1,(size_t)n,file)==(size_t)n); fclose(file);
+    return (transit_sdk_bytes){data,(size_t)n};
+}
+static transit_sdk_bytes fixture(const char *root,const char *name) { char path[4096]; assert(snprintf(path,sizeof(path),"%s/%s",root,name)>0); return file_bytes(path); }
+static int digit(char c) { if(c>='0'&&c<='9')return c-'0'; if(c>='a'&&c<='f')return c-'a'+10; abort(); }
+static transit_sdk_bytes unhex(const char *text) {
+    if(!strcmp(text,"-")) return (transit_sdk_bytes){0};
+    size_t n=strlen(text); assert(!(n%2)); uint8_t *data=malloc(n/2+1); assert(data);
+    for(size_t i=0;i<n/2;++i)data[i]=(uint8_t)(digit(text[2*i])*16+digit(text[2*i+1]));
+    return (transit_sdk_bytes){data,n/2};
+}
+static void print_hex(transit_sdk_bytes v) { for(size_t i=0;i<v.size;++i)printf("%02x",v.data[i]); }
+static void equal(transit_sdk_bytes a,transit_sdk_bytes b) { assert(a.size==b.size && (!a.size || !memcmp(a.data,b.data,a.size))); }
+typedef struct definition { transit_station_unified_source source; transit_station_unified_projection projections[4]; } definition;
+static definition source(transit_sdk_resource resource,int kind,bool golden) {
+    definition d={0}; d.source.resource=resource; d.source.kind=(transit_station_unified_source_kind)kind;
+    if(kind==0) { d.source.source.kv.prefix=bytes(golden?"data/":"k"); d.source.source.kv.key=(transit_station_unified_decoder){1,TRANSIT_UNIFIED_BINARY}; d.source.source.kv.value=(transit_station_unified_decoder){1,golden?TRANSIT_UNIFIED_UINT64:TRANSIT_UNIFIED_UTF8}; }
+    else if(kind==1) { d.source.source.table.id=golden?9:1; d.source.source.table.names[0]="id"; d.source.source.table.names[1]=golden?"label":"value"; d.source.source.table.value_type=TRANSIT_UNIFIED_UTF8; }
+    else {
+        d.source.source.document.reference=(transit_station_document_reference){resource,golden?UINT64_MAX:17,golden?3:1,1,golden?42:13};
+        static const char *title[]={"title"},*body[]={"body"},*items[]={"items"},*optional[]={"optional"};
+        d.source.source.document.projection_count=golden?2:4;
+        d.source.source.document.has_expansion=!golden; d.source.source.document.expand=items; d.source.source.document.expand_count=golden?0:1;
+        for(size_t i=0;i<4;++i) { d.projections[i].text_bytes=4096; d.projections[i].text_steps=4096; }
+        if(golden) {
+            d.projections[0].column=(transit_station_unified_column){"title",TRANSIT_UNIFIED_UTF8}; d.projections[0].path=title; d.projections[0].path_count=1;
+            d.projections[1].column=(transit_station_unified_column){"body",TRANSIT_UNIFIED_UTF8}; d.projections[1].path=body; d.projections[1].path_count=1; d.projections[1].mode=TRANSIT_UNIFIED_TEXT;
+        } else {
+            d.projections[0].column=(transit_station_unified_column){"value",TRANSIT_UNIFIED_UTF8}; d.projections[0].relative=true;
+            d.projections[1].column=(transit_station_unified_column){"counter",TRANSIT_UNIFIED_UINT64}; d.projections[1].relative=true; d.projections[1].mode=TRANSIT_UNIFIED_ELEMENT_COUNTER;
+            d.projections[2].column=(transit_station_unified_column){"replica",TRANSIT_UNIFIED_UINT64}; d.projections[2].relative=true; d.projections[2].mode=TRANSIT_UNIFIED_ELEMENT_REPLICA;
+            d.projections[3].column=(transit_station_unified_column){"optional",TRANSIT_UNIFIED_UTF8}; d.projections[3].path=optional; d.projections[3].path_count=1;
+        }
+    }
+    return d;
+}
+static transit_station_unified_bundle *bundle(definition *d,bool golden) {
+    if(d->source.kind==TRANSIT_UNIFIED_DOCUMENT)d->source.source.document.projections=d->projections;
+    char padding[513]; memset(padding,'x',512); padding[512]=0;
+    static const uint8_t both[]={1,0},value[]={1},document[]={0,1,2,3};
+    bool doc=d->source.kind==TRANSIT_UNIFIED_DOCUMENT;
+    transit_station_unified_plan plan={0}; plan.projection=golden?both:(doc?document:value); plan.projection_count=golden?2:(doc?4:1);
+    plan.has_limit=golden; plan.limit=UINT64_MAX; plan.predicate=TRANSIT_UNIFIED_COMPARE; plan.column=golden?1:(doc?0:1); plan.comparison=TRANSIT_COMPARE_NE;
+    plan.value.type=golden&&d->source.kind==TRANSIT_UNIFIED_KV?TRANSIT_UNIFIED_UINT64:TRANSIT_UNIFIED_UTF8; plan.value.unsigned_value=UINT64_MAX; plan.value.bytes=bytes(padding);
+    transit_station_unified_bundle *out=NULL;
+    checked(transit_station_unified_prepare_bundle(&d->source,&plan,(transit_station_unified_budgets){1000,golden?500:100,1048576},NULL,&out)); return out;
+}
+static void scalar(transit_station_unified_scalar v,size_t column) {
+    assert(v.type==(transit_station_unified_type)column);
+    if(column==0)assert(v.signed_value==INT64_MIN);
+    if(column==1)assert(v.unsigned_value==UINT64_MAX);
+    if(column==2)assert(v.float_value==0.0 && signbit(v.float_value));
+    if(column==3)assert(!v.boolean);
+    if(column==4)equal(v.bytes,bytes("café é 東京🙂"));
+    if(column==5)equal(v.bytes,(transit_sdk_bytes){(const uint8_t *)"\x00\xff\x80",3});
+}
+static void codecs(const char *root) {
+    for(int i=0;i<3;++i) {
+        definition d=source((transit_sdk_resource){46,7},i,true); transit_station_unified_bundle *b=bundle(&d,true); transit_sdk_bytes encoded={0}; checked(transit_station_unified_bundle_bytes(b,&encoded));
+        char name[32]; snprintf(name,sizeof(name),"bundle%d.bin",i); transit_sdk_bytes expected=fixture(root,name); equal(encoded,expected); free((void *)expected.data); transit_station_unified_bundle_destroy(b);
+    }
+    const char *names[]={"int64","uint64","float64","boolean","utf8","binary"}; transit_station_unified_column columns[6];
+    for(size_t i=0;i<6;++i)columns[i]=(transit_station_unified_column){names[i],(transit_station_unified_type)i};
+    transit_sdk_bytes ipc=fixture(root,"arrow.ipc"); transit_station_unified_rows *rows=NULL;
+    checked(transit_station_unified_decode_arrow(columns,6,ipc,5,NULL,&rows)); memset((void *)ipc.data,0,ipc.size); free((void *)ipc.data);
+    for(size_t row=0;row<5;++row) for(size_t col=0;col<6;++col) {
+        transit_station_unified_cell cell={0}; checked(transit_station_unified_rows_cell(rows,row,col,&cell)); assert(cell.state==(transit_station_unified_state)row);
+        if(row==2)assert(!strcmp(cell.actual_kind,"map"));
+        if(row==3)scalar(cell.value,col);
+        if(row==4) { assert(cell.alternative_count==2); for(size_t i=0;i<2;++i) { transit_station_unified_alternative alt={0}; checked(transit_station_unified_rows_alternative(rows,row,col,i,&alt)); assert(alt.counter==UINT64_MAX&&alt.replica==i+1); assert(alt.cell.state==(i?TRANSIT_UNIFIED_NULL:TRANSIT_UNIFIED_VALUE)); if(!i)scalar(alt.cell.value,col); } }
+    }
+    transit_station_unified_rows_destroy(rows); rows=NULL;
+    ipc=fixture(root,"empty.ipc"); checked(transit_station_unified_decode_arrow(columns,6,ipc,0,NULL,&rows)); free((void *)ipc.data); transit_station_unified_cell missing={0}; assert(transit_station_unified_rows_cell(rows,0,0,&missing).kind!=TRANSIT_SDK_OK); transit_station_unified_rows_destroy(rows); rows=NULL;
+    ipc=fixture(root,"malformed.ipc"); assert(transit_station_unified_decode_arrow(columns,6,ipc,5,NULL,&rows).kind!=TRANSIT_SDK_OK && !rows); free((void *)ipc.data);
+    puts("C installed unified codecs: three sources, six types, five states, owned rows and malformed rejection passed");
+}
+static void serve(char **args) {
+    const uint64_t realm=strtoull(args[6],NULL,10),principal=strtoull(args[7],NULL,10);
+    transit_station_unified_connection connection={{realm,strtoull(args[8],NULL,10)},{realm,strtoull(args[10],NULL,10)},{realm,strtoull(args[9],NULL,10)},{realm,strtoull(args[11],NULL,10)}};
+    const int kind=!strcmp(args[4],"kv")?0:!strcmp(args[4],"table")?1:2;
+    definition d=source(connection.resource,kind,false); transit_station_unified_bundle *b=bundle(&d,false); transit_sdk_bytes data={0}; checked(transit_station_unified_bundle_bytes(b,&data)); transit_sdk_bytes expected=file_bytes(args[5]); equal(data,expected); free((void *)expected.data); transit_station_unified_bundle_destroy(b);
+    transit_sdk_config config=transit_sdk_growing_config(args[2]); config.timeout_ms=10000; transit_sdk_credential credential={realm,principal,args[3]}; transit_station_unified_client *client=NULL; checked(transit_station_unified_open(&config,&credential,connection,&client));
+    transit_station_unified_description description={0}; checked(transit_station_unified_describe(client,&d.source,&description)); assert(description.bundle_bytes==16384&&description.batch_rows==8);
+    puts("{\"ready\":true}"); char line[140000]; transit_station_unified_page *saved=NULL;
+    while(fgets(line,sizeof(line),stdin)) {
+        char *command=strtok(line," \n"),*arg=strtok(NULL," \n"),*token=strtok(NULL," \n"); assert(command);
+        if(!strcmp(command,"close"))break;
+        transit_sdk_error error={0};
+        if(!strcmp(command,"next")) {
+            transit_sdk_bytes input=unhex(token); transit_station_unified_bundle *v=NULL; checked(transit_station_unified_bundle_import(input,&v)); free((void *)input.data); transit_station_unified_prepared *out=NULL;
+            error=transit_station_unified_prepare_next(client,strtoull(arg,NULL,10),v,&out); transit_station_unified_bundle_destroy(v);
+            if(!error.kind) { printf("{\"status\":0,\"value\":{\"prepared_hex\":"); if(out) { checked(transit_station_unified_prepared_bytes(out,&data)); putchar('"'); print_hex(data); putchar('"'); }else printf("null"); puts("}}"); }
+            transit_station_unified_prepared_destroy(out);
+        } else if(!strcmp(command,"submit")) {
+            transit_sdk_bytes input=unhex(arg); transit_station_unified_prepared *v=NULL; checked(transit_station_unified_prepared_import(input,&v)); uint64_t position=0; error=transit_station_unified_submit(client,v,&position); checked(transit_station_unified_prepared_bytes(v,&data)); equal(input,data); free((void *)input.data); transit_station_unified_prepared_destroy(v);
+            if(!error.kind)printf("{\"status\":0,\"value\":{\"receipt\":{\"position\":%llu}}}\n",(unsigned long long)position);
+        } else if(!strcmp(command,"observe")) {
+            transit_station_unified_observation v={0}; error=transit_station_unified_observe(client,strtoull(arg,NULL,10),&v);
+            if(!error.kind) { const char *names[]={"pending","committed","rejected"}; printf("{\"status\":0,\"value\":{\"observation\":{\"%s\":",names[v.state]); if(v.state==TRANSIT_UNIFIED_REJECTED) { putchar('"'); print_hex(bytes(v.reason)); putchar('"'); }else printf("{}"); puts("}}}"); }
+        } else if(!strcmp(command,"status")) {
+            transit_station_unified_status v={0}; error=transit_station_unified_status_read(client,strtoull(arg,NULL,10),&v);
+            if(!error.kind) { const char *phases[]={"uploading","sealed","admitted","complete","cancelled","denied","rejected","retired"}; printf("{\"status\":0,\"value\":{\"status\":"); if(v.found)printf("{\"phase\":\"%s\",\"correlation\":\"%llu\"}",phases[v.phase],(unsigned long long)v.correlation);else printf("null"); puts("}}"); }
+        } else {
+            assert(!strcmp(command,"page")); transit_station_unified_cursor *cursor=NULL; transit_sdk_bytes input=unhex(token); if(input.size)checked(transit_station_unified_cursor_import(input,&cursor)); free((void *)input.data);
+            transit_station_unified_page *out=NULL; error=transit_station_unified_page_read(client,strtoull(arg,NULL,10),cursor,&out); transit_station_unified_cursor_destroy(cursor);
+            if(!error.kind) {
+                transit_station_unified_page_info info={0}; checked(transit_station_unified_page_get(out,&info)); assert(info.manifest.source_kind==(transit_station_unified_source_kind)kind && info.manifest.resource.resource==connection.resource.resource);
+                transit_station_unified_rows *rows=NULL; checked(transit_station_unified_decode_arrow(info.columns,info.column_count,info.ipc,info.rows,NULL,&rows)); transit_station_unified_rows_destroy(rows);
+                printf("{\"status\":0,\"value\":{\"page\":{\"ordinal\":\"%llu\",\"ipc\":\"",(unsigned long long)info.ordinal); print_hex(info.ipc); printf("\",\"manifest\":{\"segments\":\"%llu\"},\"next_hex\":",(unsigned long long)info.manifest.segments);
+                checked(transit_station_unified_page_next(out,&cursor)); if(cursor) { checked(transit_station_unified_cursor_bytes(cursor,&data)); putchar('"'); print_hex(data); putchar('"'); }else printf("null"); puts("}}}"); transit_station_unified_cursor_destroy(cursor); transit_station_unified_page_destroy(saved); saved=out;
+            }
+        }
+        if(error.kind) { assert(error.has_native_status); printf("{\"status\":%u,\"value\":{\"err\":\"%s\"}}\n",error.native_status,error.code); }
+        fflush(stdout);
+    }
+    checked(transit_station_unified_close(client)); assert(transit_station_unified_describe(client,&d.source,&description).kind==TRANSIT_SDK_CLOSED); transit_station_unified_client_destroy(client);
+    if(saved) { transit_station_unified_page_info info={0}; checked(transit_station_unified_page_get(saved,&info)); transit_station_unified_rows *rows=NULL; checked(transit_station_unified_decode_arrow(info.columns,info.column_count,info.ipc,info.rows,NULL,&rows)); transit_station_unified_page_destroy(saved); if(info.rows) { transit_station_unified_cell cell={0}; checked(transit_station_unified_rows_cell(rows,0,0,&cell)); assert(cell.state==TRANSIT_UNIFIED_VALUE); } transit_station_unified_rows_destroy(rows); }
+    puts("{\"closed\":true}");
+}
+int main(int argc,char **argv) { setvbuf(stdout,NULL,_IOLBF,0); assert(argc>=3); if(!strcmp(argv[1],"codecs"))codecs(argv[2]);else { assert(argc==12); serve(argv); } return 0; }

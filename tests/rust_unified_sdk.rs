@@ -253,12 +253,19 @@ fn serve(config: &Value) -> AnyResult<()> {
                     q::ProjectionMode::ElementReplica,
                     vec![],
                 ),
+                projection(
+                    "optional",
+                    q::Type::Utf8,
+                    false,
+                    q::ProjectionMode::Scalar,
+                    vec!["optional".into()],
+                ),
             ],
         },
     };
     let plan = q::Plan {
         projection: if kind == "document" {
-            vec![0, 1, 2]
+            vec![0, 1, 2, 3]
         } else {
             vec![1]
         },

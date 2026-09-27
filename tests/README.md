@@ -86,7 +86,7 @@ and disk store then restart, stale activation reuse rejects, and freshly fenced
 workers publish the complete original result. Independent PyArrow verifies every
 row. Revocation after the first returned page denies continuation without moving
 the cursor; restoration permits verification of complete coverage. The source pin
-is released. `just check` also passes. This is local disk evidence with an
+is released. `just check` also passes. This is local disk evidence with a
 default 64 MiB hot-store fixture without cold offload, not a bounded growing-storage, SDK, Compose, Substrate or
 hosted CI qualification. The Document schedule remains in progress.
 
@@ -109,8 +109,47 @@ revocation after a returned prefix and verifies complete page coverage. Python
 also checks the optional pinned PyArrow adapter. Their installed codec fixtures
 cover all three source declarations, six types, five states, full-width values,
 Unicode, negative zero and malformed streams. Typed Table/Document service runs
-and the other SDK service profiles remain separately unqualified. A Node Table
-run verified all data but failed harness shutdown; it is excluded pending rerun.
+and the other SDK service profiles remain separately unqualified.
+
+Installed TypeScript and Rust pass the Table schedule with the same eight-page /
+8 MiB hot-store bounds and 41 rows/six segments/13,584 bytes. TypeScript completes
+in **547.72 seconds** (91 cold objects / 9,160,106 bytes), Rust in **570.84 seconds**
+(86 objects / 9,169,222 bytes). Both check optional pinned Arrow adapters and all
+three source codec fixtures. Rust additionally rejects overlapping mutable client
+borrows at compile time. All owned consumers close and join before these runs
+are counted; an earlier TypeScript run with a shutdown failure is excluded.
+
+
+The signed accepted-Document schedule also passes in **ReleaseSafe**, including
+installed Python sync/async callers, in **581.90 seconds** (478.34 seconds for
+source provisioning). Twelve accepted list entries project value, stable element
+counter/replica and a missing optional field into **two segments / 9,880 Arrow
+bytes**. Source/requester/node/store recovery, exact upload retry, current denial
+after a returned prefix, complete independent PyArrow verification and released
+source pins pass with **64 resident authority pages / 8 MiB hot storage** and
+1,252 cold objects / 141,311,912 bytes. This is a measured larger working-set
+profile than KV/Table. The Debug fixture exceeded its 30-minute setup deadline;
+that incomplete run is excluded. An earlier three-column optimized fixture
+completed capture but missed its intended 8 KiB result-size assertion and is
+also excluded. No deadline or deployment quota was increased to count a pass.
+
+Installed C11 and C++17 callers pass the same six-segment schedule: C over KV in
+**498.67 seconds** (86 cold objects / 8,786,941 bytes) and C++ over Table in
+**545.27 seconds** (82 objects / 9,137,941 bytes), using Debug service binaries.
+Both retain their exact prepared bytes on uncertainty, reject current denial,
+and decode owned pages after destroying the client. C additionally overwrites
+its input IPC before reading owned decoded cells; C++ rejects client copying at
+compile time. Java 21's installed immutable models and bounded futures pass
+Table recovery in **117.71 seconds** with ReleaseSafe service binaries (113 cold
+objects / 9,672,977 bytes). All three use eight resident authority pages / 8 MiB
+hot storage, and each passes the three-source/six-type/five-state codec fixtures.
+All consumers close successfully before the run is counted. No optional Java
+or C++ Arrow dependency is selected; independent PyArrow checks original IPC.
+
+The unified SDK recipes now select ReleaseSafe service binaries, retaining safety
+checks while avoiding the measured Debug provisioning cost. `just test::unified-query`
+defaults to ReleaseSafe when called without arguments; explicit build arguments
+can select a profile. Measured Debug and ReleaseSafe results above are separate.
 
 ## M17 qualification
 

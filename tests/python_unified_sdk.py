@@ -60,8 +60,9 @@ def source(config):
         value = q.DocumentSource(DocumentReference(resource, 17, 1, 1, 13), (
             q.Projection(q.Column('value', q.Type.UTF8), relative=True),
             q.Projection(q.Column('counter', q.Type.UINT64), relative=True, mode=q.ProjectionMode.ELEMENT_COUNTER),
-            q.Projection(q.Column('replica', q.Type.UINT64), relative=True, mode=q.ProjectionMode.ELEMENT_REPLICA)), ('items',))
-    plan = q.Plan((0, 1, 2) if config['kind'] == 'document' else (1,),
+            q.Projection(q.Column('replica', q.Type.UINT64), relative=True, mode=q.ProjectionMode.ELEMENT_REPLICA),
+            q.Projection(q.Column('optional', q.Type.UTF8), ('optional',))), ('items',))
+    plan = q.Plan((0, 1, 2, 3) if config['kind'] == 'document' else (1,),
         q.Compare(0 if config['kind'] == 'document' else 1, Comparison.NE, q.Scalar(q.Type.UTF8, 'x'*512)))
     bundle = q.Bundle.prepare(value, plan, q.Budgets(1000, 100, 1048576))
     assert bundle.data == Path(config['bundle']).read_bytes()

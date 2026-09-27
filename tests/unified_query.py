@@ -182,6 +182,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     for index, row in enumerate(expected):
                         row['counter'] = dict(state=3, kind=2, value=index+2, alternatives=[])
                         row['replica'] = dict(state=3, kind=2, value=1, alternatives=[])
+                        row['optional'] = dict(state=0, kind=0, value=None, alternatives=[])
                 assert actual == expected, actual[:2]
                 assert total > 8192
                 assert kind == "document" or len(actual) > 32
@@ -220,7 +221,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     for name in ('node', 'host', 'proof', 'port_host', 'library'): parser.add_argument(name)
     parser.add_argument('kinds', nargs='*', choices=('kv', 'table', 'document'))
-    parser.add_argument('--sdk', action='append', choices=('python', 'node', 'ruby', 'rust'))
+    parser.add_argument('--sdk', action='append', choices=('python', 'node', 'ruby', 'rust', 'c', 'cpp', 'java'))
     args = parser.parse_args()
     run(args.node, args.host, args.proof, args.port_host, args.library,
         kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or ())

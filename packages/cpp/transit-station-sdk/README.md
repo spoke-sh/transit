@@ -34,3 +34,6 @@ shared Zig exchange and native ownership boundary.
 
 M17 adds [typed Document changes, scoped jobs and authorized reads](docs/DOCUMENTS.md)
 with explicit owned values and bounded continuations.
+
+M18 adds [typed unified KV/Table/Document queries](docs/UNIFIED_QUERY.md),
+with explicit signed recovery, owned nested Arrow and current-source checks.

@@ -13,7 +13,8 @@ struct Caps { size_t message, value, key, cell, name, page, segment; bool querie
     X(station_abi_version) X(station_growing_capabilities) X(station_growing_create) X(station_growing_destroy) \
     X(station_growing_prepare) X(station_growing_dispatch) X(station_growing_confirmation) X(station_growing_apply) \
     X(station_growing_finish_result) X(station_growing_discard) X(station_growing_pending) X(station_frame_encode) \
-    X(station_buffer_data) X(station_buffer_size) X(station_buffer_destroy) X(station_http_codec) X(station_growing_http_read) X(station_grpc_codec) X(station_growing_grpc_read) X(station_document_codec) X(station_growing_document_read)
+    X(station_buffer_data) X(station_buffer_size) X(station_buffer_destroy) X(station_http_codec) X(station_growing_http_read) X(station_grpc_codec) X(station_growing_grpc_read) X(station_document_codec) X(station_growing_document_read) \
+    X(station_unified_query_codec) X(station_unified_query_create) X(station_unified_query_call) X(station_unified_query_destroy)
 struct Local {
     Raw raw;
     Library library;

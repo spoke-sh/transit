@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import select
+import shlex
 import shutil
 import subprocess
 import sys
@@ -33,8 +34,11 @@ class Consumer:
         assert line, f'installed query caller exited ({self.child.poll()})'
         return json.loads(line)
 
-    def call(self, action):
+    def send(self, action):
         self.child.stdin.write(json.dumps(action)+'\n'); self.child.stdin.flush()
+
+    def call(self, action):
+        self.send(action)
         result = self.read()
         if result['status']: raise Failure(result['status'], result['value'])
         return result['value']
@@ -42,7 +46,7 @@ class Consumer:
     def close(self):
         try:
             if self.child.poll() is None:
-                self.child.stdin.write('{"close":{}}\n'); self.child.stdin.flush()
+                self.send({'close': {}})
                 assert self.read() == {'closed': True}
                 self.child.stdin.close()
                 assert self.child.wait(timeout=10) == 0
@@ -63,6 +67,12 @@ def install(root, languages):
     (root/'fixtures.json').write_text(json.dumps(fixtures))
     factories = []
     for language in languages:
+        if language == 'java':
+            factories.append(install_java(root / language, root / 'fixtures.json'))
+            continue
+        if language in ('c', 'cpp'):
+            factories.append(install_c(root / language, root, language))
+            continue
         if language == 'rust':
             factories.append(install_rust(root / 'rust', root / 'fixtures.json'))
             continue
@@ -175,4 +185,73 @@ serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
         return [Consumer([executable, 'serve', config], env, root)]
+    return open_callers
+
+
+class CConsumer(Consumer):
+    def send(self, action):
+        if 'close' in action: command = 'close'
+        elif 'submit' in action: command = 'submit ' + action['submit'].encode().hex()
+        elif 'next' in action:
+            v = action['next']; command = f"next {v['namespace']} {v['bundle']}"
+        elif 'page' in action:
+            v = action['page']; command = f"page {v['namespace']} {v['cursor'].encode().hex() if v['cursor'] is not None else '-'}"
+        else:
+            name, value = next(iter(action.items())); command = f'{name} {value}'
+        self.child.stdin.write(command+'\n'); self.child.stdin.flush()
+
+    def read(self):
+        result = super().read()
+        value = result.get('value', {})
+        if 'prepared_hex' in value:
+            encoded = value.pop('prepared_hex'); value['prepared'] = bytes.fromhex(encoded).decode() if encoded is not None else None
+        if 'page' in value:
+            encoded = value['page'].pop('next_hex'); value['page']['next'] = bytes.fromhex(encoded).decode() if encoded is not None else None
+        return result
+
+
+def install_c(root, fixtures, language):
+    root.mkdir()
+    prefix = root/'installed'
+    for artifact in sorted((ROOT/'.cache/bindings/c').glob('*.tar.gz')):
+        with tarfile.open(artifact) as archive: archive.extractall(prefix, filter='data')
+    env = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH', 'CPATH', 'CPLUS_INCLUDE_PATH', 'C_INCLUDE_PATH')}
+    env['PKG_CONFIG_PATH'] = str(prefix/'lib/pkgconfig')
+    flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'transit-station-c' if language == 'c' else 'transit-station-cpp'], text=True, env=env))
+    filename = 'c_unified_sdk.c' if language == 'c' else 'cpp_unified_sdk.cpp'
+    source = root/filename; shutil.copyfile(ROOT/'tests'/filename, source)
+    executable = root/'consumer'
+    subprocess.run(['zig', 'cc' if language == 'c' else 'c++', '-std=c11' if language == 'c' else '-std=c++17', '-Wall', '-Wextra', '-Werror', source, *flags, '-lpthread', '-o', executable], cwd=root, env=env, check=True)
+    source.unlink()
+    for i, item in enumerate(json.loads((fixtures/'bundles.json').read_text())):
+        (fixtures/f'bundle{i}.bin').write_bytes(bytes.fromhex(item['wire_hex']))
+    subprocess.run([executable, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
+    if language == 'cpp':
+        source.write_text('#include <transit/unified_query.hpp>\nvoid copy(transit::sdk::station::unified::Client &client) { auto other = client; }')
+        rejected = subprocess.run(['zig', 'c++', '-std=c++17', '-fsyntax-only', source, f'-I{prefix / "include"}'], cwd=root, env=env, capture_output=True, text=True)
+        assert rejected.returncode and 'deleted' in rejected.stderr
+        source.unlink()
+    def open_callers(url, connection, state, kind):
+        arguments = [executable, 'serve', url, str(state/'caller.seed'), kind, str(state/'bundle.bin')]
+        arguments += [str(connection[key]) for key in ('realm', 'principal', 'source', 'resource', 'requester', 'requests')]
+        return [CConsumer(arguments, env, root)]
+    return open_callers
+
+
+def install_java(root, fixtures):
+    root.mkdir(); lib = root/'lib'; lib.mkdir()
+    names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
+    for name in (*[f'{name}-0.2.0.jar' for name in names], 'gson-2.12.1.jar'):
+        shutil.copy2(ROOT/'.cache/bindings/java'/name, lib/name)
+    env = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
+    source = root/'JavaUnifiedSdk.java'; shutil.copyfile(ROOT/'tests'/source.name, source)
+    classes = root/'classes'; classes.mkdir()
+    subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(lib/'*'), '-d', classes, source], cwd=root, env=env, check=True)
+    source.unlink()
+    command = ['java', '-cp', os.pathsep.join([str(classes), str(lib/'*')]), 'JavaUnifiedSdk']
+    subprocess.run([*command, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
+    def open_callers(url, connection, state, kind):
+        config = root/'client.json'
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
+        return [Consumer([*command, 'serve', config], env, root)]
     return open_callers
