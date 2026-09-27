@@ -26,8 +26,12 @@ format compatibility. Eight unresolved assignments per field are an explicit
 quota, not an expiry mechanism.
 
 Run `nix develop --command sh -c 'cd packages/zig/transit-station-document && zig build test'`.
+The [durable service guide](docs/service.md) describes recorded jobs, atomic head
+acceptance, current-policy reads, resynchronization and rejected-job cleanup.
+
 Component tests cover 24 concurrent delivery permutations, duplicates, nested
 delete/edit races, text and list ordering, conflict resolution, missing/null/type
 errors, full-width integers, Unicode, source denial, storage failure and text
-spanning thousands of index entries. These are component proofs: durable service,
+spanning thousands of index entries. Private-turn tests also reconstruct every staging step and verify final acceptance
+within the unchanged mutation budget. These are component proofs: disk recovery,
 checkpoint/compaction, all public SDKs, Board and placement proofs remain open.

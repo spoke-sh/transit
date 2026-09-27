@@ -2059,3 +2059,13 @@ suite passed in 1 s with 16 MiB process RSS (including the in-memory test store)
 this is not a production resident-memory or disk-recovery measurement. Full
 repository checks passed. Durable acceptance, checkpoint/compaction, SDK and
 placement evidence remain pending.
+
+M17's Document service component now passes 14 standalone tests (1 s, 16 MiB
+process RSS including fixtures), and `just check` passes. The private-turn fixture
+reconstructs every staged proposal, discards it before commit, and verifies that
+only final acceptance changes the head. Three acceptance mutations leave room for
+one framework mutation plus the success output. Other schedules cover original
+revision recovery for duplicate changes, frozen request identity, rejected-node
+cleanup, candidate quota exhaustion, exact older reads, logical retirement and
+current read denial. The maximum synthetic head encodes to 252 bytes. Disk/node
+failure, checkpoint/compaction and public SDK/placement proofs remain pending.

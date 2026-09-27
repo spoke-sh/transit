@@ -102,3 +102,34 @@ one exact snapshot and currently authorized source; source loss, corruption and
 revocation are errors, never empty data. Immutable references grant neither
 access nor continued availability. Direct object-ID reads can inspect detached
 accepted history; visible path traversal cannot resurrect it.
+
+## Durable publication profile
+
+The `Service` component fixes one resource and a Publication namespace equal to
+Document ID. It owns a permanent head, revision snapshots, job ledgers and
+exclusive monotonically allocated record intervals. One active job is supported;
+its explicit node quota is independent of total accepted history. `prepare`
+freezes the exact canonical request commitment before upload. Changed job content
+rejects, and no admitted prefix counts as Document acceptance.
+
+Request format `0x53444301` covers the canonical SDC1 bytes. Candidate index nodes
+use SIX1. The final head and per-revision snapshot bind the complete index root;
+acceptance also records the job outcome, using three ordinary mutations. Input
+progress and any success output belong to this same fenced decision. A maximum
+head uses 252 bytes, without widening the 256-byte value. A discarded proposal
+cannot publish the head; an uncertain commit uses Station's exact signed retry
+or fresh ownership and recorded recovery.
+
+Snapshots retain causal records and the replica clock/frontier. Service reads
+reopen a revision using a current source and return at most eight sequence items
+per 32 traversal transitions. Progress-only pages are explicit. A fresh
+resynchronization basis names the epoch, revision, replica predecessor and logical
+clock; it does not authorize blind replay of tentative edits. Permanent retirement
+blocks old snapshot reads and new work even while bytes remain.
+
+Rejected jobs have permanently closed intervals. Their independent cleanup may
+reclaim that interval's unreachable nodes/request, with at most one bounded
+Publication operation per turn. Accepted job intervals and snapshots stay retained
+until an explicit checkpoint/lifetime policy permits their disposition. Capacity
+failure never chooses that policy. Disk/placement and checkpoint qualification
+are still pending; private-turn component tests are not evidence for those gates.

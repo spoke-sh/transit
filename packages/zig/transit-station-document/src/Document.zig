@@ -222,6 +222,18 @@ fn applyOperation(self: *Self, store: anytype, id: m.Dot, operation: m.Operation
         },
     }
 }
+pub fn replicaCounter(self: Self, source: anytype, replica: u64) !u64 {
+    if (replica == 0) return error.InvalidDocumentIdentity;
+    return self.counter(source, try frontierKey(replica));
+}
+pub fn clock(self: Self, source: anytype) !u64 {
+    return self.counter(source, try key('L', .root));
+}
+fn counter(self: Self, source: anytype, address: Index.Key) !u64 {
+    const value = try self.index.get(source, address) orelse return 0;
+    if (value.len != 8) return error.InvalidDocumentState;
+    return std.mem.readInt(u64, value.data[0..8], .little);
+}
 /// Returns a candidate. Even if the store staged nodes, the input snapshot is
 /// unchanged. The owner atomically binds candidate.state to accept this change.
 pub fn apply(self: Self, store: anytype, change: m.Change) !Candidate {
@@ -238,10 +250,7 @@ pub fn apply(self: Self, store: anytype, change: m.Change) !Candidate {
         if (v.len != 48 or !std.mem.eql(u8, v.data[0..32], &digest) or std.mem.readInt(u64, v.data[32..40], .little) != change.last()) return error.DocumentIdentityConflict;
         return .{ .state = self, .duplicate = true, .accepted_revision = std.mem.readInt(u64, v.data[40..48], .little) };
     }
-    const previous = if (try self.index.get(store, try frontierKey(change.replica))) |v| blk: {
-        if (v.len != 8) return error.InvalidDocumentState;
-        break :blk std.mem.readInt(u64, v.data[0..8], .little);
-    } else 0;
+    const previous = try self.replicaCounter(store, change.replica);
     if (change.first <= previous or change.previous < previous) return error.DocumentIdentityConflict;
     if (change.previous != previous) return error.DocumentDependencyMissing;
     var candidate = self;
@@ -255,6 +264,8 @@ pub fn apply(self: Self, store: anytype, change: m.Change) !Candidate {
     var frontier: [8]u8 = undefined;
     std.mem.writeInt(u64, &frontier, change.last(), .little);
     try candidate.put(store, try frontierKey(change.replica), &frontier);
+    std.mem.writeInt(u64, &frontier, @max(change.last(), try self.clock(store)), .little);
+    try candidate.put(store, try key('L', .root), &frontier);
     return .{ .state = candidate, .duplicate = false, .accepted_revision = candidate.revision };
 }
 pub const SequenceCursor = struct {
