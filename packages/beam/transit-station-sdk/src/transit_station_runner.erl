@@ -21,13 +21,16 @@ open({#transit_service{activation = #transit_activation{process = Process}} = Se
     catch Class:Reason:Stack -> catch transit_station_bridge:close(Bridge), erlang:raise(Class, Reason, Stack) end.
 execute({encode_cast, Value, Codec}, {local, Bridge} = State) -> {{ok, transit_station_bridge:frame(Bridge, Value, Codec)}, State};
 execute({http_codec, Action}, {local, Bridge} = State) -> {{ok, transit_station_bridge:http_codec(Bridge, Action)}, State};
-execute({Codec, Action, Capability}, {local, Bridge} = State) when Codec =:= http_codec; Codec =:= grpc_codec ->
+execute({Codec, Action, Capability}, {local, Bridge} = State) when Codec =:= http_codec; Codec =:= grpc_codec; Codec =:= document_codec ->
     case maps:get(Capability, transit_station_bridge:caps(Bridge), false) of
         true -> {{ok, transit_station_bridge:Codec(Bridge, Action)}, State};
         false -> transit_sdk_value:fail(unsupported_capability, Codec)
     end;
 execute({Protocol, _}, #state{pending = Pending}) when Pending =/= undefined, (Protocol =:= http orelse Protocol =:= grpc) -> transit_sdk_value:fail(busy, pending_mutation);
 execute({Protocol, Action}, State) when Protocol =:= http; Protocol =:= grpc -> replay(Protocol, Action, State);
+execute({document, _}, #state{pending = Pending}) when Pending =/= undefined -> transit_sdk_value:fail(busy, pending_mutation);
+execute({document, Action}, #state{bridge = Bridge, process = #transit_process{realm = Realm}} = State) ->
+    {{ok, transit_document:read_result(Bridge, Realm, Action)}, State};
 execute(evidence, State) -> {{ok, evidence(State)}, State};
 execute(next, State) -> next(State, 16);
 execute(reconcile, #state{pending = undefined}) -> transit_sdk_value:fail(closed, no_pending_mutation);

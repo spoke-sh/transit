@@ -97,6 +97,16 @@ full-width numbers, Unicode scalar text, original references and conflict states
 Cancelling an admitted read followed by asynchronous disposal joins native work;
 readers fail closed afterward. Invalid surrogate strings and escaped owners reject.
 
+The installed Erlang and Elixir Document consumers pass in **220.99 seconds**
+and **224.03 seconds**, respectively, completing this installed API schedule for
+all ten M11 language targets. Both execute the same 139-turn recovery/authority
+schedule, independent canonical fixtures, full-width values, Unicode text,
+conflicts, retained references, prefix revocation and retirement. Immutable
+records/structs use the shared Zig semantics; expired callback owners reject.
+Reads use the existing serialized BEAM worker and close rejects later calls.
+The test joins a separately spawned read before closing; it does not inject
+native cancellation or claim BEAM process death cancels remote work.
+
 ## M16 finite connector qualification
 
 `just test::unit` runs the new RPC request codec against a Python-generated

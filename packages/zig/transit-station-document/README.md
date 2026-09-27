@@ -39,10 +39,12 @@ reject stale edits and recycled counters, and reclaim rejected/retired intervals
 The disk-backed `just test::document` additionally qualifies real worker/node/
 store loss, exact retry, current-policy reads and bounded cleanup with a one-page
 authority cache. See [proof evidence](../../../tests/README.md#m17-work-in-progress).
-All public SDKs, Board and placement proofs remain in progress.
+All ten public SDKs now pass the installed Document change/read recovery schedule.
+Remote submission, Board and placement proofs remain in progress.
 
 `Client` provides current-policy descriptions, typed path/sequence reads, accepted
 tail changes and resynchronization independently of writer ownership. Its SDR1
 reference fixes resource, Document, epoch, type revision and accepted revision.
 Each response names the actual resource cut; old references never bypass the
-current history floor or retirement. Public language wrappers remain in progress.
+current history floor or retirement. Public language wrappers expose these reads
+and scoped writer jobs through the shared Zig binding.

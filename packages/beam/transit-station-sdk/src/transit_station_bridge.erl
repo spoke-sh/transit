@@ -2,7 +2,7 @@
 -module(transit_station_bridge).
 -include("transit_station_sdk.hrl").
 -export([open/2, local/1, close/1, caps/1, prepare/1, apply/3, finish/3, discard/2,
-         pending/2, dispatch/1, confirmation/2, matches/2, frame/3, http_codec/2, http_read/2, grpc_codec/2, grpc_read/2]).
+         pending/2, dispatch/1, confirmation/2, matches/2, frame/3, http_codec/2, http_read/2, grpc_codec/2, grpc_read/2, document_codec/2, document_read/2]).
 -record(bridge, {port, caps}).
 open(#transit_service{client = #transit_config{url = Url, profile = growing_v3, timeout_ms = Timeout, native_host = Override},
     activation = #transit_activation{process = #transit_process{realm = Realm, pid = Pid}, generation = Generation,
@@ -56,6 +56,12 @@ grpc_codec(#bridge{port = Port, caps = Caps}, Action) ->
 grpc_read(#bridge{port = Port, caps = Caps}, Action) ->
     case maps:get(<<"grpc_replay">>, Caps) of true -> ok; false -> transit_sdk_value:fail(unsupported_capability, grpc_replay) end,
     transit_sdk_port:request(Port, #{<<"growing_grpc_read">> => Action}, grpc_replay, false, <<"GrpcReadResult">>).
+document_codec(#bridge{port = Port, caps = Caps}, Action) ->
+    case maps:get(<<"document_codecs">>, Caps, false) of true -> ok; false -> transit_sdk_value:fail(unsupported_capability, document_codecs) end,
+    transit_sdk_port:request(Port, #{<<"document_codec">> => Action}, document_codec, false, <<"DocumentCodecResult">>).
+document_read(#bridge{port = Port, caps = Caps}, Action) ->
+    case maps:get(<<"document_reads">>, Caps, false) of true -> ok; false -> transit_sdk_value:fail(unsupported_capability, document_reads) end,
+    transit_sdk_port:request(Port, #{<<"growing_document_read">> => Action}, document_read, false, <<"DocumentReadResult">>).
 close(#bridge{port = Port}) -> transit_sdk_port:close(Port).
 prepare(#bridge{port = Port}) -> transit_sdk_port:request(Port, #{<<"growing_prepare">> => erlang:system_time(millisecond) + 30000}, prepare_turn, false, <<"GrowingEvent">>).
 apply(#bridge{port = Port}, Scope, Action) -> transit_sdk_port:request(Port, #{<<"growing_apply">> => #{<<"scope">> => Scope, <<"action">> => Action}}, apply, false, <<"GrowingResult">>).

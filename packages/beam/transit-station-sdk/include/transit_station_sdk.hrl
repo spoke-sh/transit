@@ -36,4 +36,16 @@
 -record(transit_grpc_rejected, {reason}).
 -record(transit_grpc_released, {resource, exchange}).
 -record(transit_grpc_part, {kind, bytes, complete = false}).
+-record(transit_document_dot, {counter = 0 :: non_neg_integer(), replica = 0 :: non_neg_integer()}).
+-record(transit_document_change, {document, epoch = 1, type_revision = 1, replica, previous = 0, first, operations = []}).
+-record(transit_document_prepared, {document, bytes :: binary()}).
+-record(transit_document_reference, {resource :: #transit_resource{}, document, epoch, type_revision, revision}).
+-record(transit_document_assignment, {id :: #transit_document_dot{}, value}).
+-record(transit_document_field, {status, assignments = []}).
+-record(transit_document_description, {reference, source_revision, floor, merge_window, active_job, retired, change_format}).
+-record(transit_document_path, {reference, source_revision, field}).
+-record(transit_document_item, {id, field}).
+-record(transit_document_page, {reference, source_revision, items = [], next = undefined}).
+-record(transit_document_resynchronization, {reference, floor, replica, previous_counter, clock}).
+-record(transit_document_progress, {phase, revision = undefined}).
 -endif.

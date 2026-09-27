@@ -24,3 +24,5 @@ through the shared native host.
 
 M16 adds [finite RPC calls and captured replay](docs/grpc.md), including local
 descriptor binding and explicit status-zero/unknown outcomes.
+
+M17 adds [Document changes, scoped jobs and owned accepted reads](docs/documents.md).
