@@ -1,0 +1,235 @@
+{
+  "version": 1,
+  "scope": "Synthetic D4 design expectations. There is no completion engine; checking completed SQL does not verify suggestions, highlighting or latency. Offsets in these ASCII cases are UTF-16 code units; non-ASCII mapping needs future fixtures.",
+  "source": {
+    "name": "samples",
+    "columns": [
+      "id",
+      "value"
+    ],
+    "type": "int64"
+  },
+  "completion_cases": [
+    {
+      "id": "source_prefix",
+      "marked_sql": "SELECT id, value FROM sam|",
+      "candidate": {
+        "label": "samples",
+        "kind": "table",
+        "replace_utf16": [
+          22,
+          25
+        ],
+        "insert_text": "samples"
+      },
+      "after_accept": "SELECT id, value FROM samples",
+      "validation_suffix": "",
+      "validation_sql": "SELECT id, value FROM samples",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "field_with_later_from",
+      "marked_sql": "SELECT va| FROM samples;",
+      "candidate": {
+        "label": "value",
+        "kind": "column",
+        "replace_utf16": [
+          7,
+          9
+        ],
+        "insert_text": "value"
+      },
+      "after_accept": "SELECT value FROM samples;",
+      "validation_suffix": "",
+      "validation_sql": "SELECT value FROM samples;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "qualified_field",
+      "marked_sql": "SELECT id, value FROM samples WHERE samples.|",
+      "candidate": {
+        "label": "id",
+        "kind": "column",
+        "replace_utf16": [
+          44,
+          44
+        ],
+        "insert_text": "id"
+      },
+      "after_accept": "SELECT id, value FROM samples WHERE samples.id",
+      "validation_suffix": " >= 104 LIMIT 3;",
+      "validation_sql": "SELECT id, value FROM samples WHERE samples.id >= 104 LIMIT 3;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "mid_token",
+      "marked_sql": "SELECT id, val|ue FROM samples;",
+      "candidate": {
+        "label": "value",
+        "kind": "column",
+        "replace_utf16": [
+          11,
+          16
+        ],
+        "insert_text": "value"
+      },
+      "after_accept": "SELECT id, value FROM samples;",
+      "validation_suffix": "",
+      "validation_sql": "SELECT id, value FROM samples;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "quoted_field",
+      "marked_sql": "SELECT \"va|lue\" FROM samples;",
+      "candidate": {
+        "label": "\"value\"",
+        "kind": "column",
+        "replace_utf16": [
+          7,
+          14
+        ],
+        "insert_text": "\"value\""
+      },
+      "after_accept": "SELECT \"value\" FROM samples;",
+      "validation_suffix": "",
+      "validation_sql": "SELECT \"value\" FROM samples;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "keyword",
+      "marked_sql": "SELECT id FROM samples WH|",
+      "candidate": {
+        "label": "WHERE",
+        "kind": "keyword",
+        "replace_utf16": [
+          23,
+          25
+        ],
+        "insert_text": "WHERE"
+      },
+      "after_accept": "SELECT id FROM samples WHERE",
+      "validation_suffix": " id >= 104;",
+      "validation_sql": "SELECT id FROM samples WHERE id >= 104;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "limit",
+      "marked_sql": "SELECT id FROM samples LIMIT |",
+      "candidate": {
+        "label": "3",
+        "kind": "integer",
+        "replace_utf16": [
+          29,
+          29
+        ],
+        "insert_text": "3"
+      },
+      "after_accept": "SELECT id FROM samples LIMIT 3",
+      "validation_suffix": "",
+      "validation_sql": "SELECT id FROM samples LIMIT 3",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "aggregate_field",
+      "marked_sql": "SELECT SUM(va|) FROM samples;",
+      "candidate": {
+        "label": "value",
+        "kind": "column",
+        "replace_utf16": [
+          11,
+          13
+        ],
+        "insert_text": "value"
+      },
+      "after_accept": "SELECT SUM(value) FROM samples;",
+      "validation_suffix": "",
+      "validation_sql": "SELECT SUM(value) FROM samples;",
+      "reference_accepts": true,
+      "production": "compiles"
+    }
+  ],
+  "suppression_cases": [
+    {
+      "marked_sql": "SELECT id FROM samples -- FR|",
+      "expected": "No object or keyword candidates inside the comment."
+    },
+    {
+      "marked_sql": "SELECT id FROM samples WHERE value = 'sa|",
+      "expected": "No catalog or sampled data-value candidates inside the unterminated string."
+    },
+    {
+      "marked_sql": "SELECT id FROM |",
+      "catalog_state": "denied",
+      "expected": "No stale object names or counts; clear protected editor context."
+    }
+  ],
+  "complete_statements": [
+    {
+      "id": "illustrated_result",
+      "sql": "SELECT id, value FROM samples WHERE id >= 104 LIMIT 3;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "reference_only_ddl",
+      "sql": "CREATE TABLE samples (id INT64 NOT NULL, value INT64);",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "limit_semantic_error",
+      "sql": "SELECT id FROM samples LIMIT 64;",
+      "reference_accepts": true,
+      "production": "UnsupportedLimit"
+    },
+    {
+      "id": "aggregate_output_limit",
+      "sql": "SELECT COUNT(*) FROM samples LIMIT 3;",
+      "reference_accepts": true,
+      "production": "UnsupportedAggregateLimit"
+    },
+    {
+      "id": "compound_filter_excluded",
+      "sql": "SELECT id FROM samples WHERE id >= 104 AND value > 0;",
+      "reference_accepts": false,
+      "production": "parse_rejects"
+    },
+    {
+      "id": "unknown_source",
+      "sql": "SELECT id FROM missing;",
+      "reference_accepts": true,
+      "production": "UnknownSource"
+    }
+  ],
+  "result_profile": {
+    "fixture": "d2-fixture.json",
+    "source_revision": 42,
+    "limit": 3,
+    "coverage": "All returned rows; one complete loaded page. Not the full source Table.",
+    "returned_rows": 3,
+    "column_count": 2,
+    "columns": [
+      {
+        "name": "id",
+        "type": "int64",
+        "null_count": 0,
+        "min": "104",
+        "max": "106"
+      },
+      {
+        "name": "value",
+        "type": "int64",
+        "null_count": 0,
+        "min": "34",
+        "max": "89"
+      }
+    ]
+  }
+}

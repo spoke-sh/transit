@@ -55,6 +55,17 @@ from the existing grammar to proposed screens. Its hierarchy and interactions
 remain a design proposal. It neither implements the administrative grammar nor
 expands M12/M13's qualified query profile.
 
+[Board console D4](design/board-console/D4.md) makes Explore a SQL-first browser
+shell over this model. Grammar-derived lexical/context information, executable
+capability rules and authorized catalog metadata jointly drive proposed completion
+and highlighting. The checked grammar is an input to a future editor service,
+not an existing incremental/completion API. Editing assistance must handle
+incomplete text without weakening complete-statement compilation at execution.
+Result summaries describe a named execution and explicit profile coverage;
+they cannot silently query the source again. The [console design notes](design/board-console/CONSOLE.md)
+record generation, performance and catalog/result requirements without adding
+new executable syntax.
+
 ## DDL: mostly a spelling problem, with one real prerequisite
 
 `CREATE TABLE` is not a new capability. Station already has a typed

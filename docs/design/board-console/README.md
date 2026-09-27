@@ -12,13 +12,14 @@ resource-workspace exploration. This item builds on its selected visual directio
 and bounded implementation without changing its recorded outcomes.
 [Board](../../BOARD.md) remains the owner of product boundaries and current behavior.
 
-**Current review:** [D3 — A quieter Transit shell](D3.md).
+**Current review:** [D4 — Explore: a SQL-first workspace](D4.md).
 
 | Review | Focus | Status | Outcome or next decision |
 | --- | --- | --- | --- |
 | [D1](D1.md) | Product structure, administration model, data workspace and future capability families | Reviewed | Useful starting point; reviewer requested monochrome wireframes, two navigation levels and a declarative foundation; D2 refines the flat shell and form-first model |
 | [D2](D2.md) | Declarative objects, Workspace/Operations hierarchy and grammar-to-UI mapping | Reviewed | Reviewer requested a compact icon toggle, Transit branding, a product/application-oriented realm dropdown and removal of redundant shell text; D3 refines the presentation |
-| [D3](D3.md) | Compact navigation, product context and more working space | In review | Review the left/right area toggle, realm selector and focused content layouts; no new implementation or grammar scope |
+| [D3](D3.md) | Compact navigation, product context and more working space | Reviewed | Reviewer found the shell cleaner and easy to review; D4 carries it forward and merges Data/Queries into Explore |
+| [D4](D4.md) | SQL-first Explore, grammar/catalog completion and result summaries | In review | Query-first direction requested; review console behavior, instant-assistance targets and result-profile coverage |
 
 The figures are black-and-white vector wireframes with synthetic examples. They are
 neither application screenshots nor evidence of available protocols, permissions
@@ -41,6 +42,11 @@ new implementation work requires its own place in the linear roadmap.
 - [D3 query wireframe](images/d3-02-query.svg).
 - [D3 Operations wireframe](images/d3-03-operations.svg).
 - [D3 realm dropdown wireframe](images/d3-04-realm-selector.svg).
+- [D4 table completion wireframe](images/d4-01-typeahead.svg).
+- [D4 column completion wireframe](images/d4-02-columns.svg).
+- [D4 result summary wireframe](images/d4-03-result-summary.svg).
+- [D4 catalog drawer wireframe](images/d4-04-catalog.svg).
+- [D4 console design notes](CONSOLE.md) and [study fixture](d4-fixture.json).
 
 Follow the shared [review workflow](../README.md#maintaining-the-sequence) and
-[template](../TEMPLATE.md); subsequent reviews continue with D4 in this directory.
+[template](../TEMPLATE.md); subsequent reviews continue with D5 in this directory.
