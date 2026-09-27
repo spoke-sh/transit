@@ -114,6 +114,15 @@ public final class Turn {
             return NativeValues.wide(raw(obj("http_call", obj("pid", peer(connector), "reference", request.referenceHex()))).get("correlation"), true);
         });
     }
+    /** Request durable hold disposal; authenticate the correlated Http.Released reply. */
+    public BigInteger releaseHttp(ProcessRef connector, ResourceRef capture, BigInteger exchange) {
+        return access(false, () -> {
+            Objects.requireNonNull(capture); positive(exchange);
+            if (capture.realm() != resource.realm()) throw new IllegalArgumentException("HTTP capture must belong to this realm");
+            bridge.httpCapability("http_release");
+            return NativeValues.wide(raw(obj("http_release", obj("pid", peer(connector), "resource", capture.resource(), "exchange", exchange.toString()))).get("correlation"), true);
+        });
+    }
     static BigInteger positive(BigInteger value) { u64(value); if (value.signum() == 0) throw new IllegalArgumentException("Correlation must be nonzero"); return value; }
     public <T> Table<T> table(Table.Schema<T> schema) { return access(true, () -> Table.open(this, schema, null)); }
     public <T> Table<T> createTable(Table.Schema<T> schema) {

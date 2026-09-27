@@ -36,8 +36,8 @@ a handler return is not a durable acknowledgement.
 
 `Http.ReplyCodec<T>` wraps an application codec as `Codec<Http.Message<T>>`.
 Handlers receive an explicit `Http.Application<T>` or `Http.Received<T>` value.
-The wrapper reserves exact `HTR1`/`HTF1` prefixes and rejects outcome encoding.
-`Http.Received` carries an admission rejection or an outcome whose phase is
+The wrapper reserves exact `HTR1`/`HTF1`/`HTK1` prefixes and rejects reply encoding.
+`Http.Received` carries a disposal acknowledgement, admission rejection or an outcome whose phase is
 observed, closed unknown or not dispatched. Only observed outcomes have complete
 capture references; HTTP status is not business success. Authenticate the outer
 `Types.Reply` using `turn.requireReply(reply, connector, persistedCorrelation)`
@@ -67,6 +67,14 @@ there. Close is idempotent while the runner remains open. Runner close joins and
 invalidates all readers, whose later reads fail `CLOSED`; returned immutable
 `Bytes` remain valid. Local disposal does not retire capture or release its
 durable caller hold. Applications own that explicit lifecycle decision.
+
+Inside a handler, `turn.releaseHttp(connector, outcome.resource(), outcome.exchange())`
+requests disposal of that durable hold. Persist the correlation, authenticate
+`Http.Released` with `turn.requireReply`, and check its resource/exchange.
+Duplicate calls remain safe after worker restart and capture cleanup. No
+transcript read grant is needed; the service checks its recorded holder and
+current admission policy. Release performs no remote cancellation, retirement
+or member cleanup. The finite worker needs a fresh `poll` activation to handle it.
 
 `just bindings::java-sdk-test` runs installed JAR consumers through shared golden
 fixtures and the independent TLS caller/recovery/revocation/disposal schedule,

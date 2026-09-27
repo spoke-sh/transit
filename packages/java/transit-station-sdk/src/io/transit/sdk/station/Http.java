@@ -61,9 +61,12 @@ public final class Http {
         String metadataHex() { return hex(metadata); }
         String bodyHex() { return hex(body); }
     }
-    private static JsonObject local(JsonObject action, Path nativeHost) {
+    private static JsonObject local(JsonObject action, Path nativeHost, boolean release) {
         try (Worker<Bridge, Void> worker = new Worker<>(() -> Bridge.local(nativeHost))) {
-            return Worker.await(worker.submit(bridge -> bridge.httpCodec(action)));
+            return Worker.await(worker.submit(bridge -> {
+                if (release) bridge.httpCapability("http_release");
+                return bridge.httpCodec(action);
+            }));
         }
     }
     public static Prepared prepare(ResourceRef resource, BigInteger namespace, Request request, byte[] body, Options options) {
@@ -75,13 +78,16 @@ public final class Http {
         for (Header header : request.headers()) headers.add(obj("name", header.name(), "value", wire(header.value())));
         JsonObject prepared = object(local(obj("prepare", obj("resource", resource.resource(), "namespace", namespace.toString(),
             "request", obj("method", request.method().name(), "target", wire(request.target()), "headers", headers), "body", hex(owned),
-            "endpoint_revision", options.endpointRevision().toString(), "reconcile_before_ms", options.reconcileBeforeMillis(), "max_attempts", options.maxAttempts())), nativeHost).get("prepared"));
+            "endpoint_revision", options.endpointRevision().toString(), "reconcile_before_ms", options.reconcileBeforeMillis(), "max_attempts", options.maxAttempts())), nativeHost, false).get("prepared"));
         return new Prepared(resource, namespace, new Bytes(unhex(prepared.get("reference"), 112)), new Bytes(unhex(prepared.get("metadata"), 8192)), owned);
     }
     public enum Phase { OBSERVED, CLOSED_UNKNOWN, NOT_DISPATCHED }
     public enum Rejection { DENIED, INVALID_REQUEST, BUSY }
-    public sealed interface Reply permits Outcome, Rejected {}
+    public sealed interface Reply permits Outcome, Rejected, Released {}
     public record Rejected(Rejection reason) implements Reply { public Rejected { Objects.requireNonNull(reason); } }
+    public record Released(ResourceRef resource, BigInteger exchange) implements Reply {
+        public Released { Objects.requireNonNull(resource); positive(exchange); }
+    }
     public static final class Outcome implements Reply {
         private final Phase phase;
         private final ResourceRef resource;
@@ -108,7 +114,13 @@ public final class Http {
     public static Reply decodeReply(long realm, byte[] bytes) { return decodeReply(realm, bytes, null); }
     public static Reply decodeReply(long realm, byte[] value, Path nativeHost) {
         counter(realm, 1);
-        JsonObject decoded = local(obj("outcome", HexFormat.of().formatHex(bytes(value, 71))), nativeHost);
+        byte[] owned = bytes(value, 71);
+        boolean release = owned.length >= 4 && owned[0] == 'H' && owned[1] == 'T' && owned[2] == 'K' && owned[3] == '1';
+        JsonObject decoded = local(obj("outcome", HexFormat.of().formatHex(owned)), nativeHost, release);
+        if (decoded.has("released")) {
+            JsonObject released = object(decoded.get("released"));
+            return new Released(new ResourceRef(realm, number(released.get("resource"), 1)), NativeValues.wide(released.get("exchange"), true));
+        }
         return decoded.has("rejected") ? new Rejected(Rejection.valueOf(string(decoded.get("rejected")).toUpperCase(Locale.ROOT))) : new Outcome(realm, object(decoded.get("outcome")));
     }
     public sealed interface Message<T> permits Application, Received {}
@@ -128,7 +140,7 @@ public final class Http {
             throw NativeValues.codecError();
         }
         @Override public Message<T> decode(byte[] value) {
-            if (value.length >= 4 && value[0] == 'H' && value[1] == 'T' && (value[2] == 'R' || value[2] == 'F') && value[3] == '1')
+            if (value.length >= 4 && value[0] == 'H' && value[1] == 'T' && (value[2] == 'R' || value[2] == 'F' || value[2] == 'K') && value[3] == '1')
                 return new Received<>(decodeReply(realm, value, nativeHost));
             return new Application<>(application.decode(value));
         }

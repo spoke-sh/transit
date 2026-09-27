@@ -236,6 +236,11 @@ public final class JavaStationSdk {
         check(((Http.Application<BigInteger>)codec.decode(codec.encode(new Http.Application<>(Values.U64_MAX)))).value().equals(Values.U64_MAX));
         check(((Http.Outcome)((Http.Received<BigInteger>)codec.decode(encoded)).value()).exchange().equals(Values.U64_MAX));
         expect(TransitException.Kind.CODEC, () -> codec.encode(new Http.Received<>(outcome)));
+        byte[] releasedBytes = HexFormat.of().parseHex(read(Path.of(cfg.get("http_release_fixtures").getAsString())).get("reply").getAsString());
+        Http.Released released = (Http.Released)((Http.Received<BigInteger>)codec.decode(releasedBytes)).value();
+        check(released.equals(new Http.Released(new ResourceRef(72, 7), Values.U64_MAX)));
+        expect(TransitException.Kind.CODEC, () -> codec.encode(new Http.Received<>(released)));
+        try { Http.decodeReply(72, Arrays.copyOf(releasedBytes, 19)); throw new AssertionError("Truncated acknowledgement accepted"); } catch (TransitException expectedFailure) { }
         try { Http.decodeReply(72, Arrays.copyOf(encoded, 70)); throw new AssertionError("Truncated HTTP outcome accepted"); } catch (TransitException expectedFailure) { }
         try { Http.prepare(new ResourceRef(72, 8), BigInteger.ONE, new Http.Request(Http.Method.GET, List.of(new Http.Literal("//other/")), List.of()),
             new byte[0], new Http.Options(BigInteger.ONE, 9000, 1)); throw new AssertionError("Invalid HTTP target accepted"); } catch (TransitException expectedFailure) { }
@@ -251,17 +256,28 @@ public final class JavaStationSdk {
         final ProcessRef peer;
         final Http.Prepared request;
         final Key<BigInteger> correlation = new Key<>("http-correlation", Codecs.U64);
+        final Key<BigInteger> releaseCorrelation = new Key<>("http-release-correlation", Codecs.U64);
+        final Http.Outcome disposal;
         Turn escaped;
         JsonObject result;
-        HttpHandler(ProcessRef peer, Http.Prepared request) { this.peer = peer; this.request = request; }
+        HttpHandler(ProcessRef peer, Http.Prepared request, Http.Outcome disposal) { this.peer = peer; this.request = request; this.disposal = disposal; }
         @Override public void onMessage(Turn turn, Incoming<Http.Message<Bytes>> input) {
             escaped = turn;
             if (input instanceof Cast<Http.Message<Bytes>>) {
-                if (turn.state().find(correlation).isPresent()) result = Values.obj("called", true);
+                if (input.value() instanceof Http.Application<Bytes> application && Arrays.equals(application.value().copy(), "dispose".getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+                    expect(TransitException.Kind.HANDLER, () -> turn.releaseHttp(peer, new ResourceRef(73, disposal.resource().resource()), disposal.exchange()));
+                    BigInteger id = turn.releaseHttp(peer, disposal.resource(), disposal.exchange());
+                    turn.state().put(releaseCorrelation, id); result = Values.obj("released", false);
+                } else if (turn.state().find(correlation).isPresent()) result = Values.obj("called", true);
                 else if (turn.stageHttp(request)) { BigInteger id = turn.callHttp(peer, request); turn.state().put(correlation, id); result = Values.obj("called", true); }
                 else result = Values.obj("called", false);
             } else {
                 check(input instanceof Reply<Http.Message<Bytes>>);
+                if (((Http.Received<Bytes>)input.value()).value() instanceof Http.Released released) {
+                    turn.requireReply((Reply<?>)input, peer, turn.state().require(releaseCorrelation));
+                    check(released.resource().equals(disposal.resource()) && released.exchange().equals(disposal.exchange()));
+                    turn.state().put(new Key<>("http-disposed", Codecs.U64), released.exchange()); result = Values.obj("released", true); return;
+                }
                 turn.requireReply((Reply<?>)input, peer, turn.state().require(correlation));
                 Http.Outcome outcome = (Http.Outcome)((Http.Received<Bytes>)input.value()).value();
                 check(outcome.phase() == Http.Phase.OBSERVED && outcome.status().orElseThrow() == 200);
@@ -281,7 +297,8 @@ public final class JavaStationSdk {
         ServiceConfig config = new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.GROWING_V3),
             new Activation(new ProcessRef(72, cfg.get("pid").getAsLong()), cfg.get("generation").getAsLong(),
                 new Credential(72, cfg.get("principal").getAsLong(), Path.of(cfg.get("seed_file").getAsString()))));
-        HttpHandler handler = new HttpHandler(new ProcessRef(72, cfg.get("peer").getAsLong()), request);
+        Http.Outcome disposal = cfg.has("outcome") ? (Http.Outcome)Http.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString())) : null;
+        HttpHandler handler = new HttpHandler(new ProcessRef(72, cfg.get("peer").getAsLong()), request, disposal);
         ByteArrayOutputStream owned = new ByteArrayOutputStream(); Http.Reader reader = null; Http.Outcome outcome = null;
         try (Runner<Http.Message<Bytes>> runner = Runner.open(config, handler, new Http.ReplyCodec<>(new HttpBytes(), 72), FailurePolicy.STOP, new Recovery.FreshOwnership())) {
             if (mode.equals("http-async")) {
@@ -300,7 +317,8 @@ public final class JavaStationSdk {
                     case "step" -> {
                         boolean committed = false;
                         for (int n = 0; n < 32; n++) if (await(runner.next()) instanceof Committed) { committed = true; break; }
-                        check(committed); expect(TransitException.Kind.TURN_EXPIRED, () -> handler.escaped.stageHttp(request)); report(handler.result);
+                        check(committed); expect(TransitException.Kind.TURN_EXPIRED, () -> handler.escaped.stageHttp(request));
+                        expect(TransitException.Kind.TURN_EXPIRED, () -> handler.escaped.releaseHttp(handler.peer, request.resource(), BigInteger.ONE)); report(handler.result);
                     }
                     case "open" -> {
                         outcome = (Http.Outcome)Http.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString()));
