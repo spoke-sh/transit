@@ -1,6 +1,6 @@
 # gRPC connector
 
-Status: proposed second connector, [M16](roadmap/M16.md), after
+Status: second connector in progress, [M16](roadmap/M16.md), after
 [HTTP M15](roadmap/M15.md). No general gRPC transport or connector is implemented.
 The [shared effect boundary](CONNECTORS.md#effect-boundary) and
 [bounded reconciliation contract](CONNECTORS.md#bounded-reconciliation-contract)
@@ -13,6 +13,14 @@ per-direction message order and RPC completion semantics. It must run the common
 corpus without forking the attempt or cleanup state machine. M14 publication
 supports the bytes; it does not implement per-message send authority or a live
 connection handoff. These remain entry gates, not implemented capabilities.
+
+The initial authority profile is now fixed: publish a finite outgoing batch and
+its half-close before committing one exact effect intent. Responses can arrive
+concurrently but cannot create additional sends on that connection. All four
+method shapes remain required. Interactive response-dependent messages are a
+separate authority extension. HTTP's executed lifecycle/recovery corpus and the
+pinned TLS adapter are the reusable foundation; HTTP/2 and RPC-specific behavior
+still require their own executable qualification.
 
 ## Purpose and ownership
 

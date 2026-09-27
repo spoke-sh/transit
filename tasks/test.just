@@ -11,6 +11,9 @@ unit:
     zig build test
 
 # Independent HTTP/TLS peers; exact single sends, bounded capture and failure.
+tls-alpn:
+    zig build test-tls-alpn
+
 http-transport:
     zig build test-http-transport
 

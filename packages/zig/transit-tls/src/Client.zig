@@ -19,6 +19,41 @@ const hkdfExpandLabel = tls.hkdfExpandLabel;
 const int = tls.int;
 const array = tls.array;
 
+fn encodeAlpn(required: ?[]const u8, buffer: *[262]u8) error{TlsIllegalParameter}![]const u8 {
+    const protocol = required orelse return buffer[0..0];
+    if (protocol.len == 0 or protocol.len > 255) return error.TlsIllegalParameter;
+    mem.writeInt(u16, buffer[0..2], @backingInt(tls.ExtensionType.application_layer_protocol_negotiation), .big);
+    mem.writeInt(u16, buffer[2..4], @intCast(protocol.len + 3), .big);
+    mem.writeInt(u16, buffer[4..6], @intCast(protocol.len + 1), .big);
+    buffer[6] = @intCast(protocol.len);
+    @memcpy(buffer[7..][0..protocol.len], protocol);
+    return buffer[0 .. protocol.len + 7];
+}
+
+fn acceptAlpn(required: ?[]const u8, bytes: []const u8, selected: *bool) error{TlsIllegalParameter}!void {
+    const protocol = required orelse return error.TlsIllegalParameter;
+    if (selected.* or bytes.len < 4 or bytes[2] == 0 or
+        mem.readInt(u16, bytes[0..2], .big) != bytes.len - 2 or
+        bytes[2] != bytes.len - 3 or !mem.eql(u8, protocol, bytes[3..])) return error.TlsIllegalParameter;
+    selected.* = true;
+}
+
+test "ALPN exact selection rejects empty, unsolicited, duplicate and malformed lists" {
+    const t = std.testing;
+    var buffer: [262]u8 = undefined;
+    try t.expectEqualSlices(u8, &.{ 0, 16, 0, 5, 0, 3, 2, 'h', '2' }, try encodeAlpn("h2", &buffer));
+    try t.expectError(error.TlsIllegalParameter, encodeAlpn("", &buffer));
+    try t.expectError(error.TlsIllegalParameter, encodeAlpn(&@as([256]u8, @splat('x')), &buffer));
+    var selected = false;
+    try acceptAlpn("h2", &.{ 0, 3, 2, 'h', '2' }, &selected);
+    try t.expect(selected);
+    try t.expectError(error.TlsIllegalParameter, acceptAlpn("h2", &.{ 0, 3, 2, 'h', '2' }, &selected));
+    selected = false;
+    try t.expectError(error.TlsIllegalParameter, acceptAlpn(null, &.{ 0, 3, 2, 'h', '2' }, &selected));
+    for ([_][]const u8{ "", "\x00\x01\x00", "\x00\x03\x02h3", "\x00\x04\x02h2", "\x00\x06\x02h2\x02h2", "\x00\x03\x01h2" }) |bytes|
+        try t.expectError(error.TlsIllegalParameter, acceptAlpn("h2", bytes, &selected));
+}
+
 /// The encrypted stream from the server to the client. Bytes are pulled from
 /// here via `reader`.
 ///
@@ -119,6 +154,11 @@ pub const Options = struct {
     entropy: *const [entropy_len]u8,
     /// Current time according to the wall clock / calendar.
     realtime_now: std.Io.Timestamp,
+
+    /// Offer exactly this application protocol and require its authenticated
+    /// selection before returning. Null preserves TLS without ALPN. The slice
+    /// is borrowed only during init; names must contain 1..255 bytes (RFC 7301).
+    required_alpn: ?[]const u8 = null,
 
     /// If non-null, ssl secrets are logged to this stream. Creating such a log file allows
     /// other programs with access to that file to decrypt all traffic over this connection.
@@ -258,8 +298,10 @@ pub fn init(input: *Reader, output: *Writer, options: Options) InitError!Client 
         .explicit => server_name_extension.len + host_len,
     };
 
+    var alpn_buffer: [262]u8 = undefined;
+    const alpn_extension = try encodeAlpn(options.required_alpn, &alpn_buffer);
     const extensions_header =
-        int(u16, @intCast(extensions_payload.len + server_name_extension_len)) ++
+        int(u16, @intCast(extensions_payload.len + server_name_extension_len + alpn_extension.len)) ++
         extensions_payload ++
         server_name_extension;
 
@@ -272,12 +314,12 @@ pub fn init(input: *Reader, output: *Writer, options: Options) InitError!Client 
         extensions_header;
 
     const out_handshake = .{@backingInt(tls.HandshakeType.client_hello)} ++
-        int(u24, @intCast(client_hello.len - server_name_extension.len + server_name_extension_len)) ++
+        int(u24, @intCast(client_hello.len - server_name_extension.len + server_name_extension_len + alpn_extension.len)) ++
         client_hello;
 
     const cleartext_header_buf = .{@backingInt(tls.ContentType.handshake)} ++
         int(u16, @backingInt(tls.ProtocolVersion.tls_1_0)) ++
-        int(u16, @intCast(out_handshake.len - server_name_extension.len + server_name_extension_len)) ++
+        int(u16, @intCast(out_handshake.len - server_name_extension.len + server_name_extension_len + alpn_extension.len)) ++
         out_handshake;
     const cleartext_header = switch (options.host) {
         .no_verification => cleartext_header_buf[0 .. cleartext_header_buf.len - server_name_extension.len],
@@ -285,12 +327,13 @@ pub fn init(input: *Reader, output: *Writer, options: Options) InitError!Client 
     };
 
     {
-        var iovecs: [2][]const u8 = .{ cleartext_header, host };
-        try output.writeVecAll(iovecs[0..if (host.len == 0) 1 else 2]);
+        var iovecs: [3][]const u8 = .{ cleartext_header, host, alpn_extension };
+        try output.writeVecAll(&iovecs);
         try output.flush();
     }
 
     var tls_version: tls.ProtocolVersion = undefined;
+    var alpn_selected = false;
     var chain: Certificate.Chain = if (Certificate.Chain != void) .empty;
     defer if (Certificate.Chain != void) chain.deinit();
     // These are used for two purposes:
@@ -474,6 +517,7 @@ pub fn init(input: *Reader, output: *Writer, options: Options) InitError!Client 
                                 const ext_size = all_extd.decode(u16);
                                 var extd = try all_extd.sub(ext_size);
                                 switch (et) {
+                                    .application_layer_protocol_negotiation => try acceptAlpn(options.required_alpn, extd.rest(), &alpn_selected),
                                     .supported_versions => {
                                         if (supported_version) |_| return error.TlsIllegalParameter;
                                         try extd.ensure(2);
@@ -493,6 +537,10 @@ pub fn init(input: *Reader, output: *Writer, options: Options) InitError!Client 
                         }
 
                         tls_version = @fromBackingInt(@intCast(supported_version orelse legacy_version));
+                        // TLS 1.3 moves ALPN into EncryptedExtensions. Selection
+                        // in ServerHello is forbidden, even if its name matches.
+                        if (tls_version == .tls_1_3 and alpn_selected) return error.TlsIllegalParameter;
+                        if (tls_version == .tls_1_2 and options.required_alpn != null and !alpn_selected) return error.TlsIllegalParameter;
                         switch (tls_version) {
                             .tls_1_3 => if (!mem.eql(u8, legacy_session_id_echo, &legacy_session_id)) return error.TlsIllegalParameter,
                             .tls_1_2 => if (mem.eql(u8, server_hello_rand[24..31], "DOWNGRD") and
@@ -518,6 +566,7 @@ pub fn init(input: *Reader, output: *Writer, options: Options) InitError!Client 
                                 const p = &@field(handshake_cipher, @tagName(tag.with()));
                                 p.transcript_hash.update(cleartext_header[tls.record_header_len..]); // Client Hello part 1
                                 p.transcript_hash.update(host); // Client Hello part 2
+                                p.transcript_hash.update(alpn_extension); // Client Hello part 3
                                 p.transcript_hash.update(wrapped_handshake);
                             },
 
@@ -590,12 +639,13 @@ pub fn init(input: *Reader, output: *Writer, options: Options) InitError!Client 
                             const et = all_extd.decode(tls.ExtensionType);
                             const ext_size = all_extd.decode(u16);
                             const extd = try all_extd.sub(ext_size);
-                            _ = extd;
                             switch (et) {
+                                .application_layer_protocol_negotiation => try acceptAlpn(options.required_alpn, extd.rest(), &alpn_selected),
                                 .server_name => {},
                                 else => {},
                             }
                         }
+                        if (options.required_alpn != null and !alpn_selected) return error.TlsIllegalParameter;
                         handshake_state = .certificate;
                     },
                     .certificate => cert: {

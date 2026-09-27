@@ -825,6 +825,7 @@
       "tasks": [
         "test::unit",
         "test::http-transport",
+        "test::tls-alpn",
         "test::http-worker",
         "bindings::test",
         "bindings::python-test",

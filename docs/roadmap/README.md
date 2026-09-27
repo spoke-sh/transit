@@ -23,7 +23,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M13](M13.md) | Board relief atlas and public query access | Complete: qualified Table query client/hosts, SQL shell and growing Board workspace |
 | [M14](M14.md) | Bounded publication for larger Station records | Complete: growing immutable publication, bounded staging/cleanup and disk recovery |
 | [M15](M15.md) | HTTP connector and shared exchange lifecycle | Local qualification passed across ten SDKs, Compose and reference runtime; final handoff and hosted cost evidence pending |
-| [M16](M16.md) | gRPC connector and bounded streaming calls | Planned; reuse M15 common components and qualify streaming authority |
+| [M16](M16.md) | gRPC connector and bounded streaming calls | In progress; finite-batch authority fixed and required TLS ALPN qualified; transport and streaming work remains |
 | [M17](M17.md) | Documents and collaborative text | Planned; accepted-state/CRDT contracts over immutable publication |
 | [M18](M18.md) | Unified state querying and versioned source contracts | Planned; KV/Document adapters, wider schemas/requests and all SDKs |
 | [M19](M19.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned; compose qualified transport and query components |

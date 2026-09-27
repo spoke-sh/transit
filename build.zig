@@ -45,6 +45,14 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_http.module("transit_station_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
+    const tls_alpn_proof = b.addExecutable(.{ .name = "transit-tls-alpn-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/tls_alpn.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_tls", .module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") }} }) });
+    build_test_step.dependOn(&tls_alpn_proof.step);
+    const tls_alpn_test = b.addSystemCommand(&.{ "python3", "-B" });
+    tls_alpn_test.addFileArg(b.path("tests/tls_alpn.py"));
+    tls_alpn_test.addArtifactArg(tls_alpn_proof);
+    tls_alpn_test.has_side_effects = true;
+    tls_alpn_test.stdio = .inherit;
+    b.step("test-tls-alpn", "Qualify required ALPN with independent TLS peers").dependOn(&tls_alpn_test.step);
     const http_transport_proof = b.addExecutable(.{ .name = "transit-http-transport-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/http_transport.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }} }) });
     build_test_step.dependOn(&http_transport_proof.step);
     const http_transport_test = b.addSystemCommand(&.{ "python3", "-B" });

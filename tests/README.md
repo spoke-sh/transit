@@ -1,5 +1,14 @@
 # Validation and milestone evidence
 
+## M16 transport work in progress
+
+`just test::tls-alpn` executes a real Zig client against six independent TLS
+connections: TLS 1.2 and 1.3 each accept `h2` and reject absent or incompatible
+selection before application bytes. Units reject unsolicited/duplicate selection,
+unknown protocols and malformed vectors. The unchanged HTTP transport and
+certificate-path corpus passes after this addition. HTTP/2 and gRPC streaming
+are not established by this negotiation proof.
+
 ## M15 connector work in progress
 
 The terminal-publication fault extension to `just test::http-worker` passes in

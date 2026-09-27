@@ -28,6 +28,7 @@
       "test::public-query",
       "test::publication",
       "test::http-transport",
+      "test::tls-alpn",
       "test::http-worker",
       "examples::http"
     ],

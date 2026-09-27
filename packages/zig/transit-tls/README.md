@@ -21,6 +21,14 @@ this copy deliberately on compiler updates and rerun independent forged-chain
 and valid-chain fixtures. Remove the workaround only after the compiler itself
 passes those checks.
 
+`required_alpn` optionally offers one 1–255-byte application protocol and refuses
+the handshake unless the peer selects it. TLS 1.2 selection is in ServerHello;
+TLS 1.3 selection is in authenticated EncryptedExtensions. Duplicate, unsolicited,
+wrong and malformed selections reject. The adapter writes no application bytes
+before successful negotiation. `just test::tls-alpn` qualifies `h2`, missing
+selection and incompatible offers against independent TLS 1.2/1.3 peers; this
+does not itself qualify HTTP/2 or gRPC framing.
+
 Run `nix develop --command bash -c 'cd packages/zig/transit-tls && zig build test'`.
 Transport/deployment qualification belongs to its consumers; M15 owns the initial
 HTTP integration and M16 will qualify its HTTP/2 use separately.
