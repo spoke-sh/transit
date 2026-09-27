@@ -1,0 +1,51 @@
+# Unified source capture
+
+`UnifiedCapture` implements the source-owned v2 state machine in ordinary growing
+Station turns. Public requester/client/host wiring is still in progress. Its
+[contract](../../../../contracts/UNIFIED_QUERY_V2.md) owns versions and limits;
+component tests alone do not qualify disk or process recovery.
+
+Configure a revisioned `UnifiedRecords.Policy` with the permitted peer PID,
+request resource, exact `Bundle.declaration(source)` digest and explicit maximum
+input pages, segments and result bytes. Reusing a revision with different policy
+rejects. Document declarations permit another accepted revision only within the
+same epoch, type, identity, change format and projection.
+
+On a call, `start` verifies the current policy and complete immutable bundle,
+validates the declared source and plan, then retains the source turn's committed
+cut. It records the original peer/correlation, request reference, job, checkpoint
+and self-continuation. Reserve namespaces `2^63 | source_input_position` in this
+resource; occupied namespaces reject, and query jobs never adopt prior records.
+Initialize the enclosing behavior separately before admitting its first query:
+start uses four mutations and cannot share a turn with private initialization.
+
+`advance` reopens current request access and source policy, then reads a bounded
+page from the retained source. Supply disposable bounded decode/adapter storage,
+a 4 MiB Arrow workspace and a cancellation flag. A local cancellation flag aborts
+unsent work; it does not close accepted work. The returned private decision is
+not durable until the host confirms its exact signed commit.
+
+Each segment begins a Publication with frozen metadata. Later turns recompute
+that same page and stage at most two chunks plus the next self-input. The publish
+turn atomically writes the Publication descriptor/budget, checkpoint and job:
+four mutations. A conflicting recomputation fails; an older self-input is a
+no-op. Empty adapter pages advance without inventing result rows. Source pins
+are released with the final capture checkpoint, before manifest publication.
+
+The final manifest includes the complete original route, request, source/plan
+basis, progress and ordered segment coverage. It has its own immutable publication;
+only its final publish turn marks the job complete and emits the original-call
+reply. Published segment records alone do not establish a completed query.
+
+`close` explicitly cancels, denies or fails unfinished work and releases its pin.
+The caller must invoke it in a fresh proposal, before a failed source read poisons
+the turn. Infrastructure/read failures must not silently become cancellation or
+successful completion. Current policy denial is handled before source/request
+reads. A completed result requires explicit retirement to remove its records.
+
+Closure schedules bounded cleanup without relying on continued request access.
+It abandons or retires each record and collects at most two chunks per turn,
+including a partially staged segment or manifest. Descriptors, segment metadata,
+job identity and correlation index remain as permanent history. No automatic
+expiry, cardinality ceiling, retention opt-in or second authoritative store is
+introduced. Resource quotas still govern retained publications and ledgers.

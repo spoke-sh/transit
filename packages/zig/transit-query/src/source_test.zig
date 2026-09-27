@@ -134,7 +134,7 @@ test "KV and Table adapters page exact cuts and reject source or decoder substit
     try t.expectError(error.SourceChanged, source.page(table_definition, table_cut, .{}, &current, &current, arena.allocator(), &batch));
 }
 
-fn changeDocument(store: *@import("source_store_test.zig"), service: q.document.Service, job: u64, replica: u64, first: u64, operations: []const q.document.Operation) !void {
+pub fn changeDocument(store: *@import("source_store_test.zig"), service: q.document.Service, job: u64, replica: u64, first: u64, operations: []const q.document.Operation) !void {
     var change: q.document.Change = .{ .document = service.document, .epoch = 1, .replica = replica, .previous = if (replica == 1) first - 1 else 0, .first = first, .len = @intCast(operations.len) };
     @memcpy(change.operations[0..operations.len], operations);
     var turn = try store.capture();

@@ -42,8 +42,10 @@ exhausted budgets reject; values are never truncated. Decoding errors are typed
 cells while unknown decoder versions reject the definition.
 
 Component tests qualify these adapters and the current Document floor/retirement
-checks with in-memory private turns. V2 durable capture, public submission,
-result access and SDK surfaces remain in progress; the existing `Client` and
+checks with in-memory private turns. `UnifiedCapture` now supplies resumable
+retained capture, publication, closure and cleanup; see its
+[capture guide](docs/unified-capture.md). Public submission, result access, SDKs
+and disk/worker recovery qualification remain in progress; the existing `Client` and
 `Behavior` still serve public Table v1 queries.
 
 `Bundle` owns the bounded canonical source/plan request and explicit page,

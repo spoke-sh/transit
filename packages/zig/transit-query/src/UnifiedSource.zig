@@ -35,6 +35,21 @@ pub fn basis(definition: Def, revision: u64) !m.Basis {
     var columns: [m.max_columns]m.Column = undefined;
     return .{ .kind = std.meta.activeTag(definition.source), .resource = definition.resource, .revision = revision, .contract = try definition.fingerprint(), .schema = try (try definition.schema(&columns)).fingerprint() };
 }
+/// Current declaration/lifecycle evidence, including after capture releases its
+/// source pin. A retained source must never be passed as the current reader.
+pub fn checkCurrent(definition: Def, current: anytype) !void {
+    if (current.view.resource != definition.resource) return error.SourceChanged;
+    switch (definition.source) {
+        .kv => {},
+        .table => |table| {
+            if (!std.meta.eql((try q.station.Table.open(current, table.id)).schema, table.schema)) return error.TableSchemaChanged;
+        },
+        .document => |document| {
+            const service = try document.reference.identity().service();
+            try checkReference(document.reference, try service.open(current, document.reference.revision));
+        },
+    }
+}
 /// Every pointer in output borrows the caller's bounded arena or output itself.
 /// An error invalidates the whole page. Never publish a partially filled batch.
 pub fn page(definition: Def, expected: m.Basis, cursor: Cursor, data: anytype, current: anytype, allocator: std.mem.Allocator, output: *Batch) !void {

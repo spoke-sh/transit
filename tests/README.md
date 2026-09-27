@@ -30,6 +30,19 @@ items with stable identities, and reject text-budget exhaustion. Retained bytes
 cannot bypass current read denial, a newer merge-window floor or retirement.
 This in-memory evidence does not qualify durable query capture/result access.
 
+V2 bundle fixtures independently bind all three sources, explicit work budgets
+and larger plans to Publication references. Current reference reads reject
+before/during/after-copy denial and retirement, including empty completion.
+The source capture component schedule passes for KV (37 rows), Table (12 rows)
+and accepted Document list expansion (12 rows) through actual `GrowingTurn`
+retained-reader APIs backed by a test map. It checks discarded-proposal
+recomputation, live-source updates after retention, original replies, complete
+manifest/segment coverage, pin release, older continuations, policy denial,
+explicit cancellation, budget failure and bounded cleanup after request denial.
+Every private turn retains the existing four-mutation limit. `just check` passes
+with these tests. This is in-memory state-machine evidence, not a signed service,
+disk, worker/node recovery, public SDK or returned-prefix authorization proof.
+
 ## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test
