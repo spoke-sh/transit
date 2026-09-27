@@ -70,6 +70,17 @@ remains open; `transit_station_http_reader_destroy` releases the handle and
 attempts local close. Disposal does not release the durable caller hold or erase
 capture. Those are explicit lifecycle operations.
 
+For durable disposal, call `transit_station_turn_http_release` in a handler with
+the connector PID, capture resource and exchange, and persist the returned
+correlation. Decode `HTK1` payloads with `transit_station_http_decode_released`
+into the separate inline `transit_station_http_released` type; authenticate the
+outer reply with `transit_station_turn_require_reply` and check its resource and
+exchange. Rejections still use the existing outcome decoder. Duplicate disposal
+remains safe after restart and cleanup, without a transcript read grant. The
+service checks the recorded holder and current admission policy. Release does
+not perform remote cancellation, retirement or cleanup. The finite worker needs
+a fresh `poll` activation to handle this control call.
+
 Concurrent operations return `BUSY`. Close joins owned native work; stop does not
 cancel remote HTTP execution. Join application threads before destroying a public
 handle. A reader keeps the runner's local storage valid after runner destruction,

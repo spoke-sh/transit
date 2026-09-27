@@ -244,6 +244,10 @@ typedef struct transit_station_http_outcome {
     size_t reference_size; /* Zero unless complete; not a bearer grant. */
     uint8_t reference[256];
 } transit_station_http_outcome;
+typedef struct transit_station_http_released {
+    transit_sdk_resource resource;
+    uint64_t exchange;
+} transit_station_http_released;
 typedef enum transit_station_http_replay_policy { TRANSIT_HTTP_CAPTURED, TRANSIT_HTTP_REQUIRE_UNREDACTED } transit_station_http_replay_policy;
 typedef enum transit_station_http_part_kind { TRANSIT_HTTP_REQUEST_TEMPLATE, TRANSIT_HTTP_REQUEST_HEAD, TRANSIT_HTTP_REQUEST_BODY, TRANSIT_HTTP_RESPONSE_HEAD, TRANSIT_HTTP_RESPONSE_BODY, TRANSIT_HTTP_RESPONSE_TRAILERS, TRANSIT_HTTP_TIMING, TRANSIT_HTTP_OMISSION, TRANSIT_HTTP_COMPLETION } transit_station_http_part_kind;
 typedef struct transit_station_http_part {
@@ -256,8 +260,11 @@ transit_sdk_error transit_station_http_prepare(const transit_station_http_templa
 transit_sdk_error transit_station_http_request_inspect(const transit_station_http_request *request, transit_station_http_request_view *out);
 void transit_station_http_request_destroy(transit_station_http_request *request);
 transit_sdk_error transit_station_http_decode(uint64_t realm, transit_sdk_bytes bytes, const char *native_directory, transit_station_http_outcome *out);
+transit_sdk_error transit_station_http_decode_released(uint64_t realm, transit_sdk_bytes bytes, const char *native_directory, transit_station_http_released *out);
 transit_sdk_error transit_station_turn_http_stage(transit_station_turn *turn, const transit_station_http_request *request, bool *ready);
 transit_sdk_error transit_station_turn_http_call(transit_station_turn *turn, transit_sdk_process peer, const transit_station_http_request *request, uint64_t *correlation);
+/* Request durable hold disposal; authenticate the correlated HTK1 reply. */
+transit_sdk_error transit_station_turn_http_release(transit_station_turn *turn, transit_sdk_process peer, transit_sdk_resource capture, uint64_t exchange, uint64_t *correlation);
 /* Reader retains local runner lifetime. Runner destroy/close joins native work;
  * caller must join concurrent uses before destroying any public handle. */
 transit_sdk_error transit_station_http_open(transit_station_runner *runner, const transit_station_http_outcome *outcome, transit_station_http_replay_policy policy, transit_station_http_reader **out);

@@ -67,7 +67,8 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
                                        for category in ('valid', 'invalid') for item in data[category]))
             http_fixtures = target / 'http-codecs.txt'
             data = json.loads((root / 'packages/zig/transit-station-http/src/admission-fixtures.json').read_bytes())
-            http_fixtures.write_text('\n'.join([data['body'], data['reference'], data['metadata'].encode().hex(), data['outcome'], data['rejection']]) + '\n')
+            release = json.loads((root / 'packages/zig/transit-station-http/src/release-fixtures.json').read_bytes())
+            http_fixtures.write_text('\n'.join([data['body'], data['reference'], data['metadata'].encode().hex(), data['outcome'], data['rejection'], release['reply']]) + '\n')
             def command(mode, config):
                 cfg = json.loads(config.read_bytes())
                 assert cfg['profile'] == 'growing_v3'
@@ -82,7 +83,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
                         str(cfg['generation']), cfg['seed_file'], str(cfg['peer']), '1', cfg['pending']]
             return Consumer(environment, command, installed_cli, 'invalid-thread', ('exception-stop', 'exception-block'), arrow_adapter=False)
         (execute or schedule)(node, cli, library, install, language)
-        if execute is None: http_schedule(node, cli, library, http_worker, install, language)
+        if execute is None: http_schedule(node, cli, library, http_worker, install, language, public_release=True)
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

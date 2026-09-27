@@ -15,7 +15,8 @@ Local::Local(const char *directory) : raw(directory), library(directory, "libtra
         if (!raw.boolean(value, flag)) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "station-capabilities");
     caps = {raw.number(value, "message_bytes"), raw.number(value, "value_bytes"), raw.number(value, "key_bytes"),
         raw.number(value, "table_cell_bytes"), raw.number(value, "table_name_bytes"), raw.number(value, "page_entries"),
-        raw.number(value, "query_segment_bytes"), raw.boolean(value, "query_results"), raw.boolean(value, "http_requests"), raw.boolean(value, "http_replay")};
+        raw.number(value, "query_segment_bytes"), raw.boolean(value, "query_results"), raw.boolean(value, "http_requests"), raw.boolean(value, "http_replay"),
+        exists(raw, value, "http_release") && raw.boolean(value, "http_release")};
     for (auto bound : {caps.message, caps.value, caps.key, caps.cell, caps.name, caps.page, caps.segment})
         if (bound > TRANSIT_CLIENT_MAX_BODY) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-bound");
 }

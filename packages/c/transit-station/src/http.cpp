@@ -107,6 +107,22 @@ transit_sdk_error transit_station_http_decode(uint64_t realm, transit_sdk_bytes 
         *out = decoded;
     });
 }
+transit_sdk_error transit_station_http_decode_released(uint64_t realm, transit_sdk_bytes bytes, const char *native_directory, transit_station_http_released *out) {
+    Uninterruptible guard; if (out) *out = {};
+    return boundary([&] {
+        require(out, "http-released"); counter(realm);
+        const auto action = "{\"released\":" + quote(hex(copy(bytes, 20))) + "}";
+        Worker worker; transit_station_http_released decoded{};
+        worker.run([&] {
+            Local local(native_directory);
+            if (!local.caps.http_release) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "http-release");
+            const auto value = codec(local, action);
+            decoded.resource = {realm, local.raw.number(value, "released/resource")};
+            decoded.exchange = wide(local.raw, value, "released/exchange");
+        });
+        *out = decoded;
+    });
+}
 transit_sdk_error transit_station_turn_http_stage(transit_station_turn *turn, const transit_station_http_request *request, bool *ready) {
     if (ready) *ready = false;
     return with_turn(turn, false, [&](auto &owner) {
@@ -120,6 +136,16 @@ transit_sdk_error transit_station_turn_http_call(transit_station_turn *turn, tra
     return with_turn(turn, false, [&](auto &owner) {
         require(correlation, "http-call"); request_scope(owner, request); peer(owner, destination);
         const auto value = turn_apply(owner, "{\"http_call\":{\"pid\":" + decimal(destination.pid) + ",\"reference\":" + quote(hex(request->reference)) + "}}");
+        *correlation = wide(owner.bridge->local.raw, value, "correlation");
+    });
+}
+transit_sdk_error transit_station_turn_http_release(transit_station_turn *turn, transit_sdk_process destination, transit_sdk_resource capture, uint64_t exchange, uint64_t *correlation) {
+    if (correlation) *correlation = 0;
+    return with_turn(turn, false, [&](auto &owner) {
+        require(correlation && exchange && capture.realm == owner.info.resource.realm, "http-release-identity");
+        counter(capture.resource); peer(owner, destination);
+        if (!owner.bridge->local.caps.http_release) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "http-release");
+        const auto value = turn_apply(owner, "{\"http_release\":{\"pid\":" + decimal(destination.pid) + ",\"resource\":" + decimal(capture.resource) + ",\"exchange\":" + quote(decimal(exchange)) + "}}");
         *correlation = wide(owner.bridge->local.raw, value, "correlation");
     });
 }

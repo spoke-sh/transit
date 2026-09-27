@@ -167,6 +167,9 @@ public:
     ResultReader result(uint64_t correlation) const;
     bool stage_http(const PreparedHttpRequest &request) const;
     uint64_t call_http(ProcessRef peer, const PreparedHttpRequest &request) const;
+    uint64_t release_http(ProcessRef peer, ResourceRef capture, uint64_t exchange) const {
+        uint64_t correlation = 0; check(transit_station_turn_http_release(native(), peer.native(), capture.native(), exchange, &correlation)); return correlation;
+    }
 };
 class State {
     Turn turn_;
@@ -344,6 +347,7 @@ public:
     transit_station_http_rejection rejection() const { if (!rejected()) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "http-not-rejected"); return value_.rejection; }
     transit_station_http_phase phase() const { if (rejected()) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "http-rejected"); return value_.phase; }
     uint64_t exchange() const { return value_.exchange; }
+    ResourceRef resource() const { return ResourceRef(value_.resource.realm, value_.resource.resource); }
     uint64_t effect() const { return value_.effect; }
     uint64_t attempt() const { return value_.attempt; }
     std::optional<uint16_t> status() const { return value_.status ? std::optional<uint16_t>(value_.status) : std::nullopt; }
@@ -355,7 +359,17 @@ public:
 inline HttpOutcome decode_http_reply(uint64_t realm, const Bytes &bytes, const char *native_directory = nullptr) {
     transit_station_http_outcome out{}; check(transit_station_http_decode(realm, bytes_view(bytes), native_directory, &out)); return HttpOutcome(out);
 }
-template<class T> using HttpMessage = std::variant<T, HttpOutcome>;
+class HttpReleased {
+    transit_station_http_released value_{};
+public:
+    explicit HttpReleased(transit_station_http_released value) : value_(value) {}
+    ResourceRef resource() const { return ResourceRef(value_.resource.realm, value_.resource.resource); }
+    uint64_t exchange() const { return value_.exchange; }
+};
+inline HttpReleased decode_http_released(uint64_t realm, const Bytes &bytes, const char *native_directory = nullptr) {
+    transit_station_http_released out{}; check(transit_station_http_decode_released(realm, bytes_view(bytes), native_directory, &out)); return HttpReleased(out);
+}
+template<class T> using HttpMessage = std::variant<T, HttpOutcome, HttpReleased>;
 template<class T> class HttpReplyCodec : public Codec<HttpMessage<T>> {
     std::shared_ptr<const Codec<T>> application_;
     uint64_t realm_;
@@ -376,6 +390,8 @@ public:
         return application_->encode(std::get<T>(message));
     }
     HttpMessage<T> decode(const Bytes &bytes) const override {
+        if (bytes.size() >= 4 && !std::memcmp(bytes.data(), "HTK1", 4))
+            return decode_http_released(realm_, bytes, directory_ ? directory_->c_str() : nullptr);
         if (bytes.size() >= 4 && (!std::memcmp(bytes.data(), "HTR1", 4) || !std::memcmp(bytes.data(), "HTF1", 4)))
             return decode_http_reply(realm_, bytes, directory_ ? directory_->c_str() : nullptr);
         return application_->decode(bytes);

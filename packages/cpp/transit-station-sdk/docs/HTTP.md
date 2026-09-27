@@ -32,8 +32,8 @@ correlation has committed. Namespace reuse with different content is rejected.
 
 Wrap an application codec in `HttpReplyCodec<Message>` and use
 `Handler<HttpMessage<Message>>`. `HttpMessage` is an explicit variant of the
-application value and `HttpOutcome`. Exact `HTR1`/`HTF1` prefixes are reserved for
-shared outcome decoding; encoding an outcome through this receive-only codec
+application value, `HttpOutcome` and `HttpReleased`. Exact `HTR1`/`HTF1`/`HTK1` prefixes are reserved for
+shared reply decoding; encoding a reply through this receive-only codec
 fails. Inspect the outer `Reply` variant and call
 `turn.require_reply(original_connector, persisted_correlation)` before using
 the outcome. Typed decoding does not authenticate origin.
@@ -63,6 +63,16 @@ runner safely: reads then fail `CLOSED`, while already returned `Bytes` remain
 owned. Close joins native work; stop does not cancel remote execution or release
 durable holds. Join application threads before destroying handles. Reader
 disposal is local and does not authorize capture retirement.
+
+To release the durable caller hold, use
+`turn.release_http(connector, outcome.resource(), outcome.exchange())` inside a
+handler and persist its correlation. Authenticate the subsequent `HttpReleased`
+with `turn.require_reply`, then check `resource()` and `exchange()`.
+`decode_http_released` also decodes acknowledgement bytes outside a handler.
+Duplicate disposal remains safe after restart and cleanup without a transcript
+read grant; the service checks the recorded holder and current admission policy.
+Release does not perform remote cancellation, retirement or cleanup. The finite
+worker needs a fresh `poll` activation to handle it.
 
 The installed C++ consumer in `just bindings::c-sdk-test` checks shared golden
 fixtures, typed correlation, staged upload recovery, current grant revocation,

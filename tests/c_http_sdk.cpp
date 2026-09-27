@@ -55,19 +55,31 @@ static HttpOutcome decode(const Bytes &bytes) {
     return decode_http_reply(72, bytes);
 #endif
 }
+static HttpReleased decode_released(const Bytes &bytes) {
+#ifdef TRANSIT_TEST_C_API
+    transit_station_http_released out{}; check(transit_station_http_decode_released(72, bytes_view(bytes), nullptr, &out)); return HttpReleased(out);
+#else
+    return decode_http_released(72, bytes);
+#endif
+}
 static void golden(const Config &cfg) {
-    std::ifstream file(cfg.fixtures); std::string body, reference, metadata, outcome, rejected; file >> body >> reference >> metadata >> outcome >> rejected; assert(file);
+    std::ifstream file(cfg.fixtures); std::string body, reference, metadata, outcome, rejected, released; file >> body >> reference >> metadata >> outcome >> rejected >> released; assert(file);
     auto source = unhex(body); auto prepared = prepare(8, source, 9000, false); source.clear();
     assert(hex(prepared.reference()) == reference && hex(prepared.metadata()) == metadata && hex(prepared.body()) == body);
     const auto result = decode(unhex(outcome));
     assert(!result.rejected() && result.exchange() == UINT64_MAX && result.status() == 200 && result.reference() && result.phase() == TRANSIT_HTTP_OBSERVED);
     assert(decode(unhex(rejected)).rejection() == TRANSIT_HTTP_DENIED);
     bool failed = false; try { decode(unhex(outcome.substr(0, outcome.size() - 2))); } catch (const Error &) { failed = true; } assert(failed);
+    const auto acknowledgement = decode_released(unhex(released));
+    assert(acknowledgement.resource().realm() == 72 && acknowledgement.resource().resource() == 7 && acknowledgement.exchange() == UINT64_MAX);
+    failed = false; try { decode_released(unhex(released.substr(0, released.size() - 2))); } catch (const Error &) { failed = true; } assert(failed);
 #ifndef TRANSIT_TEST_C_API
     const HttpReplyCodec<uint64_t> codec(std::make_shared<U64Codec>(), 72);
     assert(std::get<uint64_t>(codec.decode(codec.encode(UINT64_MAX))) == UINT64_MAX);
     assert(std::get<HttpOutcome>(codec.decode(unhex(outcome))).exchange() == UINT64_MAX);
     expect(TRANSIT_SDK_CODEC_ERROR, [&] { codec.encode(result); });
+    assert(std::get<HttpReleased>(codec.decode(unhex(released))).exchange() == UINT64_MAX);
+    expect(TRANSIT_SDK_CODEC_ERROR, [&] { codec.encode(acknowledgement); });
     failed = false;
     try { prepare_http(ResourceRef(72, 8), 1, {HttpMethod::Get, {HttpLiteral{"//other/"}}, {}}, {}, {1, 9000}); } catch (const Error &) { failed = true; } assert(failed);
 #endif
@@ -86,16 +98,33 @@ class HttpHandler final : public Handler<HttpMessage<Bytes>> {
     ProcessRef peer_;
     PreparedHttpRequest request_;
     Key<uint64_t> correlation_{"http-correlation", std::make_shared<U64Codec>()};
+    Key<uint64_t> release_correlation_{"http-release-correlation", std::make_shared<U64Codec>()};
+    std::optional<HttpOutcome> disposal_;
 public:
-    HttpHandler(Shared &shared, ProcessRef peer, PreparedHttpRequest request) : shared_(shared), peer_(peer), request_(std::move(request)) {}
+    HttpHandler(Shared &shared, ProcessRef peer, PreparedHttpRequest request, const std::string &outcome) : shared_(shared), peer_(peer), request_(std::move(request)) {
+        if (!outcome.empty()) disposal_ = decode(unhex(outcome));
+    }
     void handle(Turn &turn, const Incoming<HttpMessage<Bytes>> &input) override {
         shared_.escaped = turn; const auto saved = turn.state().find(correlation_);
         if (std::holds_alternative<Cast<HttpMessage<Bytes>>>(input)) {
+            const auto &value = std::get<Cast<HttpMessage<Bytes>>>(input).value;
+            if (std::holds_alternative<Bytes>(value) && std::get<Bytes>(value) == Bytes({'d','i','s','p','o','s','e'})) {
+                assert(disposal_);
+                expect(TRANSIT_SDK_INVALID_ARGUMENT, [&] { turn.release_http(peer_, ResourceRef(73, disposal_->resource().resource()), disposal_->exchange()); });
+                const auto call = turn.release_http(peer_, disposal_->resource(), disposal_->exchange());
+                turn.state().put(release_correlation_, call); shared_.result = 3; return;
+            }
             if (saved) shared_.result = 1;
             else if (turn.stage_http(request_)) { const auto call = turn.call_http(peer_, request_); turn.state().put(correlation_, call); shared_.result = 1; }
             else shared_.result = 0;
         } else {
             const auto &reply = std::get<Reply<HttpMessage<Bytes>>>(input); assert(saved);
+            if (std::holds_alternative<HttpReleased>(reply.value)) {
+                turn.require_reply(peer_, turn.state().require(release_correlation_));
+                const auto &released = std::get<HttpReleased>(reply.value);
+                assert(disposal_ && released.resource().realm() == disposal_->resource().realm() && released.resource().resource() == disposal_->resource().resource() && released.exchange() == disposal_->exchange());
+                turn.state().put(Key<uint64_t>("http-disposed", std::make_shared<U64Codec>()), released.exchange()); shared_.result = 4; return;
+            }
             turn.require_reply(peer_, *saved); const auto &outcome = std::get<HttpOutcome>(reply.value);
             assert(!outcome.rejected() && outcome.phase() == TRANSIT_HTTP_OBSERVED && outcome.status() == 200);
             turn.state().put(Key<uint64_t>("http-status", std::make_shared<U64Codec>()), uint64_t{200}); shared_.result = 2;
@@ -121,7 +150,8 @@ class Controller {
     http_test_context context_;
     std::unique_ptr<transit_station_runner, decltype(&transit_station_runner_destroy)> value_{nullptr, transit_station_runner_destroy};
 public:
-    Controller(const Config &cfg, const PreparedHttpRequest &request) : context_{{72, cfg.peer}, request.native(), nullptr, 0} {
+    Controller(const Config &cfg, const PreparedHttpRequest &request) : context_{{72, cfg.peer}, request.native(), nullptr, 0, {}} {
+        if (!cfg.outcome.empty()) { const auto outcome = decode(unhex(cfg.outcome)); context_.disposal = {outcome.native().resource, outcome.exchange()}; }
         const auto config = cfg.service(); const auto settings = config.native(); const auto handler = http_test_handler(&context_); const auto codec = http_test_codec(&context_);
         const transit_station_options options{TRANSIT_FAILURE_STOP, TRANSIT_RECOVERY_FRESH_OWNERSHIP, nullptr, nullptr, nullptr}; transit_station_runner *out = nullptr;
         check(transit_station_runner_open(&settings, &handler, &codec, &options, &out)); value_.reset(out);
@@ -132,7 +162,10 @@ public:
     void stop() { transit_station_runner_stop(value_.get()); }
     Reader open(const HttpOutcome &outcome) { transit_station_http_reader *out = nullptr; check(transit_station_http_open(value_.get(), &outcome.native(), TRANSIT_HTTP_CAPTURED, &out)); return Reader(out); }
     unsigned result() const { return context_.result; }
-    void expired(const PreparedHttpRequest &request) { bool ready = false; expect(TRANSIT_SDK_TURN_EXPIRED, [&] { check(transit_station_turn_http_stage(context_.escaped, request.native(), &ready)); }); }
+    void expired(const PreparedHttpRequest &request) {
+        bool ready = false; expect(TRANSIT_SDK_TURN_EXPIRED, [&] { check(transit_station_turn_http_stage(context_.escaped, request.native(), &ready)); });
+        uint64_t correlation = 1; expect(TRANSIT_SDK_TURN_EXPIRED, [&] { check(transit_station_turn_http_release(context_.escaped, context_.peer, {72, 1}, 1, &correlation)); }); assert(correlation == 0);
+    }
 };
 #else
 using Reader = HttpReader;
@@ -141,13 +174,16 @@ class Controller {
     Runner<HttpMessage<Bytes>> value_;
 public:
     Controller(const Config &cfg, const PreparedHttpRequest &request) : value_(Runner<HttpMessage<Bytes>>::open(cfg.service(),
-        std::make_unique<HttpHandler>(shared_, ProcessRef(72, cfg.peer), request), std::make_shared<HttpReplyCodec<Bytes>>(std::make_shared<HttpBytesCodec>(), 72), RunnerOptions::fresh_ownership())) {}
+        std::make_unique<HttpHandler>(shared_, ProcessRef(72, cfg.peer), request, cfg.outcome), std::make_shared<HttpReplyCodec<Bytes>>(std::make_shared<HttpBytesCodec>(), 72), RunnerOptions::fresh_ownership())) {}
     Event next() { return value_.next(); }
     void close() { value_.close(); }
     void stop() { value_.stop(); }
     Reader open(const HttpOutcome &outcome) { return value_.open_http(outcome); }
     unsigned result() const { return shared_.result; }
-    void expired(const PreparedHttpRequest &request) { expect(TRANSIT_SDK_TURN_EXPIRED, [&] { shared_.escaped->stage_http(request); }); }
+    void expired(const PreparedHttpRequest &request) {
+        expect(TRANSIT_SDK_TURN_EXPIRED, [&] { shared_.escaped->stage_http(request); });
+        expect(TRANSIT_SDK_TURN_EXPIRED, [&] { shared_.escaped->release_http(ProcessRef(72, 1), ResourceRef(72, 1), 1); });
+    }
 };
 #endif
 static void drive(const Config &cfg) {
@@ -169,7 +205,7 @@ static void drive(const Config &cfg) {
             bool committed = false;
             for (size_t i = 0; i < 32; ++i) { if (runner->next().info().kind == TRANSIT_EVENT_COMMITTED) { committed = true; break; } }
             assert(committed); runner->expired(request);
-            report(runner->result() == 2 ? "{\"observed\":true}" : runner->result() == 1 ? "{\"called\":true}" : "{\"called\":false}");
+            report(runner->result() == 4 ? "{\"released\":true}" : runner->result() == 3 ? "{\"released\":false}" : runner->result() == 2 ? "{\"observed\":true}" : runner->result() == 1 ? "{\"called\":true}" : "{\"called\":false}");
         } else if (line == "open") {
             outcome = decode(unhex(cfg.outcome)); reader = runner->open(*outcome);
             expect(TRANSIT_SDK_BUSY, [&] { runner->open(*outcome); }); const auto first = reader->read(); assert(first && !first->data.empty() && !first->complete); report("{\"prefix\":true}");
