@@ -124,6 +124,16 @@ public final class Turn {
         });
     }
     static BigInteger positive(BigInteger value) { u64(value); if (value.signum() == 0) throw new IllegalArgumentException("Correlation must be nonzero"); return value; }
+    /** Submit an explicit linked attempt; the service decides current admission. */
+    public BigInteger followupHttp(ProcessRef connector, Http.Outcome parent, Http.FollowupReason reason, Http.Prepared request) {
+        return access(false, () -> {
+            Objects.requireNonNull(parent); Objects.requireNonNull(reason); httpRequest(request);
+            if (parent.resource().realm() != resource.realm()) throw new IllegalArgumentException("HTTP parent must belong to this realm");
+            bridge.httpCapability("http_followup");
+            return NativeValues.wide(raw(obj("http_followup", obj("pid", peer(connector), "resource", parent.resource().resource(),
+                "parent", parent.exchange().toString(), "reason", reason.name().toLowerCase(Locale.ROOT), "reference", request.referenceHex()))).get("correlation"), true);
+        });
+    }
     public <T> Table<T> table(Table.Schema<T> schema) { return access(true, () -> Table.open(this, schema, null)); }
     public <T> Table<T> createTable(Table.Schema<T> schema) {
         access(false, () -> {

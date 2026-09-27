@@ -82,6 +82,7 @@ public final class Http {
         return new Prepared(resource, namespace, new Bytes(unhex(prepared.get("reference"), 112)), new Bytes(unhex(prepared.get("metadata"), 8192)), owned);
     }
     public enum Phase { OBSERVED, CLOSED_UNKNOWN, NOT_DISPATCHED }
+    public enum FollowupReason { RETRY, REDIRECT, RECONCILE, CANCEL }
     public enum Rejection { DENIED, INVALID_REQUEST, BUSY }
     public sealed interface Reply permits Outcome, Rejected, Released {}
     public record Rejected(Rejection reason) implements Reply { public Rejected { Objects.requireNonNull(reason); } }

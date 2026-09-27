@@ -76,6 +76,16 @@ transcript read grant is needed; the service checks its recorded holder and
 current admission policy. Release performs no remote cancellation, retirement
 or member cleanup. The finite worker needs a fresh `poll` activation to handle it.
 
+`turn.followupHttp(connector, parent, Http.FollowupReason.RETRY, request)` records
+an explicit linked-attempt call. Other reasons are `REDIRECT`, `RECONCILE` and
+`CANCEL`. Publish the proposed request in the current associated resource first,
+preserving the original deadline and total attempt budget. Save the correlation
+and authenticate the resulting outcome or rejection. The shared service validates
+the original caller, current scope and frozen parent policy before allocating a
+child; this helper performs no automatic retry or retry-safety inference. Configure
+a fresh child exchange and matching parent/reason on the finite worker. The parent
+outcome remains unchanged.
+
 `just bindings::java-sdk-test` runs installed JAR consumers through shared golden
 fixtures and the independent TLS caller/recovery/revocation/disposal schedule,
 alongside client and Station regressions. See the

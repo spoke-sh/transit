@@ -69,7 +69,7 @@ public final class StationArtifactCheck {
             lambda config, role: ['java', '-cp', str(lib / '*'), 'io.transit.examples.CounterMain', str(config), role, '--commits', '1'],
             'thread-handler', extra_failures=('error-stop', 'error-block'), arrow_adapter=False)
     (execute or schedule)(node, cli, library, install, 'Java')
-    if execute is None: http_schedule(node, cli, library, http_worker, install, 'Java', public_release=True)
+    if execute is None: http_schedule(node, cli, library, http_worker, install, 'Java', public_release=True, public_followup=True)
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

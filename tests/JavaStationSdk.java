@@ -257,14 +257,21 @@ public final class JavaStationSdk {
         final Http.Prepared request;
         final Key<BigInteger> correlation = new Key<>("http-correlation", Codecs.U64);
         final Key<BigInteger> releaseCorrelation = new Key<>("http-release-correlation", Codecs.U64);
+        final Key<BigInteger> followupCorrelation = new Key<>("http-followup-correlation", Codecs.U64);
         final Http.Outcome disposal;
+        final Http.Outcome wrongParent;
+        final Http.FollowupReason reason;
         Turn escaped;
         JsonObject result;
-        HttpHandler(ProcessRef peer, Http.Prepared request, Http.Outcome disposal) { this.peer = peer; this.request = request; this.disposal = disposal; }
+        HttpHandler(ProcessRef peer, Http.Prepared request, Http.Outcome disposal, Http.Outcome wrongParent, Http.FollowupReason reason) { this.peer = peer; this.request = request; this.disposal = disposal; this.wrongParent = wrongParent; this.reason = reason; }
         @Override public void onMessage(Turn turn, Incoming<Http.Message<Bytes>> input) {
             escaped = turn;
             if (input instanceof Cast<Http.Message<Bytes>>) {
-                if (input.value() instanceof Http.Application<Bytes> application && Arrays.equals(application.value().copy(), "dispose".getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+                if (input.value() instanceof Http.Application<Bytes> application && Arrays.equals(application.value().copy(), "followup".getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+                    expect(TransitException.Kind.HANDLER, () -> turn.followupHttp(peer, wrongParent, reason, request));
+                    BigInteger id = turn.followupHttp(peer, disposal, reason, request);
+                    turn.state().put(followupCorrelation, id); result = Values.obj("followup", false);
+                } else if (input.value() instanceof Http.Application<Bytes> application && Arrays.equals(application.value().copy(), "dispose".getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
                     expect(TransitException.Kind.HANDLER, () -> turn.releaseHttp(peer, new ResourceRef(73, disposal.resource().resource()), disposal.exchange()));
                     BigInteger id = turn.releaseHttp(peer, disposal.resource(), disposal.exchange());
                     turn.state().put(releaseCorrelation, id); result = Values.obj("released", false);
@@ -273,6 +280,11 @@ public final class JavaStationSdk {
                 else result = Values.obj("called", false);
             } else {
                 check(input instanceof Reply<Http.Message<Bytes>>);
+                if (((Http.Received<Bytes>)input.value()).value() instanceof Http.Rejected rejected) {
+                    BigInteger id = turn.state().require(followupCorrelation);
+                    turn.requireReply((Reply<?>)input, peer, id); check(rejected.reason() == Http.Rejection.DENIED);
+                    turn.state().put(new Key<>("http-followup-denied", Codecs.U64), id); result = Values.obj("followup", true); return;
+                }
                 if (((Http.Received<Bytes>)input.value()).value() instanceof Http.Released released) {
                     turn.requireReply((Reply<?>)input, peer, turn.state().require(releaseCorrelation));
                     check(released.resource().equals(disposal.resource()) && released.exchange().equals(disposal.exchange()));
@@ -298,7 +310,9 @@ public final class JavaStationSdk {
             new Activation(new ProcessRef(72, cfg.get("pid").getAsLong()), cfg.get("generation").getAsLong(),
                 new Credential(72, cfg.get("principal").getAsLong(), Path.of(cfg.get("seed_file").getAsString()))));
         Http.Outcome disposal = cfg.has("outcome") ? (Http.Outcome)Http.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString())) : null;
-        HttpHandler handler = new HttpHandler(new ProcessRef(72, cfg.get("peer").getAsLong()), request, disposal);
+        Http.Outcome wrongParent = cfg.has("outcome") ? (Http.Outcome)Http.decodeReply(73, HexFormat.of().parseHex(cfg.get("outcome").getAsString())) : null;
+        Http.FollowupReason reason = cfg.has("followup_reason") ? Http.FollowupReason.valueOf(cfg.get("followup_reason").getAsString().toUpperCase(Locale.ROOT)) : Http.FollowupReason.RETRY;
+        HttpHandler handler = new HttpHandler(new ProcessRef(72, cfg.get("peer").getAsLong()), request, disposal, wrongParent, reason);
         ByteArrayOutputStream owned = new ByteArrayOutputStream(); Http.Reader reader = null; Http.Outcome outcome = null;
         try (Runner<Http.Message<Bytes>> runner = Runner.open(config, handler, new Http.ReplyCodec<>(new HttpBytes(), 72), FailurePolicy.STOP, new Recovery.FreshOwnership())) {
             if (mode.equals("http-async")) {
@@ -318,7 +332,8 @@ public final class JavaStationSdk {
                         boolean committed = false;
                         for (int n = 0; n < 32; n++) if (await(runner.next()) instanceof Committed) { committed = true; break; }
                         check(committed); expect(TransitException.Kind.TURN_EXPIRED, () -> handler.escaped.stageHttp(request));
-                        expect(TransitException.Kind.TURN_EXPIRED, () -> handler.escaped.releaseHttp(handler.peer, request.resource(), BigInteger.ONE)); report(handler.result);
+                        expect(TransitException.Kind.TURN_EXPIRED, () -> handler.escaped.releaseHttp(handler.peer, request.resource(), BigInteger.ONE));
+                        expect(TransitException.Kind.TURN_EXPIRED, () -> handler.escaped.followupHttp(handler.peer, disposal, reason, request)); report(handler.result);
                     }
                     case "open" -> {
                         outcome = (Http.Outcome)Http.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString()));
