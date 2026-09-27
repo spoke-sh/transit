@@ -121,6 +121,12 @@ records exactly one RPC. The unchanged Python and Node HTTP schedules pass throu
 the shared harness in **65.95** and **68.32 seconds**. The remaining language and placement proofs are recorded above; these local
 timings do not establish hosted CI cost.
 
+`just test::grpc-codegen` regenerates the pinned descriptor's Zig helpers and
+compiles/uses all four request shapes, exact descriptor identity and typed secret
+references. Independent descriptor mutations reject missing types, truncation,
+empty and oversized data without producing partial helper source. It is offline
+construction evidence, separate from transport and dispatch qualification.
+
 `just test::grpc-libraries` runs the selected pinned HTTP/2, HPACK, protobuf and
 gRPC client suites. Compatibility changes and the intentionally excluded server
 surface are recorded with source hashes in the [snapshot](../third_party/zig-libs/README.md).

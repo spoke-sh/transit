@@ -143,6 +143,22 @@ pub fn method(self: *const Self, path: []const u8) !Method {
     };
     return result orelse error.GrpcDescriptorMethodMissing;
 }
+/// Enumerate validated local methods for offline helper generation. The path
+/// borrows the supplied buffer; input/output type names borrow the descriptor.
+pub fn at(self: *const Self, ordinal: u32, buffer: []u8) !Method {
+    if (ordinal >= self.methods) return error.GrpcDescriptorMethodMissing;
+    var index: u32 = 0;
+    for (self.decoded.value.file) |file| for (file.service) |service| for (service.method) |item| {
+        defer index += 1;
+        if (index != ordinal) continue;
+        const path = if (file.package.len != 0)
+            try std.fmt.bufPrint(buffer, "/{s}.{s}/{s}", .{ file.package, service.name, item.name })
+        else
+            try std.fmt.bufPrint(buffer, "/{s}/{s}", .{ service.name, item.name });
+        return self.method(path);
+    };
+    unreachable;
+}
 test "pinned descriptor refuses dangling types duplicates and unbounded input" {
     const t = std.testing;
     const valid: Set = .{ .file = &.{.{ .name = "peer.proto", .package = "test", .message = &.{.{ .name = "Outer", .nested = &.{.{ .name = "Payload" }} }}, .service = &.{.{ .name = "Peer", .method = &.{.{ .name = "Call", .input_type = ".test.Outer.Payload", .output_type = ".test.Outer.Payload", .client_streaming = true, .server_streaming = true }} }} }} };

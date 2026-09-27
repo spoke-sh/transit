@@ -232,3 +232,7 @@ public-query:
 # Qualify RPC preparation, dispatch, final publication and blocked-peer control.
 grpc-faults:
     zig build test-grpc-worker -Dgrpc-faults=true
+
+# Generate and compile durable request helpers without sockets or reflection.
+grpc-codegen:
+    zig build test-grpc-codegen

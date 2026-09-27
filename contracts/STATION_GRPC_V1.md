@@ -223,3 +223,9 @@ message names must resolve unambiguously in that set. This is schema identity
 and call-shape evidence, not validation of application message contents. No
 reflection, network discovery, credential resolution or dispatch occurs.
 Application-generated message codecs remain separate from durable request records.
+
+The offline `transit-grpc-bindings` generator emits Zig request constructors from
+the same local descriptor surface. Each constructor fixes the exact method path,
+shape and full descriptor digest and accepts only caller-supplied metadata. It
+performs no network or credential work. Generated request declarations remain
+separate from application-owned protobuf message codecs and public SDK APIs.

@@ -4,8 +4,8 @@ The M16 Zig adapter composes [Exchange](../transit-exchange/README.md), Station
 Publication and the finite [RPC transport](../transit-grpc/README.md). Its
 [versioned contract](../../../contracts/STATION_GRPC_V1.md) describes the finite
 batch authority profile. Pure checks, independent transport peers and the actual
-worker recovery proof pass. Public SDKs and deployment qualification are in
-progress; the adapter does not authorize an RPC.
+worker recovery proofs pass, together with all ten public SDKs, Board and the
+local/Compose/reference example. The adapter does not authorize an RPC.
 
 `Request` fixes a method, shape, descriptor-set SHA-256 and ordered metadata.
 `provenance` emits canonical bounded JSON with lowercase hex for literal bytes
@@ -81,3 +81,23 @@ indexed partial messages from a complete captured terminal result; status zero
 remains present. This is bounded inspection, not full replay or remote computation
 verification. Board's `grpc-test` / `grpc-browser` tasks exercise actual captures
 and current authorization through this surface.
+
+## Offline generated helpers
+
+Build `zig build grpc-bindings`, then generate Zig request constructors from the
+local descriptor output of pinned `protoc --include_imports --descriptor_set_out`:
+
+```sh
+zig-out/bin/transit-grpc-bindings tests/fixtures/grpc/peer.pb | zig fmt --stdin > /tmp/rpc-methods.zig
+```
+
+Each generated function is named by the exact method path, fixes its shape and
+descriptor digest, and accepts ordered metadata references. For example,
+`methods.@"/test.Peer/Bidi"(metadata)` returns a `Request` for ordinary
+`RequestRecord.prepare`. These helpers generate no sockets, secret resolvers,
+reflection or protobuf message codecs. Application message codecs remain separate.
+The generator validates every method before emitting source and bounds descriptor
+parsing as documented by the transport package. Foreign SDKs resolve the same
+generated local descriptors through their typed method helper and shared Zig
+codec. `just test::grpc-codegen` regenerates, compiles and uses all four shapes,
+including malformed-descriptor rejection without partial output.

@@ -65,4 +65,6 @@ all four shapes, binary/Unicode/full-width protobuf, duplicate/binary metadata,
 trailers, credit stalls, malformed terminal envelopes and bounded failures.
 The live probe also resolves all four methods from protoc-generated descriptors.
 Units reject truncated/oversize input, duplicates and missing types/methods.
-Durable worker recovery has its own Station proof; SDKs and placement remain open.
+Durable worker recovery, all ten SDKs and local/Compose/reference placement have
+separate Station proofs. `Descriptor.at` also enumerates validated methods for
+[offline request helper generation](../transit-station-grpc/README.md#offline-generated-helpers).
