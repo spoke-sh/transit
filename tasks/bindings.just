@@ -206,3 +206,8 @@ document-rust: rust-build
     cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
     zig build transit-node rey-cli
     python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language rust
+
+# Installed C11/C++17 Document handlers, owned values and reader lifetimes.
+document-c: c-build
+    zig build transit-node rey-cli
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language c

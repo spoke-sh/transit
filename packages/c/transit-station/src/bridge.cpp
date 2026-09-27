@@ -21,7 +21,10 @@ Local::Local(const char *directory) : raw(directory), library(directory, "libtra
         exists(raw, value, "grpc_requests") && raw.boolean(value, "grpc_requests"),
         exists(raw, value, "grpc_replay") && raw.boolean(value, "grpc_replay"),
         exists(raw, value, "grpc_release") && raw.boolean(value, "grpc_release"),
-        exists(raw, value, "grpc_followup") && raw.boolean(value, "grpc_followup")};
+        exists(raw, value, "grpc_followup") && raw.boolean(value, "grpc_followup"),
+        exists(raw, value, "document_codecs") && raw.boolean(value, "document_codecs"),
+        exists(raw, value, "document_owner") && raw.boolean(value, "document_owner"),
+        exists(raw, value, "document_reads") && raw.boolean(value, "document_reads")};
     for (auto bound : {caps.message, caps.value, caps.key, caps.cell, caps.name, caps.page, caps.segment})
         if (bound > TRANSIT_CLIENT_MAX_BODY) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-bound");
 }
@@ -92,6 +95,13 @@ Bytes Bridge::grpc_read(const std::string &action) {
     station_buffer *buffer = nullptr;
     const auto status = local.station_growing_grpc_read(server.get(), reinterpret_cast<const uint8_t *>(action.data()), action.size(), &buffer);
     return local.result(status, buffer, "grpc-read");
+}
+Bytes Bridge::document_read(const std::string &action) {
+    require(action.size() <= 4096, "document-read-bound");
+    if (!local.caps.document_reads) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "document-reads");
+    station_buffer *buffer = nullptr;
+    const auto status = local.station_growing_document_read(server.get(), reinterpret_cast<const uint8_t *>(action.data()), action.size(), &buffer);
+    return local.result(status, buffer, "document-read");
 }
 void Bridge::finish(uint64_t scope, bool failed) {
     station_buffer *buffer = nullptr; const auto status = local.station_growing_finish_result(server.get(), scope, failed ? 1 : 0, &buffer);

@@ -134,6 +134,19 @@ struct transit_station_grpc_reader {
 static void runner_release(transit_station_runner *runner) {
     if (runner && runner->references.fetch_sub(1, std::memory_order_acq_rel) == 1) delete runner;
 }
+struct transit_station_document_reader { transit_station_runner *runner; };
+namespace transit::sdk::station_detail {
+Bytes document_reader_run(transit_station_document_reader *reader, uint64_t realm, const std::function<Bytes(Bridge &)> &work) {
+    require(reader, "document-reader"); Bytes result;
+    reader->runner->worker.run([&] {
+        auto &state = *reader->runner->state;
+        require(realm == state.process.realm, "document-realm");
+        if (state.pending) fail(TRANSIT_SDK_BUSY, "pending-mutation");
+        result = work(state.bridge);
+    });
+    return result;
+}
+}
 extern "C" {
 transit_sdk_error transit_station_runner_open(const transit_station_config *config, const transit_station_handler *handler, const transit_station_codec *codec, const transit_station_options *options, transit_station_runner **out) {
     Uninterruptible guard; if (out) *out = nullptr;
@@ -166,6 +179,23 @@ transit_sdk_error transit_station_runner_close(transit_station_runner *runner, t
     return boundary([&] { require(runner && out, "close-runner"); runner->close(); *out = new transit_station_event(runner->closed); });
 }
 void transit_station_runner_destroy(transit_station_runner *runner) { Uninterruptible guard; if (runner) { runner->close(); runner_release(runner); } }
+transit_sdk_error transit_station_documents_open(transit_station_runner *runner, transit_station_document_reader **out) {
+    Uninterruptible guard; if (out) *out = nullptr;
+    return boundary([&] {
+        require(runner && out, "document-reader");
+        auto reader = std::make_unique<transit_station_document_reader>();
+        runner->worker.run([&] {
+            if (!runner->state->bridge.local.caps.document_reads) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "document-reads");
+            if (runner->state->pending) fail(TRANSIT_SDK_BUSY, "pending-mutation");
+            reader->runner = runner; runner->references.fetch_add(1, std::memory_order_relaxed);
+        });
+        *out = reader.release();
+    });
+}
+void transit_station_document_reader_destroy(transit_station_document_reader *reader) {
+    Uninterruptible guard; if (!reader) return;
+    auto *runner = reader->runner; delete reader; runner_release(runner);
+}
 transit_sdk_error transit_station_http_open(transit_station_runner *runner, const transit_station_http_outcome *outcome, transit_station_http_replay_policy policy, transit_station_http_reader **out) {
     Uninterruptible guard; if (out) *out = nullptr;
     return boundary([&] {

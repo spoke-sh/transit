@@ -355,6 +355,92 @@ transit_sdk_error transit_station_grpc_open(transit_station_runner *runner, cons
 transit_sdk_error transit_station_grpc_read(transit_station_grpc_reader *reader, transit_station_grpc_part *out);
 transit_sdk_error transit_station_grpc_close(transit_station_grpc_reader *reader);
 void transit_station_grpc_reader_destroy(transit_station_grpc_reader *reader);
+/* M17 bounded, owned Document values. Text positions are stable dots, not byte
+ * offsets. Unused array tails are zeroed. No returned pointer borrows native I/O. */
+typedef struct transit_station_document_dot { uint64_t counter, replica; } transit_station_document_dot;
+typedef enum transit_station_document_value_kind {
+    TRANSIT_DOCUMENT_NULL, TRANSIT_DOCUMENT_BOOLEAN, TRANSIT_DOCUMENT_SIGNED,
+    TRANSIT_DOCUMENT_UNSIGNED, TRANSIT_DOCUMENT_FLOAT, TRANSIT_DOCUMENT_STRING,
+    TRANSIT_DOCUMENT_BINARY, TRANSIT_DOCUMENT_MAP, TRANSIT_DOCUMENT_LIST,
+    TRANSIT_DOCUMENT_TEXT, TRANSIT_DOCUMENT_CHARACTER
+} transit_station_document_value_kind;
+typedef struct transit_station_document_value {
+    transit_station_document_value_kind kind;
+    bool boolean; int64_t signed_value; uint64_t unsigned_value; double float_value;
+    uint8_t bytes[96]; size_t size; /* UTF-8 for string/character; original binary. */
+} transit_station_document_value;
+typedef enum transit_station_document_operation_kind {
+    TRANSIT_DOCUMENT_ASSIGN, TRANSIT_DOCUMENT_REMOVE, TRANSIT_DOCUMENT_INSERT,
+    TRANSIT_DOCUMENT_SET_ELEMENT, TRANSIT_DOCUMENT_DELETE_ELEMENT
+} transit_station_document_operation_kind;
+typedef struct transit_station_document_operation {
+    transit_station_document_operation_kind kind;
+    transit_station_document_dot object, anchor; /* predecessor or target element */
+    uint8_t field[64]; size_t field_size;
+    transit_station_document_dot observed[8]; size_t observed_count;
+    transit_station_document_value value;
+} transit_station_document_operation;
+typedef struct transit_station_document_change {
+    uint64_t document, epoch; uint32_t type_revision;
+    uint64_t replica, previous, first;
+    transit_station_document_operation operations[8]; size_t operation_count;
+} transit_station_document_change;
+typedef struct transit_station_document_prepared transit_station_document_prepared;
+transit_sdk_error transit_station_document_prepare(const transit_station_document_change *, const char *native_directory, transit_station_document_prepared **out);
+transit_sdk_error transit_station_document_prepared_bytes(const transit_station_document_prepared *, transit_sdk_bytes *out); /* borrowed until destroy */
+void transit_station_document_prepared_destroy(transit_station_document_prepared *);
+transit_sdk_error transit_station_document_decode(transit_sdk_bytes, const char *native_directory, transit_station_document_change *out);
+typedef struct transit_station_document_reference {
+    transit_sdk_resource resource;
+    uint64_t document, epoch; uint32_t type_revision; uint64_t revision;
+} transit_station_document_reference;
+transit_sdk_error transit_station_document_reference_encode(const transit_station_document_reference *, const char *native_directory, uint8_t out[40]);
+transit_sdk_error transit_station_document_reference_decode(uint64_t realm, transit_sdk_bytes, const char *native_directory, transit_station_document_reference *out);
+typedef struct transit_station_document_limits { uint32_t record_bytes; uint64_t staging_bytes; uint32_t staging_records; } transit_station_document_limits;
+typedef enum transit_station_document_phase { TRANSIT_DOCUMENT_PROGRESS, TRANSIT_DOCUMENT_ACCEPTED, TRANSIT_DOCUMENT_DUPLICATE, TRANSIT_DOCUMENT_CHECKPOINT_COMPLETE } transit_station_document_phase;
+typedef struct transit_station_document_progress { transit_station_document_phase phase; bool has_revision; uint64_t revision; } transit_station_document_progress;
+/* Every owner operation borrows the handler turn and remains private until commit. */
+transit_sdk_error transit_station_turn_document_create(transit_station_turn *, uint64_t document, uint32_t type_revision, transit_station_document_limits);
+transit_sdk_error transit_station_turn_document_stage(transit_station_turn *, uint64_t document, uint64_t job, const transit_station_document_prepared *, uint32_t node_limit, transit_station_document_progress *out);
+transit_sdk_error transit_station_turn_document_checkpoint(transit_station_turn *, uint64_t document, uint64_t job, transit_station_document_progress *out);
+transit_sdk_error transit_station_turn_document_merge_window(transit_station_turn *, uint64_t document, uint64_t revisions);
+transit_sdk_error transit_station_turn_document_reject(transit_station_turn *, uint64_t document, uint64_t job, bool checkpoint);
+transit_sdk_error transit_station_turn_document_collect(transit_station_turn *, uint64_t document, uint64_t job, bool checkpoint, bool retired, bool *done);
+transit_sdk_error transit_station_turn_document_retire(transit_station_turn *, uint64_t document);
+typedef enum transit_station_document_status { TRANSIT_DOCUMENT_MISSING, TRANSIT_DOCUMENT_NULL_VALUE, TRANSIT_DOCUMENT_SCALAR, TRANSIT_DOCUMENT_OBJECT, TRANSIT_DOCUMENT_CONFLICT } transit_station_document_status;
+typedef struct transit_station_document_assignment { transit_station_document_dot id; transit_station_document_value value; } transit_station_document_assignment;
+typedef struct transit_station_document_field {
+    transit_station_document_status status;
+    transit_station_document_assignment assignments[8]; size_t count;
+} transit_station_document_field;
+typedef struct transit_station_document_description {
+    transit_station_document_reference reference;
+    uint64_t source_revision, floor, merge_window, active_job; bool retired; uint32_t change_format;
+} transit_station_document_description;
+typedef struct transit_station_document_path {
+    transit_station_document_reference reference; uint64_t source_revision;
+    transit_station_document_field field;
+} transit_station_document_path;
+typedef struct transit_station_document_item { transit_station_document_dot id; transit_station_document_field field; } transit_station_document_item;
+typedef struct transit_station_document_page {
+    transit_station_document_reference reference; uint64_t source_revision;
+    transit_station_document_item items[8]; size_t count;
+    char next[1025]; bool has_next;
+} transit_station_document_page;
+typedef struct transit_station_document_resynchronization {
+    transit_station_document_reference reference; uint64_t floor, replica, previous_counter, clock;
+} transit_station_document_resynchronization;
+/* A reader retains a local runner handle. Runner destruction joins active work;
+ * subsequent reader calls fail CLOSED. Each call rechecks current read policy. */
+typedef struct transit_station_document_reader transit_station_document_reader;
+transit_sdk_error transit_station_documents_open(transit_station_runner *, transit_station_document_reader **out);
+void transit_station_document_reader_destroy(transit_station_document_reader *);
+transit_sdk_error transit_station_document_describe(transit_station_document_reader *, transit_sdk_resource, uint64_t document, transit_station_document_description *out);
+transit_sdk_error transit_station_document_path_read(transit_station_document_reader *, const transit_station_document_reference *, const transit_sdk_bytes *names, size_t name_count, transit_station_document_path *out);
+transit_sdk_error transit_station_document_sequence(transit_station_document_reader *, const transit_station_document_reference *, transit_station_document_dot object, const char *cursor, transit_station_document_page *out);
+transit_sdk_error transit_station_document_resynchronize(transit_station_document_reader *, transit_sdk_resource, uint64_t document, uint64_t replica, transit_station_document_resynchronization *out);
+transit_sdk_error transit_station_document_accepted_change(transit_station_document_reader *, const transit_station_document_reference *, transit_station_document_change *out);
+
 #ifdef __cplusplus
 }
 #endif

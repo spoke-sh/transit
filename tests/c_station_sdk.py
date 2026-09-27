@@ -46,6 +46,13 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
             subprocess.run(['zig', 'c++', '-std=c++17', '-Wall', '-Wextra', '-Werror', *(['-DTRANSIT_TEST_C_API'] if language == 'C' else []),
                             grpc_sources[0], grpc_object, *flags, '-lpthread', '-o', grpc_binary], cwd=target, env=environment, check=True)
             for item in [*grpc_sources, grpc_object]: item.unlink()
+            document_binary = target / 'document-consumer'
+            document_sources = [target / name for name in ('c_document_sdk.cpp', 'c_document_sdk.c', 'c_document_sdk.h')]
+            for item in document_sources: shutil.copyfile(root / 'tests' / item.name, item)
+            document_object = target / 'document-callbacks.o'
+            subprocess.run(['zig', 'cc', '-std=c11', '-Wall', '-Wextra', '-Werror', f'-I{prefix / "include"}', '-c', document_sources[1], '-o', document_object], cwd=target, env=environment, check=True)
+            subprocess.run(['zig', 'c++', '-std=c++17', '-Wall', '-Wextra', '-Werror', *(['-DTRANSIT_TEST_C_API'] if language == 'C' else []), document_sources[0], document_object, *flags, '-lpthread', '-o', document_binary], cwd=target, env=environment, check=True)
+            for item in [*document_sources, document_object]: item.unlink()
             if language == 'C++':
                 for body in ('void wrong(transit::sdk::station::Turn &turn) { turn.state().put(transit::sdk::examples::total_key, true); }',
                              'void copy(transit::sdk::station::Runner<uint64_t> &runner) { auto copied = runner; }'):
@@ -84,6 +91,11 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
             def command(mode, config):
                 cfg = json.loads(config.read_bytes())
                 assert cfg['profile'] == 'growing_v3'
+                if mode.startswith('document-'):
+                    data = json.loads(Path(cfg['document_fixtures']).read_bytes())
+                    fixtures = target / 'document-codecs.txt'
+                    fixtures.write_text('\n'.join([data['reference_hex'], *[v['wire_hex'] for v in data['changes']]]) + '\n')
+                    return [document_binary, mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']), str(cfg['resource']), fixtures, *cfg['changes']]
                 if mode.startswith('http-'):
                     return [http_binary, mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
                             str(cfg['resource']), cfg['body'], str(cfg['deadline']), cfg.get('outcome', ''), cfg.get('ready', ''), cfg.get('continue', ''), cfg.get('accepted', ''), http_fixtures, cfg.get('followup_reason', 'retry')]

@@ -8,12 +8,12 @@
 
 namespace transit::sdk::station_detail {
 using namespace internal;
-struct Caps { size_t message, value, key, cell, name, page, segment; bool queries, http_requests, http_replay, http_release, http_followup, grpc_requests, grpc_replay, grpc_release, grpc_followup; };
+struct Caps { size_t message, value, key, cell, name, page, segment; bool queries, http_requests, http_replay, http_release, http_followup, grpc_requests, grpc_replay, grpc_release, grpc_followup, document_codecs, document_owner, document_reads; };
 #define TRANSIT_STATION_FUNCTIONS(X) \
     X(station_abi_version) X(station_growing_capabilities) X(station_growing_create) X(station_growing_destroy) \
     X(station_growing_prepare) X(station_growing_dispatch) X(station_growing_confirmation) X(station_growing_apply) \
     X(station_growing_finish_result) X(station_growing_discard) X(station_growing_pending) X(station_frame_encode) \
-    X(station_buffer_data) X(station_buffer_size) X(station_buffer_destroy) X(station_http_codec) X(station_growing_http_read) X(station_grpc_codec) X(station_growing_grpc_read)
+    X(station_buffer_data) X(station_buffer_size) X(station_buffer_destroy) X(station_http_codec) X(station_growing_http_read) X(station_grpc_codec) X(station_growing_grpc_read) X(station_document_codec) X(station_growing_document_read)
 struct Local {
     Raw raw;
     Library library;
@@ -34,12 +34,21 @@ struct Bridge {
     Bytes apply(uint64_t scope, const std::string &action);
     Bytes http_read(const std::string &action);
     Bytes grpc_read(const std::string &action);
+    Bytes document_read(const std::string &action);
     void finish(uint64_t scope, bool failed);
     void discard(uint64_t scope);
     std::shared_ptr<const transit_station_mutation> pending(const Bytes &event);
     Bytes dispatch();
     std::optional<Bytes> confirmation(const transit_station_mutation &pending);
 };
+Bytes document_codec(Local &, const std::string &);
+std::string document_dot(transit_station_document_dot);
+std::string document_reference(Local &, const transit_station_document_reference &);
+transit_station_document_reference document_reference_parse(Local &, uint64_t realm, const std::string &);
+transit_station_document_change document_change_parse(const Raw &, const Bytes &, const std::string &);
+transit_station_document_field document_field_parse(const Raw &, const Bytes &, const std::string &);
+transit_station_document_dot document_dot_parse(const Raw &, const Bytes &, const std::string &);
+Bytes document_reader_run(transit_station_document_reader *, uint64_t realm, const std::function<Bytes(Bridge &)> &);
 inline Bytes json(const std::string &text) { return Bytes(text.begin(), text.end()); }
 inline std::string decimal(uint64_t value) { return std::to_string(value); }
 inline std::string signed_decimal(int64_t value) { return std::to_string(value); }
@@ -159,3 +168,5 @@ template<class F> transit_sdk_error with_turn(transit_station_turn *turn, bool r
     });
 }
 }
+
+struct transit_station_document_prepared { uint64_t document; transit::sdk::internal::Bytes bytes; };

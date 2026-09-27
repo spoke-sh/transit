@@ -73,6 +73,15 @@ reads are joined before disposal; arbitrary thread cancellation is not claimed.
 Rust formatting and source checks pass. The remaining language targets are still
 in progress.
 
+The installed C11 and C++17 Document consumers pass in **225.84 seconds** and
+**235.01 seconds**, respectively. C callbacks compile separately with the C11
+compiler; C++ uses variant values and scoped RAII owners/readers. Both execute
+139 committed turns, exact change/reference fixtures, host replacement, independent
+reads, preserved conflicts/text, prefix revocation and permanent retirement.
+Escaped owners reject, readers fail closed after runner destruction, and copied
+results remain owned. Threaded reads are joined before disposal. The root
+`just check` also passes after rebasing onto `origin/main` at `145c380`.
+
 ## M16 finite connector qualification
 
 `just test::unit` runs the new RPC request codec against a Python-generated

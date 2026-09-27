@@ -133,6 +133,7 @@ struct WaitPolicy {
 class State;
 class Source;
 class ResultReader;
+class DocumentOwner;
 class PreparedHttpRequest;
 class PreparedGrpcRequest;
 class GrpcOutcome;
@@ -148,6 +149,7 @@ public:
     TurnInfo info() const { TurnInfo out{}; check(transit_station_turn_inspect(native(), &out)); return out; }
     Budgets budgets() const { Budgets out{}; check(transit_station_turn_budgets(native(), &out)); return out; }
     State state() const;
+    DocumentOwner document(uint64_t identity) const;
     template<class T> Table<T> table(const TableSchema<T> &schema) const;
     template<class T> Table<T> create_table(const TableSchema<T> &schema) const;
     Source source(ReadVersion version) const;
@@ -579,4 +581,164 @@ inline uint64_t Turn::call_grpc(ProcessRef peer, const PreparedGrpcRequest &requ
     uint64_t correlation = 0; check(transit_station_turn_grpc_call(native(), peer.native(), request.native(), &correlation)); return correlation;
 }
 }
+namespace transit::sdk::station {
+struct DocumentDot {
+    uint64_t counter = 0, replica = 0;
+    transit_station_document_dot native() const { return {counter, replica}; }
+    static DocumentDot from_native(transit_station_document_dot v) { return {v.counter,v.replica}; }
+    bool operator==(const DocumentDot &v) const { return counter==v.counter && replica==v.replica; }
+};
+struct DocumentMap {}; struct DocumentList {}; struct DocumentText {};
+using DocumentValue = std::variant<std::monostate, bool, int64_t, uint64_t, double, std::string, Bytes, DocumentMap, DocumentList, DocumentText, char32_t>;
+namespace document_detail {
+inline void bound(bool valid) { if(!valid) throw failure(TRANSIT_SDK_INVALID_ARGUMENT,"document-value"); }
+inline transit_station_document_value native(const DocumentValue &value) {
+    transit_station_document_value out{}; out.kind=static_cast<transit_station_document_value_kind>(value.index());
+    std::visit([&](const auto &v) {
+        using T=std::decay_t<decltype(v)>;
+        if constexpr(std::is_same_v<T,bool>) out.boolean=v;
+        else if constexpr(std::is_same_v<T,int64_t>) out.signed_value=v;
+        else if constexpr(std::is_same_v<T,uint64_t>) out.unsigned_value=v;
+        else if constexpr(std::is_same_v<T,double>) out.float_value=v;
+        else if constexpr(std::is_same_v<T,std::string> || std::is_same_v<T,Bytes>) { bound(v.size()<=96); out.size=v.size(); std::copy(v.begin(),v.end(),out.bytes); }
+        else if constexpr(std::is_same_v<T,char32_t>) {
+            const auto n=static_cast<uint32_t>(v); bound(n<=0x10ffff && !(n>=0xd800 && n<=0xdfff));
+            if(n<0x80) { out.size=1; out.bytes[0]=static_cast<uint8_t>(n); }
+            else if(n<0x800) { out.size=2; out.bytes[0]=0xc0|(n>>6); out.bytes[1]=0x80|(n&63); }
+            else if(n<0x10000) { out.size=3; out.bytes[0]=0xe0|(n>>12); out.bytes[1]=0x80|((n>>6)&63); out.bytes[2]=0x80|(n&63); }
+            else { out.size=4; out.bytes[0]=0xf0|(n>>18); out.bytes[1]=0x80|((n>>12)&63); out.bytes[2]=0x80|((n>>6)&63); out.bytes[3]=0x80|(n&63); }
+        }
+    },value); return out;
+}
+inline DocumentValue from_native(const transit_station_document_value &v) {
+    switch(v.kind) {
+    case TRANSIT_DOCUMENT_NULL:return std::monostate{};
+    case TRANSIT_DOCUMENT_BOOLEAN:return v.boolean;
+    case TRANSIT_DOCUMENT_SIGNED:return v.signed_value;
+    case TRANSIT_DOCUMENT_UNSIGNED:return v.unsigned_value;
+    case TRANSIT_DOCUMENT_FLOAT:return v.float_value;
+    case TRANSIT_DOCUMENT_STRING:bound(v.size<=96);return std::string(v.bytes,v.bytes+v.size);
+    case TRANSIT_DOCUMENT_BINARY:bound(v.size<=96);return Bytes(v.bytes,v.bytes+v.size);
+    case TRANSIT_DOCUMENT_MAP:return DocumentMap{};
+    case TRANSIT_DOCUMENT_LIST:return DocumentList{};
+    case TRANSIT_DOCUMENT_TEXT:return DocumentText{};
+    case TRANSIT_DOCUMENT_CHARACTER: {
+        bound(v.size>=1 && v.size<=4); uint32_t n=v.bytes[0] & (v.size==1 ? 0x7f : (1u<<(7-v.size))-1);
+        for(size_t i=1;i<v.size;++i) { bound((v.bytes[i]&0xc0)==0x80); n=(n<<6)|(v.bytes[i]&63); }
+        const uint32_t minimum[]={0,0,0x80,0x800,0x10000}; bound(n>=minimum[v.size] && n<=0x10ffff && !(n>=0xd800 && n<=0xdfff)); return static_cast<char32_t>(n);
+    }
+    } throw failure(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"document-value");
+}
+}
+struct DocumentAssign { DocumentDot object; std::string field; std::vector<DocumentDot> observed; DocumentValue value; };
+struct DocumentRemove { DocumentDot object; std::string field; std::vector<DocumentDot> observed; };
+struct DocumentInsert { DocumentDot object, after; DocumentValue value; };
+struct DocumentSetElement { DocumentDot object, element; std::vector<DocumentDot> observed; DocumentValue value; };
+struct DocumentDeleteElement { DocumentDot object, element; };
+using DocumentOperation=std::variant<DocumentAssign,DocumentRemove,DocumentInsert,DocumentSetElement,DocumentDeleteElement>;
+struct DocumentChange {
+    uint64_t document, epoch; uint32_t type_revision; uint64_t replica, previous, first;
+    std::vector<DocumentOperation> operations;
+    transit_station_document_change native() const {
+        document_detail::bound(!operations.empty() && operations.size()<=8);
+        transit_station_document_change out{}; out.document=document; out.epoch=epoch; out.type_revision=type_revision; out.replica=replica; out.previous=previous; out.first=first; out.operation_count=operations.size();
+        for(size_t i=0;i<operations.size();++i) {
+            auto &op=out.operations[i]; op.kind=static_cast<transit_station_document_operation_kind>(operations[i].index());
+            std::visit([&](const auto &v) {
+                using T=std::decay_t<decltype(v)>; op.object=v.object.native();
+                if constexpr(std::is_same_v<T,DocumentAssign> || std::is_same_v<T,DocumentRemove>) { document_detail::bound(v.field.size()<=64); op.field_size=v.field.size(); std::copy(v.field.begin(),v.field.end(),op.field); }
+                if constexpr(std::is_same_v<T,DocumentInsert>) op.anchor=v.after.native();
+                if constexpr(std::is_same_v<T,DocumentSetElement> || std::is_same_v<T,DocumentDeleteElement>) op.anchor=v.element.native();
+                if constexpr(std::is_same_v<T,DocumentAssign> || std::is_same_v<T,DocumentRemove> || std::is_same_v<T,DocumentSetElement>) { document_detail::bound(v.observed.size()<=8); op.observed_count=v.observed.size(); for(size_t k=0;k<v.observed.size();++k) op.observed[k]=v.observed[k].native(); }
+                if constexpr(std::is_same_v<T,DocumentAssign> || std::is_same_v<T,DocumentInsert> || std::is_same_v<T,DocumentSetElement>) op.value=document_detail::native(v.value);
+            },operations[i]);
+        } return out;
+    }
+    static DocumentChange from_native(const transit_station_document_change &v) {
+        DocumentChange out{v.document,v.epoch,v.type_revision,v.replica,v.previous,v.first,{}}; document_detail::bound(v.operation_count<=8);
+        for(size_t i=0;i<v.operation_count;++i) {
+            const auto &op=v.operations[i]; const auto object=DocumentDot::from_native(op.object), anchor=DocumentDot::from_native(op.anchor);
+            document_detail::bound(op.field_size<=64 && op.observed_count<=8); const std::string field(op.field,op.field+op.field_size);
+            std::vector<DocumentDot> observed; for(size_t k=0;k<op.observed_count;++k) observed.push_back(DocumentDot::from_native(op.observed[k]));
+            switch(op.kind) {
+            case TRANSIT_DOCUMENT_ASSIGN:out.operations.emplace_back(DocumentAssign{object,field,observed,document_detail::from_native(op.value)});break;
+            case TRANSIT_DOCUMENT_REMOVE:out.operations.emplace_back(DocumentRemove{object,field,observed});break;
+            case TRANSIT_DOCUMENT_INSERT:out.operations.emplace_back(DocumentInsert{object,anchor,document_detail::from_native(op.value)});break;
+            case TRANSIT_DOCUMENT_SET_ELEMENT:out.operations.emplace_back(DocumentSetElement{object,anchor,observed,document_detail::from_native(op.value)});break;
+            case TRANSIT_DOCUMENT_DELETE_ELEMENT:out.operations.emplace_back(DocumentDeleteElement{object,anchor});break;
+            }
+        } return out;
+    }
+};
+class PreparedDocumentChange {
+    std::unique_ptr<transit_station_document_prepared,decltype(&transit_station_document_prepared_destroy)> value_;
+public:
+    explicit PreparedDocumentChange(transit_station_document_prepared *v):value_(v,transit_station_document_prepared_destroy) {}
+    const transit_station_document_prepared *native() const { return value_.get(); }
+    Bytes data() const { transit_sdk_bytes v{}; check(transit_station_document_prepared_bytes(native(),&v)); return Bytes(v.data,v.data+v.size); }
+};
+inline PreparedDocumentChange prepare_document(const DocumentChange &change,const char *directory=nullptr) {
+    const auto value=change.native(); transit_station_document_prepared *out=nullptr;
+    check(transit_station_document_prepare(&value,directory,&out)); return PreparedDocumentChange(out);
+}
+inline DocumentChange decode_document(const Bytes &data,const char *directory=nullptr) {
+    transit_station_document_change out{}; check(transit_station_document_decode(bytes_view(data),directory,&out)); return DocumentChange::from_native(out);
+}
+struct DocumentReference {
+    ResourceRef resource; uint64_t document,epoch; uint32_t type_revision; uint64_t revision;
+    transit_station_document_reference native() const { return {resource.native(),document,epoch,type_revision,revision}; }
+    static DocumentReference from_native(const transit_station_document_reference &v) { return {ResourceRef(v.resource.realm,v.resource.resource),v.document,v.epoch,v.type_revision,v.revision}; }
+    Bytes data(const char *directory=nullptr) const { const auto v=native(); Bytes out(40); check(transit_station_document_reference_encode(&v,directory,out.data())); return out; }
+    static DocumentReference decode(uint64_t realm,const Bytes &bytes,const char *directory=nullptr) { transit_station_document_reference out{}; check(transit_station_document_reference_decode(realm,bytes_view(bytes),directory,&out)); return from_native(out); }
+};
+enum class DocumentPhase { Progress, Accepted, Duplicate, CheckpointComplete };
+struct DocumentProgress {
+    DocumentPhase phase; std::optional<uint64_t> revision;
+    static DocumentProgress from_native(transit_station_document_progress v) { return {static_cast<DocumentPhase>(v.phase),v.has_revision?std::optional<uint64_t>(v.revision):std::nullopt}; }
+};
+struct DocumentLimits { uint32_t record_bytes=4096; uint64_t staging_bytes=8192; uint32_t staging_records=2; };
+class DocumentOwner {
+    Turn turn_; uint64_t document_;
+public:
+    DocumentOwner(Turn turn,uint64_t document):turn_(std::move(turn)),document_(document) { document_detail::bound(document!=0); turn_.info(); }
+    void create(uint32_t type_revision,DocumentLimits limits={}) const { check(transit_station_turn_document_create(turn_.native(),document_,type_revision,{limits.record_bytes,limits.staging_bytes,limits.staging_records})); }
+    DocumentProgress stage(uint64_t job,const PreparedDocumentChange &change,uint32_t node_limit=512) const { transit_station_document_progress out{}; check(transit_station_turn_document_stage(turn_.native(),document_,job,change.native(),node_limit,&out)); return DocumentProgress::from_native(out); }
+    DocumentProgress checkpoint(uint64_t job) const { transit_station_document_progress out{}; check(transit_station_turn_document_checkpoint(turn_.native(),document_,job,&out)); return DocumentProgress::from_native(out); }
+    void merge_window(uint64_t revisions) const { check(transit_station_turn_document_merge_window(turn_.native(),document_,revisions)); }
+    void reject(uint64_t job,bool checkpoint=false) const { check(transit_station_turn_document_reject(turn_.native(),document_,job,checkpoint)); }
+    bool collect(uint64_t job,bool checkpoint=false,bool retired=false) const { bool done=false; check(transit_station_turn_document_collect(turn_.native(),document_,job,checkpoint,retired,&done)); return done; }
+    void retire() const { check(transit_station_turn_document_retire(turn_.native(),document_)); }
+};
+inline DocumentOwner Turn::document(uint64_t identity) const { return DocumentOwner(*this,identity); }
+enum class DocumentStatus { Missing, Null, Scalar, Object, Conflict };
+struct DocumentAssignment { DocumentDot id; DocumentValue value; };
+struct DocumentField {
+    DocumentStatus status; std::vector<DocumentAssignment> assignments;
+    std::vector<DocumentDot> observed() const { std::vector<DocumentDot> out; for(const auto &v:assignments) out.push_back(v.id); return out; }
+    static DocumentField from_native(const transit_station_document_field &v) { DocumentField out{static_cast<DocumentStatus>(v.status),{}}; document_detail::bound(v.count<=8); for(size_t i=0;i<v.count;++i) out.assignments.push_back({DocumentDot::from_native(v.assignments[i].id),document_detail::from_native(v.assignments[i].value)}); return out; }
+};
+struct DocumentDescription { DocumentReference reference; uint64_t source_revision,floor,merge_window,active_job; bool retired; uint32_t change_format; };
+struct DocumentPath { DocumentReference reference; uint64_t source_revision; DocumentField field; };
+struct DocumentItem { DocumentDot id; DocumentField field; };
+struct DocumentPage { DocumentReference reference; uint64_t source_revision; std::vector<DocumentItem> items; std::optional<std::string> next; };
+struct DocumentResynchronization { DocumentReference reference; uint64_t floor,replica,previous_counter,clock; };
+class DocumentReader {
+    std::unique_ptr<transit_station_document_reader,decltype(&transit_station_document_reader_destroy)> value_;
+public:
+    explicit DocumentReader(transit_station_document_reader *value):value_(value,transit_station_document_reader_destroy) {}
+    DocumentDescription describe(ResourceRef resource,uint64_t document) const { transit_station_document_description out{}; check(transit_station_document_describe(value_.get(),resource.native(),document,&out)); return {DocumentReference::from_native(out.reference),out.source_revision,out.floor,out.merge_window,out.active_job,out.retired,out.change_format}; }
+    DocumentPath path(const DocumentReference &reference,const std::vector<std::string> &names) const {
+        const auto ref=reference.native(); std::vector<transit_sdk_bytes> path; for(const auto &v:names) path.push_back({reinterpret_cast<const uint8_t *>(v.data()),v.size()});
+        transit_station_document_path out{}; check(transit_station_document_path_read(value_.get(),&ref,path.data(),path.size(),&out)); return {reference,out.source_revision,DocumentField::from_native(out.field)};
+    }
+    DocumentPage sequence(const DocumentReference &reference,DocumentDot object,const std::optional<std::string> &cursor={}) const {
+        const auto ref=reference.native(); transit_station_document_page out{}; check(transit_station_document_sequence(value_.get(),&ref,object.native(),cursor?cursor->c_str():nullptr,&out));
+        DocumentPage page{reference,out.source_revision,{},out.has_next?std::optional<std::string>(out.next):std::nullopt}; document_detail::bound(out.count<=8);
+        for(size_t i=0;i<out.count;++i) page.items.push_back({DocumentDot::from_native(out.items[i].id),DocumentField::from_native(out.items[i].field)}); return page;
+    }
+    DocumentResynchronization resynchronize(ResourceRef resource,uint64_t document,uint64_t replica) const { transit_station_document_resynchronization out{}; check(transit_station_document_resynchronize(value_.get(),resource.native(),document,replica,&out)); return {DocumentReference::from_native(out.reference),out.floor,out.replica,out.previous_counter,out.clock}; }
+    DocumentChange accepted_change(const DocumentReference &reference) const { const auto ref=reference.native(); transit_station_document_change out{}; check(transit_station_document_accepted_change(value_.get(),&ref,&out)); return DocumentChange::from_native(out); }
+};
+}
+
 #include <transit/station/runner.hpp>

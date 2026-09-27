@@ -114,6 +114,10 @@ public:
     Event evidence() { transit_station_event *event = nullptr; check(transit_station_runner_evidence(value_.get(), &event)); return Event(event); }
     Event close() { transit_station_event *event = nullptr; check(transit_station_runner_close(value_.get(), &event)); return Event(event); }
     void stop() const { transit_station_runner_stop(value_.get()); }
+    DocumentReader documents() {
+        transit_station_document_reader *out = nullptr;
+        check(transit_station_documents_open(value_.get(), &out)); return DocumentReader(out);
+    }
     HttpReader open_http(const HttpOutcome &outcome, HttpReplayPolicy policy = HttpReplayPolicy::Captured) {
         transit_station_http_reader *out = nullptr;
         check(transit_station_http_open(value_.get(), &outcome.native(), static_cast<transit_station_http_replay_policy>(policy), &out));
