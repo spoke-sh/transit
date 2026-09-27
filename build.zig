@@ -50,6 +50,11 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_grpc.module("transit_station_grpc") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_http.module("transit_station_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
+    const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
+    document_contract_test.addFileArg(b.path("tests/document_contract.py"));
+    document_contract_test.has_side_effects = true;
+    document_contract_test.stdio = .inherit;
+    test_step.dependOn(&document_contract_test.step);
     const grpc_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     grpc_contract_test.addFileArg(b.path("tests/grpc_contract.py"));
     grpc_contract_test.has_side_effects = true;
@@ -455,6 +460,20 @@ pub fn build(b: *std.Build) void {
     query_capture.has_side_effects = true;
     query_capture.stdio = .inherit;
     b.step("test-growing-query", "Prove bounded query capture and recovery through disk Ursula").dependOn(&query_capture.step);
+    const document_proof = b.addExecutable(.{ .name = "transit-document-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/document.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_station_document", .module = document.module("transit_station_document") } },
+    }) });
+    build_test_step.dependOn(&document_proof.step);
+    const document_test = b.addSystemCommand(&.{ "python3", "-B" });
+    document_test.addFileArg(b.path("tests/document.py"));
+    document_test.addArtifactArg(node_artifact);
+    document_test.addArtifactArg(document_proof);
+    document_test.has_side_effects = true;
+    document_test.stdio = .inherit;
+    b.step("test-document", "Prove Document publication, checkpoint and disk recovery").dependOn(&document_test.step);
     const publication_proof = b.addExecutable(.{ .name = "transit-publication-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/publication.zig"),
         .target = target,

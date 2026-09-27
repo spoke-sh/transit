@@ -167,3 +167,27 @@ is not implemented. Accepted job/checkpoint intervals can be reclaimed after
 permanent logical Document retirement, using bounded Publication cleanup while
 keeping permanent ledgers. Logical history closure, checkpoint compaction and
 physical removal remain distinct.
+
+## Public reader reference
+
+SDR1 is a 40-byte reference: magic, resource:u64, document:u64, epoch:u64,
+type_revision:u32, accepted_revision:u64, with little-endian integers. Resource
+uses the kernel ID range; Document and revisions preserve full u64 width. Unknown
+magic, extra/truncated bytes, zero identities or a mismatched epoch/type/revision
+reject. References do not require or confer writer ownership.
+
+The public Client opens a current resource cut for each bounded operation and
+checks the referenced accepted snapshot plus live floor/retirement. It returns
+that source cut with owned path/sequence values. Resource change/loss, revocation,
+type mismatch and missing history stay explicit; it never substitutes another
+Document revision. Its ResourceReader poisons a source after failed authority
+reads. Language bindings must preserve the same identities, state distinctions
+and continuation ownership through the shared Zig implementation.
+
+The shared host codec preserves u64/i64 values as canonical decimal strings and
+binary as hex. A finite float64 uses `float_bits`, exactly eight little-endian IEEE
+bytes encoded as 16 hex characters, preserving negative zero across JSON hosts.
+Host `character` is a UTF-8 string containing exactly one Unicode scalar. These
+are binding values: SDC1 remains the canonical binary change, and language-native
+public APIs own their idiomatic numeric, string and byte types. Host codecs share
+Zig validation and implement no independent merge algorithm.

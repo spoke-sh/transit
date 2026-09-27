@@ -188,6 +188,9 @@ growing-station *args:
     zig build test-growing-station -- "$@"
 
 # Qualify larger immutable records, current access and bounded cleanup over disk Ursula.
+document:
+    zig build test-document
+
 publication:
     zig build test-publication
 

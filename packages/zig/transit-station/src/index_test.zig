@@ -118,11 +118,13 @@ const Turns = struct {
     revision: u64 = 1,
     input: u64 = 1,
     denied: bool = false,
+    reads: usize = 0,
     fn deinit(self: *Turns) void {
         self.state.deinit(t.allocator);
     }
     fn read(raw: *anyopaque, _: p.Growth.View, address: p.Value) !?p.Value {
         const self: *Turns = @ptrCast(@alignCast(raw));
+        self.reads += 1;
         if (self.denied) return error.AccessDenied;
         return self.state.get(address);
     }
@@ -169,6 +171,20 @@ test "index candidates resume one publication operation per turn without changin
     var reader: Index.Reader(*Turn) = .{ .publication = publication, .source = &turn };
     try t.expectEqual(@as(u64, 24), tree.root.?.entries);
     for (0..24) |i| try t.expect(Index.Value.eql(try value(i), (try tree.get(&reader, try key(i))).?));
+    reader.cache = .{};
+    store.reads = 0;
+    _ = try tree.get(&reader, try key(0));
+    const cold = store.reads;
+    store.reads = 0;
+    _ = try tree.get(&reader, try key(0));
+    try t.expectEqual(@as(usize, tree.root.?.level) + 1, store.reads);
+    try t.expect(store.reads < cold);
+    // Cached bytes cannot survive current denial or hide logical retirement.
+    store.denied = true;
+    try t.expectError(error.AccessDenied, tree.get(&reader, try key(0)));
+    store.denied = false;
+    turn = try store.capture();
+    reader.source = &turn;
     const original = tree;
     var staging: Index.Staging = .{ .turn = &turn, .publication = publication, .next_id = next_id, .end_id = next_id + 128 };
     try t.expectError(error.IndexStaging, original.put(&staging, try key(5), try value(900)));

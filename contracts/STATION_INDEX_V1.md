@@ -41,3 +41,10 @@ publication commitment through an authorized current or retained source.
 References are never bearer grants. Retaining/releasing a root, retiring a
 Document and deciding whether a node is still reachable are consumer obligations;
 this library never infers permission to trim or delete nodes.
+
+Publication read/staging adapters keep an implementation cache of eight
+node bodies (32 KiB plus metadata), independent of total retained history. Each
+hit reopens the current authorized descriptor and verifies its exact commitment;
+changing the source basis or namespace clears it. Cached bytes cannot authorize a
+read after revocation/retirement or preserve a closed Document revision. The
+index wire format is unchanged.

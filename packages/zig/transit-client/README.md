@@ -126,3 +126,9 @@ through the same signed `Client.submit`/`Session.Pending` mechanism. Administrat
 and provisioning use separate scoped credentials; execution sessions do not gain
 those rights. Follow the [lifecycle contract](../../../contracts/LIFECYCLE_V1.md)
 for generation fences, uncertain allocations and resumption bounds.
+
+`ResourceReader` opens one exact current resource revision and exposes bounded
+point/page reads without requiring PID ownership. It rechecks current read grants
+on every query, rejects changed/invalid sources and preserves a read failure for
+that source. It owns no retained version and cannot grant execution authority.
+Station Document uses this shared adapter for public accepted-state reads.

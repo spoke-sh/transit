@@ -44,7 +44,7 @@ it is not a maximum Document/history cardinality. Exhaustion rejects tentative
 work and requires a deliberate retry/admission decision, not expiry.
 
 `readPath` and `readSequence` open an exact accepted revision through a **current**
-growing turn. They recheck logical retirement/history availability and rely on
+growing turn or a public `ResourceReader`. They recheck logical retirement/history availability and rely on
 current resource grants for every source read. A sequence page returns at most
 eight elements and performs at most 32 traversal transitions; an empty page with
 a continuation is not EOF. Keep the same revision across pages. Raw component
@@ -60,8 +60,9 @@ reads/submissions/resynchronization; authorized job metadata remains inspectable
 Private-turn component proofs discard/reconstruct every staging proposal, preserve
 old snapshots, fit final acceptance plus framework state/output, reject changed
 requests, reclaim failed candidates, enforce explicit capacity, and recheck denied
-reads/retirement. These are not disk/node failure or public SDK/placement proofs;
-those remain part of M17 qualification.
+reads/retirement. The separate `just test::document` disk proof kills workers,
+node and store, recovers exact signed retries and reads through a separate
+read-only principal. Public SDK and placement qualification remain in progress.
 
 ## Checkpoint and retention policy
 

@@ -290,26 +290,57 @@ test "node codec rejects truncation ordering and trailing data" {
     try t.expectError(error.InvalidIndexNode, encode(node, &buffer));
 }
 
-/// Adapt an authorized current/retained Publication source. It rechecks the
-/// descriptor and each chunk; the consumer separately owns root availability.
+/// Eight immutable node bodies, scoped to one exact publication/read basis.
+/// Every hit still opens the current descriptor and rechecks authority/lifecycle;
+/// this caches bytes, never a permission decision or an accepted Document head.
+pub const Cache = struct {
+    pub const capacity = 8;
+    const CachedNode = struct { id: u64 = 0, spec: Pub.Spec = undefined, bytes: [node_bytes]u8 = undefined };
+    basis: ?Pub.Basis = null,
+    namespace: u64 = 0,
+    next: usize = 0,
+    entries: [capacity]CachedNode = @splat(.{}),
+    pub fn load(self: *Cache, publication: Pub, source: anytype, ref: Reference, buffer: []u8) ![]const u8 {
+        try ref.validate();
+        if (ref.spec.length > buffer.len) return error.IndexNodeTooLarge;
+        var cursor = try publication.open(source, ref.id);
+        if (!std.meta.eql(cursor.spec, ref.spec)) return error.InvalidIndexReference;
+        if (self.basis == null or !std.meta.eql(self.basis.?, cursor.basis) or self.namespace != publication.namespace) {
+            for (&self.entries) |*entry| entry.id = 0;
+            self.basis = cursor.basis;
+            self.namespace = publication.namespace;
+            self.next = 0;
+        }
+        for (&self.entries) |*entry| if (entry.id == ref.id and std.meta.eql(entry.spec, ref.spec)) {
+            @memcpy(buffer[0..ref.spec.length], entry.bytes[0..ref.spec.length]);
+            return buffer[0..ref.spec.length];
+        };
+        var offset: usize = 0;
+        while (true) {
+            const part = try publication.read(source, cursor);
+            if (part.bytes.len > buffer.len - offset) return error.IndexNodeTooLarge;
+            @memcpy(buffer[offset..][0..part.bytes.len], part.bytes.slice());
+            offset += part.bytes.len;
+            cursor = part.next orelse break;
+        }
+        if (offset != ref.spec.length) return error.InvalidIndexCommitment;
+        const entry = &self.entries[self.next];
+        self.next = (self.next + 1) % capacity;
+        entry.id = ref.id;
+        entry.spec = ref.spec;
+        @memcpy(entry.bytes[0..offset], buffer[0..offset]);
+        return buffer[0..offset];
+    }
+};
+/// Adapt an authorized current/retained Publication source. The consumer
+/// separately owns Document root availability; a byte cache never grants it.
 pub fn Reader(comptime Source: type) type {
     return struct {
         publication: Pub,
         source: Source,
+        cache: Cache = .{},
         pub fn load(self: *@This(), ref: Reference, buffer: []u8) ![]const u8 {
-            try ref.validate();
-            if (ref.spec.length > buffer.len) return error.IndexNodeTooLarge;
-            var cursor = try self.publication.open(self.source, ref.id);
-            if (!std.meta.eql(cursor.spec, ref.spec)) return error.InvalidIndexReference;
-            var offset: usize = 0;
-            while (true) {
-                const part = try self.publication.read(self.source, cursor);
-                if (part.bytes.len > buffer.len - offset) return error.IndexNodeTooLarge;
-                @memcpy(buffer[offset..][0..part.bytes.len], part.bytes.slice());
-                offset += part.bytes.len;
-                cursor = part.next orelse break;
-            }
-            return buffer[0..offset];
+            return self.cache.load(self.publication, self.source, ref, buffer);
         }
     };
 }
@@ -325,9 +356,9 @@ pub const Staging = struct {
     publication: Pub,
     next_id: u64,
     end_id: u64,
+    cache: Cache = .{},
     pub fn load(self: *Staging, ref: Reference, buffer: []u8) ![]const u8 {
-        var reader: Reader(@TypeOf(self.turn)) = .{ .publication = self.publication, .source = self.turn };
-        return reader.load(ref, buffer);
+        return self.cache.load(self.publication, self.turn, ref, buffer);
     }
     pub fn save(self: *Staging, spec: Pub.Spec, bytes: []const u8) !u64 {
         if (self.next_id == 0 or self.next_id >= self.end_id) return error.IndexCapacity;

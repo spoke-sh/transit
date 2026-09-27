@@ -196,7 +196,8 @@ pub fn reject(self: Self, turn: *Turn, id: u64) !void {
 }
 /// Every page reopens a retained Document revision under a fresh current source.
 /// A revision is a reference, not a grant; retirement and policy floors are live.
-pub fn open(self: Self, source: *Turn, revision: u64) !Document {
+pub fn open(self: Self, source: anytype, revision: u64) !Document {
+    comptime requireCurrent(@TypeOf(source));
     const h = try self.live(source);
     if (revision < h.floor) return error.DocumentHistoryGap;
     if (revision > h.state.revision) return error.DocumentRevisionNotAccepted;
@@ -213,13 +214,16 @@ pub fn configureMergeWindow(self: Self, turn: *Turn, revisions: u64) !void {
     h.merge_window = revisions;
     try turn.write(self.key('h', 0), try h.encode());
 }
-pub fn acceptedChange(self: Self, turn: *Turn, revision: u64) !m.Change {
+pub fn acceptedChange(self: Self, turn: anytype, revision: u64) !m.Change {
     _ = try self.open(turn, revision);
     const snap = try records.snapshotRecord((try turn.read(self.key('v', revision))).?);
     if (snap.request == 0) return error.DocumentCheckpointBoundary;
     const descriptor = try self.publication().inspect(turn, snap.request);
     if (descriptor.spec.format != change_format or descriptor.spec.length > m.max_change_bytes) return error.InvalidDocumentState;
     return self.readChange(turn, snap.request, descriptor.spec);
+}
+fn requireCurrent(comptime T: type) void {
+    if (T != *Turn and T != *station.client.ResourceReader.Reader) @compileError("Document lifecycle reads require a current turn or public ResourceReader, never a retained source");
 }
 pub const Resynchronization = struct {
     document: u64,
@@ -233,14 +237,15 @@ pub const Resynchronization = struct {
 };
 /// Supplies a fresh accepted basis. Tentative old edits remain unaccepted; the
 /// caller chooses new edits/identities after reconciling with this revision.
-pub fn resynchronize(self: Self, turn: *Turn, replica: u64) !Resynchronization {
+pub fn resynchronize(self: Self, turn: anytype, replica: u64) !Resynchronization {
+    comptime requireCurrent(@TypeOf(turn));
     const h = try self.live(turn);
-    var reader: Index.Reader(*Turn) = .{ .publication = self.publication(), .source = turn };
+    var reader: Index.Reader(@TypeOf(turn)) = .{ .publication = self.publication(), .source = turn };
     return .{ .document = self.document, .epoch = h.state.epoch, .type_revision = h.state.type_revision, .revision = h.state.revision, .floor = h.floor, .replica = replica, .previous_counter = try h.state.replicaCounter(&reader, replica), .clock = try h.state.clock(&reader) };
 }
-pub fn readPath(self: Self, turn: *Turn, revision: u64, names: []const m.Name) !Document.Register {
+pub fn readPath(self: Self, turn: anytype, revision: u64, names: []const m.Name) !Document.Register {
     const doc = try self.open(turn, revision);
-    var reader: Index.Reader(*Turn) = .{ .publication = self.publication(), .source = turn };
+    var reader: Index.Reader(@TypeOf(turn)) = .{ .publication = self.publication(), .source = turn };
     return doc.path(&reader, names);
 }
 pub const PageCursor = struct { revision: u64, object: m.Dot, traversal: Document.SequenceCursor = .{} };
@@ -251,9 +256,9 @@ pub const SequencePage = struct {
 };
 /// A page bounds both returned elements and traversal work. Deleted anchors may
 /// produce an empty page with a continuation; callers must distinguish it from EOF.
-pub fn readSequence(self: Self, turn: *Turn, start: PageCursor) !SequencePage {
+pub fn readSequence(self: Self, turn: anytype, start: PageCursor) !SequencePage {
     const doc = try self.open(turn, start.revision);
-    var reader: Index.Reader(*Turn) = .{ .publication = self.publication(), .source = turn };
+    var reader: Index.Reader(@TypeOf(turn)) = .{ .publication = self.publication(), .source = turn };
     var cursor = start;
     var out: SequencePage = .{};
     for (0..32) |_| {

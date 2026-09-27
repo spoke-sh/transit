@@ -2,15 +2,33 @@
 
 ## M17 work in progress
 
-The standalone Station suite passes **42 tests in 527 ms** with **18 MiB test
-process peak RSS**. This includes the new immutable index's 1024-key permutation,
-replacement and retained-root corpus, strict ordered continuation, maximum-size
-keys/values, duplicate write identity, failed path copying, corrupted node/refusal
-and current-read denial. A separate private-turn fixture rebuilds 24 index roots
-through real Publication staging, preserves accepted roots until candidate
-completion, enforces ordinary mutation limits and rejects changed staged content.
-These measurements include the test's in-memory reference store, not a production
-index cache. Document CRDT, disk recovery, SDKs and placement remain unqualified.
+The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test
+process peak RSS**. Immutable-index cases cover 1024-key permutations, retained
+roots, ordered continuation, corruption, failed path copying and current read
+denial, including on a cache hit. Its fixed eight-node cache stores verified
+bytes and reopens publication descriptors under current policy before use.
+The Document package passes **18 tests in 1 second** with **17 MiB peak RSS**,
+including concurrent merge permutations, Unicode text, private-turn recovery,
+finite/unlimited checkpoints and reconstruction from a checkpoint plus accepted
+tail. These RSS figures include the tests' in-memory reference stores.
+
+`just test::document` passes over disk Ursula with an **8 MiB hot-store limit**.
+The four phases take **609.631 seconds** excluding compilation. It kills the
+actual worker three times during candidate/checkpoint publication, restarts the
+node and store, rejects stale owners and recovers exact signed retries at change
+acceptance, checkpoint publication, cleanup and node checkpoint boundaries.
+Final acceptance still fits four mutations including framework state and emits
+exactly one acceptance output. The final recovery uses **one resident authority
+page**. Current-policy reads through a separate read-only principal preserve
+exact old snapshots, enforce revocation after a returned prefix and reject
+closed history, stale epochs and permanent retirement. Bounded cleanup retains
+permanent ledgers. The run records 361 turns, 8,984 resource reads and 396 cold
+objects / 35,169,506 bytes. This is a local measurement, not a hosted CI budget.
+
+`just check` validates the independent Python-generated SDC1/SDR1 change and
+reference fixtures, including full-width integers, negative zero, binary and
+Unicode. Public SDKs, Board and local/Compose/reference example qualification
+remain in progress; the disk proof does not establish those surfaces.
 
 ## M16 finite connector qualification
 

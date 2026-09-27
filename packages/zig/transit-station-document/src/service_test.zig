@@ -426,3 +426,61 @@ test "abandoned checkpoint nodes are reclaimable; accepted nodes require permane
     try t.expectEqual(.retired, descriptor.state);
     try t.expectEqual(descriptor.written, descriptor.collected);
 }
+
+const ReplayStore = struct {
+    source: Index.Reader(*Turn),
+    nodes: std.ArrayList([]const u8) = .empty,
+    const base = 1 << 63;
+    fn deinit(self: *ReplayStore) void {
+        for (self.nodes.items) |bytes| t.allocator.free(bytes);
+        self.nodes.deinit(t.allocator);
+    }
+    pub fn load(self: *ReplayStore, reference: Index.Reference, buffer: []u8) ![]const u8 {
+        if (reference.id < base) return self.source.load(reference, buffer);
+        const at = reference.id - base;
+        if (at >= self.nodes.items.len) return error.SourceGap;
+        const bytes = self.nodes.items[@intCast(at)];
+        @memcpy(buffer[0..bytes.len], bytes);
+        return buffer[0..bytes.len];
+    }
+    pub fn save(self: *ReplayStore, spec: Pub.Spec, bytes: []const u8) !u64 {
+        try t.expectEqualDeep(spec, try Pub.Digest.of(Index.format, bytes));
+        const copy = try t.allocator.dupe(u8, bytes);
+        errdefer t.allocator.free(copy);
+        try self.nodes.append(t.allocator, copy);
+        return base + self.nodes.items.len - 1;
+    }
+};
+
+test "checkpoint plus verified retained tail reconstructs text and conflict metadata without current-root substitution" {
+    var store: Turns = .{};
+    defer store.deinit();
+    try setup(&store);
+    const boot = makeChange(1, 1, &.{ .{ .assign = .{ .field = try m.Name.init("body"), .value = .text } }, .{ .assign = .{ .field = try m.Name.init("title"), .value = .null_value } } });
+    _ = try prepare(&store, 1, boot, 128);
+    try upload(&store, 1, boot);
+    _ = try finish(&store, 1);
+    try t.expectEqual(@as(u64, 2), try checkpoint(&store, 2));
+    const tail = makeChange(2, 3, &.{ .{ .insert = .{ .object = .{ .counter = 1, .replica = 1 }, .value = .{ .character = 0x1f642 } } }, .{ .assign = .{ .field = try m.Name.init("title"), .value = .{ .string = try m.Bytes.init("new") } } } });
+    _ = try prepare(&store, 3, tail, 128);
+    try upload(&store, 3, tail);
+    _ = try finish(&store, 3);
+    var turn = try store.capture();
+    const basis = try service.open(&turn, 2);
+    const retained = try service.acceptedChange(&turn, 3);
+    // Pure reconstruction uses scratch immutable nodes, never publishing a
+    // second authoritative head or relying on the already materialized root.
+    var scratch: ReplayStore = .{ .source = .{ .publication = service.publication(), .source = &turn } };
+    defer scratch.deinit();
+    const rebuilt = (try basis.apply(&scratch, retained)).state;
+    try t.expectEqual(@as(u64, 3), rebuilt.revision);
+    try t.expectEqual(.conflict, (try rebuilt.field(&scratch, .root, try m.Name.init("title"))).status());
+    var cursor: lib.Document.SequenceCursor = .{};
+    const first = (try rebuilt.sequenceStep(&scratch, .{ .counter = 1, .replica = 1 }, &cursor)).item;
+    try t.expectEqual(@as(u32, 0x1f642), first.values.assignments[0].value.character);
+    const path = [_]m.Name{try m.Name.init("title")};
+    const expected = try service.readPath(&turn, 3, &path);
+    const actual = try rebuilt.path(&scratch, &path);
+    try t.expectEqualDeep(expected.assignments[0..expected.len], actual.assignments[0..actual.len]);
+    try t.expect((try rebuilt.apply(&scratch, retained)).duplicate);
+}

@@ -36,5 +36,13 @@ spanning thousands of index entries. Private-turn tests also reconstruct every s
 within the unchanged mutation budget. Incremental checkpoint tests preserve
 unlimited history, advance opted-in epochs/floors only at final publication,
 reject stale edits and recycled counters, and reclaim rejected/retired intervals.
-These are component proofs: disk recovery, all public SDKs, Board and placement
-proofs remain open.
+The disk-backed `just test::document` additionally qualifies real worker/node/
+store loss, exact retry, current-policy reads and bounded cleanup with a one-page
+authority cache. See [proof evidence](../../../tests/README.md#m17-work-in-progress).
+All public SDKs, Board and placement proofs remain in progress.
+
+`Client` provides current-policy descriptions, typed path/sequence reads, accepted
+tail changes and resynchronization independently of writer ownership. Its SDR1
+reference fixes resource, Document, epoch, type revision and accepted revision.
+Each response names the actual resource cut; old references never bypass the
+current history floor or retirement. Public language wrappers remain in progress.
