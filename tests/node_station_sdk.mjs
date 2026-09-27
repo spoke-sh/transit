@@ -260,13 +260,22 @@ async function httpConsumer() {
   const correlation = new Key(new TextEncoder().encode('http-correlation'), u64Codec);
   const status = new Key(new TextEncoder().encode('http-status'), u64Codec);
   const disposal = new Key(new TextEncoder().encode('http-disposal'), u64Codec);
+  const followup = new Key(new TextEncoder().encode('http-followup'), u64Codec);
   const codec = { typeId: 'test.http-control', version: 1, maxEncodedBytes: 243, encode: value => new Uint8Array(value), decode: value => new Uint8Array(value) };
   const handler = {
     result: undefined, escaped: undefined,
     async initialize() {},
     async handle(turn, input) {
       assert.equal(input.kind, 'cast'); this.escaped = turn;
-      if (Buffer.from(input.value).toString() === 'dispose') {
+      if (Buffer.from(input.value).toString() === 'followup') {
+        const original = await decodeHttpReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        const wrong = await decodeHttpReply(73, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        await assert.rejects(turn.followupHttp(peer, wrong, cfg.followup_reason, request), TypeError);
+        await assert.rejects(turn.followupHttp(peer, original, 'automatic', request), TypeError);
+        const call = await turn.followupHttp(peer, original, cfg.followup_reason, request);
+        await turn.state.put(followup, call);
+        this.result = { followup: false };
+      } else if (Buffer.from(input.value).toString() === 'dispose') {
         const original = await decodeHttpReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
         await assert.rejects(turn.releaseHttp(peer, new ResourceRef(73, original.resource.resource), original.exchange), TypeError);
         const call = await turn.releaseHttp(peer, original.resource, original.exchange);
@@ -281,6 +290,13 @@ async function httpConsumer() {
     },
     async handleHttpReply(turn, input) {
       this.escaped = turn;
+      if (input.value.kind === 'http-rejected') {
+        turn.requireReply(input, { peer, correlation: await turn.state.require(followup) });
+        assert.equal(input.value.reason, 'denied');
+        await turn.state.put(new Key(new TextEncoder().encode('http-followup-denied'), u64Codec), input.correlation);
+        this.result = { followup: true };
+        return;
+      }
       if (input.value.kind === 'http-released') {
         turn.requireReply(input, { peer, correlation: await turn.state.require(disposal) });
         const original = await decodeHttpReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
@@ -327,6 +343,7 @@ async function httpConsumer() {
         for (let i = 0; i < 32; i++) if ((await runner.next()).kind === 'committed') { committed = true; break; }
         assert.ok(committed); assert.throws(() => handler.escaped.stageHttp(request), TurnExpired);
         assert.throws(() => handler.escaped.releaseHttp(peer, new ResourceRef(72, cfg.resource), 1n), TurnExpired);
+        assert.throws(() => handler.escaped.followupHttp(peer, outcome, 'retry', request), TurnExpired);
         result = handler.result;
       } else if (action === 'open') {
         outcome = await decodeHttpReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));

@@ -29,7 +29,7 @@ import { hex, unhex } from "./framing.ts";
 import { Table, TableSchema, type Cell } from "./table.ts";
 import { QueryPlan, ResultReader, type QueryJob } from "./query.ts";
 import type { GrowingAction, GrowingEvent } from "./wire.ts";
-import { PreparedHttpRequest } from "./http.ts";
+import { PreparedHttpRequest, HttpOutcome, type HttpFollowupReason } from "./http.ts";
 
 function cursor(value?: string): string | null {
   return value === undefined ? null : text(value, limits.max_body);
@@ -228,6 +228,37 @@ export class Turn {
         result(
           await bridge.apply(token, {
             http_release: { pid, resource: resource.resource, exchange: wide(exchange).toString() },
+          }),
+          "correlation",
+        ),
+      );
+    });
+  }
+  followupHttp(
+    peer: ProcessRef,
+    parent: HttpOutcome,
+    reason: HttpFollowupReason,
+    request: PreparedHttpRequest,
+  ): Promise<bigint> {
+    return operation(this, async ({ bridge, token }) => {
+      const pid = this.#peer(peer);
+      this.#http(request, bridge);
+      if (!(parent instanceof HttpOutcome) || parent.resource.realm !== this.resource.realm)
+        throw new TypeError("HTTP parent must belong to the current realm");
+      if (!["retry", "redirect", "reconcile", "cancel"].includes(reason))
+        throw new TypeError("Expected an HTTP followup reason");
+      if (!bridge.caps.http_followup)
+        throw new UnsupportedCapability("Native HTTP followup is unavailable");
+      return nativeWide(
+        result(
+          await bridge.apply(token, {
+            http_followup: {
+              pid,
+              resource: parent.resource.resource,
+              parent: wide(parent.exchange).toString(),
+              reason,
+              reference: hex(request.reference, 112),
+            },
           }),
           "correlation",
         ),

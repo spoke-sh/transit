@@ -47,6 +47,7 @@ export type {
   HttpHeader,
   HttpRequest,
   HttpPhase,
+  HttpFollowupReason,
   HttpRejection,
   HttpRejected,
   HttpReleased,

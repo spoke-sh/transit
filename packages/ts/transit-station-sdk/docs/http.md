@@ -101,4 +101,14 @@ Disposal needs no transcript read grant and duplicate requests remain safe after
 restart or cleanup. The service checks the original holder and current policy;
 local decoding grants no authority. It does not cancel remote work, retire capture
 or perform cleanup. A finite worker uses a fresh `poll` activation to handle the
-call. Public followup helpers remain M15 work.
+call.
+
+Use `await turn.followupHttp(connector, parentOutcome, reason, request)` for an
+explicit linked attempt. `HttpFollowupReason` is `retry`, `redirect`, `reconcile`
+or `cancel`, with runtime validation too. The proposed request must already be
+published in the current associated resource with the original deadline and
+total attempt budget. Save the new correlation and authenticate its outcome or
+rejection in `handleHttpReply`. The service checks the original caller, current
+scope and parent's frozen policy before allocating a child. The helper does not
+retry automatically or infer retry safety. The finite worker must select a fresh
+child exchange and the matching parent/reason. Parent outcomes remain unchanged.

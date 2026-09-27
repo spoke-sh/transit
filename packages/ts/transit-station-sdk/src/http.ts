@@ -135,6 +135,7 @@ export async function prepareHttp(
   }
 }
 export type HttpPhase = "observed" | "closed-unknown" | "not-dispatched";
+export type HttpFollowupReason = "retry" | "redirect" | "reconcile" | "cancel";
 export type HttpRejection = "denied" | "invalid-request" | "busy";
 export class HttpOutcome {
   readonly kind = "http-outcome";
