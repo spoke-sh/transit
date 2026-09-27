@@ -59,6 +59,15 @@ Admission rejects a different Publication publisher before retaining a source.
 `just check` passes; these use the same in-memory reader fixtures and do not
 replace the remaining signed service/deployment schedules.
 
+The v2 upload component fixture submits a 4 KiB predicate using at most 145-byte
+command payloads, retries each part, rejects conflicting bytes/identities and
+premature seal, and preserves one original call on duplicate submission. Partial
+abandonment holds admission until bounded cleanup releases quota. Independent
+Python fixtures cover every command and full-width namespace/status encoding.
+Behavior cases qualify configured-principal ingress, malformed-command disposition,
+restart-configuration refusal and original-route source closure after request
+access denial. These are component checks; actual daemon/SDK qualification remains.
+
 ## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test

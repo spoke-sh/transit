@@ -110,6 +110,18 @@ covers all decoder/projection details. Only an accepted Document revision may
 vary within that declaration; Document epoch, type, identity and change format
 remain fenced. Every accepted job also records the complete exact source digest.
 
+The command envelope uses these distinct magic bytes: `UQI2` initialize,
+`UQB2` begin plus `SPF1`, `UQP2` part (u64 namespace, u32 chunk ordinal, one
+canonical boolean second-half byte, then 1–128 bytes), and `UQS2` seal / `UQX2`
+submit / `UQK2` cancel / `UQG2` collect / `UQR2` retire, each followed by a u64
+namespace. All integers are little-endian. The part payload is at most 145 bytes;
+begin is 72 and namespace operations are 12, below the unchanged 243-byte limit.
+`UQU2` upload state contains its `SPF1`, phase byte, u64 original correlation,
+optional-manifest flag/reference and collected flag (83 or 151 bytes). Phases
+1–8 mean uploading, sealed, admitted, complete, cancelled, denied, rejected and
+retired. Boolean flags are exactly zero or one. Full u64 namespaces never pass
+through a floating-point number.
+
 The source validates current peer policy, request-resource access, bundle digest,
 source contract and supported plan before capture. It retains an exact source
 cut and commits bounded resumable progress. M14 Publication stores independently

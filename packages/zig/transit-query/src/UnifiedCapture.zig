@@ -117,7 +117,10 @@ pub fn advance(turn: *Turn, continuation: r.Continuation, source: anytype, alloc
     var page: q.UnifiedSource.Batch = undefined;
     try q.UnifiedSource.page(bundle.source, previous.progress.basis, previous.cursor, &retained, turn, allocator, &page);
     var bytes: [m.Arrow.segment_bytes]u8 = undefined;
-    const candidate = try m.Stream.step(bound, previous.progress, page.engine(), workspace, &bytes, cancellation);
+    const candidate = m.Stream.step(bound, previous.progress, page.engine(), workspace, &bytes, cancellation) catch |err| switch (err) {
+        error.WriteFailed => return error.QuerySegmentBudgetExceeded,
+        else => return err,
+    };
     var progress = previous;
     progress.progress = candidate.progress;
     progress.cursor = page.next;

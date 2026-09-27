@@ -62,3 +62,9 @@ access before return. `Cursor` is owned continuation state, never a bearer token
 Returned Arrow borrows the supplied output buffer; schema/scalar bytes belong to
 the supplied result allocator, and decoded conflicts borrow the fixed `Batch`.
 An error invalidates the entire page. Public client/SDK wiring remains in progress.
+
+`UnifiedRequest`, `UnifiedUpload` and `UnifiedBehavior` compose authenticated
+finite uploads with the source capture and original-call reply. The
+[upload guide](docs/unified-upload.md) documents initialization, duplicate parts,
+cancellation, cleanup and logical admission. Component tests pass; signed
+daemon/deployment and language SDK qualification remain in progress.

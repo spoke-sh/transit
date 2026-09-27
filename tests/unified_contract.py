@@ -7,6 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/unified.json'
+UPLOADS = ROOT / 'packages/zig/transit-query/src/fixtures/uploads.json'
 BUNDLES = ROOT / 'packages/zig/transit-query/src/fixtures/bundles.json'
 SOURCES = ROOT / 'packages/zig/transit-query/src/fixtures/sources.json'
 
@@ -67,6 +68,18 @@ def bundles():
     return json.dumps(result, indent=2)+'\n'
 
 
+def uploads():
+    reference = bytes.fromhex(json.loads(bundles())[0]['reference_hex'])
+    namespace = struct.pack('<Q', 2**64-1)
+    commands = [("initialize", b'UQI2'), ("begin", b'UQB2'+reference),
+        ("part", b'UQP2'+namespace+struct.pack('<IB', 15, 1)+bytes(range(128)))]
+    commands += [(label, tag+namespace) for label, tag in [
+        ('seal', b'UQS2'), ('submit', b'UQX2'), ('cancel', b'UQK2'),
+        ('collect', b'UQG2'), ('retire', b'UQR2')]]
+    status = b'UQU2' + reference + b'\1' + struct.pack('<Q', 0) + b'\0\0'
+    return json.dumps(dict(commands=[dict(kind=kind, wire_hex=wire.hex()) for kind, wire in commands], status_hex=status.hex()), indent=2)+'\n'
+
+
 if __name__ == '__main__':
     if sys.argv[1:] == ['--write']:
         FIXTURE.parent.mkdir(exist_ok=True)
@@ -74,6 +87,7 @@ if __name__ == '__main__':
         SOURCES.parent.mkdir(exist_ok=True)
         SOURCES.write_text(sources())
         BUNDLES.write_text(bundles())
-    elif sys.argv[1:] or FIXTURE.read_text() != generate() or SOURCES.read_text() != sources() or BUNDLES.read_text() != bundles():
+        UPLOADS.write_text(uploads())
+    elif sys.argv[1:] or FIXTURE.read_text() != generate() or SOURCES.read_text() != sources() or BUNDLES.read_text() != bundles() or UPLOADS.read_text() != uploads():
         raise SystemExit('Unified query fixtures differ; review and regenerate explicitly')
     print('Unified query fixtures: independent schemas, source definitions and full-width/larger FZP2 plans passed.')

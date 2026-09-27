@@ -394,3 +394,49 @@ test "admission rejects a request published by another PID even in the declared 
     try t.expectError(error.UnexpectedQueryPublisher, start(&store, &requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits }));
     try t.expectEqual(@as(usize, 0), store.versions.count());
 }
+
+test "source behavior closes denied accepted work with the original reply and reusable bounded memory" {
+    var store: Store = .{};
+    defer store.deinit();
+    var requests: Store = .{ .resource = 8, .pid = 9 };
+    defer requests.deinit();
+    const definition = try seedKV(&store, 12);
+    const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
+    defer t.allocator.free(workspace);
+    const adapter = try t.allocator.alloc(u8, q.UnifiedBehavior.adapter_bytes);
+    defer t.allocator.free(adapter);
+    const cancellation = q.fuze.execution.Cancellation.init(false);
+    var behavior: q.UnifiedBehavior.Source = .{ .peer = 9, .initializer = 42, .resources = undefined, .workspace = workspace, .adapter = adapter, .cancellation = &cancellation };
+    const handler = behavior.interface();
+    var turn = try store.capture();
+    try turn.write(s.GrowingGenServer.descriptor_key, s.GrowingGenServer.descriptor);
+    try handler.initialize.?(handler.context, &turn);
+    try capture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = limits, .declaration = try q.Bundle.declaration(definition) });
+    try store.commit(turn);
+    const ref = try request(&requests, .{ .source = definition, .plan = .{ .projection = &.{1} }, .limits = limits });
+    const call: s.Frame = .{ .kind = .call, .correlation = 77, .payload = try ref.encode() };
+    turn = try frame(&store, 9, call);
+    try q.UnifiedBehavior.dispatchSource(&turn, call, 9, 42, Source{ .store = &requests }, adapter, workspace, &cancellation);
+    const id = turn.delivery.input.position;
+    try store.commit(turn);
+    requests.denied = true;
+    var reader = try store.capture();
+    const stored = try capture.job(&reader, id);
+    const message: s.Frame = .{ .kind = .cast, .payload = try (r.Continuation{ .job = id, .input = stored.continuation }).encode() };
+    turn = try frame(&store, 3, message);
+    try q.UnifiedBehavior.dispatchSource(&turn, message, 9, 42, Source{ .store = &requests }, adapter, workspace, &cancellation);
+    try t.expectEqual(.denied, (try capture.job(&turn, id)).phase);
+    try store.commit(turn);
+    try t.expect(store.versions.get(stored.source).?.view.released_at != null);
+    var replied = false;
+    for (turn.decision.outputs) |slot| if (slot) |output| {
+        const result = try s.Frame.decode(output.value);
+        if (result.kind == .reply) {
+            try t.expectEqual(@as(u64, 9), output.pid);
+            try t.expectEqual(@as(u64, 77), result.correlation);
+            try t.expectEqualStrings("query.v2.denied", result.payload.slice());
+            replied = true;
+        }
+    };
+    try t.expect(replied);
+}

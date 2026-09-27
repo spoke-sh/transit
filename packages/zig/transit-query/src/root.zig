@@ -5,6 +5,9 @@ pub const fuze = station.fuze;
 pub const wire = station.client;
 pub const document = @import("transit_station_document");
 pub const Bundle = @import("Bundle.zig");
+pub const UnifiedBehavior = @import("UnifiedBehavior.zig");
+pub const UnifiedRequest = @import("UnifiedRequest.zig");
+pub const UnifiedUpload = @import("UnifiedUpload.zig");
 pub const UnifiedResult = @import("UnifiedResult.zig");
 pub const UnifiedCapture = @import("UnifiedCapture.zig");
 pub const UnifiedRecords = @import("UnifiedRecords.zig");
@@ -18,6 +21,7 @@ pub const Client = @import("Client.zig");
 test {
     _ = @import("source_test.zig");
     _ = @import("unified_capture_test.zig");
+    _ = @import("unified_upload_test.zig");
     _ = @import("unified_records_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
