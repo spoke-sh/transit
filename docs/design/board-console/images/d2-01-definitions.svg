@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+<title id="title">D2 Figure 1 — Workspace and a Table definition</title><desc id="desc">Two navigation levels: Workspace or Operations, followed by the local menu. Data contains a selected Table, its fields, corresponding SQL and separate observed resource evidence. DDL execution is unavailable.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="none" stroke="black"/></marker></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="37" font-family="sans-serif" font-size="20" font-weight="700" fill="black">TRANSIT / BOARD</text>
+<text x="282" y="37" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Development / realm-demo</text>
+<text x="1102" y="37" font-family="sans-serif" font-size="13" font-weight="700" fill="black">D2 · SYNTHETIC WIREFRAME</text>
+<path d="M0 58 L1440 58" stroke="black" fill="none"/>
+<rect x="24" y="76" width="166" height="34" fill="black" stroke="black" stroke-width="1"/>
+<text x="36" y="99" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Workspace</text>
+<rect x="202" y="76" width="166" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="214" y="99" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Operations</text>
+<text x="413" y="98" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Level 1: area</text>
+<text x="1050" y="98" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Scope and access checked per operation</text>
+<path d="M0 130 L1440 130" stroke="black" fill="none"/>
+<path d="M222 130 L222 918" stroke="black" fill="none"/>
+<text x="24" y="165" font-family="sans-serif" font-size="12" font-weight="700" fill="black">LEVEL 2 / WORKSPACE</text>
+<text x="30" y="209" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Atlas</text>
+<rect x="15" y="233" width="4" height="29" fill="black" stroke="black" stroke-width="1"/>
+<text x="30" y="255" font-family="sans-serif" font-size="16" font-weight="700" fill="black">Data</text>
+<text x="30" y="301" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Connections</text>
+<text x="30" y="347" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Sources</text>
+<text x="30" y="393" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Sinks</text>
+<text x="30" y="439" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Queries</text>
+<text x="30" y="485" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Activity</text>
+<text x="24" y="839" font-family="sans-serif" font-size="13" font-weight="400" fill="black">One realm</text>
+<text x="24" y="864" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Current grants apply</text>
+<path d="M0 918 L1440 918" stroke="black" fill="none"/>
+<text x="24" y="944" font-family="sans-serif" font-size="13" font-weight="400" fill="black">FIGURE 1 · Definition study. CREATE TABLE is reference grammar only; fields and observed resource evidence are synthetic.</text>
+<text x="252" y="171" font-family="sans-serif" font-size="29" font-weight="700" fill="black">Data</text>
+<text x="252" y="202" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Definitions, data and the evidence behind them</text>
+<rect x="252" y="230" width="226" height="648" fill="white" stroke="black" stroke-width="1"/>
+<text x="270" y="257" font-family="sans-serif" font-size="12" font-weight="700" fill="black">OBJECTS / LOADED PAGE</text>
+<rect x="266" y="277" width="198" height="34" fill="black" stroke="black" stroke-width="1"/>
+<text x="278" y="300" font-family="sans-serif" font-size="14" font-weight="700" fill="white">samples · Table</text>
+<text x="270" y="351" font-family="sans-serif" font-size="15" font-weight="400" fill="black">manual · Document</text>
+<text x="270" y="379" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Definition study</text>
+<text x="270" y="427" font-family="sans-serif" font-size="15" font-weight="400" fill="black">settings · KV</text>
+<text x="270" y="454" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Exact bytes</text>
+<path d="M270 491 L460 491" stroke="black" fill="none"/>
+<text x="270" y="522" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Names are labels.</text>
+<text x="270" y="548" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Stable identity and access</text>
+<text x="270" y="573" font-family="sans-serif" font-size="13" font-weight="400" fill="black">remain separate.</text>
+<rect x="500" y="230" width="908" height="648" fill="white" stroke="black" stroke-width="1"/>
+<text x="524" y="266" font-family="sans-serif" font-size="26" font-weight="700" fill="black">samples</text>
+<text x="681" y="263" font-family="sans-serif" font-size="13" font-weight="400" fill="black">TABLE · R17 / T1</text>
+<rect x="524" y="293" width="140" height="34" fill="black" stroke="black" stroke-width="1"/>
+<text x="536" y="316" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Definition</text>
+<rect x="676" y="293" width="120" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="688" y="316" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Explore</text>
+<rect x="808" y="293" width="164" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="820" y="316" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Dependencies</text>
+<rect x="984" y="293" width="135" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="996" y="316" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Changes</text>
+<text x="524" y="367" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Definition preview · execution unavailable</text>
+<rect x="524" y="388" width="381" height="225" fill="white" stroke="black" stroke-width="1"/>
+<text x="540" y="417" font-family="sans-serif" font-size="12" font-weight="700" fill="black">FORM / DECLARED FIELDS</text>
+<path d="M540 438 L889 438" stroke="black" fill="none"/>
+<text x="540" y="468" font-family="sans-serif" font-size="16" font-weight="700" fill="black">id</text>
+<text x="665" y="468" font-family="sans-serif" font-size="14" font-weight="400" fill="black">INT64</text>
+<text x="766" y="468" font-family="sans-serif" font-size="14" font-weight="400" fill="black">NOT NULL</text>
+<path d="M540 487 L889 487" stroke="black" fill="none"/>
+<text x="540" y="520" font-family="sans-serif" font-size="16" font-weight="700" fill="black">value</text>
+<text x="665" y="520" font-family="sans-serif" font-size="14" font-weight="400" fill="black">INT64</text>
+<text x="766" y="520" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Nullable</text>
+<text x="540" y="582" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Same definition, another representation.</text>
+<rect x="923" y="388" width="461" height="225" fill="white" stroke="black" stroke-width="1"/>
+<text x="941" y="417" font-family="sans-serif" font-size="12" font-weight="700" fill="black">SQL / DECLARATION</text>
+<text x="941" y="466" font-family="monospace" font-size="16" font-weight="400" fill="black">CREATE TABLE samples (</text>
+<text x="941" y="493" font-family="monospace" font-size="16" font-weight="400" fill="black">  id INT64 NOT NULL,</text>
+<text x="941" y="520" font-family="monospace" font-size="16" font-weight="400" fill="black">  value INT64</text>
+<text x="941" y="547" font-family="monospace" font-size="16" font-weight="400" fill="black">);</text>
+<rect x="524" y="639" width="860" height="211" fill="white" stroke="black" stroke-width="1"/>
+<text x="542" y="669" font-family="sans-serif" font-size="12" font-weight="700" fill="black">OBSERVED RESOURCE / SEPARATE EVIDENCE</text>
+<text x="542" y="704" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Backing resource</text>
+<text x="772" y="704" font-family="sans-serif" font-size="15" font-weight="700" fill="black">R17 · revision 42</text>
+<text x="1052" y="704" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Observed position 501</text>
+<text x="542" y="737" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Writer</text>
+<text x="772" y="737" font-family="sans-serif" font-size="15" font-weight="400" fill="black">PID P9 · current grant required</text>
+<text x="542" y="780" font-family="sans-serif" font-size="13" font-weight="400" fill="black">The declared shape is not proof of creation, execution or current availability.</text>
+<text x="542" y="821" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Open source evidence →</text>
+</svg>

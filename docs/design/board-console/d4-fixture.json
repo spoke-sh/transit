@@ -1,0 +1,495 @@
+{
+  "version": 1,
+  "scope": "Synthetic D4 design expectations. There is no completion engine; checking completed SQL does not verify suggestions, highlighting or latency. Offsets in these ASCII cases are UTF-16 code units; non-ASCII mapping needs future fixtures.",
+  "source": {
+    "name": "samples",
+    "columns": [
+      "id",
+      "value"
+    ],
+    "type": "int64"
+  },
+  "completion_cases": [
+    {
+      "id": "source_prefix",
+      "marked_sql": "SELECT id, value FROM sam|",
+      "candidate": {
+        "label": "samples",
+        "kind": "table",
+        "replace_utf16": [
+          22,
+          25
+        ],
+        "insert_text": "samples"
+      },
+      "after_accept": "SELECT id, value FROM samples",
+      "validation_suffix": "",
+      "validation_sql": "SELECT id, value FROM samples",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "field_with_later_from",
+      "marked_sql": "SELECT va| FROM samples;",
+      "candidate": {
+        "label": "value",
+        "kind": "column",
+        "replace_utf16": [
+          7,
+          9
+        ],
+        "insert_text": "value"
+      },
+      "after_accept": "SELECT value FROM samples;",
+      "validation_suffix": "",
+      "validation_sql": "SELECT value FROM samples;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "qualified_field",
+      "marked_sql": "SELECT id, value FROM samples WHERE samples.|",
+      "candidate": {
+        "label": "id",
+        "kind": "column",
+        "replace_utf16": [
+          44,
+          44
+        ],
+        "insert_text": "id"
+      },
+      "after_accept": "SELECT id, value FROM samples WHERE samples.id",
+      "validation_suffix": " >= 104 LIMIT 3;",
+      "validation_sql": "SELECT id, value FROM samples WHERE samples.id >= 104 LIMIT 3;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "mid_token",
+      "marked_sql": "SELECT id, val|ue FROM samples;",
+      "candidate": {
+        "label": "value",
+        "kind": "column",
+        "replace_utf16": [
+          11,
+          16
+        ],
+        "insert_text": "value"
+      },
+      "after_accept": "SELECT id, value FROM samples;",
+      "validation_suffix": "",
+      "validation_sql": "SELECT id, value FROM samples;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "quoted_field",
+      "marked_sql": "SELECT \"va|lue\" FROM samples;",
+      "candidate": {
+        "label": "\"value\"",
+        "kind": "column",
+        "replace_utf16": [
+          7,
+          14
+        ],
+        "insert_text": "\"value\""
+      },
+      "after_accept": "SELECT \"value\" FROM samples;",
+      "validation_suffix": "",
+      "validation_sql": "SELECT \"value\" FROM samples;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "keyword",
+      "marked_sql": "SELECT id FROM samples WH|",
+      "candidate": {
+        "label": "WHERE",
+        "kind": "keyword",
+        "replace_utf16": [
+          23,
+          25
+        ],
+        "insert_text": "WHERE"
+      },
+      "after_accept": "SELECT id FROM samples WHERE",
+      "validation_suffix": " id >= 104;",
+      "validation_sql": "SELECT id FROM samples WHERE id >= 104;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "limit",
+      "marked_sql": "SELECT id FROM samples LIMIT |",
+      "candidate": {
+        "label": "3",
+        "kind": "integer",
+        "replace_utf16": [
+          29,
+          29
+        ],
+        "insert_text": "3"
+      },
+      "after_accept": "SELECT id FROM samples LIMIT 3",
+      "validation_suffix": "",
+      "validation_sql": "SELECT id FROM samples LIMIT 3",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "aggregate_field",
+      "marked_sql": "SELECT SUM(va|) FROM samples;",
+      "candidate": {
+        "label": "value",
+        "kind": "column",
+        "replace_utf16": [
+          11,
+          13
+        ],
+        "insert_text": "value"
+      },
+      "after_accept": "SELECT SUM(value) FROM samples;",
+      "validation_suffix": "",
+      "validation_sql": "SELECT SUM(value) FROM samples;",
+      "reference_accepts": true,
+      "production": "compiles"
+    }
+  ],
+  "suppression_cases": [
+    {
+      "marked_sql": "SELECT id FROM samples -- FR|",
+      "expected": "No object or keyword candidates inside the comment."
+    },
+    {
+      "marked_sql": "SELECT id FROM samples WHERE value = 'sa|",
+      "expected": "No catalog or sampled data-value candidates inside the unterminated string."
+    },
+    {
+      "marked_sql": "SELECT id FROM |",
+      "catalog_state": "denied",
+      "expected": "No stale object names or counts; clear protected editor context."
+    }
+  ],
+  "complete_statements": [
+    {
+      "id": "illustrated_result",
+      "sql": "SELECT id, value FROM samples WHERE id >= 104 LIMIT 3;",
+      "reference_accepts": true,
+      "production": "compiles"
+    },
+    {
+      "id": "reference_only_ddl",
+      "sql": "CREATE TABLE samples (id INT64 NOT NULL, value INT64);",
+      "reference_accepts": true,
+      "production": "UnsupportedStatement"
+    },
+    {
+      "id": "limit_semantic_error",
+      "sql": "SELECT id FROM samples LIMIT 64;",
+      "reference_accepts": true,
+      "production": "UnsupportedLimit"
+    },
+    {
+      "id": "aggregate_output_limit",
+      "sql": "SELECT COUNT(*) FROM samples LIMIT 3;",
+      "reference_accepts": true,
+      "production": "UnsupportedAggregateLimit"
+    },
+    {
+      "id": "compound_filter_excluded",
+      "sql": "SELECT id FROM samples WHERE id >= 104 AND value > 0;",
+      "reference_accepts": false,
+      "production": "parse_rejects"
+    },
+    {
+      "id": "unknown_source",
+      "sql": "SELECT id FROM missing;",
+      "reference_accepts": true,
+      "production": "UnknownSource"
+    }
+  ],
+  "result_profile": {
+    "fixture": "d2-fixture.json",
+    "source_revision": 42,
+    "limit": 3,
+    "coverage": "All returned rows; one complete loaded page. Not the full source Table.",
+    "returned_rows": 3,
+    "column_count": 2,
+    "columns": [
+      {
+        "name": "id",
+        "type": "int64",
+        "null_count": 0,
+        "min": "104",
+        "max": "106"
+      },
+      {
+        "name": "value",
+        "type": "int64",
+        "null_count": 0,
+        "min": "34",
+        "max": "89"
+      }
+    ]
+  },
+  "profile_panel": {
+    "scope": "Synthetic expected profiles over identified returned rows; no profiler implementation or runtime measurement.",
+    "coverage": "All returned rows in these one-page examples. Distinct excludes null; histogram bins are inclusive integer ranges.",
+    "results": [
+      {
+        "id": "preview",
+        "rows_from": "d4-live-fixture.json#/speculation/rows",
+        "row_count": 6,
+        "columns": [
+          { "name": "id", "distinct": 6, "null_count": 0, "min": "101", "max": "106", "bins": [["101", "102", 2], ["103", "104", 2], ["105", "106", 2]] },
+          { "name": "value", "distinct": 6, "null_count": 0, "min": "8", "max": "89", "bins": [["8", "35", 4], ["36", "63", 1], ["64", "91", 1]] }
+        ]
+      },
+      {
+        "id": "snapshot",
+        "rows_from": "d4-live-fixture.json#/snapshot/rows",
+        "row_count": 3,
+        "columns": [
+          { "name": "id", "distinct": 3, "null_count": 0, "min": "104", "max": "106", "bins": [["104", "104", 1], ["105", "105", 1], ["106", "106", 1]] },
+          { "name": "value", "distinct": 3, "null_count": 0, "min": "34", "max": "89", "bins": [["34", "52", 1], ["53", "71", 1], ["72", "90", 1]] }
+        ]
+      },
+      {
+        "id": "stream",
+        "rows_from": "d4-live-fixture.json#/stream/after_commit_rows",
+        "frontier": "43",
+        "row_count": 3,
+        "columns": [
+          { "name": "id", "distinct": 3, "null_count": 0, "min": "105", "max": "107", "bins": [["105", "105", 1], ["106", "106", 1], ["107", "107", 1]] },
+          { "name": "value", "distinct": 3, "null_count": 0, "min": "60", "max": "144", "bins": [["60", "88", 1], ["89", "117", 1], ["118", "146", 1]] }
+        ]
+      }
+    ],
+    "interaction_expectations": [
+      "Close Profile expands rows only, preserves SQL/result/selection/scroll, and returns focus to its toggle when needed; no query or extra result read.",
+      "Reopen uses the current loaded result/frontier and restores selected column; no source query or automatic whole-result scan.",
+      "The next live result does not reopen a panel the user closed.",
+      "Late profile work for an earlier result/frontier cannot populate the current panel.",
+      "A partial page explicitly labels loaded-page coverage, regardless of verified whole-query completion.",
+      "Distinct excludes nulls, exact-set exhaustion is not truncation, and stream deletes retract old distribution/min/max contributions."
+    ]
+  },
+  "compact_profile": {
+    "scope": "Synthetic compact layout, Query info and chart expectations; no runtime behavior. The wider result needs future schema/type qualification.",
+    "count_location": "Profile only; closed Profile does not put counts back in the result toolbar.",
+    "bar_encoding": "Ordered numeric bins or stable categories; segment width = count / non-null rows. Min/max are separate statistics, not an axis.",
+    "query_info_trigger": "Information icon after the timing line for all results. Replaces result Details link and status badges.",
+    "chart": {
+      "type": "scatter",
+      "x": "id",
+      "y": "value",
+      "rows_from": "d4-live-fixture.json#/snapshot/rows",
+      "points": [
+        [
+          104,
+          34
+        ],
+        [
+          105,
+          55
+        ],
+        [
+          106,
+          89
+        ]
+      ],
+      "x_domain": [
+        "103.8",
+        "106.2"
+      ],
+      "y_domain": [
+        "0",
+        "100"
+      ],
+      "aggregation": "none",
+      "extra_queries": 0
+    },
+    "wide_result": {
+      "support": "Layout only; future wider schema/text result contract, no executable SQL example.",
+      "rows": [
+        [
+          101,
+          8,
+          1,
+          0,
+          "ready",
+          "west"
+        ],
+        [
+          102,
+          13,
+          1,
+          0,
+          "ready",
+          "east"
+        ],
+        [
+          103,
+          21,
+          1,
+          1,
+          "retry",
+          "west"
+        ],
+        [
+          104,
+          34,
+          2,
+          0,
+          "ready",
+          "west"
+        ],
+        [
+          105,
+          55,
+          2,
+          2,
+          "done",
+          null
+        ],
+        [
+          106,
+          89,
+          2,
+          1,
+          null,
+          "east"
+        ]
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "distinct": 6,
+          "null_count": 0,
+          "min": "101",
+          "max": "106",
+          "bins": [
+            [
+              "101",
+              "102",
+              2
+            ],
+            [
+              "103",
+              "104",
+              2
+            ],
+            [
+              "105",
+              "106",
+              2
+            ]
+          ]
+        },
+        {
+          "name": "value",
+          "distinct": 6,
+          "null_count": 0,
+          "min": "8",
+          "max": "89",
+          "bins": [
+            [
+              "8",
+              "35",
+              4
+            ],
+            [
+              "36",
+              "63",
+              1
+            ],
+            [
+              "64",
+              "91",
+              1
+            ]
+          ]
+        },
+        {
+          "name": "batch",
+          "distinct": 2,
+          "null_count": 0,
+          "min": "1",
+          "max": "2",
+          "bins": [
+            [
+              "1",
+              "1",
+              3
+            ],
+            [
+              "2",
+              "2",
+              3
+            ]
+          ]
+        },
+        {
+          "name": "attempts",
+          "distinct": 3,
+          "null_count": 0,
+          "min": "0",
+          "max": "2",
+          "bins": [
+            [
+              "0",
+              "0",
+              3
+            ],
+            [
+              "1",
+              "1",
+              2
+            ],
+            [
+              "2",
+              "2",
+              1
+            ]
+          ]
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "distinct": 3,
+          "null_count": 1,
+          "categories": [
+            [
+              "done",
+              1
+            ],
+            [
+              "ready",
+              3
+            ],
+            [
+              "retry",
+              1
+            ]
+          ]
+        },
+        {
+          "name": "region",
+          "type": "TEXT",
+          "distinct": 2,
+          "null_count": 1,
+          "categories": [
+            [
+              "east",
+              2
+            ],
+            [
+              "west",
+              3
+            ]
+          ]
+        }
+      ]
+    }
+  }
+}

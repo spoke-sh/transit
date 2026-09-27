@@ -22,6 +22,71 @@ authority."* A relational parser and a dataframe builder are both frontends
 sitting to the left of "typed logical plan" in FUZE.md's pipeline — nothing
 about the boundary changes if one, both, or neither ships.
 
+## Declarative model and visual interfaces
+
+Design Board over this declarative model. A Table schema, connection definition,
+source dependency, sink destination or access policy should have the same meaning
+whether inspected as SQL, a form, a diagram or a typed API value. Start with the
+language and owning operation contract, then choose the visual representation.
+Adding an SQL preview to an independently designed configuration form is not
+enough: the field constraints, dependencies, validation and resulting operation
+must agree across surfaces.
+
+Queries lower to Fuze's shared typed plans. Administrative declarations and
+controls require their own typed public-operation lowering; they do not become
+Fuze operators or grant new kernel authority. The target is shared semantics,
+not a requirement to send SQL text through every API. Durable accepted state
+remains authoritative, rather than a browser draft or a second configuration
+database. Keep a proposed definition, accepted definition and observed runtime
+state distinguishable. Declarative intent does not imply automatic reconciliation,
+continuous execution or safe retries without an owning lifecycle contract.
+
+Every visual design must identify which operations execute today, which exist
+only in the reference grammar, and which still need syntax and semantic design.
+`CREATE` syntax does not define `ALTER`, `DROP`, migration or idempotent apply;
+SQL names do not yet supply catalog resolution, identity or authorization.
+For unsupported constructs, preserve the text and show a precise limit rather
+than silently translating or discarding part of a declaration. UI-only layout,
+selection and chart settings are presentation state, not new SQL capabilities.
+
+[Board console D2](design/board-console/D2.md) applies this principle to a
+two-level Workspace/Operations hierarchy, black-and-white studies and a mapping
+from the existing grammar to proposed screens. Its hierarchy and interactions
+remain a design proposal. It neither implements the administrative grammar nor
+expands M12/M13's qualified query profile.
+
+[Board console D4](design/board-console/D4.md) makes Explore a SQL-first browser
+shell over this model. Grammar-derived lexical/context information, executable
+capability rules and authorized catalog metadata jointly drive proposed completion
+and highlighting. The checked grammar is an input to a future editor service,
+not an existing incremental/completion API. Editing assistance must handle
+incomplete text without weakening complete-statement compilation at execution.
+Resource discovery uses the same authorized metadata through the top navigation's
+Transit-wide search, with section/object context influencing relevance and explicit
+filters narrowing scope. Its Data view keeps typed results, inline statistics
+and schema previews. [Search notes](design/board-console/SEARCH.md) separate
+retrieval/index projections from ranking and declarative authority; no search
+or vector SQL syntax is invented. Search text is not SQL;
+inserting a resource name is an explicit, context-checked SQL edit. Catalog
+statistics describe their resource and observation, not the worksheet's result.
+Its live refinement proposes automatic evaluation of qualified read queries
+as text changes, including probabilistically selected complete candidates.
+Live/Paused controls scheduling; Snapshot/Stream controls time semantics.
+Probability may choose which work is useful, not weaken compilation, authority
+or evidence. A speculative answer names its candidate separately from the draft.
+Result summaries describe an exact execution or committed stream frontier and
+explicit profile coverage; chart/summary controls do not independently dispatch
+queries. A closable right panel shows returned-column cardinality, nulls, ranges
+and distributions; query provenance is available in Query info on the information
+control. [Timing design](design/board-console/TIMING.md) adds separately measured
+execution/readiness, qualified data age or stream lag and conditional next-result
+duration estimates. A fast time or prediction does not establish current SQL
+identity or result truth. Closing or reopening the panel preserves the query and result identity.
+The [console notes](design/board-console/CONSOLE.md) and
+[live scheduling notes](design/board-console/LIVE.md) record the proposed editor,
+admission and source contracts. No continuous SQL syntax or runtime is introduced;
+the qualified snapshot profile and deferred streaming scope below remain intact.
+
 ## DDL: mostly a spelling problem, with one real prerequisite
 
 `CREATE TABLE` is not a new capability. Station already has a typed

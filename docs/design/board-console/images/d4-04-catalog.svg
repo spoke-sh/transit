@@ -1,0 +1,230 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+<title id="title">D4 — Data results in Transit-wide search</title><desc id="desc">The centered Search Transit field contains sam. The realm dropdown is on the right. Global power search is filtered to Data and grounded in Explore context, showing Table, Document and KV metadata without editing SQL. Synthetic proposed UI, not implemented behavior.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
+<rect x="420" y="10" width="600" height="36" rx="0" fill="white" stroke="black"/>
+<circle cx="440" cy="27" r="5" fill="white" stroke="black"/>
+<path d="M444 31 l5 5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="463" y="34" font-family="sans-serif" font-size="14" font-weight="400" fill="black">sam</text>
+<rect x="956" y="17" width="52" height="22" rx="0" fill="white" stroke="black"/>
+<text x="969" y="33" font-family="sans-serif" font-size="12" font-weight="400" fill="black">⌘ K</text>
+</g>
+<rect x="1178" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M1381 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Workspace. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="94" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="white" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="white" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="white" stroke="black"/>
+</g>
+<text xml:space="preserve" x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Atlas</text>
+<rect x="16" y="172" width="3" height="31" rx="0" fill="black" stroke="none"/>
+<text xml:space="preserve" x="32" y="195" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Explore</text>
+<text xml:space="preserve" x="32" y="237" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Connections</text>
+<text xml:space="preserve" x="32" y="279" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sources</text>
+<text xml:space="preserve" x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sinks</text>
+<text xml:space="preserve" x="32" y="363" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Activity</text>
+<text xml:space="preserve" x="240" y="103" font-family="sans-serif" font-size="23" font-weight="700" fill="black">Explore</text>
+<text xml:space="preserve" x="1200" y="102" font-family="sans-serif" font-size="14" font-weight="400" fill="black">History</text>
+<text xml:space="preserve" x="1310" y="102" font-family="sans-serif" font-size="14" font-weight="400" fill="black">SQL help</text>
+<text xml:space="preserve" x="240" y="155" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Worksheet 1</text>
+<text xml:space="preserve" x="350" y="155" font-family="sans-serif" font-size="17" font-weight="400" fill="black">×</text>
+<text xml:space="preserve" x="391" y="155" font-family="sans-serif" font-size="21" font-weight="400" fill="black">+</text>
+<path d="M240 168 H367" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="1128" y="128" width="110" height="36" rx="0" fill="black" stroke="black"/>
+<text x="1142" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Live  Ⅱ</text>
+<rect x="1250" y="128" width="158" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1264" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Snapshot  ▾</text>
+<path d="M240 184 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="252" y="232" font-family="monospace" font-size="13" font-weight="400" fill="black">1</text>
+<text xml:space="preserve" x="290" y="232" font-family="monospace" font-size="18" font-weight="700" fill="black">SELECT</text>
+<text xml:space="preserve" x="355.03999999999996" y="232" font-family="monospace" font-size="18" font-weight="400" fill="black"> id, value</text>
+<text xml:space="preserve" x="252" y="266" font-family="monospace" font-size="13" font-weight="400" fill="black">2</text>
+<text xml:space="preserve" x="290" y="266" font-family="monospace" font-size="18" font-weight="700" fill="black">FROM</text>
+<text xml:space="preserve" x="333.36" y="266" font-family="monospace" font-size="18" font-weight="400" fill="black"> samples</text>
+<text xml:space="preserve" x="252" y="300" font-family="monospace" font-size="13" font-weight="400" fill="black">3</text>
+<text xml:space="preserve" x="290" y="300" font-family="monospace" font-size="18" font-weight="700" fill="black">WHERE</text>
+<text xml:space="preserve" x="344.2" y="300" font-family="monospace" font-size="18" font-weight="400" fill="black"> id &gt;= </text>
+<text xml:space="preserve" x="420.08" y="300" font-family="monospace" font-size="18" font-weight="400" fill="black">104</text>
+<path d="M420.08 305 H452.59999999999997" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="252" y="334" font-family="monospace" font-size="13" font-weight="400" fill="black">4</text>
+<text xml:space="preserve" x="290" y="334" font-family="monospace" font-size="18" font-weight="700" fill="black">LIMIT</text>
+<text xml:space="preserve" x="344.2" y="334" font-family="monospace" font-size="18" font-weight="400" fill="black"> </text>
+<text xml:space="preserve" x="355.03999999999996" y="334" font-family="monospace" font-size="18" font-weight="400" fill="black">3</text>
+<path d="M355.03999999999996 339 H365.87999999999994" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="365.87999999999994" y="334" font-family="monospace" font-size="18" font-weight="400" fill="black">;</text>
+
+
+<defs><pattern id="stripe" patternUnits="userSpaceOnUse" width="5" height="5"><rect width="5" height="5" fill="white"/><path d="M-1 1 l2 -2 M0 5 l5 -5 M4 6 l2 -2" stroke="black" stroke-width="1"/></pattern></defs>
+<path d="M240 378 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M804 375 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M804 381 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="240" y="417" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Rows</text>
+<text x="326" y="417" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Chart</text>
+<path d="M240 429 H282" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Query info — Current exact statement. Run 18 ms. Ready 42 ms. As of ~0.8 s ago. Next ~35–55 ms. Next is an estimated duration, not a countdown.">
+<text x="500" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Run 18 ms</text>
+<text x="602" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Ready 42 ms</text>
+<text x="714" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">As of ~0.8 s ago</text>
+<text x="870" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Next ~35–55 ms</text>
+<circle cx="1024" cy="410" r="6" fill="white" stroke="black"/>
+<text x="1022.5" y="413.5" font-family="sans-serif" font-size="10" font-weight="400" fill="black">i</text>
+</g>
+<path d="M240 440 H1040" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="480" font-family="monospace" font-size="14" font-weight="700" fill="black">id</text>
+<text x="325" y="480" font-family="sans-serif" font-size="11" font-weight="400" fill="black">INT64</text>
+<text x="666" y="480" font-family="monospace" font-size="14" font-weight="700" fill="black">value</text>
+<text x="753" y="480" font-family="sans-serif" font-size="11" font-weight="400" fill="black">INT64</text>
+<path d="M240 497 H1040" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="537" font-family="monospace" font-size="16" font-weight="400" fill="black">104</text>
+<text x="666" y="537" font-family="monospace" font-size="16" font-weight="400" fill="black">34</text>
+<path d="M240 553 H1040" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="581" font-family="monospace" font-size="16" font-weight="400" fill="black">105</text>
+<text x="666" y="581" font-family="monospace" font-size="16" font-weight="400" fill="black">55</text>
+<path d="M240 597 H1040" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="625" font-family="monospace" font-size="16" font-weight="400" fill="black">106</text>
+<text x="666" y="625" font-family="monospace" font-size="16" font-weight="400" fill="black">89</text>
+<path d="M240 641 H1040" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1064 378 L1064 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1088" y="417" font-family="sans-serif" font-size="16" font-weight="700" fill="black">Profile</text>
+<g role="img" aria-label="Close Profile panel">
+<text x="1375" y="417" font-family="sans-serif" font-size="22" font-weight="400" fill="black">×</text>
+</g>
+<text x="1088" y="449" font-family="sans-serif" font-size="14" font-weight="700" fill="black">3 rows · 2 columns</text>
+<text x="1088" y="471" font-family="sans-serif" font-size="11" font-weight="400" fill="black">All returned rows</text>
+<text x="1088" y="497" font-family="sans-serif" font-size="10" font-weight="400" fill="black">Bar width = share of non-null rows</text>
+<g role="img" aria-label="id: 3 distinct non-null values; 0 nulls. Bar widths show shares of 3 non-null rows: 104: 1; 105: 1; 106: 1">
+<path d="M1089 521 l4 4 l-4 4" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1104" y="529" font-family="monospace" font-size="14" font-weight="700" fill="black">id</text>
+<text x="1330" y="529" font-family="monospace" font-size="10" font-weight="400" fill="black">INT64</text>
+<g><title>104: 1 / 3 non-null rows</title>
+<rect x="1088" y="541" width="98.66666666666667" height="12" rx="0" fill="black" stroke="black"/>
+</g>
+<g><title>105: 1 / 3 non-null rows</title>
+<rect x="1186.6666666666667" y="541" width="98.66666666666667" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<g><title>106: 1 / 3 non-null rows</title>
+<rect x="1285.3333333333335" y="541" width="98.66666666666667" height="12" rx="0" fill="url(#stripe)" stroke="black"/>
+</g>
+<text x="1088" y="573" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Min 104   Max 106</text>
+<text x="1245" y="573" font-family="sans-serif" font-size="11" font-weight="400" fill="black">3 distinct · 0 nulls</text>
+<path d="M1088 588 H1384" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g role="img" aria-label="value: 3 distinct non-null values; 0 nulls. Bar widths show shares of 3 non-null rows: 34–52: 1; 53–71: 1; 72–90: 1">
+<path d="M1089 597 l4 4 l-4 4" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1104" y="605" font-family="monospace" font-size="14" font-weight="700" fill="black">value</text>
+<text x="1330" y="605" font-family="monospace" font-size="10" font-weight="400" fill="black">INT64</text>
+<g><title>34–52: 1 / 3 non-null rows</title>
+<rect x="1088" y="617" width="98.66666666666667" height="12" rx="0" fill="black" stroke="black"/>
+</g>
+<g><title>53–71: 1 / 3 non-null rows</title>
+<rect x="1186.6666666666667" y="617" width="98.66666666666667" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<g><title>72–90: 1 / 3 non-null rows</title>
+<rect x="1285.3333333333335" y="617" width="98.66666666666667" height="12" rx="0" fill="url(#stripe)" stroke="black"/>
+</g>
+<text x="1088" y="649" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Min 34   Max 89</text>
+<text x="1245" y="649" font-family="sans-serif" font-size="11" font-weight="400" fill="black">3 distinct · 0 nulls</text>
+<path d="M1088 664 H1384" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+
+<g role="img" aria-label="Power search: Data filter, Explore context, Storefront realm. Three synthetic authorized matches.">
+<rect x="240" y="64" width="1168" height="568" rx="0" fill="white" stroke="black"/>
+<rect x="256" y="78" width="142" height="30" rx="0" fill="white" stroke="black"/>
+<text x="268" y="98" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Storefront</text>
+<path d="M374 89 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="410" y="78" width="110" height="30" rx="0" fill="white" stroke="black"/>
+<text x="422" y="98" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Data</text>
+<path d="M496 89 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="540" y="98" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Explore context</text>
+<text x="1206" y="98" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Clear filters</text>
+<text x="1372" y="99" font-family="sans-serif" font-size="20" font-weight="400" fill="black">×</text>
+<text x="264" y="140" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Resource</text>
+<text x="674" y="140" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Cardinality</text>
+<text x="844" y="140" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Size</text>
+<text x="1040" y="140" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Schema</text>
+<path d="M256 157 H1392" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="250" y="168" width="1150" height="116" rx="0" fill="white" stroke="black"/>
+<rect x="250" y="168" width="3" height="116" rx="0" fill="black" stroke="black"/>
+<text x="294" y="200" font-family="monospace" font-size="16" font-weight="700" fill="black">samples</text>
+<text x="294" y="229" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Table</text>
+<text x="392" y="229" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Queryable</text>
+<text x="294" y="255" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Name prefix</text>
+<rect x="267" y="185" width="17" height="16" rx="0" fill="white" stroke="black"/>
+<path d="M267 190 H284" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M267 196 H284" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M273 185 L273 201" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="294" y="328" font-family="monospace" font-size="16" font-weight="700" fill="black">sample_notes</text>
+<text x="294" y="357" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Document</text>
+<text x="392" y="357" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Inspect only</text>
+<text x="294" y="383" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Name prefix</text>
+<rect x="269" y="312" width="14" height="18" rx="0" fill="white" stroke="black"/>
+<path d="M272 320 H280" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M272 325 H280" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="294" y="456" font-family="monospace" font-size="16" font-weight="700" fill="black">sample_cache</text>
+<text x="294" y="485" font-family="sans-serif" font-size="13" font-weight="700" fill="black">KV</text>
+<text x="392" y="485" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Inspect only</text>
+<text x="294" y="511" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Name prefix</text>
+<circle cx="272" cy="450" r="4" fill="white" stroke="black"/>
+<path d="M276 450 H286" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M282 450 L282 456" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="674" y="200" font-family="sans-serif" font-size="16" font-weight="700" fill="black">6 rows</text>
+<text x="674" y="229" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Exact · r42</text>
+<text x="844" y="200" font-family="sans-serif" font-size="16" font-weight="700" fill="black">96 B</text>
+<text x="844" y="229" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Value payloads</text>
+<text x="844" y="255" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Exact · r42</text>
+<rect x="1040" y="179" width="153" height="57" rx="0" fill="white" stroke="black"/>
+<rect x="1205" y="179" width="175" height="57" rx="0" fill="white" stroke="black"/>
+<text x="1050" y="201" font-family="monospace" font-size="13" font-weight="700" fill="black">id</text>
+<text x="1050" y="224" font-family="sans-serif" font-size="11" font-weight="400" fill="black">INT64 · PK</text>
+<text x="1215" y="201" font-family="monospace" font-size="13" font-weight="700" fill="black">value</text>
+<text x="1215" y="224" font-family="sans-serif" font-size="11" font-weight="400" fill="black">INT64 · nullable</text>
+<text x="1040" y="261" font-family="sans-serif" font-size="11" font-weight="400" fill="black">2 fields · schema v1</text>
+<path d="M256 296 H1392" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="674" y="328" font-family="sans-serif" font-size="16" font-weight="400" fill="black">—</text>
+<text x="674" y="357" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Not tabular</text>
+<text x="844" y="328" font-family="sans-serif" font-size="16" font-weight="700" fill="black">12 KiB</text>
+<text x="844" y="357" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Encoded state</text>
+<text x="844" y="383" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Exact · r9</text>
+<text x="1040" y="328" font-family="monospace" font-size="14" font-weight="700" fill="black">{ }</text>
+<path d="M1051 338 V396 M1051 353 H1070 M1051 381 H1070" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1082" y="357" font-family="monospace" font-size="13" font-weight="400" fill="black">title</text>
+<text x="1218" y="357" font-family="sans-serif" font-size="11" font-weight="400" fill="black">TEXT</text>
+<text x="1082" y="385" font-family="monospace" font-size="13" font-weight="400" fill="black">sections</text>
+<text x="1218" y="385" font-family="sans-serif" font-size="11" font-weight="400" fill="black">[ ] LIST</text>
+<text x="1040" y="414" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Declared · shape v1</text>
+<path d="M256 425 H1392" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="674" y="456" font-family="sans-serif" font-size="16" font-weight="700" fill="black">~1.3k keys</text>
+<text x="674" y="485" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Estimate · r18</text>
+<text x="844" y="456" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Unavailable</text>
+<text x="844" y="485" font-family="sans-serif" font-size="12" font-weight="400" fill="black">No size metric</text>
+<rect x="1040" y="443" width="119" height="57" rx="0" fill="white" stroke="black"/>
+<rect x="1218" y="443" width="162" height="57" rx="0" fill="white" stroke="black"/>
+<text x="1050" y="466" font-family="sans-serif" font-size="13" font-weight="700" fill="black">key</text>
+<text x="1050" y="488" font-family="sans-serif" font-size="11" font-weight="400" fill="black">BYTES</text>
+<text x="1228" y="466" font-family="sans-serif" font-size="13" font-weight="700" fill="black">value</text>
+<text x="1228" y="488" font-family="sans-serif" font-size="11" font-weight="400" fill="black">BYTES</text>
+<path d="M1174 470 H1207" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1201 465 l6 5 l-6 5" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1040" y="527" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Opaque · no decoder</text>
+<path d="M256 552 H1392" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="578" font-family="sans-serif" font-size="12" font-weight="400" fill="black">↑↓ Move · Enter Open · Esc Close</text>
+<text x="264" y="606" font-family="sans-serif" font-size="11" font-weight="400" fill="black">3 matches · Storefront · Data</text>
+<rect x="1134" y="570" width="112" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1148" y="594" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Open</text>
+<rect x="1258" y="570" width="126" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1272" y="594" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Insert name</text>
+</g>
+</svg>

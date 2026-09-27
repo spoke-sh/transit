@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+<title id="title">D3 — Query and result with more working space</title><desc id="desc">The same compact shell surrounds a SQL editor and a result table. Form, SQL and Canvas are alternatives, with an explicit Run action. The fixture result is complete for three matching rows. Synthetic, proposed interface; not an application screenshot.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<rect x="232" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="248" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M435 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Workspace. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="94" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="white" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="white" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="white" stroke="black"/>
+</g>
+<text x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Atlas</text>
+<text x="32" y="195" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Data</text>
+<text x="32" y="237" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Connections</text>
+<text x="32" y="279" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sources</text>
+<text x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sinks</text>
+<rect x="16" y="340" width="3" height="31" rx="0" fill="black" stroke="none"/>
+<text x="32" y="363" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Queries</text>
+<text x="32" y="405" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Activity</text>
+<text x="240" y="106" font-family="sans-serif" font-size="23" font-weight="700" fill="black">Queries</text>
+<text x="364" y="106" font-family="sans-serif" font-size="22" font-weight="400" fill="black">/</text>
+<text x="389" y="106" font-family="sans-serif" font-size="23" font-weight="700" fill="black">Untitled query</text>
+<text x="240" y="165" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Form</text>
+<text x="340" y="165" font-family="sans-serif" font-size="15" font-weight="700" fill="black">SQL</text>
+<path d="M340 177 H364" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="440" y="165" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Canvas</text>
+<rect x="1314" y="135" width="94" height="36" rx="0" fill="black" stroke="black"/>
+<text x="1328" y="159" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Run</text>
+<path d="M240 187 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="236" font-family="monospace" font-size="18" font-weight="400" fill="black">SELECT id, value</text>
+<text x="264" y="266" font-family="monospace" font-size="18" font-weight="400" fill="black">FROM samples</text>
+<text x="264" y="296" font-family="monospace" font-size="18" font-weight="400" fill="black">WHERE id &gt;= 104</text>
+<text x="264" y="326" font-family="monospace" font-size="18" font-weight="400" fill="black">LIMIT 3;</text>
+<path d="M240 390 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="240" y="435" font-family="sans-serif" font-size="18" font-weight="700" fill="black">Result</text>
+<text x="318" y="435" font-family="sans-serif" font-size="14" font-weight="400" fill="black">3 rows · complete</text>
+<text x="1118" y="435" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Rows</text>
+<text x="1190" y="435" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Chart</text>
+<text x="1280" y="435" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Details</text>
+<path d="M1118 447 H1154" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="240" y="474" font-family="sans-serif" font-size="13" font-weight="400" fill="black">samples · revision 42</text>
+<text x="1120" y="474" font-family="monospace" font-size="13" font-weight="400" fill="black">Result Q12 / R18</text>
+<path d="M240 493 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="529" font-family="monospace" font-size="14" font-weight="700" fill="black">id</text>
+<text x="802" y="529" font-family="monospace" font-size="14" font-weight="700" fill="black">value</text>
+<path d="M240 548 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="587" font-family="monospace" font-size="16" font-weight="400" fill="black">104</text>
+<text x="802" y="587" font-family="monospace" font-size="16" font-weight="400" fill="black">34</text>
+<path d="M240 605 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="638" font-family="monospace" font-size="16" font-weight="400" fill="black">105</text>
+<text x="802" y="638" font-family="monospace" font-size="16" font-weight="400" fill="black">55</text>
+<path d="M240 656 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="689" font-family="monospace" font-size="16" font-weight="400" fill="black">106</text>
+<text x="802" y="689" font-family="monospace" font-size="16" font-weight="400" fill="black">89</text>
+<path d="M240 707 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

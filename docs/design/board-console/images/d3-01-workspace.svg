@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+<title id="title">D3 — Data in a compact Transit shell</title><desc id="desc">Transit branding, one header, a left/right icon toggle and a contextual menu. Storefront is the selected realm display label. The Table definition has one active representation, with SQL and observed evidence available on demand. Synthetic, proposed interface; not an application screenshot.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<rect x="232" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="248" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M435 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Workspace. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="94" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="white" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="white" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="white" stroke="black"/>
+</g>
+<text x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Atlas</text>
+<rect x="16" y="172" width="3" height="31" rx="0" fill="black" stroke="none"/>
+<text x="32" y="195" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Data</text>
+<text x="32" y="237" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Connections</text>
+<text x="32" y="279" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sources</text>
+<text x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sinks</text>
+<text x="32" y="363" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Queries</text>
+<text x="32" y="405" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Activity</text>
+<text x="240" y="106" font-family="sans-serif" font-size="23" font-weight="700" fill="black">Data</text>
+<text x="303" y="106" font-family="sans-serif" font-size="22" font-weight="400" fill="black">/</text>
+<text x="328" y="106" font-family="sans-serif" font-size="23" font-weight="700" fill="black">samples</text>
+<path d="M432 96 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="464" y="105" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Table</text>
+<text x="240" y="158" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Definition</text>
+<path d="M240 170 H320" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="390" y="158" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Explore</text>
+<text x="540" y="158" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Dependencies</text>
+<text x="690" y="158" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Changes</text>
+<path d="M240 184 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="240" y="225" font-family="sans-serif" font-size="18" font-weight="700" fill="black">Schema</text>
+<text x="1170" y="225" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Form</text>
+<path d="M1170 237 H1202" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1270" y="225" font-family="sans-serif" font-size="15" font-weight="400" fill="black">SQL</text>
+<text x="240" y="281" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Field</text>
+<text x="780" y="281" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Type</text>
+<text x="1110" y="281" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Nullable</text>
+<path d="M240 300 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="240" y="338" font-family="monospace" font-size="17" font-weight="700" fill="black">id</text>
+<text x="780" y="338" font-family="monospace" font-size="16" font-weight="400" fill="black">INT64</text>
+<text x="1110" y="338" font-family="sans-serif" font-size="16" font-weight="400" fill="black">No</text>
+<path d="M240 360 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="240" y="398" font-family="monospace" font-size="17" font-weight="700" fill="black">value</text>
+<text x="780" y="398" font-family="monospace" font-size="16" font-weight="400" fill="black">INT64</text>
+<text x="1110" y="398" font-family="sans-serif" font-size="16" font-weight="400" fill="black">Yes</text>
+<path d="M240 420 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="240" y="461" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Preview only · creation is not available</text>
+<path d="M240 514 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M243 535 l5 5 l-5 5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="263" y="546" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Observed resource</text>
+<text x="1030" y="546" font-family="monospace" font-size="14" font-weight="400" fill="black">R17 / T1 · revision 42</text>
+</svg>

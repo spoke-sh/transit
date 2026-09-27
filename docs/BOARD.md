@@ -155,6 +155,85 @@ authorized resource cut. It omits routing fields, secret references, heads and
 bodies. Partial captures have no terminal summary; retired captures reject. This
 view does not claim to replay or verify the entire application transcript.
 
+## Proposed administration and data experience
+
+The [Board console design item](design/board-console/README.md) begins the first
+whole-product formalization beyond the atlas studies. Its
+[D1 proposal](design/board-console/D1.md) brings transport, connector and integration
+configuration/operations together with first-class Table, Document and KV
+exploration, visualization and querying. It carries forward the atlas's shared
+Canvas/Browse state and evidence rules, with a long-range capability inventory.
+
+The item records selected visual direction and still-proposed behavior.
+Attributable administration, versioned configuration changes, future protocol
+families and richer data workspaces are
+not implemented by this review. M2 inspection and M13's separately credentialed
+Table query profile retain their current access boundaries. Existing M15–M19
+handoffs and the new implementation scope required before enabling controls are
+identified in D1; review acceptance does not complete or expand those milestones.
+
+[D2 — Visualizing the declarative system](design/board-console/D2.md) refines
+that proposal around the [query language](QUERY_LANGUAGE.md#declarative-model-and-visual-interfaces):
+definitions, dependencies, changes and observed state are coordinated views of
+shared typed semantics. It explores two navigation levels, with Workspace for
+data and connection declarations and Operations for access and supporting system
+administration. Black-and-white wireframes replace premature styling. D2 records
+the requested design principles separately from its still-open navigation choices,
+and maps executable SELECT, reference-only DDL and missing control grammar without
+claiming that planned syntax can run today.
+
+[D3 — A quieter Transit shell](design/board-console/D3.md) reduces the proposed
+shell to Transit branding, a product/application-oriented realm dropdown and a
+compact Workspace/Operations icon toggle above the contextual menu. It removes
+the extra navigation bar, hierarchy labels and persistent footer, and shows one
+active representation with evidence available in context. Realm labels are
+presentation metadata over stable identities; the proposed selector adds no
+cross-realm capability to the current single-realm deployment.
+
+[D4 — Explore: a SQL-first workspace](design/board-console/D4.md) merges the
+proposed Data and Queries destinations into Explore. It makes a browser SQL
+console the default, with grammar/catalog completion, highlighting, contextual
+history and a summary of each executed result. Search Transit sits at the center
+of the top navigation, with the realm dropdown at the right. ⌘K / Ctrl+K opens
+power search across sections; Explore, Connections, Sources and focused objects
+provide relevance context without implicitly excluding other kinds. Its Data
+filter retains kind labels, inline size/cardinality and compact schema diagrams.
+Counts and sizes name their basis and distinguish estimates
+and unavailable measurements; search does not scan data or alter the SQL draft.
+The result grid is primary, with a closable right Profile panel for returned-column
+cardinality, nulls, ranges and distributions. Query provenance lives in Query info
+on the information control. Pale grey provisional/retained results replace the
+Preview and Earlier draft labels; Complete also leaves the toolbar. A compact
+[timing line](design/board-console/TIMING.md) shows measured execution and readiness,
+source-basis age or stream lag, and a separately estimated next readiness range.
+The information icon retains candidate provenance, clock/measurement boundaries
+and an accessible state description. Timings in the design are synthetic; new
+observation and prediction contracts are required.
+Closing or reopening the panel does not rerun SQL or change a result's identity.
+Row/column counts belong inside Profile. Compact horizontal column summaries
+make room for more dimensions, and Chart plots the same identified result with
+explicit coverage; chart controls do not independently submit queries.
+Its [console notes](design/board-console/CONSOLE.md) distinguish generated syntax
+assistance from executable semantics, define proposed responsiveness budgets,
+and preserve exact result identity and profile coverage. These editor and catalog
+services are new design work; the current Table compiler and query API do not
+already provide them.
+
+The [search notes](design/board-console/SEARCH.md) separate retrieval, scoring,
+fusion/ranking, classification, current authorization, freshness and bounded cost.
+Specialized metadata indexes are proposed derived views maintained from committed
+changes. Lexical retrieval is the baseline; incremental embeddings and HNSW are
+optional candidates requiring relevance, recovery and resident-memory evidence.
+No global search service, content index or new search SQL is implemented here.
+
+The reviewer selected D4 Figure 1 and requested live execution as text changes.
+D4 now proposes a visible Live/Paused session, adaptive exact/speculative query
+scheduling and separate Snapshot/Stream result modes. Figure 1's compact layout
+is retained. [Live design notes](design/board-console/LIVE.md) cover candidate
+identity, cost/retention budgets, supersession and committed streaming progress.
+This supersedes the design's Run-only rule; M13's implemented explicit-submit
+and verified finite-result contracts remain unchanged pending new qualification.
+
 ## Boundary and packaging
 
 ```mermaid

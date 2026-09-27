@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+<title id="title">D4 — Column completion with earlier rows</title><desc id="desc">Column completion retains six rows on a pale grey surface. Their original Run 12 ms and Ready 31 ms remain visible; the data basis is about 2.4 seconds old. Next is unavailable because no current statement is eligible. Query info names the previous statement. Profile is closed; rows use the full result width. Synthetic design timings, not measured runtime evidence.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
+<rect x="420" y="10" width="600" height="36" rx="0" fill="white" stroke="black"/>
+<circle cx="440" cy="27" r="5" fill="white" stroke="black"/>
+<path d="M444 31 l5 5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="463" y="34" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Search Transit…</text>
+<rect x="956" y="17" width="52" height="22" rx="0" fill="white" stroke="black"/>
+<text x="969" y="33" font-family="sans-serif" font-size="12" font-weight="400" fill="black">⌘ K</text>
+</g>
+<rect x="1178" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M1381 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Workspace. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="94" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="white" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="white" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="white" stroke="black"/>
+</g>
+<text xml:space="preserve" x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Atlas</text>
+<rect x="16" y="172" width="3" height="31" rx="0" fill="black" stroke="none"/>
+<text xml:space="preserve" x="32" y="195" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Explore</text>
+<text xml:space="preserve" x="32" y="237" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Connections</text>
+<text xml:space="preserve" x="32" y="279" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sources</text>
+<text xml:space="preserve" x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sinks</text>
+<text xml:space="preserve" x="32" y="363" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Activity</text>
+<text xml:space="preserve" x="240" y="103" font-family="sans-serif" font-size="23" font-weight="700" fill="black">Explore</text>
+<text xml:space="preserve" x="1200" y="102" font-family="sans-serif" font-size="14" font-weight="400" fill="black">History</text>
+<text xml:space="preserve" x="1310" y="102" font-family="sans-serif" font-size="14" font-weight="400" fill="black">SQL help</text>
+<text xml:space="preserve" x="240" y="155" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Worksheet 1</text>
+<text xml:space="preserve" x="350" y="155" font-family="sans-serif" font-size="17" font-weight="400" fill="black">×</text>
+<text xml:space="preserve" x="391" y="155" font-family="sans-serif" font-size="21" font-weight="400" fill="black">+</text>
+<path d="M240 168 H367" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="1128" y="128" width="110" height="36" rx="0" fill="black" stroke="black"/>
+<text x="1142" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Live  Ⅱ</text>
+<rect x="1250" y="128" width="158" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1264" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Snapshot  ▾</text>
+<path d="M240 184 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="252" y="232" font-family="monospace" font-size="13" font-weight="400" fill="black">1</text>
+<text xml:space="preserve" x="290" y="232" font-family="monospace" font-size="18" font-weight="700" fill="black">SELECT</text>
+<text xml:space="preserve" x="355.03999999999996" y="232" font-family="monospace" font-size="18" font-weight="400" fill="black"> id, value</text>
+<text xml:space="preserve" x="252" y="266" font-family="monospace" font-size="13" font-weight="400" fill="black">2</text>
+<text xml:space="preserve" x="290" y="266" font-family="monospace" font-size="18" font-weight="700" fill="black">FROM</text>
+<text xml:space="preserve" x="333.36" y="266" font-family="monospace" font-size="18" font-weight="400" fill="black"> samples</text>
+<text xml:space="preserve" x="252" y="300" font-family="monospace" font-size="13" font-weight="400" fill="black">3</text>
+<text xml:space="preserve" x="290" y="300" font-family="monospace" font-size="18" font-weight="700" fill="black">WHERE</text>
+<text xml:space="preserve" x="344.2" y="300" font-family="monospace" font-size="18" font-weight="400" fill="black"> samples.</text>
+<path d="M442.76 283 L442.76 304" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="437" y="318" width="615" height="128" rx="0" fill="white" stroke="black"/>
+<rect x="445" y="326" width="599" height="43" rx="0" fill="white" stroke="black"/>
+<text xml:space="preserve" x="461" y="354" font-family="monospace" font-size="17" font-weight="700" fill="black">id</text>
+<text xml:space="preserve" x="736" y="354" font-family="sans-serif" font-size="14" font-weight="400" fill="black">INT64 · not null</text>
+<text xml:space="preserve" x="461" y="399" font-family="monospace" font-size="17" font-weight="400" fill="black">value</text>
+<text xml:space="preserve" x="736" y="399" font-family="sans-serif" font-size="14" font-weight="400" fill="black">INT64 · nullable</text>
+<text xml:space="preserve" x="461" y="432" font-family="sans-serif" font-size="12" font-weight="400" fill="black">samples</text>
+
+
+<defs><pattern id="stripe" patternUnits="userSpaceOnUse" width="5" height="5"><rect width="5" height="5" fill="white"/><path d="M-1 1 l2 -2 M0 5 l5 -5 M4 6 l2 -2" stroke="black" stroke-width="1"/></pattern></defs>
+<rect x="240" y="470" width="1168" height="490" fill="#f2f2f2" stroke="none"/>
+<path d="M240 469 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M804 466 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M804 472 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="240" y="508" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Rows</text>
+<text x="326" y="508" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Chart</text>
+<path d="M240 520 H282" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Query info — Previous statement; unresolved predicate. Run 12 ms. Ready 31 ms. As of ~2.4 s ago. Next —. Next is an estimated duration, not a countdown.">
+<text x="720" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Run 12 ms</text>
+<text x="822" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Ready 31 ms</text>
+<text x="934" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">As of ~2.4 s ago</text>
+<text x="1090" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Next —</text>
+<circle cx="1244" cy="501" r="6" fill="white" stroke="black"/>
+<text x="1242.5" y="504.5" font-family="sans-serif" font-size="10" font-weight="400" fill="black">i</text>
+</g>
+<rect x="1295" y="494" width="17" height="14" rx="0" fill="white" stroke="black"/>
+<path d="M1306 494 L1306 508" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1322" y="508" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Profile</text>
+<path d="M240 531 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="571" font-family="monospace" font-size="14" font-weight="700" fill="black">id</text>
+<text x="325" y="571" font-family="sans-serif" font-size="11" font-weight="400" fill="black">INT64</text>
+<text x="846" y="571" font-family="monospace" font-size="14" font-weight="700" fill="black">value</text>
+<text x="933" y="571" font-family="sans-serif" font-size="11" font-weight="400" fill="black">INT64</text>
+<path d="M240 588 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="628" font-family="monospace" font-size="16" font-weight="400" fill="black">101</text>
+<text x="846" y="628" font-family="monospace" font-size="16" font-weight="400" fill="black">8</text>
+<path d="M240 644 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="672" font-family="monospace" font-size="16" font-weight="400" fill="black">102</text>
+<text x="846" y="672" font-family="monospace" font-size="16" font-weight="400" fill="black">13</text>
+<path d="M240 688 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="716" font-family="monospace" font-size="16" font-weight="400" fill="black">103</text>
+<text x="846" y="716" font-family="monospace" font-size="16" font-weight="400" fill="black">21</text>
+<path d="M240 732 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="760" font-family="monospace" font-size="16" font-weight="400" fill="black">104</text>
+<text x="846" y="760" font-family="monospace" font-size="16" font-weight="400" fill="black">34</text>
+<path d="M240 776 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="804" font-family="monospace" font-size="16" font-weight="400" fill="black">105</text>
+<text x="846" y="804" font-family="monospace" font-size="16" font-weight="400" fill="black">55</text>
+<path d="M240 820 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="848" font-family="monospace" font-size="16" font-weight="400" fill="black">106</text>
+<text x="846" y="848" font-family="monospace" font-size="16" font-weight="400" fill="black">89</text>
+<path d="M240 864 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

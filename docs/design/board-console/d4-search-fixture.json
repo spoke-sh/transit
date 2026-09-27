@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "scope": "Synthetic D4 global search, context and ranking expectations. No retriever, index, embedding model, search API or keyboard interaction is implemented or qualified by this fixture.",
+  "header": { "brand": "Transit", "search": "center", "realm_dropdown": "right", "shortcuts": ["Meta+K", "Control+K"] },
+  "query": "checkout retries",
+  "realm": "Storefront",
+  "filters": { "kinds": "all", "other_sections_eligible": true },
+  "context_inputs": ["section", "authorized focused object identity", "safe declared view scope"],
+  "excluded_implicit_context": ["SQL text", "SQL literals", "selected row values", "payloads", "secrets"],
+  "power_search": {
+    "context": "Explore",
+    "complete": false,
+    "shown": 5,
+    "hits": [
+      { "identity": "table:checkout-failures", "name": "checkout_failures", "kind": "Table", "group": "Data", "reason": "Name + description", "description": "Checkout errors and retry outcomes", "declared_fields": 5 },
+      { "identity": "table:payment-attempts", "name": "payment_attempts", "kind": "Table", "group": "Data", "reason": "Related meaning", "description": "Payment retries after a failed checkout" },
+      { "identity": "connector:checkout-http", "name": "checkout_http", "kind": "Connector", "group": "Connections", "reason": "Description match", "description": "Checkout HTTP requests and retry policy" },
+      { "identity": "exchange:checkout-18", "name": "checkout / attempt 18", "kind": "Exchange", "group": "Activity", "reason": "Description match", "description": "Recorded checkout retry outcome" },
+      { "identity": "command:connection-activity", "name": "Open connection activity", "kind": "Command", "group": "Commands", "reason": "Navigation", "action": "Open recorded connector activity; no retry dispatched" }
+    ],
+    "support": "Future metadata/capability examples, including a wider Table schema; not executable sample SQL or implemented managed configuration. Semantic reason is synthetic, not model output."
+  },
+  "context_comparison": {
+    "scope": "Figure 9 holds a smaller eligible candidate set fixed to isolate context. This is separate from Figure 8's grouped list.",
+    "formula": "For eligible non-exact candidates: sum 1/(60+rank) across supplied retrievers plus a context boost in [0, 0.003]; ties use stable identity. Exact names/IDs sort in a separate first tier.",
+    "rank_constant": 60,
+    "maximum_context_boost": 0.003,
+    "candidates": [
+      { "identity": "table:checkout-failures", "name": "checkout_failures", "kind": "Table", "lexical_rank": 1, "vector_rank": 2, "context_boost": { "Explore": 0.003, "Connections": 0, "Sources": 0.001 } },
+      { "identity": "connector:checkout-http", "name": "checkout_http", "kind": "Connector", "lexical_rank": 2, "vector_rank": 1, "context_boost": { "Explore": 0.001, "Connections": 0.003, "Sources": 0 } },
+      { "identity": "source:checkout-events", "name": "checkout_events", "kind": "Source", "lexical_rank": 3, "vector_rank": 3, "context_boost": { "Explore": 0, "Connections": 0.002, "Sources": 0.003 } }
+    ],
+    "expected": {
+      "Explore": ["checkout_failures", "checkout_http", "checkout_events"],
+      "Connections": ["checkout_http", "checkout_events", "checkout_failures"],
+      "Sources": ["checkout_events", "checkout_failures", "checkout_http"]
+    },
+    "exact_name_case": { "query": "checkout_http", "expected_first_in_every_context": "checkout_http" },
+    "note": "Ranks and boosts are invented arithmetic inputs, not measured model quality or selected production weights. Eligibility applies before these lists. Context changes order, not the eligible set."
+  },
+  "scenarios": [
+    { "event": "Open search with Meta+K from a Live worksheet", "expected": "Capture editor focus/selection; no SQL edit, prepare or new query submission." },
+    { "event": "Search from Connections rather than Explore", "expected": "Use new section context; preserve all eligible kinds unless an explicit filter narrows them." },
+    { "event": "Search an exact name from a different section", "expected": "Exact tier leads regardless of the section's context boost." },
+    { "event": "Asynchronous semantic hits arrive during arrow-key navigation", "expected": "Keep selected identity and visible ranking stable; offer fresh matches separately." },
+    { "event": "Grant revoked while semantic search is pending", "expected": "Clear the protected hit and suppress late labels, reasons, counts and metrics." },
+    { "event": "Embedding for revision 8 finishes after revision 9", "expected": "Reject stale output; never overwrite revision 9." },
+    { "event": "Object deleted with pending embedding work", "expected": "Hide identity immediately; late completion cannot resurrect it." },
+    { "event": "Source update replayed after index restart", "expected": "Apply idempotently or skip covered position; no duplicate hit." },
+    { "event": "Vector index unavailable or behind lexical metadata", "expected": "Serve authorized lexical results with explicit semantic availability/freshness; no claim of exhaustive matches." },
+    { "event": "Selective access filter underfills approximate top-K", "expected": "Bounded authorized refill or partial-coverage status; no hidden matches or false exhaustive no-match claim." },
+    { "event": "Source continuation has an unrecoverable gap", "expected": "Mark index coverage unavailable/old and resnapshot under its qualified contract." },
+    { "event": "Activate Open connection activity", "expected": "Navigate to recorded work; no external retry or configuration mutation." }
+  ]
+}

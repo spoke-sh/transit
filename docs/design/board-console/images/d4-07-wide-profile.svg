@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="352" height="620" viewBox="0 0 352 620" role="img" aria-labelledby="title desc">
+<title id="title">D4 — Six dimensions in a compact Profile</title><desc id="desc">Layout-only future wider-result study. Six synthetic rows and six columns, with numeric range shares and categorical frequency shares. Each compact row shows its type, distinct cardinality and null count. This does not claim current wider Table or text-query support.</desc>
+<defs><pattern id="stripe" patternUnits="userSpaceOnUse" width="5" height="5"><rect width="5" height="5" fill="white"/><path d="M-1 1 l2 -2 M0 5 l5 -5 M4 6 l2 -2" stroke="black" stroke-width="1"/></pattern></defs>
+<rect x="0" y="0" width="352" height="620" rx="0" fill="white" stroke="black"/>
+<text x="24" y="35" font-family="sans-serif" font-size="16" font-weight="700" fill="black">Profile</text>
+<g role="img" aria-label="Close Profile panel">
+<text x="311" y="35" font-family="sans-serif" font-size="22" font-weight="400" fill="black">×</text>
+</g>
+<text x="24" y="67" font-family="sans-serif" font-size="14" font-weight="700" fill="black">6 rows · 6 columns</text>
+<text x="24" y="89" font-family="sans-serif" font-size="11" font-weight="400" fill="black">All returned rows</text>
+<text x="24" y="115" font-family="sans-serif" font-size="10" font-weight="400" fill="black">Bar width = share of non-null rows</text>
+<g role="img" aria-label="id: 6 distinct non-null values; 0 nulls. Bar widths show shares of 6 non-null rows: 101–102: 2; 103–104: 2; 105–106: 2">
+<path d="M25 139 l4 4 l-4 4" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="40" y="147" font-family="monospace" font-size="14" font-weight="700" fill="black">id</text>
+<text x="266" y="147" font-family="monospace" font-size="10" font-weight="400" fill="black">INT64</text>
+<g><title>101–102: 2 / 6 non-null rows</title>
+<rect x="24" y="159" width="98.66666666666667" height="12" rx="0" fill="black" stroke="black"/>
+</g>
+<g><title>103–104: 2 / 6 non-null rows</title>
+<rect x="122.66666666666667" y="159" width="98.66666666666667" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<g><title>105–106: 2 / 6 non-null rows</title>
+<rect x="221.33333333333334" y="159" width="98.66666666666667" height="12" rx="0" fill="url(#stripe)" stroke="black"/>
+</g>
+<text x="24" y="191" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Min 101   Max 106</text>
+<text x="181" y="191" font-family="sans-serif" font-size="11" font-weight="400" fill="black">6 distinct · 0 nulls</text>
+<path d="M24 206 H320" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g role="img" aria-label="value: 6 distinct non-null values; 0 nulls. Bar widths show shares of 6 non-null rows: 8–35: 4; 36–63: 1; 64–91: 1">
+<path d="M25 215 l4 4 l-4 4" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="40" y="223" font-family="monospace" font-size="14" font-weight="700" fill="black">value</text>
+<text x="266" y="223" font-family="monospace" font-size="10" font-weight="400" fill="black">INT64</text>
+<g><title>8–35: 4 / 6 non-null rows</title>
+<rect x="24" y="235" width="197.33333333333334" height="12" rx="0" fill="black" stroke="black"/>
+</g>
+<g><title>36–63: 1 / 6 non-null rows</title>
+<rect x="221.33333333333334" y="235" width="49.333333333333336" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<g><title>64–91: 1 / 6 non-null rows</title>
+<rect x="270.6666666666667" y="235" width="49.333333333333336" height="12" rx="0" fill="url(#stripe)" stroke="black"/>
+</g>
+<text x="24" y="267" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Min 8   Max 89</text>
+<text x="181" y="267" font-family="sans-serif" font-size="11" font-weight="400" fill="black">6 distinct · 0 nulls</text>
+<path d="M24 282 H320" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g role="img" aria-label="batch: 2 distinct non-null values; 0 nulls. Bar widths show shares of 6 non-null rows: 1: 3; 2: 3">
+<path d="M25 291 l4 4 l-4 4" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="40" y="299" font-family="monospace" font-size="14" font-weight="700" fill="black">batch</text>
+<text x="266" y="299" font-family="monospace" font-size="10" font-weight="400" fill="black">INT64</text>
+<g><title>1: 3 / 6 non-null rows</title>
+<rect x="24" y="311" width="148.0" height="12" rx="0" fill="black" stroke="black"/>
+</g>
+<g><title>2: 3 / 6 non-null rows</title>
+<rect x="172.0" y="311" width="148.0" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<text x="24" y="343" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Min 1   Max 2</text>
+<text x="181" y="343" font-family="sans-serif" font-size="11" font-weight="400" fill="black">2 distinct · 0 nulls</text>
+<path d="M24 358 H320" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g role="img" aria-label="attempts: 3 distinct non-null values; 0 nulls. Bar widths show shares of 6 non-null rows: 0: 3; 1: 2; 2: 1">
+<path d="M25 367 l4 4 l-4 4" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="40" y="375" font-family="monospace" font-size="14" font-weight="700" fill="black">attempts</text>
+<text x="266" y="375" font-family="monospace" font-size="10" font-weight="400" fill="black">INT64</text>
+<g><title>0: 3 / 6 non-null rows</title>
+<rect x="24" y="387" width="148.0" height="12" rx="0" fill="black" stroke="black"/>
+</g>
+<g><title>1: 2 / 6 non-null rows</title>
+<rect x="172.0" y="387" width="98.66666666666667" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<g><title>2: 1 / 6 non-null rows</title>
+<rect x="270.6666666666667" y="387" width="49.333333333333336" height="12" rx="0" fill="url(#stripe)" stroke="black"/>
+</g>
+<text x="24" y="419" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Min 0   Max 2</text>
+<text x="181" y="419" font-family="sans-serif" font-size="11" font-weight="400" fill="black">3 distinct · 0 nulls</text>
+<path d="M24 434 H320" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g role="img" aria-label="status: 3 distinct non-null values; 1 nulls. Bar widths show shares of 5 non-null rows: done: 1; ready: 3; retry: 1">
+<path d="M25 443 l4 4 l-4 4" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="40" y="451" font-family="monospace" font-size="14" font-weight="700" fill="black">status</text>
+<text x="266" y="451" font-family="monospace" font-size="10" font-weight="400" fill="black">TEXT</text>
+<g><title>done: 1 / 5 non-null rows</title>
+<rect x="24" y="463" width="59.2" height="12" rx="0" fill="black" stroke="black"/>
+</g>
+<g><title>ready: 3 / 5 non-null rows</title>
+<rect x="83.2" y="463" width="177.6" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<g><title>retry: 1 / 5 non-null rows</title>
+<rect x="260.8" y="463" width="59.2" height="12" rx="0" fill="url(#stripe)" stroke="black"/>
+</g>
+<text x="24" y="495" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Top ready 3/5</text>
+<text x="181" y="495" font-family="sans-serif" font-size="11" font-weight="400" fill="black">3 distinct · 1 nulls</text>
+<path d="M24 510 H320" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g role="img" aria-label="region: 2 distinct non-null values; 1 nulls. Bar widths show shares of 5 non-null rows: east: 2; west: 3">
+<path d="M25 519 l4 4 l-4 4" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="40" y="527" font-family="monospace" font-size="14" font-weight="700" fill="black">region</text>
+<text x="266" y="527" font-family="monospace" font-size="10" font-weight="400" fill="black">TEXT</text>
+<g><title>east: 2 / 5 non-null rows</title>
+<rect x="24" y="539" width="118.4" height="12" rx="0" fill="black" stroke="black"/>
+</g>
+<g><title>west: 3 / 5 non-null rows</title>
+<rect x="142.4" y="539" width="177.6" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<text x="24" y="571" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Top west 3/5</text>
+<text x="181" y="571" font-family="sans-serif" font-size="11" font-weight="400" fill="black">2 distinct · 1 nulls</text>
+<path d="M24 586 H320" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "scope": "Synthetic D4 timing observations and prediction ranges. Shared fixture clock only; not runtime measurements, a trained model or measured prediction coverage.",
+  "clock": {
+    "basis": "One synthetic monotonic timeline per case; zero corresponds to 12:00:00 UTC on a synthetic date, with display time on the same test clock",
+    "real_contract": "Different owners require their own duration clocks and qualified source-age bounds."
+  },
+  "prediction": {
+    "target": "Ready duration for the current eligible query generation under current conditions, including initial Stream snapshot/rebind",
+    "nominal_coverage": 0.8,
+    "calibrated": false,
+    "scope": "Illustrative expected UI, not latency evidence or a performance target"
+  },
+  "cases": [
+    {
+      "id": "speculative",
+      "relationship": "Suggested completion",
+      "events_ms": {
+        "eligible": 0,
+        "dispatch": 4,
+        "run_start": 9,
+        "run_end": 21,
+        "verified": 26,
+        "presented": 31,
+        "source_cut": 10
+      },
+      "view_at_ms": 610,
+      "phase_order": [
+        "wait",
+        "transit_admission",
+        "execution",
+        "capture_delivery_verify",
+        "paint"
+      ],
+      "phase_durations_ms": [
+        4,
+        5,
+        12,
+        5,
+        5
+      ],
+      "execution_ms": 12,
+      "ready_ms": 31,
+      "source_age_ms": 600,
+      "prediction_range_ms": [
+        25,
+        45
+      ],
+      "prediction_reason": "Illustrative range for eligible current plan",
+      "visible": [
+        "Run 12 ms",
+        "Ready 31 ms",
+        "As of ~0.6 s ago",
+        "Next ~25\u201345 ms"
+      ],
+      "result_background": "#f2f2f2"
+    },
+    {
+      "id": "retained",
+      "relationship": "Previous statement; unresolved predicate",
+      "events_ms": {
+        "eligible": 0,
+        "dispatch": 4,
+        "run_start": 9,
+        "run_end": 21,
+        "verified": 26,
+        "presented": 31,
+        "source_cut": 10
+      },
+      "view_at_ms": 2410,
+      "phase_order": [
+        "wait",
+        "transit_admission",
+        "execution",
+        "capture_delivery_verify",
+        "paint"
+      ],
+      "phase_durations_ms": [
+        4,
+        5,
+        12,
+        5,
+        5
+      ],
+      "execution_ms": 12,
+      "ready_ms": 31,
+      "source_age_ms": 2400,
+      "prediction_range_ms": null,
+      "prediction_reason": "No eligible statement yet",
+      "visible": [
+        "Run 12 ms",
+        "Ready 31 ms",
+        "As of ~2.4 s ago",
+        "Next \u2014"
+      ],
+      "result_background": "#f2f2f2"
+    },
+    {
+      "id": "snapshot",
+      "relationship": "Current exact statement",
+      "events_ms": {
+        "eligible": 0,
+        "dispatch": 6,
+        "run_start": 13,
+        "run_end": 31,
+        "verified": 37,
+        "presented": 42,
+        "source_cut": 16
+      },
+      "view_at_ms": 816,
+      "phase_order": [
+        "wait",
+        "transit_admission",
+        "execution",
+        "capture_delivery_verify",
+        "paint"
+      ],
+      "phase_durations_ms": [
+        6,
+        7,
+        18,
+        6,
+        5
+      ],
+      "execution_ms": 18,
+      "ready_ms": 42,
+      "source_age_ms": 800,
+      "prediction_range_ms": [
+        35,
+        55
+      ],
+      "prediction_reason": "Illustrative range for eligible current plan",
+      "visible": [
+        "Run 18 ms",
+        "Ready 42 ms",
+        "As of ~0.8 s ago",
+        "Next ~35\u201355 ms"
+      ],
+      "result_background": "white"
+    },
+    {
+      "id": "stream",
+      "relationship": "Current committed relation at r43",
+      "events_ms": {
+        "eligible": 5000,
+        "dispatch": 5002,
+        "run_start": 5004,
+        "run_end": 5010,
+        "verified": 5012,
+        "presented": 5014,
+        "source_cut": 5000
+      },
+      "view_at_ms": 5120,
+      "phase_order": [
+        "wait",
+        "transit_admission",
+        "execution",
+        "capture_delivery_verify",
+        "paint"
+      ],
+      "phase_durations_ms": [
+        2,
+        2,
+        6,
+        2,
+        2
+      ],
+      "execution_ms": 6,
+      "ready_ms": 14,
+      "source_age_ms": 120,
+      "prediction_range_ms": [
+        35,
+        55
+      ],
+      "prediction_reason": "Illustrative range for eligible current plan",
+      "visible": [
+        "Update 6 ms",
+        "Ready 14 ms",
+        "Lag ~120 ms",
+        "Next ~35\u201355 ms"
+      ],
+      "result_background": "white"
+    }
+  ],
+  "scenarios": [
+    {
+      "event": "Source revision known, timestamp unavailable",
+      "expected": "As of \u2014; revision is not converted to age."
+    },
+    {
+      "event": "Engine timing unavailable",
+      "expected": "Run \u2014; browser Ready remains separately measured."
+    },
+    {
+      "event": "Next estimate expired or evidence insufficient",
+      "expected": "Next \u2014; no silent reuse of an obsolete range."
+    },
+    {
+      "event": "Source idle with advancing coverage heartbeat",
+      "expected": "Lag follows coverage, not last changed-row age."
+    },
+    {
+      "event": "Source progress missing",
+      "expected": "Lag grows or is unknown; an HTTP response does not establish freshness."
+    },
+    {
+      "event": "Late result from an older draft",
+      "expected": "Preserve its timing/result identity; do not attach it to the newer result."
+    },
+    {
+      "event": "Reused candidate promoted to current",
+      "expected": "Keep original Run, Ready and source cut; report reuse separately."
+    },
+    {
+      "event": "Remote clock skew produces negative raw age",
+      "expected": "Use qualified bounds or unknown; never clamp to fresh."
+    },
+    {
+      "event": "Speculation during an unfinished predicate has no eligible plan",
+      "expected": "Next \u2014; no fabricated execution or duration."
+    },
+    {
+      "event": "Stream query is rebound",
+      "expected": "Next forecasts new generation readiness, not time to next source event."
+    }
+  ]
+}

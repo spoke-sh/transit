@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+<title id="title">Figure 1 — Connections within Board</title><desc id="desc">Proposed Board navigation, three connection tiers, a bounded integration inventory and selected dependency details. All states are synthetic.</desc>
+<rect x="0" y="0" width="1440" height="900" rx="0" fill="#ffffff" stroke="#000000"/>
+<rect x="0" y="0" width="1440" height="64" rx="0" fill="#000000" stroke="#000000"/>
+<text x="28" y="40" font-family="sans-serif" font-size="20" font-weight="700" fill="#ffffff">TRANSIT / BOARD</text>
+<text x="277" y="39" font-family="sans-serif" font-size="15" font-weight="400" fill="#ffffff">Development  /  realm-demo</text>
+<text x="1075" y="39" font-family="sans-serif" font-size="14" font-weight="600" fill="#ffffff">D1 CONCEPT · SYNTHETIC</text>
+<rect x="0" y="64" width="206" height="796" rx="0" fill="#ffffff" stroke="#000000"/>
+<text x="30" y="108" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Overview</text>
+<text x="30" y="162" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Atlas</text>
+<text x="30" y="216" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Data</text>
+<rect x="14" y="243" width="178" height="42" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="30" y="270" font-family="sans-serif" font-size="16" font-weight="700" fill="#000000">Connections</text>
+<text x="30" y="324" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Activity</text>
+<text x="30" y="378" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Access</text>
+<text x="26" y="736" font-family="sans-serif" font-size="11" font-weight="700" fill="#000000">SCOPE</text>
+<text x="26" y="762" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">One authorized realm</text>
+<text x="26" y="785" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">No global totals</text>
+<rect x="0" y="860" width="1440" height="40" rx="0" fill="#ffffff" stroke="#000000"/>
+<text x="26" y="886" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">FIGURE 1 · Proposed navigation and evidence hierarchy. No live system, complete catalog or supported integration is depicted.</text>
+<text x="236" y="108" font-family="sans-serif" font-size="30" font-weight="650" fill="#000000">Connections</text>
+<text x="236" y="138" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Configure services. Follow their work into data.</text>
+<rect x="1222" y="91" width="184" height="38" rx="6" fill="#000000" stroke="#000000"/>
+<text x="1237" y="115" font-family="sans-serif" font-size="14" font-weight="600" fill="#ffffff">Add connection</text>
+<rect x="236" y="167" width="153" height="38" rx="6" fill="#000000" stroke="#000000"/>
+<text x="251" y="191" font-family="sans-serif" font-size="14" font-weight="600" fill="#ffffff">Integrations</text>
+<rect x="414" y="167" width="153" height="38" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="429" y="191" font-family="sans-serif" font-size="14" font-weight="600" fill="#000000">Connectors</text>
+<rect x="581" y="167" width="153" height="38" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="596" y="191" font-family="sans-serif" font-size="14" font-weight="600" fill="#000000">Transports</text>
+<rect x="236" y="228" width="716" height="591" rx="10" fill="#ffffff" stroke="#000000"/>
+<text x="260" y="261" font-family="sans-serif" font-size="19" font-weight="650" fill="#000000">Configured integrations</text>
+<rect x="754" y="242" width="172" height="28" rx="14" fill="#ffffff" stroke="#000000"/>
+<text x="766" y="261" font-family="sans-serif" font-size="12" font-weight="600" fill="#000000">3 on this page</text>
+<rect x="260" y="281" width="668" height="39" rx="10" fill="#ffffff" stroke="#000000"/>
+<text x="276" y="307" font-family="sans-serif" font-size="14" font-weight="400" fill="#000000">Filter this page by name, connector or state</text>
+<text x="260" y="350" font-family="sans-serif" font-size="11" font-weight="700" fill="#000000">INTEGRATION</text>
+<text x="560" y="350" font-family="sans-serif" font-size="11" font-weight="700" fill="#000000">CONFIGURATION</text>
+<text x="759" y="350" font-family="sans-serif" font-size="11" font-weight="700" fill="#000000">OBSERVED WORK</text>
+<rect x="248" y="366" width="692" height="100" rx="5" fill="#ffffff" stroke="#000000"/>
+<text x="260" y="396" font-family="sans-serif" font-size="17" font-weight="650" fill="#000000">Catalog API</text>
+<text x="260" y="423" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">HTTP · provider example</text>
+<text x="560" y="396" font-family="sans-serif" font-size="14" font-weight="400" fill="#000000">r12 applied</text>
+<text x="759" y="396" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">1 outcome unknown</text>
+<text x="260" y="501" font-family="sans-serif" font-size="17" font-weight="650" fill="#000000">Inventory API</text>
+<text x="260" y="528" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">HTTP · provider example</text>
+<text x="560" y="501" font-family="sans-serif" font-size="14" font-weight="400" fill="#000000">r4 applied</text>
+<text x="759" y="501" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">No pending work</text>
+<path d="M260 552 L928 552" stroke="#000000" fill="none"/>
+<text x="260" y="606" font-family="sans-serif" font-size="17" font-weight="650" fill="#000000">Asset API</text>
+<text x="260" y="633" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">HTTP · provider example</text>
+<text x="560" y="606" font-family="sans-serif" font-size="14" font-weight="400" fill="#000000">Draft only</text>
+<text x="759" y="606" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">No attempts</text>
+<path d="M260 657 L928 657" stroke="#000000" fill="none"/>
+<text x="260" y="718" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">Policy at observation 501 · current access checked</text>
+<text x="260" y="743" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">Readiness describes the executor. Outcomes describe attempts.</text>
+<rect x="260" y="765" width="126" height="38" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="275" y="789" font-family="sans-serif" font-size="14" font-weight="600" fill="#000000">Next page</text>
+<rect x="976" y="228" width="430" height="591" rx="10" fill="#ffffff" stroke="#000000"/>
+<text x="1000" y="263" font-family="sans-serif" font-size="22" font-weight="650" fill="#000000">Catalog API</text>
+<text x="1000" y="290" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">integration-demo-1 · revision 12</text>
+<rect x="1000" y="309" width="150" height="28" rx="14" fill="#ffffff" stroke="#000000"/>
+<text x="1012" y="328" font-family="sans-serif" font-size="12" font-weight="600" fill="#000000">Executor ready</text>
+<rect x="1162" y="309" width="218" height="28" rx="14" fill="#ffffff" stroke="#000000"/>
+<text x="1174" y="328" font-family="sans-serif" font-size="12" font-weight="600" fill="#000000">Outcome unknown</text>
+<text x="1000" y="378" font-family="sans-serif" font-size="11" font-weight="700" fill="#000000">CONFIGURED TO USE</text>
+<rect x="1000" y="395" width="382" height="63" rx="10" fill="#ffffff" stroke="#000000"/>
+<text x="1016" y="421" font-family="sans-serif" font-size="16" font-weight="600" fill="#000000">HTTP connector binding</text>
+<text x="1016" y="443" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">http-demo-1 · finite HTTP/1.1</text>
+<path d="M1191 458 L1191 479" stroke="#000000" fill="none"/>
+<rect x="1000" y="479" width="382" height="63" rx="10" fill="#ffffff" stroke="#000000"/>
+<text x="1016" y="506" font-family="sans-serif" font-size="16" font-weight="600" fill="#000000">TCP / TLS transport profile</text>
+<text x="1016" y="527" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">transport-demo-1 · observed 12:04:08</text>
+<text x="1000" y="580" font-family="sans-serif" font-size="11" font-weight="700" fill="#000000">RECORDED DATA LINK</text>
+<text x="1000" y="608" font-family="sans-serif" font-size="17" font-weight="600" fill="#000000">R17 / samples · Table</text>
+<text x="1000" y="634" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">Materialization revision 42 · separate read grant</text>
+<rect x="1000" y="656" width="143" height="38" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="1015" y="680" font-family="sans-serif" font-size="14" font-weight="600" fill="#000000">Open data</text>
+<rect x="1155" y="656" width="193" height="38" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="1170" y="680" font-family="sans-serif" font-size="14" font-weight="600" fill="#000000">Locate in atlas</text>
+<path d="M1000 715 L1382 715" stroke="#000000" fill="none"/>
+<text x="1000" y="743" font-family="sans-serif" font-size="14" font-weight="400" fill="#000000">Attempt A8 · closed with outcome unknown</text>
+<text x="1000" y="768" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">No resend inferred from recovery.</text>
+<text x="1000" y="795" font-family="sans-serif" font-size="14" font-weight="600" fill="#000000">Open exchange evidence →</text>
+</svg>

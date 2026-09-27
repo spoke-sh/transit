@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+<title id="title">Figure 3 — Data workspace</title><desc id="desc">A first-class data catalog and query workspace. Six exact fixture rows are rendered in a grid and chart from one result Q1. Table, Document and KV have distinct capabilities.</desc>
+<rect x="0" y="0" width="1440" height="900" rx="0" fill="#ffffff" stroke="#000000"/>
+<rect x="0" y="0" width="1440" height="64" rx="0" fill="#000000" stroke="#000000"/>
+<text x="28" y="40" font-family="sans-serif" font-size="20" font-weight="700" fill="#ffffff">TRANSIT / BOARD</text>
+<text x="277" y="39" font-family="sans-serif" font-size="15" font-weight="400" fill="#ffffff">Development  /  realm-demo</text>
+<text x="1075" y="39" font-family="sans-serif" font-size="14" font-weight="600" fill="#ffffff">D1 CONCEPT · SYNTHETIC</text>
+<rect x="0" y="64" width="206" height="796" rx="0" fill="#ffffff" stroke="#000000"/>
+<text x="30" y="108" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Overview</text>
+<text x="30" y="162" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Atlas</text>
+<rect x="14" y="189" width="178" height="42" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="30" y="216" font-family="sans-serif" font-size="16" font-weight="700" fill="#000000">Data</text>
+<text x="30" y="270" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Connections</text>
+<text x="30" y="324" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Activity</text>
+<text x="30" y="378" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Access</text>
+<text x="26" y="736" font-family="sans-serif" font-size="11" font-weight="700" fill="#000000">SCOPE</text>
+<text x="26" y="762" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">One authorized realm</text>
+<text x="26" y="785" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">No global totals</text>
+<rect x="0" y="860" width="1440" height="40" rx="0" fill="#ffffff" stroke="#000000"/>
+<text x="26" y="886" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">FIGURE 3 · Static synthetic sample S1. Complete for six fixture rows only. No production Table total, time-series meaning or live query is shown.</text>
+<text x="236" y="108" font-family="sans-serif" font-size="30" font-weight="650" fill="#000000">Data</text>
+<text x="236" y="138" font-family="sans-serif" font-size="16" font-weight="400" fill="#000000">Explore declared structure. Query explicitly. Keep the evidence.</text>
+<rect x="236" y="162" width="251" height="657" rx="10" fill="#ffffff" stroke="#000000"/>
+<text x="256" y="196" font-family="sans-serif" font-size="11" font-weight="700" fill="#000000">RESOURCE CATALOG</text>
+<text x="256" y="224" font-family="sans-serif" font-size="14" font-weight="400" fill="#000000">3 design examples</text>
+<rect x="248" y="243" width="227" height="88" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="263" y="273" font-family="sans-serif" font-size="18" font-weight="650" fill="#000000">samples</text>
+<text x="263" y="303" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">Table · R17 / T1</text>
+<text x="256" y="368" font-family="sans-serif" font-size="18" font-weight="600" fill="#000000">manual</text>
+<text x="256" y="396" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">Document · future typed view</text>
+<text x="256" y="450" font-family="sans-serif" font-size="18" font-weight="600" fill="#000000">settings</text>
+<text x="256" y="478" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">KV · exact bytes</text>
+<path d="M256 513 L467 513" stroke="#000000" fill="none"/>
+<text x="256" y="546" font-family="sans-serif" font-size="11" font-weight="700" fill="#000000">DECLARED SCHEMA</text>
+<text x="256" y="580" font-family="sans-serif" font-size="14" font-weight="600" fill="#000000">sample_id</text>
+<text x="256" y="604" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">int64 · primary key</text>
+<text x="256" y="643" font-family="sans-serif" font-size="14" font-weight="600" fill="#000000">value</text>
+<text x="256" y="667" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">nullable int64 · unitless</text>
+<text x="256" y="756" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">Source revision 42</text>
+<text x="256" y="782" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">Separate resource read grant</text>
+<rect x="511" y="162" width="895" height="657" rx="10" fill="#ffffff" stroke="#000000"/>
+<text x="535" y="202" font-family="sans-serif" font-size="24" font-weight="650" fill="#000000">R17 / samples</text>
+<rect x="1127" y="179" width="116" height="38" rx="6" fill="#000000" stroke="#000000"/>
+<text x="1142" y="203" font-family="sans-serif" font-size="14" font-weight="600" fill="#ffffff">Browse</text>
+<rect x="1255" y="179" width="127" height="38" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="1270" y="203" font-family="sans-serif" font-size="14" font-weight="600" fill="#000000">Canvas</text>
+<text x="535" y="233" font-family="sans-serif" font-size="14" font-weight="400" fill="#000000">Schema v1 · source revision 42 · result Q1 · fixture S1</text>
+<rect x="535" y="254" width="847" height="97" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="552" y="285" font-family="monospace" font-size="17" font-weight="400" fill="#000000">SELECT sample_id, value</text>
+<text x="552" y="318" font-family="monospace" font-size="17" font-weight="400" fill="#000000">FROM samples LIMIT 6</text>
+<rect x="1255" y="285" width="104" height="38" rx="6" fill="#000000" stroke="#000000"/>
+<text x="1270" y="309" font-family="sans-serif" font-size="14" font-weight="600" fill="#ffffff">Run</text>
+<rect x="535" y="366" width="198" height="28" rx="14" fill="#ffffff" stroke="#000000"/>
+<text x="547" y="385" font-family="sans-serif" font-size="12" font-weight="600" fill="#000000">Verified fixture result</text>
+<text x="751" y="386" font-family="sans-serif" font-size="14" font-weight="400" fill="#000000">Changing view or chart does not rerun Q1.</text>
+<rect x="535" y="412" width="356" height="331" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="553" y="441" font-family="sans-serif" font-size="15" font-weight="650" fill="#000000">sample_id</text>
+<text x="747" y="441" font-family="sans-serif" font-size="15" font-weight="650" fill="#000000">value</text>
+<path d="M535 454 L891 454" stroke="#000000" fill="none"/>
+<text x="553" y="486" font-family="monospace" font-size="15" font-weight="400" fill="#000000">101</text>
+<text x="747" y="486" font-family="monospace" font-size="15" font-weight="400" fill="#000000">8</text>
+<path d="M553 499 L873 499" stroke="#000000" fill="none"/>
+<text x="553" y="529" font-family="monospace" font-size="15" font-weight="400" fill="#000000">102</text>
+<text x="747" y="529" font-family="monospace" font-size="15" font-weight="400" fill="#000000">13</text>
+<path d="M553 542 L873 542" stroke="#000000" fill="none"/>
+<text x="553" y="572" font-family="monospace" font-size="15" font-weight="400" fill="#000000">103</text>
+<text x="747" y="572" font-family="monospace" font-size="15" font-weight="400" fill="#000000">21</text>
+<path d="M553 585 L873 585" stroke="#000000" fill="none"/>
+<text x="553" y="615" font-family="monospace" font-size="15" font-weight="400" fill="#000000">104</text>
+<text x="747" y="615" font-family="monospace" font-size="15" font-weight="400" fill="#000000">34</text>
+<path d="M553 628 L873 628" stroke="#000000" fill="none"/>
+<text x="553" y="658" font-family="monospace" font-size="15" font-weight="400" fill="#000000">105</text>
+<text x="747" y="658" font-family="monospace" font-size="15" font-weight="400" fill="#000000">55</text>
+<path d="M553 671 L873 671" stroke="#000000" fill="none"/>
+<text x="553" y="701" font-family="monospace" font-size="15" font-weight="400" fill="#000000">106</text>
+<text x="747" y="701" font-family="monospace" font-size="15" font-weight="400" fill="#000000">89</text>
+<rect x="909" y="412" width="473" height="331" rx="6" fill="#ffffff" stroke="#000000"/>
+<text x="929" y="441" font-family="sans-serif" font-size="17" font-weight="650" fill="#000000">Q1 · value by sample ID</text>
+<text x="929" y="465" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">Same six rows · categorical IDs · unitless</text>
+<path d="M956 680.0 L1358 680.0" stroke="#000000" fill="none"/>
+<text x="922" y="685.0" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">0</text>
+<path d="M956 597.5 L1358 597.5" stroke="#000000" fill="none"/>
+<text x="922" y="602.5" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">50</text>
+<path d="M956 515.0 L1358 515.0" stroke="#000000" fill="none"/>
+<text x="922" y="520.0" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">100</text>
+<rect x="971" y="666.8" width="33" height="13.2" rx="2" fill="#000000" stroke="#000000"/>
+<text x="970" y="704" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">101</text>
+<text x="974" y="656.8" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">8</text>
+<rect x="1035" y="658.55" width="33" height="21.45" rx="2" fill="#000000" stroke="#000000"/>
+<text x="1034" y="704" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">102</text>
+<text x="1038" y="648.55" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">13</text>
+<rect x="1099" y="645.35" width="33" height="34.65" rx="2" fill="#000000" stroke="#000000"/>
+<text x="1098" y="704" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">103</text>
+<text x="1102" y="635.35" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">21</text>
+<rect x="1163" y="623.9" width="33" height="56.099999999999994" rx="2" fill="#000000" stroke="#000000"/>
+<text x="1162" y="704" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">104</text>
+<text x="1166" y="613.9" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">34</text>
+<rect x="1227" y="589.25" width="33" height="90.75" rx="2" fill="#000000" stroke="#000000"/>
+<text x="1226" y="704" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">105</text>
+<text x="1230" y="579.25" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">55</text>
+<rect x="1291" y="533.15" width="33" height="146.85" rx="2" fill="#000000" stroke="#000000"/>
+<text x="1290" y="704" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">106</text>
+<text x="1294" y="523.15" font-family="sans-serif" font-size="12" font-weight="400" fill="#000000">89</text>
+<text x="535" y="777" font-family="sans-serif" font-size="13" font-weight="400" fill="#000000">6 fixture rows · exact integers · chart values are not a full-Table distribution</text>
+</svg>
