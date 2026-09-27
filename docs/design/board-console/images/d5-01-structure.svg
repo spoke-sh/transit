@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">D5 — Console structure</title><desc id="desc">A monochrome review plate defining the shell, collection, object detail and activity patterns. All examples are synthetic.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
+<rect x="420" y="10" width="600" height="36" rx="0" fill="white" stroke="black"/>
+<circle cx="440" cy="27" r="5" fill="white" stroke="black"/>
+<path d="M444 31 l5 5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="463" y="34" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Search Transit…</text>
+<rect x="956" y="17" width="52" height="22" rx="0" fill="white" stroke="black"/>
+<text x="969" y="33" font-family="sans-serif" font-size="12" font-weight="400" fill="black">⌘ K</text>
+</g>
+<rect x="1178" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M1381 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Workspace. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="94" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="white" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="white" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="white" stroke="black"/>
+</g>
+<text xml:space="preserve" x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Atlas</text>
+
+<text xml:space="preserve" x="32" y="195" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Explore</text>
+<text xml:space="preserve" x="32" y="237" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Connections</text>
+<text xml:space="preserve" x="32" y="279" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sources</text>
+<text xml:space="preserve" x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sinks</text>
+<text xml:space="preserve" x="32" y="363" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Activity</text>
+
+<text x="240" y="111" font-family="sans-serif" font-size="24" font-weight="700" fill="black">One shell. Three working patterns.</text>
+<text x="240" y="140" font-family="sans-serif" font-size="13" font-weight="400" fill="black">D5 structural study · black and white · 1440 × 960</text>
+<path d="M240 167 L1408 167" fill="none" stroke="black" stroke-width="1"/>
+<text x="240" y="210" font-family="sans-serif" font-size="18" font-weight="700" fill="black">01  Collection</text>
+<text x="640" y="210" font-family="sans-serif" font-size="18" font-weight="700" fill="black">02  Definition</text>
+<text x="1040" y="210" font-family="sans-serif" font-size="18" font-weight="700" fill="black">03  Evidence</text>
+<rect x="240" y="237" width="344" height="245" fill="white" stroke="black" stroke-width="1"/>
+<text x="260" y="268" font-family="sans-serif" font-size="17" font-weight="700" fill="black">Connections</text>
+<rect x="260" y="285" width="304" height="30" fill="white" stroke="black" stroke-width="1"/>
+<text x="272" y="306" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Filter objects…</text>
+<text x="272" y="342" font-family="monospace" font-size="14" font-weight="400" fill="black">catalog_api</text>
+<path d="M260 357 L564 357" fill="none" stroke="black" stroke-width="1"/>
+<text x="272" y="389" font-family="monospace" font-size="14" font-weight="400" fill="black">inventory_api</text>
+<path d="M260 404 L564 404" fill="none" stroke="black" stroke-width="1"/>
+<text x="272" y="436" font-family="monospace" font-size="14" font-weight="400" fill="black">archive_api</text>
+<path d="M260 451 L564 451" fill="none" stroke="black" stroke-width="1"/>
+<rect x="640" y="237" width="344" height="245" fill="white" stroke="black" stroke-width="1"/>
+<text x="660" y="268" font-family="monospace" font-size="17" font-weight="700" fill="black">catalog_api</text>
+<text x="660" y="302" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Definition   Dependencies   Activity</text>
+<path d="M660 315 L964 315" fill="none" stroke="black" stroke-width="1"/>
+<text x="660" y="347" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Connector</text>
+<text x="758" y="347" font-family="sans-serif" font-size="12" font-weight="400" fill="black">HTTP</text>
+<text x="660" y="387" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Endpoint</text>
+<text x="758" y="387" font-family="sans-serif" font-size="12" font-weight="400" fill="black">catalog.example.test</text>
+<text x="660" y="427" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Credential</text>
+<text x="758" y="427" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Reference only</text>
+<rect x="1040" y="237" width="368" height="245" fill="white" stroke="black" stroke-width="1"/>
+<text x="1060" y="268" font-family="sans-serif" font-size="17" font-weight="700" fill="black">Attempt 812</text>
+<text x="1060" y="302" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Closed · outcome unknown</text>
+<rect x="1063" y="334" width="8" height="8" fill="black" stroke="black" stroke-width="1"/>
+<text x="1087" y="343" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Intent recorded</text>
+<rect x="1063" y="374" width="8" height="8" fill="black" stroke="black" stroke-width="1"/>
+<text x="1087" y="383" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Dispatch authorized</text>
+<rect x="1063" y="430" width="8" height="8" fill="black" stroke="black" stroke-width="1"/>
+<text x="1087" y="439" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Closed locally</text>
+<path d="M1067 347 L1067 370" fill="none" stroke="black" stroke-width="1"/>
+<path d="M1067 391 L1067 425" fill="none" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="1220" y="410" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Evidence gap</text>
+<text x="240" y="521" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Find a named object.</text>
+<text x="240" y="545" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Compare its defining attributes.</text>
+<text x="240" y="569" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Open a row for full detail.</text>
+<text x="640" y="521" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Separate definition from observation.</text>
+<text x="640" y="545" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Keep the exact revision visible.</text>
+<text x="640" y="569" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Follow dependencies by name.</text>
+<text x="1040" y="521" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Follow one identified work item.</text>
+<text x="1040" y="545" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Show only recorded stages.</text>
+<text x="1040" y="569" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Keep uncertainty in plain language.</text>
+<path d="M240 608 L1408 608" fill="none" stroke="black" stroke-width="1"/>
+<text x="240" y="650" font-family="sans-serif" font-size="18" font-weight="700" fill="black">A small vocabulary carries the meaning</text>
+<rect x="240" y="678" width="4" height="32" fill="black" stroke="black" stroke-width="1"/>
+<text x="259" y="701" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Selected destination</text>
+<path d="M640 691 L720 691" fill="none" stroke="black" stroke-width="1"/>
+<text x="739" y="697" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Declared reference</text>
+<rect x="1040" y="676" width="368" height="44" fill="white" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="1056" y="704" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Proposed change · not accepted</text>
+<text x="240" y="759" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Observed at 14:32 UTC</text>
+<text x="640" y="759" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Unavailable · refresh the read</text>
+<path d="M1040 752 L1100 752" fill="none" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="1116" y="759" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Retained evidence gap</text>
+<path d="M240 806 L1408 806" fill="none" stroke="black" stroke-width="1"/>
+<text x="240" y="845" font-family="sans-serif" font-size="14" font-weight="400" fill="black">White surfaces. Black type. One active underline. Labels beside every meaningful state.</text>
+<text x="240" y="869" font-family="sans-serif" font-size="14" font-weight="400" fill="black">The drawings establish hierarchy and interaction; they do not select a theme or prove implementation.</text>
+</svg>

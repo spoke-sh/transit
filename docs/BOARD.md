@@ -234,6 +234,16 @@ identity, cost/retention budgets, supersession and committed streaming progress.
 This supersedes the design's Run-only rule; M13's implemented explicit-submit
 and verified finite-result contracts remain unchanged pending new qualification.
 
+[D5 — Connections, Sources, Sinks and Activity](design/board-console/D5.md)
+extends the proposed console with shared collection/detail layouts and a
+[monochrome structure guide](design/board-console/STRUCTURE.md). Named external
+access, source read targets and sink write targets use the same definition,
+dependency, change and activity views. Activity distinguishes recorded work
+from diagnostics, preserves source-specific coverage and shows unknown remote
+outcomes explicitly. Its declaration catalogs, change operations, external-row
+mapping and sink input binding remain future contracts; the finite connector
+inspection already implemented does not supply those administrative surfaces.
+
 ## Boundary and packaging
 
 ```mermaid

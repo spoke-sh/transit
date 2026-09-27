@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">D5 — Source definition</title><desc id="desc">catalog_rows reads /samples through catalog_api. Its last HTTP capture is complete but no typed row mapping exists. Explore is unavailable and no Table materialization is inferred.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
+<rect x="420" y="10" width="600" height="36" rx="0" fill="white" stroke="black"/>
+<circle cx="440" cy="27" r="5" fill="white" stroke="black"/>
+<path d="M444 31 l5 5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="463" y="34" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Search Transit…</text>
+<rect x="956" y="17" width="52" height="22" rx="0" fill="white" stroke="black"/>
+<text x="969" y="33" font-family="sans-serif" font-size="12" font-weight="400" fill="black">⌘ K</text>
+</g>
+<rect x="1178" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M1381 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Workspace. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="94" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="white" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="white" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="white" stroke="black"/>
+</g>
+<text xml:space="preserve" x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Atlas</text>
+
+<text xml:space="preserve" x="32" y="195" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Explore</text>
+<text xml:space="preserve" x="32" y="237" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Connections</text>
+<text xml:space="preserve" x="32" y="279" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Sources</text>
+<text xml:space="preserve" x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sinks</text>
+<text xml:space="preserve" x="32" y="363" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Activity</text>
+
+<rect x="16" y="256" width="3" height="31" fill="black" stroke="none" stroke-width="1"/>
+<text x="240" y="88" font-family="sans-serif" font-size="13" font-weight="400" fill="black">‹ Sources</text>
+<path d="M240 92 L299.67 92" fill="none" stroke="black" stroke-width="1"/>
+<text x="240" y="128" font-family="monospace" font-size="24" font-weight="700" fill="black">catalog_rows</text>
+<text x="240" y="155" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Source · src-01 · accepted revision 3</text>
+<rect x="1238" y="108" width="170" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1323.0" y="132" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Edit definition</text>
+<text x="240" y="190" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Definition</text>
+<path d="M240 204 L321.0 204" fill="none" stroke="black" stroke-width="2"/>
+<text x="376" y="190" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Dependencies</text>
+<text x="543" y="190" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Changes</text>
+<text x="667" y="190" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Activity</text>
+<path d="M240 218 L1408 218" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="256" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Form</text>
+<text x="343" y="256" font-family="sans-serif" font-size="14" font-weight="400" fill="black">SQL</text>
+<path d="M264 267 L302 267" fill="none" stroke="black" stroke-width="2"/>
+<text x="264" y="311" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Connector</text>
+<text x="485" y="311" font-family="monospace" font-size="15" font-weight="400" fill="black">HTTP</text>
+<path d="M264 334 L972 334" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="368" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Connection</text>
+<text x="485" y="368" font-family="monospace" font-size="15" font-weight="400" fill="black">catalog_api</text>
+<path d="M264 391 L972 391" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="425" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Read path</text>
+<text x="485" y="425" font-family="monospace" font-size="15" font-weight="400" fill="black">/samples</text>
+<path d="M264 448 L972 448" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="482" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Row mapping</text>
+<text x="485" y="482" font-family="monospace" font-size="15" font-weight="400" fill="black">Not defined</text>
+<path d="M264 505 L972 505" fill="none" stroke="black" stroke-width="1"/>
+<rect x="264" y="534" width="132" height="36" fill="white" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="330.0" y="558" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Explore</text>
+<text x="418" y="558" font-family="sans-serif" font-size="14" font-weight="400" fill="black">A row mapping is required.</text>
+<path d="M1008 240 L1008 588" fill="none" stroke="black" stroke-width="1"/>
+<text x="1040" y="264" font-family="sans-serif" font-size="16" font-weight="700" fill="black">Dependency</text>
+<rect x="1040" y="293" width="336" height="76" fill="white" stroke="black" stroke-width="1"/>
+<text x="1056" y="321" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Source</text>
+<text x="1056" y="347" font-family="monospace" font-size="16" font-weight="700" fill="black">catalog_rows</text>
+<path d="M1208 369 L1208 416" fill="none" stroke="black" stroke-width="1"/>
+<text x="1224" y="398" font-family="sans-serif" font-size="12" font-weight="400" fill="black">uses connection</text>
+<path d="M1204 410 L1208 416 L1212 410" fill="none" stroke="black"/>
+<rect x="1040" y="416" width="336" height="76" fill="white" stroke="black" stroke-width="1"/>
+<text x="1056" y="444" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Connection</text>
+<text x="1056" y="470" font-family="monospace" font-size="16" font-weight="700" fill="black">catalog_api</text>
+<text x="1040" y="542" font-family="sans-serif" font-size="14" font-weight="400" fill="black">View dependencies</text>
+<path d="M1040 546 L1161.38 546" fill="none" stroke="black" stroke-width="1"/>
+<path d="M240 608 L1408 608" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="651" font-family="sans-serif" font-size="17" font-weight="700" fill="black">Observed</text>
+<text x="1060" y="651" font-family="sans-serif" font-size="13" font-weight="400" fill="black">As of 14:32:10 UTC</text>
+<text x="264" y="697" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Latest capture</text>
+<text x="553" y="697" font-family="sans-serif" font-size="15" font-weight="700" fill="black">HTTP 200 · complete</text>
+<text x="264" y="739" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Capture basis</text>
+<text x="553" y="739" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Attempt 811 · source revision 3</text>
+<text x="264" y="781" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Rows available</text>
+<text x="553" y="781" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Not established</text>
+<rect x="264" y="826" width="164" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="346.0" y="850" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Inspect capture</text>
+<rect x="444" y="826" width="158" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="523.0" y="850" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">View activity</text>
+</svg>

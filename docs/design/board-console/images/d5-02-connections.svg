@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">D5 — Connections collection</title><desc id="desc">Three synthetic named connections with distinct definition and observation states. A connection is not a live socket. Counts describe this page.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
+<rect x="420" y="10" width="600" height="36" rx="0" fill="white" stroke="black"/>
+<circle cx="440" cy="27" r="5" fill="white" stroke="black"/>
+<path d="M444 31 l5 5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="463" y="34" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Search Transit…</text>
+<rect x="956" y="17" width="52" height="22" rx="0" fill="white" stroke="black"/>
+<text x="969" y="33" font-family="sans-serif" font-size="12" font-weight="400" fill="black">⌘ K</text>
+</g>
+<rect x="1178" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M1381 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Workspace. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="94" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="white" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="white" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="white" stroke="black"/>
+</g>
+<text xml:space="preserve" x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Atlas</text>
+
+<text xml:space="preserve" x="32" y="195" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Explore</text>
+<text xml:space="preserve" x="32" y="237" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Connections</text>
+<text xml:space="preserve" x="32" y="279" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sources</text>
+<text xml:space="preserve" x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sinks</text>
+<text xml:space="preserve" x="32" y="363" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Activity</text>
+
+<rect x="16" y="214" width="3" height="31" fill="black" stroke="none" stroke-width="1"/>
+<text x="240" y="111" font-family="sans-serif" font-size="24" font-weight="700" fill="black">Connections</text>
+<text x="240" y="140" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Named access to external systems</text>
+<rect x="1228" y="86" width="180" height="36" fill="black" stroke="black" stroke-width="1"/>
+<text x="1318.0" y="110" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="700" fill="white">New connection</text>
+<rect x="240" y="176" width="548" height="38" fill="white" stroke="black" stroke-width="1"/>
+<text x="256" y="201" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Filter connections…</text>
+<rect x="812" y="177" width="168" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="896.0" y="201" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Connector: All</text>
+<rect x="1258" y="177" width="150" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1333.0" y="201" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Refresh</text>
+<path d="M240 246 L1408 246" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="275" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Name</text>
+<text x="531" y="275" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Connector</text>
+<text x="682" y="275" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Endpoint</text>
+<text x="1070" y="275" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Latest activity</text>
+<path d="M240 292 L1408 292" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="335" font-family="monospace" font-size="16" font-weight="400" fill="black">catalog_api</text>
+<path d="M264 339 L369.952 339" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="363" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Accepted revision 7</text>
+<text x="531" y="335" font-family="sans-serif" font-size="14" font-weight="400" fill="black">HTTP</text>
+<text x="682" y="335" font-family="monospace" font-size="14" font-weight="400" fill="black">catalog.example.test</text>
+<text x="1070" y="335" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Closed · outcome unknown</text>
+<text x="1070" y="363" font-family="sans-serif" font-size="12" font-weight="400" fill="black">14:32:00 UTC · attempt 812</text>
+<path d="M240 388 L1408 388" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="433" font-family="monospace" font-size="16" font-weight="400" fill="black">inventory_api</text>
+<path d="M264 437 L389.216 437" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="461" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Accepted revision 2</text>
+<text x="531" y="433" font-family="sans-serif" font-size="14" font-weight="400" fill="black">HTTP</text>
+<text x="682" y="433" font-family="monospace" font-size="14" font-weight="400" fill="black">inventory.example.test</text>
+<text x="1070" y="433" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Not observed</text>
+<text x="1070" y="461" font-family="sans-serif" font-size="12" font-weight="400" fill="black">No recorded observation</text>
+<path d="M240 486 L1408 486" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="531" font-family="monospace" font-size="16" font-weight="400" fill="black">archive_api</text>
+<path d="M264 535 L369.952 535" fill="none" stroke="black" stroke-width="1"/>
+<text x="264" y="559" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Accepted revision 4</text>
+<text x="531" y="531" font-family="sans-serif" font-size="14" font-weight="400" fill="black">HTTP</text>
+<text x="682" y="531" font-family="monospace" font-size="14" font-weight="400" fill="black">archive.example.test</text>
+<text x="1070" y="531" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Unavailable</text>
+<text x="1070" y="559" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Observation read failed</text>
+<path d="M240 584 L1408 584" fill="none" stroke="black" stroke-width="1"/>
+<text x="240" y="627" font-family="sans-serif" font-size="13" font-weight="400" fill="black">3 connections on this page · observed 14:32:10 UTC</text>
+<rect x="1188" y="604" width="100" height="36" fill="white" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="1238.0" y="628" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Previous</text>
+<rect x="1304" y="604" width="104" height="36" fill="white" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="1356.0" y="628" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Next</text>
+</svg>

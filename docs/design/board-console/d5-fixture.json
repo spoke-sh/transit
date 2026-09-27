@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "scope": "Synthetic board-console D5 only. IDs are display aliases, not new wire identifiers. No real endpoints, credentials, observations or accepted definitions.",
+  "base_revision": "55f104f",
+  "realm_label": "Storefront",
+  "observed_at": "2026-09-27T14:32:10Z",
+  "reference_statements": "d2-fixture.json: connection_definition, source_definition, sink_definition; unchanged reference-only SQL",
+  "connections": [
+    {
+      "id": "conn-01",
+      "name": "catalog_api",
+      "revision": 7,
+      "connector": "HTTP",
+      "endpoint": "https://catalog.example.test",
+      "credential_reference": "catalog-token@3",
+      "latest_captured_response": 811,
+      "latest_attempt": 812,
+      "disclosed_dependents": [
+        "src-01",
+        "sink-01"
+      ]
+    },
+    {
+      "id": "conn-02",
+      "name": "inventory_api",
+      "revision": 2,
+      "connector": "HTTP",
+      "endpoint": "https://inventory.example.test",
+      "observation": "not_observed"
+    },
+    {
+      "id": "conn-03",
+      "name": "archive_api",
+      "revision": 4,
+      "connector": "HTTP",
+      "endpoint": "https://archive.example.test",
+      "observation": "unavailable"
+    }
+  ],
+  "source": {
+    "id": "src-01",
+    "name": "catalog_rows",
+    "revision": 3,
+    "connection": "conn-01",
+    "path": "/samples",
+    "row_mapping": null,
+    "latest_capture": 811,
+    "query_capability": false,
+    "materialization": null
+  },
+  "sink": {
+    "id": "sink-01",
+    "name": "audit_sink",
+    "revision": 1,
+    "connection": "conn-01",
+    "path": "/audit",
+    "input_binding": null,
+    "attempt_policy": null,
+    "recorded_attempts": []
+  },
+  "activity": [
+    {
+      "work": "attempt:812",
+      "observed_at": "14:32:00Z",
+      "connection": "conn-01",
+      "exchange": 312,
+      "source": null,
+      "sink": null,
+      "outcome": "closed_unknown",
+      "resource": "capture-12",
+      "resource_revision": 58,
+      "read_policy_revision": 12,
+      "caller": "pid-08",
+      "retained_positions": [
+        840,
+        906
+      ],
+      "stages": [
+        {
+          "position": 901,
+          "kind": "intent_committed"
+        },
+        {
+          "position": 902,
+          "kind": "dispatch_authorized"
+        },
+        {
+          "position": 906,
+          "kind": "reconciliation_closed_unknown"
+        }
+      ],
+      "send_evidence": null,
+      "response_evidence": null,
+      "capture": "partial"
+    },
+    {
+      "work": "query:54",
+      "observed_at": "14:31:12Z",
+      "object": "samples",
+      "outcome": "verified_result_complete",
+      "basis": "D2 synthetic samples revision 42; no causal link to source capture 811"
+    },
+    {
+      "work": "attempt:811",
+      "observed_at": "14:31:10Z",
+      "source": "src-01",
+      "source_revision": 3,
+      "connection": "conn-01",
+      "outcome": "http_response_captured",
+      "http_status": 200,
+      "capture": "complete",
+      "business_success": null
+    },
+    {
+      "work": "change:19",
+      "observed_at": "14:30:00Z",
+      "object": "conn-01",
+      "outcome": "accepted",
+      "revision": 7
+    }
+  ],
+  "draft": {
+    "object": "conn-01",
+    "base_revision": 7,
+    "field": "endpoint",
+    "before": "https://catalog.example.test",
+    "after": "https://catalog-v2.example.test",
+    "submitted": false,
+    "submission_capability": false
+  },
+  "limits": [
+    "Declaration catalogs, revisions, inverse dependencies and links from work to declarations require future contracts.",
+    "No global snapshot, history total, secret resolution, live probe, materialization or remote effect is implied.",
+    "Current Board HTTP metadata omits endpoint and credential references."
+  ]
+}

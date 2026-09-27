@@ -7,7 +7,7 @@ and links to supporting material. This index lists design items.
 | Design item | Focus |
 | --- | --- |
 | [board-atlas](board-atlas/README.md) | Board browser, relief atlas and resource workspace |
-| [board-console](board-console/README.md) | Declarative Board interface, two-level administration, transport/connector/integration operations and Table/Document/KV exploration |
+| [board-console](board-console/README.md) | Declarative Board interface, monochrome structure, two-level administration, Connections/Sources/Sinks/Activity and Table/Document/KV exploration |
 
 ## Maintaining the sequence
 
