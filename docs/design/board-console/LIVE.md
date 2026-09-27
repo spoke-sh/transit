@@ -80,8 +80,8 @@ around the probabilistic policy.
 
 | Label | Required evidence |
 | --- | --- |
-| Current draft | Exact current compiled semantics, mode and disclosed basis |
-| Speculative | Complete candidate SQL, candidate ID, parent draft and exact result basis; not the answer to the unresolved text |
+| Complete (current draft) | Exact current compiled semantics, mode and basis available in Details |
+| Preview (speculative) | Complete candidate SQL, candidate ID, parent draft and exact result basis in Details; the compact indicator explains that this is not the answer to unresolved text |
 | Earlier draft | Executed text/generation and original basis, clearly distinct from current text |
 | Updating | A newer eligible generation is being evaluated; the older view retains its label |
 | Following | Continuous generation with a committed frontier and explicit initial-snapshot/delta coverage |
@@ -91,7 +91,11 @@ Figure 1's `FROM sam` can speculate on `FROM samples` if that disclosed candidat
 is useful. Its result covers all six fixture rows; no LIMIT is silently appended.
 If the user accepts the completion, the candidate may become current only when
 the semantics, mode, source/schema basis and current authority match. Promotion
-does not retimestamp a snapshot to “now”; keep its original basis visible.
+does not retimestamp a snapshot to “now”; preserve its original basis in Details.
+The result toolbar carries only the short state and count; source/candidate IDs
+and executed SQL are details on demand. The Profile panel summarizes the same
+identified answer as the rows. Closing it changes layout, not execution, and
+never removes the toolbar's Preview/Earlier draft/Following distinction.
 
 Each evaluation requires session/epoch, document version, exact/candidate
 fingerprint, mode, source/schema and policy context, and its own admitted query
@@ -189,6 +193,11 @@ reflect replacements/deletions. Min/max can require a rescan or retained index
 when a contributing row disappears; no unbounded browser map is allowed. Publish
 bounded backend state/profiles where needed, and show unknown or partial coverage
 until the frontier's summary is consistent. Preserve int64 values exactly.
+Cardinality, histograms, nulls and min/max in the right panel must account for
+retractions as well as inserts. Advance rows and their profiles at one published
+frontier, or show profiles as Updating/unavailable; an old profile cannot be
+labelled as describing newer rows. A closed panel does not retain a second stream
+or accumulate an unbounded history of profile states.
 
 Holding the visible view pauses live work and preserves its displayed basis only
 while access and retention allow it. It does not pin storage. Exporting/freezing

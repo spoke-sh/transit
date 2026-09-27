@@ -231,5 +231,47 @@
         "max": "89"
       }
     ]
+  },
+  "profile_panel": {
+    "scope": "Synthetic expected profiles over identified returned rows; no profiler implementation or runtime measurement.",
+    "coverage": "All returned rows in these one-page examples. Distinct excludes null; histogram bins are inclusive integer ranges.",
+    "results": [
+      {
+        "id": "preview",
+        "rows_from": "d4-live-fixture.json#/speculation/rows",
+        "row_count": 6,
+        "columns": [
+          { "name": "id", "distinct": 6, "null_count": 0, "min": "101", "max": "106", "bins": [["101", "102", 2], ["103", "104", 2], ["105", "106", 2]] },
+          { "name": "value", "distinct": 6, "null_count": 0, "min": "8", "max": "89", "bins": [["8", "35", 4], ["36", "63", 1], ["64", "91", 1]] }
+        ]
+      },
+      {
+        "id": "snapshot",
+        "rows_from": "d4-live-fixture.json#/snapshot/rows",
+        "row_count": 3,
+        "columns": [
+          { "name": "id", "distinct": 3, "null_count": 0, "min": "104", "max": "106", "bins": [["104", "104", 1], ["105", "105", 1], ["106", "106", 1]] },
+          { "name": "value", "distinct": 3, "null_count": 0, "min": "34", "max": "89", "bins": [["34", "52", 1], ["53", "71", 1], ["72", "90", 1]] }
+        ]
+      },
+      {
+        "id": "stream",
+        "rows_from": "d4-live-fixture.json#/stream/after_commit_rows",
+        "frontier": "43",
+        "row_count": 3,
+        "columns": [
+          { "name": "id", "distinct": 3, "null_count": 0, "min": "105", "max": "107", "bins": [["105", "105", 1], ["106", "106", 1], ["107", "107", 1]] },
+          { "name": "value", "distinct": 3, "null_count": 0, "min": "60", "max": "144", "bins": [["60", "88", 1], ["89", "117", 1], ["118", "146", 1]] }
+        ]
+      }
+    ],
+    "interaction_expectations": [
+      "Close Profile expands rows only, preserves SQL/result/selection/scroll, and returns focus to its toggle when needed; no query or extra result read.",
+      "Reopen uses the current loaded result/frontier and restores selected column; no source query or automatic whole-result scan.",
+      "The next live result does not reopen a panel the user closed.",
+      "Late profile work for an earlier result/frontier cannot populate the current panel.",
+      "A partial page explicitly labels loaded-page coverage, regardless of verified whole-query completion.",
+      "Distinct excludes nulls, exact-set exhaustion is not truncation, and stream deletes retract old distribution/min/max contributions."
+    ]
   }
 }

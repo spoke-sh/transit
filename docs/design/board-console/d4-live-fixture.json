@@ -8,7 +8,8 @@
     "candidate_id": "C1",
     "candidate_sql": "SELECT id, value FROM samples",
     "source_revision": 42,
-    "label": "Speculative preview",
+    "label": "Preview",
+    "provenance_location": "Details; no repeated SQL, source revision or candidate ID line in the result area.",
     "rows": [
       [
         101,

@@ -197,6 +197,10 @@ search field, contextual history and a summary of each executed result. Resource
 typeahead opens a list with kind labels, inline size/cardinality and compact
 schema diagrams. Counts and sizes name their basis and distinguish estimates
 and unavailable measurements; search does not scan data or alter the SQL draft.
+The result grid is primary, with a closable right Profile panel for returned-column
+cardinality, nulls, ranges and distributions. Query provenance moves into Details;
+compact preview/earlier-draft/following indicators and profile coverage stay visible.
+Closing or reopening the panel does not rerun SQL or change a result's identity.
 Its [console notes](design/board-console/CONSOLE.md) distinguish generated syntax
 assistance from executable semantics, define proposed responsiveness budgets,
 and preserve exact result identity and profile coverage. These editor and catalog

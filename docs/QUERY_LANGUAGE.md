@@ -72,7 +72,9 @@ Probability may choose which work is useful, not weaken compilation, authority
 or evidence. A speculative answer names its candidate separately from the draft.
 Result summaries describe an exact execution or committed stream frontier and
 explicit profile coverage; chart/summary controls do not independently dispatch
-queries. The [console notes](design/board-console/CONSOLE.md) and
+queries. A closable right panel shows returned-column cardinality, nulls, ranges
+and distributions; query provenance is available in Details. Closing or reopening
+the panel preserves the query and result identity. The [console notes](design/board-console/CONSOLE.md) and
 [live scheduling notes](design/board-console/LIVE.md) record the proposed editor,
 admission and source contracts. No continuous SQL syntax or runtime is introduced;
 the qualified snapshot profile and deferred streaming scope below remain intact.

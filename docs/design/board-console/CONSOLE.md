@@ -137,7 +137,7 @@ Proposed prototype budgets, **unmeasured and subject to qualification**:
 | Active executable statement | Existing 4096-byte SQL bound; M13's separate 207-byte encoded-plan limit still applies |
 | Resident catalog slice | At most 2 MiB and 2,000 entries, whichever is reached first; LRU by scope/version |
 | Catalog response / concurrency | At most 100 entries and 64 KiB; one in flight, prefix requests coalesced after 100 ms idle |
-| Profiles and visible data | One bounded result page plus fixed accumulators per supported column; no retained row history |
+| Profiles and visible data | One bounded result page; at most four visible column profiles, up to 32 histogram bins each; exact distinct sets stay within an explicit per-column entry/byte budget; no retained row history |
 
 These numbers constrain editor work, not total catalog or result cardinality.
 Larger worksheets remain editable only within their declared buffer budget;
@@ -249,15 +249,66 @@ literals, catalog names or candidate text to telemetry, URL state or persistence
 Future durable worksheets/history need explicit storage, retention, deletion,
 access and secret-handling contracts. No automatic localStorage history is implied.
 
+## Result layout and column profiles
+
+Make returned rows the main result view. The compact toolbar contains Rows/Chart,
+counts, a short result state, Details and the Profile toggle. Remove the prominent
+speculative title and source/candidate metadata line, plus the duplicate SQL
+block and separate Summary tab. Exact statement, source/schema revisions,
+candidate/draft identity, verified completion and observation evidence are
+available in **Details**. A small **Preview** indicator has a focus/click description
+that it answers a predicted completion; Earlier draft and Following remain
+distinct. Detailed provenance is not repeated in the grid or profile headings.
+
+The right **Profile** panel starts at the result split, leaving the SQL editor
+full width. It opens by default for the first available result on a wide display.
+Each visible column has its name/type, distinct-value cardinality, null count,
+min/max and a compact distribution. Numeric columns use labelled histograms;
+later categorical types can use bounded top-value bars and an Other bucket.
+Row count belongs to the result; **Distinct** means non-null column cardinality,
+with nulls shown separately. A dataset with six rows need not have six distinct
+values. Never substitute source-resource cardinality for either metric.
+
+**×** closes the panel and expands the rows to full width; **Profile** reopens it.
+Keep this choice for the worksheet session so each live result does not reopen
+a panel the user closed. Preserve column selection, row scroll and editor focus;
+closing returns focus to the Profile toggle if focus was inside the panel.
+On narrow screens open the same panel over the result region on demand, with a
+labelled close control and keyboard focus management, without shrinking SQL.
+No persistent browser storage is introduced for layout preferences.
+
+Selecting a column in the grid can reveal its profile; selecting it in the panel
+shows more distribution detail in that same panel. Wide results use a bounded
+visible column window, with a selected column kept reachable. Every plot has
+equivalent text, units, bucket boundaries and exact/estimated coverage. Charts
+show counts, not unlabeled decorative sparklines. Selecting a bin or copying a
+min/max value does not secretly filter or rerun SQL; only an explicit editor edit
+enters the Live scheduler.
+
+Panel open/close, column selection and local profiling only read the already
+authorized loaded result. They do not rerun the SQL, prepare another query or
+fetch every page. A closed panel can stop local profile work; reopening reuses
+or recomputes bounded statistics for the same result/frontier under current
+authorization. A result change invalidates old profiles. If computation lags,
+show Updating rather than pairing old statistics with new rows.
+
+Figure 1's six-row result and Figure 3's three-row result fit completely in one
+loaded page, so the panel says **All 6 returned rows** or **All 3 returned rows**.
+For a partial page, keep **Loaded page: N of M returned rows** visible even when
+Details is closed; per-column coverage overrides it if different. A stream panel
+instead names the current frontier, and every displayed statistic describes that
+same relation. [The study fixture](d4-fixture.json) records the illustrated
+histogram bins, cardinality and panel actions; it does not implement profiling.
+
 ## Summary semantics
 
 Each finite snapshot view is bound to the frozen executed text, correlation/result ID,
 source identity/revision and verified manifest. Column labels and types come
 from the result schema, which may differ from source columns after an aggregate.
 Before verified completion, show status/progress, not apparently final rows or
-profiles. Speculative snapshots additionally name their candidate and parent
-draft; they can be verified answers to that candidate without answering current
-text. Stream views instead require the committed-frontier contract in the live
+profiles. Speculative snapshots additionally bind their candidate and parent
+draft, disclosed in Details; they can be verified answers to that candidate
+without answering current text. Stream views instead require the committed-frontier contract in the live
 notes, and cannot reuse snapshot Complete as a status for an endless query.
 A submission receipt does not establish query admission or completion;
 observe those phases separately.
@@ -269,6 +320,8 @@ observe those phases separately.
 | Columns / types | Verified result schema, including nullability and aggregate output names |
 | Source / limit | Exact read basis and executed statement; a limited result is not a full Table profile |
 | Null count, min/max | Typed computation over the named loaded page, or a qualified whole-result profile |
+| Distinct cardinality | Non-null distinct values in the named coverage, exact only within the declared set budget; estimates carry their method/precision |
+| Distribution | Fixed bounded bins/top values over the same coverage; labels define intervals, counts and null treatment |
 | Timing | Only measured phases with their clock/boundary; browser elapsed time is not engine execution time |
 
 The D4 three-row example fits one complete loaded page, so its null counts and
@@ -286,11 +339,22 @@ retention/access rules. Do not implement a browser accumulator that silently
 grows with results or double-counts retried pages.
 
 Keep int64 values exact as decimal strings/BigInt and preserve null versus empty,
-false, missing and unavailable. Null counts/ranges need bounded accumulators;
-histograms and distinct/top-value statistics require explicit bucket/cardinality
-budgets and sampling/approximation labels. Defer sum/mean until their overflow,
-precision and empty-input rules are specified. Empty results have zero rows and
-an unavailable range, not a fabricated zero range. Document/KV profiles wait for
+false, missing and unavailable. Null counts/ranges need bounded accumulators.
+For loaded-page histograms, a bounded pass finds min/max and a second pass over
+that same resident page fills fixed bins; no source scan is needed. Compute bin
+edges without int64 overflow or lossy Number conversions. The figures use three
+inclusive integer ranges per column; counts sum to its non-null count, and labels
+state the ranges. Uniform values use one bin, not division by a zero range.
+Empty/all-null columns have zero distinct values and no non-null distribution;
+their min/max are unavailable. Never draw an apparently measured zero range.
+
+Exact distinct counting uses a bounded set, not an ever-growing result cache.
+At its byte/entry budget, return Unavailable or use a separately qualified sketch
+with visible estimate/error semantics; never silently truncate the set. Choose
+and measure those budgets before implementation acceptance. Whole-result and
+stream profiles need their own bounded execution/state contract; insertion-only
+sketches cannot qualify an update/delete stream. Defer sum/mean until their
+overflow, precision and empty-input rules are specified. Document/KV profiles wait for
 versioned typed adapters; the UI never infers application decoding from bytes.
 
 Rows, charts and cell inspection share the same result and coverage. A chart can
@@ -329,4 +393,8 @@ Compare summaries with independent typed computations on empty/all-null, large
 int64, multi-page and retried-page fixtures. Prove that page profiles cannot be
 labelled whole-result profiles and that changed drafts retain the earlier result
 identity. Measure the response budgets above while those operations are active.
+Include repeated values distinct from row counts, bin-edge values, uniform data,
+exact-set exhaustion, stale profile completion, streamed deletes of a min/max,
+panel close/reopen without queries, and focus/scroll preservation. Plot counts
+must agree with their text alternatives and the identified coverage.
 These are planned proofs; D4 only supplies static examples and design checks.
