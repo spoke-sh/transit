@@ -18,6 +18,8 @@ Follow the contracts for the area you change:
 | State resources, associations, KV/Table/Document APIs | [State](docs/STATE.md), [M7](docs/roadmap/M7.md), [Document M17](docs/roadmap/M17.md) |
 | Declarative interfaces, SQL, Fuze/query planning and execution | [Query language](docs/QUERY_LANGUAGE.md), [grammar contract](contracts/sql/README.md), [Fuze](docs/FUZE.md), [Tables](docs/TABLES.md) |
 | Arrow IPC/C interfaces, Flight/Flight SQL, ADBC | [Arrow](docs/ARROW.md) |
+| Inbound services, HTTP APIs, service/route publication | [Serving](docs/SERVING.md), [Security](docs/SECURITY.md), [M19](docs/roadmap/M19.md) |
+| Reactive views, watches, notifications, snapshot refresh | [Reactive interfaces](docs/REACTIVE.md), [Serving](docs/SERVING.md), [M20](docs/roadmap/M20.md) |
 | Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/RETENTION.md) |
 | Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [SDK milestone M11](docs/roadmap/M11.md), [public protocol package](packages/zig/transit-protocol/README.md) |
 | Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [query language](docs/QUERY_LANGUAGE.md), [grammar contract](contracts/sql/README.md), [M2 plan](docs/roadmap/M2.md) |

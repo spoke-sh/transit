@@ -2,8 +2,9 @@
 
 Status: M9 implements finite IPC results, checked by an independent Arrow
 consumer, and qualifies C Data/C Stream ownership. See the [integration evidence](../packages/zig/transit-fuze/docs/integration.md).
-Remote interoperability remains planned: [M16](roadmap/M16.md) adds gRPC and
-[M19](roadmap/M19.md) qualifies Flight, Flight SQL and ADBC.
+Remote interoperability remains planned: M16 qualifies outbound gRPC,
+[M19](roadmap/M19.md) establishes HTTP serving, and [M21](roadmap/M21.md)
+qualifies Flight, Flight SQL and ADBC as the second serving protocol profile.
 [TABLES.md](TABLES.md) owns Table mutations, snapshots, materialization, transactions
 and durable result delivery. This document owns the interchange and gateway seams.
 
@@ -45,6 +46,13 @@ continuous materialization automatically.
 
 ## Flight gateway and effect connector
 
+The [serving layer](SERVING.md) supplies shared published-service, identity,
+admission, budget and result-recovery contracts, first proved by HTTP application
+APIs and Board. Flight is a second inbound protocol adapter over that layer;
+its gRPC server, TLS/authentication and standard metadata still need their own
+qualification. [M20's reactive HTTP views](REACTIVE.md) do not imply continuous
+Flight query semantics.
+
 There are two paths, with different authority boundaries:
 
 ```mermaid
@@ -69,7 +77,7 @@ useful, while keeping ingress identity mapping and effect dispatch separate.
 
 ## First remote query profile
 
-M19 starts with read-only, finite queries over one Table/resource snapshot.
+M21 starts with read-only, finite queries over one Table/resource snapshot.
 Read-only refers to application tables; accepting queries and tracking result
 delivery still require authorized durable bookkeeping:
 
@@ -99,8 +107,8 @@ prove compatibility with every Arrow client or driver version.
 
 ## Identity, lifetime and failure
 
-M19 must select and prove an ingress identity profile. Start with explicitly
-configured gateway credentials mapped to dedicated, least-privilege Transit
+M21 must adapt and prove M19's ingress identity contract for Flight. Start with
+explicitly configured gateway credentials mapped to dedicated, least-privilege Transit
 principals and allowed Table service PIDs. Do not trust principal/PID claims in
 request metadata or invent general delegation, which is not implemented. TLS
 authentication, service data-sharing policy and current resource permissions
@@ -130,7 +138,7 @@ results fail explicitly. Cancelling a query is an authorized durable disposition
 not a socket-close side effect. Repeated SQL submissions are new queries unless
 the client supplies a supported stable request identity; SQL text is not a dedup key.
 
-M19 must budget SQL/protobuf requests, standard metadata schemas, result bytes,
+M21 must budget SQL/protobuf requests, standard metadata schemas, result bytes,
 ticket records and pending queries against the profile it actually deploys.
 Network streaming cannot conceal a missing durable payload/lifetime contract or
 raise M7's limits implicitly. A larger storage/result profile requires an explicit
@@ -139,9 +147,10 @@ prerequisite milestone if the selected interoperability fixtures cannot fit.
 ## Qualification and later work
 
 [M9](roadmap/M9.md) proves batches, operator behavior and IPC/C ownership with
-independent consumers. [M16](roadmap/M16.md) is planned to prove the gRPC transport
-and effect boundary, and [M18](roadmap/M18.md) the wider source/schema contracts.
-[M19](roadmap/M19.md) then proves actual Flight/ADBC clients, authentication,
+independent consumers. [M16](roadmap/M16.md) qualifies the finite outbound gRPC
+transport and effect boundary; [M18](roadmap/M18.md) owns wider source/schema
+contracts and [M19](roadmap/M19.md) the shared serving foundation.
+[M21](roadmap/M21.md) then proves actual Flight/ADBC clients, authentication,
 schemas, backpressure, cancellation and recovery together. Keep dependency pins,
 supported protocol versions and proof commands with the implementing packages.
 Flight SQL writes, a native ADBC driver, continuous query maintenance and

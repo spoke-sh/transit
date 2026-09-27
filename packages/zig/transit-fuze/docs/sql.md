@@ -92,7 +92,7 @@ Joins, sorting, grouping, arithmetic, compound predicates, `COUNT(column)`,
 output aliases, general casts, time travel, KV/Document sources and SQL writes
 are excluded. Administrative DDL/connector statements remain reference-grammar
 artifacts and produce `UnsupportedStatement` in the production frontend.
-There is no public SQL endpoint or CLI introduced by this library; M13/M19
+There is no public SQL endpoint or CLI introduced by this library; M13/M21
 own ingress and capability integration. No optimizer rewrite is enabled.
 
 Run `just test::sql` for the shared ANTLR/PostgreSQL/Zig AST and actual paged

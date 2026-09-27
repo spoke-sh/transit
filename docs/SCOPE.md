@@ -87,13 +87,20 @@ The same primitives must support ordinary stateful distributed programs.
   both structured state and collaborative text in [M17](roadmap/M17.md);
   [M18](roadmap/M18.md) adds unified KV/Table/Document queries. [Arrow](ARROW.md) owns interchange and remote access.
   M12 implements the bounded read-only Table SQL compiler. M13 exposes it through
-  a separately authorized Board workspace and `transit` query shell; M19 reuses
+  a separately authorized Board workspace and `transit` query shell; M21 reuses
   it for Flight SQL. Continuous queries and
   separate-resource transactions remain later work. No foreign query engine
   runs behind the interface or inside Transit authority.
 - HTTP is the first connector; gRPC is the second. Request/response messages and
   timing travel through durable exchange groups, with explicit credential scope,
   capture, retry and closure. A live RPC stream is not a durable mailbox.
+- [Serving](SERVING.md) formalizes the inbound side in [M19](roadmap/M19.md):
+  application HTTP APIs and Board share service bindings, identity, admission,
+  bounded responses and recovery over public operations. It sits above the kernel
+  and complements outbound connectors. Board retains private shared viewer access.
+  [Reactive interfaces M20](roadmap/M20.md) adds resumable notifications and
+  snapshot refresh; incremental continuous queries and individual sign-in remain
+  separately scoped. Flight is the second serving protocol in M21.
 - Kubernetes is part of the first executable milestone. Agent Substrate is the
   recommended execution target and reference architecture. Preserve portability
   to other cloud runtimes through durable PID-to-provider runtime bindings.
@@ -144,8 +151,11 @@ resumes from a correlated durable outcome. Replay reads captures without I/O.
 [gRPC M16](roadmap/M16.md) reuses that common lifecycle for bounded streaming
 calls. These first connectors precede [Documents M17](roadmap/M17.md) and
 [unified queries M18](roadmap/M18.md), which reuse the storage/read foundations
-without depending on live network protocols. [Arrow interoperability M19](roadmap/M19.md)
-then composes transport and queries for Flight SQL/ADBC. [M20](roadmap/M20.md)
+without depending on live network protocols. [Serving M19](roadmap/M19.md)
+first composes HTTP application APIs and Board, then
+[reactive interfaces M20](roadmap/M20.md) adds authorized watch/resnapshot behavior.
+[Arrow interoperability M21](roadmap/M21.md) reuses serving for Flight SQL/ADBC.
+[M22](roadmap/M22.md)
 extends their authority and recovery proofs across cluster topologies. Station,
 connectors and query services add authorized Board metadata as their primitives land.
 These outcomes define the [roadmap](roadmap/README.md).

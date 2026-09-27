@@ -47,7 +47,9 @@ Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 | Durable transport | Persistent history, continuation positions, mailbox storage and delivery | [STREAMS.md](STREAMS.md), [URSULA.md](URSULA.md) |
 | Station — framework | GenServer behaviors, Table/association helpers, scoped name registries, request/reply, supervision, timers, worker-pool patterns | [STATION.md](STATION.md) |
 | Fuze — query and compute | Shared source/plan/operator model; implemented bounded Table queries, KV/Document adapters next | [FUZE.md](FUZE.md) |
-| Query ingress and interchange | IPC/C interfaces; Flight/Flight SQL gateway and ADBC interoperability remain planned | [ARROW.md](ARROW.md) |
+| Serving — inbound interfaces (planned M19) | Published service bindings, authenticated request context, admission, bounded responses and recovery; HTTP first for application APIs and Board | [SERVING.md](SERVING.md) |
+| Reactive interfaces (planned M20) | Authorized source/watch handoff, resumable notifications and exact snapshot refresh over serving | [REACTIVE.md](REACTIVE.md) |
+| Query interchange and protocol adapters | IPC/C interfaces; Flight/Flight SQL is the planned second serving protocol in M21, with ADBC clients | [ARROW.md](ARROW.md) |
 | Connectors | Authorized external attempts, request/response capture, bounded reconciliation, outcome and retry/cancellation policy | [CONNECTORS.md](CONNECTORS.md) |
 | Runtime adapter | Durable PID-to-provider bindings and reconciliation of lifecycle intents with provider resources/observations | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | Retention reconciliation | Enforce Transit-authorized policies and retained boundaries; coordinate checkpoints, dependency checks, and adapter reclamation | [RETENTION.md](RETENTION.md) |
@@ -99,7 +101,7 @@ No launcher or foreign binding switches profiles implicitly.
 
 Massive-scale deployment also requires an explicit authority-partition and routing
 design, including grant/revocation and cross-partition delivery semantics. Measure
-the single-realm serialization bottleneck in M10; [M20](roadmap/M20.md) qualifies
+the single-realm serialization bottleneck in M10; [M22](roadmap/M22.md) qualifies
 broader clustered execution. Additional node replicas do not by themselves create
 independent write capacity or a cross-partition transaction guarantee.
 
@@ -253,6 +255,13 @@ and protocol assertions belong under [tests/](../tests/README.md).
 
 ### Planned components
 
+- [M19](roadmap/M19.md) formalizes serving with HTTP application APIs and Board
+  as its first consumers. A proposed neutral `transit-http-server` owns HTTP
+  mechanics; `transit-serving` composes public Transit/Station admission and
+  response contracts. Board keeps its projections and private access profile.
+  Create packages only with real implementations, manifests and consumers;
+  core must not depend on these higher layers. [M20](roadmap/M20.md) adds
+  source/watch adapters and bounded reactive refresh, not a second event store.
 - Add typed public APIs, handler runners and installable artifacts to the existing
   language packages in [M11](roadmap/M11.md). Python, TypeScript, Rust, Ruby, C/C++,
   Java and .NET have public handler/recovery/data proofs; remaining targets and public mixed
@@ -276,9 +285,10 @@ and protocol assertions belong under [tests/](../tests/README.md).
   contracts/helpers and capture/reconciliation for authorized external RPCs.
   Keep reusable Zig HTTP/2/protobuf transport separate from dispatch authority.
 - `packages/zig/transit-station-flight` and `apps/transit-station-flight`: Flight/
-  Flight SQL query ingress and gateway composition over Station/public client,
-  with an explicit identity boundary and no direct storage access. Existing ADBC
-  clients connect through Flight SQL; [ARROW.md](ARROW.md) owns this M19 profile.
+  Flight SQL as the second serving adapter, reusing M19's identity/admission/
+  response seams over Station/public client, with no direct storage access.
+  Existing ADBC clients connect through Flight SQL; [ARROW.md](ARROW.md) owns
+  this M21 profile and its independently qualified inbound gRPC behavior.
 - `apps/transit-station-worker`, `apps/transit-station-http-worker` and
   `apps/transit-station-grpc-worker`: compose behaviors or connector execution
   with explicitly supplied runtime capabilities.

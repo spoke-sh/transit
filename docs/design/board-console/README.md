@@ -26,7 +26,7 @@ and bounded implementation without changing its recorded outcomes.
 The figures are monochrome vector wireframes with synthetic examples; D4 uses
 reviewer-requested pale grey to indicate provisional results without a label. They are
 neither application screenshots nor evidence of available protocols, permissions
-or scale. The proposal preserves M2/M13 and maps dependencies to M15–M19;
+or scale. The proposal preserves M2/M13 and maps dependencies to M15–M21;
 new implementation work requires its own place in the linear roadmap.
 
 ## Supporting material

@@ -348,8 +348,12 @@ and resource expiry. M9 exposes those semantics through Station suspension and
 supervision. [M17](roadmap/M17.md) qualifies Document causal checkpoints, deletion
 evidence and opted-in replica merge/resynchronization horizons. M15 adds connector
 dependency handling; M16 applies it to streaming
-RPCs. M19 distinguishes [Flight handles and retained results](ARROW.md#identity-lifetime-and-failure)
-from transport timeouts. M20 extends the proofs to distributed consumers and
+RPCs. [M19 serving](SERVING.md) separates socket/response deadlines from accepted
+operation and receipt lifetimes. [M20 reactive interfaces](REACTIVE.md) separates
+watch leases and retained change coverage from snapshot/result retention; gaps
+require resynchronization and quota pressure cannot delete accepted evidence.
+M21 distinguishes [Flight handles and retained results](ARROW.md#identity-lifetime-and-failure)
+from transport timeouts. M22 extends the proofs to distributed consumers and
 broader recovery operations. See [roadmap](roadmap/README.md).
 
 ## Working catalog reclamation
