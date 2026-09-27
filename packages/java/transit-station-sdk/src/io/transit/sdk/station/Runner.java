@@ -168,6 +168,24 @@ public final class Runner<T> implements AutoCloseable {
             return new Http.Reader(this, number(value.get("opened"), 1));
         });
     }
+    <R> CompletableFuture<R> grpcAccess(Function<Bridge, R> action) {
+        return worker.submit(state -> {
+            if (state.pending != null) throw new TransitException(TransitException.Kind.BUSY, "pending-mutation");
+            return action.apply(state.bridge);
+        });
+    }
+    void grpcBlockingClose() { worker.checkBlockingClose(); }
+    public CompletableFuture<Grpc.Reader> openGrpc(Grpc.Outcome outcome) { return openGrpc(outcome, Grpc.ReplayPolicy.CAPTURED); }
+    public CompletableFuture<Grpc.Reader> openGrpc(Grpc.Outcome outcome, Grpc.ReplayPolicy policy) {
+        Objects.requireNonNull(outcome); Objects.requireNonNull(policy);
+        return worker.submit(state -> {
+            if (state.pending != null) throw new TransitException(TransitException.Kind.BUSY, "pending-mutation");
+            if (outcome.phase() != Grpc.Phase.OBSERVED || outcome.reference().isEmpty() || outcome.resource().realm() != state.process.realm())
+                throw new IllegalArgumentException("Expected an observed outcome in this realm");
+            JsonObject value = state.bridge.grpcRead(obj("open", obj("reference", Grpc.hex(outcome.reference().orElseThrow()), "policy", policy.name().toLowerCase(Locale.ROOT))));
+            return new Grpc.Reader(this, number(value.get("opened"), 1));
+        });
+    }
     public StopToken stopToken() { return stop; }
     public void stop() { stop.stop(); }
     public CompletableFuture<Shutdown> closeAsync() { worker.checkClose(); stop(); return worker.closeAsync(); }

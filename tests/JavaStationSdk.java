@@ -359,6 +359,138 @@ public final class JavaStationSdk {
             }
         }
     }
+    static void grpcGolden(JsonObject cfg) {
+        JsonObject fixture=read(Path.of(cfg.get("grpc_fixtures").getAsString()));
+        byte[] encoded=HexFormat.of().parseHex(fixture.get("outcome_ok_hex").getAsString());
+        Grpc.Outcome ok=(Grpc.Outcome)Grpc.decodeReply(72,encoded);
+        check(ok.phase()==Grpc.Phase.OBSERVED && ok.status().orElseThrow()==0 && ok.exchange().equals(Values.U64_MAX) && ok.reference().isPresent());
+        Grpc.Outcome unknown=(Grpc.Outcome)Grpc.decodeReply(72,HexFormat.of().parseHex(fixture.get("outcome_unknown_hex").getAsString()));
+        check(unknown.phase()==Grpc.Phase.CLOSED_UNKNOWN && unknown.status().isEmpty() && unknown.reference().isEmpty());
+        check(Grpc.decodeReply(72,HexFormat.of().parseHex(fixture.get("rejection_hex").getAsString())) instanceof Grpc.Rejected rejected && rejected.reason()==Grpc.Rejection.DENIED);
+        check(Grpc.decodeReply(72,HexFormat.of().parseHex(fixture.get("released_hex").getAsString())).equals(new Grpc.Released(new ResourceRef(72,7),Values.U64_MAX)));
+        Grpc.ReplyCodec<BigInteger> codec=new Grpc.ReplyCodec<>(Codecs.U64,72);
+        check(((Grpc.Application<BigInteger>)codec.decode(codec.encode(new Grpc.Application<>(Values.U64_MAX)))).value().equals(Values.U64_MAX));
+        check(((Grpc.Outcome)((Grpc.Received<BigInteger>)codec.decode(encoded)).value()).status().orElseThrow()==0);
+        expect(TransitException.Kind.CODEC,()->codec.encode(new Grpc.Received<>(ok)));
+        try { Grpc.decodeReply(72,Arrays.copyOf(encoded,72)); throw new AssertionError("Truncated RPC accepted"); } catch(TransitException expected) { }
+    }
+    static final class GrpcBytes implements Codec<Bytes> {
+        public String typeId() { return "test.grpc-control"; }
+        public long version() { return 1; }
+        public int maxEncodedBytes() { return 243; }
+        public byte[] encode(Bytes value) { return value.copy(); }
+        public Bytes decode(byte[] value) { return new Bytes(value); }
+    }
+    static final class GrpcHandler implements Handler<Grpc.Message<Bytes>> {
+        final ProcessRef peer;
+        final Grpc.Prepared request;
+        final Key<BigInteger> correlation = new Key<>("grpc-correlation", Codecs.U64);
+        final Key<BigInteger> releaseCorrelation = new Key<>("grpc-release-correlation", Codecs.U64);
+        final Key<BigInteger> followupCorrelation = new Key<>("grpc-followup-correlation", Codecs.U64);
+        final Grpc.Outcome disposal;
+        final Grpc.Outcome wrongParent;
+        Turn escaped;
+        JsonObject result;
+        GrpcHandler(ProcessRef peer, Grpc.Prepared request, Grpc.Outcome disposal, Grpc.Outcome wrongParent) { this.peer = peer; this.request = request; this.disposal = disposal; this.wrongParent = wrongParent; }
+        @Override public void onMessage(Turn turn, Incoming<Grpc.Message<Bytes>> input) {
+            escaped = turn;
+            if (input instanceof Cast<Grpc.Message<Bytes>>) {
+                if (input.value() instanceof Grpc.Application<Bytes> application && Arrays.equals(application.value().copy(), "followup".getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+                    expect(TransitException.Kind.HANDLER, () -> turn.retryGrpc(peer, wrongParent, request));
+                    BigInteger id = turn.retryGrpc(peer, disposal, request);
+                    turn.state().put(followupCorrelation, id); result = Values.obj("followup", false);
+                } else if (input.value() instanceof Grpc.Application<Bytes> application && Arrays.equals(application.value().copy(), "dispose".getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+                    expect(TransitException.Kind.HANDLER, () -> turn.releaseGrpc(peer, new ResourceRef(73, disposal.resource().resource()), disposal.exchange()));
+                    BigInteger id = turn.releaseGrpc(peer, disposal.resource(), disposal.exchange());
+                    turn.state().put(releaseCorrelation, id); result = Values.obj("released", false);
+                } else if (turn.state().find(correlation).isPresent()) result = Values.obj("called", true);
+                else if (turn.stageGrpc(request)) { BigInteger id = turn.callGrpc(peer, request); turn.state().put(correlation, id); result = Values.obj("called", true); }
+                else result = Values.obj("called", false);
+            } else {
+                check(input instanceof Reply<Grpc.Message<Bytes>>);
+                if (((Grpc.Received<Bytes>)input.value()).value() instanceof Grpc.Rejected rejected) {
+                    BigInteger id = turn.state().require(followupCorrelation);
+                    turn.requireReply((Reply<?>)input, peer, id); check(rejected.reason() == Grpc.Rejection.DENIED);
+                    turn.state().put(new Key<>("grpc-followup-denied", Codecs.U64), id); result = Values.obj("followup", true); return;
+                }
+                if (((Grpc.Received<Bytes>)input.value()).value() instanceof Grpc.Released released) {
+                    turn.requireReply((Reply<?>)input, peer, turn.state().require(releaseCorrelation));
+                    check(released.resource().equals(disposal.resource()) && released.exchange().equals(disposal.exchange()));
+                    turn.state().put(new Key<>("grpc-disposed", Codecs.U64), released.exchange()); result = Values.obj("released", true); return;
+                }
+                turn.requireReply((Reply<?>)input, peer, turn.state().require(correlation));
+                Grpc.Outcome outcome = (Grpc.Outcome)((Grpc.Received<Bytes>)input.value()).value();
+                check(outcome.phase() == Grpc.Phase.OBSERVED && outcome.status().orElseThrow() == 0);
+                turn.state().put(new Key<>("grpc-status", Codecs.U64), BigInteger.ZERO); result = Values.obj("observed", true);
+            }
+        }
+    }
+    static void grpc(String mode, JsonObject cfg) throws IOException {
+        byte[] body = HexFormat.of().parseHex(cfg.get("body").getAsString());
+        Grpc.Method method = Grpc.method(HexFormat.of().parseHex(cfg.get("descriptor").getAsString()), "/test.Peer/Bidi");
+        check(method.shape() == Grpc.Shape.BIDI);
+        Bytes message = new Bytes(body);
+        Grpc.Prepared request = Grpc.prepare(new ResourceRef(72, cfg.get("resource").getAsLong()), Values.U64_MAX,
+            new Grpc.Request(method, List.of(
+                new Grpc.Metadata("x-tag", new Grpc.Literal(new Bytes(new byte[]{'o','n','e'}))),
+                new Grpc.Metadata("x-tag", new Grpc.Literal(new Bytes(new byte[]{'t','w','o'}))),
+                new Grpc.Metadata("x-data-bin", new Grpc.Literal(new Bytes(new byte[]{0,(byte)255}))),
+                new Grpc.Metadata("authorization", new Grpc.SecretRef("api", BigInteger.valueOf(7))))),
+            List.of(message, new Bytes(new byte[0])), new Grpc.Options(BigInteger.valueOf(7), cfg.get("deadline").getAsLong(), 1));
+        byte[] original = request.batch().copy(); body[0] ^= 127; byte[] copy = request.batch().copy(); copy[0] ^= 1;
+        check(Arrays.equals(original, request.batch().copy()) && request.batch().size() == message.size() + 16);
+        ServiceConfig config = new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.GROWING_V3),
+            new Activation(new ProcessRef(72, cfg.get("pid").getAsLong()), cfg.get("generation").getAsLong(),
+                new Credential(72, cfg.get("principal").getAsLong(), Path.of(cfg.get("seed_file").getAsString()))));
+        Grpc.Outcome disposal = cfg.has("outcome") ? (Grpc.Outcome)Grpc.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString())) : null;
+        Grpc.Outcome wrongParent = cfg.has("outcome") ? (Grpc.Outcome)Grpc.decodeReply(73, HexFormat.of().parseHex(cfg.get("outcome").getAsString())) : null;
+        GrpcHandler handler = new GrpcHandler(new ProcessRef(72, cfg.get("peer").getAsLong()), request, disposal, wrongParent);
+        ByteArrayOutputStream owned = new ByteArrayOutputStream(); Grpc.Reader reader = null; Grpc.Outcome outcome = null;
+        try (Runner<Grpc.Message<Bytes>> runner = Runner.open(config, handler, new Grpc.ReplyCodec<>(new GrpcBytes(), 72), FailurePolicy.STOP, new Recovery.FreshOwnership())) {
+            if (mode.equals("grpc-async")) {
+                Grpc.Reader active = await(runner.openGrpc((Grpc.Outcome)Grpc.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString()))));
+                Grpc.Part first = await(active.read()).orElseThrow(); check(first.data().size() > 0 && !first.complete());
+                Files.writeString(Path.of(cfg.get("ready").getAsString()), ""); waitFile(Path.of(cfg.get("continue").getAsString()));
+                CompletableFuture<Optional<Grpc.Part>> pending = active.read(); waitFile(Path.of(cfg.get("accepted").getAsString()));
+                expect(TransitException.Kind.BUSY, () -> await(active.read())); check(pending.cancel(true));
+                runner.stop(); CompletableFuture<Shutdown> closing = runner.closeAsync(); int beats = 0;
+                while (!closing.isDone()) { beats++; sleep(10); } await(closing); check(beats > 5 && first.data().size() > 0);
+                expect(TransitException.Kind.CLOSED, () -> await(active.read())); report(Values.obj("joined", true)); return;
+            }
+            BufferedReader input = new BufferedReader(new InputStreamReader(System.in, java.nio.charset.StandardCharsets.UTF_8));
+            for (String line; (line = input.readLine()) != null;) {
+                switch (line) {
+                    case "step" -> {
+                        boolean committed = false;
+                        for (int n = 0; n < 32; n++) if (await(runner.next()) instanceof Committed) { committed = true; break; }
+                        check(committed); expect(TransitException.Kind.TURN_EXPIRED, () -> handler.escaped.stageGrpc(request));
+                        expect(TransitException.Kind.TURN_EXPIRED, () -> handler.escaped.releaseGrpc(handler.peer, request.resource(), BigInteger.ONE));
+                        expect(TransitException.Kind.TURN_EXPIRED, () -> handler.escaped.retryGrpc(handler.peer, disposal, request)); report(handler.result);
+                    }
+                    case "open" -> {
+                        outcome = (Grpc.Outcome)Grpc.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString()));
+                        reader = await(runner.openGrpc(outcome)); Grpc.Outcome selected = outcome;
+                        expect(TransitException.Kind.BUSY, () -> await(runner.openGrpc(selected)));
+                        Grpc.Part first = await(reader.read()).orElseThrow(); check(first.data().size() > 0 && !first.complete()); report(Values.obj("prefix", true));
+                    }
+                    case "denied" -> { Grpc.Reader active = reader; expect(TransitException.Kind.ACCESS_DENIED, () -> await(active.read())); report(Values.obj("denied", true)); }
+                    case "reopen" -> {
+                        try { await(reader.read()); throw new AssertionError("Poisoned RPC reader resumed"); }
+                        catch (TransitException error) { check(error.kind() == TransitException.Kind.READ_FAILED && error.code().equals("GrpcReplayFailed")); }
+                        reader.close(); reader.close(); reader = await(runner.openGrpc(outcome));
+                        for (;;) { Optional<Grpc.Part> part = await(reader.read()); if (part.isEmpty()) break;
+                            if (part.orElseThrow().kind() == Grpc.PartKind.RESPONSE_BODY) owned.writeBytes(part.orElseThrow().data().copy()); }
+                        check(reader.complete()); reader.close(); report(Values.obj("complete", true, "body", HexFormat.of().formatHex(owned.toByteArray())));
+                    }
+                    case "close" -> {
+                        runner.closeSnapshot(); if (reader != null) { Grpc.Reader active = reader; expect(TransitException.Kind.CLOSED, () -> await(active.read())); }
+                        report(Values.obj("closed", true, "owned", HexFormat.of().formatHex(owned.toByteArray()))); return;
+                    }
+                    default -> throw new AssertionError("Unknown RPC command");
+                }
+            }
+        }
+    }
     static <T> void execute(String mode, JsonObject cfg, Handler<T> handler, Codec<T> codec) throws Exception {
         long realm = cfg.get("realm").getAsLong();
         ServiceConfig config = new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.GROWING_V3),
@@ -440,6 +572,8 @@ public final class JavaStationSdk {
         String mode = args[0]; Path path = Path.of(args[1]); JsonObject cfg = read(path);
         check(Path.of(Runner.class.getProtectionDomain().getCodeSource().getLocation().toURI()).startsWith(path.getParent()));
         check(cfg.get("profile").getAsString().equals("growing_v3"));
+        if (mode.equals("grpc-golden")) { grpcGolden(cfg); return; }
+        if (mode.startsWith("grpc-")) { grpc(mode, cfg); return; }
         if (mode.startsWith("http-")) { http(mode, cfg); return; }
         if (mode.equals("codecs")) { codecs(cfg); return; }
         if (mode.equals("recover")) {

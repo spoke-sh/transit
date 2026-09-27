@@ -27,6 +27,12 @@ installation/compilation. `just bindings::c-sdk-test` runs both protocol schedul
 C explicitly preserves status presence; C++ uses an optional status and move-only
 readers. Both authenticate control replies and join a delayed replay read.
 
+Java and .NET installed RPC schedules pass in **75.53** and **71.06 seconds**,
+including clean JAR/NuGet consumer compilation. Both additionally execute the
+independent status-zero/unknown/rejection/release fixtures and truncated-outcome
+checks. Their public cancellation views invalidate the reader while runner close
+joins underlying native work. These are local measurements, not hosted budgets.
+
 `just test::grpc-worker` separately passes in **344.45 seconds** excluding
 compilation over disk Ursula and the actual Zig worker. All four shapes complete
 and replay, then lose workers during partial durable response capture and recover

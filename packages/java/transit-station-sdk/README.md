@@ -20,3 +20,6 @@ Arrow adapter. The conformance consumer decodes it independently with PyArrow.
 Public package publication and foreign Substrate worker images remain outside
 this qualification. Generated resources come from the public Zig contracts;
 `just bindings::check` rejects drift.
+
+M16 adds [finite RPC calls and captured replay](docs/GRPC.md), including local
+descriptor binding, binary metadata and observed status zero.

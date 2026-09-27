@@ -139,9 +139,10 @@ java-build: build
 
 # Compile installed public Java consumers outside the checkout.
 java-sdk-test: java-build
-    zig build transit-node rey-cli transit-station-http-worker
+    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
     python3 -B tests/java_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/java
     python3 -B tests/java_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/java zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language java
 
 # Build isolated .NET NuGet packages with exact native dependencies.
 dotnet-build: build
@@ -149,9 +150,10 @@ dotnet-build: build
 
 # Restore public raw/Station/example NuGet artifacts into clean consumers.
 dotnet-sdk-test: dotnet-build
-    zig build transit-node rey-cli transit-station-http-worker
+    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
     python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet
     python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language dotnet
 
 # Build separate standard OTP client/Station applications, examples and native artifacts.
 beam-build: build

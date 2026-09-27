@@ -134,6 +134,42 @@ public final class Turn {
                 "parent", parent.exchange().toString(), "reason", reason.name().toLowerCase(Locale.ROOT), "reference", request.referenceHex()))).get("correlation"), true);
         });
     }
+    private void grpcRequest(Grpc.Prepared request) {
+        Objects.requireNonNull(request);
+        if (!resource.equals(request.resource())) throw new IllegalArgumentException("RPC request must use this writable resource");
+        bridge.grpcCapability("grpc_requests");
+    }
+    public boolean stageGrpc(Grpc.Prepared request) {
+        return access(false, () -> {
+            grpcRequest(request);
+            return bool(raw(obj("grpc_stage", obj("reference", request.referenceHex(), "metadata", request.metadataHex(), "batch", request.batchHex()))).get("staged"));
+        });
+    }
+    public BigInteger callGrpc(ProcessRef connector, Grpc.Prepared request) {
+        return access(false, () -> {
+            grpcRequest(request);
+            return NativeValues.wide(raw(obj("grpc_call", obj("pid", peer(connector), "reference", request.referenceHex()))).get("correlation"), true);
+        });
+    }
+    /** Request durable hold disposal; authenticate the correlated Grpc.Released reply. */
+    public BigInteger releaseGrpc(ProcessRef connector, ResourceRef capture, BigInteger exchange) {
+        return access(false, () -> {
+            Objects.requireNonNull(capture); positive(exchange);
+            if (capture.realm() != resource.realm()) throw new IllegalArgumentException("RPC capture must belong to this realm");
+            bridge.grpcCapability("grpc_release");
+            return NativeValues.wide(raw(obj("grpc_release", obj("pid", peer(connector), "resource", capture.resource(), "exchange", exchange.toString()))).get("correlation"), true);
+        });
+    }
+    /** Submit an explicit linked attempt; the service decides current admission. */
+    public BigInteger retryGrpc(ProcessRef connector, Grpc.Outcome parent, Grpc.Prepared request) {
+        return access(false, () -> {
+            Objects.requireNonNull(parent); grpcRequest(request);
+            if (parent.resource().realm() != resource.realm()) throw new IllegalArgumentException("RPC parent must belong to this realm");
+            bridge.grpcCapability("grpc_followup");
+            return NativeValues.wide(raw(obj("grpc_followup", obj("pid", peer(connector), "resource", parent.resource().resource(),
+                "parent", parent.exchange().toString(), "reference", request.referenceHex()))).get("correlation"), true);
+        });
+    }
     public <T> Table<T> table(Table.Schema<T> schema) { return access(true, () -> Table.open(this, schema, null)); }
     public <T> Table<T> createTable(Table.Schema<T> schema) {
         access(false, () -> {

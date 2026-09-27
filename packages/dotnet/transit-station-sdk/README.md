@@ -35,3 +35,6 @@ Retained-source identities need explicit durable retain/release operations.
 Queries expose complete metadata and copied original Arrow IPC; no optional .NET
 Arrow adapter is selected. Use explicit asynchronous disposal and retain shutdown
 evidence; managed tasks and object fields are not durable state.
+
+M16 adds [finite RPC calls and captured replay](docs/GRPC.md), including local
+descriptor binding, binary metadata and observed status zero.

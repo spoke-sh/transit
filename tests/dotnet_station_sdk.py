@@ -55,8 +55,13 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
             for function in contract['functions']))
         subprocess.run(['zig', 'cc', '-shared', '-fPIC', '-o', str(bad / 'libtransit_station.so'), str(fixture)], env=environment, cwd=target, check=True)
         fixture.unlink()
+        grpc_fixtures = target / 'grpc-fixtures.json'
+        shutil.copy2(root / 'packages/zig/transit-station-grpc/src/fixtures/service.json', grpc_fixtures)
+        golden = target / 'grpc-golden.json'
+        golden.write_text(json.dumps({'profile': 'growing_v3', 'grpc_fixtures': str(grpc_fixtures)}))
+        subprocess.run(['dotnet', str(output / 'Consumer.dll'), 'grpc-golden', str(golden)], env=environment, cwd=target, check=True, timeout=30)
         def command(mode, config):
-            if mode.startswith('http-'):
+            if mode.startswith(('http-', 'grpc-')):
                 return ['dotnet', str(output / 'Consumer.dll'), mode, str(config)]
             # Establish a durable private directory entry before the proof's store
             # truncates, writes and Flush(true)s each exact frozen mutation.

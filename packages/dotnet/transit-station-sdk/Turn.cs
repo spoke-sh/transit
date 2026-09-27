@@ -114,6 +114,35 @@ public sealed class Turn
         return NativeValues.Wide(Raw(Value.Obj(("http_followup", Value.Obj(("pid", Peer(connector)), ("resource", parent.Resource.Resource),
             ("parent", Decimal(parent.Exchange)), ("reason", reason.ToString().ToLowerInvariant()), ("reference", Http.Hex(request.Reference))))))["correlation"], true);
     });
+    private void GrpcRequest(Grpc.Prepared request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Resource != ResourceRef) throw new ArgumentException("RPC request must use this writable resource");
+        Bridge.GrpcCapability("grpc_requests");
+    }
+    public bool StageGrpc(Grpc.Prepared request) => Access(false, () => {
+        GrpcRequest(request);
+        return Value.Boolean(Raw(Value.Obj(("grpc_stage", Value.Obj(("reference", Grpc.Hex(request.Reference)), ("metadata", Grpc.Hex(request.Metadata)), ("batch", Grpc.Hex(request.Batch))))))["staged"]);
+    });
+    public ulong CallGrpc(ProcessRef connector, Grpc.Prepared request) => Access(false, () => {
+        GrpcRequest(request);
+        return NativeValues.Wide(Raw(Value.Obj(("grpc_call", Value.Obj(("pid", Peer(connector)), ("reference", Grpc.Hex(request.Reference))))))["correlation"], true);
+    });
+    /// <summary>Request durable hold disposal; authenticate the correlated Grpc.Released reply.</summary>
+    public ulong ReleaseGrpc(ProcessRef connector, ResourceRef capture, ulong exchange) => Access(false, () => {
+        ArgumentNullException.ThrowIfNull(capture); Positive(exchange);
+        if (capture.Realm != ResourceRef.Realm) throw new ArgumentException("RPC capture must belong to this realm");
+        Bridge.GrpcCapability("grpc_release");
+        return NativeValues.Wide(Raw(Value.Obj(("grpc_release", Value.Obj(("pid", Peer(connector)), ("resource", capture.Resource), ("exchange", Decimal(exchange))))))["correlation"], true);
+    });
+    /// <summary>Submit an explicit linked attempt; the service decides current admission.</summary>
+    public ulong RetryGrpc(ProcessRef connector, Grpc.Outcome parent, Grpc.Prepared request) => Access(false, () => {
+        ArgumentNullException.ThrowIfNull(parent); GrpcRequest(request);
+        if (parent.Resource.Realm != ResourceRef.Realm) throw new ArgumentException("RPC parent must belong to this realm");
+        Bridge.GrpcCapability("grpc_followup");
+        return NativeValues.Wide(Raw(Value.Obj(("grpc_followup", Value.Obj(("pid", Peer(connector)), ("resource", parent.Resource.Resource),
+            ("parent", Decimal(parent.Exchange)), ("reference", Grpc.Hex(request.Reference))))))["correlation"], true);
+    });
     public Table<T> Table<T>(TableSchema<T> schema) => Access(true, () => Sdk.Table<T>.Open(this, schema, null));
     public Table<T> CreateTable<T>(TableSchema<T> schema)
     {

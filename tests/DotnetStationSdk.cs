@@ -266,6 +266,115 @@ static class Proof
             }
         }
     }
+    static async Task GrpcGolden(JsonObject cfg) {
+        var fixture=Read(Text(cfg,"grpc_fixtures")); byte[] encoded=Convert.FromHexString(Text(fixture,"outcome_ok_hex"));
+        var ok=(Grpc.Outcome)await Grpc.DecodeReplyAsync(72,encoded);
+        Check(ok.Phase==Grpc.Phase.Observed && ok.Status==0 && ok.Exchange==ulong.MaxValue && ok.Reference is not null);
+        var unknown=(Grpc.Outcome)await Grpc.DecodeReplyAsync(72,Convert.FromHexString(Text(fixture,"outcome_unknown_hex")));
+        Check(unknown.Phase==Grpc.Phase.ClosedUnknown && unknown.Status is null && unknown.Reference is null);
+        Check(await Grpc.DecodeReplyAsync(72,Convert.FromHexString(Text(fixture,"rejection_hex"))) is Grpc.Rejected {Reason: Grpc.Rejection.Denied});
+        Check(await Grpc.DecodeReplyAsync(72,Convert.FromHexString(Text(fixture,"released_hex"))) == new Grpc.Released(new ResourceRef(72,7),ulong.MaxValue));
+        Grpc.ReplyCodec<ulong> codec=new(Codecs.U64,72);
+        Check(codec.Decode(codec.Encode(new Grpc.Application<ulong>(ulong.MaxValue))) is Grpc.Application<ulong> {Value: ulong.MaxValue});
+        Check(codec.Decode(encoded) is Grpc.Received<ulong> {Value: Grpc.Outcome {Status: 0}});
+        Expect(ErrorKind.Codec,()=>codec.Encode(new Grpc.Received<ulong>(ok)));
+        try { await Grpc.DecodeReplyAsync(72,encoded[..72]); throw new Exception("Truncated RPC accepted"); } catch(TransitException) { }
+    }
+    sealed class GrpcBytes : ICodec<Bytes> {
+        public string TypeId => "test.grpc-control"; public uint Version => 1; public int MaxEncodedBytes => 243;
+        public byte[] Encode(Bytes value) => value.Copy(); public Bytes Decode(byte[] bytes) => new(bytes);
+    }
+    sealed class GrpcHandler(ProcessRef peer, Grpc.Prepared request, Grpc.Outcome? disposal, Grpc.Outcome? wrongParent) : IHandler<Grpc.Message<Bytes>> {
+        readonly Key<ulong> correlation = new("grpc-correlation", Codecs.U64);
+        readonly Key<ulong> releaseCorrelation = new("grpc-release-correlation", Codecs.U64);
+        readonly Key<ulong> followupCorrelation = new("grpc-followup-correlation", Codecs.U64);
+        public Turn? Escaped; public JsonObject? Result;
+        public void OnMessage(Turn turn, Incoming<Grpc.Message<Bytes>> input) {
+            Escaped = turn;
+            if (input is Cast<Grpc.Message<Bytes>>) {
+                if (input.Value is Grpc.Application<Bytes> proposed && proposed.Value.Copy().AsSpan().SequenceEqual("followup"u8)) {
+                    Expect(ErrorKind.Handler, () => turn.RetryGrpc(peer, wrongParent!, request));
+                    ulong id = turn.RetryGrpc(peer, disposal!, request);
+                    turn.State.Put(followupCorrelation, id); Result = new() { ["followup"] = false };
+                } else if (input.Value is Grpc.Application<Bytes> application && application.Value.Copy().AsSpan().SequenceEqual("dispose"u8)) {
+                    Expect(ErrorKind.Handler, () => turn.ReleaseGrpc(peer, new ResourceRef(73, disposal!.Resource.Resource), disposal.Exchange));
+                    ulong id = turn.ReleaseGrpc(peer, disposal!.Resource, disposal.Exchange);
+                    turn.State.Put(releaseCorrelation, id); Result = new() { ["released"] = false };
+                } else if (turn.State.Find(correlation) is not null) Result = new() { ["called"] = true };
+                else if (turn.StageGrpc(request)) { ulong id = turn.CallGrpc(peer, request); turn.State.Put(correlation, id); Result = new() { ["called"] = true }; }
+                else Result = new() { ["called"] = false };
+            } else {
+                var reply = (Reply<Grpc.Message<Bytes>>)input;
+                if (reply.Value is Grpc.Received<Bytes> { Value: Grpc.Rejected rejected }) {
+                    ulong id = turn.State.Require(followupCorrelation);
+                    turn.RequireReply(reply, peer, id); Check(rejected.Reason == Grpc.Rejection.Denied);
+                    turn.State.Put(new Key<ulong>("grpc-followup-denied", Codecs.U64), id); Result = new() { ["followup"] = true }; return;
+                }
+                if (reply.Value is Grpc.Received<Bytes> { Value: Grpc.Released released }) {
+                    turn.RequireReply(reply, peer, turn.State.Require(releaseCorrelation));
+                    Check(released.Resource == disposal!.Resource && released.Exchange == disposal.Exchange);
+                    turn.State.Put(new Key<ulong>("grpc-disposed", Codecs.U64), released.Exchange); Result = new() { ["released"] = true }; return;
+                }
+                turn.RequireReply(reply, peer, turn.State.Require(correlation));
+                Check(reply.Value is Grpc.Received<Bytes> { Value: Grpc.Outcome { Phase: Grpc.Phase.Observed, Status: 0 } });
+                turn.State.Put(new Key<ulong>("grpc-status", Codecs.U64), 0UL); Result = new() { ["observed"] = true };
+            }
+        }
+    }
+    static async Task GrpcProof(string mode, JsonObject cfg) {
+        byte[] body = Convert.FromHexString(Text(cfg, "body"));
+        var method = await Grpc.BindMethodAsync(Convert.FromHexString(Text(cfg,"descriptor")),"/test.Peer/Bidi");
+        Check(method.Shape == Grpc.Shape.Bidi);
+        Bytes message=new(body);
+        Grpc.Prepared request = await Grpc.PrepareAsync(new ResourceRef(72,Number(cfg,"resource")),ulong.MaxValue,
+            new(method,[new("x-tag",new Grpc.Literal(new Bytes("one"u8.ToArray()))),new("x-tag",new Grpc.Literal(new Bytes("two"u8.ToArray()))),
+                new("x-data-bin",new Grpc.Literal(new Bytes([0,255]))),new("authorization",new Grpc.SecretRef("api",7))]),
+            [message,new Bytes([])],new(7,Number(cfg,"deadline")));
+        byte[] original=request.Batch.Copy(); body[0]^=127; byte[] copy=request.Batch.Copy(); copy[0]^=1;
+        Check(original.AsSpan().SequenceEqual(request.Batch.Copy()) && request.Batch.Length==message.Length+16);
+        ServiceConfig config = new(new ClientConfig(new Uri(Text(cfg, "url")), Profile.GrowingV3),
+            new Activation(new ProcessRef(72, Number(cfg, "pid")), Number(cfg, "generation"), new Credential(72, Number(cfg, "principal"), Text(cfg, "seed_file"))));
+        Grpc.Outcome? disposal = cfg["outcome"] is null ? null : (Grpc.Outcome)await Grpc.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome")));
+        Grpc.Outcome? wrongParent = cfg["outcome"] is null ? null : (Grpc.Outcome)await Grpc.DecodeReplyAsync(73, Convert.FromHexString(Text(cfg, "outcome")));
+        GrpcHandler handler = new(new ProcessRef(72, Number(cfg, "peer")), request, disposal, wrongParent);
+        await using var runner = await Runner<Grpc.Message<Bytes>>.OpenAsync(config, handler, new Grpc.ReplyCodec<Bytes>(new GrpcBytes(), 72), FailurePolicy.Stop, new Recovery.FreshOwnership());
+        if (mode == "grpc-async") {
+            var active = await runner.OpenGrpcAsync((Grpc.Outcome)await Grpc.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome"))));
+            Grpc.Part first = (await active.ReadAsync())!; Check(first.Data.Length > 0 && !first.Complete);
+            File.WriteAllText(Text(cfg, "ready"), ""); await Task.Run(() => WaitFile(Text(cfg, "continue")));
+            using var cancellation = new CancellationTokenSource(); Task<Grpc.Part?> pending = active.ReadAsync(cancellation.Token);
+            await Task.Run(() => WaitFile(Text(cfg, "accepted"))); Expect(ErrorKind.Busy, () => active.ReadAsync().GetAwaiter().GetResult());
+            cancellation.Cancel(); bool cancelled = false; try { await pending; } catch (OperationCanceledException) { cancelled = true; } Check(cancelled);
+            runner.Stop(); Task<RunnerShutdown> closing = runner.CloseAsync(); int beats = 0;
+            while (!closing.IsCompleted) { beats++; await Task.Delay(10); } await closing; Check(beats > 5 && first.Data.Length > 0);
+            Expect(ErrorKind.Closed, () => active.ReadAsync().GetAwaiter().GetResult()); Report(new() { ["joined"] = true }); return;
+        }
+        Grpc.Reader? reader = null; Grpc.Outcome? outcome = null; using MemoryStream owned = new();
+        for (string? line; (line = Console.ReadLine()) is not null;) {
+            switch (line) {
+                case "step":
+                    bool committed = false; for (int n = 0; n < 32; n++) if (await runner.NextAsync() is Committed) { committed = true; break; }
+                    Check(committed); Expect(ErrorKind.TurnExpired, () => handler.Escaped!.StageGrpc(request));
+                    Expect(ErrorKind.TurnExpired, () => handler.Escaped!.ReleaseGrpc(new ProcessRef(72, Number(cfg, "peer")), request.Resource, 1));
+                    Expect(ErrorKind.TurnExpired, () => handler.Escaped!.RetryGrpc(new ProcessRef(72, Number(cfg, "peer")), disposal!, request)); Report(handler.Result!); break;
+                case "open":
+                    outcome = (Grpc.Outcome)await Grpc.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome"))); reader = await runner.OpenGrpcAsync(outcome);
+                    Expect(ErrorKind.Busy, () => runner.OpenGrpcAsync(outcome).GetAwaiter().GetResult());
+                    var first = (await reader.ReadAsync())!; Check(first.Data.Length > 0 && !first.Complete); Report(new() { ["prefix"] = true }); break;
+                case "denied": Expect(ErrorKind.AccessDenied, () => reader!.ReadAsync().GetAwaiter().GetResult()); Report(new() { ["denied"] = true }); break;
+                case "reopen":
+                    try { await reader!.ReadAsync(); throw new Exception("Failed RPC reader resumed"); }
+                    catch (TransitException error) { Check(error.Kind == ErrorKind.ReadFailed && error.Code == "GrpcReplayFailed"); }
+                    await reader!.CloseAsync(); await reader.CloseAsync(); reader = await runner.OpenGrpcAsync(outcome!);
+                    while (await reader.ReadAsync() is { } part) if (part.Kind == Grpc.PartKind.ResponseBody) owned.Write(part.Data.Copy());
+                    Check(reader.Complete); await reader.CloseAsync(); Report(new() { ["complete"] = true, ["body"] = Convert.ToHexString(owned.ToArray()).ToLowerInvariant() }); break;
+                case "close":
+                    await runner.CloseAsync(); if (reader is not null) Expect(ErrorKind.Closed, () => reader.ReadAsync().GetAwaiter().GetResult());
+                    Report(new() { ["closed"] = true, ["owned"] = Convert.ToHexString(owned.ToArray()).ToLowerInvariant() }); return;
+                default: throw new Exception("Unknown RPC command");
+            }
+        }
+    }
     static async Task Execute<T>(string mode, JsonObject cfg, IHandler<T> handler, ICodec<T> codec) where T : notnull {
         ulong realm = Number(cfg, "realm");
         var config = new ServiceConfig(new ClientConfig(new Uri(Text(cfg, "url")), Profile.GrowingV3),
@@ -317,6 +426,8 @@ static class Proof
     public static async Task Main(string[] args) {
         string mode = args[0], path = args[1]; var cfg = Read(path);
         Check(typeof(Runner<>).Assembly.Location.StartsWith(Path.GetDirectoryName(path)!, StringComparison.Ordinal)); Check(Text(cfg, "profile") == "growing_v3");
+        if (mode=="grpc-golden") { await GrpcGolden(cfg); return; }
+        if (mode.StartsWith("grpc-", StringComparison.Ordinal)) { await GrpcProof(mode, cfg); return; }
         if (mode.StartsWith("http-", StringComparison.Ordinal)) { await HttpProof(mode, cfg); return; }
         if (mode == "codecs") { await CodecsProof(cfg); return; }
         if (mode == "recover") { await using var client = await SdkClient.OpenAsync(new ClientConfig(new Uri(Text(cfg, "url")), Profile.GrowingV3));

@@ -77,6 +77,24 @@ internal sealed class Bridge : IWorkerState<object?>
         uint status = Api.station_growing_http_read(server, bytes, (nuint)bytes.Length, out var buffer);
         return Result(status, buffer, "http-replay", schema: "HttpReadResult");
     }
+    internal void GrpcCapability(string name)
+    {
+        if (!Value.Boolean(Caps[name])) throw new TransitException(ErrorKind.UnsupportedCapability, name);
+    }
+    internal JsonObject GrpcCodec(JsonObject action)
+    {
+        GrpcCapability("grpc_requests"); byte[] bytes = Value.Json(action);
+        if (bytes.Length > Value.MaxBody) throw new ArgumentException("RPC action exceeds its bound");
+        uint status = Api.station_grpc_codec(bytes, (nuint)bytes.Length, out var buffer);
+        return Result(status, buffer, "grpc-codec", schema: "GrpcCodecResult");
+    }
+    internal JsonObject GrpcRead(JsonObject action)
+    {
+        GrpcCapability("grpc_replay"); byte[] bytes = Value.Json(action);
+        if (bytes.Length > 2048) throw new ArgumentException("RPC replay action exceeds its bound");
+        uint status = Api.station_growing_grpc_read(server, bytes, (nuint)bytes.Length, out var buffer);
+        return Result(status, buffer, "grpc-replay", schema: "GrpcReadResult");
+    }
     internal byte[] Buffer(uint status, IntPtr pointer, string phase)
     {
         byte[] bytes;

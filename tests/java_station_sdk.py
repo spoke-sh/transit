@@ -1,4 +1,5 @@
 """Install Java SDK/example JARs and run the shared Station authority schedule."""
+import json
 import os
 from pathlib import Path
 import shutil
@@ -65,6 +66,11 @@ public final class StationArtifactCheck {
         fake.write_text(f'#!{sys.executable}\nimport sys\nsys.stdin.readline()\nprint(\'{{"status":0,"value":{{"host_version":1,"station_version":99,"transit_version":1}}}}\')\n')
         fake.chmod(0o700)
         classpath = os.pathsep.join((str(classes), str(lib / '*')))
+        grpc_fixtures = target / 'grpc-fixtures.json'
+        shutil.copy2(root / 'packages/zig/transit-station-grpc/src/fixtures/service.json', grpc_fixtures)
+        golden = target / 'grpc-golden.json'
+        golden.write_text(json.dumps({'profile': 'growing_v3', 'grpc_fixtures': str(grpc_fixtures)}))
+        subprocess.run(['java', '-cp', classpath, 'JavaStationSdk', 'grpc-golden', str(golden)], env=environment, cwd=target, check=True, timeout=30)
         return Consumer(environment, lambda mode, config: ['java', '-cp', classpath, 'JavaStationSdk', mode, str(config)],
             lambda config, role: ['java', '-cp', str(lib / '*'), 'io.transit.examples.CounterMain', str(config), role, '--commits', '1'],
             'thread-handler', extra_failures=('error-stop', 'error-block'), arrow_adapter=False)
