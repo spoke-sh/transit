@@ -21,6 +21,15 @@ Arrow encoding uses a **4 MiB fixed workspace / 64 KiB output limit**; allocatio
 or output exhaustion fails without a result. This remains pure engine evidence;
 it does not establish durable capture or current source authorization.
 
+The `transit-query` adapter component tests also pass canonical `UQS2` source
+fixtures and explicit KV decoder checks. A 38-record prefix crosses multiple
+pages with a typed malformed-value error; a 19-row Table retains its old cut
+across a replacement. Document pages preserve missing/null/type-error/conflict,
+read nested full-width values and Unicode text, expand twelve ordered list
+items with stable identities, and reject text-budget exhaustion. Retained bytes
+cannot bypass current read denial, a newer merge-window floor or retirement.
+This in-memory evidence does not qualify durable query capture/result access.
+
 ## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test

@@ -3,10 +3,15 @@ pub const station = @import("transit_station");
 pub const protocol = station.protocol;
 pub const fuze = station.fuze;
 pub const wire = station.client;
+pub const document = @import("transit_station_document");
+pub const UnifiedSource = @import("UnifiedSource.zig");
+pub const Decoder = @import("Decoder.zig");
+pub const SourceDefinition = @import("SourceDefinition.zig");
 pub const Model = @import("Model.zig");
 pub const Request = @import("Request.zig");
 pub const Behavior = @import("Behavior.zig");
 pub const Client = @import("Client.zig");
 test {
+    _ = @import("source_test.zig");
     @import("std").testing.refAllDecls(@This());
 }

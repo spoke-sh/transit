@@ -22,8 +22,13 @@ There is no KV schema inference or application callback. A decoder mismatch is a
 `type_error` cell. A missing Document path, explicit null and unresolved register
 conflict are separate states. Paths have at most eight components. List expansion
 is incremental, including empty pages caused by deleted anchors; it does not
-collect the whole list. A text projection has an explicit byte and traversal
-budget and fails on overflow rather than returning a truncated string.
+collect the whole list. Each list page performs at most 32 traversal transitions and returns at most
+eight elements. Relative projections read the element itself or map paths under
+it; explicit counter/replica projections expose stable element identity. Expanding
+a missing, null, conflicting or non-list path is a distinct error, not an empty
+list. A text projection has an explicit byte and traversal
+budget and fails on overflow rather than returning a truncated string. All text
+projections share a 4096-transition page budget.
 
 Every batch binds source kind, resource ID, exact resource revision, source
 contract digest and input schema digest. The contract digest covers the complete
