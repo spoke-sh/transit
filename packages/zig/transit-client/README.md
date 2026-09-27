@@ -66,6 +66,10 @@ diagnostics to preserve the bounded bootstrap log. After the first activation,
 the host never adopts a newer generation. Counter and Station workers share this
 path; imports and ordinary client construction never start it.
 
+The separate [growing ownership bootstrap](docs/growing-bootstrap.md) supports
+finite operator placement with a fixed expected generation and ephemeral key.
+It does not advertise growing provider bindings or change the v2 activation path.
+
 ## Instrumentation
 
 An embedding service can set `Client.observer` to its borrowed telemetry runtime

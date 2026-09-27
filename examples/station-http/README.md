@@ -27,6 +27,14 @@ inputs to resume publication. Repeating publication returns the saved call.
 `replay` performs bounded current-authorized reads and reports body length/digest.
 It does not print application bodies or infer business success from HTTP status.
 
+`--bootstrap-json JSON` generates an in-memory key and emits a single
+`growing_bootstrap` registration, then waits for the configured exact generation.
+The operator must authenticate its physical source before issuing grants/ownership.
+This mode forbids seed files and can use a bounded inline hex `body` instead of
+`body_file`; exactly one body source is required. `just examples::http-bootstrap`
+qualifies fresh keys, reissued resource grants, durable call reuse and recovery
+in the local task. See the [bootstrap contract](../../packages/zig/transit-client/docs/growing-bootstrap.md).
+
 The example inherits the shared HTTP profile's 64 KiB request and 8 KiB metadata
 bounds, 256-byte publication chunks and four-mutation turns. The loop bounds cover
 one finite upload, not the cardinality of durable resources. Unlimited retention

@@ -11,13 +11,15 @@ const Config = struct {
     principal: u64,
     pid: u64,
     generation: u64,
-    seed_file: []const u8,
+    seed_file: ?[]const u8 = null,
     worker: u64,
     namespace: u64 = 1,
     endpoint_revision: u64 = 1,
     reconcile_before_ms: u64,
     request: http.Request,
-    body_file: []const u8,
+    body_file: ?[]const u8 = null,
+    body: ?p.Value = null,
+    bootstrap_timeout_ms: u32 = 120000,
     mode: enum { publish, receive, replay },
 };
 const call_key = p.Value.init("http-call") catch unreachable;
@@ -87,15 +89,26 @@ const Driver = struct {
 };
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 2) return error.ExpectedConfiguration;
+    const bootstrap = args.len == 3 and std.mem.eql(u8, args[1], "--bootstrap-json");
+    if (args.len != 2 and !bootstrap) return error.ExpectedConfiguration;
     const gpa = init.arena.allocator();
-    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], gpa, .limited(65536));
+    const bytes = if (bootstrap) args[2] else try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], gpa, .limited(65536));
+    if (bytes.len > 65536) return error.ConfigurationTooLarge;
     const config = (try std.json.parseFromSlice(Config, gpa, bytes, .{})).value;
     if (config.principal == 0 or config.pid == 0 or config.worker == 0 or config.generation == 0) return error.InvalidConfiguration;
-    const body = try std.Io.Dir.cwd().readFileAlloc(init.io, config.body_file, gpa, .limited(http.RequestRecord.maximum_body_bytes));
-    const key = try s.client.readKey(gpa, init.io, config.seed_file);
+    if ((config.body_file == null) == (config.body == null)) return error.ExpectedOneBodySource;
+    const body = if (config.body) |*value| value.slice() else try std.Io.Dir.cwd().readFileAlloc(init.io, config.body_file.?, gpa, .limited(http.RequestRecord.maximum_body_bytes));
+    var key = if (bootstrap) key: {
+        if (config.seed_file != null) return error.BootstrapSeedForbidden;
+        var seed: [32]u8 = undefined;
+        defer std.crypto.secureZero(u8, &seed);
+        try init.io.randomSecure(&seed);
+        break :key try p.Ed25519.KeyPair.generateDeterministic(seed);
+    } else try s.client.readKey(gpa, init.io, config.seed_file orelse return error.MissingSeedFile);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     var wire = s.client.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
+    if (bootstrap) try s.client.bootstrap.awaitGrowingOwnership(&wire, .{ .realm = config.realm, .pid = config.pid, .principal = config.principal, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, config.bootstrap_timeout_ms);
     var server = try s.GrowingGenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
     server.failure_policy = .stop;
     const resource = (try server.session.association(try p.Value.init("state"))) orelse return error.MissingStateAssociation;

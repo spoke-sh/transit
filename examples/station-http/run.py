@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import selectors
 import shutil
 import socket
 import ssl
@@ -25,7 +26,7 @@ def port():
         return listener.getsockname()[1]
 
 
-def run(profile="local"):
+def run(profile="local", bootstrap=False):
     started = time.monotonic()
     binaries = {name: ROOT / "zig-out/bin" / name for name in
                 ("rey-cli", "transit-node", "example-station-http", "transit-station-http-worker")}
@@ -235,6 +236,28 @@ backend = "inline"
             def activate(role, config, mode):
                 record = records[role]
                 record["generation"] = query({"process": record["pid"]})["body"]["process"]["process"]["generation"]
+                if bootstrap and role == "caller":
+                    configured = config | {"generation": record["generation"] + 1, "mode": mode, "body": body.read_bytes().hex()}
+                    configured.pop("seed_file")
+                    configured.pop("body_file")
+                    child = subprocess.Popen([binaries["example-station-http"], "--bootstrap-json", json.dumps(configured)],
+                                             env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    children.append(child)
+                    with selectors.DefaultSelector() as selector:
+                        selector.register(child.stdout, selectors.EVENT_READ)
+                        assert selector.select(timeout=15), "Missing growing public registration"
+                    registration = json.loads(child.stdout.readline())["growing_bootstrap"]
+                    assert registration == {"version": 1, "realm": realm, "pid": record["pid"], "principal": 1,
+                                            "generation": configured["generation"], "public_key": registration["public_key"]}
+                    assert len(registration["public_key"]) == 32 and registration["public_key"] != public["caller"]
+                    public["caller"] = registration["public_key"]
+                    command({"grant": {"subject": 1, "public_key": public["caller"], "permissions": 4 | 8 | 16 | 64, "pid": record["pid"]}})
+                    for resource, permissions in ((caller["resource"], 7), (connector["resource"], 3)):
+                        command({"grant_resource": {"resource": resource, "subject": 1, "permissions": permissions}})
+                    command({"own": {"pid": record["pid"], "expected_generation": record["generation"], "worker": 1}})
+                    stdout, stderr = child.communicate(timeout=120)
+                    if child.returncode: raise RuntimeError(stderr[-4000:])
+                    return json.loads(stdout)
                 command({"own": {"pid": record["pid"], "expected_generation": record["generation"], "worker": principals[role]}})
                 record["generation"] += 1
                 config.update(generation=record["generation"], mode=mode)
@@ -289,7 +312,7 @@ backend = "inline"
             replay = activate("caller", caller_config, "replay")
             assert replay["body_bytes"] == len(payload) and replay["sha256"] == hashlib.sha256(payload).hexdigest()
             assert requests == ["/example"], requests
-            print(json.dumps({"example": "station-http", "profile": profile, "phase": "passed", "sends": len(requests),
+            print(json.dumps({"example": "station-http", "profile": profile, "bootstrap": bootstrap, "phase": "passed", "sends": len(requests),
                               "status": outcome["status"], "body_bytes": replay["body_bytes"],
                               "seconds": round(time.monotonic() - started, 2)}))
         except BaseException:
@@ -313,4 +336,7 @@ backend = "inline"
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("local", "compose"), default="local")
-    run(parser.parse_args().profile)
+    parser.add_argument("--bootstrap", action="store_true", help="Qualify fresh in-memory caller keys and explicit operator ownership")
+    args = parser.parse_args()
+    if args.bootstrap and args.profile != "local": parser.error("Bootstrap qualification currently requires the local profile")
+    run(args.profile, args.bootstrap)

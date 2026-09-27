@@ -106,6 +106,7 @@
       "test::growing-quota",
       "test::growing-query",
       "test::growing-load",
+      "examples::http-bootstrap",
       "test::sql-grammar"
     ]
   },

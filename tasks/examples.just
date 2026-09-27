@@ -24,3 +24,8 @@ http:
 http-compose:
     zig build rey-cli
     python3 -B examples/station-http/run.py --profile compose
+
+# Fresh public caller registration and generation-pinned operator activation.
+http-bootstrap:
+    zig build transit-node rey-cli example-station-http transit-station-http-worker
+    python3 -B examples/station-http/run.py --bootstrap

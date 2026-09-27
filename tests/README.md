@@ -25,6 +25,14 @@ TCP access to the peer, Ursula and an external address fails. Node/store recover
 and replay run in the real containers. This is local Linux/Docker evidence, not
 Substrate qualification.
 
+`just examples::http-bootstrap` passes locally in **28.04 seconds**, replacing
+the caller's key in memory for every invocation. The operator validates the public
+registration, rotates only that PID's grants and records the exact expected
+generation. Reissued resource grants preserve the saved call and replay after
+restart. Pure client tests reject successor-generation adoption, wrong ownership,
+blocked or retired processes. This prepares finite reference placement; it does
+not prove provider attribution by itself.
+
 The worker's bounded diagnostic integration passes the complete disk/S3 schedule
 in **445.26 seconds** excluding compilation, with the same fifteen sends, seven
 applications and two cancellation requests. Structured stderr excludes credentials,
