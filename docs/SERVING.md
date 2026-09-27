@@ -2,8 +2,9 @@
 
 Status: proposed system design for [M19](roadmap/M19.md), not an implemented
 server framework. HTTP is the first protocol profile, exercised by application
-APIs and Board. [M20](roadmap/M20.md) adds reactive views over it;
-[Flight/Flight SQL M21](roadmap/M21.md) is the second protocol profile.
+APIs and Board. [M20](roadmap/M20.md) adds [reactive APIs](REACTIVE_API.md),
+[M21](roadmap/M21.md) consumes them in live views, and
+[Flight/Flight SQL M22](roadmap/M22.md) qualifies an Arrow protocol adapter.
 The existing node and Board HTTP listeners remain qualified only under their
 [current contracts](../contracts/SERVICE_V2.md) and component limits.
 The [D1 serving review](design/serving/D1.md) records the selected scope and
@@ -36,7 +37,7 @@ an HTTP request never grants permission to dial an external service.
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff'}}}%%
 flowchart LR
     Client[Browser or application client] --> HTTP[HTTP adapter]
-    Arrow[Arrow or ADBC client] -.-> Flight[Flight adapter - M21]
+    Arrow[Arrow or ADBC client] -.-> Flight[Flight adapter - M22]
     HTTP --> Serving[Serving: identity, routing, admission, delivery]
     Flight -.-> Serving
     Serving --> Public[Public Transit and Station operations]
@@ -71,7 +72,8 @@ Extract only demonstrated shared code. The proposed ownership is a neutral
 Transit/Station admission and delivery. Board's projections stay in
 `transit-board-api`; application codecs stay with the application; Fuze stays
 in `transit-fuze`. Names are package proposals, not directories to add now.
-M21 should test the common contract with Flight before generalizing adapter APIs.
+M20 tests reuse through SSE/WebSocket bindings; M22 adds Flight-specific evidence.
+Generalize adapter APIs only where these concrete consumers demonstrate reuse.
 Migrating the authority node's listener is not an M19 prerequisite.
 
 ## What is published
@@ -229,8 +231,10 @@ Detailed route-editing screens and administrative DDL remain separate review wor
 M19 exits only when application HTTP and Board exercise the same serving contract
 with independent clients, restart/lost-response tests, auth/overload checks and
 local/Compose/reference deployment evidence. [M20](roadmap/M20.md) then supplies
-[reactive interfaces](REACTIVE.md). [M21](roadmap/M21.md) reuses the admission,
+[reactive API contracts](REACTIVE_API.md), SSE/WebSocket hosting and generated
+OpenAPI/AsyncAPI descriptions. [M21](roadmap/M21.md) consumes them in
+[reactive interfaces](REACTIVE.md). [M22](roadmap/M22.md) reuses the admission,
 identity, budget and result seams for Flight while qualifying its own inbound
 gRPC/TLS, standard metadata and client compatibility. ADBC remains a client API,
-not a third wire protocol. None of these steps moves Fuze or application handlers
+not a wire protocol. None of these steps moves Fuze or application handlers
 into the authority node.

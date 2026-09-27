@@ -9,7 +9,7 @@ KV, Table and Document sources; Document storage, collaborative editing and CRDT
 qualification belong to [M17](roadmap/M17.md); KV/Document query adapters and
 wider schema/request contracts belong to [M18](roadmap/M18.md). [M12](roadmap/M12.md) adds the
 implemented [Table SQL compiler](../packages/zig/transit-fuze/docs/sql.md);
-[M21](roadmap/M21.md) adds remote Flight SQL ingress. Those bounded profiles
+[M22](roadmap/M22.md) adds remote Flight SQL ingress. Those bounded profiles
 do not imply the whole target design.
 [QUERY_LANGUAGE.md](QUERY_LANGUAGE.md) elaborates the "structured query API /
 Table SQL frontend" line below into relational DDL/DML and a dataframe surface,
@@ -184,17 +184,18 @@ causal/deletion evidence required by their merge and replica-resynchronization
 contracts. These capabilities need their own storage, retention and recovery
 proofs; a batch engine or RPC stream alone cannot provide them.
 
-[M20 reactive interfaces](roadmap/M20.md) deliberately starts with notifications
+[M21 reactive interfaces](roadmap/M21.md) deliberately starts with notifications
 and fresh finite snapshots through the existing query APIs. It supplies none of
 the incremental operator semantics above. [Serving](SERVING.md) owns inbound
-admission/delivery; [reactive interfaces](REACTIVE.md) owns watch/resnapshot
-coordination. Neither introduces another query engine or executes inside core.
+admission/delivery; [reactive APIs](REACTIVE_API.md) owns source/watch and
+transport contracts; [reactive interfaces](REACTIVE.md) owns refresh scheduling
+and presentation. None introduces another query engine or executes inside core.
 
 M9 fixes the source/plan/operator contract and proves the bounded Table path.
 [M14](roadmap/M14.md) provides immutable publication and [M17](roadmap/M17.md)
 adds structured/text Documents with CRDT/storage/retention qualification.
 [M18](roadmap/M18.md) adds KV/Document query adapters, nested Arrow types and
 versioned schema/request contracts. Publication alone does not supply those
-semantics or widen the existing 256-byte KV/four-mutation boundary. [M21](roadmap/M21.md) remains the first
+semantics or widen the existing 256-byte KV/four-mutation boundary. [M22](roadmap/M22.md) remains the first
 bounded remote Flight SQL frontend over qualified Table sources; broadening
 its source matrix requires explicit source and interoperability qualification.

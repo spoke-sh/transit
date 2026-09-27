@@ -227,11 +227,14 @@ publication, proxy headers and a running listener grant no authority. Forwarding
 must preserve the actual Transit origin and bind any original-caller attribution
 to verifiable admitted evidence. Server TLS needs its own qualification.
 
-[M20 reactive interfaces](REACTIVE.md) additionally requires current read checks
-for notifications, idle watches and resumption, bounded disclosure intervals,
-scope-bound cursors and clearing protected state on denial. Neither a resume
-token nor an accepted query grants unlimited future disclosure. Individual Board
-sign-in, federation and general delegation remain separate scope.
+[M20 reactive APIs](REACTIVE_API.md) requires current checks for commands,
+notifications, idle watches and resumption, bounded disclosure intervals and
+scope-bound cursors. Qualify browser Origin/admission and any scoped bootstrap
+credential for WebSocket; an upgrade cannot grant every subsequent operation.
+Keep reusable bearer credentials out of URLs, subprotocol names and descriptions.
+[M21 reactive interfaces](REACTIVE.md) clears protected views on denial. Neither
+a resume token nor an accepted query grants unlimited future disclosure. Individual
+Board sign-in, federation and general delegation remain separate scope.
 
 M13's [public Table query profile](../contracts/PUBLIC_QUERY_V1.md) uses a
 separate configured query identity, durable requester binding and source peer

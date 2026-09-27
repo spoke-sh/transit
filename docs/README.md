@@ -23,8 +23,9 @@ are experimental; their bounded implementation does not imply support for every 
 | [Fuze](FUZE.md) | Planned Zig query engine across KV/Table/Document, source adapters, planning and bounded execution |
 | [Query language](QUERY_LANGUAGE.md) | Relational and dataframe surfaces over Fuze's one plan; DDL/DML mapping and the connector/transport namespace idea |
 | [Arrow](ARROW.md) | IPC/C interfaces, Flight/Flight SQL and ADBC integration with Fuze |
-| [Serving](SERVING.md) | Proposed inbound service/route, identity, admission and response contracts; HTTP for applications and Board, then Flight |
-| [Reactive interfaces](REACTIVE.md) | Proposed snapshot/watch handoff, resumable notifications and bounded live-view refresh |
+| [Serving](SERVING.md) | Proposed inbound service/route, identity, admission and response contracts; HTTP for applications and Board |
+| [Reactive APIs](REACTIVE_API.md) | Proposed SSE/WebSocket hosting, shared sessions/subscriptions, resumable events and generated OpenAPI/AsyncAPI contracts |
+| [Reactive interfaces](REACTIVE.md) | Proposed live views, exact snapshot refresh and visible freshness over reactive APIs |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
 | [Board](BOARD.md) | Inspection UI/API, growing atlas, optional Table workspace and observation semantics |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |

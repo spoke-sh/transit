@@ -8,7 +8,7 @@ and links to supporting material. This index lists design items.
 | --- | --- |
 | [board-atlas](board-atlas/README.md) | Board browser, relief atlas and resource workspace |
 | [board-console](board-console/README.md) | Declarative Board interface, monochrome structure, Workspace objects and exploration, operator authentication/secrets/trust and SQL mapping |
-| [serving](serving/README.md) | Inbound service contracts, HTTP application/Board APIs, reactive snapshot refresh and the Flight handoff |
+| [serving](serving/README.md) | Inbound service contracts, HTTP application/Board APIs, SSE/WebSocket API contracts, reactive views and the Flight handoff |
 
 ## Maintaining the sequence
 

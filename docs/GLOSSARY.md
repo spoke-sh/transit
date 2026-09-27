@@ -117,7 +117,7 @@ have different responsibilities.
 ## Arrow execution and interchange
 
 These are planned interfaces above the kernel. [Fuze](FUZE.md) owns query
-execution; [Arrow](ARROW.md) owns interchange and the M21 remote query profile;
+execution; [Arrow](ARROW.md) owns interchange and the M22 remote query profile;
 [Query language](QUERY_LANGUAGE.md) owns the relational/dataframe surface design.
 
 | Term | Meaning |
@@ -227,8 +227,10 @@ checkpoint authority, and reclamation guarantees.
 | Serving layer | Proposed inbound boundary over public Transit/Station operations: published services, authenticated context, admission, bounded response delivery and recovery. HTTP first in M19; distinct from outbound connectors. |
 | Service binding | Proposed versioned, realm-scoped publication of explicit operations, targets, codecs, policies and budgets through a serving protocol. Naming or publication grants no access. |
 | HTTP route | A method/path-template binding to a published operation and codec revision; transport presentation rather than a new application authority. |
+| Reactive API | Proposed M20 published interaction contract with SSE/WebSocket bindings, shared typed commands/events, session/subscription lifecycle and generated API descriptions. |
+| API session | Scoped logical reactive interaction with a generation and finite live-work lease; distinct from its disposable connection, subscriptions and accepted operation identities. |
 | Watch | Proposed M20 subscription to authorized source/projection change progress, with identity, generation, lease, budgets and resume semantics; not a durable mailbox or continuous query. |
-| Follow changes | Proposed live-view mode that uses notifications to request new exact snapshots. Coalesced invalidations do not claim every intermediate state or incremental query maintenance. |
+| Follow changes | Proposed M21 live-view mode that uses notifications to request new exact snapshots. Coalesced invalidations do not claim every intermediate state or incremental query maintenance. |
 | Integration | A provider-specific library built on one connector, adding that provider's schema/pagination/auth-flow knowledge without owning a new durability contract; it reuses the connector's attempt/reconciliation machinery rather than inventing its own. |
 | Fetch worker | A connector executor authorized to issue HTTP requests and record response data and attempt metadata. |
 | gRPC connector worker | Trusted executor of committed, authorized RPC sends with durable captures, finite streaming budgets and bounded reconciliation. |
@@ -254,8 +256,9 @@ its distinction from transport flow control.
 
 ## Inspection and interpretation
 
-See [Serving](SERVING.md) and [Reactive interfaces](REACTIVE.md) for the proposed
-inbound service and live-view contracts, separate from connector attempts.
+See [Serving](SERVING.md), [Reactive APIs](REACTIVE_API.md) and
+[Reactive interfaces](REACTIVE.md) for the proposed inbound service, API and
+live-view contracts, separate from connector attempts.
 
 | Term | Meaning |
 | --- | --- |

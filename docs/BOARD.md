@@ -178,7 +178,7 @@ The item records selected visual direction and still-proposed behavior.
 Attributable administration, versioned configuration changes, future protocol
 families and richer data workspaces are
 not implemented by this review. M2 inspection and M13's separately credentialed
-Table query profile retain their current access boundaries. Existing M15–M21
+Table query profile retain their current access boundaries. Existing M15–M22
 handoffs and the new implementation scope required before enabling controls are
 identified in D1; review acceptance does not complete or expand those milestones.
 
@@ -268,7 +268,8 @@ identity remain unchanged.
 The next implementation sequence puts [shared HTTP serving](roadmap/M19.md)
 under both Board and an application API. Board retains its private shared access,
 inspection identity and separate explicit query identity. [M20](roadmap/M20.md)
-then adds [reactive views](REACTIVE.md) through resumable source notifications
+qualifies the [reactive API](REACTIVE_API.md) with independent clients before
+[M21](roadmap/M21.md) adds [reactive views](REACTIVE.md) through source notifications
 and exact snapshot refresh. This selects the Follow changes foundation; D4's
 continuous Stream results and predictive execution while editing remain proposed.
 It does not implement D6's operator controls or individual sign-in implicitly.
