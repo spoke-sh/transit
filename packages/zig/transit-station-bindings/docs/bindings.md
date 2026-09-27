@@ -271,3 +271,38 @@ Generated declarations remain separate from language-native SDKs. Their JSON
 schemas derive from these Zig types, with an explicit finite slice bound for host
 request arrays. Per-field HTTP validation enforces the stricter header and piece
 limits. Existing kernel wire arrays and protocol limits are unchanged.
+
+## Finite RPC calls
+
+M16 adds `station_grpc_codec` (port `grpc_codec`). Its `descriptor` action accepts
+local descriptor-set bytes and a method path and returns the shared Zig method
+shape, descriptor digest and input/output type names. `prepare` accepts that
+method identity, ordered literal-byte/secret-reference metadata and a finite array
+of original protobuf messages. It returns GRQ1 plus owned canonical metadata and
+GRB1 batch bytes. No application protobuf decoder, reflection, endpoint or secret
+resolver is involved. Secret versions, namespaces and endpoint revisions use
+canonical full-width decimal strings; authority resource IDs and deadlines use
+safe JSON integers. Every input still passes the shared RPC domain validation.
+
+Scoped `grpc_stage`, `grpc_call`, `grpc_followup` and `grpc_release` mirror the
+publication and authenticated call boundary above. `grpc_followup` is exclusively
+an explicit retry request and has no implicit retry policy or dispatch. It takes
+`pid`, capture `resource`, full-width `parent` and a published GRQ1 reference.
+Metadata and finite batch publication must precede admission. A growing turn
+cannot perform another publication read after staging a call mutation; schedule
+additional calls in later turns. Outcome decoding distinguishes observed status
+zero (`OK`) from unknown outcome with no status or complete replay reference.
+
+`station_growing_grpc_read` (port `growing_grpc_read`) owns at most one RPC reader
+per native handle, independently of its HTTP reader. Both use the same locking,
+opaque reader identity, current-policy reads and copy-out rollback implementation.
+RPC keeps its bounded directional validator (65,544-byte batch and 8 KiB metadata)
+inside the native handle; no history-sized buffer crosses the ABI. Each result
+owns one 256-byte part. Completion requires verified directional coverage and the
+terminal record. Closing this reader only releases local memory. Durable release
+requires an explicit correlated service call, as for HTTP.
+
+The generated schemas and pure native/port fixtures cover binary/Unicode messages,
+empty messages, duplicate/binary metadata, full-width identities and malformed
+records. Allocation-failure units exercise both protocol readers. Public language
+conveniences and installed RPC caller qualification are tracked separately in M16.

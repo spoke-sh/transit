@@ -33,6 +33,14 @@ peer records nine sends and eight applications; the 8 MiB hot profile retains
 697 cold objects / 63,978,080 bytes. This controller-driven proof does not qualify
 public caller SDKs, deployment placement or every final-publication crash boundary.
 
+`just bindings::native` also passes the RPC native/port fixture and growing
+scoped upload/call/retry/disposal schedules, including host replacement mid-upload,
+changed-reference refusal and unchanged mutation budgets after failure. Both
+protocol readers use shared local ownership/copy-out logic, with allocation-failure
+rollback units. The independent fixtures preserve empty/binary/Unicode messages,
+duplicate metadata, full-width identities and observed `OK` versus unknown. This
+qualifies the native bridge; installed public RPC SDK schedules remain open.
+
 `just test::grpc-libraries` runs the selected pinned HTTP/2, HPACK, protobuf and
 gRPC client suites. Compatibility changes and the intentionally excluded server
 surface are recorded with source hashes in the [snapshot](../third_party/zig-libs/README.md).

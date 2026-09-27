@@ -472,6 +472,69 @@ def run(node, cli, library, raw_library, host):
             scope = ready(server)['scope']
             assert rejects(1, server.apply, scope, stage)['err'] == 'PublicationNotPublished'
             finish(server, scope)
+            # RPC stages an exact original-message batch through the same turn
+            # gate; host loss cannot change the immutable upload or call bytes.
+            assert caps['grpc_requests'] and caps['grpc_descriptors'] and caps['grpc_replay']
+            document = _json({'prepare': {'resource': resource, 'namespace': str(2**64-3),
+                'request': {'method': {'path': '/test.Peer/Bidi', 'shape': 'bidi',
+                    'descriptor_digest': 'ab'*32}}, 'messages': ['', source.hex()],
+                'endpoint_revision': '7', 'reconcile_before_ms': now + 120000}})
+            prepared = server.api.call('station_grpc_codec', document, len(document))['prepared']
+            stage = {'grpc_stage': {key: prepared[key] for key in ('reference', 'metadata', 'batch')}}
+            assert operation(stage) == {'staged': False}
+            assert operation(stage) == {'staged': False}
+            command({'send': {'pid': caller, 'value': frame(b'rpc-incomplete')}})
+            scope = ready(server)['scope']
+            before = server.apply(scope, {'budgets': {}})
+            assert rejects(1, server.apply, scope, {'grpc_call': {'pid': destination,
+                'reference': prepared['reference']}})['err'] == 'PublicationNotPublished'
+            assert server.apply(scope, {'budgets': {}}) == before
+            finish(server, scope)
+            server.close(); server = None
+            command({'own': {'pid': caller, 'worker': 65538, 'expected_generation': 3}})
+            server = Native(libraries, url, caller_seed, {**config, 'principal': 65538, 'pid': caller, 'generation': 4})
+            for _ in range(20):
+                if operation(stage)['staged']: break
+            else: raise AssertionError('RPC upload exceeded bounded steps')
+            command({'send': {'pid': caller, 'value': frame(b'rpc-call')}})
+            scope = ready(server)['scope']
+            changed = bytearray.fromhex(prepared['reference']); changed[24] ^= 1
+            before = server.apply(scope, {'budgets': {}})
+            assert rejects(1, server.apply, scope, {'grpc_call': {'pid': destination,
+                'reference': changed.hex()}})['err'] == 'InvalidGrpcRequestReference'
+            assert server.apply(scope, {'budgets': {}}) == before
+            calls = [server.apply(scope, {'grpc_call': {'pid': destination,
+                'reference': prepared['reference']}})['correlation']]
+            finish(server, scope)
+            command({'send': {'pid': caller, 'value': frame(b'rpc-followup')}})
+            scope = ready(server)['scope']
+            calls.append(server.apply(scope, {'grpc_followup': {'pid': destination, 'resource': 7,
+                'parent': str(2**64-1), 'reference': prepared['reference']}})['correlation'])
+            finish(server, scope)
+            command({'send': {'pid': caller, 'value': frame(b'rpc-release')}})
+            scope = ready(server)['scope']
+            calls.append(server.apply(scope, {'grpc_release': {'pid': destination, 'resource': 7,
+                'exchange': str(2**64-1)}})['correlation'])
+            assert len(set(calls)) == 3
+            finish(server, scope)
+            # Pages use a stable authority position; never assume all historical
+            # outputs fit in a single page as this schedule grows.
+            position = root_client.call(root_client.prepare(7, system.seed, {
+                'version': 3, 'realm': 72, 'principal': 0, 'kind': {'capabilities': {}}}))['position']
+            after, found = None, {}
+            while True:
+                page = query({'outputs': {'after': after, 'position': position}})['outputs']
+                for item in page['entries']:
+                    if item and item['source'] == caller:
+                        wire = bytes.fromhex(item['value'])
+                        correlation = str(int.from_bytes(wire[5:13], 'little'))
+                        if correlation in calls: found[correlation] = wire[13:]
+                if page['next'] is None: break
+                after = page['next']
+            assert found[calls[0]] == bytes.fromhex(prepared['reference'])
+            assert found[calls[1]][:4] == b'GRU1'
+            assert found[calls[1]][21:] == bytes.fromhex(prepared['reference'])
+            assert found[calls[2]] == b'GRD1' + (7).to_bytes(8, 'little') + (2**64-1).to_bytes(8, 'little')
         finally:
             if port is not None:
                 port.close()
@@ -481,7 +544,7 @@ def run(node, cli, library, raw_library, host):
             proxy.shutdown()
             proxy.server_close()
             thread.join(timeout=5)
-    print('Growing Station ABI: gated controls, scoped pages, exact host/disk recovery, poison/stop, wide values, publication and validated HTTP calls passed')
+    print('Growing Station ABI: gated controls, scoped pages, exact host/disk recovery, poison/stop, wide values, publication and validated HTTP/RPC calls passed')
 
 
 if __name__ == '__main__':

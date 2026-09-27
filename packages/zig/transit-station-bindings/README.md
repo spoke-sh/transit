@@ -2,7 +2,7 @@
 
 The shared native SDK bridge composes [Station](../transit-station/README.md),
 the [client ABI](../transit-client/docs/bindings.md) and
-[HTTP](../transit-station-http/README.md). It owns detached handler
+[HTTP](../transit-station-http/README.md) and [RPC](../transit-station-grpc/README.md). It owns detached handler
 operations, native handle/buffer lifetime, generated C declarations and the schemas
 used by every language adapter and the [native port](../../../apps/transit-station-host/README.md).
 
@@ -20,6 +20,10 @@ all ten SDKs expose it. Scoped `http_followup` calls validate published request
 commitments and submit HTU1 through the same durable call machinery. All ten SDKs
 expose typed followup helpers and qualify correlated policy refusal; broader
 connector lifecycle and deployment work remain in M15.
+
+M16 adds shared RPC descriptor/request/outcome codecs, scoped publication and
+call/retry/disposal actions, and one owned current-policy transcript reader.
+The generated native and port surfaces precede public SDK qualification.
 
 See the [binding guide](docs/bindings.md) for ownership, scoped turns, explicit
 dispatch, exact pending retry and query buffers. Native foreign pointers never

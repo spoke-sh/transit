@@ -5,6 +5,7 @@ const p = s.protocol;
 pub const actions = @import("Actions.zig");
 pub const host = @import("HostProtocol.zig");
 pub const growing = @import("GrowingAbi.zig");
+pub const grpc = @import("GrpcCodec.zig");
 pub const http = @import("HttpCodec.zig");
 pub const version: u32 = 1;
 pub const minimum_stack_bytes: usize = 8 * 1024 * 1024;
@@ -69,6 +70,8 @@ pub fn observe(pointer: *Server, observer: *s.client.observability.telemetry.Run
 }
 
 pub const Api = struct {
+    pub const station_grpc_codec = grpc.codec;
+    pub const station_growing_grpc_read = growing.grpcRead;
     pub const station_http_codec = http.codec;
     pub const station_growing_http_read = growing.httpRead;
     pub const station_growing_capabilities = growing.capabilities;
@@ -251,4 +254,5 @@ pub const Api = struct {
 test {
     _ = growing;
     _ = http;
+    _ = grpc;
 }

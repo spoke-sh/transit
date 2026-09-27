@@ -112,6 +112,14 @@ fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.
             const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
             break :blk if (growing) |pointer| abi.Api.station_growing_http_read(pointer, json.ptr, json.len, &buffer) else .not_ready;
         },
+        .grpc_codec => |action| blk: {
+            const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
+            break :blk abi.Api.station_grpc_codec(json.ptr, json.len, &buffer);
+        },
+        .growing_grpc_read => |action| blk: {
+            const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
+            break :blk if (growing) |pointer| abi.Api.station_growing_grpc_read(pointer, json.ptr, json.len, &buffer) else .not_ready;
+        },
         .growing_prepare => |deadline| if (growing) |pointer| abi.Api.station_growing_prepare(pointer, deadline, &buffer) else .not_ready,
         .growing_dispatch => if (growing) |pointer| abi.Api.station_growing_dispatch(pointer, &buffer) else .not_ready,
         .growing_confirmation => if (growing) |pointer| abi.Api.station_growing_confirmation(pointer, &buffer) else .not_ready,

@@ -5,6 +5,7 @@ const s = @import("transit_station");
 const p = s.protocol;
 const a = @import("Actions.zig");
 const q = s.GrowingQuery;
+const grpc = @import("GrpcCodec.zig").grpc;
 const http = @import("HttpCodec.zig").http;
 const unsigned = @import("HttpCodec.zig").unsigned;
 fn publishedRequest(turn: *s.GrowingTurn, wire: p.Value) !void {
@@ -14,6 +15,14 @@ fn publishedRequest(turn: *s.GrowingTurn, wire: p.Value) !void {
     const metadata = try publication.open(turn, http.RequestRecord.metadata_id);
     const body = try publication.open(turn, http.RequestRecord.body_id);
     if (!std.meta.eql(metadata.spec, reference.metadataSpec()) or !std.meta.eql(body.spec, reference.bodySpec())) return error.InvalidHttpRequestReference;
+}
+fn publishedGrpcRequest(turn: *s.GrowingTurn, wire: p.Value) !void {
+    const reference = try grpc.RequestRecord.Reference.decode(wire);
+    if (reference.resource != turn.view.resource) return error.InvalidGrpcRequestReference;
+    const publication: s.Publication = .{ .resource = reference.resource, .namespace = reference.namespace };
+    const metadata = try publication.open(turn, grpc.RequestRecord.metadata_id);
+    const body = try publication.open(turn, grpc.RequestRecord.batch_id);
+    if (!std.meta.eql(metadata.spec, reference.metadataSpec()) or !std.meta.eql(body.spec, reference.batchSpec())) return error.InvalidGrpcRequestReference;
 }
 pub const Plan = struct {
     projection: @FieldType(a.Plan, "projection") = .both,
@@ -78,6 +87,10 @@ pub const Action = union(enum) {
     http_stage: struct { reference: p.Value, metadata: []const u8, body: []const u8 },
     http_release: struct { pid: u64, resource: u64, exchange: []const u8 },
     http_followup: struct { pid: u64, resource: u64, parent: []const u8, reason: http.Policy.Reason, reference: p.Value },
+    grpc_call: struct { pid: u64, reference: p.Value },
+    grpc_stage: struct { reference: p.Value, metadata: []const u8, batch: []const u8 },
+    grpc_release: struct { pid: u64, resource: u64, exchange: []const u8 },
+    grpc_followup: struct { pid: u64, resource: u64, parent: []const u8, reference: p.Value },
 
     pub fn requiresQuery(self: Action) bool {
         return switch (self) {
@@ -173,6 +186,28 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action)
         },
         .http_release => |v| {
             const request: http.Service.Release = .{ .resource = v.resource, .exchange = try unsigned(v.exchange) };
+            return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, try request.encode(), null)) };
+        },
+        .grpc_call => |v| {
+            try publishedGrpcRequest(turn, v.reference);
+            return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, v.reference, null)) };
+        },
+        .grpc_followup => |v| {
+            const request = try (@import("GrpcCodec.zig").Followup{ .resource = v.resource, .parent = v.parent, .reference = v.reference }).native();
+            try publishedGrpcRequest(turn, v.reference);
+            return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, try request.encode(), null)) };
+        },
+        .grpc_stage => |v| {
+            const reference = try grpc.RequestRecord.Reference.decode(v.reference);
+            if (v.metadata.len != @as(usize, reference.metadata_bytes) * 2 or v.batch.len != @as(usize, reference.batch_bytes) * 2) return error.InvalidGrpcRequestReference;
+            const metadata = try allocator.alloc(u8, reference.metadata_bytes);
+            const batch = try allocator.alloc(u8, reference.batch_bytes);
+            _ = try std.fmt.hexToBytes(metadata, v.metadata);
+            _ = try std.fmt.hexToBytes(batch, v.batch);
+            return .{ .staged = try grpc.RequestRecord.stage(turn, reference, metadata, batch) };
+        },
+        .grpc_release => |v| {
+            const request: grpc.Service.Release = .{ .resource = v.resource, .exchange = try unsigned(v.exchange) };
             return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, try request.encode(), null)) };
         },
         .page => |cursor| return page(allocator, turn, cursor),
