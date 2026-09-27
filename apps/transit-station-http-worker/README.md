@@ -15,6 +15,10 @@ The TLS proof includes versioned credential/header scope, private secret
 resolution, capture omission and replay after the credential file is removed.
 Explicit idempotent retries, redirects, status queries and cancellation requests
 use new linked effects under frozen endpoint policies.
+The public retry schedule also authenticates the original caller, rejects changed
+scope/policy before child allocation, restores a revoked request grant, loses the
+accepted child receipt and resumes under fresh ownership. The independently
+idempotent peer observes two sends and one application for that logical operation.
 
 `zig build transit-station-http-worker` installs the binary. Supply one JSON
 configuration file containing authority URL, realm/principal/seed-file, PID and

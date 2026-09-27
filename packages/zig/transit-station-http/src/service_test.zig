@@ -264,6 +264,214 @@ test "independent release fixtures preserve full width identity and reject trunc
         try t.expectError(error.InvalidExchangeRecord, item[0].decode(wire));
     }
 }
+test "independent followup fixture preserves full width parent and exact request reference" {
+    const Fixture = struct { version: u32, request: p.Value };
+    const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("followup-fixtures.json"), .{});
+    defer parsed.deinit();
+    const wire = parsed.value.request;
+    const follow = try Service.Followup.decode(wire);
+    try t.expectEqual(@as(u32, 1), parsed.value.version);
+    try t.expectEqual(@as(u16, 133), wire.len);
+    try t.expectEqual(std.math.maxInt(u64), follow.parent);
+    try t.expectEqual(.retry, follow.reason);
+    try t.expectEqual(std.math.maxInt(u64), (try follow.reference()).namespace);
+    try t.expect(wire.eql(try follow.encode()));
+    var bad = wire;
+    bad.len -= 1;
+    bad.data[bad.len] = 0;
+    try t.expectError(error.InvalidExchangeRecord, Service.Followup.decode(bad));
+    bad = wire;
+    bad.data[20] = 5;
+    try t.expectError(error.InvalidExchangeRecord, Service.Followup.decode(bad));
+}
+fn settledParent(store: *Store) !Service.Followup {
+    var buffer: [8192]u8 = undefined;
+    const reference = (try request(&buffer)).reference;
+    const wire = try reference.encode();
+    var turn = try store.capture(9, 99, wire);
+    _ = try Service.admit(&turn, 1, policy, limits);
+    try ex.configureAttempts(&turn, reference.max_attempts);
+    try store.commit(turn);
+    turn = try store.capture(9, 99, wire);
+    _ = try ex.beginSegment(&turn, 0, 1, try x.Publication.Digest.of(1, ""));
+    try store.commit(turn);
+    turn = try store.capture(9, 99, wire);
+    _ = try ex.sealSegment(&turn, 0);
+    try store.commit(turn);
+    turn = try store.capture(9, 99, wire);
+    _ = try ex.commitIntent(&turn);
+    const effect: p.Growth.Effect = .{ .id = 19, .pid = 2, .payload = turn.decision.effect.?, .phase = .closed_unknown, .attempt = 20, .executor = 7, .reconcile_before_ms = 9000 };
+    try store.commit(turn);
+    turn = try store.capture(9, 99, wire);
+    _ = try ex.closeUnknown(&turn);
+    _ = try ex.settle(&turn, effect);
+    try store.commit(turn);
+    turn = try store.capture(9, 99, wire);
+    _ = try Service.publish(&turn, ex);
+    try store.commit(turn);
+    return .{ .resource = 7, .parent = 1, .reason = .retry, .request = wire.data[0..112].* };
+}
+const FollowupValidator = struct {
+    calls: usize = 0,
+    fail_read: bool = false,
+    reject_request: bool = false,
+    pub fn validateAdmission(self: *@This(), request_value: Service.Followup) !Service.FollowupValidation {
+        self.calls += 1;
+        _ = try request_value.reference();
+        if (self.fail_read) return error.InjectedReadFailure;
+        return if (self.reject_request) .{ .rejected = .denied } else .{ .accepted = .{ .id = 77, .revision = 3 } };
+    }
+};
+const followup_target: Service.FollowupTarget = .{ .parent = 1, .reason = .retry };
+test "authenticated followup route shares child allocation and publishes to its new correlation" {
+    var store: Store = .{};
+    defer store.deinit();
+    const follow = try settledParent(&store);
+    const wire = try follow.encode();
+    const child: x.Exchange = .{ .resource = 7, .id = 2 };
+    var validator: FollowupValidator = .{};
+    var turn = try store.capture(9, 177, wire);
+    const before = turn.decision;
+    validator.fail_read = true;
+    try t.expectError(error.InjectedReadFailure, Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
+    try t.expectEqualDeep(before, turn.decision);
+    validator.fail_read = false;
+    try turn.put(try p.Value.init("occupied"), .{});
+    const occupied = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
+    try t.expectEqualDeep(occupied, turn.decision);
+    turn.decision = before;
+    try t.expectEqual(.admitted, try Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
+    for (turn.decision.mutations) |slot| try t.expect(slot != null);
+    try t.expectEqual(null, turn.decision.effect);
+    try store.commit(turn);
+    turn = try store.capture(9, 177, wire);
+    const original = (try Service.route(ex, &turn)).?;
+    const route = (try Service.route(child, &turn)).?;
+    try t.expectEqual(original.input, route.input);
+    try t.expectEqual(@as(u64, 177), route.correlation);
+    try t.expectEqual(.admitted, route.phase);
+    try t.expectEqual(null, try turn.read(x.Exchange.key(child.id, 'r', 0)));
+    const calls = validator.calls;
+    try t.expectEqual(.duplicate, try Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
+    try t.expectEqual(calls, validator.calls);
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    _ = try child.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture(88, 999, wire);
+    try t.expect(try Service.publish(&turn, child));
+    const response = try Frame.decode(turn.decision.outputs[0].?.value);
+    try t.expectEqual(@as(u64, 9), turn.decision.outputs[0].?.pid);
+    try t.expectEqual(@as(u64, 177), response.correlation);
+    try t.expectEqual(.not_dispatched, (try Service.Outcome.decode(response.payload)).phase);
+    try store.commit(turn);
+    turn = try store.capture(9, 99, try (Service.Release{ .resource = 7, .exchange = 2 }).encode());
+    try Service.release(&turn, child, policy);
+    try t.expectEqual(@as(u64, 2), (try Service.Released.decode((try reply(turn)).payload)).exchange);
+    try t.expectEqual(.published, (try Service.route(child, &turn)).?.phase);
+}
+test "followup authorization and frozen limits reject before trusted validation or allocation" {
+    var store: Store = .{};
+    defer store.deinit();
+    const follow = try settledParent(&store);
+    var validator: FollowupValidator = .{};
+    inline for (.{ "caller", "resource", "endpoint_revision", "reconcile_before_ms", "max_attempts" }) |field| {
+        var denied = policy;
+        @field(denied, field) = 1;
+        var turn = try store.capture(9, 99, try follow.encode());
+        try t.expectEqual(.rejected, try Service.admitFollowup(&turn, 2, denied, followup_target, limits, &validator));
+        try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+        for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    }
+    inline for (.{ "reconcile_before_ms", "max_attempts" }) |field| {
+        var changed = follow;
+        var reference = try changed.reference();
+        @field(reference, field) -= 1;
+        changed.request = (try reference.encode()).data[0..112].*;
+        var turn = try store.capture(9, 99, try changed.encode());
+        try t.expectEqual(.rejected, try Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
+        try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+    }
+    var turn = try store.capture(9, 99, try follow.encode());
+    turn.delivery.input.origin = .{ .external = .{ .principal = 9, .policy_revision = 1 } };
+    try t.expectError(error.ExpectedProcessOrigin, Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
+    try t.expectEqual(@as(usize, 0), validator.calls);
+    turn = try store.capture(9, 99, try follow.encode());
+    validator.reject_request = true;
+    try t.expectEqual(.rejected, try Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
+    try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+}
+test "followup conflicts closed parents and exhausted budgets never allocate another child" {
+    var store: Store = .{};
+    defer store.deinit();
+    const follow = try settledParent(&store);
+    var validator: FollowupValidator = .{};
+    for (0..4) |changed_field| {
+        var changed = follow;
+        switch (changed_field) {
+            0 => changed.resource += 1,
+            1 => changed.parent += 1,
+            2 => changed.reason = .cancel,
+            3 => changed.reason = .redirect,
+            else => unreachable,
+        }
+        var turn = try store.capture(9, 99, try changed.encode());
+        try t.expectEqual(.rejected, try Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
+        try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+        for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    }
+    // Even a configured redirect cannot adopt a closed-unknown parent.
+    var redirect = follow;
+    redirect.reason = .redirect;
+    var turn = try store.capture(9, 99, try redirect.encode());
+    try t.expectEqual(.rejected, try Service.admitFollowup(&turn, 2, policy, .{ .parent = 1, .reason = .redirect }, limits, &validator));
+    try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+    const original = (try Service.route(ex, &turn)).?;
+    var unpublished = original;
+    unpublished.phase = .admitted;
+    try store.state.put(t.allocator, x.Exchange.key(1, 'r', 0), try x.codec.encode(unpublished));
+    turn = try store.capture(9, 99, try follow.encode());
+    try t.expectEqual(.rejected, try Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
+    try t.expectEqual(.busy, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+    try store.state.put(t.allocator, x.Exchange.key(1, 'r', 0), try x.codec.encode(original));
+    try t.expectEqual(@as(usize, 0), validator.calls);
+
+    turn = try store.capture(9, 99, try follow.encode());
+    try t.expectEqual(.admitted, try Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
+    try store.commit(turn);
+    turn = try store.capture(9, 100, try follow.encode());
+    try t.expectEqual(.rejected, try Service.admitFollowup(&turn, 2, policy, followup_target, limits, &validator));
+    const conflict = try Frame.decode(turn.decision.outputs[0].?.value);
+    try t.expectEqual(@as(u64, 100), conflict.correlation);
+    try t.expectEqual(.busy, (try x.codec.decode(Service.Rejection, conflict.payload)).reason);
+    try t.expectEqual(@as(usize, 1), validator.calls);
+    // The second total attempt consumed the original finite root budget.
+    turn = try store.capture(9, 99, try follow.encode());
+    try t.expectEqual(.rejected, try Service.admitFollowup(&turn, 3, policy, followup_target, limits, &validator));
+    try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    try t.expectEqual(null, try turn.read(x.Exchange.key(3, 'd', 0)));
+    try t.expectEqual(@as(u32, 2), (try x.codec.decode(x.Exchange.AttemptBudget, (try turn.read(x.Exchange.key(1, 'b', 0))).?)).used);
+    turn = try store.capture(9, 99, try follow.encode());
+    for (0..turn.decision.outputs.len) |_| try turn.send(8, .{ .kind = .cast, .payload = .{} });
+    const full = turn.decision;
+    try t.expectError(error.OutputBudgetExceeded, Service.admitFollowup(&turn, 3, policy, followup_target, limits, &validator));
+    try t.expectEqualDeep(full, turn.decision);
+
+    // Disposal and retirement forbid new attempts even when a caller retains
+    // the old publication and authentic original route.
+    turn = try store.capture(9, 99, try follow.encode());
+    _ = try ex.releaseCaller(&turn, 9);
+    _ = try ex.retire(&turn);
+    try store.commit(turn);
+    turn = try store.capture(9, 99, try follow.encode());
+    const calls = validator.calls;
+    try t.expectEqual(.rejected, try Service.admitFollowup(&turn, 3, policy, followup_target, limits, &validator));
+    try t.expectEqual(calls, validator.calls);
+    try t.expectEqual(.denied, (try x.codec.decode(Service.Rejection, (try reply(turn)).payload)).reason);
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+}
 test "request scope matches the serialized method target and case insensitive header allowlist" {
     const req: http.Request = .{ .method = .GET, .target = &.{ .{ .literal = "/search?q=" }, .{ .variable = .{ .name = "q", .value = "雪 &" } } }, .headers = &.{.{ .name = "X-Tag", .value = &.{.{ .literal = "one" }} }} };
     const scope: Service.Scope = .{ .method = .GET, .target = "/search?q=%E9%9B%AA%20%26", .headers = &.{"x-tag"} };

@@ -34,7 +34,7 @@ const Config = struct {
     redirect_policy: ?http.Policy.Reference = null,
     reconcile_policy: ?http.Policy.Action = null,
     cancel_policy: ?http.Policy.Action = null,
-    followup: ?struct { parent: u64, reason: http.Policy.Reason } = null,
+    followup: ?http.Service.FollowupTarget = null,
 };
 const Secrets = struct {
     gpa: std.mem.Allocator,
@@ -119,6 +119,7 @@ const Driver = struct {
     reader: x.Client,
     config: Config,
     io: std.Io,
+    gpa: std.mem.Allocator,
     operation: Operation = .idle,
     fn admission(self: *Driver) !http.Service.Admission {
         const policy = self.config.admission orelse return error.HttpAdmissionNotConfigured;
@@ -159,7 +160,13 @@ const Driver = struct {
             .process => {
                 if (std.mem.startsWith(u8, frame.payload.slice(), http.Service.Release.magic)) {
                     try http.Service.release(turn, ex, try self.admission());
-                } else _ = try http.Service.admit(turn, ex.id, try self.admission(), .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 });
+                } else if (std.mem.startsWith(u8, frame.payload.slice(), http.Service.Followup.magic)) {
+                    const target = self.config.followup orelse return http.Service.rejectCall(turn, .denied);
+                    _ = try http.Service.admitFollowup(turn, ex.id, try self.admission(), target, .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 }, self);
+                } else {
+                    if (self.config.followup != null) return http.Service.rejectCall(turn, .denied);
+                    _ = try http.Service.admit(turn, ex.id, try self.admission(), .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 });
+                }
                 return;
             },
         }
@@ -169,7 +176,8 @@ const Driver = struct {
                 if (self.config.followup) |follow| {
                     const parent: x.Exchange = .{ .resource = turn.view.resource, .id = follow.parent };
                     const policy = c.policy orelse return error.HttpFollowupNotGranted;
-                    _ = try parent.followup(turn, ex.id, follow.reason, policy.id, policy.revision, c.limits);
+                    const context = if (try ex.lineage(turn)) |linked| linked.context else p.Value{};
+                    _ = try parent.followupWithContext(turn, ex.id, follow.reason, policy.id, policy.revision, c.limits, context);
                 } else {
                     const prior = if (try turn.read(x.Exchange.key(ex.id, 'd', 0))) |value| try x.Descriptor.decode(value) else null;
                     _ = try x.Exchange.create(turn, ex.id, .{ .caller = if (prior) |d| d.caller else turn.delivery.pid, .input = if (prior) |d| d.input else turn.delivery.input.position, .protocol = http.protocol_format }, c.limits, c.deadline);
@@ -336,7 +344,53 @@ const Driver = struct {
         }
         return error.HttpReplayGap;
     }
-    fn validateFollowup(self: *Driver, gpa: std.mem.Allocator, prepared: Prepared, body: []const u8) !?http.Policy.Reference {
+    pub fn validateAdmission(self: *Driver, follow: http.Service.Followup) !http.Service.FollowupValidation {
+        const reference = try follow.reference();
+        const policy = self.config.admission orelse return error.HttpAdmissionNotConfigured;
+        const input_resource = (try self.reader.query(.{ .resource = reference.resource })).body.resource;
+        if (input_resource.writer != policy.caller) return .{ .rejected = .denied };
+        var request_buffer: [8192]u8 = undefined;
+        const request_bytes = try http.RequestRecord.read(&self.reader, reference, http.RequestRecord.metadata_id, &request_buffer);
+        const parsed = std.json.parseFromSlice(http.Request, self.gpa, request_bytes, .{}) catch return .{ .rejected = .invalid_request };
+        defer parsed.deinit();
+        const request = parsed.value;
+        if (request.body_bytes != reference.body_bytes or request.body_bytes > self.config.endpoint.request_bytes) return .{ .rejected = .invalid_request };
+        Secrets.validate(self.config, request) catch return .{ .rejected = .denied };
+        var header: [http.Request.maximum_head_bytes]u8 = undefined;
+        const rendered = request.render(self.config.endpoint.host, self.config.endpoint.port, &header, null, false) catch return .{ .rejected = .invalid_request };
+        http.Service.validateRequest(policy.scope, request, rendered) catch return .{ .rejected = .denied };
+        const prepared = try self.prepareMetadata(request);
+        var metadata_buffer: [8192]u8 = undefined;
+        var metadata_writer = std.Io.Writer.fixed(&metadata_buffer);
+        std.json.Stringify.value(prepared, .{}, &metadata_writer) catch return .{ .rejected = .invalid_request };
+        const body = try self.gpa.alloc(u8, reference.body_bytes);
+        defer self.gpa.free(body);
+        _ = try http.RequestRecord.read(&self.reader, reference, http.RequestRecord.body_id, body);
+        const decision = self.validateFollowup(self.gpa, prepared, body) catch |err| switch (err) {
+            error.HttpRedirectNotCaptured,
+            error.HttpFollowupNotSettled,
+            error.ExpiredReconciliation,
+            error.HttpFollowupNotGranted,
+            error.InvalidHttpIdempotencyKey,
+            error.HttpRedirectScope,
+            error.HttpRedirectChanged,
+            error.UnsupportedHttpRedirect,
+            error.HttpFollowupTargetChanged,
+            error.UnsupportedHttpReconciliation,
+            error.UnsupportedHttpCancellation,
+            error.HttpFollowupChanged,
+            error.HttpRetryChanged,
+            error.HttpReplayGap,
+            => return .{ .rejected = .denied },
+            else => return err,
+        };
+        return .{ .accepted = decision orelse return error.HttpFollowupNotGranted };
+    }
+    fn prepareMetadata(self: *Driver, request: http.Request) !Prepared {
+        const config = self.config;
+        return .{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .timeout_ms = config.endpoint.timeout_ms, .request_bytes = config.endpoint.request_bytes, .response_bytes = config.endpoint.response_bytes, .response_headers = config.endpoint.response_headers, .trust_digest = try trustDigest(self.gpa, self.io, config.endpoint), .retry_policy = config.retry_policy, .redirect_policy = config.redirect_policy, .reconcile_policy = config.reconcile_policy, .cancel_policy = config.cancel_policy, .request = request };
+    }
+    fn validateFollowup(self: *Driver, gpa: std.mem.Allocator, prepared_value: Prepared, body: []const u8) !?http.Policy.Reference {
         const follow = self.config.followup orelse return null;
         const ex = try self.exchange();
         const parent: x.Exchange = .{ .resource = ex.resource, .id = follow.parent };
@@ -351,7 +405,7 @@ const Driver = struct {
         defer parsed.deinit();
         var head_buffer: [8192]u8 = undefined;
         const location = if (follow.reason == .redirect) try self.capturedLocation(parent, descriptor, &head_buffer) else null;
-        const policy = try http.Policy.followup(gpa, follow.reason, parsed.value, prepared, if (follow.reason == .redirect) @intCast(descriptor.terminal_code) else null, location);
+        const policy = try http.Policy.followup(gpa, follow.reason, parsed.value, prepared_value, if (follow.reason == .redirect) @intCast(descriptor.terminal_code) else null, location);
         if (follow.reason == .reconcile or follow.reason == .cancel) {
             if (body.len != 0) return error.HttpFollowupChanged;
             return policy;
@@ -387,7 +441,11 @@ pub fn main(init: std.process.Init) !void {
     var wire = s.client.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
     wire.timeout_ms = 5000;
-    var driver: Driver = .{ .server = try Server.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, config.association), .reader = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key }, .config = config, .io = init.io };
+    var driver: Driver = .{ .server = try Server.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, config.association), .reader = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key }, .config = config, .io = init.io, .gpa = init.gpa };
+    // Admission may read caller publications under revocable grants. An I/O
+    // failure must leave the call pending for a fresh activation, not commit a
+    // permanent framework block that prevents ownership recovery.
+    driver.server.failure_policy = .stop;
     _ = try driver.server.session.receive();
     const marker = try std.fmt.allocPrint(init.gpa, "{s}/{d}-{d}-{d}.activation", .{ config.activation_directory, config.realm, config.pid, config.generation });
     defer init.gpa.free(marker);
@@ -428,7 +486,7 @@ pub fn main(init: std.process.Init) !void {
         const rendered = try request.render(config.endpoint.host, config.endpoint.port, &header, null, false);
         if (public_reference != null) try http.Service.validateRequest(config.admission.?.scope, request, rendered);
         // Prepare metadata before creating any durable obligation.
-        const prepared: Prepared = .{ .endpoint_revision = config.endpoint_revision, .host = config.endpoint.host, .address = config.endpoint.address, .port = config.endpoint.port, .tls = config.endpoint.tls, .timeout_ms = config.endpoint.timeout_ms, .request_bytes = config.endpoint.request_bytes, .response_bytes = config.endpoint.response_bytes, .response_headers = config.endpoint.response_headers, .trust_digest = try trustDigest(init.gpa, init.io, config.endpoint), .retry_policy = config.retry_policy, .redirect_policy = config.redirect_policy, .reconcile_policy = config.reconcile_policy, .cancel_policy = config.cancel_policy, .request = request };
+        const prepared = try driver.prepareMetadata(request);
         const metadata = try std.json.Stringify.valueAlloc(init.gpa, prepared, .{});
         defer init.gpa.free(metadata);
         if (metadata.len > 8192) return error.HttpRequestTooLarge;
@@ -533,10 +591,10 @@ pub fn main(init: std.process.Init) !void {
             try driver.apply(.publish);
         }
     }
-    const descriptor = try driver.reader.inspect(ex.resource, ex.id);
-    const effect = driver.effect() catch |err| if (err == error.UnknownEffect) null else return err;
+    const descriptor = driver.reader.inspect(ex.resource, ex.id) catch |err| if (config.mode == .poll and err == error.ExchangeNotFound) null else return err;
+    const effect = if (descriptor != null) driver.effect() catch |err| if (err == error.UnknownEffect) null else return err else null;
     var output_buffer: [1024]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    try output.interface.print("{{\"exchange\":\"{d}\",\"phase\":\"{s}\",\"outcome\":\"{s}\",\"segments\":{d},\"bytes\":{d}}}\n", .{ ex.id, @tagName(descriptor.phase), if (effect) |value| @tagName(value.phase) else "not_committed", descriptor.segments, descriptor.bytes });
+    try output.interface.print("{{\"exchange\":\"{d}\",\"phase\":\"{s}\",\"outcome\":\"{s}\",\"segments\":{d},\"bytes\":{d}}}\n", .{ ex.id, if (descriptor) |value| @tagName(value.phase) else "not_admitted", if (effect) |value| @tagName(value.phase) else "not_committed", if (descriptor) |value| value.segments else 0, if (descriptor) |value| value.bytes else 0 });
     try output.interface.flush();
 }

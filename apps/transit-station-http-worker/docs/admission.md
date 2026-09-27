@@ -78,8 +78,39 @@ cleanup. The controller can also dispose the hold on the caller's behalf under
 its administrative authority. Caller termination, receipt acceptance, local SDK
 reader close and quota pressure are not disposal instructions.
 
-This profile does not provide a general queue, public followup calls or managed
-credential providers. Controller followups remain explicit trusted operations;
-language-native durable release helpers remain unfinished. The real-binary proof
-is `just test::http-worker`; additional SDK and
-deployment qualification remains tracked in M15.
+## Explicit caller followups
+
+The original caller can request a linked attempt with
+`Service.Followup{resource, parent, reason, request}.encode()`. `resource` and
+`parent` identify the capture and terminal parent exchange; `request` contains
+the new published HTQ1 reference. Its deadline and total attempt limit must match
+the original request exactly. Retry reuses the identical published request.
+Redirect, status and cancellation publish new request records under the parent's
+frozen policy. Each request gets its own durable call correlation.
+
+Select a fresh child `exchange` and `followup: {parent, reason}` in the worker
+configuration alongside current admission scope. In `accept` mode the worker
+authenticates the original caller, requires the parent's published terminal
+outcome, reads the proposed request under current grants and validates the frozen
+endpoint policy before allocating a child. Wrong policy or request bytes receive
+a correlated rejection without spending an attempt. Read failures leave the input
+pending; restore access and resume with fresh ownership. Allocation and the
+immutable reply route share one four-mutation turn, so lost receipts cannot
+allocate twice or detach the reply destination.
+
+After acceptance, `execute` requires another fresh activation and current dispatch
+authority. Its outcome uses the followup correlation while retaining the original
+caller, lineage, deadline and total attempt budget. Closing a parent unknown does
+not automatically request a child; a successful child does not rewrite its parent.
+Controller followups remain available for trusted orchestration. `poll` can admit
+a configured followup, including authorized publication/CA reads, but never opens
+HTTP transport or resolves credential values.
+If no child was admitted, `poll` reports `phase: "not_admitted"` and
+`outcome: "not_committed"`; the correlated rejection remains in the durable outbox.
+Handler read failures stop the activation without blocking the process or advancing
+its input, allowing fresh ownership after access is restored.
+
+All ten SDKs expose durable disposal. Language-native followup helpers, general
+queue scheduling and managed credential providers remain outside this qualified
+surface. The real-binary proof is `just test::http-worker`; remaining SDK and
+deployment work is tracked in M15.

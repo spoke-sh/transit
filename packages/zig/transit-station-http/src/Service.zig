@@ -1,4 +1,4 @@
-//! One admitted exchange per worker PID, with a distinct recorded caller.
+//! Finite configured exchanges with a distinct, authenticated recorded caller.
 //! Execution and retirement remain separate from accepting a public request.
 const std = @import("std");
 const http = @import("root.zig");
@@ -99,11 +99,40 @@ pub const Released = struct {
         return x.codec.decode(Released, value);
     }
 };
+pub const FollowupTarget = struct { parent: u64, reason: http.Policy.Reason };
+pub const Followup = struct {
+    pub const magic = "HTU1";
+    resource: u64,
+    parent: u64,
+    reason: http.Policy.Reason,
+    request: [x.codec.size(Reference)]u8,
+    pub fn validate(self: Followup) !void {
+        if (self.resource == 0 or self.resource > x.p.max_counter or self.parent == 0) return error.InvalidHttpFollowup;
+        _ = try self.reference();
+    }
+    pub fn reference(self: Followup) !Reference {
+        return Reference.decode(try x.p.Value.init(&self.request));
+    }
+    pub fn encode(self: Followup) !x.p.Value {
+        return x.codec.encode(self);
+    }
+    pub fn decode(value: x.p.Value) !Followup {
+        return x.codec.decode(Followup, value);
+    }
+};
+pub const FollowupValidation = union(enum) { accepted: http.Policy.Reference, rejected: @FieldType(Rejection, "reason") };
 pub fn route(exchange: x.Exchange, source: anytype) !?Route {
-    return if (try source.read(x.Exchange.key(exchange.id, 'r', 0))) |value| try x.codec.decode(Route, value) else null;
+    if (try source.read(x.Exchange.key(exchange.id, 'r', 0))) |value| return try x.codec.decode(Route, value);
+    const linked = (try exchange.lineage(source)) orelse return null;
+    return if (linked.context.len != 0) try x.codec.decode(Route, linked.context) else null;
 }
 fn reject(turn: *Turn, caller: u64, frame: Frame, reason: @FieldType(Rejection, "reason")) !void {
     try turn.send(caller, .{ .kind = .reply, .correlation = frame.correlation, .payload = try x.codec.encode(Rejection{ .reason = reason }) });
+}
+pub fn rejectCall(turn: *Turn, reason: @FieldType(Rejection, "reason")) !void {
+    const frame = try Frame.decode(turn.delivery.input.value);
+    if (frame.kind != .call) return error.ExpectedHttpCall;
+    try reject(turn, try Frame.source(turn.delivery.input), frame, reason);
 }
 pub fn admit(turn: *Turn, id: u64, policy: Admission, limits: x.Limits) !enum { admitted, duplicate, rejected } {
     const before = turn.decision;
@@ -135,6 +164,81 @@ pub fn admit(turn: *Turn, id: u64, policy: Admission, limits: x.Limits) !enum { 
 pub fn allowed(record: Route, policy: Admission) bool {
     const reference = record.reference() catch return false;
     return record.caller == policy.caller and reference.resource == policy.resource and reference.endpoint_revision == policy.endpoint_revision and reference.max_attempts <= policy.max_attempts and reference.reconcile_before_ms <= policy.reconcile_before_ms;
+}
+/// The validator reads immutable published request bytes and checks the frozen
+/// parent policy without dispatching. Only then can this turn allocate a child.
+/// Validator I/O errors leave the input uncommitted for explicit recovery.
+pub fn admitFollowup(turn: *Turn, id: u64, policy: Admission, target: FollowupTarget, limits: x.Limits, validator: anytype) !enum { admitted, duplicate, rejected } {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const frame = try Frame.decode(turn.delivery.input.value);
+    if (frame.kind != .call) return error.ExpectedHttpCall;
+    const caller = try Frame.source(turn.delivery.input);
+    const follow = Followup.decode(frame.payload) catch {
+        try reject(turn, caller, frame, .invalid_request);
+        return .rejected;
+    };
+    const reference = try follow.reference();
+    if (caller != policy.caller or follow.resource != turn.view.resource or follow.parent != target.parent or follow.reason != target.reason or follow.parent == id or
+        reference.resource != policy.resource or reference.endpoint_revision != policy.endpoint_revision or reference.reconcile_before_ms > policy.reconcile_before_ms or reference.max_attempts > policy.max_attempts)
+    {
+        try reject(turn, caller, frame, .denied);
+        return .rejected;
+    }
+    const ex: x.Exchange = .{ .resource = turn.view.resource, .id = id };
+    if (try route(ex, turn)) |previous| {
+        const linked = try ex.lineage(turn);
+        if (previous.caller == caller and previous.correlation == frame.correlation and std.mem.eql(u8, &previous.request, &follow.request) and
+            linked != null and linked.?.lineage.parent == follow.parent and linked.?.lineage.reason == follow.reason) return .duplicate;
+        try reject(turn, caller, frame, .busy);
+        return .rejected;
+    }
+    if (try turn.read(x.Exchange.key(id, 'd', 0)) != null) {
+        try reject(turn, caller, frame, .busy);
+        return .rejected;
+    }
+    const parent: x.Exchange = .{ .resource = follow.resource, .id = follow.parent };
+    const original = (try route(parent, turn)) orelse {
+        try reject(turn, caller, frame, .denied);
+        return .rejected;
+    };
+    if (!allowed(original, policy) or original.caller != caller) {
+        try reject(turn, caller, frame, .denied);
+        return .rejected;
+    }
+    if (original.phase != .published) {
+        try reject(turn, caller, frame, .busy);
+        return .rejected;
+    }
+    const descriptor = try parent.inspect(turn);
+    const prior_request = try original.reference();
+    if (descriptor.owner != turn.delivery.pid or descriptor.caller != original.caller or descriptor.input != original.input or descriptor.protocol != http.protocol_format) return error.InvalidHttpRoute;
+    if (descriptor.phase == .retired or reference.reconcile_before_ms != descriptor.reconcile_before_ms or reference.max_attempts != prior_request.max_attempts) {
+        try reject(turn, caller, frame, .denied);
+        return .rejected;
+    }
+    const terminal = try parent.control(turn);
+    if (if (follow.reason == .redirect) terminal.disposition != .observed or descriptor.phase != .complete else terminal.disposition != .closed_unknown or descriptor.phase != .unknown) {
+        try reject(turn, caller, frame, .denied);
+        return .rejected;
+    }
+    const decision = switch (try validator.validateAdmission(follow)) {
+        .accepted => |value| value,
+        .rejected => |reason| {
+            try reject(turn, caller, frame, reason);
+            return .rejected;
+        },
+    };
+    try decision.validate();
+    const stored: Route = .{ .caller = caller, .input = original.input, .correlation = frame.correlation, .request = follow.request };
+    _ = parent.followupWithContext(turn, id, follow.reason, decision.id, decision.revision, limits, try x.codec.encode(stored)) catch |err| switch (err) {
+        error.ExchangeAttemptBudgetExceeded => {
+            try reject(turn, caller, frame, .denied);
+            return .rejected;
+        },
+        else => return err,
+    };
+    return .admitted;
 }
 /// Admit one authenticated disposal call against an already published route.
 /// Mutation and correlated acknowledgement share the same fenced turn. Duplicate

@@ -2,8 +2,9 @@
 
 Status: experimental M15 implementation profile. Finite public service admission
 and all ten public SDK request/call/replay APIs are implemented and locally
-qualified. Public followups, native release conveniences and deployment
-qualification remain M15 work.
+qualified. Zig public followup admission composes frozen-policy validation and
+atomic child routing. Language-native followup helpers and deployment qualification
+remain M15 work.
 This protocol-specific layer uses the
 [exchange contract](STATION_EXCHANGE_V1.md); it adds no kernel authority.
 
@@ -62,7 +63,8 @@ published before this turn and may be used by a call. The helper performs no
 dispatch or scheduling. Applications own source recovery until publication;
 an in-memory upload object is not durable state.
 
-The initial service admits one exchange per provisioned worker PID. Its configured
+The finite service selects one exchange per worker activation, with one root call
+and explicit linked followups on its provisioned worker PID. Its configured
 policy fixes one authenticated caller PID, caller-written request resource,
 endpoint revision, latest reconciliation deadline, maximum attempts, exact HTTP
 method and rendered target, and a case-insensitive header-name allowlist. Admission
@@ -82,6 +84,7 @@ Strict binary layouts use little-endian fields without padding:
 | HTF1 | reason:u8 | 5 |
 | HTD1 | resource:u64, exchange:u64 | 20 |
 | HTK1 | resource:u64, exchange:u64 | 20 |
+| HTU1 | resource:u64, parent:u64, reason:u8, request:112 bytes | 133 |
 
 `HTA1` is private service state at exchange key `r/0`; phases are admitted=1 and
 published=2. Admission creates the exchange and route in three mutations, leaving
@@ -128,12 +131,33 @@ not_dispatched. There is no automatic deletion or implicit expiry on failure.
 
 All ten public SDKs expose durable disposal and typed acknowledgements through
 the shared `http_release` capability. Their local readers remain independent
-of that explicit durable operation. Public followup submission and multi-exchange
-queue scheduling are not part of this initial admission surface. Explicit controller
-followups retain the policies below; the remaining M15 SDK/lifecycle obligations
+of that explicit durable operation. Zig public followup submission uses the
+extension below; multi-exchange queue scheduling remains outside this finite
+profile. Explicit controller followups retain the same policies. The remaining M15 SDK/lifecycle obligations
 must be qualified before claiming a completed public connector.
 
 ## Explicit followup policies
+
+HTU1 is a Station call with capture_resource:u64, parent_exchange:u64,
+reason:u8 and the complete 112-byte HTQ1 request reference after its four-byte
+magic (133 bytes total). Reason values match the exchange lineage contract.
+The service must authenticate the original caller and current admission policy,
+require the parent's published terminal outcome, preserve its original deadline
+and total attempt budget, and validate the new published bytes under the frozen
+parent policy before allocating a child. A finite worker configuration selects
+the child ID, parent and reason; this is not an arbitrary multi-call queue.
+
+Allocation stores the child's HTA1 reply route in immutable EXL2
+context, sharing the existing four mutations. Its input remains the original
+root input and its correlation belongs to this new followup call. Settlement
+publishes HTR1 and writes the mutable published route at r/0. Duplicate admission
+must match caller, request, correlation, parent and reason; conflicts return busy.
+The callback validating bytes is trusted connector computation, not a proof
+conferred by the context or kernel. A new effect still needs its own current
+dispatch authorization. Policy rejection or exhausted root budget returns HTF1
+without allocating a child; failed authorized reads roll back the decision and
+leave the input pending. A terminal parent must still be available. A finite
+activation configured for a followup rejects root HTQ1 calls.
 
 `Policy.Prepared` owns the frozen metadata shape. It contains the typed request,
 endpoint/capture/trust scope and optional versioned retry, redirect, reconciliation
@@ -225,3 +249,6 @@ routes, outcomes and rejection encodings.
 The independently constructed [release fixtures](../packages/zig/transit-station-http/src/release-fixtures.json)
 fix full-width disposal and acknowledgement identity, independently of local
 reader handles.
+The independent [followup fixture](../packages/zig/transit-station-http/src/followup-fixtures.json)
+fixes HTU1 with full-width parent/namespace identifiers and the exact embedded
+request commitment.

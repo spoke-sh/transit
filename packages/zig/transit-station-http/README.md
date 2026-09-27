@@ -71,3 +71,10 @@ advances one bounded publication step per turn. Repeat with identical recoverabl
 metadata/body until it returns true, then call in that turn. It rejects changed
 identity after restart and cannot resurrect retired records. The caller supplies
 continuation scheduling and keeps source bytes recoverable until publication.
+
+`Service.admitFollowup` authenticates an HTU1 call from the original caller and
+checks its published terminal parent before invoking a trusted validator for the
+new request bytes. The callback must validate the frozen endpoint policy without
+dispatching. Read errors roll back the turn; rejections allocate nothing. A valid
+child records its new correlation in EXL2 context atomically with lineage and
+root-budget consumption. Terminal publication uses the existing HTR1 reply.

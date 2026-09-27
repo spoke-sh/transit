@@ -51,7 +51,7 @@ def run(node, provision, worker, library):
                     return
                 first_application = key not in applied
                 applied.add(key)
-                if self.path in ("/kill", "/public-kill") and first_application:
+                if self.path in ("/kill", "/public-kill", "/public-retry") and first_application:
                     blocked.set()
                     release.wait(timeout=30)
                 try:
@@ -103,6 +103,8 @@ def run(node, provision, worker, library):
                             selected = "seal"
                         if any(o and b"HTK1" in bytes.fromhex(o["value"]) for o in turn.get("outputs", [])):
                             selected = "caller_release"
+                        if any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b"EXL2") for m in turn.get("mutations", [])):
+                            selected = "caller_followup"
                         if request["principal"] == 65536:
                             if not prepared_prefix.is_set() and any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b'{"version":1,"endpoint_revision":') for m in turn.get("mutations", [])):
                                 prepared_prefix.set()
@@ -179,6 +181,11 @@ def run(node, provision, worker, library):
                     configuration["body_file"] = None
                 if reason == "redirect":
                     configuration["request"]["target"] = [{"literal": "/redirected"}]
+                config.write_text(json.dumps(configuration))
+            def public_retry(saved, mode):
+                admission(saved, "/public-retry", mode)
+                configuration = json.loads(config.read_text())
+                configuration.update(exchange=2, followup={"parent": 1, "reason": "retry"})
                 config.write_text(json.dumps(configuration))
             def invoke():
                 return json.loads(subprocess.check_output([worker, str(config)], timeout=120))
@@ -451,6 +458,82 @@ def run(node, provision, worker, library):
             assert requests.count("/public") == 1
             credential.write_text("fixture-request-secret")
 
+            # The original caller explicitly retries through its own durable
+            # call. Admission validates the frozen policy before spending a slot.
+            saved = admin("provision-public")
+            configure(saved, "/public-retry", "accept")
+            saved = admin("call")
+            root_correlation = saved["caller"]["correlation"]
+            admission(saved, "/public-retry", "accept")
+            assert invoke()["phase"] == "ready"
+            saved = admin("own")
+            admission(saved, "/public-retry", "execute")
+            blocked.clear(); release.clear()
+            child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE)
+            assert blocked.wait(timeout=60), "Retry root never reached remote application"
+            child.kill(); child.wait(timeout=10); child = None
+            release.set()
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start()
+            authority = start_node()
+            saved = admin("own")
+            admission(saved, "/public-retry", "execute")
+            assert invoke()["outcome"] == "closed_unknown"
+            root_outcome = admin("receive")["outcome"]
+            assert root_outcome["phase"] == "closed_unknown"
+
+            saved = admin("followup-call")
+            saved = admin("own")
+            public_retry(saved, "accept")
+            changed = json.loads(config.read_text())
+            changed["admission"]["scope"]["target"] = "/admin"
+            config.write_text(json.dumps(changed))
+            refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
+            assert refused.returncode != 0 and b"MissingHttpCall" in refused.stderr, refused
+            assert admin("receive-rejection") == {"reason": "denied"}
+            assert requests.count("/public-retry") == 1
+
+            saved = admin("followup-call")
+            saved = admin("own")
+            public_retry(saved, "accept")
+            changed = json.loads(config.read_text())
+            changed["retry_policy"]["revision"] += 1
+            config.write_text(json.dumps(changed))
+            refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
+            assert refused.returncode != 0 and b"MissingHttpCall" in refused.stderr, refused
+            assert admin("receive-rejection") == {"reason": "denied"}
+
+            saved = admin("followup-call")
+            followup_correlation = saved["caller"]["correlation"]
+            assert followup_correlation != root_correlation
+            saved = admin("own")
+            public_retry(saved, "accept")
+            admin("revoke-request")
+            refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
+            assert refused.returncode != 0 and b"AccessDenied" in refused.stderr, refused
+            admin("restore-request")
+            saved = admin("own")
+            public_retry(saved, "accept")
+            assert invoke()["phase"] == "ready"
+            assert "caller_followup" in recovered
+            assert requests.count("/public-retry") == 1
+            # Another fresh activation resumes the admitted child without a
+            # second allocation, refreshed deadline or implicit send.
+            saved = admin("own")
+            public_retry(saved, "accept")
+            assert invoke()["phase"] == "ready"
+            saved = admin("own")
+            public_retry(saved, "execute")
+            assert invoke()["phase"] == "complete"
+            result = admin("receive")["outcome"]
+            assert result["phase"] == "observed" and result["exchange"] == 2
+            assert result["effect"] != root_outcome["effect"]
+            assert result["attempt"] != root_outcome["attempt"]
+            assert saved["caller"]["correlation"] == followup_correlation
+            assert admin("inspect")["effect"] == "closed_unknown"
+            assert requests.count("/public-retry") == 2
+            assert "/public-retry" in applied
+
             # Reconciliation belongs to the surviving connector PID. The caller
             # can terminate after application; its replacement receives nothing.
             saved = admin("provision-public")
@@ -477,8 +560,8 @@ def run(node, provision, worker, library):
             assert result["phase"] == "closed_unknown" and result["attempt"] > 0
             assert requests.count("/public-kill") == 1
             assert not failures, failures
-            assert len(requests) == 9 and len(applied) == 5
-            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit retry/redirect/status/cancel, public admission/disposal and caller termination passed; nine sends, five applications, one cancellation request.")
+            assert len(requests) == 11 and len(applied) == 6
+            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit retry/redirect/status/cancel, public admission/retry/disposal and caller termination passed; eleven sends, six applications, one cancellation request.")
             print(f"HTTP worker proof wall time: {time.monotonic() - started:.2f}s (excludes compilation).")
         finally:
             release.set()

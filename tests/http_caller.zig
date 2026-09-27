@@ -6,15 +6,17 @@ const s = @import("transit_station");
 const p = s.protocol;
 const Pub = s.Publication;
 const Admin = @import("growing_support.zig").Admin(47);
-pub const Saved = struct { pid: u64, resource: u64, correlation: u64, deadline: u64, replacement: ?u64 = null, output_after: u64, release_call: ?struct { correlation: u64, output_after: u64 } = null };
+pub const Saved = struct { pid: u64, resource: u64, correlation: u64, deadline: u64, reference: http.RequestRecord.Reference, replacement: ?u64 = null, output_after: u64, release_call: ?struct { correlation: u64, output_after: u64 } = null };
 const Action = union(enum) {
     create,
     begin: struct { id: u64, spec: Pub.Spec },
     append: struct { id: u64, index: u32, bytes: []const u8 },
     publish: u64,
     call: struct { pid: u64, reference: http.RequestRecord.Reference },
+    followup: struct { pid: u64, request: http.Service.Followup },
     release: struct { pid: u64, request: http.Service.Release },
     receive_release: struct { pid: u64, correlation: u64 },
+    receive_rejection,
     receive,
 };
 const Caller = struct {
@@ -38,6 +40,7 @@ const Caller = struct {
                 _ = try publication.publish(turn, id);
             },
             .call => |call| self.correlation = try turn.call(call.pid, try call.reference.encode(), null),
+            .followup => |call| self.correlation = try turn.call(call.pid, try call.request.encode(), null),
             .release => |call| self.correlation = try turn.call(call.pid, try call.request.encode(), null),
             .receive_release => |call| {
                 try t.expectEqual(.reply, frame.kind);
@@ -50,6 +53,11 @@ const Caller = struct {
                 try t.expectEqual(.reply, frame.kind);
                 self.outcome = try http.Service.Outcome.decode(frame.payload);
                 try turn.put(try p.Value.init("http-outcome"), frame.payload);
+            },
+            .receive_rejection => {
+                try t.expectEqual(.reply, frame.kind);
+                _ = try http.exchange.codec.decode(http.Service.Rejection, frame.payload);
+                try turn.put(try p.Value.init("http-rejection"), frame.payload);
             },
         }
     }
@@ -122,7 +130,34 @@ pub fn publish(init: std.process.Init, admin: *Admin, worker: u64, capture: u64,
     try t.expectEqual(process.pid, outgoing.source);
     try t.expectEqual(worker, outgoing.destination);
     _ = try admin.submit(.{ .deliver = outgoing.id });
-    return .{ .pid = process.pid, .resource = process.resource, .correlation = caller.correlation, .deadline = prepared.reference.reconcile_before_ms, .output_after = outgoing.id };
+    return .{ .pid = process.pid, .resource = process.resource, .correlation = caller.correlation, .deadline = prepared.reference.reconcile_before_ms, .reference = prepared.reference, .output_after = outgoing.id };
+}
+pub fn followup(init: std.process.Init, admin: *Admin, saved: *Saved, worker: u64, capture: u64) !void {
+    var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
+    var caller: Caller = .{};
+    const before = try lastOutput(admin);
+    const reference = try saved.reference.encode();
+    try apply(init, admin, &server, &caller, .{ .followup = .{ .pid = worker, .request = .{ .resource = capture, .parent = 1, .reason = .retry, .request = reference.data[0..112].* } } });
+    const outgoing = try output(admin, before);
+    try t.expectEqual(saved.pid, outgoing.source);
+    try t.expectEqual(worker, outgoing.destination);
+    try t.expect(saved.correlation != caller.correlation);
+    _ = try admin.submit(.{ .deliver = outgoing.id });
+    saved.correlation = caller.correlation;
+    saved.output_after = outgoing.id;
+}
+pub fn receiveRejection(init: std.process.Init, admin: *Admin, saved: Saved, worker: u64) !http.Service.Rejection {
+    const outgoing = try output(admin, saved.output_after);
+    try t.expectEqual(worker, outgoing.source);
+    try t.expectEqual(saved.pid, outgoing.destination);
+    const frame = try s.Frame.decode(outgoing.value);
+    try t.expectEqual(saved.correlation, frame.correlation);
+    const rejected = try http.exchange.codec.decode(http.Service.Rejection, frame.payload);
+    _ = try admin.submit(.{ .deliver = outgoing.id });
+    var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
+    var caller: Caller = .{ .action = .receive_rejection };
+    try drive(init, &server, &caller);
+    return rejected;
 }
 pub fn receive(init: std.process.Init, admin: *Admin, saved: Saved, worker: u64) !http.Service.Outcome {
     const outgoing = try output(admin, saved.output_after);

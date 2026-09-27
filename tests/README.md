@@ -11,7 +11,9 @@ The additive EXL2 lineage context is independently byte-fixtured and bounded at
 214 bytes. Package and root unit checks prove its four-mutation allocation,
 rollback with occupied capacity, immutable duplicate identity and preservation
 of the original caller/input/deadline and attempt budget across EXL1/EXL2
-descendants. This foundation alone does not qualify public followup admission.
+descendants. HTTP service units also check authentication before request reads,
+atomic child/reply-route allocation, read/mutation/output rollback, conflicting
+correlations, unpublished/retired parents and exhausted total budgets.
 `just test::http-transport` runs the real Zig transport against independent
 Python HTTP/TLS peers: 20 single-send requests cover 16,387-byte binary chunked
 bodies, trailers, header omissions, redirects, ambiguous framing, truncation,
@@ -57,8 +59,17 @@ optional associations preserve PID-scoped read access without required caller
 lifetime dependencies. After remote application, caller termination plus worker,
 node and store replacement produces closed unknown with the original attempt.
 The reply's outbox destination is retired; a replacement PID receives no input.
-These additions bring the full proof to **nine sends, five applications and one
-cancellation request**. Naming-service rebinding and public followup APIs remain
+Public retry now uses a new call from that original application PID. Changed
+scope/policy rejects before allocating a child. A revoked request-read grant stops
+the activation without blocking the process or advancing the input; restoring
+access and fresh ownership resumes the same call. Losing the committed EXL2
+allocation receipt proves exact retry of child, route and root-budget consumption.
+Fresh preparation resumes the child without another allocation or send, then
+execution produces a new effect/attempt and correlated outcome. The independent
+peer sees two sends and one application, while the parent remains closed unknown.
+The full proof passes in **350.71 seconds** excluding compilation, with **eleven
+sends, six applications and one cancellation request**. Naming-service rebinding,
+public redirect/status/cancel dispatch and language-native followup helpers remain
 separate qualification work.
 
 Public HTD1 disposal now releases only the authenticated original caller's hold.
