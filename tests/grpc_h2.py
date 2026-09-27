@@ -84,7 +84,7 @@ def verify(binary, cert, key, payload):
             if mode == "Flow":
                 frame = b"\0" + struct.pack(">I", len(payload)) + payload
                 assert requests == [frame*4] and fragments[0] > 100, (len(requests), fragments)
-                assert result["status"] == 0 and result["sent"] == 4 and result["received"] == 3 and result["half_closed"], result
+                assert result["capture_complete"] and result["status"] == 0 and result["sent"] == 4 and result["received"] == 3 and result["half_closed"], result
                 assert result["sha256"] == hashlib.sha256(payload*3).hexdigest(), result
             else:
                 expected = {"Missing": "MissingStatus", "Truncated": "Internal", "Compressed": "Internal", "EarlyStatus": "MalformedResponse", "DuplicateStatus": "MalformedResponse"}[mode]

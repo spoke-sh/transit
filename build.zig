@@ -61,7 +61,7 @@ pub fn build(b: *std.Build) void {
     tls_alpn_test.has_side_effects = true;
     tls_alpn_test.stdio = .inherit;
     b.step("test-tls-alpn", "Qualify required ALPN with independent TLS peers").dependOn(&tls_alpn_test.step);
-    const grpc_transport_proof = b.addExecutable(.{ .name = "transit-grpc-transport-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/grpc_transport.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_grpc", .module = grpc.module("transit_grpc") }} }) });
+    const grpc_transport_proof = b.addExecutable(.{ .name = "transit-grpc-transport-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/grpc_transport.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_grpc", .module = grpc.module("transit_grpc") }, .{ .name = "transit_station_grpc", .module = station_grpc.module("transit_station_grpc") } } }) });
     build_test_step.dependOn(&grpc_transport_proof.step);
     const grpc_transport_test = b.addSystemCommand(&.{ "python3", "-B" });
     grpc_transport_test.addFileArg(b.path("tests/grpc_transport.py"));

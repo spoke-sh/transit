@@ -42,13 +42,31 @@ def generate():
     return json.dumps({"metadata": encoded.decode(), "messages_hex": [m.hex() for m in messages], "batch_hex": batch.hex(), "reference_hex": reference.hex()}, indent=2, ensure_ascii=False) + "\n"
 
 
+def generate_capture():
+    def metadata(fields):
+        return b"GRH1" + struct.pack("<I", len(fields)) + b"".join(
+            struct.pack("<HI", len(k), len(v)) + k + v for k, v in fields)
+    body = "café🌐".encode() + bytes(range(256))
+    result = {
+        "initial_hex": metadata([(b":status", b"200"), (b"content-type", b"application/grpc+proto"), (b"x-repeat", b"one"), (b"x-repeat", b"two"), (b"x-binary-bin", b"AP8=")]).hex(),
+        "trailers_hex": metadata([(b"grpc-status", b"0")]).hex(),
+        "message_hex": (b"GRM1" + struct.pack("<II", 0, len(body)) + hashlib.sha256(body).digest()).hex(),
+        "half_close_hex": (b"GRS1" + struct.pack("<II", 1, 5)).hex(),
+        "timing_hex": (b"GRT1" + struct.pack("<QQ", 2**64-1, 2**64-1)).hex(),
+        "omission_hex": (b"GRO1" + struct.pack("<II", 1, 1)).hex(),
+        "completion_hex": (b"GRC1" + struct.pack("<IIIIIB", 0, 1, 1, 5, len(body)+5, 1)).hex(),
+        "body_hex": body.hex(),
+    }
+    return json.dumps(result, indent=2) + "\n"
+
+
 if __name__ == "__main__":
-    result = generate()
-    if sys.argv[1:] == ["--write"]:
-        FIXTURE.write_text(result)
-    elif not sys.argv[1:]:
-        if FIXTURE.read_text() != result:
-            raise SystemExit("gRPC request fixture differs; review and regenerate explicitly")
-        print("gRPC request fixture: independent binary layout and commitments verified")
-    else:
+    if sys.argv[1:] not in ([], ["--write"]):
         raise SystemExit("usage: grpc_contract.py [--write]")
+    for path, result in ((FIXTURE, generate()), (FIXTURE.with_name("capture.json"), generate_capture())):
+        if sys.argv[1:]:
+            path.write_text(result)
+        elif path.read_text() != result:
+            raise SystemExit(f"gRPC fixture {path.name} differs; review and regenerate explicitly")
+    if not sys.argv[1:]:
+        print("gRPC request/capture fixtures: independent binary layouts and commitments verified")

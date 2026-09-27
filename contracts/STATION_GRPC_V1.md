@@ -1,8 +1,8 @@
 # Station gRPC capture v1
 
 Status: M16 implementation contract in progress. The finite transport is qualified;
-request layout/publication has independent fixtures; response capture, worker
-and SDKs are not yet qualified. It composes
+request and capture layouts have independent fixtures and pure replay has live
+peer evidence. Durable worker recovery and SDKs are not yet qualified. It composes
 [exchange v1](STATION_EXCHANGE_V1.md) and [publication v1](STATION_PUBLICATION_V1.md)
 without widening a kernel turn, mailbox value or effect permit.
 
@@ -120,6 +120,66 @@ then evidence, not an observed caller result. Settlement checks the frozen effec
 attempt, executor and deadline. Reply routing uses the original authenticated
 caller PID/correlation; termination and name rebinding cannot redirect a late
 outcome to a replacement process. Unknown/partial results never trigger redial.
+
+## Exact capture records
+
+Exchange protocol format is 2. Every segment is a Publication with that format.
+The adapter sequence is request metadata (kind 1), GRB1 batch parts (2), canonical
+endpoint policy (3), response events, timing (9), omission (10), completion (11).
+Batch and response-body parts are at most 4,096 bytes; other records are at most
+8,192 bytes. A batch's consecutive parts concatenate to one GRB1 record.
+
+| Kind | Record | Payload after magic, little-endian |
+| --- | --- | --- |
+| 4 / 8 | `GRH1` initial metadata / trailers | count:u32; repeated key length:u16, value length:u32, exact key/value bytes |
+| 5 | `GRM1` incoming message | index:u32, length:u32, SHA-256:32 bytes |
+| 6 | Original incoming protobuf parts | No envelope; exactly the preceding GRM1 length/digest |
+| 7 | `GRS1` local request half-close | planned messages:u32, planned framed bytes:u32 |
+| 9 | `GRT1` observation timing | started Unix milliseconds:u64, elapsed nanoseconds:u64 |
+| 10 | `GRO1` omission counts | response fields:u32, request secret references:u32 |
+| 11 | `GRC1` terminal counts | status:u32, sent messages:u32, received messages:u32, sent framed bytes:u32, received framed bytes:u32, half-closed:u8 (0/1) |
+
+Incoming indices start at zero; GRM1 is followed immediately by its body parts.
+Empty messages have SHA-256 of empty bytes and no body segment. Half-close may
+precede initial metadata or occur between complete messages. It appears at most
+once, before a terminal metadata block. Trailers-Only uses kind 4 with status;
+otherwise kind 8 supplies status after any messages. `grpc-status` must be unique,
+0–16; successful unary/client-streaming results require exactly one response.
+Exchange terminal code is **RPC status + 1**, since zero means unfinished there.
+
+GRH1 retains ordered wire metadata. Binary values preserve their base64 spelling,
+including padded/unpadded forms and comma-separated values; application decoding
+is separate. Lowercase names, printable ASCII, bounded counts/bytes and valid
+base64 are required even for fields selected for omission. Required transport
+fields (`:status`, `content-type`, `grpc-status`, `grpc-encoding`) are retained;
+other fields require the frozen response allowlist. Credential field names cannot
+join that allowlist. Omissions are counted without recording their values.
+
+The endpoint policy is canonical JSON in `Policy.Prepared` field order: version,
+endpoint_revision, host, address, port, tls, timeout_ms, limits, response_metadata,
+credentials, trust_digest, method, shape, descriptor_digest, metadata_digest,
+batch_digest, retry_policy. Version is 1; shape uses its enum name; digests are
+32-element unsigned byte arrays; absent trust/retry fields are `null`. Limits use
+the transport's message_bytes, request_bytes, response_bytes, request_messages,
+response_messages and metadata_bytes fields in that order. Credentials have
+binding, version, metadata; no local secret paths or rendered values are stored.
+A retry policy has id, revision, key_metadata. The explicit trust digest commits
+the CA bundle bytes independently of its machine-local file path.
+
+Replay validates policy commitments against the canonical request and GRB1 batch,
+method/schema identity, credential references, configured limits and permitted
+response metadata. The first policy implements explicit idempotent retry only:
+the original nonempty literal idempotency key, complete batch and every frozen
+policy field must match. It does not claim remote safety from that key alone;
+the deployment must assert a method-specific idempotency contract. Alternate
+endpoints, redirects and method-changing remote reconcile/cancel RPCs are refused.
+Kernel finite closure and EXB2 descendant accounting still apply independently.
+
+Terminal sent counts cover complete message prefixes plus a possible partial next
+frame; half-close requires the entire planned batch. Received counts must match
+all sealed message digests. Missing bodies, mismatched counts, extra terminal
+records and required omissions cannot become complete replay. Parsing and
+coverage checking do not prove peer honesty or grant fresh execution rights.
 
 ## Reads and lifetime
 

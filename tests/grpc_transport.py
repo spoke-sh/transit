@@ -72,13 +72,13 @@ with tempfile.TemporaryDirectory(prefix="transit-grpc-") as work:
         for method, shape, count, sent in (("Unary", 1, 1, 1), ("Server", 2, 8, 1), ("Client", 3, 1, 4), ("Bidi", 4, 4, 4)):
             result = json.loads(subprocess.check_output([sys.argv[1], str(port), "/test.Peer/" + method, str(shape), str(cert)], timeout=10))
             assert "error" not in result, (method, result)
-            assert result == dict(status=0, sent=sent, received=count, bytes=count*len(payload), sha256=hashlib.sha256(payload*count).hexdigest(), half_closed=True, initial=1, trailers=1, duplicates=2, binary=2), (method, result)
+            assert result == dict(capture_complete=True, status=0, sent=sent, received=count, bytes=count*len(payload), sha256=hashlib.sha256(payload*count).hexdigest(), half_closed=True, initial=1, trailers=1, duplicates=2, binary=2), (method, result)
         for method, shape, error in (("Failed", 1, None), ("Stall", 1, "GrpcOutcomeUnknown"), ("Oversized", 1, "ResourceExhausted"), ("Limited", 2, "GrpcBudgetExceeded")):
             result = json.loads(subprocess.check_output([sys.argv[1], str(port), "/test.Peer/" + method, str(shape), str(cert)], timeout=10))
-            if error is None: assert result["status"] == 7 and result["received"] == 0, result
+            if error is None: assert result["status"] == 7 and result["received"] == 0 and result["capture_complete"], result
             else: assert result.get("error") == error, (method, result)
         assert applications == ["unary", "server", "client", "bidi", "failed", "stall", "oversized", "server"], applications
         verify(sys.argv[1], cert, key, payload)
-        print("gRPC transport: all four shapes, duplex binary messages, duplicate/binary metadata, trailers, non-OK status, deadlines and finite budgets passed; eight calls, no redial/retry.")
+        print("gRPC transport: all four shapes, duplex binary messages, duplicate/binary metadata, trailers, non-OK status, deadlines, finite budgets and pure capture/replay passed; eight calls, no redial/retry.")
     finally:
         server.stop(0).wait(timeout=5); pool.shutdown(wait=True)

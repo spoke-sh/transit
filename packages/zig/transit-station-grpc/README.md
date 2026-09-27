@@ -3,8 +3,9 @@
 The M16 Zig adapter composes [Exchange](../transit-exchange/README.md), Station
 Publication and the finite [RPC transport](../transit-grpc/README.md). Its
 [versioned contract](../../../contracts/STATION_GRPC_V1.md) describes the finite
-batch authority profile. Worker, durable response capture and SDK qualification
-are in progress; the request codec alone does not authorize an RPC.
+batch authority profile. Pure request/capture/replay checks and independent transport peers pass. Durable
+worker recovery and SDK qualification are in progress; the adapter does not
+authorize an RPC.
 
 `Request` fixes a method, shape, descriptor-set SHA-256 and ordered metadata.
 `provenance` emits canonical bounded JSON with lowercase hex for literal bytes
@@ -23,6 +24,29 @@ caller's responsibility. Namespace reuse or changed identity fails explicitly.
 records are read, `validateContent` checks their commitments, shape and descriptor
 identity; it returns an owned request. A digest does not validate an application's
 protobuf schema or grant method access.
+
+`Policy.Prepared` freezes numeric routing, TLS authority/trust, descriptor,
+request/batch commitments, credential references, finite limits and response
+metadata allowlist. Canonical parsing rejects alternate encodings. Explicit
+idempotent retry preserves all fields and a nonempty literal key; it returns a
+policy reference, never an execution permit. Other followup kinds are refused.
+
+`Capture.emit` translates borrowed transport events into indexed message headers,
+4 KiB body parts, filtered metadata and half-close records. Supply a sink that
+seals each segment before returning. A sink error leaves its accepted prefix and
+permanently disables that active capture. `finish` appends timing, omissions and
+terminal counts; Exchange completion and the kernel observation remain separate
+worker duties. Response metadata retains wire base64, duplicate order and explicit
+omission counts. Default filtering cannot be treated as application protobuf
+redaction; secret-bearing message bodies are outside this profile.
+
+`Replay.open/read` uses Exchange's current-availability reader on every chunk.
+It validates the frozen policy and directional coverage with fixed per-call
+memory: a 65,544-byte batch buffer, 8 KiB metadata copy, bounded field hashes and
+131,072-byte temporary parse arena. No history-sized allocation, sockets,
+reflection or credential resolver is accepted. Returned prefixes are provisional;
+only the final part has `complete=true`. Required omissions or a failed read are
+explicit gaps; terminal status alone cannot establish complete coverage.
 
 Limits are per call: 64 messages/direction, 16 KiB/message, 64 KiB outgoing and
 256 KiB incoming framed bytes. GRB1's storage envelope needs at most 65,544 bytes,

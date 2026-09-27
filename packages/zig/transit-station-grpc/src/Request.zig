@@ -15,6 +15,7 @@ pub fn validate(self: Self) !void {
     if (self.metadata.len > 64) return error.InvalidGrpcMetadata;
     var fields: [64]rpc.transport.Entry = undefined;
     for (self.metadata, 0..) |entry, index| {
+        if (entry.value == .literal and rpc.Policy.sensitive(entry.name)) return error.GrpcCredentialReferenceRequired;
         fields[index] = .{ .name = entry.name, .value = switch (entry.value) {
             .literal => |bytes| bytes,
             .secret => |secret| blk: {

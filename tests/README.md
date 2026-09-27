@@ -27,7 +27,13 @@ credit, a response larger than its window before request credit is returned,
 missing status, truncated/compressed frames and malformed/duplicate terminal
 status. The same-frame END_STREAM regression rejects a false terminal head even
 when later DATA and END_STREAM arrive in one read. This is transport evidence;
-durable RPC effects, transcripts, SDKs and deployment remain unqualified.
+the same live callbacks now pass through the pure RPC capture/replay adapter,
+including frozen policy, 4 KiB message parts and 256-byte replay reads. Units
+reject changed digests, missing parts, false terminal counts, invalid metadata,
+undeclared credentials and unsafe retry changes. Python-generated GRH1/GRM1/GRS1/
+GRT1/GRO1/GRC1 fixtures fix the binary layouts independently. These sinks are
+in-memory protocol probes; durable RPC effects/recovery, SDKs and deployment
+remain unqualified.
 
 `just test::tls-alpn` executes a real Zig client against six independent TLS
 connections: TLS 1.2 and 1.3 each accept `h2` and reject absent or incompatible

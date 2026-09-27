@@ -860,7 +860,10 @@
       "owner": "packages/zig/transit-grpc/README.md",
       "implementation": [
         "packages/zig/transit-grpc/src/root.zig",
-        "packages/zig/transit-tls/src/Client.zig"
+        "packages/zig/transit-tls/src/Client.zig",
+        "packages/zig/transit-station-grpc/src/Capture.zig",
+        "packages/zig/transit-station-grpc/src/Replay.zig",
+        "packages/zig/transit-station-grpc/src/Policy.zig"
       ],
       "profile": "M16 transport only; one connection and one finite outgoing batch",
       "tasks": [
@@ -872,7 +875,8 @@
         "All four call shapes against grpcio with independent protobuf, binary and duplicate metadata, status and trailers",
         "Simultaneous 64-byte request and 16-KiB response credit; no receive-blocked upload",
         "Truncated/compressed/oversized messages, missing status, deadline and capture capacity refusal",
-        "Initial status without same-frame END_STREAM and duplicate reserved status reject; malformed state is sticky"
+        "Initial status without same-frame END_STREAM and duplicate reserved status reject; malformed state is sticky",
+        "Live callbacks pass pure capture/replay validation with frozen policy, ordered binary metadata and bounded message parts; no durable sink claimed"
       ],
       "limits": "No durable RPC authority, connector recovery, SDK or deployment claim. Identity compression only; no reconnect, retry or remote resume.",
       "model": null

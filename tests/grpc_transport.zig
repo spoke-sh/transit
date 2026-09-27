@@ -1,5 +1,6 @@
 const std = @import("std");
 const grpc = @import("transit_grpc");
+const rpc = @import("transit_station_grpc");
 const Payload = struct {
     text: []const u8 = "",
     blob: []const u8 = "",
@@ -11,6 +12,8 @@ const Payload = struct {
     };
 };
 const Collector = struct {
+    adapter: ?*rpc.Capture = null,
+    validator: rpc.Replay.Validator = .{ .terminal_code = 0 },
     hash: std.crypto.hash.sha2.Sha256 = .init(.{}),
     bytes: usize = 0,
     messages: usize = 0,
@@ -19,8 +22,20 @@ const Collector = struct {
     duplicate_metadata: usize = 0,
     binary_metadata: usize = 0,
     half_close: bool = false,
+    fn append(raw: *anyopaque, kind: rpc.Capture.Kind, bytes: []const u8) !void {
+        const self: *Collector = @ptrCast(@alignCast(raw));
+        var offset: usize = 0;
+        while (offset < bytes.len) {
+            const len = @min(256, bytes.len - offset);
+            try self.validator.push(kind, bytes[offset..][0..len], offset + len == bytes.len);
+            offset += len;
+        }
+        if (bytes.len == 0) try self.validator.push(kind, "", true);
+    }
+
     fn capture(raw: *anyopaque, event: grpc.Event) !void {
         const self: *Collector = @ptrCast(@alignCast(raw));
+        if (self.adapter) |adapter| try rpc.Capture.emit(adapter, event);
         switch (event) {
             .message => |bytes| {
                 self.hash.update(bytes);
@@ -55,6 +70,35 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, args[2], "/test.Peer/Flow")) endpoint.timeout_ms = 10000;
     if (std.mem.eql(u8, args[2], "/test.Peer/Limited")) endpoint.limits.response_bytes = 100;
     var collector: Collector = .{};
+    const descriptor = @embedFile("fixtures/grpc/peer.pb");
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(descriptor, &digest, .{});
+    const request: rpc.Request = .{ .method = args[2], .shape = shape, .descriptor_digest = digest, .metadata = &.{
+        .{ .name = "x-repeat", .value = .{ .literal = "first" } },
+        .{ .name = "x-repeat", .value = .{ .literal = "second" } },
+        .{ .name = "x-blob-bin", .value = .{ .literal = "\x00\xff" } },
+    } };
+    var metadata_buffer: [8192]u8 = undefined;
+    const metadata_bytes = try request.provenance(&metadata_buffer);
+    try Collector.append(&collector, .request_metadata, metadata_bytes);
+    var batch_buffer: [rpc.Batch.maximum_bytes]u8 = undefined;
+    const batch_bytes = try rpc.Batch.encode(messages[0..request_count], shape, endpoint.limits, &batch_buffer);
+    var offset: usize = 0;
+    while (offset < batch_bytes.len) {
+        const len = @min(4096, batch_bytes.len - offset);
+        try Collector.append(&collector, .request_batch, batch_bytes[offset..][0..len]);
+        offset += len;
+    }
+    const ca = try std.Io.Dir.cwd().readFileAlloc(init.io, args[4], init.gpa, .limited(1048576));
+    defer init.gpa.free(ca);
+    var trust: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(ca, &trust, .{});
+    const policy: rpc.Policy.Prepared = .{ .endpoint_revision = 1, .host = endpoint.host, .address = endpoint.address, .port = endpoint.port, .tls = endpoint.tls, .timeout_ms = endpoint.timeout_ms, .limits = endpoint.limits, .response_metadata = &.{ "x-repeat", "x-blob-bin" }, .trust_digest = trust, .method = request.method, .shape = shape, .descriptor_digest = digest, .metadata_digest = (try rpc.exchange.Publication.Digest.of(2, metadata_bytes)).digest, .batch_digest = (try rpc.exchange.Publication.Digest.of(2, batch_bytes)).digest };
+    var policy_buffer: [8192]u8 = undefined;
+    try Collector.append(&collector, .endpoint_policy, try policy.encode(&policy_buffer));
+    const batch = try rpc.Batch.decode(batch_bytes, shape, endpoint.limits);
+    var adapter: rpc.Capture = .{ .sink = .{ .context = &collector, .append = Collector.append }, .planned = .{ .messages = @intCast(batch.count), .wire_bytes = batch.wire_bytes }, .allowlist = &.{ "x-repeat", "x-blob-bin" } };
+    collector.adapter = &adapter;
     const result = grpc.execute(init.gpa, init.io, endpoint, .{
         .method = args[2],
         .shape = shape,
@@ -64,7 +108,11 @@ pub fn main(init: std.process.Init) !void {
     var buffer: [2048]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     if (result) |value| {
-        try output.interface.print("{{\"status\":{d},\"sent\":{d},\"received\":{d},\"bytes\":{d},\"sha256\":\"{x}\",\"half_closed\":{},\"initial\":{d},\"trailers\":{d},\"duplicates\":{d},\"binary\":{d}}}\n", .{ value.status, value.sent_messages, value.received_messages, collector.bytes, collector.hash.finalResult(), value.half_closed, collector.initial, collector.trailers, collector.duplicate_metadata, collector.binary_metadata });
+        collector.validator.terminal_code = value.status + 1;
+        const captured = try adapter.finish(value, .{ .started_ms = 1, .elapsed_ns = 1 });
+        const replayed = try collector.validator.finish();
+        if (!std.meta.eql(captured, replayed)) return error.CaptureReplayMismatch;
+        try output.interface.print("{{\"capture_complete\":true,\"status\":{d},\"sent\":{d},\"received\":{d},\"bytes\":{d},\"sha256\":\"{x}\",\"half_closed\":{},\"initial\":{d},\"trailers\":{d},\"duplicates\":{d},\"binary\":{d}}}\n", .{ value.status, value.sent_messages, value.received_messages, collector.bytes, collector.hash.finalResult(), value.half_closed, collector.initial, collector.trailers, collector.duplicate_metadata, collector.binary_metadata });
     } else |err| try output.interface.print("{{\"error\":\"{s}\",\"received\":{d}}}\n", .{ @errorName(err), collector.messages });
     try output.interface.flush();
 }
