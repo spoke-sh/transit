@@ -27,8 +27,11 @@ objects / 35,169,506 bytes. This is a local measurement, not a hosted CI budget.
 
 `just check` validates the independent Python-generated SDC1/SDR1 change and
 reference fixtures, including full-width integers, negative zero, binary and
-Unicode. Public SDKs, Board and local/Compose/reference example qualification
-remain in progress; the disk proof does not establish those surfaces.
+Unicode. The same fixtures pass through `station_document_codec` in the real native
+library and port host, including invalid/truncated/canonical-identity checks.
+`just bindings::generate` and `just bindings::build` pass, and `just check` checks
+all generated declarations against the public Zig types. Public SDKs, Board and
+local/Compose/reference example qualification remain in progress; the disk proof does not establish those surfaces.
 
 ## M16 finite connector qualification
 

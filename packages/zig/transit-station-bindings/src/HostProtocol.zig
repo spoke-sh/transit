@@ -12,6 +12,7 @@ pub const Request = union(enum) {
     finish: bool,
     pending: void,
     growing_capabilities: void,
+    document_codec: abi.document.Action,
     grpc_codec: abi.grpc.Action,
     growing_grpc_read: abi.grpc.ReadAction,
     http_codec: abi.http.Action,

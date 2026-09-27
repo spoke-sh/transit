@@ -34,3 +34,12 @@ and `just bindings::native` for generated-contract drift and real C/C++/Python
 ownership/recovery proofs. `just bindings::generate` regenerates declarations
 from the public Zig exports; generated resources remain separate from idiomatic
 host APIs.
+
+M17 adds `station_document_codec` and the matching local port action. Shared Zig
+prepares/validates canonical Document changes and exact accepted-state references;
+SDKs receive owned buffers. Full-width counters/integers use decimal strings,
+binary uses hex, and finite float64 uses eight little-endian bytes as hex to
+preserve negative zero. Editable text characters are exactly one Unicode scalar,
+not one byte, UTF-16 code unit or grapheme cluster. Independent SDC1/SDR1 fixtures
+run through native and port surfaces. Public language changes/reads and durable
+caller APIs are still in progress; codec availability does not claim them complete.

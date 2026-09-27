@@ -137,6 +137,34 @@ def run(host, library=None):
                 except TransitError as error:
                     actual = {'status': error.status, 'value': error.detail}
                 assert actual == expected, (actual, expected)
+        # Document codecs use canonical shared fixtures and preserve binary/float
+        # bits separately from host JSON number representation.
+        fixture = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-document/src/fixtures/changes.json').read_text())
+        actions = [{'prepare': row['change']} for row in fixture['changes']]
+        actions += [{'decode': row['wire_hex']} for row in fixture['changes']]
+        actions += [{'reference': fixture['reference']}, {'inspect_reference': fixture['reference_hex']}]
+        valid_count = len(actions)
+        actions += [{'decode': fixture['changes'][0]['wire_hex'][:-2]},
+                    {'prepare': dict(fixture['changes'][0]['change'], replica='01')},
+                    {'prepare': dict(fixture['changes'][1]['change'], first=str(2**64-1))},
+                    {'inspect_reference': fixture['reference_hex'] + '00'}]
+        result = subprocess.run([host, config], input=''.join(json.dumps({'document_codec': a})+'\n' for a in actions),
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=15, check=True)
+        responses = [json.loads(line) for line in result.stdout.splitlines()]
+        for row, response in zip(fixture['changes'], responses[:3], strict=True):
+            assert response == {'status': 0, 'value': {'prepared': {'bytes': row['wire_hex'], 'spec': row['spec']}}}, response
+        assert all(row['status'] == 0 for row in responses[:valid_count]), responses
+        assert responses[6] == {'status': 0, 'value': {'reference': fixture['reference_hex']}}
+        assert responses[7] == {'status': 0, 'value': {'inspected_reference': fixture['reference']}}
+        assert all(row['status'] == 1 for row in responses[valid_count:]), responses[valid_count:]
+        if library:
+            for action, expected in zip(actions, responses, strict=True):
+                data = json.dumps(action).encode()
+                try:
+                    actual = {'status': 0, 'value': native.call('station_document_codec', data, len(data))}
+                except TransitError as error:
+                    actual = {'status': error.status, 'value': error.detail}
+                assert actual == expected, (actual, expected)
         seed = Path(temporary) / 'test.key'
         seed.write_text('00' * 32)
         activation = {'realm': 72, 'principal': 1, 'pid': 1, 'generation': 1, 'association': 'data'}
@@ -158,7 +186,7 @@ def run(host, library=None):
             rejected = subprocess.run([host, config], input='', text=True, stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL, timeout=10)
             assert rejected.returncode != 0 and rejected.stdout == ''
-    print('Station local codecs: shared framing and HTTP/RPC admission fixtures, full-width IDs, malformed rejection, no authority/credentials, native/port parity and shutdown passed.')
+    print('Station local codecs: shared framing and HTTP/RPC/Document fixtures, full-width IDs, malformed rejection, no authority/credentials, native/port parity and shutdown passed.')
 
 
 if __name__ == '__main__': run(*sys.argv[1:])
