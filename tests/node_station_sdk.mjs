@@ -65,6 +65,11 @@ async function main() {
     assert.ok(reply instanceof HttpOutcome); assert.equal(reply.exchange, (1n << 64n) - 1n);
     assert.equal(reply.phase, 'observed'); assert.equal(reply.status, 200);
     assert.deepEqual(await decodeHttpReply(72, new Uint8Array(Buffer.from(fixture.rejection, 'hex'))), { kind: 'http-rejected', reason: 'denied' });
+    const disposal = JSON.parse(await readFile(cfg.http_release_fixtures, 'utf8'));
+    const released = await decodeHttpReply(72, new Uint8Array(Buffer.from(disposal.reply, 'hex')));
+    assert.deepEqual(released, { kind: 'http-released', resource: new ResourceRef(72, 7), exchange: (1n << 64n) - 1n });
+    assert.ok(Object.isFrozen(released));
+    await assert.rejects(decodeHttpReply(72, new Uint8Array(Buffer.from(disposal.reply, 'hex').subarray(0, -1))));
     prepared.reference.fill(0); prepared.body.fill(0);
     assert.equal(Buffer.from(prepared.reference).toString('hex'), fixture.reference);
     assert.equal(Buffer.from(prepared.body).toString('hex'), fixture.body);
@@ -254,13 +259,20 @@ async function httpConsumer() {
   body.fill(0);
   const correlation = new Key(new TextEncoder().encode('http-correlation'), u64Codec);
   const status = new Key(new TextEncoder().encode('http-status'), u64Codec);
+  const disposal = new Key(new TextEncoder().encode('http-disposal'), u64Codec);
   const codec = { typeId: 'test.http-control', version: 1, maxEncodedBytes: 243, encode: value => new Uint8Array(value), decode: value => new Uint8Array(value) };
   const handler = {
     result: undefined, escaped: undefined,
     async initialize() {},
     async handle(turn, input) {
       assert.equal(input.kind, 'cast'); this.escaped = turn;
-      if (await turn.state.find(correlation)) this.result = { called: true };
+      if (Buffer.from(input.value).toString() === 'dispose') {
+        const original = await decodeHttpReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        await assert.rejects(turn.releaseHttp(peer, new ResourceRef(73, original.resource.resource), original.exchange), TypeError);
+        const call = await turn.releaseHttp(peer, original.resource, original.exchange);
+        await turn.state.put(disposal, call);
+        this.result = { released: false };
+      } else if (await turn.state.find(correlation)) this.result = { called: true };
       else if (await turn.stageHttp(request)) {
         const call = await turn.callHttp(peer, request);
         await turn.state.put(correlation, call);
@@ -269,6 +281,15 @@ async function httpConsumer() {
     },
     async handleHttpReply(turn, input) {
       this.escaped = turn;
+      if (input.value.kind === 'http-released') {
+        turn.requireReply(input, { peer, correlation: await turn.state.require(disposal) });
+        const original = await decodeHttpReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));
+        assert.deepEqual(input.value.resource, original.resource);
+        assert.equal(input.value.exchange, original.exchange);
+        await turn.state.put(new Key(new TextEncoder().encode('http-disposed'), u64Codec), input.value.exchange);
+        this.result = { released: true };
+        return;
+      }
       turn.requireReply(input, { peer, correlation: await turn.state.require(correlation) });
       assert.ok(input.value instanceof HttpOutcome);
       assert.equal(input.value.phase, 'observed'); assert.equal(input.value.status, 200);
@@ -305,6 +326,7 @@ async function httpConsumer() {
         let committed = false;
         for (let i = 0; i < 32; i++) if ((await runner.next()).kind === 'committed') { committed = true; break; }
         assert.ok(committed); assert.throws(() => handler.escaped.stageHttp(request), TurnExpired);
+        assert.throws(() => handler.escaped.releaseHttp(peer, new ResourceRef(72, cfg.resource), 1n), TurnExpired);
         result = handler.result;
       } else if (action === 'open') {
         outcome = await decodeHttpReply(72, new Uint8Array(Buffer.from(cfg.outcome, 'hex')));

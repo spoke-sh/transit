@@ -7,17 +7,30 @@ Request/capture reads require optional resource associations plus current grants
 Create those associations before assigning ownership.
 
 ```typescript
-import { prepareHttp } from '@transit/station';
+import { prepareHttp } from "@transit/station";
 
-const request = await prepareHttp(resource, namespace, {
-  method: 'POST',
-  target: [{ kind: 'literal', value: '/items/' },
-           { kind: 'variable', name: 'id', value: itemId }],
-  headers: [{ name: 'Authorization', value: [
-    { kind: 'literal', value: 'Bearer ' },
-    { kind: 'secret', binding: 'api', version: 7n },
-  ] }],
-}, body, { endpointRevision: 7n, reconcileBeforeMs: deadline });
+const request = await prepareHttp(
+  resource,
+  namespace,
+  {
+    method: "POST",
+    target: [
+      { kind: "literal", value: "/items/" },
+      { kind: "variable", name: "id", value: itemId },
+    ],
+    headers: [
+      {
+        name: "Authorization",
+        value: [
+          { kind: "literal", value: "Bearer " },
+          { kind: "secret", binding: "api", version: 7n },
+        ],
+      },
+    ],
+  },
+  body,
+  { endpointRevision: 7n, reconcileBeforeMs: deadline },
+);
 ```
 
 Preparation copies input before asynchronous work, validates it through Zig and
@@ -59,7 +72,7 @@ try {
     if (!part) break;
     consume(part.kind, part.data);
   }
-  if (!reader.complete) throw new Error('Incomplete capture');
+  if (!reader.complete) throw new Error("Incomplete capture");
 } finally {
   await reader.close();
 }
@@ -75,5 +88,17 @@ One reader and one outstanding operation are permitted per runner. Overlap
 rejects as busy. `runner.stop()` requests local stop; `await runner.close()` joins
 outstanding native work and disposes the reader. Ignoring a promise does not
 cancel that work. Owned bytes remain valid after disposal. Closing local handles
-does not release the durable caller capture hold. Public followup/release helpers
-and the remaining SDK matrix are still M15 work.
+does not release the durable caller capture hold.
+
+Use `await turn.releaseHttp(connector, outcome.resource, outcome.exchange)` to
+request durable disposal. Save its correlation in state, then authenticate the
+`HttpReleased` reply in `handleHttpReply` with `turn.requireReply` and check the
+resource/exchange. `decodeHttpReply` also returns this frozen value with
+`kind: 'http-released'`; rejection remains `http-rejected`. The runner reserves
+the HTK1 prefix for this callback alongside HTR1/HTF1.
+
+Disposal needs no transcript read grant and duplicate requests remain safe after
+restart or cleanup. The service checks the original holder and current policy;
+local decoding grants no authority. It does not cancel remote work, retire capture
+or perform cleanup. A finite worker uses a fresh `poll` activation to handle the
+call. Public followup helpers remain M15 work.

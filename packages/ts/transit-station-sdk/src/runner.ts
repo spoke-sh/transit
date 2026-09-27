@@ -265,7 +265,7 @@ export class Runner<M> implements AsyncDisposable {
         if (
           input.kind === "reply" &&
           typeof this.#handler.handleHttpReply === "function" &&
-          (httpMagic === "48545231" || httpMagic === "48544631")
+          (httpMagic === "48545231" || httpMagic === "48544631" || httpMagic === "48544b31")
         ) {
           const value = await decodeHttpWithBridge(this.#bridge, turn.process.realm, payload);
           const reply: Reply<HttpReply> = Object.freeze({

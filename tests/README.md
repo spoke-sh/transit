@@ -104,7 +104,9 @@ independent acknowledgement fixtures preserve full-width exchange identities.
 `just bindings::node-sdk-test` runs the same HTTP schedule through clean Node
 tarballs, including runtime schema validation, owned request/getter bytes, native
 HTTP reply dispatch and joining a delayed replay read during local stop/disposal.
-The 2026-09-26 local HTTP schedule took **33.26 seconds**, with the existing client,
+The expanded 2026-09-26 local HTTP schedule took **55.73 seconds**, including
+authenticated durable disposal before/after cleanup without transcript access
+or credentials, with the existing client,
 runner and Arrow regressions also passing. TypeScript handlers opt into the async
 shared decoder through `handleHttpReply`; application codecs stay synchronous.
 `just bindings::rust-sdk-test` qualifies the same binary caller/replay schedule

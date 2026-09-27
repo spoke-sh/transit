@@ -217,6 +217,23 @@ export class Turn {
       );
     });
   }
+  releaseHttp(peer: ProcessRef, resource: ResourceRef, exchange: bigint): Promise<bigint> {
+    return operation(this, async ({ bridge, token }) => {
+      const pid = this.#peer(peer);
+      if (!(resource instanceof ResourceRef) || resource.realm !== this.resource.realm)
+        throw new TypeError("HTTP capture must belong to the current realm");
+      if (!bridge.caps.http_release)
+        throw new UnsupportedCapability("Native HTTP disposal is unavailable");
+      return nativeWide(
+        result(
+          await bridge.apply(token, {
+            http_release: { pid, resource: resource.resource, exchange: wide(exchange).toString() },
+          }),
+          "correlation",
+        ),
+      );
+    });
+  }
   cast<T>(peer: ProcessRef, value: T, codec: Codec<T>): Promise<void> {
     return operation(this, async ({ bridge, token }) => {
       const pid = this.#peer(peer),

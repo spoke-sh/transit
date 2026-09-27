@@ -1,5 +1,5 @@
 import { inspect } from "node:util";
-import { ResourceRef, Closed, IncompatibleNative } from "@transit/client";
+import { ResourceRef, Closed, IncompatibleNative, UnsupportedCapability } from "@transit/client";
 import { integer, owned, text } from "@transit/client/internal";
 import { Bridge } from "./bridge.ts";
 import { hex, unhex } from "./framing.ts";
@@ -176,18 +176,31 @@ export interface HttpRejected {
   readonly kind: "http-rejected";
   readonly reason: HttpRejection;
 }
-export type HttpReply = HttpOutcome | HttpRejected;
+export interface HttpReleased {
+  readonly kind: "http-released";
+  readonly resource: ResourceRef;
+  readonly exchange: bigint;
+}
+export type HttpReply = HttpOutcome | HttpRejected | HttpReleased;
 export async function decodeHttpWithBridge(
   bridge: Bridge,
   realm: number,
   bytes: Uint8Array,
 ): Promise<HttpReply> {
   integer(realm, "realm");
+  if (Buffer.from(bytes.subarray(0, 4)).toString("hex") === "48544b31" && !bridge.caps.http_release)
+    throw new UnsupportedCapability("Native HTTP disposal is unavailable");
   const result = await bridge.httpCodec({ outcome: hex(bytes, 71) });
   if ("rejected" in result)
     return Object.freeze({
       kind: "http-rejected",
       reason: result.rejected === "invalid_request" ? "invalid-request" : result.rejected,
+    });
+  if ("released" in result)
+    return Object.freeze({
+      kind: "http-released",
+      resource: new ResourceRef(realm, result.released.resource),
+      exchange: nativeWide(result.released.exchange),
     });
   if (!("outcome" in result)) throw new IncompatibleNative("Expected an HTTP outcome");
   return new HttpOutcome(construction, realm, result.outcome);

@@ -49,6 +49,7 @@ export type {
   HttpPhase,
   HttpRejection,
   HttpRejected,
+  HttpReleased,
   HttpReply,
   HttpReplayPolicy,
   HttpPartKind,
