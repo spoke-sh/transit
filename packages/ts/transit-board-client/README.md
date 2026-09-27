@@ -99,3 +99,10 @@ changing that revision requires an explicit refresh. Counts include detached and
 deleted registers and describe one page only. Field names, scalar values and text
 are not interpreted. `validateRecords` also checks each recognized Document head
 against the corresponding authorized source entry.
+
+The unified `/api/v1/query-v2` route has a separate 1 MiB decoded JSON response
+bound: one at-most-64-KiB Arrow segment appears as hex alongside owned decoded
+cells, whose control characters may expand sixfold in JSON. Schema, conflict and
+provenance overhead stays bounded. The streaming limit applies before parsing,
+and generated plus semantic validators still enforce eight rows/columns and
+individual scalar bounds. Other routes retain their 256 KiB transport budget.

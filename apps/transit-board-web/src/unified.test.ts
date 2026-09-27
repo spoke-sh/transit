@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   unifiedCellText,
   validateUnifiedQuery,
   type UnifiedQueryResponse,
   type UnifiedCell,
+  request,
 } from "@rey/transit-board-client";
 
 function page(cell: UnifiedCell): UnifiedQueryResponse {
@@ -46,6 +47,42 @@ function page(cell: UnifiedCell): UnifiedQueryResponse {
   };
 }
 describe("unified query boundary", () => {
+  it("admits escaped owned pages beyond the inspection response budget and bounds v2 separately", async () => {
+    const value = page({ value: { utf8: "\u0000".repeat(2048) } });
+    if (!("page" in value)) throw new Error("fixture");
+    value.page.evidence.columns = [
+      { name: "key", type: "utf8" },
+      { name: "value", type: "utf8" },
+    ];
+    value.page.evidence.rows = 8;
+    value.page.evidence.ipc = "00".repeat(65536);
+    Object.assign(value.page.evidence.manifest, {
+      scanned: "8",
+      selected: "8",
+      rows: "8",
+      bytes: "65536",
+    });
+    value.page.cells = Array.from({ length: 8 }, () => [
+      { value: { utf8: "\u0000".repeat(2048) } },
+      { value: { utf8: "\u0000".repeat(2048) } },
+    ]);
+    const encoded = JSON.stringify(value);
+    expect(encoded.length).toBeGreaterThan(262144);
+    expect(validateUnifiedQuery(value)).toBe(true);
+    try {
+      vi.stubGlobal("fetch", async () => new Response(encoded));
+      expect(await request("/api/v1/query-v2", validateUnifiedQuery)).toEqual(value);
+      await expect(request("/api/v1/query", validateUnifiedQuery)).rejects.toMatchObject({
+        code: "ResponseTooLarge",
+      });
+      vi.stubGlobal("fetch", async () => new Response(" ".repeat(1048577)));
+      await expect(request("/api/v1/query-v2", validateUnifiedQuery)).rejects.toMatchObject({
+        code: "ResponseTooLarge",
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("retains wide numbers and all five states without guessing nulls", () => {
     const values: UnifiedCell[] = [
       { missing: {} },

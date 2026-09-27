@@ -46,13 +46,17 @@ export async function request<T>(
   const reader = response.body?.getReader();
   if (!reader) throw new BoardError(0, "InvalidResponse");
   let size = 0;
+  // V2 carries a <=64 KiB Arrow segment as hex plus decoded cells. JSON
+  // control-character escaping can expand those cell bytes sixfold; include
+  // bounded schema/conflict/provenance overhead without changing row limits.
+  const maximum = path === "/api/v1/query-v2" ? 1048576 : 262144;
   const chunks: Uint8Array[] = [];
   try {
     while (true) {
       const next = await reader.read();
       if (next.done) break;
       size += next.value.byteLength;
-      if (size > 262144) throw new BoardError(0, "ResponseTooLarge");
+      if (size > maximum) throw new BoardError(0, "ResponseTooLarge");
       chunks.push(next.value);
     }
   } finally {

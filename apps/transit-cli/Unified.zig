@@ -49,7 +49,7 @@ pub fn run(init: std.process.Init, path: []const u8) !void {
         var arena = std.heap.ArenaAllocator.init(init.gpa);
         defer arena.deinit();
         command(init, &session, &client, config.workspace, line, arena.allocator(), &output.interface) catch |err| {
-            if (err == error.AccessDenied or err == error.QueryDenied or err == error.QuerySourceUnavailable or err == error.DocumentRetired or err == error.DocumentHistoryGap or err == error.DocumentResyncRequired) session.clear();
+            if (err == error.AccessDenied or err == error.QueryDenied or err == error.QuerySourceUnavailable or err == error.ResourceUnavailable or err == error.DocumentRetired or err == error.DocumentHistoryGap or err == error.DocumentResyncRequired) session.clear();
             try json(&output.interface, .{ .err = @errorName(err), .uncertain = session.pending != null });
         };
         try output.interface.flush();
