@@ -213,3 +213,13 @@ Unlimited retention is the default. Unknown remote effects retain their recovery
 evidence and finite closure obligation; quota pressure does not discharge either.
 SDK disposal requires an authenticated durable call, independently of transcript
 read access. A method/schema decoder has no authority over those lifetimes.
+
+## Local descriptor binding
+
+A caller may derive method path, shape and descriptor digest from an explicitly
+supplied local `FileDescriptorSet` using the shared Zig descriptor helper. The
+SHA-256 covers the exact whole file, including unknown fields. Request/response
+message names must resolve unambiguously in that set. This is schema identity
+and call-shape evidence, not validation of application message contents. No
+reflection, network discovery, credential resolution or dispatch occurs.
+Application-generated message codecs remain separate from durable request records.

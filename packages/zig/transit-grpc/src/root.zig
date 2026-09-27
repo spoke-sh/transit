@@ -3,6 +3,7 @@ const std = @import("std");
 const http = @import("http");
 const wire = @import("grpc");
 const tls = @import("transit_tls");
+pub const Descriptor = @import("Descriptor.zig");
 pub const protobuf = @import("protobuf");
 pub const Entry = wire.Entry;
 pub const Shape = enum(u8) { unary = 1, server_streaming = 2, client_streaming = 3, bidi = 4 };
@@ -237,4 +238,8 @@ test "finite requests reject shape, framing and metadata errors before transport
     try t.expectError(error.InvalidGrpcShape, (Request{ .method = "/test.Service/Method", .shape = .unary, .messages = &.{} }).validate(.{}));
     try t.expectError(error.InvalidGrpcRequest, (Request{ .method = "/test.Service/Method\r\n", .shape = .bidi, .messages = &.{} }).validate(.{}));
     try t.expectError(error.GrpcBudgetExceeded, (Request{ .method = "/test.Service/Method", .shape = .bidi, .messages = &.{"one"} }).validate(.{ .request_bytes = 7 }));
+}
+
+test {
+    _ = Descriptor;
 }

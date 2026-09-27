@@ -73,6 +73,15 @@ pub fn main(init: std.process.Init) !void {
     const descriptor = @embedFile("fixtures/grpc/peer.pb");
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(descriptor, &digest, .{});
+    var schema = try grpc.Descriptor.parse(init.gpa, descriptor);
+    defer schema.deinit();
+    const selected = schema.method(args[2]) catch |err| if (err == error.GrpcDescriptorMethodMissing) null else return err;
+    if (selected) |method| {
+        try std.testing.expectEqual(shape, method.shape);
+        try std.testing.expectEqualStrings(".test.Payload", method.input_type);
+        try std.testing.expectEqualStrings(".test.Payload", method.output_type);
+        try std.testing.expectEqualSlices(u8, &digest, &method.descriptor_digest);
+    }
     const request: rpc.Request = .{ .method = args[2], .shape = shape, .descriptor_digest = digest, .metadata = &.{
         .{ .name = "x-repeat", .value = .{ .literal = "first" } },
         .{ .name = "x-repeat", .value = .{ .literal = "second" } },

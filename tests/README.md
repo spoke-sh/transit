@@ -37,7 +37,8 @@ public caller SDKs, deployment placement or every final-publication crash bounda
 gRPC client suites. Compatibility changes and the intentionally excluded server
 surface are recorded with source hashes in the [snapshot](../third_party/zig-libs/README.md).
 `just test::grpc-transport` runs all four call shapes against grpcio 1.80.0 over
-TLS, preserving original protobuf bytes with binary/Unicode/full-width values,
+TLS, resolving all four methods from local protoc-generated descriptors and
+preserving original protobuf bytes with binary/Unicode/full-width values,
 duplicate/binary metadata and distinct trailers. Eight calls exercise complete,
 non-OK, oversized, exhausted-budget and stalled results without retries.
 Six independent h2 peer schedules add 64-byte request credit, 16-KiB response

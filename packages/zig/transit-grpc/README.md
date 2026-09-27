@@ -4,7 +4,8 @@ Finite Zig HTTP/2 gRPC transport for [M16](../../../docs/roadmap/M16.md). This
 package performs one connection and one RPC over a preconstructed message batch.
 Station's connector must supply committed intent, current authorization, scoped
 credentials, durable capture and terminal settlement before exposing results.
-Those authority integrations are still in progress.
+The [Station adapter](../transit-station-grpc/README.md) and
+[worker](../../../apps/transit-station-grpc-worker/README.md) own those integrations.
 
 `Request` fixes method, shape, ordered metadata and original serialized protobuf
 bytes. `execute` validates the whole batch before dialing the pinned IPv4 address;
@@ -44,10 +45,24 @@ HTTP/2, HPACK, protobuf and the gRPC client at revision
 its manifest. The [TLS adapter](../transit-tls/README.md) pins its own upstream
 sources. No foreign runtime, high-level HTTP client, RPC server or automatic
 retry surface is included. The protobuf codec uses explicit scalar/field
-specifications; schema discovery is the consuming adapter's responsibility.
+specifications. `Descriptor.parse` reads only an explicitly supplied local
+`FileDescriptorSet`, computes SHA-256 over its complete original bytes and
+resolves exact method path, request/response type names and streaming shape.
+There is no reflection or schema discovery. Keep generated application message
+codecs separate from the durable call contract.
+
+Descriptor parsing admits 64 KiB, 64 files, 256 methods and 256 nested message
+types, with depth 16 and a 1 MiB decode allocation budget. It rejects ambiguous
+or missing types/methods. The parsed descriptor owns an arena; call `deinit`.
+Returned method paths borrow the supplied path string and type names borrow
+the descriptor arena. The digest is a copied value. Unknown descriptor fields
+still participate in that digest; this helper does not validate application
+protobuf values against their field definitions.
 
 Run `just test::grpc-libraries` and `just test::grpc-transport` inside `nix develop`.
 The live proof uses independent grpcio/h2 peers, a pinned generated descriptor,
 all four shapes, binary/Unicode/full-width protobuf, duplicate/binary metadata,
 trailers, credit stalls, malformed terminal envelopes and bounded failures.
-Durable RPC recovery, SDKs and deployment proofs remain M16 work.
+The live probe also resolves all four methods from protoc-generated descriptors.
+Units reject truncated/oversize input, duplicates and missing types/methods.
+Durable worker recovery has its own Station proof; SDKs and placement remain open.
