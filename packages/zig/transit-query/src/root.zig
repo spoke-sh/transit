@@ -4,6 +4,8 @@ pub const protocol = station.protocol;
 pub const fuze = station.fuze;
 pub const wire = station.client;
 pub const document = @import("transit_station_document");
+pub const Bundle = @import("Bundle.zig");
+pub const UnifiedRecords = @import("UnifiedRecords.zig");
 pub const UnifiedSource = @import("UnifiedSource.zig");
 pub const Decoder = @import("Decoder.zig");
 pub const SourceDefinition = @import("SourceDefinition.zig");
@@ -13,5 +15,6 @@ pub const Behavior = @import("Behavior.zig");
 pub const Client = @import("Client.zig");
 test {
     _ = @import("source_test.zig");
+    _ = @import("unified_records_test.zig");
     @import("std").testing.refAllDecls(@This());
 }

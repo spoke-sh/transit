@@ -7,6 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/unified.json'
+BUNDLES = ROOT / 'packages/zig/transit-query/src/fixtures/bundles.json'
 SOURCES = ROOT / 'packages/zig/transit-query/src/fixtures/sources.json'
 
 
@@ -46,12 +47,33 @@ def sources():
     return json.dumps([dict(kind=kind, wire_hex=wire.hex(), digest=hashlib.sha256(b'transit.query.source.v2\0'+wire).hexdigest()) for kind, wire in variants], indent=2)+'\n'
 
 
+def bundles():
+    plans = json.loads(generate())['plans']
+    definitions = json.loads(sources())
+    limits = struct.pack('<QQQ', 1000, 500, 1048576)
+    result = []
+    for definition in definitions:
+        source = bytes.fromhex(definition['wire_hex'])
+        selected = 'unsigned-max' if definition['kind'] == 'kv' else 'larger-plan'
+        plan = bytes.fromhex(next(p['wire_hex'] for p in plans if p['name'] == selected))
+        bundle = b'UQB2' + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
+        initial = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x32425155, len(bundle))).digest()
+        digest = initial
+        for index, offset in enumerate(range(0, len(bundle), 256)):
+            part = bundle[offset:offset+256]
+            digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', index, len(part)) + part).digest()
+        ref = b'SPF1' + struct.pack('<QQQII', 8, 2**64-1, 1, 0x32425155, len(bundle)) + digest
+        result.append(dict(kind=definition['kind'], wire_hex=bundle.hex(), reference_hex=ref.hex()))
+    return json.dumps(result, indent=2)+'\n'
+
+
 if __name__ == '__main__':
     if sys.argv[1:] == ['--write']:
         FIXTURE.parent.mkdir(exist_ok=True)
         FIXTURE.write_text(generate())
         SOURCES.parent.mkdir(exist_ok=True)
         SOURCES.write_text(sources())
-    elif sys.argv[1:] or FIXTURE.read_text() != generate() or SOURCES.read_text() != sources():
+        BUNDLES.write_text(bundles())
+    elif sys.argv[1:] or FIXTURE.read_text() != generate() or SOURCES.read_text() != sources() or BUNDLES.read_text() != bundles():
         raise SystemExit('Unified query fixtures differ; review and regenerate explicitly')
     print('Unified query fixtures: independent schemas, source definitions and full-width/larger FZP2 plans passed.')

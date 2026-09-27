@@ -96,6 +96,20 @@ an existing upload. One active upload/query bounds admission independently of
 retained history. Abandon/cancel is explicit; a timeout or frontend disconnect is
 not remote cancellation.
 
+The canonical `UQB2` bundle has a 32-byte header: magic, u16 source length,
+u16 plan length, then u64 maximum input pages, segments and result bytes. Integers
+are little-endian. Canonical `UQS2` source and `FZP2` plan bytes follow. Its total
+budget is 16 KiB; each component retains its own smaller bound. All three work
+budgets are positive and must fit the current durable source policy. The bundle
+is record 1, format `0x32425155`, referenced by Station's 68-byte `SPF1` encoding.
+Neither truncation nor trailing bytes is canonical.
+
+The source's revisioned `UQA2` policy binds the authenticated requester PID,
+request resource, allowed declaration and maximum budgets. Its declaration digest
+covers all decoder/projection details. Only an accepted Document revision may
+vary within that declaration; Document epoch, type, identity and change format
+remain fenced. Every accepted job also records the complete exact source digest.
+
 The source validates current peer policy, request-resource access, bundle digest,
 source contract and supported plan before capture. It retains an exact source
 cut and commits bounded resumable progress. M14 Publication stores independently
@@ -112,6 +126,23 @@ later disclosure, including a continuation after an already returned prefix;
 it cannot retract previously disclosed bytes. Retained source pins are released
 on capture completion or explicit closure. Cancelled/failed staging is reclaimed
 in bounded steps; publication ledgers preserve permanent identity facts.
+
+The source job's result namespace is `2^63 | source_input_position`, reserved by
+the host in that resource; an occupied namespace rejects admission. Segment
+ordinal `n` uses record `n + 1`, format `0x32415155`; the final manifest uses
+record `2^64 - 1`, format `0x324d5155`. `UQJ2` binds the original route, request
+reference, policy revision and retained version. The `UQC2` checkpoint contains
+the `FZS2` engine progress, source-specific cursor, total bytes and ordered segment
+chain in at most 246 bytes. It fits the unchanged 256-byte KV value.
+
+`UQS2` segment metadata (in the separate result-record context) is 121 bytes:
+magic, u64 ordinal, u64 first row, u8 row count, `SPF1` reference and raw Arrow
+SHA-256. The chain starts at SHA-256 of `transit.query.result.v2` followed by a
+zero byte; each step hashes the preceding digest followed by canonical metadata.
+This binds ordered coverage and the independently chunked publication digest.
+The finite `UQM2` manifest contains two u16 lengths followed by complete `UQJ2`
+and `UQC2` records, within 512 bytes. It is published separately from segments;
+only its original-call reply establishes a completed query for the requester.
 
 ## Public surfaces and qualification
 

@@ -45,3 +45,10 @@ Component tests qualify these adapters and the current Document floor/retirement
 checks with in-memory private turns. V2 durable capture, public submission,
 result access and SDK surfaces remain in progress; the existing `Client` and
 `Behavior` still serve public Table v1 queries.
+
+`Bundle` owns the bounded canonical source/plan request and explicit page,
+segment and result-byte budgets. `UnifiedRecords` owns versioned policies,
+jobs, checkpoints, segment commitments and final manifests. Bundle decoding
+borrows the input and caller arena. Independent Python fixtures cover all three
+source bundles, including a 512-byte predicate and their Publication commitments.
+These codecs alone do not advertise an executable public v2 service.
