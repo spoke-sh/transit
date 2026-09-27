@@ -122,6 +122,13 @@ fn bind(store: *Store, ex: Exchange) !void {
     _ = try ex.bind(&turn, .{ .id = 19, .pid = 2, .payload = payload, .phase = .authorized, .attempt = 20, .executor = 7, .reconcile_before_ms = 10000 });
     try store.commit(turn);
 }
+fn closeAndSettle(store: *Store, ex: Exchange) !void {
+    var turn = try store.capture();
+    _ = try ex.closeUnknown(&turn);
+    const d = try ex.inspect(&turn);
+    _ = try ex.settle(&turn, .{ .id = d.effect, .pid = d.owner, .payload = (try turn.read(Exchange.key(ex.id, 'i', 0))).?, .phase = .closed_unknown, .attempt = d.attempt, .executor = d.executor, .reconcile_before_ms = d.reconcile_before_ms });
+    try store.commit(turn);
+}
 fn segment(store: *Store, ex: Exchange, ordinal: u32, kind: u32, bytes: []const u8) !void {
     const spec = try Pub.Digest.of(1, bytes);
     var turn = try store.capture();
@@ -362,8 +369,7 @@ test "linked followups share a finite original budget and never renew lineage or
     turn = try store.capture();
     try t.expectError(error.ExchangePolicyChanged, parent.configureAttempts(&turn, 4));
     try t.expectError(error.ExchangeStillOpen, parent.followup(&turn, 2, .retry, 7, 1, limits));
-    _ = try parent.closeUnknown(&turn);
-    try store.commit(turn);
+    try closeAndSettle(&store, parent);
     turn = try store.capture();
     const before = turn.decision;
     try turn.put(try p.Value.init("unrelated"), .{});
@@ -382,14 +388,14 @@ test "linked followups share a finite original budget and never renew lineage or
     try t.expectEqual(original.caller, next.caller);
     try t.expectEqual(original.input, next.input);
     try t.expectEqual(original.reconcile_before_ms, next.reconcile_before_ms);
-    _ = try child.closeUnknown(&turn);
-    try store.commit(turn);
+    try bind(&store, child);
+    try closeAndSettle(&store, child);
     turn = try store.capture();
     const last = try child.followup(&turn, 3, .reconcile, 7, 1, limits);
     try store.commit(turn);
     turn = try store.capture();
-    _ = try last.closeUnknown(&turn);
-    try store.commit(turn);
+    try bind(&store, last);
+    try closeAndSettle(&store, last);
     turn = try store.capture();
     try t.expectError(error.ExchangeAttemptBudgetExceeded, last.followup(&turn, 4, .cancel, 7, 1, limits));
     try t.expectError(error.ExchangeAttemptBudgetExceeded, parent.followup(&turn, 4, .retry, 7, 1, limits));
@@ -441,8 +447,7 @@ test "child context shares atomic allocation and cannot change or renew descenda
     try store.commit(turn);
     try bind(&store, parent);
     turn = try store.capture();
-    _ = try parent.closeUnknown(&turn);
-    try store.commit(turn);
+    try closeAndSettle(&store, parent);
     turn = try store.capture();
     const before = turn.decision;
     try turn.put(try p.Value.init("unrelated"), .{});
@@ -462,8 +467,8 @@ test "child context shares atomic allocation and cannot change or renew descenda
     try t.expectError(error.ExchangeIdentityConflict, parent.followup(&turn, 2, .retry, 7, 1, limits));
     try t.expectError(error.ExchangeIdentityConflict, parent.followupWithContext(&turn, 2, .retry, 7, 1, limits, try p.Value.init("changed")));
     try t.expectEqualDeep(empty, turn.decision);
-    _ = try child.closeUnknown(&turn);
-    try store.commit(turn);
+    try bind(&store, child);
+    try closeAndSettle(&store, child);
     turn = try store.capture();
     const last = try child.followup(&turn, 3, .reconcile, 7, 1, limits);
     try store.commit(turn);
@@ -478,4 +483,91 @@ test "child context shares atomic allocation and cannot change or renew descenda
     try t.expectEqual(origin.input, descendant.input);
     try t.expectEqual(origin.reconcile_before_ms, descendant.reconcile_before_ms);
     try t.expectEqual(@as(u32, 3), (try root.codec.decode(Exchange.AttemptBudget, (try turn.read(Exchange.key(1, 'b', 0))).?)).used);
+}
+
+test "unsettled children protect ancestors and explicit abandonment releases only its own hold" {
+    var store: Store = .{};
+    defer store.deinit();
+    const parent = try exchange(&store, 1);
+    var turn = try store.capture();
+    try parent.configureAttempts(&turn, 5);
+    try store.commit(turn);
+    try bind(&store, parent);
+    turn = try store.capture();
+    _ = try parent.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.UnsettledExchange, parent.followup(&turn, 2, .retry, 7, 1, limits));
+    try closeAndSettle(&store, parent);
+    turn = try store.capture();
+    const abandoned = try parent.followup(&turn, 2, .retry, 7, 1, limits);
+    try store.commit(turn);
+    turn = try store.capture();
+    const child = try parent.followup(&turn, 3, .retry, 7, 1, limits);
+    try store.commit(turn);
+    turn = try store.capture();
+    _ = try parent.releaseCaller(&turn, 9);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.ExchangeHasDependents, parent.retire(&turn));
+    _ = try abandoned.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.UnsettledExchange, abandoned.followup(&turn, 4, .retry, 7, 1, limits));
+    for ([_][]const u8{ "a", "b", "c" }) |name| try turn.put(try p.Value.init(name), .{});
+    const occupied = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, abandoned.retire(&turn));
+    try t.expectEqualDeep(occupied, turn.decision);
+    turn = try store.capture();
+    _ = try abandoned.retire(&turn);
+    try t.expectEqual(.duplicate, try abandoned.retire(&turn));
+    try store.commit(turn);
+    turn = try store.capture();
+    const budget_key = Exchange.key(1, 'b', 0);
+    try t.expectEqual(@as(u32, 1), (try root.codec.decode(Exchange.AttemptBudget, (try turn.read(budget_key)).?)).unsettled);
+    try t.expectError(error.ExchangeHasDependents, parent.retire(&turn));
+    try bind(&store, child);
+    try closeAndSettle(&store, child);
+    // A duplicate terminal read cannot discharge somebody else's hold.
+    try closeAndSettle(&store, child);
+    turn = try store.capture();
+    try t.expectEqual(@as(u32, 0), (try root.codec.decode(Exchange.AttemptBudget, (try turn.read(budget_key)).?)).unsettled);
+    const descendant = try child.followup(&turn, 4, .reconcile, 7, 1, limits);
+    try store.commit(turn);
+    turn = try store.capture();
+    _ = try child.releaseCaller(&turn, 9);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.ExchangeHasDependents, parent.retire(&turn));
+    try t.expectError(error.ExchangeHasDependents, child.retire(&turn));
+    _ = try descendant.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    _ = try descendant.retire(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    _ = try parent.retire(&turn);
+    _ = try child.retire(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    const budget = try root.codec.decode(Exchange.AttemptBudget, (try turn.read(budget_key)).?);
+    try t.expectEqual(@as(u32, 4), budget.used);
+    try t.expectEqual(@as(u32, 0), budget.unsettled);
+}
+
+test "independent EXB2 budget fixture bounds holds and rejects old untracked budgets" {
+    const Fixture = struct { version: u32, budget: p.Value, legacy: p.Value };
+    const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("budget-fixtures.json"), .{});
+    defer parsed.deinit();
+    const f = parsed.value;
+    try t.expectEqual(@as(u32, 2), f.version);
+    const budget = try root.codec.decode(Exchange.AttemptBudget, f.budget);
+    try t.expectEqual(@as(u32, std.math.maxInt(u32)), budget.limit);
+    try t.expectEqual(@as(u32, 3), budget.used);
+    try t.expectEqual(@as(u32, 2), budget.unsettled);
+    try t.expect(f.budget.eql(try root.codec.encode(budget)));
+    try t.expectError(error.InvalidExchangeRecord, root.codec.decode(Exchange.AttemptBudget, f.legacy));
+    var bad = budget;
+    bad.unsettled = 3;
+    try t.expectError(error.InvalidExchangeBudget, root.codec.encode(bad));
 }

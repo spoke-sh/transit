@@ -31,8 +31,12 @@ does not choose or dispatch a retry.
 the lineage record, preserving the four-mutation allocation. `lineage` reads
 that context with the original root/parent/policy. Context has no authority and
 cannot be changed on duplicate allocation. Empty context retains EXL1; nonempty
-context uses the additive EXL2 layout. HTTP's planned public followups use it for reply routing;
-public followup service qualification remains M15 work.
+context uses the additive EXL2 layout. HTTP's public followups use it for reply
+routing. The root's EXB2 budget also counts unsettled children: parent evidence
+cannot retire while any child may still need it. Settlement releases that hold
+exactly once, and explicit abandonment releases a child with no effect; neither
+refunds an attempt. Followups require a settled parent. EXB1 budgets from the
+earlier experimental profile are rejected because they lack this dependency count.
 
 `open`/`read` stream complete coverage with digest checks. Supply fresh current
 authority separately from the retained source on every bounded read. Cursors
@@ -52,7 +56,7 @@ identities, two mutations per operation and a durable count. Authenticate holder
 and validate resource lifetimes in the admitting handler. These records confer no
 read rights and never expire implicitly. Released tokens cannot be reacquired.
 
-Retirement enforces settlement and the absence of caller/consumer holds.
+Retirement enforces settlement and the absence of caller/consumer/lineage holds.
 It closes current availability before `collect` visits member publications with
 at most two chunk deletions per call. Permanent descriptors prevent ID reuse.
 Historical roots remain protected until explicitly released. Resource quotas,

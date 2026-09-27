@@ -70,7 +70,8 @@ requires the owning application to discharge replay dependencies.
 Root exchanges default to one attempt. `configureAttempts` can set an immutable
 finite total budget while the root is still preparing. Every retry, redirect,
 status query or remote cancellation consumes one slot; closure and restart never
-refund it. `followup` requires a terminal captured or unknown parent and records
+refund it. `followup` requires a terminal captured or unknown parent with a
+settled kernel effect and records
 the original root/caller/input/deadline, parent, ordinal, reason and opaque
 versioned adapter-policy decision. Policy references convey no authority.
 
@@ -82,7 +83,18 @@ common library cannot decide remote retry safety. HTTP/gRPC must validate the
 actual endpoint contract, destinations, credentials and explicit decision before
 calling this API. No automatic external retry is added.
 
-Budget keys use tag `b`, ordinal zero; `EXB1` values contain limit/used:u32.
+Budget keys use tag `b`, ordinal zero; `EXB2` values contain
+limit/used/unsettled:u32. The unsettled count excludes the root and cannot exceed
+used minus one. Allocation increments used and unsettled in the same mutation.
+Terminal child settlement decrements unsettled exactly once; explicit abandonment
+before intent decrements it on retirement. Neither operation refunds used slots.
+While any child remains unsettled, retirement of all settled members in that
+lineage is refused. This deliberately conservative hold protects ancestors'
+request/policy evidence during child preparation and recovery, without scanning
+or storing all descendants in memory. An abandoned child has no effect and cannot
+admit descendants, so it can retire independently of other outstanding children.
+The former experimental EXB1 layout lacks these holds and is rejected; existing
+prequalification exchange state needs a fresh installation, not silent adoption.
 Child lineage keys use tag `l`, ordinal zero; `EXL1` values contain root:u64,
 parent:u64, ordinal:u32, reason:u8 (retry=1, redirect=2, reconcile=3, cancel=4),
 policy:u64 and policy_revision:u64. These additive records preserve existing
@@ -127,10 +139,12 @@ released token cannot be reacquired, and another holder cannot release it. The
 adapter must authorize holders and compatible resource lifetimes before admission.
 Tokens neither grant reads nor expire automatically. A service admitting a
 reference must register its dependency before exposing it; opaque bytes do not
-discover dependencies. Child exchanges with independent copied bodies need their
-own holds; retaining parent evidence for later use requires an explicit token.
+discover dependencies. Children protect ancestor evidence through the root budget
+until settlement or abandonment; their own caller replay holds remain independent.
+Other cross-service consumers still require explicit dependency tokens.
 
-Retirement rejects outstanding effect obligations or caller/consumer holds, then
+Retirement rejects outstanding effect obligations, unsettled descendants or
+caller/consumer holds, then
 preserves the final descriptor. Cleanup visits one publication at a
 time and deletes at most two chunks per turn, preserving descriptors and terminal
 IDs. A staging record is abandoned before cleanup. Historical protected roots

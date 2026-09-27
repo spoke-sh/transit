@@ -98,6 +98,12 @@ pending; restore access and resume with fresh ownership. Allocation and the
 immutable reply route share one four-mutation turn, so lost receipts cannot
 allocate twice or detach the reply destination.
 
+Allocation also holds ancestor evidence through the root's durable unsettled-child
+count. Disposing the parent's caller hold cannot permit its cleanup until all
+children settle or are explicitly abandoned before intent. Children keep their
+own replay holds after settlement. The EXB2 budget replaces the experimental
+EXB1 layout; old exchange snapshots without this count fail explicitly.
+
 After acceptance, `execute` requires another fresh activation and current dispatch
 authority. Its outcome uses the followup correlation while retaining the original
 caller, lineage, deadline and total attempt budget. Closing a parent unknown does
@@ -110,7 +116,8 @@ If no child was admitted, `poll` reports `phase: "not_admitted"` and
 Handler read failures stop the activation without blocking the process or advancing
 its input, allowing fresh ownership after access is restored.
 
-All ten SDKs expose durable disposal. Language-native followup helpers, general
-queue scheduling and managed credential providers remain outside this qualified
-surface. The real-binary proof is `just test::http-worker`; remaining SDK and
+All ten SDKs expose durable disposal and explicit typed followup calls through
+the shared Zig boundary. General queue scheduling and managed credential providers
+remain outside this qualified surface. The real-binary proof is
+`just test::http-worker`; remaining connector and
 deployment work is tracked in M15.

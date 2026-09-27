@@ -463,6 +463,14 @@ test "followup conflicts closed parents and exhausted budgets never allocate ano
     // the old publication and authentic original route.
     turn = try store.capture(9, 99, try follow.encode());
     _ = try ex.releaseCaller(&turn, 9);
+    try t.expectError(error.ExchangeHasDependents, ex.retire(&turn));
+    try store.commit(turn);
+    const child: x.Exchange = .{ .resource = ex.resource, .id = 2 };
+    turn = try store.capture(9, 99, try follow.encode());
+    _ = try child.closeUnknown(&turn);
+    _ = try child.retire(&turn);
+    try store.commit(turn);
+    turn = try store.capture(9, 99, try follow.encode());
     _ = try ex.retire(&turn);
     try store.commit(turn);
     turn = try store.capture(9, 99, try follow.encode());

@@ -42,11 +42,12 @@ fn createRecord(turn: *Turn, id: u64, origin: root.Origin, limits: root.Limits, 
 }
 pub const FollowupReason = enum(u8) { retry = 1, redirect = 2, reconcile = 3, cancel = 4 };
 pub const AttemptBudget = struct {
-    pub const magic = "EXB1";
+    pub const magic = "EXB2";
     limit: u32,
     used: u32 = 1,
+    unsettled: u32 = 0,
     pub fn validate(self: AttemptBudget) !void {
-        if (self.limit == 0 or self.used == 0 or self.used > self.limit) return error.InvalidExchangeBudget;
+        if (self.limit == 0 or self.used == 0 or self.used > self.limit or self.unsettled >= self.used) return error.InvalidExchangeBudget;
     }
 };
 pub const Lineage = struct {
@@ -120,6 +121,8 @@ pub fn followupWithContext(self: Self, turn: *Turn, id: u64, reason: FollowupRea
     if (context.len > Link.maximum_context_bytes) return error.ExchangeContextTooLarge;
     const parent = try self.writable(turn);
     if (parent.phase != .complete and parent.phase != .unknown) return error.ExchangeStillOpen;
+    const parent_control = try self.control(turn);
+    if (parent_control.disposition == .no_intent or parent_control.disposition == .pending) return error.UnsettledExchange;
     var root_id = self.id;
     if (parent.parent != 0) {
         const ancestor = (try self.lineage(turn)) orelse return error.InvalidExchangeLineage;
@@ -142,12 +145,29 @@ pub fn followupWithContext(self: Self, turn: *Turn, id: u64, reason: FollowupRea
     // A pre-existing unrelated ID cannot be adopted as an attempted child.
     if (try turn.read(key(id, 'd', 0)) != null) return error.ExchangeIdentityConflict;
     budget.used += 1;
+    budget.unsettled += 1;
     const linked: Link = .{ .lineage = .{ .root = root_id, .parent = self.id, .ordinal = budget.used, .reason = reason, .policy = policy, .policy_revision = policy_revision }, .context = context };
     const encoded = try linked.encode();
     const child = try createRecord(turn, id, .{ .caller = parent.caller, .input = parent.input, .parent = self.id, .protocol = parent.protocol }, limits, parent.reconcile_before_ms);
     try turn.write(key(id, 'l', 0), encoded);
     try turn.write(budget_key, try root.codec.encode(budget));
     return child;
+}
+/// A root-wide hold keeps all ancestor evidence available while any child can
+/// still need it. The same allocation mutation acquires this hold; terminal
+/// settlement or explicit disposal before intent releases it exactly once.
+fn lineageBudget(self: Self, source: anytype) !struct { key: p.Value, value: AttemptBudget } {
+    const link = (try self.lineage(source)) orelse return error.InvalidExchangeLineage;
+    const budget_key = key(link.lineage.root, 'b', 0);
+    const budget = try root.codec.decode(AttemptBudget, (try source.read(budget_key)) orelse return error.InvalidExchangeBudget);
+    if (link.lineage.ordinal > budget.used) return error.InvalidExchangeBudget;
+    return .{ .key = budget_key, .value = budget };
+}
+fn dischargeLineage(self: Self, turn: *Turn) !void {
+    var budget = try self.lineageBudget(turn);
+    if (budget.value.unsettled == 0) return error.InvalidExchangeBudget;
+    budget.value.unsettled -= 1;
+    try turn.write(budget.key, try root.codec.encode(budget.value));
 }
 pub fn inspect(self: Self, source: anytype) !root.Descriptor {
     if (self.id == 0 or self.resource != source.view.resource) return error.InvalidExchangeIdentity;
@@ -274,6 +294,7 @@ pub fn settle(self: Self, turn: *Turn, effect: p.Growth.Effect) !Pub.Outcome {
     }
     c.disposition = disposition;
     c.effect = effect.id;
+    if (d.parent != 0) try self.dischargeLineage(turn);
     try turn.write(key(self.id, 'c', 0), try root.codec.encode(c));
     return .changed;
 }
@@ -402,12 +423,21 @@ pub fn closeUnknown(self: Self, turn: *Turn) !Pub.Outcome {
 }
 /// Retirement is serialized with dependency admission in the writer's turn.
 pub fn retire(self: Self, turn: *Turn) !Pub.Outcome {
+    const before = turn.decision;
+    errdefer turn.decision = before;
     var d = try self.writable(turn);
     if (d.phase == .retired) return .duplicate;
     if (d.phase != .complete and d.phase != .unknown) return error.ExchangeStillOpen;
     const c = try self.control(turn);
     if (c.disposition == .pending or (d.effect != 0 and c.disposition == .no_intent)) return error.UnsettledExchange;
     if (c.caller == .held or c.dependents != 0) return error.ExchangeHasDependents;
+    if (d.parent != 0 and c.disposition == .no_intent) {
+        // An abandoned child has no effect and cannot have admitted descendants.
+        try self.dischargeLineage(turn);
+    } else {
+        const budget = if (d.parent != 0) (try self.lineageBudget(turn)).value else if (try turn.read(key(self.id, 'b', 0))) |value| try root.codec.decode(AttemptBudget, value) else null;
+        if (budget) |value| if (value.unsettled != 0) return error.ExchangeHasDependents;
+    }
     d.phase = .retired;
     try self.save(turn, d);
     return .changed;
